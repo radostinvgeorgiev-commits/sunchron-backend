@@ -91,7 +91,7 @@ router.get("/:id", async (req, res) => {
 
     const response = await client.get({
       index: INDEX_NAME,
-      id: id,
+      id,
     });
 
     res.json({
@@ -122,7 +122,7 @@ router.delete("/:id", async (req, res) => {
 
     await client.delete({
       index: INDEX_NAME,
-      id: id,
+      id,
       refresh: true,
     });
 

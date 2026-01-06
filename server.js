@@ -7,6 +7,7 @@ import { createOpenSearchClient } from "./src/config/opensearch.js";
 import chatRouter from "./src/routes/chat.js";
 import healthRouter from "./src/routes/health.js";
 import memoryRouter from "./src/routes/memoryRouter.js";
+import projectsRouter from "./src/routes/projects.js";
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use(express.static('public'));
 app.use("/chat", chatRouter);
 app.use("/health", healthRouter);
 app.use("/memory", memoryRouter);
+app.use("/projects", projectsRouter);
 app.get("/", (req, res) => res.send("OK"));
 
 /* Start Server */

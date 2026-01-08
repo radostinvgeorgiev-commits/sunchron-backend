@@ -193,7 +193,7 @@
         const sendButton = document.getElementById('sendButton');
 
         // Generate a unique session ID for this chat session
-        const sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        const sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
 
         function addMessage(role, content) {
             const messageDiv = document.createElement('div');
@@ -252,8 +252,14 @@
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Неуспешна заявка');
+                    let errorMessage = 'Неуспешна заявка';
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorMessage;
+                    } catch (e) {
+                        // If parsing JSON fails, use default message
+                    }
+                    throw new Error(errorMessage);
                 }
 
                 const data = await response.json();

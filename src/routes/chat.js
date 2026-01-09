@@ -74,10 +74,11 @@ router.post("/chat", async (req, res) => {
     // Construct Payload with System Prompt always at start
     const payloadMessages = [SYSTEM_PROMPT, ...history];
 
-    // Send to Agent (no database persistence)
-    let reply = "(no reply)";
+    // Send to Agent (STREAMING MODE)
+    // We will bypass the simple fetch(json) and implement streaming response
     try {
       const agentEndpoint = `${AGENT_URL}/api/v1/chat/completions`;
+      
       const agentRes = await fetch(agentEndpoint, {
         method: "POST",
         headers: {
@@ -85,44 +86,76 @@ router.post("/chat", async (req, res) => {
           "Authorization": `Bearer ${AGENT_KEY}`
         },
         body: JSON.stringify({ 
-          messages: payloadMessages // Send full history with system prompt
+          messages: payloadMessages,
+          stream: true // Enable streaming
         })
       });
-      if (!agentRes.ok) {
-        const errText = await agentRes.text();
-        throw new Error(`Agent error: ${agentRes.status} ${errText}`);
-      }
-      const agentData = await agentRes.json();
-      reply = agentData.choices?.[0]?.message?.content || agentData.reply || agentData.response || agentData.text || "(no reply)";
-      
-      // 4. Append Assistant Reply to history
-      history.push({ role: "assistant", content: reply });
-      sessionHistory.set(sessionId, history);
 
-      console.log(`[Agent] Success for sessionId: ${sessionId}`);
+      if (!agentRes.ok) {
+        throw new Error(`Agent error: ${agentRes.status}`);
+      }
+
+      // Configure response headers for streaming
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Transfer-Encoding', 'chunked');
+
+      let fullReply = "";
+      const reader = agentRes.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value, { stream: true });
+          // The Agent returns SSE format: data: {...}
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+               const jsonStr = line.slice(6).trim();
+               if (jsonStr === '[DONE]') continue;
+               try {
+                   const data = JSON.parse(jsonStr);
+                   const token = data.choices?.[0]?.delta?.content || "";
+                   if (token) {
+                       fullReply += token;
+                       res.write(token); // Send to client immediately
+                   }
+               } catch (e) { /* ignore parse errors for partial chunks */ }
+            }
+          }
+        }
+      } catch (streamErr) {
+          console.error("Stream reading error:", streamErr);
+      } finally {
+        res.end(); // End the response
+      }
+      
+      console.log(`[Agent] Stream Success for sessionId: ${sessionId}`);
+      
+      // 4. Append Assistant Reply to history (After stream completes)
+      if (fullReply.trim()) {
+        history.push({ role: "assistant", content: fullReply });
+        sessionHistory.set(sessionId, history);
+        
+        // Cache valid response
+        if (responseCache.size > 100) {
+            const firstKey = responseCache.keys().next().value; 
+            responseCache.delete(firstKey);
+        }
+        responseCache.set(cacheKey, fullReply);
+      }
+
+      // Note: We already sent the response via res.write(), so no res.json() here.
+      return; 
+
     } catch (agentErr) {
       console.error(`[Agent] Failure for sessionId: ${sessionId}:`, agentErr?.message || agentErr);
       return res.status(502).json({ error: "Agent request failed." });
     }
+    // (Original non-streaming code removed)
 
-    // Cache valid response (only for single inputs, might be less useful with history but okay)
-    if (responseCache.size > 100) {
-        const firstKey = responseCache.keys().next().value; // Remove oldest
-        responseCache.delete(firstKey);
-    }
-    // We cache the *last* reply for this specific message input, though context changes things.
-    // For now, let's keep caching simple or maybe disable it if context matters? 
-    // Actually, caching exact input might be confusing if context changes output. 
-    // Let's UPDATE the cache logic to be: Cache disabled for conversation mode OR make sure cache key includes history hash.
-    // simpler: Let's remove the "Cache Hit" return earlier because it breaks conversation flow.
-    // Wait, the user liked the "instant reply".
-    // Compromise: We only cache "Greeting" type messages or very specific static queries. 
-    // For now, I will REMOVE the read-from-cache logic I added earlier to prioritize Correctness (Memory) over Speed of repeated inputs.
-    // OR: I will leave it but know that it bypasses the Agent.
-    
-    responseCache.set(cacheKey, reply);
-
-    res.json({ reply, sessionId });
   } catch (err) {
     console.error(`[POST /chat] Error for sessionId: ${sessionId}:`, err?.message || err);
     res.status(500).json({ error: err?.message || "Internal error" });

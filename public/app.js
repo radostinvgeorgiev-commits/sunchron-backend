@@ -79,7 +79,7 @@ async function sendMessage() {
     // Show Typing Indicator
     showTypingIndicator();
 
-    // API Call
+    // API Call (Streaming Support)
     try {
         const response = await fetch('/chat/chat', {
             method: 'POST',
@@ -90,16 +90,47 @@ async function sendMessage() {
             })
         });
 
-        // Remove Indicator
-        removeTypingIndicator();
-
-        const data = await response.json();
-        
-        if (data.reply) {
-            appendMessage('agent', data.reply);
-        } else {
-            appendMessage('agent', '⚠️ Грешка при комуникация с AI.');
+        // If JSON response (Cache Hit or Error), handle normally
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+             removeTypingIndicator();
+             const data = await response.json();
+             if (data.reply) {
+                appendMessage('agent', data.reply);
+             } else {
+                appendMessage('agent', '⚠️ Error: ' + (data.error || 'Unknown'));
+             }
+             return;
         }
+
+        // Handle Stream
+        removeTypingIndicator();
+        
+        // Creaet empty message bubble
+        const div = document.createElement('div');
+        div.className = 'message agent';
+        elements.chatMessages.appendChild(div);
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = "";
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value, { stream: true });
+            fullText += chunk;
+            
+            // Render partial
+            if (typeof marked !== 'undefined') {
+                div.innerHTML = marked.parse(fullText);
+            } else {
+                div.textContent = fullText;
+            }
+            elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+        }
+
     } catch (error) {
         removeTypingIndicator();
         console.error(error);

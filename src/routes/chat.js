@@ -7,6 +7,14 @@ const sessionHistory = new Map(); // Store conversation history per sessionId
 
 const MAX_HISTORY_LENGTH = 10; // Keep last 10 turns to avoid hitting token limits
 
+const SYSTEM_PROMPT = {
+  role: "system",
+  content: `Вие сте Synchron-X, висш когнитивен AI консултант.
+Вашата цел е да предоставяте стратегически съвети, задълбочени анализи и практически решения.
+Мислете критично, анализирайте проблемите от множество ъгли и предлагайте конкретни стъпки за действие.
+Бъдете кратки, точни и ясни. Използвайте професионален, но приятелски тон.`
+};
+
 router.post("/chat", async (req, res) => {
   const AGENT_URL = process.env.AGENT_URL || "https://a4ppevqrxnzlo6t2bgcpaj3a.agents.do-ai.run";
   const AGENT_KEY = process.env.AGENT_KEY;
@@ -63,6 +71,9 @@ router.post("/chat", async (req, res) => {
         history = history.slice(-(MAX_HISTORY_LENGTH * 2));
     }
 
+    // Construct Payload with System Prompt always at start
+    const payloadMessages = [SYSTEM_PROMPT, ...history];
+
     // Send to Agent (no database persistence)
     let reply = "(no reply)";
     try {
@@ -74,7 +85,7 @@ router.post("/chat", async (req, res) => {
           "Authorization": `Bearer ${AGENT_KEY}`
         },
         body: JSON.stringify({ 
-          messages: history // Send full history!
+          messages: payloadMessages // Send full history with system prompt
         })
       });
       if (!agentRes.ok) {

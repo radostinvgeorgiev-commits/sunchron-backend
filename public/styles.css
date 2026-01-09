@@ -1,0 +1,244 @@
+:root {
+    --primary-color: #007bff;
+    --bg-color: #f4f7f6;
+    --panel-bg: #ffffff;
+    --border-color: #ddd;
+    --text-color: #333;
+    --success-color: #28a745;
+    --error-color: #dc3545;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color);
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 1. Top Bar */
+.topbar {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 0 20px;
+    height: 60px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.logo {
+    font-size: 1.4em;
+    font-weight: bold;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9em;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 5px 12px;
+    border-radius: 20px;
+}
+
+#agentStatusDot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: gray;
+    transition: background-color 0.3s;
+}
+
+#agentStatusDot.online { background-color: var(--success-color); box-shadow: 0 0 5px #fff; }
+#agentStatusDot.offline { background-color: var(--error-color); }
+
+/* Main Layout - Grid */
+.layout {
+    display: grid;
+    grid-template-columns: 240px 1fr 320px; /* Left | Center | Right */
+    gap: 15px;
+    padding: 15px;
+    flex: 1;
+    min-height: 0; /* Important for scroll */
+}
+
+/* Panels Common */
+.panel {
+    background: var(--panel-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.panel-header {
+    padding: 12px 15px;
+    background: #f9f9fab0;
+    border-bottom: 1px solid var(--border-color);
+    font-weight: 600;
+    font-size: 0.95em;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.panel-content {
+    padding: 15px;
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* 2. Left Panel - Actions */
+.action-btn {
+    padding: 12px;
+    background-color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.95em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.action-btn:hover {
+    background-color: #f0f8ff;
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.action-btn i { width: 20px; text-align: center; }
+
+/* 3. Center Panel - Chat */
+#chat-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: white;
+}
+
+#chatMessages {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.message {
+    max-width: 80%;
+    padding: 12px 16px;
+    border-radius: 12px;
+    line-height: 1.5;
+    position: relative;
+    font-size: 0.95em;
+}
+
+.message.user {
+    align-self: flex-end;
+    background-color: var(--primary-color);
+    color: white;
+    border-bottom-right-radius: 2px;
+}
+
+.message.agent {
+    align-self: flex-start;
+    background-color: #f1f3f4;
+    color: var(--text-color);
+    border-bottom-left-radius: 2px;
+}
+
+.chat-input-area {
+    padding: 15px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: 10px;
+    background: #fff;
+}
+
+#chatInput {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 25px;
+    outline: none;
+    font-size: 1em;
+}
+
+#chatInput:focus { border-color: var(--primary-color); }
+
+#sendBtn {
+    padding: 10px 25px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+#sendBtn:hover { background-color: #0056b3; }
+
+/* 4. Right Panel - Context */
+.context-box {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #eee;
+    margin-bottom: 10px;
+}
+
+.context-label {
+    font-size: 0.8em;
+    color: #888;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+}
+
+.context-value {
+    font-weight: 500;
+    color: #333;
+    word-break: break-all;
+}
+
+.log-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 0.85em;
+}
+
+.log-list li {
+    padding: 6px 0;
+    border-bottom: 1px solid #eee;
+    color: #666;
+}
+
+.log-list li:last-child { border-bottom: none; }
+
+/* Status Colors for OpenSearch */
+.status-green { color: var(--success-color); font-weight: bold; }
+.status-red { color: var(--error-color); font-weight: bold; }
+.status-yellow { color: #ffc107; font-weight: bold; }
+
+/* Responsive */
+@media (max-width: 900px) {
+    .layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr auto;
+    }
+    .leftPanel, .rightPanel {
+        max-height: 200px;
+    }
+}

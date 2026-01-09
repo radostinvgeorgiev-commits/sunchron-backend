@@ -11,7 +11,13 @@ export function createOpenSearchClient() {
   } = process.env;
   
   if (!OPENSEARCH_USERNAME || !OPENSEARCH_PASSWORD || !OPENSEARCH_HOST || !OPENSEARCH_PORT) {
-    console.warn("⚠️  OpenSearch credentials not configured. Search functionality will be limited.");
+    const missing = [];
+    if (!OPENSEARCH_USERNAME) missing.push("OPENSEARCH_USERNAME");
+    if (!OPENSEARCH_PASSWORD) missing.push("OPENSEARCH_PASSWORD");
+    if (!OPENSEARCH_HOST) missing.push("OPENSEARCH_HOST");
+    if (!OPENSEARCH_PORT) missing.push("OPENSEARCH_PORT");
+    
+    console.warn(`⚠️  OpenSearch credentials not configured. Missing: ${missing.join(", ")}`);
     return null;
   }
 

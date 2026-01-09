@@ -1,1 +1,92 @@
-<h1>Synchron Backend - Index</h1>
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synchron-X Agent</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- FontAwesome for Icons (CDN) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    
+    <!-- 1️⃣ Горен Панел -->
+    <header class="topbar">
+        <div class="logo">
+            <i class="fa-solid fa-atom"></i> Synchron-X
+        </div>
+        <div class="status-indicator">
+            <span id="agentStatusDot" class="offline"></span>
+            <span id="agentStatusText">Connecting...</span>
+        </div>
+    </header>
+
+    <main class="layout">
+        
+        <!-- 2️⃣ Ляв Панел - Действия -->
+        <aside class="panel leftPanel">
+            <div class="panel-header">Действия</div>
+            <div class="panel-content">
+                <button id="actionTalk" class="action-btn">
+                    <i class="fa-solid fa-microphone"></i> Говори с AI
+                </button>
+                <button id="actionReserve" class="action-btn">
+                    <i class="fa-solid fa-calendar-check"></i> Резервирай
+                </button>
+                <button id="actionHotel" class="action-btn">
+                    <i class="fa-solid fa-hotel"></i> Намери хотел
+                </button>
+                <button id="actionLocation" class="action-btn">
+                    <i class="fa-solid fa-map-location-dot"></i> Намери локация
+                </button>
+                <button id="actionAdmin" class="action-btn" style="margin-top:auto; border-color: #ddd;">
+                    <i class="fa-solid fa-gears"></i> Админ
+                </button>
+            </div>
+        </aside>
+
+        <!-- 3️⃣ Централен Панел - Чат -->
+        <section class="panel centerPanel" id="chat-container">
+            <div class="panel-header">Чат Сесия</div>
+            <div id="chatMessages">
+                <!-- Messages will appear here -->
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" placeholder="Напишете съобщение..." autofocus>
+                <button id="sendBtn">Изпрати</button>
+            </div>
+        </section>
+
+        <!-- 4️⃣ Десен Панел - Контекст -->
+        <aside class="panel rightPanel">
+            <div class="panel-header">Контекст & Данни</div>
+            <div class="panel-content">
+                
+                <div class="context-box">
+                    <div class="context-label">Current Session</div>
+                    <div class="context-value" id="sessionIdDisplay">...</div>
+                </div>
+
+                <div class="context-box">
+                    <div class="context-label">User Intent</div>
+                    <div class="context-value" id="intentDisplay">General</div>
+                </div>
+
+                <div class="context-box">
+                    <div class="context-label">OpenSearch Status</div>
+                    <div class="context-value" id="opensearchStatusDisplay">Checking...</div>
+                </div>
+
+                <div class="context-label" style="margin-top: 10px;">Последни действия:</div>
+                <ul class="log-list" id="actionsLog">
+                    <li>Няма скорошни действия</li>
+                </ul>
+
+            </div>
+        </aside>
+
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>

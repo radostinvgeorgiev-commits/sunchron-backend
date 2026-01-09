@@ -14,6 +14,43 @@ router.post("/chat", async (req, res) => {
     return res.status(500).json({ error: "Agent configuration missing." });
   }
   console.log(`[POST /chat] sessionId: ${sessionId}`);
+
+  // --- Logic Core Check ---
+  try {
+    const LOGIC_CORE_URL = process.env.LOGIC_CORE_URL || "http://127.0.0.1:8000";
+    // Simple command extraction for testing
+    const command = message.trim().toLowerCase() === "destroy" ? "destroy" : "chat";
+    
+    const startLogic = Date.now();
+    const decisionRes = await fetch(`${LOGIC_CORE_URL}/decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId,
+        command,
+        payload: { message }
+      }),
+      signal: AbortSignal.timeout(2000) // Timeout after 2s if logic core is slow/down
+    });
+    const logicDuration = Date.now() - startLogic;
+    console.log(`[LogicCore] Decision took ${logicDuration}ms`);
+
+    if (decisionRes.ok) {
+        const decision = await decisionRes.json();
+        if (decision.allowed === false) {
+            console.log(`[LogicCore] Denied: ${decision.reason}`);
+            return res.json({ 
+                reply: `⛔ Logic Core Refusal: ${decision.reason || "Operation not permitted."}`,
+                sessionId
+            });
+        }
+    }
+  } catch (error) {
+      console.warn("[LogicCore] Integration skipped (service unreachable/slow):", error.message);
+      // Fail-open: Proceed if Logic Core is down (dev mode)
+  }
+  // ------------------------
+
   try {
     // Send to Agent (no database persistence)
     let reply = "(no reply)";

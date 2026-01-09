@@ -2,6 +2,8 @@ import express from "express";
 
 const router = express.Router();
 
+const responseCache = new Map(); // Simple in-memory cache
+
 router.post("/chat", async (req, res) => {
   const AGENT_URL = process.env.AGENT_URL || "https://a4ppevqrxnzlo6t2bgcpaj3a.agents.do-ai.run";
   const AGENT_KEY = process.env.AGENT_KEY;
@@ -14,6 +16,13 @@ router.post("/chat", async (req, res) => {
     return res.status(500).json({ error: "Agent configuration missing." });
   }
   console.log(`[POST /chat] sessionId: ${sessionId}`);
+
+  // Check Cache
+  const cacheKey = message.trim().toLowerCase();
+  if (responseCache.has(cacheKey)) {
+      console.log(`[Cache] Hit for: "${cacheKey}"`);
+      return res.json({ reply: responseCache.get(cacheKey), sessionId });
+  }
 
   // --- Logic Core Check ---
   try {
@@ -79,6 +88,13 @@ router.post("/chat", async (req, res) => {
       console.error(`[Agent] Failure for sessionId: ${sessionId}:`, agentErr?.message || agentErr);
       return res.status(502).json({ error: "Agent request failed." });
     }
+
+    // Cache valid response
+    if (responseCache.size > 100) {
+        const firstKey = responseCache.keys().next().value; // Remove oldest
+        responseCache.delete(firstKey);
+    }
+    responseCache.set(cacheKey, reply);
 
     res.json({ reply, sessionId });
   } catch (err) {

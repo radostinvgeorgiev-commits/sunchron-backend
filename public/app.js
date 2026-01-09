@@ -48,6 +48,25 @@ function init() {
 }
 
 // --- Chat Logic ---
+// Helper for Typing Indicator
+function showTypingIndicator() {
+    const div = document.createElement('div');
+    div.className = 'message typing';
+    div.id = 'typingIndicator';
+    div.innerHTML = `
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+    `;
+    elements.chatMessages.appendChild(div);
+    elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+}
+
+function removeTypingIndicator() {
+    const indicator = document.getElementById('typingIndicator');
+    if (indicator) indicator.remove();
+}
+
 async function sendMessage() {
     const text = elements.chatInput.value.trim();
     if (!text) return;
@@ -56,6 +75,9 @@ async function sendMessage() {
     appendMessage('user', text);
     elements.chatInput.value = '';
     logAction('User sent message');
+
+    // Show Typing Indicator
+    showTypingIndicator();
 
     // API Call
     try {
@@ -68,6 +90,9 @@ async function sendMessage() {
             })
         });
 
+        // Remove Indicator
+        removeTypingIndicator();
+
         const data = await response.json();
         
         if (data.reply) {
@@ -76,6 +101,7 @@ async function sendMessage() {
             appendMessage('agent', '⚠️ Грешка при комуникация с AI.');
         }
     } catch (error) {
+        removeTypingIndicator();
         console.error(error);
         appendMessage('agent', '❌ Сървърна грешка. Моля, опитайте по-късно.');
     }

@@ -110,7 +110,13 @@ async function sendMessage() {
 function appendMessage(role, text) {
     const div = document.createElement('div');
     div.className = `message ${role}`;
-    div.textContent = text;
+    
+    if (role === 'agent' && typeof marked !== 'undefined') {
+        div.innerHTML = marked.parse(text);
+    } else {
+        div.textContent = text;
+    }
+    
     elements.chatMessages.appendChild(div);
     elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
 }

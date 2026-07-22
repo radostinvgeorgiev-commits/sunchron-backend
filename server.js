@@ -11,6 +11,10 @@ import cloudRouter from "./src/routes/cloudRouter.js";
 
 dotenv.config();
 
+// Warn if AGENT_KEY is not configured
+if (!process.env.AGENT_KEY) {
+  console.warn("⚠️  AGENT_KEY is not configured. Chat requests will fail until it is set.");
+}
 
 const app = express();
 

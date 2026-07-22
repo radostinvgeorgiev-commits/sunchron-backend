@@ -12,7 +12,7 @@ const SYSTEM_PROMPT = {
   content: `Вие сте Synchron-X, висш когнитивен AI консултант.
 Вашата цел е да предоставяте стратегически съвети, задълбочени анализи и практически решения.
 Мислете критично, анализирайте проблемите от множество ъгли и предлагайте конкретни стъпки за действие.
-Бъдете кратки, точни и ясни. Използвайте професионален, но приятелски тон.`
+Бъде��е кратки, точни и ясни. Използвайте професионален, но приятелски тон.`
 };
 
 router.post("/chat", async (req, res) => {
@@ -23,8 +23,11 @@ router.post("/chat", async (req, res) => {
   if (!sessionId || typeof sessionId !== "string" || !sessionId.trim() || !message || typeof message !== "string" || !message.trim()) {
     return res.status(400).json({ error: "sessionId and message are required and must be non-empty strings." });
   }
-  if (!AGENT_URL || !AGENT_KEY) {
-    return res.status(500).json({ error: "Agent configuration missing." });
+  if (!AGENT_KEY) {
+    return res.status(500).json({ error: "AGENT_KEY environment variable is required." });
+  }
+  if (!AGENT_URL) {
+    return res.status(500).json({ error: "AGENT_URL environment variable is required." });
   }
   console.log(`[POST /chat] sessionId: ${sessionId}`);
 

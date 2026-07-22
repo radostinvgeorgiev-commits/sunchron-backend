@@ -2,7 +2,6 @@ import express from "express";
 
 const router = express.Router();
 
-const responseCache = new Map(); // Simple in-memory cache
 const sessionHistory = new Map(); // Store conversation history per sessionId
 
 const MAX_HISTORY_LENGTH = 10; // Keep last 10 turns to avoid hitting token limits
@@ -12,7 +11,7 @@ const SYSTEM_PROMPT = {
   content: `Вие сте Synchron-X, висш когнитивен AI консултант.
 Вашата цел е да предоставяте стратегически съвети, задълбочени анализи и практически решения.
 Мислете критично, анализирайте проблемите от множество ъгли и предлагайте конкретни стъпки за действие.
-Бъде��е кратки, точни и ясни. Използвайте професионален, но приятелски тон.`
+Бъдете кратки, точни и ясни. Използвайте професионален, но приятелски тон.`
 };
 
 router.post("/chat", async (req, res) => {
@@ -30,25 +29,6 @@ router.post("/chat", async (req, res) => {
     return res.status(500).json({ error: "AGENT_URL environment variable is required." });
   }
   console.log(`[POST /chat] sessionId: ${sessionId}`);
-
-  // Check Cache
-  const cacheKey = message.trim().toLowerCase();
-  
-  // Need to update history even on cache hit? 
-  // No, better to SKIP cache for now to ensure conversation flow is correct.
-  // Or: If Cache Hit, we add (User: msg, Assistant: cached_reply) to history.
-  if (responseCache.has(cacheKey)) {
-      console.log(`[Cache] Hit for: "${cacheKey}"`);
-      const cachedReply = responseCache.get(cacheKey);
-      
-      // Update History on Cache Hit too!
-      let history = sessionHistory.get(sessionId) || [];
-      history.push({ role: "user", content: message });
-      history.push({ role: "assistant", content: cachedReply });
-      sessionHistory.set(sessionId, history);
-
-      return res.json({ reply: cachedReply, sessionId });
-  }
 
   // --- Logic Core Check ---
   try {
@@ -105,6 +85,8 @@ router.post("/chat", async (req, res) => {
       let fullReply = "";
       const reader = agentRes.body.getReader();
       const decoder = new TextDecoder("utf-8");
+      let sseBuffer = ""; // Persistent buffer for incomplete SSE lines
+      let streamCompleted = false; // Track if stream finished successfully
 
       try {
         while (true) {
@@ -113,11 +95,15 @@ router.post("/chat", async (req, res) => {
           
           const chunk = decoder.decode(value, { stream: true });
           // The Agent returns SSE format: data: {...}
-          const lines = chunk.split('\n');
+          sseBuffer += chunk;
+          const lines = sseBuffer.split('\n');
+          // Keep the last incomplete line in the buffer
+          sseBuffer = lines.pop() || "";
+          
           for (const line of lines) {
             if (line.startsWith('data: ')) {
                const jsonStr = line.slice(6).trim();
-               if (jsonStr === '[DONE]') continue;
+               if (!jsonStr || jsonStr === '[DONE]') continue;
                try {
                    const data = JSON.parse(jsonStr);
                    const token = data.choices?.[0]?.delta?.content || "";
@@ -129,39 +115,82 @@ router.post("/chat", async (req, res) => {
             }
           }
         }
-      } catch (streamErr) {
-          console.error("Stream reading error:", streamErr);
-      } finally {
-        res.end(); // End the response
-      }
-      
-      console.log(`[Agent] Stream Success for sessionId: ${sessionId}`);
-      
-      // 4. Append Assistant Reply to history (After stream completes)
-      if (fullReply.trim()) {
-        history.push({ role: "assistant", content: fullReply });
-        sessionHistory.set(sessionId, history);
+        // Flush the TextDecoder after reader loop finishes
+        sseBuffer += decoder.decode();
         
-        // Cache valid response
-        if (responseCache.size > 100) {
-            const firstKey = responseCache.keys().next().value; 
-            responseCache.delete(firstKey);
+        // Process any remaining buffered line
+        if (sseBuffer.startsWith('data: ')) {
+          const jsonStr = sseBuffer.slice(6).trim();
+          if (jsonStr && jsonStr !== '[DONE]') {
+            try {
+              const data = JSON.parse(jsonStr);
+              const token = data.choices?.[0]?.delta?.content || "";
+              if (token) {
+                fullReply += token;
+                res.write(token);
+              }
+            } catch (e) { /* ignore parse errors */ }
+          }
         }
-        responseCache.set(cacheKey, fullReply);
+        
+        streamCompleted = true;
+        
+        // End response after successful stream completion
+        if (!res.writableEnded) {
+          res.end();
+        }
+        
+        console.log(`[Agent] Stream Success for sessionId: ${sessionId}`);
+        
+        // 4. Append Assistant Reply to history (After stream completes successfully)
+        if (streamCompleted && fullReply.trim()) {
+          history.push({ role: "assistant", content: fullReply });
+          sessionHistory.set(sessionId, history);
+        }
+      } catch (streamErr) {
+           console.error("Stream reading error:", streamErr);
+           
+           // If no response data has been sent, rethrow to allow the agentErr catch
+           // to send a 502 JSON error response
+           if (!res.headersSent) {
+             throw streamErr;
+           }
+           
+           // If streaming has already started, safely end the response and return
+           // (cannot change HTTP status at this point)
+           if (!res.writableEnded) {
+             res.end();
+           }
       }
 
       // Note: We already sent the response via res.write(), so no res.json() here.
       return; 
 
     } catch (agentErr) {
-      console.error(`[Agent] Failure for sessionId: ${sessionId}:`, agentErr?.message || agentErr);
-      return res.status(502).json({ error: "Agent request failed." });
+      // Only send error response if headers have not been sent yet
+      if (!res.headersSent) {
+        console.error(`[Agent] Failure for sessionId: ${sessionId}:`, agentErr?.message || agentErr);
+        return res.status(502).json({ error: "Agent request failed." });
+      } else {
+        console.error(`[Agent] Failure for sessionId: ${sessionId}: ${agentErr?.message || agentErr} (streaming already started, cannot send error response)`);
+        if (!res.writableEnded) {
+          res.end();
+        }
+      }
     }
     // (Original non-streaming code removed)
 
   } catch (err) {
-    console.error(`[POST /chat] Error for sessionId: ${sessionId}:`, err?.message || err);
-    res.status(500).json({ error: err?.message || "Internal error" });
+    // Only send error response if headers have not been sent
+    if (!res.headersSent) {
+      console.error(`[POST /chat] Error for sessionId: ${sessionId}:`, err?.message || err);
+      res.status(500).json({ error: err?.message || "Internal error" });
+    } else {
+      console.error(`[POST /chat] Error for sessionId: ${sessionId}: ${err?.message || err} (streaming already started, cannot send error response)`);
+      if (!res.writableEnded) {
+        res.end();
+      }
+    }
   }
 });
 

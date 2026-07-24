@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#087cf0">
     <title>Synchron-X</title>
-    <link rel="stylesheet" href="/styles.css?v=20260724-thinking1">
+    <link rel="stylesheet" href="/styles.css?v=20260724-images1">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -54,7 +54,22 @@
 
             <div id="chatMessages" aria-live="polite"></div>
 
+            <div id="attachmentPreview" class="attachment-preview" hidden>
+                <img id="attachmentImage" alt="Избрана снимка">
+                <div>
+                    <strong id="attachmentName"></strong>
+                    <span>Снимката ще бъде изпратена с въпроса</span>
+                </div>
+                <button id="removeAttachmentBtn" type="button" aria-label="Премахни снимката">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
             <div class="chat-input-area">
+                <button id="attachBtn" class="attach-btn" type="button" aria-label="Добави снимка" title="Добави снимка">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
+                <input id="imageInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
                 <input
                     type="text"
                     id="chatInput"
@@ -98,6 +113,6 @@
         </aside>
     </main>
 
-    <script src="/app.js?v=20260724-thinking1"></script>
+    <script src="/app.js?v=20260724-images1"></script>
 </body>
 </html>

@@ -100,21 +100,34 @@ router.post("/chat", async (req, res) => {
   let history;
   let memoryAction = null;
   try {
-    const factToSave = extractPersistentMemoryCommand(cleanMessage);
-    if (factToSave) {
-      const saved = await saveProfileMemory(factToSave);
+    const memoryCommand = extractPersistentMemoryCommand(cleanMessage);
+    if (memoryCommand) {
+      const saved = await saveProfileMemory(
+        memoryCommand.fact,
+        "explicit-chat-command",
+        memoryCommand.scope,
+      );
       memoryAction = {
         type: saved.replaced ? "updated" : "saved",
         fact: saved.fact,
+        scope: saved.scope,
       };
     } else if (isForgetAllCommand(cleanMessage)) {
       const deleted = await clearProfileMemories();
       memoryAction = { type: "cleared", deleted };
     } else {
-      const factToForget = extractForgetMemoryCommand(cleanMessage);
-      if (factToForget) {
-        const deleted = await deleteProfileMemoryByFact(factToForget);
-        memoryAction = { type: "forgot", fact: factToForget, deleted };
+      const forgetCommand = extractForgetMemoryCommand(cleanMessage);
+      if (forgetCommand) {
+        const deleted = await deleteProfileMemoryByFact(
+          forgetCommand.fact,
+          forgetCommand.scope,
+        );
+        memoryAction = {
+          type: "forgot",
+          fact: forgetCommand.fact,
+          scope: forgetCommand.scope,
+          deleted,
+        };
       }
     }
     [memories, history] = await Promise.all([
@@ -175,20 +188,37 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
+  const normalizedQuestion = cleanMessage
+    .replace(/[„“"'’]/gu, "")
+    .trim();
   const isProfileOverviewQuestion = /^какво\s+знаеш\s+за\s+мен\b/iu.test(
-    cleanMessage.replace(/[„“"'’]/gu, "").trim(),
+    normalizedQuestion,
   );
-  if (isProfileOverviewQuestion) {
-    const fullReply = memories.length
+  const isProjectOverviewQuestion =
+    /^какво\s+знаеш\s+за\s+(?:проекта|synchron-x)\b/iu.test(
+      normalizedQuestion,
+    );
+  if (isProfileOverviewQuestion || isProjectOverviewQuestion) {
+    const requestedScope = isProjectOverviewQuestion ? "project" : "personal";
+    const scopedMemories = memories.filter(
+      (memory) => (memory.scope || "personal") === requestedScope,
+    );
+    const heading = isProjectOverviewQuestion
+      ? "Знам следното за проекта:"
+      : "Знам следното за теб:";
+    const emptyReply = isProjectOverviewQuestion
+      ? "Все още нямам записани факти за проекта."
+      : "Все още нямам записани лични факти за теб.";
+    const fullReply = scopedMemories.length
       ? [
-          "Знам следното за теб:",
-          ...memories.map(({ fact }) => `• ${fact}`),
+          heading,
+          ...scopedMemories.map(({ fact }) => `• ${fact}`),
         ].join("\n")
-      : "Все още нямам записани факти за теб.";
+      : emptyReply;
 
     await saveConversationTurn(cleanSessionId, cleanMessage, fullReply);
     sendEvent("token", { token: fullReply });
-    sendEvent("done", { ok: true, memoryCount: memories.length });
+    sendEvent("done", { ok: true, memoryCount: scopedMemories.length });
     res.end();
     return;
   }

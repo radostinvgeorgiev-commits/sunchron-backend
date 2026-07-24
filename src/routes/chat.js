@@ -4,6 +4,7 @@ import {
   clearProfileMemories,
   deleteProfileMemoryByFact,
   extractForgetMemoryCommand,
+  extractImplicitMemoryCandidates,
   extractPersistentMemoryCommands,
   isForgetAllCommand,
   listConversationMessages,
@@ -99,6 +100,7 @@ router.post("/chat", async (req, res) => {
   let memories;
   let history;
   let memoryAction = null;
+  let autoMemoryCount = 0;
   try {
     const memoryCommands = extractPersistentMemoryCommands(cleanMessage);
     if (memoryCommands.length) {
@@ -139,6 +141,17 @@ router.post("/chat", async (req, res) => {
           scope: forgetCommand.scope,
           deleted,
         };
+      }
+    }
+    if (!memoryAction) {
+      const implicitMemories = extractImplicitMemoryCandidates(cleanMessage);
+      for (const memory of implicitMemories) {
+        await saveProfileMemory(
+          memory.fact,
+          "automatic-high-confidence",
+          memory.scope,
+        );
+        autoMemoryCount += 1;
       }
     }
     [memories, history] = await Promise.all([
@@ -332,7 +345,11 @@ router.post("/chat", async (req, res) => {
     }
 
     await saveConversationTurn(cleanSessionId, cleanMessage, fullReply);
-    sendEvent("done", { ok: true, memoryCount: memories.length });
+    sendEvent("done", {
+      ok: true,
+      memoryCount: memories.length,
+      autoMemoryCount,
+    });
     console.log(`[Agent] Stream success for ${cleanSessionId}`);
   } catch (error) {
     if (abortController.signal.aborted && !timedOut) return;

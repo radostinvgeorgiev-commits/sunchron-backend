@@ -1,10 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { getOpenSearchClient } from "../config/opensearch.js";
 
-const INDEX_NAME = process.env.MEMORY_INDEX || "synchron-profile-memory-v1";
+const PROFILE_INDEX =
+  process.env.MEMORY_INDEX || "synchron-profile-memory-v1";
+const CONVERSATION_INDEX =
+  process.env.CONVERSATION_INDEX || "synchron-conversation-memory-v1";
 const OWNER_ID = process.env.MEMORY_OWNER_ID || "primary-user";
 const MAX_MEMORIES = 100;
-let indexReadyPromise = null;
+const MAX_CONVERSATION_MESSAGES = 20;
+const indexPromises = new Map();
 
 function getClientOrThrow() {
   const client = getOpenSearchClient();
@@ -16,37 +20,47 @@ function getClientOrThrow() {
   return client;
 }
 
-async function ensureMemoryIndex() {
-  if (!indexReadyPromise) {
-    indexReadyPromise = (async () => {
+async function ensureIndex(index, mappings) {
+  if (!indexPromises.has(index)) {
+    const promise = (async () => {
       const client = getClientOrThrow();
-      const existsResponse = await client.indices.exists({ index: INDEX_NAME });
+      const existsResponse = await client.indices.exists({ index });
       const exists = existsResponse.body ?? existsResponse;
 
       if (!exists) {
         await client.indices.create({
-          index: INDEX_NAME,
-          body: {
-            mappings: {
-              properties: {
-                ownerId: { type: "keyword" },
-                fact: { type: "text" },
-                normalizedFact: { type: "keyword" },
-                createdAt: { type: "date" },
-                updatedAt: { type: "date" },
-                source: { type: "keyword" },
-              },
-            },
-          },
+          index,
+          body: { mappings: { properties: mappings } },
         });
       }
     })().catch((error) => {
-      indexReadyPromise = null;
+      indexPromises.delete(index);
       throw error;
     });
+    indexPromises.set(index, promise);
   }
+  return indexPromises.get(index);
+}
 
-  return indexReadyPromise;
+function ensureProfileIndex() {
+  return ensureIndex(PROFILE_INDEX, {
+    ownerId: { type: "keyword" },
+    fact: { type: "text" },
+    normalizedFact: { type: "keyword" },
+    createdAt: { type: "date" },
+    updatedAt: { type: "date" },
+    source: { type: "keyword" },
+  });
+}
+
+function ensureConversationIndex() {
+  return ensureIndex(CONVERSATION_INDEX, {
+    ownerId: { type: "keyword" },
+    sessionId: { type: "keyword" },
+    role: { type: "keyword" },
+    content: { type: "text", index: false },
+    createdAt: { type: "date" },
+  });
 }
 
 function normalizeFact(fact) {
@@ -56,7 +70,7 @@ function normalizeFact(fact) {
 export function extractPersistentMemoryCommand(message) {
   const text = message.trim();
   const patterns = [
-    /^запомни\s+за\s+бъдещи\s+разговори\s*:\s*(.+)$/iu,
+    /^запомни(?:\s+за\s+бъдещи\s+разговори)?\s*:\s*(.+)$/iu,
     /^запази\s+в\s+постоянната\s+памет\s*:\s*(.+)$/iu,
   ];
 
@@ -64,7 +78,6 @@ export function extractPersistentMemoryCommand(message) {
     const match = text.match(pattern);
     if (match?.[1]?.trim()) return match[1].trim();
   }
-
   return null;
 }
 
@@ -75,10 +88,9 @@ export function isForgetAllCommand(message) {
 }
 
 export async function listProfileMemories() {
-  await ensureMemoryIndex();
-  const client = getClientOrThrow();
-  const response = await client.search({
-    index: INDEX_NAME,
+  await ensureProfileIndex();
+  const response = await getClientOrThrow().search({
+    index: PROFILE_INDEX,
     body: {
       size: MAX_MEMORIES,
       sort: [{ updatedAt: { order: "asc" } }],
@@ -86,12 +98,14 @@ export async function listProfileMemories() {
       _source: ["fact", "createdAt", "updatedAt", "source"],
     },
   });
-
   const hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
   return hits.map((hit) => ({ id: hit._id, ...hit._source }));
 }
 
-export async function saveProfileMemory(fact, source = "explicit-chat-command") {
+export async function saveProfileMemory(
+  fact,
+  source = "explicit-chat-command",
+) {
   const cleanFact = fact.trim().replace(/\s+/g, " ");
   if (!cleanFact || cleanFact.length > 500) {
     const error = new Error(
@@ -101,11 +115,11 @@ export async function saveProfileMemory(fact, source = "explicit-chat-command") 
     throw error;
   }
 
-  await ensureMemoryIndex();
+  await ensureProfileIndex();
   const client = getClientOrThrow();
   const normalizedFact = normalizeFact(cleanFact);
   const existingResponse = await client.search({
-    index: INDEX_NAME,
+    index: PROFILE_INDEX,
     body: {
       size: 1,
       query: {
@@ -118,34 +132,31 @@ export async function saveProfileMemory(fact, source = "explicit-chat-command") 
       },
     },
   });
-  const existingHits =
+  const hits =
     existingResponse.body?.hits?.hits ?? existingResponse.hits?.hits ?? [];
   const now = new Date().toISOString();
-  const id = existingHits[0]?._id || randomUUID();
-  const createdAt = existingHits[0]?._source?.createdAt || now;
+  const id = hits[0]?._id || randomUUID();
 
   await client.index({
-    index: INDEX_NAME,
+    index: PROFILE_INDEX,
     id,
     refresh: true,
     body: {
       ownerId: OWNER_ID,
       fact: cleanFact,
       normalizedFact,
-      createdAt,
+      createdAt: hits[0]?._source?.createdAt || now,
       updatedAt: now,
       source,
     },
   });
-
-  return { id, fact: cleanFact, createdAt, updatedAt: now, source };
+  return { id, fact: cleanFact, updatedAt: now, source };
 }
 
 export async function deleteProfileMemory(id) {
-  await ensureMemoryIndex();
-  const client = getClientOrThrow();
-  const response = await client.delete({
-    index: INDEX_NAME,
+  await ensureProfileIndex();
+  const response = await getClientOrThrow().delete({
+    index: PROFILE_INDEX,
     id,
     refresh: true,
   });
@@ -153,25 +164,74 @@ export async function deleteProfileMemory(id) {
 }
 
 export async function clearProfileMemories() {
-  await ensureMemoryIndex();
-  const client = getClientOrThrow();
-  const response = await client.deleteByQuery({
-    index: INDEX_NAME,
+  await ensureProfileIndex();
+  const response = await getClientOrThrow().deleteByQuery({
+    index: PROFILE_INDEX,
     refresh: true,
     body: { query: { term: { ownerId: OWNER_ID } } },
   });
   return response.body?.deleted ?? response.deleted ?? 0;
 }
 
-export function buildMemoryContext(memories) {
-  if (!memories.length) return null;
-  const facts = memories.map((item, index) => `${index + 1}. ${item.fact}`);
+export async function listConversationMessages(
+  sessionId,
+  limit = MAX_CONVERSATION_MESSAGES,
+) {
+  await ensureConversationIndex();
+  const response = await getClientOrThrow().search({
+    index: CONVERSATION_INDEX,
+    body: {
+      size: Math.min(Math.max(limit, 1), MAX_CONVERSATION_MESSAGES),
+      sort: [{ createdAt: { order: "desc" } }],
+      query: {
+        bool: {
+          filter: [
+            { term: { ownerId: OWNER_ID } },
+            { term: { sessionId } },
+          ],
+        },
+      },
+      _source: ["role", "content", "createdAt"],
+    },
+  });
+  const hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
+  return hits
+    .map((hit) => ({ id: hit._id, ...hit._source }))
+    .reverse();
+}
 
+export async function saveConversationTurn(sessionId, userText, replyText) {
+  await ensureConversationIndex();
+  const client = getClientOrThrow();
+  const timestamp = Date.now();
+  const operations = [
+    { index: { _index: CONVERSATION_INDEX, _id: randomUUID() } },
+    {
+      ownerId: OWNER_ID,
+      sessionId,
+      role: "user",
+      content: userText,
+      createdAt: new Date(timestamp).toISOString(),
+    },
+    { index: { _index: CONVERSATION_INDEX, _id: randomUUID() } },
+    {
+      ownerId: OWNER_ID,
+      sessionId,
+      role: "assistant",
+      content: replyText,
+      createdAt: new Date(timestamp + 1).toISOString(),
+    },
+  ];
+  await client.bulk({ refresh: true, body: operations });
+}
+
+export function buildMemoryContext(memories) {
+  const facts = memories.map((item, index) => `${index + 1}. ${item.fact}`);
   return [
-    "[ПОСТОЯННА ПАМЕТ ЗА ЧОВЕКА]",
-    "Данните по-долу описват човека, с когото разговаряш — не описват теб.",
-    "Не разменяй самоличността на човека и AI асистента.",
-    ...facts,
-    "[КРАЙ НА ПОСТОЯННАТА ПАМЕТ]",
+    "[ПРОВЕРЕНА ПОСТОЯННА ПАМЕТ ЗА РАДКО]",
+    "Тези факти описват Радко — човека. Те не описват теб.",
+    facts.length ? facts.join("\n") : "Няма записани лични факти.",
+    "Не измисляй липсващи факти и не твърди, че помниш нещо, което не е тук или в разговора.",
+    "[КРАЙ НА ПАМЕТТА]",
   ].join("\n");
 }

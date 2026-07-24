@@ -75,6 +75,11 @@ router.post("/chat", async (req, res) => {
       });
 
       if (!agentRes.ok) {
+        const upstreamErrorBody = await agentRes.text();
+        console.error(
+          `[Agent] Upstream error ${agentRes.status} ${agentRes.statusText}:`,
+          upstreamErrorBody || "<empty response body>"
+        );
         throw new Error(`Agent error: ${agentRes.status}`);
       }
 

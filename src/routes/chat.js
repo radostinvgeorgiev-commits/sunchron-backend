@@ -98,16 +98,23 @@ router.post("/chat", async (req, res) => {
 
   let memories;
   let history;
+  let memoryAction = null;
   try {
     const factToSave = extractPersistentMemoryCommand(cleanMessage);
     if (factToSave) {
-      await saveProfileMemory(factToSave);
+      const saved = await saveProfileMemory(factToSave);
+      memoryAction = {
+        type: saved.replaced ? "updated" : "saved",
+        fact: saved.fact,
+      };
     } else if (isForgetAllCommand(cleanMessage)) {
-      await clearProfileMemories();
+      const deleted = await clearProfileMemories();
+      memoryAction = { type: "cleared", deleted };
     } else {
       const factToForget = extractForgetMemoryCommand(cleanMessage);
       if (factToForget) {
-        await deleteProfileMemoryByFact(factToForget);
+        const deleted = await deleteProfileMemoryByFact(factToForget);
+        memoryAction = { type: "forgot", fact: factToForget, deleted };
       }
     }
     [memories, history] = await Promise.all([
@@ -146,6 +153,27 @@ router.post("/chat", async (req, res) => {
       res.write(`: heartbeat ${Date.now()}\n\n`);
     }
   };
+
+  if (memoryAction) {
+    let fullReply;
+    if (memoryAction.type === "cleared") {
+      fullReply = "Изчистих постоянната памет.";
+    } else if (memoryAction.type === "forgot") {
+      fullReply = memoryAction.deleted
+        ? `Забравих: ${memoryAction.fact}.`
+        : "Не намерих такъв запис в постоянната памет.";
+    } else if (memoryAction.type === "updated") {
+      fullReply = `Поправих постоянната памет: ${memoryAction.fact}.`;
+    } else {
+      fullReply = `Запомних: ${memoryAction.fact}.`;
+    }
+
+    await saveConversationTurn(cleanSessionId, cleanMessage, fullReply);
+    sendEvent("token", { token: fullReply });
+    sendEvent("done", { ok: true, memoryUpdated: true });
+    res.end();
+    return;
+  }
 
   const isProfileOverviewQuestion = /^какво\s+знаеш\s+за\s+мен\b/iu.test(
     cleanMessage.replace(/[„“"'’]/gu, "").trim(),

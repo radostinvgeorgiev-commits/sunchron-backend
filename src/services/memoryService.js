@@ -162,7 +162,7 @@ export function deriveMemoryMetadata(fact, requestedScope = "personal") {
     };
   }
   if (
-    /^(?:любим(?:ият|ия)?\s+ми\s+цвят(?:ът)?|предпочитаният ми цвят)\s+(?:вече\s+)?е\b/u.test(
+    /^(?:любим(?:ият|ия)?\s+ми\s+цвят(?:ът)?|предпочитаният ми цвят)\s+(?:вече\s+)?е(?:\s|$)/u.test(
       normalized,
     )
   ) {
@@ -172,16 +172,26 @@ export function deriveMemoryMetadata(fact, requestedScope = "personal") {
       scope,
     };
   }
-  if (/^имам\s+бизнес\b/u.test(normalized)) {
+  if (/^имам\s+бизнес(?:\s|$)/u.test(normalized)) {
     return {
       memoryKey: "personal:work:business",
       category: "work",
       scope,
     };
   }
+  if (/^(?:аз\s+)?се\s+интересувам\s+от\s+/u.test(normalized)) {
+    return {
+      memoryKey: `personal:interest:${normalized
+        .replace(/^(?:аз\s+)?се\s+интересувам\s+от\s+/u, "")
+        .replace(/\s+/g, "-")
+        .slice(0, 100)}`,
+      category: "interest",
+      scope,
+    };
+  }
 
   const personalProperty = normalized.match(
-    /^(.{2,80}?\s+ми)\s+(?:вече\s+)?е\b/u,
+    /^(.{2,80}?\s+ми)\s+(?:вече\s+)?е(?:\s|$)/u,
   );
   if (personalProperty) {
     return {
@@ -259,6 +269,41 @@ export function extractPersistentMemoryCommands(message) {
 
   const singleCommand = extractPersistentMemoryCommand(text);
   return singleCommand ? [singleCommand] : [];
+}
+
+export function extractImplicitMemoryCandidates(message) {
+  const text = cleanMemoryFact(message);
+  if (
+    !text ||
+    text.length > 500 ||
+    /[?？]$/u.test(message.trim()) ||
+    extractPersistentMemoryCommands(message).length ||
+    extractForgetMemoryCommand(message) ||
+    isForgetAllCommand(message)
+  ) {
+    return [];
+  }
+
+  const clauses = text
+    .split(
+      /(?:[.!?]\s+|\s+и\s+(?=(?:аз\s+)?(?:се\s+интересувам|живея|имам\s+(?:бизнес|фирма|магазин|заведение|бунгала|къмпинг)|казвам\s+се)))/iu,
+    )
+    .map(cleanMemoryFact)
+    .filter(Boolean);
+  const stablePersonalFactPatterns = [
+    /^(?:аз\s+)?казвам\s+се\s+.+$/iu,
+    /^(?:аз\s+)?живея\s+(?:във?|на)\s+.+$/iu,
+    /^(?:аз\s+)?се\s+интересувам\s+от\s+.+$/iu,
+    /^(?:аз\s+)?имам\s+(?:бизнес|фирма|магазин|заведение|бунгала|къмпинг)(?:\s|$).*$/iu,
+  ];
+
+  return [
+    ...new Set(
+      clauses.filter((clause) =>
+        stablePersonalFactPatterns.some((pattern) => pattern.test(clause)),
+      ),
+    ),
+  ].map((fact) => ({ fact, scope: "personal", confidence: "high" }));
 }
 
 export function extractForgetMemoryCommand(message) {

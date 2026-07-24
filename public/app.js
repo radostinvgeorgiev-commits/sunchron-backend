@@ -3,7 +3,8 @@ const state = {
     serverOnline: false,
     opensearchStatus: 'unknown',
     lastActions: [],
-    chatBusy: false
+    chatBusy: false,
+    speakingButton: null
 };
 
 const elements = {
@@ -39,6 +40,7 @@ function init() {
     elements.newChatBtn.addEventListener('click', startNewChat);
     elements.toggleStatusBtn.addEventListener('click', openStatus);
     elements.closeContextBtn.addEventListener('click', closeStatus);
+    elements.chatMessages.addEventListener('click', handleMessageAction);
 
     checkHealth();
     checkOpenSearch();
@@ -104,11 +106,126 @@ function setChatBusy(isBusy) {
 }
 
 function renderAgentText(element, text) {
+    element.dataset.rawText = text;
     if (typeof marked !== 'undefined') {
         element.innerHTML = marked.parse(text);
     } else {
         element.textContent = text;
     }
+}
+
+function createAssistantTurn(text = '', showActions = true) {
+    const turn = document.createElement('div');
+    turn.className = 'assistant-turn';
+
+    const message = document.createElement('div');
+    message.className = 'message agent';
+    renderAgentText(message, text);
+
+    const actions = document.createElement('div');
+    actions.className = 'message-actions';
+    actions.hidden = !showActions;
+    actions.innerHTML = `
+        <button type="button" data-action="copy" title="Копирай" aria-label="Копирай">
+            <i class="fa-regular fa-copy"></i>
+        </button>
+        <button type="button" data-action="speak" title="Прочети на глас" aria-label="Прочети на глас">
+            <i class="fa-solid fa-volume-high"></i>
+        </button>
+        <button type="button" data-action="like" title="Добър отговор" aria-label="Добър отговор">
+            <i class="fa-regular fa-thumbs-up"></i>
+        </button>
+        <button type="button" data-action="dislike" title="Лош отговор" aria-label="Лош отговор">
+            <i class="fa-regular fa-thumbs-down"></i>
+        </button>
+    `;
+
+    turn.append(message, actions);
+    elements.chatMessages.appendChild(turn);
+    return { turn, message, actions };
+}
+
+async function handleMessageAction(event) {
+    const button = event.target.closest('button[data-action]');
+    if (!button) return;
+
+    const turn = button.closest('.assistant-turn');
+    const message = turn?.querySelector('.message.agent');
+    const text = message?.dataset.rawText || message?.innerText || '';
+    if (!text) return;
+
+    const action = button.dataset.action;
+
+    if (action === 'copy') {
+        await copyText(text);
+        const icon = button.querySelector('i');
+        icon.className = 'fa-solid fa-check';
+        button.classList.add('active');
+        setTimeout(() => {
+            icon.className = 'fa-regular fa-copy';
+            button.classList.remove('active');
+        }, 1400);
+        return;
+    }
+
+    if (action === 'speak') {
+        speakText(text, button);
+        return;
+    }
+
+    if (action === 'like' || action === 'dislike') {
+        const otherAction = action === 'like' ? 'dislike' : 'like';
+        const otherButton = turn.querySelector(
+            `button[data-action="${otherAction}"]`
+        );
+        otherButton?.classList.remove('active');
+        button.classList.toggle('active');
+    }
+}
+
+async function copyText(text) {
+    if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    textarea.remove();
+}
+
+function speakText(text, button) {
+    if (!('speechSynthesis' in window)) return;
+
+    if (state.speakingButton === button && window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        button.classList.remove('active');
+        state.speakingButton = null;
+        return;
+    }
+
+    window.speechSynthesis.cancel();
+    state.speakingButton?.classList.remove('active');
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'bg-BG';
+    utterance.rate = 1;
+    button.classList.add('active');
+    state.speakingButton = button;
+
+    const finish = () => {
+        button.classList.remove('active');
+        if (state.speakingButton === button) state.speakingButton = null;
+    };
+
+    utterance.onend = finish;
+    utterance.onerror = finish;
+    window.speechSynthesis.speak(utterance);
 }
 
 function parseSseEvent(rawEvent) {
@@ -148,6 +265,7 @@ async function sendMessage() {
     setChatBusy(true);
 
     let responseBubble = null;
+    let responseActions = null;
 
     try {
         const response = await fetch('/chat/chat', {
@@ -177,9 +295,9 @@ async function sendMessage() {
         }
 
         removeTypingIndicator();
-        responseBubble = document.createElement('div');
-        responseBubble.className = 'message agent';
-        elements.chatMessages.appendChild(responseBubble);
+        const assistantTurn = createAssistantTurn('', false);
+        responseBubble = assistantTurn.message;
+        responseActions = assistantTurn.actions;
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder('utf-8');
@@ -230,6 +348,7 @@ async function sendMessage() {
             throw new Error('AI отговорът приключи неочаквано.');
         }
 
+        responseActions.hidden = false;
         logAction('Получен AI отговор');
     } catch (error) {
         console.error(error);
@@ -238,6 +357,8 @@ async function sendMessage() {
 
         if (responseBubble) {
             responseBubble.textContent = message;
+            responseBubble.dataset.rawText = message;
+            if (responseActions) responseActions.hidden = true;
         } else {
             appendMessage('agent', message);
         }
@@ -251,17 +372,19 @@ async function sendMessage() {
 }
 
 function appendMessage(role, text) {
+    if (role === 'agent') {
+        const assistantTurn = createAssistantTurn(text, true);
+        scrollChatToBottom();
+        return assistantTurn.message;
+    }
+
     const div = document.createElement('div');
     div.className = `message ${role}`;
-
-    if (role === 'agent') {
-        renderAgentText(div, text);
-    } else {
-        div.textContent = text;
-    }
+    div.textContent = text;
 
     elements.chatMessages.appendChild(div);
     scrollChatToBottom();
+    return div;
 }
 
 function scrollChatToBottom() {

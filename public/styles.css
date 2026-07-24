@@ -614,3 +614,84 @@ input {
     0%, 80%, 100% { transform: translateY(0); opacity: 0.35; }
     40% { transform: translateY(-3px); opacity: 1; }
 }
+
+
+.attach-btn {
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 50%;
+    color: #30363b;
+    background: #f1f2f3;
+    cursor: pointer;
+    font-size: 18px;
+}
+
+.attach-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.attachment-preview {
+    margin: 8px 12px 0;
+    padding: 8px;
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr) 36px;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #f8fafb;
+}
+
+.attachment-preview[hidden] {
+    display: none;
+}
+
+.attachment-preview img {
+    width: 54px;
+    height: 54px;
+    object-fit: cover;
+    border-radius: 10px;
+}
+
+.attachment-preview strong,
+.attachment-preview span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attachment-preview strong {
+    font-size: 13px;
+}
+
+.attachment-preview span {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+#removeAttachmentBtn {
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 50%;
+    color: #4e5c69;
+    background: #edf2f6;
+    cursor: pointer;
+}
+
+.message-image {
+    display: block;
+    width: min(280px, 100%);
+    max-height: 320px;
+    margin-bottom: 8px;
+    object-fit: contain;
+    border-radius: 12px;
+}

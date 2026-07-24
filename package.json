@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --check server.js && node --check src/routes/chat.js && node --check src/routes/memoryRouter.js && node --check src/services/memoryService.js && node --check public/app.js"
+    "test": "node --check server.js && node --check src/routes/chat.js && node --check src/routes/memoryRouter.js && node --check src/services/memoryService.js && node --check public/app.js && node --test tests/*.test.js"
   },
   "dependencies": {
     "@opensearch-project/opensearch": "^3.5.1",
@@ -15,7 +15,7 @@
     "openai": "^4.30.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "22.x"
   },
   "devDependencies": {
     "eslint": "^9.39.2",

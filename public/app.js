@@ -1,45 +1,82 @@
-// State Management
 const state = {
-    sessionId: 'sess-' + Math.random().toString(36).substr(2, 9),
-    agentOnline: false,
+    sessionId: createSessionId(),
+    serverOnline: false,
     opensearchStatus: 'unknown',
-    intent: 'general',
     lastActions: [],
     chatBusy: false
 };
 
-// DOM Elements
 const elements = {
     chatMessages: document.getElementById('chatMessages'),
     chatInput: document.getElementById('chatInput'),
     sendBtn: document.getElementById('sendBtn'),
+    newChatBtn: document.getElementById('newChatBtn'),
+    toggleStatusBtn: document.getElementById('toggleStatusBtn'),
+    closeContextBtn: document.getElementById('closeContextBtn'),
+    statusPanel: document.getElementById('statusPanel'),
     agentStatusDot: document.getElementById('agentStatusDot'),
     agentStatusText: document.getElementById('agentStatusText'),
     sessionIdDisplay: document.getElementById('sessionIdDisplay'),
-    intentDisplay: document.getElementById('intentDisplay'),
+    serverStatusDisplay: document.getElementById('serverStatusDisplay'),
     opensearchStatusDisplay: document.getElementById('opensearchStatusDisplay'),
-    actionsLog: document.getElementById('actionsLog'),
-    serverTimeDisplay: document.getElementById('serverTimeDisplay')
+    actionsLog: document.getElementById('actionsLog')
 };
 
+function createSessionId() {
+    return 'sess-' + Math.random().toString(36).slice(2, 11);
+}
+
 function init() {
-    if (elements.sessionIdDisplay) elements.sessionIdDisplay.textContent = state.sessionId;
+    updateSessionDisplay();
 
     elements.sendBtn.addEventListener('click', sendMessage);
-    elements.chatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendMessage();
+    elements.chatInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            sendMessage();
+        }
     });
-
-    document.querySelectorAll('.action-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => handleActionClick(e.currentTarget.id));
-    });
+    elements.newChatBtn.addEventListener('click', startNewChat);
+    elements.toggleStatusBtn.addEventListener('click', openStatus);
+    elements.closeContextBtn.addEventListener('click', closeStatus);
 
     checkHealth();
     checkOpenSearch();
-    setInterval(checkHealth, 5000);
-    setInterval(checkOpenSearch, 10000);
+    setInterval(checkHealth, 10000);
+    setInterval(checkOpenSearch, 20000);
 
-    appendMessage('agent', 'Здравей! Аз съм Synchron-X. Как мога да помогна?');
+    showWelcomeMessage();
+}
+
+function updateSessionDisplay() {
+    elements.sessionIdDisplay.textContent = state.sessionId;
+}
+
+function showWelcomeMessage() {
+    appendMessage(
+        'agent',
+        'Здравей! Аз съм Synchron-X. Напиши ми въпрос и ще ти отговоря.'
+    );
+}
+
+function startNewChat() {
+    if (state.chatBusy) return;
+    state.sessionId = createSessionId();
+    state.lastActions = [];
+    elements.chatMessages.replaceChildren();
+    updateSessionDisplay();
+    renderActionsLog();
+    showWelcomeMessage();
+    logAction('Започнат е нов разговор');
+    elements.chatInput.focus();
+}
+
+function openStatus() {
+    elements.statusPanel.classList.add('mobile-visible');
+}
+
+function closeStatus() {
+    elements.statusPanel.classList.remove('mobile-visible');
 }
 
 function showTypingIndicator() {
@@ -52,18 +89,18 @@ function showTypingIndicator() {
         <div class="typing-dot"></div>
     `;
     elements.chatMessages.appendChild(div);
-    elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+    scrollChatToBottom();
 }
 
 function removeTypingIndicator() {
-    const indicator = document.getElementById('typingIndicator');
-    if (indicator) indicator.remove();
+    document.getElementById('typingIndicator')?.remove();
 }
 
 function setChatBusy(isBusy) {
     state.chatBusy = isBusy;
     elements.sendBtn.disabled = isBusy;
     elements.chatInput.disabled = isBusy;
+    elements.newChatBtn.disabled = isBusy;
 }
 
 function renderAgentText(element, text) {
@@ -106,7 +143,7 @@ async function sendMessage() {
 
     appendMessage('user', text);
     elements.chatInput.value = '';
-    logAction('User sent message');
+    logAction('Изпратено съобщение');
     showTypingIndicator();
     setChatBusy(true);
 
@@ -159,11 +196,16 @@ async function sendMessage() {
                 const parsed = parseSseEvent(rawEvent);
                 if (!parsed) continue;
 
-                if (parsed.event === 'token' && typeof parsed.data?.token === 'string') {
+                if (
+                    parsed.event === 'token' &&
+                    typeof parsed.data?.token === 'string'
+                ) {
                     fullText += parsed.data.token;
                     renderAgentText(responseBubble, fullText);
                 } else if (parsed.event === 'error') {
-                    throw new Error(parsed.data?.message || 'AI агентът върна грешка.');
+                    throw new Error(
+                        parsed.data?.message || 'AI агентът върна грешка.'
+                    );
                 } else if (parsed.event === 'done') {
                     completed = true;
                 }
@@ -175,7 +217,7 @@ async function sendMessage() {
             if (done) break;
             streamBuffer += decoder.decode(value, { stream: true });
             processEvents();
-            elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+            scrollChatToBottom();
         }
 
         streamBuffer += decoder.decode();
@@ -187,19 +229,24 @@ async function sendMessage() {
         if (!completed || !fullText.trim()) {
             throw new Error('AI отговорът приключи неочаквано.');
         }
+
+        logAction('Получен AI отговор');
     } catch (error) {
         console.error(error);
-        const message = `❌ ${error?.message || 'Сървърна грешка. Моля, опитайте по-късно.'}`;
+        const message =
+            `❌ ${error?.message || 'Сървърна грешка. Опитай отново.'}`;
 
         if (responseBubble) {
             responseBubble.textContent = message;
         } else {
             appendMessage('agent', message);
         }
+        logAction('Грешка при AI отговор');
     } finally {
         removeTypingIndicator();
         setChatBusy(false);
         elements.chatInput.focus();
+        scrollChatToBottom();
     }
 }
 
@@ -214,27 +261,28 @@ function appendMessage(role, text) {
     }
 
     elements.chatMessages.appendChild(div);
+    scrollChatToBottom();
+}
+
+function scrollChatToBottom() {
     elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
 }
 
 async function checkHealth() {
     try {
-        const res = await fetch('/health');
-        setAgentStatus(res.ok);
+        const response = await fetch('/health', { cache: 'no-store' });
+        setServerStatus(response.ok);
     } catch {
-        setAgentStatus(false);
+        setServerStatus(false);
     }
 }
 
 async function checkOpenSearch() {
     try {
-        const res = await fetch('/opensearch-status');
-        if (res.ok) {
-            const data = await res.json();
+        const response = await fetch('/opensearch-status', { cache: 'no-store' });
+        if (response.ok) {
+            const data = await response.json();
             updateOpenSearchUI(data.status);
-            if (elements.serverTimeDisplay) {
-                elements.serverTimeDisplay.textContent = new Date().toLocaleTimeString();
-            }
         } else {
             updateOpenSearchUI('error');
         }
@@ -243,67 +291,56 @@ async function checkOpenSearch() {
     }
 }
 
-function setAgentStatus(isOnline) {
-    state.agentOnline = isOnline;
+function setServerStatus(isOnline) {
+    state.serverOnline = isOnline;
     elements.agentStatusDot.className = isOnline ? 'online' : 'offline';
-    elements.agentStatusText.textContent = isOnline ? 'Server Online' : 'Server Offline';
+    elements.agentStatusText.textContent = isOnline
+        ? 'Сървър онлайн'
+        : 'Сървър офлайн';
+    elements.serverStatusDisplay.textContent = isOnline ? 'Онлайн' : 'Офлайн';
+    elements.serverStatusDisplay.className =
+        `context-value ${isOnline ? 'status-green' : 'status-red'}`;
 }
 
 function updateOpenSearchUI(status) {
     state.opensearchStatus = status;
-    const display = elements.opensearchStatusDisplay;
-    if (!display) return;
+    elements.opensearchStatusDisplay.textContent = status;
+    elements.opensearchStatusDisplay.className = 'context-value';
 
-    display.textContent = status;
-    display.className = 'context-value';
-    if (status === 'green') display.classList.add('status-green');
-    else if (status === 'red' || status === 'error') display.classList.add('status-red');
-    else display.classList.add('status-yellow');
-}
-
-function handleActionClick(actionId) {
-    logAction(`Clicked: ${actionId}`);
-
-    switch (actionId) {
-        case 'actionTalk':
-            elements.chatInput.focus();
-            break;
-        case 'actionReserve':
-            state.intent = 'reservation';
-            updateContextDisplay();
-            appendMessage('agent', '📅 Стартирам процес за резервация. Моля, въведете дати и брой гости.');
-            break;
-        case 'actionHotel':
-            state.intent = 'search_hotel';
-            updateContextDisplay();
-            appendMessage('agent', '🏨 В кой град търсите хотел?');
-            break;
-        case 'actionLocation':
-            state.intent = 'location_info';
-            updateContextDisplay();
-            appendMessage('agent', '📍 Споделете коя локация ви интересува.');
-            break;
-        case 'actionAdmin':
-            alert('Admin panel access denied (Demo Mode)');
-            break;
+    if (status === 'green') {
+        elements.opensearchStatusDisplay.classList.add('status-green');
+    } else if (status === 'red' || status === 'error' || status === 'unreachable') {
+        elements.opensearchStatusDisplay.classList.add('status-red');
+    } else {
+        elements.opensearchStatusDisplay.classList.add('status-yellow');
     }
 }
 
 function logAction(actionName) {
-    const time = new Date().toLocaleTimeString();
-    const entry = `[${time}] ${actionName}`;
-    state.lastActions.unshift(entry);
+    const time = new Date().toLocaleTimeString('bg-BG', {
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    state.lastActions.unshift(`[${time}] ${actionName}`);
     if (state.lastActions.length > 5) state.lastActions.pop();
-
-    if (elements.actionsLog) {
-        elements.actionsLog.innerHTML = state.lastActions
-            .map(a => `<li>${a}</li>`)
-            .join('');
-    }
+    renderActionsLog();
 }
 
-function updateContextDisplay() {
-    if (elements.intentDisplay) elements.intentDisplay.textContent = state.intent;
+function renderActionsLog() {
+    elements.actionsLog.replaceChildren();
+
+    if (state.lastActions.length === 0) {
+        const item = document.createElement('li');
+        item.textContent = 'Няма скорошни действия';
+        elements.actionsLog.appendChild(item);
+        return;
+    }
+
+    for (const action of state.lastActions) {
+        const item = document.createElement('li');
+        item.textContent = action;
+        elements.actionsLog.appendChild(item);
+    }
 }
 
 window.addEventListener('load', init);

@@ -2,93 +2,102 @@
 <html lang="bg">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Synchron-X Agent</title>
-    <link rel="stylesheet" href="styles.css?v=2">
-    <!-- FontAwesome for Icons (CDN) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#087cf0">
+    <title>Synchron-X</title>
+    <link rel="stylesheet" href="/styles.css?v=20260724-mobile1">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Marked.js for Markdown Rendering -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
-    
-    <!-- 1️⃣ Горен Панел -->
     <header class="topbar">
-        <div class="logo">
-            <i class="fa-solid fa-atom"></i> Synchron-X
+        <div class="brand">
+            <span class="brand-icon"><i class="fa-solid fa-atom"></i></span>
+            <div>
+                <div class="brand-name">Synchron-X</div>
+                <div class="brand-subtitle">Личен AI разговор</div>
+            </div>
         </div>
-        <div class="status-indicator">
+        <div class="status-indicator" aria-live="polite">
             <span id="agentStatusDot" class="offline"></span>
-            <span id="agentStatusText">Connecting...</span>
+            <span id="agentStatusText">Свързване…</span>
         </div>
     </header>
 
     <main class="layout">
-        
-        <!-- 2️⃣ Ляв Панел - Действия -->
-        <aside class="panel leftPanel">
-            <div class="panel-header">Действия</div>
-            <div class="panel-content">
-                <button id="actionTalk" class="action-btn">
-                    <i class="fa-solid fa-microphone"></i> Говори с AI
-                </button>
-                <button id="actionReserve" class="action-btn">
-                    <i class="fa-solid fa-calendar-check"></i> Резервирай
-                </button>
-                <button id="actionHotel" class="action-btn">
-                    <i class="fa-solid fa-hotel"></i> Намери хотел
-                </button>
-                <button id="actionLocation" class="action-btn">
-                    <i class="fa-solid fa-map-location-dot"></i> Намери локация
-                </button>
-                <button id="actionAdmin" class="action-btn" style="margin-top:auto; border-color: #ddd;">
-                    <i class="fa-solid fa-gears"></i> Админ
-                </button>
+        <aside class="panel projectPanel">
+            <div class="panel-header">Текущ етап</div>
+            <div class="panel-content project-summary">
+                <div class="phase-badge">Стъпка 2</div>
+                <h2>Стабилен разговор с AI</h2>
+                <p>Сега проверяваме разговора. Паметта и модулите ще добавим след това.</p>
             </div>
         </aside>
 
-        <!-- 3️⃣ Централен Панел - Чат -->
-        <section class="panel centerPanel" id="chat-container">
-            <div class="panel-header">Чат Сесия</div>
-            <div id="chatMessages">
-                <!-- Messages will appear here -->
+        <section class="panel chatPanel" id="chat-container">
+            <div class="chat-toolbar">
+                <div>
+                    <strong>Разговор</strong>
+                    <span>Пиши директно на твоя AI</span>
+                </div>
+                <div class="toolbar-actions">
+                    <button id="newChatBtn" class="tool-btn" type="button" title="Нов разговор">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Нов</span>
+                    </button>
+                    <button id="toggleStatusBtn" class="tool-btn" type="button" title="Състояние">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span>Статус</span>
+                    </button>
+                </div>
             </div>
+
+            <div id="chatMessages" aria-live="polite"></div>
+
             <div class="chat-input-area">
-                <input type="text" id="chatInput" placeholder="Напишете съобщение..." autofocus>
-                <button id="sendBtn">Изпрати</button>
+                <input
+                    type="text"
+                    id="chatInput"
+                    placeholder="Напиши съобщение…"
+                    autocomplete="off"
+                    enterkeyhint="send"
+                    autofocus
+                >
+                <button id="sendBtn" type="button" aria-label="Изпрати">
+                    <i class="fa-solid fa-arrow-up"></i>
+                    <span>Изпрати</span>
+                </button>
             </div>
         </section>
 
-        <!-- 4️⃣ Десен Панел - Контекст -->
-        <aside class="panel rightPanel">
-            <div class="panel-header">Контекст & Данни</div>
+        <aside class="panel statusPanel" id="statusPanel" aria-label="Състояние и данни">
+            <div class="panel-header status-header">
+                <span>Състояние</span>
+                <button id="closeContextBtn" class="close-btn" type="button" aria-label="Затвори">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
             <div class="panel-content">
-                
                 <div class="context-box">
-                    <div class="context-label">Current Session</div>
-                    <div class="context-value" id="sessionIdDisplay">...</div>
+                    <div class="context-label">Сесия</div>
+                    <div class="context-value" id="sessionIdDisplay">…</div>
                 </div>
-
                 <div class="context-box">
-                    <div class="context-label">User Intent</div>
-                    <div class="context-value" id="intentDisplay">General</div>
+                    <div class="context-label">Сървър</div>
+                    <div class="context-value" id="serverStatusDisplay">Проверка…</div>
                 </div>
-
                 <div class="context-box">
-                    <div class="context-label">OpenSearch Status</div>
-                    <div class="context-value" id="opensearchStatusDisplay">Checking...</div>
+                    <div class="context-label">OpenSearch</div>
+                    <div class="context-value" id="opensearchStatusDisplay">Проверка…</div>
                 </div>
-
-                <div class="context-label" style="margin-top: 10px;">Последни действия:</div>
+                <div class="context-label activity-title">Последни действия</div>
                 <ul class="log-list" id="actionsLog">
                     <li>Няма скорошни действия</li>
                 </ul>
-
             </div>
         </aside>
-
     </main>
 
-    <script src="app.js"></script>
+    <script src="/app.js?v=20260724-mobile1"></script>
 </body>
 </html>

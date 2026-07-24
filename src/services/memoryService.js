@@ -434,7 +434,7 @@ export async function listProfileMemories(options = {}) {
     seenKeys.add(memory.memoryKey);
     memories.push(memory);
   }
-  return memories;
+  return consolidateMemoryView(memories);
 }
 
 export async function saveProfileMemory(

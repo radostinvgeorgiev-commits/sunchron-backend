@@ -89,6 +89,25 @@ function cleanMemoryFact(fact) {
     .trim();
 }
 
+function splitMemoryFacts(value) {
+  const normalized = value.replace(/\r\n/g, "\n").trim();
+  const lines = normalized
+    .split(/\n+/u)
+    .map((line) =>
+      line
+        .replace(/^\s*(?:[-*•]|(?:\d+)[.)])\s*/u, "")
+        .trim(),
+    )
+    .filter(Boolean);
+  const candidates =
+    lines.length > 1 ? lines : normalized.split(/\s*;\s*/u).filter(Boolean);
+
+  return [...new Set(candidates.map(cleanMemoryFact).filter(Boolean))].slice(
+    0,
+    30,
+  );
+}
+
 function normalizedWords(fact) {
   return normalizeFact(cleanMemoryFact(fact))
     .replace(/[„“"'’.,!?;:]+/gu, " ")
@@ -182,15 +201,15 @@ export function deriveMemoryMetadata(fact, requestedScope = "personal") {
 export function extractPersistentMemoryCommand(message) {
   const text = message.trim();
   const projectPatterns = [
-    /^запомни\s+за\s+проекта\s*:\s*(.+)$/iu,
-    /^запомни\s+за\s+проекта\s*,?\s+че\s+(.+)$/iu,
-    /^поправка\s+за\s+проекта\s*:\s*(.+)$/iu,
+    /^запомни\s+за\s+проекта\s*:\s*([\s\S]+)$/iu,
+    /^запомни\s+за\s+проекта\s*,?\s+че\s+([\s\S]+)$/iu,
+    /^поправка\s+за\s+проекта\s*:\s*([\s\S]+)$/iu,
   ];
   const personalPatterns = [
-    /^запомни(?:\s+за\s+бъдещи\s+разговори)?\s*:\s*(.+)$/iu,
-    /^запомни(?:\s+за\s+бъдещи\s+разговори)?\s*,?\s+че\s+(.+)$/iu,
-    /^запази\s+в\s+постоянната\s+памет\s*:\s*(.+)$/iu,
-    /^поправка\s*:\s*(.+?)(?:\s+(?:запомни|запази)\s+това[.!?]*)?$/iu,
+    /^запомни(?:\s+за\s+бъдещи\s+разговори)?\s*:\s*([\s\S]+)$/iu,
+    /^запомни(?:\s+за\s+бъдещи\s+разговори)?\s*,?\s+че\s+([\s\S]+)$/iu,
+    /^запази\s+в\s+постоянната\s+памет\s*:\s*([\s\S]+)$/iu,
+    /^поправка\s*:\s*([\s\S]+?)(?:\s+(?:запомни|запази)\s+това[.!?]*)?$/iu,
   ];
 
   for (const pattern of projectPatterns) {
@@ -204,6 +223,42 @@ export function extractPersistentMemoryCommand(message) {
     if (fact) return { fact, scope: "personal" };
   }
   return null;
+}
+
+export function extractPersistentMemoryCommands(message) {
+  const text = message.trim();
+  const bulkPatterns = [
+    {
+      scope: "project",
+      pattern: /^запомни\s+(?:следното\s+)?за\s+проекта\s*:\s*([\s\S]+)$/iu,
+    },
+    {
+      scope: "project",
+      pattern: /^запомни\s+за\s+проекта\s+следното\s*:\s*([\s\S]+)$/iu,
+    },
+    {
+      scope: "personal",
+      pattern: /^запомни\s+следното\s+за\s+мен\s*:\s*([\s\S]+)$/iu,
+    },
+    {
+      scope: "personal",
+      pattern: /^запомни\s+за\s+мен\s+следното\s*:\s*([\s\S]+)$/iu,
+    },
+    {
+      scope: "personal",
+      pattern: /^запомни\s+следното\s*:\s*([\s\S]+)$/iu,
+    },
+  ];
+
+  for (const { scope, pattern } of bulkPatterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) {
+      return splitMemoryFacts(match[1]).map((fact) => ({ fact, scope }));
+    }
+  }
+
+  const singleCommand = extractPersistentMemoryCommand(text);
+  return singleCommand ? [singleCommand] : [];
 }
 
 export function extractForgetMemoryCommand(message) {

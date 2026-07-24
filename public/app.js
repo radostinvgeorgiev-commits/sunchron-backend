@@ -1,5 +1,5 @@
 const state = {
-    sessionId: createSessionId(),
+    sessionId: getOrCreateSessionId(),
     serverOnline: false,
     opensearchStatus: 'unknown',
     lastActions: [],
@@ -31,10 +31,21 @@ const elements = {
 };
 
 function createSessionId() {
-    return 'sess-' + Math.random().toString(36).slice(2, 11);
+    if (globalThis.crypto?.randomUUID) {
+        return 'sess-' + globalThis.crypto.randomUUID();
+    }
+    return 'sess-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-function init() {
+function getOrCreateSessionId() {
+    const stored = localStorage.getItem('synchronSessionId');
+    if (stored?.startsWith('sess-')) return stored;
+    const sessionId = createSessionId();
+    localStorage.setItem('synchronSessionId', sessionId);
+    return sessionId;
+}
+
+async function init() {
     updateSessionDisplay();
 
     elements.sendBtn.addEventListener('click', sendMessage);
@@ -57,7 +68,7 @@ function init() {
     setInterval(checkHealth, 10000);
     setInterval(checkOpenSearch, 20000);
 
-    showWelcomeMessage();
+    await restoreConversation();
 }
 
 function updateSessionDisplay() {
@@ -67,14 +78,47 @@ function updateSessionDisplay() {
 function showWelcomeMessage() {
     appendMessage(
         'agent',
-        'Здравей! Аз съм Synchron-X. Напиши ми въпрос и ще ти отговоря.'
+        'Здравей, Радко. Аз съм Synchron-X — твоят личен AI асистент. С какво да започнем?'
     );
+}
+
+async function restoreConversation() {
+    try {
+        const response = await fetch(
+            '/memory/conversation/' + encodeURIComponent(state.sessionId),
+            { cache: 'no-store' }
+        );
+        if (!response.ok) throw new Error('Историята не е достъпна.');
+        const data = await response.json();
+        const items = Array.isArray(data.items) ? data.items : [];
+        if (items.length === 0) {
+            showWelcomeMessage();
+            return;
+        }
+        for (const item of items) {
+            if (
+                (item.role === 'user' || item.role === 'assistant') &&
+                typeof item.content === 'string'
+            ) {
+                appendMessage(
+                    item.role === 'assistant' ? 'agent' : 'user',
+                    item.content
+                );
+            }
+        }
+        logAction('Възстановена е историята на разговора');
+    } catch (error) {
+        console.error(error);
+        showWelcomeMessage();
+        logAction('Историята не можа да бъде възстановена');
+    }
 }
 
 function startNewChat() {
     if (state.chatBusy) return;
     clearPendingImage();
     state.sessionId = createSessionId();
+    localStorage.setItem('synchronSessionId', state.sessionId);
     state.lastActions = [];
     elements.chatMessages.replaceChildren();
     updateSessionDisplay();

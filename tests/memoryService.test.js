@@ -167,3 +167,36 @@ test("classifies different businesses as separate work memories", () => {
   assert.equal(bungalows.category, "work");
   assert.notEqual(shop.memoryKey, bungalows.memoryKey);
 });
+
+
+test("splits and deduplicates legacy profile lists without deleting history", () => {
+  const items = consolidateMemoryView([
+    {
+      id: "new-location",
+      fact: "живея във Варна.",
+      category: "location",
+      memoryKey: "personal:location:residence",
+      scope: "personal",
+    },
+    {
+      id: "new-work",
+      fact: "имам бизнес с бунгала в Камчия.",
+      category: "work",
+      memoryKey: "personal:work:bизнес-с-бунгала",
+      scope: "personal",
+    },
+    {
+      id: "legacy",
+      fact: "- Казвам се Радко. - Живея във Варна. - Имам бизнес с бунгала в Камчия",
+      category: "personal-fact",
+      memoryKey: "personal:fact:legacy",
+      scope: "personal",
+    },
+  ]);
+
+  assert.deepEqual(
+    items.map((item) => item.fact),
+    ["живея във Варна", "имам бизнес с бунгала в Камчия", "Казвам се Радко"],
+  );
+  assert.equal(items.some((item) => item.fact.startsWith("-")), false);
+});

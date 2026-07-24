@@ -86,9 +86,13 @@ function showTypingIndicator() {
     div.className = 'message typing';
     div.id = 'typingIndicator';
     div.innerHTML = `
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
+        <span class="thinking-avatar" aria-hidden="true">
+            <i class="fa-solid fa-atom"></i>
+        </span>
+        <span class="thinking-label">Synchron-X мисли</span>
+        <span class="thinking-dots" aria-hidden="true">
+            <span></span><span></span><span></span>
+        </span>
     `;
     elements.chatMessages.appendChild(div);
     scrollChatToBottom();

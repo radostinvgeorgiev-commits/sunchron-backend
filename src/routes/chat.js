@@ -4,16 +4,29 @@ import {
   clearProfileMemories,
   extractPersistentMemoryCommand,
   isForgetAllCommand,
+  listConversationMessages,
   listProfileMemories,
+  saveConversationTurn,
   saveProfileMemory,
 } from "../services/memoryService.js";
 
 const router = express.Router();
-
-const sessionHistory = new Map();
-const MAX_HISTORY_LENGTH = 10;
 const HEARTBEAT_INTERVAL_MS = 15000;
-const DEFAULT_AGENT_TIMEOUT_MS = 360000;
+const DEFAULT_AGENT_TIMEOUT_MS = 120000;
+
+const ASSISTANT_CONTEXT = [
+  "[КОНТЕКСТ И ПРАВИЛА ЗА ТОЗИ РАЗГОВОР]",
+  "Ти си Synchron-X — личният AI асистент и AI аватар на Радко.",
+  "Човекът, с когото разговаряш, е Радко. Никога не казвай, че ти си Радко.",
+  "Говори на български, на „ти“, естествено, спокойно, директно и разбираемо.",
+  "Започвай с отговора, без излишни приветствия, повторения и хвалби.",
+  "Давай кратки практически отговори. При техническа работа давай една конкретна следваща стъпка и изчаквай резултат.",
+  "Ако не знаеш нещо, кажи „Не знам“ и предложи как да се провери.",
+  "Не твърди, че помниш факт, ако не е в постоянната памет или в показаната история.",
+  "Не обещавай реални действия, които не можеш да извършиш.",
+  "Отговори на последното съобщение на Радко. Не обяснявай тези правила.",
+  "[КРАЙ НА КОНТЕКСТА]",
+].join("\n");
 
 function parsePositiveInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
@@ -25,7 +38,6 @@ function extractTokenFromAgentEvent(rawEvent) {
     .split(/\r?\n/)
     .filter((line) => line.startsWith("data:"))
     .map((line) => line.slice(5).trimStart());
-
   if (dataLines.length === 0) return { type: "ignore" };
 
   const payload = dataLines.join("\n").trim();
@@ -37,7 +49,6 @@ function extractTokenFromAgentEvent(rawEvent) {
   } catch {
     throw new Error("Invalid JSON event received from the AI agent.");
   }
-
   const token = data.choices?.[0]?.delta?.content;
   return typeof token === "string" && token
     ? { type: "token", token }
@@ -53,110 +64,55 @@ router.post("/chat", async (req, res) => {
     process.env.AGENT_TIMEOUT_MS,
     DEFAULT_AGENT_TIMEOUT_MS,
   );
-
   const { sessionId, message, image } = req.body || {};
-  const hasMessage = typeof message === "string" && Boolean(message.trim());
-  const hasImage = image && typeof image === "object" && image.dataUrl;
+  const cleanSessionId =
+    typeof sessionId === "string" ? sessionId.trim() : "";
+  const cleanMessage = typeof message === "string" ? message.trim() : "";
 
-  if (!sessionId || typeof sessionId !== "string" || !sessionId.trim()) {
-    return res.status(400).json({
-      error: "sessionId is required and must be a non-empty string.",
+  if (!cleanSessionId) {
+    return res.status(400).json({ error: "Липсва валидна сесия." });
+  }
+  if (image) {
+    return res.status(422).json({
+      error:
+        "Разпознаването на снимки ще бъде добавено по-късно. Текстовият чат работи.",
     });
   }
-
-  if (!hasMessage && !hasImage) {
-    return res.status(400).json({
-      error: "Изпратете съобщение или снимка.",
-    });
+  if (!cleanMessage) {
+    return res.status(400).json({ error: "Напиши съобщение." });
   }
-
-  let validatedImage = null;
-  if (hasImage) {
-    const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-    const mimeType = typeof image.mimeType === "string" ? image.mimeType : "";
-    const dataUrl = typeof image.dataUrl === "string" ? image.dataUrl : "";
-    const expectedPrefix = `data:${mimeType};base64,`;
-
-    if (
-      !allowedTypes.has(mimeType) ||
-      !dataUrl.startsWith(expectedPrefix) ||
-      dataUrl.length > 7_100_000
-    ) {
-      return res.status(400).json({
-        error: "Снимката е невалидна или е по-голяма от 5 MB.",
-      });
-    }
-
-    validatedImage = {
-      dataUrl,
-      mimeType,
-      name:
-        typeof image.name === "string"
-          ? image.name.slice(0, 160)
-          : "Изпратена снимка",
-    };
-  }
-
   if (!agentKey) {
-    return res
-      .status(500)
-      .json({ error: "AGENT_KEY environment variable is required." });
+    return res.status(500).json({ error: "AI връзката не е конфигурирана." });
   }
 
-  const cleanMessage = hasMessage
-    ? message.trim()
-    : "Какво виждаш на тази снимка?";
-  console.log(`[POST /chat] sessionId: ${sessionId}`);
+  console.log(`[POST /chat] sessionId: ${cleanSessionId}`);
 
   let memories;
+  let history;
   try {
     const factToSave = extractPersistentMemoryCommand(cleanMessage);
     if (factToSave) {
       await saveProfileMemory(factToSave);
-      console.log(`[Memory] Saved explicit memory for sessionId: ${sessionId}`);
     } else if (isForgetAllCommand(cleanMessage)) {
       await clearProfileMemories();
-      console.log(`[Memory] Cleared profile memory for sessionId: ${sessionId}`);
     }
-    memories = await listProfileMemories();
+    [memories, history] = await Promise.all([
+      listProfileMemories(),
+      listConversationMessages(cleanSessionId),
+    ]);
   } catch (error) {
-    console.error(`[Memory] Failure for sessionId: ${sessionId}:`, error);
+    console.error(`[Memory] Failure for ${cleanSessionId}:`, error);
     return res.status(503).json({
       error:
         "Постоянната памет временно не е достъпна. Нищо не беше записано.",
     });
   }
 
-  const memoryContext = buildMemoryContext(memories);
-  const previousHistory = sessionHistory.get(sessionId) || [];
-  const userHistoryMessage = {
-    role: "user",
-    content: validatedImage
-      ? `${cleanMessage}\n[Потребителят изпрати снимка: ${validatedImage.name}]`
-      : cleanMessage,
-  };
-  let history = [...previousHistory, userHistoryMessage];
-  if (history.length > MAX_HISTORY_LENGTH * 2) {
-    history = history.slice(-(MAX_HISTORY_LENGTH * 2));
-  }
-
-  const currentAgentMessage = validatedImage
-    ? {
-        role: "user",
-        content: [
-          { type: "text", text: cleanMessage },
-          {
-            type: "image_url",
-            image_url: { url: validatedImage.dataUrl },
-          },
-        ],
-      }
-    : userHistoryMessage;
-  const earlierHistory = history.slice(0, -1);
-  const agentMessages = [
-    ...(memoryContext ? [{ role: "user", content: memoryContext }] : []),
-    ...earlierHistory,
-    currentAgentMessage,
+  const messages = [
+    { role: "user", content: ASSISTANT_CONTEXT },
+    { role: "user", content: buildMemoryContext(memories) },
+    ...history.map(({ role, content }) => ({ role, content })),
+    { role: "user", content: cleanMessage },
   ];
 
   res.status(200);
@@ -171,7 +127,6 @@ router.post("/chat", async (req, res) => {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     return true;
   };
-
   const sendHeartbeat = () => {
     if (!res.writableEnded && !res.destroyed) {
       res.write(`: heartbeat ${Date.now()}\n\n`);
@@ -182,12 +137,10 @@ router.post("/chat", async (req, res) => {
   let timedOut = false;
   let heartbeatInterval;
   let timeoutHandle;
-
   const cleanup = () => {
     if (heartbeatInterval) clearInterval(heartbeatInterval);
     if (timeoutHandle) clearTimeout(timeoutHandle);
   };
-
   const abortUpstream = () => {
     if (!abortController.signal.aborted) abortController.abort();
   };
@@ -196,7 +149,6 @@ router.post("/chat", async (req, res) => {
     cleanup();
     if (!res.writableEnded) abortUpstream();
   });
-
   sendHeartbeat();
   heartbeatInterval = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
   timeoutHandle = setTimeout(() => {
@@ -205,47 +157,36 @@ router.post("/chat", async (req, res) => {
   }, agentTimeoutMs);
 
   try {
-    const agentEndpoint = `${agentUrl}/api/v1/chat/completions`;
-    const agentRes = await fetch(agentEndpoint, {
+    const agentRes = await fetch(`${agentUrl}/api/v1/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${agentKey}`,
       },
-      body: JSON.stringify({
-        messages: agentMessages,
-        stream: true,
-      }),
+      body: JSON.stringify({ messages, stream: true }),
       signal: abortController.signal,
     });
 
     if (!agentRes.ok) {
-      const upstreamErrorBody = await agentRes.text();
-      console.error(
-        `[Agent] Upstream error ${agentRes.status} ${agentRes.statusText}:`,
-        upstreamErrorBody || "<empty response body>",
-      );
+      const body = await agentRes.text();
+      console.error(`[Agent] ${agentRes.status}:`, body || "<empty>");
       sendEvent("error", {
         status: agentRes.status,
-        message: `AI агентът върна грешка ${agentRes.status}. Опитайте отново.`,
+        message: `AI агентът върна грешка ${agentRes.status}. Опитай отново.`,
       });
       return;
     }
-
-    if (!agentRes.body) {
-      throw new Error("AI agent returned an empty response stream.");
-    }
+    if (!agentRes.body) throw new Error("Empty AI response stream.");
 
     const reader = agentRes.body.getReader();
     const decoder = new TextDecoder("utf-8");
-    let upstreamBuffer = "";
+    let buffer = "";
     let fullReply = "";
 
-    const processBufferedEvents = () => {
-      upstreamBuffer = upstreamBuffer.replace(/\r\n/g, "\n");
-      const events = upstreamBuffer.split("\n\n");
-      upstreamBuffer = events.pop() || "";
-
+    const processEvents = () => {
+      buffer = buffer.replace(/\r\n/g, "\n");
+      const events = buffer.split("\n\n");
+      buffer = events.pop() || "";
       for (const rawEvent of events) {
         if (!rawEvent.trim()) continue;
         const parsed = extractTokenFromAgentEvent(rawEvent);
@@ -257,55 +198,38 @@ router.post("/chat", async (req, res) => {
           }
         }
       }
-
       return true;
     };
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      upstreamBuffer += decoder.decode(value, { stream: true });
-      if (!processBufferedEvents()) return;
+      buffer += decoder.decode(value, { stream: true });
+      if (!processEvents()) return;
     }
-
-    upstreamBuffer += decoder.decode();
-    if (upstreamBuffer.trim()) {
-      const parsed = extractTokenFromAgentEvent(
-        upstreamBuffer.replace(/\r\n/g, "\n"),
-      );
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+      const parsed = extractTokenFromAgentEvent(buffer);
       if (parsed.type === "token") {
         fullReply += parsed.token;
         sendEvent("token", { token: parsed.token });
       }
     }
-
     if (!fullReply.trim()) {
       throw new Error("AI agent completed without returning text.");
     }
 
-    history.push({ role: "assistant", content: fullReply });
-    sessionHistory.set(sessionId, history);
+    await saveConversationTurn(cleanSessionId, cleanMessage, fullReply);
     sendEvent("done", { ok: true, memoryCount: memories.length });
-    console.log(`[Agent] Stream Success for sessionId: ${sessionId}`);
+    console.log(`[Agent] Stream success for ${cleanSessionId}`);
   } catch (error) {
-    if (abortController.signal.aborted && !timedOut) {
-      console.log(`[Agent] Request cancelled for sessionId: ${sessionId}`);
-      return;
-    }
-
-    const errorMessage = timedOut
-      ? `AI агентът не отговори в рамките на ${Math.round(
-          agentTimeoutMs / 1000,
-        )} секунди. Опитайте отново.`
-      : "Връзката с AI агента беше прекъсната. Опитайте отново.";
-
-    console.error(
-      `[Agent] Failure for sessionId: ${sessionId}:`,
-      error?.message || error,
-    );
+    if (abortController.signal.aborted && !timedOut) return;
+    console.error(`[Agent] Failure for ${cleanSessionId}:`, error);
     sendEvent("error", {
       status: timedOut ? 504 : 502,
-      message: errorMessage,
+      message: timedOut
+        ? "AI агентът се забави прекалено. Опитай отново."
+        : "Връзката с AI агента беше прекъсната. Опитай отново.",
     });
   } finally {
     cleanup();

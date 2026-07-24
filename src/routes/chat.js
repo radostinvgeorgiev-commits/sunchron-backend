@@ -54,18 +54,47 @@ router.post("/chat", async (req, res) => {
     DEFAULT_AGENT_TIMEOUT_MS,
   );
 
-  const { sessionId, message } = req.body || {};
-  if (
-    !sessionId ||
-    typeof sessionId !== "string" ||
-    !sessionId.trim() ||
-    !message ||
-    typeof message !== "string" ||
-    !message.trim()
-  ) {
+  const { sessionId, message, image } = req.body || {};
+  const hasMessage = typeof message === "string" && Boolean(message.trim());
+  const hasImage = image && typeof image === "object" && image.dataUrl;
+
+  if (!sessionId || typeof sessionId !== "string" || !sessionId.trim()) {
     return res.status(400).json({
-      error: "sessionId and message are required and must be non-empty strings.",
+      error: "sessionId is required and must be a non-empty string.",
     });
+  }
+
+  if (!hasMessage && !hasImage) {
+    return res.status(400).json({
+      error: "Изпратете съобщение или снимка.",
+    });
+  }
+
+  let validatedImage = null;
+  if (hasImage) {
+    const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+    const mimeType = typeof image.mimeType === "string" ? image.mimeType : "";
+    const dataUrl = typeof image.dataUrl === "string" ? image.dataUrl : "";
+    const expectedPrefix = `data:${mimeType};base64,`;
+
+    if (
+      !allowedTypes.has(mimeType) ||
+      !dataUrl.startsWith(expectedPrefix) ||
+      dataUrl.length > 7_100_000
+    ) {
+      return res.status(400).json({
+        error: "Снимката е невалидна или е по-голяма от 5 MB.",
+      });
+    }
+
+    validatedImage = {
+      dataUrl,
+      mimeType,
+      name:
+        typeof image.name === "string"
+          ? image.name.slice(0, 160)
+          : "Изпратена снимка",
+    };
   }
 
   if (!agentKey) {
@@ -74,7 +103,9 @@ router.post("/chat", async (req, res) => {
       .json({ error: "AGENT_KEY environment variable is required." });
   }
 
-  const cleanMessage = message.trim();
+  const cleanMessage = hasMessage
+    ? message.trim()
+    : "Какво виждаш на тази снимка?";
   console.log(`[POST /chat] sessionId: ${sessionId}`);
 
   let memories;
@@ -98,13 +129,35 @@ router.post("/chat", async (req, res) => {
 
   const memoryContext = buildMemoryContext(memories);
   const previousHistory = sessionHistory.get(sessionId) || [];
-  let history = [...previousHistory, { role: "user", content: cleanMessage }];
+  const userHistoryMessage = {
+    role: "user",
+    content: validatedImage
+      ? `${cleanMessage}\n[Потребителят изпрати снимка: ${validatedImage.name}]`
+      : cleanMessage,
+  };
+  let history = [...previousHistory, userHistoryMessage];
   if (history.length > MAX_HISTORY_LENGTH * 2) {
     history = history.slice(-(MAX_HISTORY_LENGTH * 2));
   }
-  const agentMessages = memoryContext
-    ? [{ role: "user", content: memoryContext }, ...history]
-    : history;
+
+  const currentAgentMessage = validatedImage
+    ? {
+        role: "user",
+        content: [
+          { type: "text", text: cleanMessage },
+          {
+            type: "image_url",
+            image_url: { url: validatedImage.dataUrl },
+          },
+        ],
+      }
+    : userHistoryMessage;
+  const earlierHistory = history.slice(0, -1);
+  const agentMessages = [
+    ...(memoryContext ? [{ role: "user", content: memoryContext }] : []),
+    ...earlierHistory,
+    currentAgentMessage,
+  ];
 
   res.status(200);
   res.setHeader("Content-Type", "text/event-stream; charset=utf-8");

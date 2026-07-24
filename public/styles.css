@@ -248,8 +248,8 @@ input {
     max-width: 82%;
     padding: 11px 14px;
     border-radius: 17px;
-    font-size: 16px;
-    line-height: 1.45;
+    font-size: 19px;
+    line-height: 1.55;
     overflow-wrap: anywhere;
 }
 
@@ -338,7 +338,7 @@ input {
     outline: none;
     color: var(--text);
     background: #f8fafb;
-    font-size: 16px;
+    font-size: 18px;
 }
 
 #chatInput:focus {
@@ -523,7 +523,9 @@ input {
     }
 
     .message {
-        max-width: 88%;
+        max-width: 92%;
+        font-size: 20px;
+        line-height: 1.58;
     }
 
     .assistant-turn {

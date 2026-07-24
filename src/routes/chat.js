@@ -69,7 +69,7 @@ router.post("/chat", async (req, res) => {
       if (typeof res.flushHeaders === 'function') res.flushHeaders();
 
       const heartbeatInterval = setInterval(() => {
-        if (!res.writableEnded) res.write('\\u200B');
+        if (!res.writableEnded) res.write('\u200B');
       }, 15000);
       res.on('close', () => clearInterval(heartbeatInterval));
       

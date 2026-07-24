@@ -6,8 +6,9 @@ const PROFILE_INDEX =
 const CONVERSATION_INDEX =
   process.env.CONVERSATION_INDEX || "synchron-conversation-memory-v1";
 const OWNER_ID = process.env.MEMORY_OWNER_ID || "primary-user";
-const MAX_MEMORIES = 100;
+const MAX_MEMORIES = 200;
 const MAX_CONVERSATION_MESSAGES = 20;
+const VALID_SCOPES = new Set(["personal", "project"]);
 const indexPromises = new Map();
 
 function getClientOrThrow() {
@@ -32,7 +33,15 @@ async function ensureIndex(index, mappings) {
           index,
           body: { mappings: { properties: mappings } },
         });
+        return;
       }
+
+      // Existing v1 indexes are upgraded in place. OpenSearch ignores fields
+      // that already have the same mapping and adds the structured fields.
+      await client.indices.putMapping({
+        index,
+        body: { properties: mappings },
+      });
     })().catch((error) => {
       indexPromises.delete(index);
       throw error;
@@ -47,6 +56,9 @@ function ensureProfileIndex() {
     ownerId: { type: "keyword" },
     fact: { type: "text" },
     normalizedFact: { type: "keyword" },
+    memoryKey: { type: "keyword" },
+    category: { type: "keyword" },
+    scope: { type: "keyword" },
     createdAt: { type: "date" },
     updatedAt: { type: "date" },
     source: { type: "keyword" },
@@ -77,61 +89,143 @@ function cleanMemoryFact(fact) {
     .trim();
 }
 
-function deriveMemoryKey(fact) {
-  const normalized = normalizeFact(cleanMemoryFact(fact))
+function normalizedWords(fact) {
+  return normalizeFact(cleanMemoryFact(fact))
     .replace(/[„“"'’.,!?;:]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
 
-  if (/^(?:казвам се|името ми е)\s+/u.test(normalized)) {
-    return "profile:name";
+export function deriveMemoryMetadata(fact, requestedScope = "personal") {
+  const normalized = normalizedWords(fact);
+  const scope = VALID_SCOPES.has(requestedScope)
+    ? requestedScope
+    : "personal";
+
+  if (scope === "project") {
+    const projectName = normalized.match(
+      /^(?:проектът|проекта|името на проекта)\s+(?:се казва|е)\s+/u,
+    );
+    if (projectName) {
+      return { memoryKey: "project:identity:name", category: "identity", scope };
+    }
+    if (/(?:целта|текущата цел|приоритетът) на проекта/u.test(normalized)) {
+      return { memoryKey: "project:goal:current", category: "goal", scope };
+    }
+    if (/(?:инфраструктура|digitalocean|github|opensearch|cloudflare)/u.test(normalized)) {
+      return {
+        memoryKey: `project:infrastructure:${normalized
+          .replace(/\s+/g, "-")
+          .slice(0, 80)}`,
+        category: "infrastructure",
+        scope,
+      };
+    }
+    return {
+      memoryKey: `project:fact:${normalized}`,
+      category: "project-fact",
+      scope,
+    };
   }
-  if (/^живея\s+(?:във?|на)\s+/u.test(normalized)) {
-    return "profile:residence";
+
+  if (/^(?:казвам се|името ми е|аз съм)\s+/u.test(normalized)) {
+    return { memoryKey: "personal:identity:name", category: "identity", scope };
   }
-  if (/^любим(?:ият|ия)?\s+ми\s+цвят(?:ът)?\s+(?:вече\s+)?е\b/u.test(normalized)) {
-    return "preference:favorite-color";
+  if (
+    /^(?:живея|местоживеенето ми е|градът ми е)\s+(?:във?|на)?\s*/u.test(
+      normalized,
+    )
+  ) {
+    return {
+      memoryKey: "personal:location:residence",
+      category: "location",
+      scope,
+    };
+  }
+  if (
+    /^(?:любим(?:ият|ия)?\s+ми\s+цвят(?:ът)?|предпочитаният ми цвят)\s+(?:вече\s+)?е\b/u.test(
+      normalized,
+    )
+  ) {
+    return {
+      memoryKey: "personal:preference:favorite-color",
+      category: "preference",
+      scope,
+    };
   }
   if (/^имам\s+бизнес\b/u.test(normalized)) {
-    return "profile:business";
+    return {
+      memoryKey: "personal:work:business",
+      category: "work",
+      scope,
+    };
   }
 
   const personalProperty = normalized.match(
     /^(.{2,80}?\s+ми)\s+(?:вече\s+)?е\b/u,
   );
-  if (personalProperty) return `property:${personalProperty[1]}`;
+  if (personalProperty) {
+    return {
+      memoryKey: `personal:property:${personalProperty[1]}`,
+      category: "personal-fact",
+      scope,
+    };
+  }
 
-  return `fact:${normalized}`;
+  return {
+    memoryKey: `personal:fact:${normalized}`,
+    category: "personal-fact",
+    scope,
+  };
 }
 
 export function extractPersistentMemoryCommand(message) {
   const text = message.trim();
-  const patterns = [
+  const projectPatterns = [
+    /^запомни\s+за\s+проекта\s*:\s*(.+)$/iu,
+    /^запомни\s+за\s+проекта\s*,?\s+че\s+(.+)$/iu,
+    /^поправка\s+за\s+проекта\s*:\s*(.+)$/iu,
+  ];
+  const personalPatterns = [
     /^запомни(?:\s+за\s+бъдещи\s+разговори)?\s*:\s*(.+)$/iu,
     /^запомни(?:\s+за\s+бъдещи\s+разговори)?\s*,?\s+че\s+(.+)$/iu,
     /^запази\s+в\s+постоянната\s+памет\s*:\s*(.+)$/iu,
     /^поправка\s*:\s*(.+?)(?:\s+(?:запомни|запази)\s+това[.!?]*)?$/iu,
   ];
 
-  for (const pattern of patterns) {
+  for (const pattern of projectPatterns) {
     const match = text.match(pattern);
     const fact = match?.[1] ? cleanMemoryFact(match[1]) : "";
-    if (fact) return fact;
+    if (fact) return { fact, scope: "project" };
+  }
+  for (const pattern of personalPatterns) {
+    const match = text.match(pattern);
+    const fact = match?.[1] ? cleanMemoryFact(match[1]) : "";
+    if (fact) return { fact, scope: "personal" };
   }
   return null;
 }
 
 export function extractForgetMemoryCommand(message) {
   const text = message.trim();
-  const patterns = [
+  const projectPatterns = [
+    /^(?:забрави|изтрий)\s+за\s+проекта\s*:\s*(.+)$/iu,
+    /^(?:забрави|изтрий)\s+за\s+проекта\s*,?\s+че\s+(.+)$/iu,
+  ];
+  const personalPatterns = [
     /^(?:забрави|изтрий)(?:\s+от\s+паметта)?\s*,?\s+че\s+(.+)$/iu,
     /^(?:забрави|изтрий)(?:\s+от\s+паметта)?\s*:\s*(.+)$/iu,
   ];
 
-  for (const pattern of patterns) {
+  for (const pattern of projectPatterns) {
     const match = text.match(pattern);
     const fact = match?.[1] ? cleanMemoryFact(match[1]) : "";
-    if (fact) return fact;
+    if (fact) return { fact, scope: "project" };
+  }
+  for (const pattern of personalPatterns) {
+    const match = text.match(pattern);
+    const fact = match?.[1] ? cleanMemoryFact(match[1]) : "";
+    if (fact) return { fact, scope: "personal" };
   }
   return null;
 }
@@ -152,6 +246,9 @@ async function fetchProfileHits() {
       _source: [
         "fact",
         "normalizedFact",
+        "memoryKey",
+        "category",
+        "scope",
         "createdAt",
         "updatedAt",
         "source",
@@ -161,18 +258,36 @@ async function fetchProfileHits() {
   return response.body?.hits?.hits ?? response.hits?.hits ?? [];
 }
 
-export async function listProfileMemories() {
+function hydrateMemory(hit) {
+  if (!hit?._source?.fact) return null;
+  const inferred = deriveMemoryMetadata(
+    hit._source.fact,
+    hit._source.scope || "personal",
+  );
+  return {
+    id: hit._id,
+    ...hit._source,
+    memoryKey: hit._source.memoryKey || inferred.memoryKey,
+    category: hit._source.category || inferred.category,
+    scope: hit._source.scope || inferred.scope,
+  };
+}
+
+export async function listProfileMemories(options = {}) {
   await ensureProfileIndex();
+  const requestedScope =
+    typeof options === "string" ? options : options?.scope;
   const hits = await fetchProfileHits();
   const seenKeys = new Set();
   const memories = [];
 
   for (const hit of hits) {
-    if (!hit._source?.fact) continue;
-    const key = deriveMemoryKey(hit._source.fact);
-    if (seenKeys.has(key)) continue;
-    seenKeys.add(key);
-    memories.push({ id: hit._id, ...hit._source });
+    const memory = hydrateMemory(hit);
+    if (!memory) continue;
+    if (requestedScope && memory.scope !== requestedScope) continue;
+    if (seenKeys.has(memory.memoryKey)) continue;
+    seenKeys.add(memory.memoryKey);
+    memories.push(memory);
   }
   return memories;
 }
@@ -180,6 +295,7 @@ export async function listProfileMemories() {
 export async function saveProfileMemory(
   fact,
   source = "explicit-chat-command",
+  requestedScope = "personal",
 ) {
   const cleanFact = cleanMemoryFact(fact);
   if (!cleanFact || cleanFact.length > 500) {
@@ -189,40 +305,39 @@ export async function saveProfileMemory(
     error.code = "INVALID_MEMORY";
     throw error;
   }
+  if (!VALID_SCOPES.has(requestedScope)) {
+    const error = new Error("Невалиден тип памет.");
+    error.code = "INVALID_MEMORY";
+    throw error;
+  }
 
   await ensureProfileIndex();
   const client = getClientOrThrow();
   const normalizedFact = normalizeFact(cleanFact);
-  const memoryKey = deriveMemoryKey(cleanFact);
+  const metadata = deriveMemoryMetadata(cleanFact, requestedScope);
   const hits = await fetchProfileHits();
-  const sameTopic = hits.filter(
-    (hit) =>
-      hit._source?.fact && deriveMemoryKey(hit._source.fact) === memoryKey,
+  const hydrated = hits.map(hydrateMemory).filter(Boolean);
+  const sameTopic = hydrated.filter(
+    (memory) => memory.memoryKey === metadata.memoryKey,
   );
-  const exact =
-    sameTopic.find(
-      (hit) =>
-        (hit._source.normalizedFact || normalizeFact(hit._source.fact)) ===
-        normalizedFact,
-    ) ||
-    hits.find(
-      (hit) =>
-        hit._source?.fact &&
-        (hit._source.normalizedFact || normalizeFact(hit._source.fact)) ===
-          normalizedFact,
-    );
+  const exact = sameTopic.find(
+    (memory) =>
+      (memory.normalizedFact || normalizeFact(memory.fact)) === normalizedFact,
+  );
   const existing = exact || sameTopic[0];
-  const id = existing?._id || randomUUID();
+  const id = existing?.id || randomUUID();
   const now = new Date().toISOString();
 
   const duplicateIds = sameTopic
-    .filter((hit) => hit._id !== id)
-    .map((hit) => hit._id);
+    .filter((memory) => memory.id !== id)
+    .map((memory) => memory.id);
   if (duplicateIds.length) {
-    const operations = duplicateIds.flatMap((duplicateId) => [
-      { delete: { _index: PROFILE_INDEX, _id: duplicateId } },
-    ]);
-    await client.bulk({ refresh: true, body: operations });
+    await client.bulk({
+      refresh: true,
+      body: duplicateIds.map((duplicateId) => ({
+        delete: { _index: PROFILE_INDEX, _id: duplicateId },
+      })),
+    });
   }
 
   await client.index({
@@ -233,7 +348,8 @@ export async function saveProfileMemory(
       ownerId: OWNER_ID,
       fact: cleanFact,
       normalizedFact,
-      createdAt: existing?._source?.createdAt || now,
+      ...metadata,
+      createdAt: existing?.createdAt || now,
       updatedAt: now,
       source,
     },
@@ -241,29 +357,32 @@ export async function saveProfileMemory(
   return {
     id,
     fact: cleanFact,
+    normalizedFact,
+    ...metadata,
     updatedAt: now,
     source,
-    replaced: sameTopic.some(
-      (hit) =>
-        (hit._source.normalizedFact || normalizeFact(hit._source.fact)) !==
-        normalizedFact,
+    replaced: Boolean(
+      existing &&
+        (existing.normalizedFact || normalizeFact(existing.fact)) !==
+          normalizedFact,
     ),
   };
 }
 
-export async function deleteProfileMemoryByFact(fact) {
+export async function deleteProfileMemoryByFact(
+  fact,
+  requestedScope = "personal",
+) {
   const cleanFact = cleanMemoryFact(fact);
   if (!cleanFact) return 0;
 
   await ensureProfileIndex();
+  const metadata = deriveMemoryMetadata(cleanFact, requestedScope);
   const hits = await fetchProfileHits();
-  const memoryKey = deriveMemoryKey(cleanFact);
   const matchingIds = hits
-    .filter(
-      (hit) =>
-        hit._source?.fact && deriveMemoryKey(hit._source.fact) === memoryKey,
-    )
-    .map((hit) => hit._id);
+    .map(hydrateMemory)
+    .filter((memory) => memory?.memoryKey === metadata.memoryKey)
+    .map((memory) => memory.id);
   if (!matchingIds.length) return 0;
 
   const response = await getClientOrThrow().deleteByQuery({
@@ -293,12 +412,14 @@ export async function deleteProfileMemory(id) {
   return response.body?.result === "deleted" || response.result === "deleted";
 }
 
-export async function clearProfileMemories() {
+export async function clearProfileMemories(scope) {
   await ensureProfileIndex();
+  const filters = [{ term: { ownerId: OWNER_ID } }];
+  if (VALID_SCOPES.has(scope)) filters.push({ term: { scope } });
   const response = await getClientOrThrow().deleteByQuery({
     index: PROFILE_INDEX,
     refresh: true,
-    body: { query: { term: { ownerId: OWNER_ID } } },
+    body: { query: { bool: { filter: filters } } },
   });
   return response.body?.deleted ?? response.deleted ?? 0;
 }
@@ -334,33 +455,48 @@ export async function saveConversationTurn(sessionId, userText, replyText) {
   await ensureConversationIndex();
   const client = getClientOrThrow();
   const timestamp = Date.now();
-  const operations = [
-    { index: { _index: CONVERSATION_INDEX, _id: randomUUID() } },
-    {
-      ownerId: OWNER_ID,
-      sessionId,
-      role: "user",
-      content: userText,
-      createdAt: new Date(timestamp).toISOString(),
-    },
-    { index: { _index: CONVERSATION_INDEX, _id: randomUUID() } },
-    {
-      ownerId: OWNER_ID,
-      sessionId,
-      role: "assistant",
-      content: replyText,
-      createdAt: new Date(timestamp + 1).toISOString(),
-    },
-  ];
-  await client.bulk({ refresh: true, body: operations });
+  await client.bulk({
+    refresh: true,
+    body: [
+      { index: { _index: CONVERSATION_INDEX, _id: randomUUID() } },
+      {
+        ownerId: OWNER_ID,
+        sessionId,
+        role: "user",
+        content: userText,
+        createdAt: new Date(timestamp).toISOString(),
+      },
+      { index: { _index: CONVERSATION_INDEX, _id: randomUUID() } },
+      {
+        ownerId: OWNER_ID,
+        sessionId,
+        role: "assistant",
+        content: replyText,
+        createdAt: new Date(timestamp + 1).toISOString(),
+      },
+    ],
+  });
 }
 
 export function buildMemoryContext(memories) {
-  const facts = memories.map((item, index) => `${index + 1}. ${item.fact}`);
+  const personal = memories.filter(
+    (memory) => (memory.scope || "personal") === "personal",
+  );
+  const project = memories.filter((memory) => memory.scope === "project");
+  const format = (items, emptyText) =>
+    items.length
+      ? items.map((item, index) => `${index + 1}. ${item.fact}`).join("\n")
+      : emptyText;
+
   return [
-    "[ПРОВЕРЕНА ПОСТОЯННА ПАМЕТ ЗА РАДКО]",
+    "[ПРОВЕРЕНА ПОСТОЯННА ПАМЕТ]",
+    "[ЛИЧЕН ПРОФИЛ НА РАДКО]",
     "Тези факти описват Радко — човека. Те не описват теб.",
-    facts.length ? facts.join("\n") : "Няма записани лични факти.",
+    format(personal, "Няма записани лични факти."),
+    "[КОНТЕКСТ НА ПРОЕКТА]",
+    "Тези факти описват проекта, а не личността на Радко.",
+    format(project, "Няма записани проектни факти."),
+    "Използвай само фактите, които са свързани с текущия въпрос.",
     "При противоречие използвай най-новия показан факт.",
     "Не измисляй липсващи факти и не твърди, че помниш нещо, което не е тук или в разговора.",
     "[КРАЙ НА ПАМЕТТА]",

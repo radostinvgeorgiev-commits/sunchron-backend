@@ -1,4 +1,12 @@
 import express from "express";
+import {
+  buildMemoryContext,
+  clearProfileMemories,
+  extractPersistentMemoryCommand,
+  isForgetAllCommand,
+  listProfileMemories,
+  saveProfileMemory,
+} from "../services/memoryService.js";
 
 const router = express.Router();
 
@@ -66,13 +74,37 @@ router.post("/chat", async (req, res) => {
       .json({ error: "AGENT_KEY environment variable is required." });
   }
 
+  const cleanMessage = message.trim();
   console.log(`[POST /chat] sessionId: ${sessionId}`);
 
+  let memories;
+  try {
+    const factToSave = extractPersistentMemoryCommand(cleanMessage);
+    if (factToSave) {
+      await saveProfileMemory(factToSave);
+      console.log(`[Memory] Saved explicit memory for sessionId: ${sessionId}`);
+    } else if (isForgetAllCommand(cleanMessage)) {
+      await clearProfileMemories();
+      console.log(`[Memory] Cleared profile memory for sessionId: ${sessionId}`);
+    }
+    memories = await listProfileMemories();
+  } catch (error) {
+    console.error(`[Memory] Failure for sessionId: ${sessionId}:`, error);
+    return res.status(503).json({
+      error:
+        "Постоянната памет временно не е достъпна. Нищо не беше записано.",
+    });
+  }
+
+  const memoryContext = buildMemoryContext(memories);
   const previousHistory = sessionHistory.get(sessionId) || [];
-  let history = [...previousHistory, { role: "user", content: message.trim() }];
+  let history = [...previousHistory, { role: "user", content: cleanMessage }];
   if (history.length > MAX_HISTORY_LENGTH * 2) {
     history = history.slice(-(MAX_HISTORY_LENGTH * 2));
   }
+  const agentMessages = memoryContext
+    ? [{ role: "user", content: memoryContext }, ...history]
+    : history;
 
   res.status(200);
   res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
@@ -128,7 +160,7 @@ router.post("/chat", async (req, res) => {
         Authorization: `Bearer ${agentKey}`,
       },
       body: JSON.stringify({
-        messages: history,
+        messages: agentMessages,
         stream: true,
       }),
       signal: abortController.signal,
@@ -156,15 +188,10 @@ router.post("/chat", async (req, res) => {
     let upstreamBuffer = "";
     let fullReply = "";
 
-    const processBufferedEvents = (flush = false) => {
+    const processBufferedEvents = () => {
       upstreamBuffer = upstreamBuffer.replace(/\r\n/g, "\n");
       const events = upstreamBuffer.split("\n\n");
-      upstreamBuffer = flush ? "" : events.pop() || "";
-
-      if (flush && events.length === 0 && upstreamBuffer) {
-        events.push(upstreamBuffer);
-        upstreamBuffer = "";
-      }
+      upstreamBuffer = events.pop() || "";
 
       for (const rawEvent of events) {
         if (!rawEvent.trim()) continue;
@@ -205,7 +232,7 @@ router.post("/chat", async (req, res) => {
 
     history.push({ role: "assistant", content: fullReply });
     sessionHistory.set(sessionId, history);
-    sendEvent("done", { ok: true });
+    sendEvent("done", { ok: true, memoryCount: memories.length });
     console.log(`[Agent] Stream Success for sessionId: ${sessionId}`);
   } catch (error) {
     if (abortController.signal.aborted && !timedOut) {
@@ -213,7 +240,7 @@ router.post("/chat", async (req, res) => {
       return;
     }
 
-    const message = timedOut
+    const errorMessage = timedOut
       ? `AI агентът не отговори в рамките на ${Math.round(
           agentTimeoutMs / 1000,
         )} секунди. Опитайте отново.`
@@ -223,7 +250,10 @@ router.post("/chat", async (req, res) => {
       `[Agent] Failure for sessionId: ${sessionId}:`,
       error?.message || error,
     );
-    sendEvent("error", { status: timedOut ? 504 : 502, message });
+    sendEvent("error", {
+      status: timedOut ? 504 : 502,
+      message: errorMessage,
+    });
   } finally {
     cleanup();
     if (!res.writableEnded && !res.destroyed) res.end();

@@ -4,13 +4,20 @@ const state = {
     opensearchStatus: 'unknown',
     lastActions: [],
     chatBusy: false,
-    speakingButton: null
+    speakingButton: null,
+    pendingImage: null
 };
 
 const elements = {
     chatMessages: document.getElementById('chatMessages'),
     chatInput: document.getElementById('chatInput'),
     sendBtn: document.getElementById('sendBtn'),
+    attachBtn: document.getElementById('attachBtn'),
+    imageInput: document.getElementById('imageInput'),
+    attachmentPreview: document.getElementById('attachmentPreview'),
+    attachmentImage: document.getElementById('attachmentImage'),
+    attachmentName: document.getElementById('attachmentName'),
+    removeAttachmentBtn: document.getElementById('removeAttachmentBtn'),
     newChatBtn: document.getElementById('newChatBtn'),
     toggleStatusBtn: document.getElementById('toggleStatusBtn'),
     closeContextBtn: document.getElementById('closeContextBtn'),
@@ -31,6 +38,9 @@ function init() {
     updateSessionDisplay();
 
     elements.sendBtn.addEventListener('click', sendMessage);
+    elements.attachBtn.addEventListener('click', () => elements.imageInput.click());
+    elements.imageInput.addEventListener('change', handleImageSelection);
+    elements.removeAttachmentBtn.addEventListener('click', clearPendingImage);
     elements.chatInput.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
@@ -63,6 +73,7 @@ function showWelcomeMessage() {
 
 function startNewChat() {
     if (state.chatBusy) return;
+    clearPendingImage();
     state.sessionId = createSessionId();
     state.lastActions = [];
     elements.chatMessages.replaceChildren();
@@ -71,6 +82,50 @@ function startNewChat() {
     showWelcomeMessage();
     logAction('Започнат е нов разговор');
     elements.chatInput.focus();
+}
+
+function handleImageSelection(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+        appendMessage('agent', '❌ Поддържат се само JPEG, PNG и WebP снимки.');
+        clearPendingImage();
+        return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+        appendMessage('agent', '❌ Снимката трябва да бъде до 5 MB.');
+        clearPendingImage();
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        state.pendingImage = {
+            dataUrl: reader.result,
+            mimeType: file.type,
+            name: file.name
+        };
+        elements.attachmentImage.src = reader.result;
+        elements.attachmentName.textContent = file.name;
+        elements.attachmentPreview.hidden = false;
+        elements.chatInput.focus();
+    };
+    reader.onerror = () => {
+        appendMessage('agent', '❌ Снимката не можа да бъде прочетена.');
+        clearPendingImage();
+    };
+    reader.readAsDataURL(file);
+}
+
+function clearPendingImage() {
+    state.pendingImage = null;
+    elements.imageInput.value = '';
+    elements.attachmentImage.removeAttribute('src');
+    elements.attachmentName.textContent = '';
+    elements.attachmentPreview.hidden = true;
 }
 
 function openStatus() {
@@ -107,6 +162,7 @@ function setChatBusy(isBusy) {
     elements.sendBtn.disabled = isBusy;
     elements.chatInput.disabled = isBusy;
     elements.newChatBtn.disabled = isBusy;
+    elements.attachBtn.disabled = isBusy;
 }
 
 function renderAgentText(element, text) {
@@ -260,10 +316,13 @@ function parseSseEvent(rawEvent) {
 
 async function sendMessage() {
     const text = elements.chatInput.value.trim();
-    if (!text || state.chatBusy) return;
+    const image = state.pendingImage;
+    if ((!text && !image) || state.chatBusy) return;
 
-    appendMessage('user', text);
+    const messageText = text || 'Какво виждаш на тази снимка?';
+    appendMessage('user', messageText, image);
     elements.chatInput.value = '';
+    clearPendingImage();
     logAction('Изпратено съобщение');
     showTypingIndicator();
     setChatBusy(true);
@@ -277,7 +336,8 @@ async function sendMessage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 sessionId: state.sessionId,
-                message: text
+                message: messageText,
+                image
             })
         });
 
@@ -375,7 +435,7 @@ async function sendMessage() {
     }
 }
 
-function appendMessage(role, text) {
+function appendMessage(role, text, image = null) {
     if (role === 'agent') {
         const assistantTurn = createAssistantTurn(text, true);
         scrollChatToBottom();
@@ -384,7 +444,17 @@ function appendMessage(role, text) {
 
     const div = document.createElement('div');
     div.className = `message ${role}`;
-    div.textContent = text;
+    if (image?.dataUrl) {
+        const preview = document.createElement('img');
+        preview.className = 'message-image';
+        preview.src = image.dataUrl;
+        preview.alt = image.name || 'Изпратена снимка';
+        div.appendChild(preview);
+    }
+
+    const textNode = document.createElement('div');
+    textNode.textContent = text;
+    div.appendChild(textNode);
 
     elements.chatMessages.appendChild(div);
     scrollChatToBottom();

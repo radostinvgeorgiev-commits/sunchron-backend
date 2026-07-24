@@ -173,7 +173,7 @@ export function deriveMemoryMetadata(fact, requestedScope = "personal") {
     };
   }
   const workHolding = normalized.match(
-    /^(?:аз\s+)?имам\s+(бизнес|фирма|магазин|заведение|бунгала|къмпинг)(.*)$/u,
+    /^(?:аз\s+)?имам\s+(?:бизнес\s+с\s+)?(фирма|магазин|заведение|бунгала|къмпинг)(.*)$/u,
   );
   if (workHolding) {
     return {
@@ -375,15 +375,51 @@ function hydrateMemory(hit) {
     ...hit._source,
     memoryKey: hit._source.memoryKey || inferred.memoryKey,
     category: hit._source.category || inferred.category,
-    scope: hit._source.scope || inferred.scope,
-  };
+    scope: hit._source.scope || inferred.scopfunction expandLegacyMemory(memory) {
+  const fact = cleanMemoryFact(memory.fact || "");
+  if (!fact) return [];
+
+  const bulletParts = fact
+    .replace(/^\s*-\s*/u, "")
+    .split(/\s+-\s+(?=[А-ЯA-Z])/u);
+  const facts = bulletParts.flatMap((part) =>
+    part.split(
+      /\s+и\s+(?=(?:аз\s+)?(?:се\s+интересувам|живея|имам\s+(?:бизнес|фирма|магазин|заведение|бунгала|къмпинг)|казвам\s+се))/iu,
+    ),
+  );
+
+  return facts
+    .map(cleanMemoryFact)
+    .filter(Boolean)
+    .map((itemFact) => {
+      const inferred = deriveMemoryMetadata(
+        itemFact,
+        memory.scope || "personal",
+      );
+      return {
+        ...memory,
+        fact: itemFact,
+        normalizedFact: normalizeFact(itemFact),
+        ...inferred,
+      };
+    });
 }
 
 export function consolidateMemoryView(memories) {
-  const interestItems = memories.filter(
+  const expanded = memories.flatMap(expandLegacyMemory);
+  const seenKeys = new Set();
+  const unique = [];
+
+  for (const memory of expanded) {
+    if (seenKeys.has(memory.memoryKey)) continue;
+    seenKeys.add(memory.memoryKey);
+    unique.push(memory);
+  }
+
+  const interestItems = unique.filter(
     (memory) => memory.category === "interest",
   );
-  if (interestItems.length < 2) return memories;
+  if (interestItems.length < 2) return unique;
 
   const seen = new Set();
   const interests = [];
@@ -409,13 +445,14 @@ export function consolidateMemoryView(memories) {
     memoryKey: "personal:interest:summary",
     category: "interest",
   };
-  const firstInterestIndex = memories.findIndex(
+  const firstInterestIndex = unique.findIndex(
     (memory) => memory.category === "interest",
   );
 
-  return memories
+  return unique
     .filter((memory) => memory.category !== "interest")
     .toSpliced(firstInterestIndex, 0, consolidated);
+}lidated);
 }
 
 export async function listProfileMemories(options = {}) {

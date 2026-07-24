@@ -75,11 +75,48 @@ function updateSessionDisplay() {
     elements.sessionIdDisplay.textContent = state.sessionId;
 }
 
-function showWelcomeMessage() {
-    appendMessage(
-        'agent',
-        'Здравей, Радко. Аз съм Synchron-X — твоят личен AI асистент. С какво да започнем?'
+function formatMemorySummary(items) {
+    const personal = items.filter(
+        (item) => (item.scope || 'personal') === 'personal'
     );
+    const project = items.filter((item) => item.scope === 'project');
+    const sections = ['**Тест на паметта — това знам в момента:**'];
+
+    if (personal.length) {
+        sections.push(
+            '**За теб:**\n' +
+            personal.map((item) => '- ' + item.fact).join('\n')
+        );
+    }
+
+    if (project.length) {
+        sections.push(
+            '**За проекта:**\n' +
+            project.map((item) => '- ' + item.fact).join('\n')
+        );
+    }
+
+    if (!personal.length && !project.length) {
+        sections.push('Все още няма записани постоянни спомени.');
+    }
+
+    return sections.join('\n\n');
+}
+
+async function showWelcomeMessage() {
+    try {
+        const response = await fetch('/memory/profile', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Паметта не е достъпна.');
+        const data = await response.json();
+        const items = Array.isArray(data.items) ? data.items : [];
+        appendMessage('agent', formatMemorySummary(items));
+    } catch (error) {
+        console.error(error);
+        appendMessage(
+            'agent',
+            'Здравей, Радко. Аз съм Synchron-X — твоят личен AI асистент. Паметта временно не можа да бъде заредена.'
+        );
+    }
 }
 
 async function restoreConversation() {
@@ -92,7 +129,7 @@ async function restoreConversation() {
         const data = await response.json();
         const items = Array.isArray(data.items) ? data.items : [];
         if (items.length === 0) {
-            showWelcomeMessage();
+            await showWelcomeMessage();
             return;
         }
         for (const item of items) {
@@ -109,12 +146,12 @@ async function restoreConversation() {
         logAction('Възстановена е историята на разговора');
     } catch (error) {
         console.error(error);
-        showWelcomeMessage();
+        await showWelcomeMessage();
         logAction('Историята не можа да бъде възстановена');
     }
 }
 
-function startNewChat() {
+async function startNewChat() {
     if (state.chatBusy) return;
     clearPendingImage();
     state.sessionId = createSessionId();
@@ -123,7 +160,7 @@ function startNewChat() {
     elements.chatMessages.replaceChildren();
     updateSessionDisplay();
     renderActionsLog();
-    showWelcomeMessage();
+    await showWelcomeMessage();
     logAction('Започнат е нов разговор');
     elements.chatInput.focus();
 }

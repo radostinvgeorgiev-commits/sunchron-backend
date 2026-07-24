@@ -4,7 +4,8 @@ const state = {
     agentOnline: false,
     opensearchStatus: 'unknown',
     intent: 'general',
-    lastActions: []
+    lastActions: [],
+    chatBusy: false
 };
 
 // DOM Elements
@@ -18,37 +19,29 @@ const elements = {
     intentDisplay: document.getElementById('intentDisplay'),
     opensearchStatusDisplay: document.getElementById('opensearchStatusDisplay'),
     actionsLog: document.getElementById('actionsLog'),
-    serverTimeDisplay: document.getElementById('serverTimeDisplay') 
+    serverTimeDisplay: document.getElementById('serverTimeDisplay')
 };
 
-// --- Initialization ---
 function init() {
-    // Set static displays
     if (elements.sessionIdDisplay) elements.sessionIdDisplay.textContent = state.sessionId;
-    
-    // Add Event Listeners
+
     elements.sendBtn.addEventListener('click', sendMessage);
     elements.chatInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendMessage();
     });
 
-    // Action Buttons
     document.querySelectorAll('.action-btn').forEach(btn => {
         btn.addEventListener('click', (e) => handleActionClick(e.currentTarget.id));
     });
 
-    // Start Polling
     checkHealth();
     checkOpenSearch();
-    setInterval(checkHealth, 5000); // Every 5 sec
-    setInterval(checkOpenSearch, 10000); // Every 10 sec
+    setInterval(checkHealth, 5000);
+    setInterval(checkOpenSearch, 10000);
 
-    // Welcome Message
     appendMessage('agent', 'Здравей! Аз съм Synchron-X. Как мога да помогна?');
 }
 
-// --- Chat Logic ---
-// Helper for Typing Indicator
 function showTypingIndicator() {
     const div = document.createElement('div');
     div.className = 'message typing';
@@ -67,32 +60,69 @@ function removeTypingIndicator() {
     if (indicator) indicator.remove();
 }
 
+function setChatBusy(isBusy) {
+    state.chatBusy = isBusy;
+    elements.sendBtn.disabled = isBusy;
+    elements.chatInput.disabled = isBusy;
+}
+
+function renderAgentText(element, text) {
+    if (typeof marked !== 'undefined') {
+        element.innerHTML = marked.parse(text);
+    } else {
+        element.textContent = text;
+    }
+}
+
+function parseSseEvent(rawEvent) {
+    const lines = rawEvent.split('\n');
+    let eventName = 'message';
+    const dataLines = [];
+
+    for (const line of lines) {
+        if (!line || line.startsWith(':')) continue;
+        if (line.startsWith('event:')) {
+            eventName = line.slice(6).trim();
+        } else if (line.startsWith('data:')) {
+            dataLines.push(line.slice(5).trimStart());
+        }
+    }
+
+    if (dataLines.length === 0) return null;
+
+    try {
+        return {
+            event: eventName,
+            data: JSON.parse(dataLines.join('\n'))
+        };
+    } catch {
+        throw new Error('Получен е повреден поток от сървъра.');
+    }
+}
+
 async function sendMessage() {
     const text = elements.chatInput.value.trim();
-    if (!text) return;
+    if (!text || state.chatBusy) return;
 
-    // UI Updates
     appendMessage('user', text);
     elements.chatInput.value = '';
     logAction('User sent message');
-
-    // Show Typing Indicator
     showTypingIndicator();
+    setChatBusy(true);
 
-    // API Call (Streaming Support)
+    let responseBubble = null;
+
     try {
         const response = await fetch('/chat/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                sessionId: state.sessionId, 
-                message: text 
+            body: JSON.stringify({
+                sessionId: state.sessionId,
+                message: text
             })
         });
 
-        // Handle failed HTTP responses before treating the body as an AI stream.
         if (!response.ok) {
-            removeTypingIndicator();
             const contentType = response.headers.get('content-type') || '';
             let errorMessage = `HTTP ${response.status}`;
 
@@ -101,85 +131,97 @@ async function sendMessage() {
                 if (data?.error) errorMessage = data.error;
             }
 
-            appendMessage('agent', `⚠️ Временна грешка при връзката с AI (${errorMessage}). Опитайте отново.`);
-            return;
+            throw new Error(errorMessage);
         }
 
-        // If JSON response (Cache Hit), handle normally
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-             removeTypingIndicator();
-             const data = await response.json();
-             if (data.reply) {
-                appendMessage('agent', data.reply);
-             } else {
-                appendMessage('agent', '⚠️ Error: ' + (data.error || 'Unknown'));
-             }
-             return;
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('text/event-stream')) {
+            throw new Error('Сървърът върна неочакван формат.');
         }
 
-        // Handle Stream
         removeTypingIndicator();
-        
-        // Create empty message bubble
-        const div = document.createElement('div');
-        div.className = 'message agent';
-        elements.chatMessages.appendChild(div);
-        
+        responseBubble = document.createElement('div');
+        responseBubble.className = 'message agent';
+        elements.chatMessages.appendChild(responseBubble);
+
         const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let fullText = "";
+        const decoder = new TextDecoder('utf-8');
+        let streamBuffer = '';
+        let fullText = '';
+        let completed = false;
+
+        const processEvents = () => {
+            streamBuffer = streamBuffer.replace(/\r\n/g, '\n');
+            const events = streamBuffer.split('\n\n');
+            streamBuffer = events.pop() || '';
+
+            for (const rawEvent of events) {
+                const parsed = parseSseEvent(rawEvent);
+                if (!parsed) continue;
+
+                if (parsed.event === 'token' && typeof parsed.data?.token === 'string') {
+                    fullText += parsed.data.token;
+                    renderAgentText(responseBubble, fullText);
+                } else if (parsed.event === 'error') {
+                    throw new Error(parsed.data?.message || 'AI агентът върна грешка.');
+                } else if (parsed.event === 'done') {
+                    completed = true;
+                }
+            }
+        };
 
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            
-            const chunk = decoder.decode(value, { stream: true });
-            fullText += chunk;
-            
-            // Render partial
-            if (typeof marked !== 'undefined') {
-                div.innerHTML = marked.parse(fullText);
-            } else {
-                div.textContent = fullText;
-            }
+            streamBuffer += decoder.decode(value, { stream: true });
+            processEvents();
             elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
         }
 
+        streamBuffer += decoder.decode();
+        if (streamBuffer.trim()) {
+            streamBuffer += '\n\n';
+            processEvents();
+        }
+
+        if (!completed || !fullText.trim()) {
+            throw new Error('AI отговорът приключи неочаквано.');
+        }
     } catch (error) {
-        removeTypingIndicator();
         console.error(error);
-        appendMessage('agent', '❌ Сървърна грешка. Моля, опитайте по-късно.');
+        const message = `❌ ${error?.message || 'Сървърна грешка. Моля, опитайте по-късно.'}`;
+
+        if (responseBubble) {
+            responseBubble.textContent = message;
+        } else {
+            appendMessage('agent', message);
+        }
+    } finally {
+        removeTypingIndicator();
+        setChatBusy(false);
+        elements.chatInput.focus();
     }
 }
 
 function appendMessage(role, text) {
     const div = document.createElement('div');
     div.className = `message ${role}`;
-    
-    if (role === 'agent' && typeof marked !== 'undefined') {
-        div.innerHTML = marked.parse(text);
+
+    if (role === 'agent') {
+        renderAgentText(div, text);
     } else {
         div.textContent = text;
     }
-    
+
     elements.chatMessages.appendChild(div);
     elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
 }
 
-// --- Status & Monitoring ---
 async function checkHealth() {
     try {
         const res = await fetch('/health');
-        if (res.ok) {
-            setAgentStatus(true);
-            const data = await res.json();
-            // Update OpenSearch inline if provided by health
-            if (data.opensearch) updateOpenSearchUI(data.opensearch);
-        } else {
-            setAgentStatus(false);
-        }
-    } catch (e) {
+        setAgentStatus(res.ok);
+    } catch {
         setAgentStatus(false);
     }
 }
@@ -190,11 +232,13 @@ async function checkOpenSearch() {
         if (res.ok) {
             const data = await res.json();
             updateOpenSearchUI(data.status);
-            if (elements.serverTimeDisplay) elements.serverTimeDisplay.textContent = new Date().toLocaleTimeString();
+            if (elements.serverTimeDisplay) {
+                elements.serverTimeDisplay.textContent = new Date().toLocaleTimeString();
+            }
         } else {
             updateOpenSearchUI('error');
         }
-    } catch (e) {
+    } catch {
         updateOpenSearchUI('unreachable');
     }
 }
@@ -202,7 +246,7 @@ async function checkOpenSearch() {
 function setAgentStatus(isOnline) {
     state.agentOnline = isOnline;
     elements.agentStatusDot.className = isOnline ? 'online' : 'offline';
-    elements.agentStatusText.textContent = isOnline ? 'Agent Online' : 'Agent Offline';
+    elements.agentStatusText.textContent = isOnline ? 'Server Online' : 'Server Offline';
 }
 
 function updateOpenSearchUI(status) {
@@ -211,16 +255,15 @@ function updateOpenSearchUI(status) {
     if (!display) return;
 
     display.textContent = status;
-    display.className = 'context-value'; // reset
+    display.className = 'context-value';
     if (status === 'green') display.classList.add('status-green');
     else if (status === 'red' || status === 'error') display.classList.add('status-red');
     else display.classList.add('status-yellow');
 }
 
-// --- Action Logic ---
 function handleActionClick(actionId) {
     logAction(`Clicked: ${actionId}`);
-    
+
     switch (actionId) {
         case 'actionTalk':
             elements.chatInput.focus();
@@ -263,5 +306,4 @@ function updateContextDisplay() {
     if (elements.intentDisplay) elements.intentDisplay.textContent = state.intent;
 }
 
-// Run init
 window.addEventListener('load', init);

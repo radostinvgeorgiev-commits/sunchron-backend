@@ -140,6 +140,24 @@ router.post("/chat", async (req, res) => {
     }
   };
 
+  const isProfileOverviewQuestion = /^какво\s+знаеш\s+за\s+мен\b/iu.test(
+    cleanMessage.replace(/[„“"'’]/gu, "").trim(),
+  );
+  if (isProfileOverviewQuestion) {
+    const fullReply = memories.length
+      ? [
+          "Знам следното за теб:",
+          ...memories.map(({ fact }) => `• ${fact}`),
+        ].join("\n")
+      : "Все още нямам записани факти за теб.";
+
+    await saveConversationTurn(cleanSessionId, cleanMessage, fullReply);
+    sendEvent("token", { token: fullReply });
+    sendEvent("done", { ok: true, memoryCount: memories.length });
+    res.end();
+    return;
+  }
+
   const abortController = new AbortController();
   let timedOut = false;
   let heartbeatInterval;

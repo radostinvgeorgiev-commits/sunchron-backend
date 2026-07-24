@@ -4,7 +4,7 @@ import {
   clearProfileMemories,
   deleteProfileMemoryByFact,
   extractForgetMemoryCommand,
-  extractPersistentMemoryCommand,
+  extractPersistentMemoryCommands,
   isForgetAllCommand,
   listConversationMessages,
   listProfileMemories,
@@ -100,18 +100,29 @@ router.post("/chat", async (req, res) => {
   let history;
   let memoryAction = null;
   try {
-    const memoryCommand = extractPersistentMemoryCommand(cleanMessage);
-    if (memoryCommand) {
-      const saved = await saveProfileMemory(
-        memoryCommand.fact,
-        "explicit-chat-command",
-        memoryCommand.scope,
-      );
-      memoryAction = {
-        type: saved.replaced ? "updated" : "saved",
-        fact: saved.fact,
-        scope: saved.scope,
-      };
+    const memoryCommands = extractPersistentMemoryCommands(cleanMessage);
+    if (memoryCommands.length) {
+      const items = [];
+      for (const memoryCommand of memoryCommands) {
+        const saved = await saveProfileMemory(
+          memoryCommand.fact,
+          "explicit-chat-command",
+          memoryCommand.scope,
+        );
+        items.push({
+          fact: saved.fact,
+          scope: saved.scope,
+          replaced: saved.replaced,
+        });
+      }
+      memoryAction =
+        items.length === 1
+          ? {
+              type: items[0].replaced ? "updated" : "saved",
+              fact: items[0].fact,
+              scope: items[0].scope,
+            }
+          : { type: "batch", items };
     } else if (isForgetAllCommand(cleanMessage)) {
       const deleted = await clearProfileMemories();
       memoryAction = { type: "cleared", deleted };
@@ -175,6 +186,17 @@ router.post("/chat", async (req, res) => {
       fullReply = memoryAction.deleted
         ? `Забравих: ${memoryAction.fact}.`
         : "Не намерих такъв запис в постоянната памет.";
+    } else if (memoryAction.type === "batch") {
+      const updatedCount = memoryAction.items.filter(
+        (item) => item.replaced,
+      ).length;
+      const updatedSuffix = updatedCount
+        ? `, от които ${updatedCount} обновени`
+        : "";
+      fullReply = [
+        `Записах ${memoryAction.items.length} факта в постоянната памет${updatedSuffix}:`,
+        ...memoryAction.items.map(({ fact }) => `• ${fact}`),
+      ].join("\n");
     } else if (memoryAction.type === "updated") {
       fullReply = `Поправих постоянната памет: ${memoryAction.fact}.`;
     } else {

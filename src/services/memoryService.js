@@ -81,6 +81,20 @@ export function extractPersistentMemoryCommand(message) {
   return null;
 }
 
+export function extractForgetMemoryCommand(message) {
+  const text = message.trim();
+  const patterns = [
+    /^(?:забрави|изтрий)(?:\s+от\s+паметта)?\s*,?\s+че\s+(.+)$/iu,
+    /^(?:забрави|изтрий)(?:\s+от\s+паметта)?\s*:\s*(.+)$/iu,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]?.trim()) return match[1].trim();
+  }
+  return null;
+}
+
 export function isForgetAllCommand(message) {
   return /^(?:забрави|изтрий)\s+(?:цялата|всичко\s+от)\s+постоянната\s+(?:ми\s+)?памет[.!]?$/iu.test(
     message.trim(),
@@ -151,6 +165,28 @@ export async function saveProfileMemory(
     },
   });
   return { id, fact: cleanFact, updatedAt: now, source };
+}
+
+export async function deleteProfileMemoryByFact(fact) {
+  const cleanFact = fact.trim().replace(/\s+/g, " ");
+  if (!cleanFact) return 0;
+
+  await ensureProfileIndex();
+  const response = await getClientOrThrow().deleteByQuery({
+    index: PROFILE_INDEX,
+    refresh: true,
+    body: {
+      query: {
+        bool: {
+          filter: [
+            { term: { ownerId: OWNER_ID } },
+            { term: { normalizedFact: normalizeFact(cleanFact) } },
+          ],
+        },
+      },
+    },
+  });
+  return response.body?.deleted ?? response.deleted ?? 0;
 }
 
 export async function deleteProfileMemory(id) {

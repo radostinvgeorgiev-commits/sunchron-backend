@@ -61,6 +61,17 @@ router.post("/chat", async (req, res) => {
     // We will bypass the simple fetch(json) and implement streaming response
     try {
       const agentEndpoint = `${AGENT_URL}/api/v1/chat/completions`;
+
+      // Start the client response immediately and keep proxy connections alive
+      // while the upstream agent is preparing its first token.
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Transfer-Encoding', 'chunked');
+      if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+      const heartbeatInterval = setInterval(() => {
+        if (!res.writableEnded) res.write('\\u200B');
+      }, 15000);
+      res.on('close', () => clearInterval(heartbeatInterval));
       
       const agentRes = await fetch(agentEndpoint, {
         method: "POST",
@@ -75,17 +86,18 @@ router.post("/chat", async (req, res) => {
       });
 
       if (!agentRes.ok) {
+        clearInterval(heartbeatInterval);
         const upstreamErrorBody = await agentRes.text();
         console.error(
           `[Agent] Upstream error ${agentRes.status} ${agentRes.statusText}:`,
           upstreamErrorBody || "<empty response body>"
         );
-        throw new Error(`Agent error: ${agentRes.status}`);
+        if (!res.writableEnded) {
+          res.write(`⚠️ AI агентът върна грешка ${agentRes.status}. Опитайте отново.`);
+          res.end();
+        }
+        return;
       }
-
-      // Configure response headers for streaming
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      res.setHeader('Transfer-Encoding', 'chunked');
 
       let fullReply = "";
       const reader = agentRes.body.getReader();
@@ -141,6 +153,7 @@ router.post("/chat", async (req, res) => {
         streamCompleted = true;
         
         // End response after successful stream completion
+        clearInterval(heartbeatInterval);
         if (!res.writableEnded) {
           res.end();
         }
@@ -153,6 +166,7 @@ router.post("/chat", async (req, res) => {
           sessionHistory.set(sessionId, history);
         }
       } catch (streamErr) {
+           clearInterval(heartbeatInterval);
            console.error("Stream reading error:", streamErr);
            
            // If no response data has been sent, rethrow to allow the agentErr catch

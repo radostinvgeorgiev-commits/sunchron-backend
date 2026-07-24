@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildMemoryContext,
+  consolidateMemoryView,
   deriveMemoryMetadata,
   extractForgetMemoryCommand,
   extractImplicitMemoryCandidates,
@@ -124,4 +125,45 @@ test("implicit interests receive a structured interest category", () => {
   );
   assert.equal(metadata.category, "interest");
   assert.match(metadata.memoryKey, /^personal:interest:/u);
+});
+
+test("consolidates overlapping interests without deleting source memories", () => {
+  const items = consolidateMemoryView([
+    {
+      id: "new",
+      fact: "Се интересувам от история и пътувания",
+      category: "interest",
+      scope: "personal",
+      updatedAt: "2026-07-24T21:00:00.000Z",
+    },
+    {
+      id: "old",
+      fact: "се интересувам от къмпинги, каравани и туризъм",
+      category: "interest",
+      scope: "personal",
+      updatedAt: "2026-07-24T20:00:00.000Z",
+    },
+    {
+      id: "shop",
+      fact: "Имам магазин във Варна",
+      category: "work",
+      scope: "personal",
+    },
+  ]);
+
+  assert.equal(items.length, 2);
+  assert.equal(
+    items[0].fact,
+    "Интересувам се от история, пътувания, къмпинги, каравани, туризъм",
+  );
+  assert.equal(items[1].fact, "Имам магазин във Варна");
+});
+
+test("classifies different businesses as separate work memories", () => {
+  const shop = deriveMemoryMetadata("Имам магазин във Варна");
+  const bungalows = deriveMemoryMetadata("Имам бунгала в Камчия");
+
+  assert.equal(shop.category, "work");
+  assert.equal(bungalows.category, "work");
+  assert.notEqual(shop.memoryKey, bungalows.memoryKey);
 });

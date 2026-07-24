@@ -90,7 +90,22 @@ async function sendMessage() {
             })
         });
 
-        // If JSON response (Cache Hit or Error), handle normally
+        // Handle failed HTTP responses before treating the body as an AI stream.
+        if (!response.ok) {
+            removeTypingIndicator();
+            const contentType = response.headers.get('content-type') || '';
+            let errorMessage = `HTTP ${response.status}`;
+
+            if (contentType.includes('application/json')) {
+                const data = await response.json().catch(() => null);
+                if (data?.error) errorMessage = data.error;
+            }
+
+            appendMessage('agent', `⚠️ Временна грешка при връзката с AI (${errorMessage}). Опитайте отново.`);
+            return;
+        }
+
+        // If JSON response (Cache Hit), handle normally
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
              removeTypingIndicator();
@@ -106,7 +121,7 @@ async function sendMessage() {
         // Handle Stream
         removeTypingIndicator();
         
-        // Creaet empty message bubble
+        // Create empty message bubble
         const div = document.createElement('div');
         div.className = 'message agent';
         elements.chatMessages.appendChild(div);

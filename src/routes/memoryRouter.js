@@ -2,6 +2,7 @@ import express from "express";
 import {
   clearProfileMemories,
   deleteProfileMemory,
+  listConversationMessages,
   listProfileMemories,
   saveProfileMemory,
 } from "../services/memoryService.js";
@@ -18,6 +19,15 @@ function sendMemoryError(res, error) {
         : "Постоянната памет временно не е достъпна.",
   });
 }
+
+router.get("/conversation/:sessionId", async (req, res) => {
+  try {
+    const items = await listConversationMessages(req.params.sessionId);
+    return res.json({ status: "ok", items });
+  } catch (error) {
+    return sendMemoryError(res, error);
+  }
+});
 
 router.get("/profile", async (req, res) => {
   try {

@@ -55,7 +55,7 @@ router.post("/chat", async (req, res) => {
     }
 
     // Construct Payload with System Prompt always at start
-    const payloadMessages = [SYSTEM_PROMPT, ...history];
+    const payloadMessages = history;
 
     // Send to Agent (STREAMING MODE)
     // We will bypass the simple fetch(json) and implement streaming response

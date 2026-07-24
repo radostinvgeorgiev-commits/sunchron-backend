@@ -375,7 +375,11 @@ function hydrateMemory(hit) {
     ...hit._source,
     memoryKey: hit._source.memoryKey || inferred.memoryKey,
     category: hit._source.category || inferred.category,
-    scope: hit._source.scope || inferred.scopfunction expandLegacyMemory(memory) {
+    scope: hit._source.scope || inferred.scope,
+  };
+}
+
+function expandLegacyMemory(memory) {
   const fact = cleanMemoryFact(memory.fact || "");
   if (!fact) return [];
 
@@ -452,7 +456,6 @@ export function consolidateMemoryView(memories) {
   return unique
     .filter((memory) => memory.category !== "interest")
     .toSpliced(firstInterestIndex, 0, consolidated);
-}lidated);
 }
 
 export async function listProfileMemories(options = {}) {

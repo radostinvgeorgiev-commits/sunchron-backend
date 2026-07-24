@@ -31,7 +31,9 @@ router.get("/conversation/:sessionId", async (req, res) => {
 
 router.get("/profile", async (req, res) => {
   try {
-    const items = await listProfileMemories();
+    const scope =
+      typeof req.query.scope === "string" ? req.query.scope : undefined;
+    const items = await listProfileMemories({ scope });
     return res.json({ status: "ok", items });
   } catch (error) {
     return sendMemoryError(res, error);
@@ -40,11 +42,11 @@ router.get("/profile", async (req, res) => {
 
 router.post("/profile", async (req, res) => {
   try {
-    const { fact } = req.body || {};
+    const { fact, scope = "personal" } = req.body || {};
     if (typeof fact !== "string") {
       return res.status(400).json({ error: "Полето fact е задължително." });
     }
-    const item = await saveProfileMemory(fact, "memory-api");
+    const item = await saveProfileMemory(fact, "memory-api", scope);
     return res.status(201).json({ status: "ok", item });
   } catch (error) {
     return sendMemoryError(res, error);
@@ -65,7 +67,9 @@ router.delete("/profile/:id", async (req, res) => {
 
 router.delete("/profile", async (req, res) => {
   try {
-    const deleted = await clearProfileMemories();
+    const scope =
+      typeof req.query.scope === "string" ? req.query.scope : undefined;
+    const deleted = await clearProfileMemories(scope);
     return res.json({ status: "ok", deleted });
   } catch (error) {
     return sendMemoryError(res, error);

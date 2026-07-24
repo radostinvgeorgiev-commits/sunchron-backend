@@ -5,6 +5,7 @@ import {
   buildMemoryContext,
   deriveMemoryMetadata,
   extractForgetMemoryCommand,
+  extractImplicitMemoryCandidates,
   extractPersistentMemoryCommand,
 } from "../src/services/memoryService.js";
 
@@ -75,4 +76,52 @@ test("memory context labels personal and project facts separately", () => {
     context,
     /\[КОНТЕКСТ НА ПРОЕКТА\][\s\S]*Текущата цел на проекта е стабилен AI разговор/,
   );
+});
+
+test("extracts clear personal facts from a normal conversation message", () => {
+  assert.deepEqual(
+    extractImplicitMemoryCandidates(
+      "Имам бунгала в Камчия и се интересувам от къмпинги, каравани и туризъм.",
+    ),
+    [
+      {
+        fact: "Имам бунгала в Камчия",
+        scope: "personal",
+        confidence: "high",
+      },
+      {
+        fact: "се интересувам от къмпинги, каравани и туризъм",
+        scope: "personal",
+        confidence: "high",
+      },
+    ],
+  );
+});
+
+test("does not turn questions or casual topics into permanent memories", () => {
+  assert.deepEqual(
+    extractImplicitMemoryCandidates("Как се прави къмпинг край морето?"),
+    [],
+  );
+  assert.deepEqual(
+    extractImplicitMemoryCandidates("Разкажи ми за каравани."),
+    [],
+  );
+});
+
+test("explicit memory commands are not duplicated as automatic memories", () => {
+  assert.deepEqual(
+    extractImplicitMemoryCandidates(
+      "Запомни: интересувам се от къмпинги и каравани.",
+    ),
+    [],
+  );
+});
+
+test("implicit interests receive a structured interest category", () => {
+  const metadata = deriveMemoryMetadata(
+    "Се интересувам от къмпинги и каравани",
+  );
+  assert.equal(metadata.category, "interest");
+  assert.match(metadata.memoryKey, /^personal:interest:/u);
 });

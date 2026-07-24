@@ -172,9 +172,15 @@ export function deriveMemoryMetadata(fact, requestedScope = "personal") {
       scope,
     };
   }
-  if (/^имам\s+бизнес(?:\s|$)/u.test(normalized)) {
+  const workHolding = normalized.match(
+    /^(?:аз\s+)?имам\s+(бизнес|фирма|магазин|заведение|бунгала|къмпинг)(.*)$/u,
+  );
+  if (workHolding) {
     return {
-      memoryKey: "personal:work:business",
+      memoryKey: `personal:work:${workHolding[1]}:${workHolding[2]
+        .trim()
+        .replace(/\s+/g, "-")
+        .slice(0, 80) || "general"}`,
       category: "work",
       scope,
     };
@@ -371,6 +377,45 @@ function hydrateMemory(hit) {
     category: hit._source.category || inferred.category,
     scope: hit._source.scope || inferred.scope,
   };
+}
+
+export function consolidateMemoryView(memories) {
+  const interestItems = memories.filter(
+    (memory) => memory.category === "interest",
+  );
+  if (interestItems.length < 2) return memories;
+
+  const seen = new Set();
+  const interests = [];
+  for (const memory of interestItems) {
+    const value = cleanMemoryFact(memory.fact).replace(
+      /^(?:аз\s+)?се\s+интересувам\s+от\s+/iu,
+      "",
+    );
+    for (const item of value.split(/\s*(?:,|;|\s+и\s+)\s*/iu)) {
+      const cleanItem = item.trim();
+      const key = normalizeFact(cleanItem);
+      if (!cleanItem || seen.has(key)) continue;
+      seen.add(key);
+      interests.push(cleanItem);
+    }
+  }
+
+  const newestInterest = interestItems[0];
+  const consolidated = {
+    ...newestInterest,
+    fact: `Интересувам се от ${interests.join(", ")}`,
+    normalizedFact: normalizeFact(interests.join(", ")),
+    memoryKey: "personal:interest:summary",
+    category: "interest",
+  };
+  const firstInterestIndex = memories.findIndex(
+    (memory) => memory.category === "interest",
+  );
+
+  return memories
+    .filter((memory) => memory.category !== "interest")
+    .toSpliced(firstInterestIndex, 0, consolidated);
 }
 
 export async function listProfileMemories(options = {}) {

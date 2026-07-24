@@ -2,6 +2,8 @@ import express from "express";
 import {
   buildMemoryContext,
   clearProfileMemories,
+  deleteProfileMemoryByFact,
+  extractForgetMemoryCommand,
   extractPersistentMemoryCommand,
   isForgetAllCommand,
   listConversationMessages,
@@ -95,6 +97,11 @@ router.post("/chat", async (req, res) => {
       await saveProfileMemory(factToSave);
     } else if (isForgetAllCommand(cleanMessage)) {
       await clearProfileMemories();
+    } else {
+      const factToForget = extractForgetMemoryCommand(cleanMessage);
+      if (factToForget) {
+        await deleteProfileMemoryByFact(factToForget);
+      }
     }
     [memories, history] = await Promise.all([
       listProfileMemories(),

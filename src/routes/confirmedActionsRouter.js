@@ -121,7 +121,6 @@ router.post("/confirm", async (req, res) => {
     const outcomeMap = {
       CONFIRMATION_EXPIRED: "expired",
       CONFIRMATION_NOT_FOUND: "not_found",
-      CONFIRMATION_ALREADY_USED: "reused",
       SESSION_MISMATCH: "session_mismatch",
     };
     await auditAction({
@@ -133,7 +132,6 @@ router.post("/confirm", async (req, res) => {
     });
     const statusMap = {
       CONFIRMATION_NOT_FOUND: 404,
-      CONFIRMATION_ALREADY_USED: 409,
       CONFIRMATION_EXPIRED: 410,
       SESSION_MISMATCH: 403,
     };

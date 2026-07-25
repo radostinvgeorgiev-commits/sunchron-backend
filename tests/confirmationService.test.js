@@ -46,7 +46,6 @@ test("creates a confirmation with correct structure", () => {
   assert.equal(conf.action, VALID_ACTION);
   assert.deepEqual(conf.resource, VALID_RESOURCE);
   assert.equal(conf.params.content, "hello");
-  assert.equal(conf.used, false);
   assert.ok(conf.expiresAt > Date.now(), "expiresAt must be in the future");
 });
 

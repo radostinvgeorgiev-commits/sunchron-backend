@@ -98,7 +98,6 @@ export function createConfirmation({
     params: sanitizeParams(params),
     createdAt: new Date(now).toISOString(),
     expiresAt: now + ttlMs,
-    used: false,
   };
 
   pendingConfirmations.set(confirmation.id, confirmation);
@@ -120,12 +119,6 @@ export function validateConfirmation(confirmationId, sessionId) {
     throw error;
   }
 
-  if (conf.used) {
-    const error = new Error("Потвърждението вече е използвано.");
-    error.code = "CONFIRMATION_ALREADY_USED";
-    throw error;
-  }
-
   if (Date.now() > conf.expiresAt) {
     pendingConfirmations.delete(confirmationId);
     const error = new Error("Потвърждението е изтекло. Направи ново искане.");
@@ -143,15 +136,11 @@ export function validateConfirmation(confirmationId, sessionId) {
 }
 
 /**
- * Marks a confirmation as used and removes it from the store immediately.
+ * Marks a confirmation as used by removing it from the store immediately.
  * Must be called before executing the action to prevent double-execution.
  */
 export function markConfirmationUsed(confirmationId) {
-  const conf = pendingConfirmations.get(confirmationId);
-  if (conf) {
-    conf.used = true;
-    pendingConfirmations.delete(confirmationId);
-  }
+  pendingConfirmations.delete(confirmationId);
 }
 
 /**

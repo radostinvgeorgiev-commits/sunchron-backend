@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   answerGitHubReadRequest,
+  getCommitDetails,
   getFileContent,
   getRepositorySummary,
   GitHubServiceError,
@@ -84,6 +85,41 @@ test("limits and normalizes recent commits", async () => {
   assert.equal(commits[0].message, "Fix memory");
 });
 
+test("returns changed files for a specific commit", async () => {
+  global.fetch = async (url) => {
+    assert.match(url, /commits\/3d6474b$/u);
+    return jsonResponse({
+      sha: "3d6474b18a070ccca57573dd5c7eff95207aba1e",
+      commit: {
+        message: "Merge pull request #9",
+        author: { date: "2026-07-25T14:18:42Z" },
+      },
+      stats: { additions: 20, deletions: 3, total: 23 },
+      files: [
+        {
+          filename: "src/services/githubService.js",
+          status: "modified",
+          additions: 20,
+          deletions: 3,
+          changes: 23,
+        },
+      ],
+    });
+  };
+
+  const commit = await getCommitDetails("3d6474b");
+  assert.equal(commit.files[0].path, "src/services/githubService.js");
+  assert.equal(commit.stats.additions, 20);
+});
+
+test("rejects an invalid commit reference", async () => {
+  await assert.rejects(
+    () => getCommitDetails("../main"),
+    (error) =>
+      error instanceof GitHubServiceError && error.code === "INVALID_COMMIT",
+  );
+});
+
 test("reads and decodes an allowed text file", async () => {
   global.fetch = async (url) => {
     assert.match(url, /contents\/src\/routes\/chat.js\?ref=main$/u);
@@ -153,4 +189,30 @@ test("answers a GitHub question with verified commit data", async () => {
   );
   assert.match(reply, /95f7207/u);
   assert.match(reply, /Add real read-only GitHub module/u);
+});
+
+test("answers a commit details question with changed files", async () => {
+  global.fetch = async (url) => {
+    assert.match(url, /commits\/3d6474b$/u);
+    return jsonResponse({
+      sha: "3d6474b18a070ccca57573dd5c7eff95207aba1e",
+      commit: { message: "Merge pull request #9" },
+      stats: { additions: 10, deletions: 2, total: 12 },
+      files: [
+        {
+          filename: "src/services/githubService.js",
+          status: "modified",
+          additions: 10,
+          deletions: 2,
+          changes: 12,
+        },
+      ],
+    });
+  };
+
+  const reply = await answerGitHubReadRequest(
+    "Изброй файловете, променени в commit 3d6474b, и обясни какво е променено.",
+  );
+  assert.match(reply, /src\/services\/githubService\.js/u);
+  assert.match(reply, /\+10\/-2/u);
 });

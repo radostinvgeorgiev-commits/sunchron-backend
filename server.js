@@ -12,6 +12,7 @@ import memoryRouter from "./src/routes/memoryRouter.js";
 import cloudRouter from "./src/routes/cloudRouter.js";
 import githubRouter from "./src/routes/githubRouter.js";
 import permissionsRouter from "./src/routes/permissionsRouter.js";
+import confirmedActionsRouter from "./src/routes/confirmedActionsRouter.js";
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ app.use("/memory", memoryRouter);
 app.use("/cloud", cloudRouter);
 app.use("/github", githubRouter);
 app.use("/permissions", permissionsRouter);
+app.use("/confirmed-actions", confirmedActionsRouter);
 
 app.get("/opensearch-status", async (req, res) => {
   const client = getOpenSearchClient();

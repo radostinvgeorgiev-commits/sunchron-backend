@@ -130,6 +130,47 @@ export async function listRecentCommits(
   }));
 }
 
+export async function getCommitDetails(
+  ref,
+  repository = configuredRepository(),
+) {
+  assertAllowedRepository(repository);
+  const cleanRef = typeof ref === "string" ? ref.trim() : "";
+  if (!/^[a-f0-9]{7,40}$/iu.test(cleanRef)) {
+    throw new GitHubServiceError(
+      "Невалиден GitHub commit.",
+      400,
+      "INVALID_COMMIT",
+    );
+  }
+
+  const data = await githubRequest(
+    `/repos/${repository}/commits/${encodeURIComponent(cleanRef)}`,
+  );
+  return {
+    sha: data.sha,
+    shortSha: data.sha?.slice(0, 7),
+    message: data.commit?.message || "",
+    date: data.commit?.author?.date || null,
+    url: data.html_url,
+    stats: {
+      additions: data.stats?.additions || 0,
+      deletions: data.stats?.deletions || 0,
+      total: data.stats?.total || 0,
+    },
+    files: Array.isArray(data.files)
+      ? data.files.map((file) => ({
+          path: file.filename,
+          status: file.status,
+          additions: file.additions || 0,
+          deletions: file.deletions || 0,
+          changes: file.changes || 0,
+          previousPath: file.previous_filename || null,
+        }))
+      : [],
+  };
+}
+
 export async function getFileContent(
   path,
   repository = configuredRepository(),
@@ -176,6 +217,45 @@ export function isGitHubReadRequest(message) {
 export async function answerGitHubReadRequest(message) {
   if (!isGitHubReadRequest(message)) return null;
 
+  const text = message.toLowerCase();
+  const explicitRef = message.match(/\b[a-f0-9]{7,40}\b/iu)?.[0];
+  const asksForDetails =
+    /(?:кои|изброй|файлов|файли|diff|разлик|подробност|какво точно|във всеки файл)/u.test(
+      text,
+    );
+
+  if (asksForDetails) {
+    const ref =
+      explicitRef ||
+      (await listRecentCommits(getConfiguredRepository(), 1))[0]?.sha;
+    if (!ref) {
+      return "В GitHub не намерих commit за подробна проверка.";
+    }
+
+    const commit = await getCommitDetails(ref, getConfiguredRepository());
+    if (!commit.files.length) {
+      return `Commit ${commit.shortSha} няма отчетени променени файлове.`;
+    }
+
+    const statusLabels = {
+      added: "добавен",
+      modified: "променен",
+      removed: "изтрит",
+      renamed: "преименуван",
+    };
+    return [
+      `В commit ${commit.shortSha} са променени ${commit.files.length} файла:`,
+      ...commit.files.map((file) => {
+        const status = statusLabels[file.status] || file.status || "променен";
+        const rename = file.previousPath
+          ? ` от ${file.previousPath}`
+          : "";
+        return `• ${file.path} — ${status}${rename}; +${file.additions}/-${file.deletions} реда.`;
+      }),
+      `Общо: +${commit.stats.additions}/-${commit.stats.deletions} реда.`,
+    ].join("\n");
+  }
+
   const commits = await listRecentCommits(getConfiguredRepository(), 5);
   if (!commits.length) {
     return "В GitHub не намерих commit-и за разрешеното хранилище.";
@@ -183,7 +263,7 @@ export async function answerGitHubReadRequest(message) {
 
   const asksForSeveral =
     /последните|промените|комитите|commit-и|история/u.test(
-      message.toLowerCase(),
+      text,
     );
   const selected = asksForSeveral ? commits : commits.slice(0, 1);
   const heading =

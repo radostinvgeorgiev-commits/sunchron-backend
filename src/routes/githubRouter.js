@@ -1,6 +1,7 @@
 import express from "express";
 import {
   getConfiguredRepository,
+  getCommitDetails,
   getFileContent,
   getRepositorySummary,
   GitHubServiceError,
@@ -75,6 +76,19 @@ router.get("/commits", async (req, res) => {
     );
     await audit(req, "succeeded", `commits:${commits.length}`);
     res.json({ mode: "read-only", commits });
+  } catch (error) {
+    await sendError(req, res, error);
+  }
+});
+
+router.get("/commit/:ref", async (req, res) => {
+  try {
+    const commit = await getCommitDetails(
+      req.params.ref,
+      getConfiguredRepository(),
+    );
+    await audit(req, "succeeded", `commit:${commit.shortSha}`);
+    res.json({ mode: "read-only", commit });
   } catch (error) {
     await sendError(req, res, error);
   }

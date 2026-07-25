@@ -15,11 +15,24 @@ import {
 import {
   answerGitHubReadRequest,
   GitHubServiceError,
+  isGitHubReadRequest,
 } from "../services/githubService.js";
+import {
+  evaluatePermission,
+  recordAuditEvent,
+} from "../services/permissionService.js";
 
 const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
 const DEFAULT_AGENT_TIMEOUT_MS = 120000;
+
+async function auditAction(event) {
+  try {
+    await recordAuditEvent(event);
+  } catch (error) {
+    console.error("[Audit] Write failure:", error);
+  }
+}
 
 const ASSISTANT_CONTEXT = [
   "[КОНТЕКСТ И ПРАВИЛА ЗА ТОЗИ РАЗГОВОР]",
@@ -195,7 +208,7 @@ router.post("/chat", async (req, res) => {
     }
   };
 
-  if (memoryAction) {
+    if (memoryAction) {
     let fullReply;
     if (memoryAction.type === "cleared") {
       fullReply = "Изчистих постоянната памет.";
@@ -221,6 +234,20 @@ router.post("/chat", async (req, res) => {
     }
 
     await saveConversationTurn(cleanSessionId, cleanMessage, fullReply);
+    await auditAction({
+      action:
+        memoryAction.type === "cleared" || memoryAction.type === "forgot"
+          ? "memory.delete"
+          : "memory.write",
+      decision:
+        memoryAction.type === "cleared" || memoryAction.type === "forgot"
+          ? "confirmed"
+          : "allow",
+      outcome: "succeeded",
+      resource: "profile-memory",
+      details: memoryAction.type,
+      sessionId: cleanSessionId,
+    });
     sendEvent("token", { token: fullReply });
     sendEvent("done", { ok: true, memoryUpdated: true });
     res.end();
@@ -263,9 +290,37 @@ router.post("/chat", async (req, res) => {
   }
 
   try {
-    const githubReply = await answerGitHubReadRequest(cleanMessage);
+    const wantsGitHubRead = isGitHubReadRequest(cleanMessage);
+    const githubPermission = wantsGitHubRead
+      ? evaluatePermission("github.read")
+      : null;
+    if (githubPermission && githubPermission.decision !== "allow") {
+      await auditAction({
+        action: "github.read",
+        decision: githubPermission.decision,
+        outcome: "blocked",
+        resource: "chat-tool",
+        sessionId: cleanSessionId,
+      });
+      throw new GitHubServiceError(
+        githubPermission.reason,
+        403,
+        "PERMISSION_DENIED",
+      );
+    }
+
+    const githubReply = wantsGitHubRead
+      ? await answerGitHubReadRequest(cleanMessage)
+      : null;
     if (githubReply) {
       await saveConversationTurn(cleanSessionId, cleanMessage, githubReply);
+      await auditAction({
+        action: "github.read",
+        decision: githubPermission.decision,
+        outcome: "succeeded",
+        resource: "chat-tool",
+        sessionId: cleanSessionId,
+      });
       sendEvent("token", { token: githubReply });
       sendEvent("done", { ok: true, tool: "github", mode: "read-only" });
       res.end();

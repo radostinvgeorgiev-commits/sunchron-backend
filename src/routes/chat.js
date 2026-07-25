@@ -12,6 +12,10 @@ import {
   saveConversationTurn,
   saveProfileMemory,
 } from "../services/memoryService.js";
+import {
+  answerGitHubReadRequest,
+  GitHubServiceError,
+} from "../services/githubService.js";
 
 const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
@@ -254,6 +258,25 @@ router.post("/chat", async (req, res) => {
     await saveConversationTurn(cleanSessionId, cleanMessage, fullReply);
     sendEvent("token", { token: fullReply });
     sendEvent("done", { ok: true, memoryCount: scopedMemories.length });
+    res.end();
+    return;
+  }
+
+  try {
+    const githubReply = await answerGitHubReadRequest(cleanMessage);
+    if (githubReply) {
+      await saveConversationTurn(cleanSessionId, cleanMessage, githubReply);
+      sendEvent("token", { token: githubReply });
+      sendEvent("done", { ok: true, tool: "github", mode: "read-only" });
+      res.end();
+      return;
+    }
+  } catch (error) {
+    const message =
+      error instanceof GitHubServiceError
+        ? error.message
+        : "GitHub модулът временно не е достъпен.";
+    sendEvent("error", { message, tool: "github" });
     res.end();
     return;
   }

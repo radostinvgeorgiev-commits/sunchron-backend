@@ -163,3 +163,39 @@ export async function getFileContent(
     url: data.html_url,
   };
 }
+
+export function isGitHubReadRequest(message) {
+  const text = typeof message === "string" ? message.trim().toLowerCase() : "";
+  return (
+    /\bgithub\b/u.test(text) ||
+    /\b(commit|комит|хранилищ|репозитор)/u.test(text) ||
+    /последн(?:ата|ите)\s+промян/u.test(text)
+  );
+}
+
+export async function answerGitHubReadRequest(message) {
+  if (!isGitHubReadRequest(message)) return null;
+
+  const commits = await listRecentCommits(getConfiguredRepository(), 5);
+  if (!commits.length) {
+    return "В GitHub не намерих commit-и за разрешеното хранилище.";
+  }
+
+  const asksForSeveral =
+    /последните|промените|комитите|commit-и|история/u.test(
+      message.toLowerCase(),
+    );
+  const selected = asksForSeveral ? commits : commits.slice(0, 1);
+  const heading =
+    selected.length === 1
+      ? "Последната реална промяна в GitHub е:"
+      : "Последните реални промени в GitHub са:";
+
+  return [
+    heading,
+    ...selected.map(
+      (commit) =>
+        `• ${commit.shortSha} — ${commit.message}${commit.date ? ` (${commit.date})` : ""}`,
+    ),
+  ].join("\n");
+}

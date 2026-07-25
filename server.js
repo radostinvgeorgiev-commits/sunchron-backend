@@ -11,6 +11,7 @@ import healthRouter from "./src/routes/health.js";
 import memoryRouter from "./src/routes/memoryRouter.js";
 import cloudRouter from "./src/routes/cloudRouter.js";
 import githubRouter from "./src/routes/githubRouter.js";
+import permissionsRouter from "./src/routes/permissionsRouter.js";
 
 dotenv.config();
 
@@ -40,6 +41,7 @@ app.use("/health", healthRouter);
 app.use("/memory", memoryRouter);
 app.use("/cloud", cloudRouter);
 app.use("/github", githubRouter);
+app.use("/permissions", permissionsRouter);
 
 app.get("/opensearch-status", async (req, res) => {
   const client = getOpenSearchClient();

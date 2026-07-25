@@ -290,8 +290,8 @@ async function handleMessageAction(event) {
     const button = event.target.closest('button[data-action]');
     if (!button) return;
 
-    const turn = button.closest('.assistant-turn');
-    const message = turn?.querySelector('.message.agent');
+    const turn = button.closest('.assistant-turn, .user-turn');
+    const message = turn?.querySelector('.message.agent, .message.user');
     const text = message?.dataset.rawText || message?.innerText || '';
     if (!text) return;
 
@@ -523,8 +523,12 @@ function appendMessage(role, text, image = null) {
         return assistantTurn.message;
     }
 
+    const turn = document.createElement('div');
+    turn.className = 'user-turn';
+
     const div = document.createElement('div');
     div.className = `message ${role}`;
+    div.dataset.rawText = text;
     if (image?.dataUrl) {
         const preview = document.createElement('img');
         preview.className = 'message-image';
@@ -537,7 +541,16 @@ function appendMessage(role, text, image = null) {
     textNode.textContent = text;
     div.appendChild(textNode);
 
-    elements.chatMessages.appendChild(div);
+    const actions = document.createElement('div');
+    actions.className = 'message-actions user-actions';
+    actions.innerHTML = `
+        <button type="button" data-action="copy" title="Копирай" aria-label="Копирай">
+            <i class="fa-regular fa-copy"></i>
+        </button>
+    `;
+
+    turn.append(div, actions);
+    elements.chatMessages.appendChild(turn);
     scrollChatToBottom();
     return div;
 }

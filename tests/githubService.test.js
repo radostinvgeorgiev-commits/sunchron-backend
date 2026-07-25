@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  answerGitHubReadRequest,
   getFileContent,
   getRepositorySummary,
   GitHubServiceError,
   listRecentCommits,
+  isGitHubReadRequest,
 } from "../src/services/githubService.js";
 
 const originalFetch = global.fetch;
@@ -122,4 +124,33 @@ test("does not hide GitHub API failures", async () => {
       error.status === 404 &&
       error.code === "GITHUB_API_ERROR",
   );
+});
+
+test("recognizes GitHub questions but ignores unrelated chat", () => {
+  assert.equal(
+    isGitHubReadRequest("Каква е последната промяна в проекта?"),
+    true,
+  );
+  assert.equal(isGitHubReadRequest("Провери последните commit-и в GitHub"), true);
+  assert.equal(isGitHubReadRequest("Какво е времето във Варна?"), false);
+});
+
+test("answers a GitHub question with verified commit data", async () => {
+  global.fetch = async () =>
+    jsonResponse([
+      {
+        sha: "95f7207f884fe67ed31b9e4ba078c903aa41b6d3",
+        commit: {
+          message: "Add real read-only GitHub module",
+          author: { name: "Codex", date: "2026-07-25T00:30:00Z" },
+        },
+        html_url: "https://github.test/commit/95f7207",
+      },
+    ]);
+
+  const reply = await answerGitHubReadRequest(
+    "Каква е последната промяна в проекта?",
+  );
+  assert.match(reply, /95f7207/u);
+  assert.match(reply, /Add real read-only GitHub module/u);
 });

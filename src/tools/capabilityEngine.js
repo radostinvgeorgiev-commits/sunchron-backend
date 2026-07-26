@@ -16,10 +16,7 @@ export class CapabilityError extends Error {
 }
 
 function resolvePermission(tool, capability) {
-  const exactPermission = tool.permissions.find(
-    (permission) => permission === capability,
-  );
-  return exactPermission || tool.permissions[0] || null;
+  return tool.capabilityPermissions?.[capability] || null;
 }
 
 export function resolveCapability(capability, options = {}) {
@@ -100,5 +97,12 @@ export async function executeCapability(capability, input = {}, options = {}) {
   }
 
   const output = await executor(input);
+  if (typeof output !== "string" || !output.trim()) {
+    throw new CapabilityError(
+      `Инструментът "${resolved.tool.name}" не върна валиден резултат.`,
+      "CAPABILITY_EMPTY_RESULT",
+      502,
+    );
+  }
   return Object.freeze({ ...resolved, output });
 }

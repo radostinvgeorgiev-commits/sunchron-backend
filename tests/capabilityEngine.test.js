@@ -5,7 +5,12 @@ import {
   executeCapability,
   resolveCapability,
 } from "../src/tools/capabilityEngine.js";
-import { resetToolRegistryForTests } from "../src/tools/toolRegistry.js";
+import {
+  getTool,
+  registerCoreTools,
+  registerTool,
+  resetToolRegistryForTests,
+} from "../src/tools/toolRegistry.js";
 
 test.beforeEach(() => resetToolRegistryForTests());
 
@@ -18,8 +23,45 @@ test("избира GitHub без AI Core да знае конкретния ин
 
 test("маркира опасните действия за потвърждение", () => {
   const result = resolveCapability("memory.delete");
+  assert.equal(result.permission.action, "memory.delete");
   assert.equal(result.permission.decision, "confirm");
   assert.equal(result.requiresConfirmation, true);
+});
+
+test("избира точното разрешение за всяка способност на паметта", () => {
+  assert.equal(
+    resolveCapability("memory.search").permission.action,
+    "memory.read",
+  );
+  assert.equal(
+    resolveCapability("memory.save").permission.action,
+    "memory.write",
+  );
+  assert.equal(
+    resolveCapability("memory.update").permission.action,
+    "memory.write",
+  );
+});
+
+test("регистрира основните инструменти и при наличен външен инструмент", () => {
+  registerTool({
+    id: "custom-search",
+    provider: "custom",
+    name: "Custom Search",
+    version: "1.0.0",
+    category: "search",
+    capabilities: ["custom.search"],
+    permissions: ["web.read"],
+    capabilityPermissions: { "custom.search": "web.read" },
+    enabled: true,
+    requiresConfirmation: false,
+    healthStatus: "healthy",
+  });
+
+  registerCoreTools();
+  assert.ok(getTool("custom-search"));
+  assert.ok(getTool("github-read"));
+  assert.ok(getTool("google-calendar-read"));
 });
 
 test("блокира липсваща способност по подразбиране", () => {

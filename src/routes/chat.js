@@ -13,20 +13,13 @@ import {
   saveConversationTurn,
   saveProfileMemory,
 } from "../services/memoryService.js";
+import { GitHubServiceError, isGitHubReadRequest } from "../services/githubService.js";
+import { CalendarServiceError, isCalendarReadRequest } from "../services/calendarService.js";
+import { recordAuditEvent } from "../services/permissionService.js";
 import {
-  answerGitHubReadRequest,
-  GitHubServiceError,
-  isGitHubReadRequest,
-} from "../services/githubService.js";
-import {
-  answerCalendarReadRequest,
-  CalendarServiceError,
-  isCalendarReadRequest,
-} from "../services/calendarService.js";
-import {
-  evaluatePermission,
-  recordAuditEvent,
-} from "../services/permissionService.js";
+  CapabilityError,
+  executeCapability,
+} from "../tools/capabilityEngine.js";
 import {
   analyzeImage,
   ImageServiceError,
@@ -377,76 +370,71 @@ router.post("/chat", async (req, res) => {
 
   try {
     const wantsCalendarRead = isCalendarReadRequest(cleanMessage);
-    const calendarPermission = wantsCalendarRead
-      ? evaluatePermission("calendar.read")
-      : null;
-    if (calendarPermission && calendarPermission.decision !== "allow") {
-      throw new CalendarServiceError(
-        calendarPermission.reason,
-        403,
-        "PERMISSION_DENIED",
-      );
-    }
-    const calendarReply = wantsCalendarRead
-      ? await answerCalendarReadRequest(cleanMessage)
-      : null;
-    if (calendarReply) {
-      await saveConversationTurn(cleanSessionId, cleanMessage, calendarReply);
+    if (wantsCalendarRead) {
+      sendEvent("activity", {
+        message: "Проверявам календара чрез Capability Engine",
+      });
+      const result = await executeCapability("calendar.read", {
+        message: cleanMessage,
+      });
+      await saveConversationTurn(cleanSessionId, cleanMessage, result.output);
       await auditAction({
         action: "calendar.read",
-        decision: calendarPermission.decision,
+        decision: result.permission.decision,
         outcome: "succeeded",
-        resource: "chat-tool",
+        resource: result.tool.id,
         sessionId: cleanSessionId,
       });
-      sendEvent("token", { token: calendarReply });
-      sendEvent("done", { ok: true, tool: "calendar", mode: "read-only" });
+      sendEvent("token", { token: result.output });
+      sendEvent("done", {
+        ok: true,
+        capability: result.capability,
+        tool: result.tool.id,
+        mode: "read-only",
+      });
       res.end();
       return;
     }
 
     const wantsGitHubRead = isGitHubReadRequest(cleanMessage);
-    const githubPermission = wantsGitHubRead
-      ? evaluatePermission("github.read")
-      : null;
-    if (githubPermission && githubPermission.decision !== "allow") {
-      await auditAction({
-        action: "github.read",
-        decision: githubPermission.decision,
-        outcome: "blocked",
-        resource: "chat-tool",
-        sessionId: cleanSessionId,
+    if (wantsGitHubRead) {
+      sendEvent("activity", {
+        message: "Проверявам GitHub чрез Capability Engine",
       });
-      throw new GitHubServiceError(
-        githubPermission.reason,
-        403,
-        "PERMISSION_DENIED",
-      );
-    }
-
-    const githubReply = wantsGitHubRead
-      ? await answerGitHubReadRequest(cleanMessage)
-      : null;
-    if (githubReply) {
-      await saveConversationTurn(cleanSessionId, cleanMessage, githubReply);
+      const result = await executeCapability("code.read", {
+        message: cleanMessage,
+      });
+      await saveConversationTurn(cleanSessionId, cleanMessage, result.output);
       await auditAction({
         action: "github.read",
-        decision: githubPermission.decision,
+        decision: result.permission.decision,
         outcome: "succeeded",
-        resource: "chat-tool",
+        resource: result.tool.id,
         sessionId: cleanSessionId,
       });
-      sendEvent("token", { token: githubReply });
-      sendEvent("done", { ok: true, tool: "github", mode: "read-only" });
+      sendEvent("token", { token: result.output });
+      sendEvent("done", {
+        ok: true,
+        capability: result.capability,
+        tool: result.tool.id,
+        mode: "read-only",
+      });
       res.end();
       return;
     }
   } catch (error) {
-    const message =
-      error instanceof GitHubServiceError
+    const isKnownToolError =
+      error instanceof GitHubServiceError ||
+      error instanceof CalendarServiceError ||
+      error instanceof CapabilityError;
+    sendEvent("error", {
+      message: isKnownToolError
         ? error.message
-        : "GitHub модулът временно не е достъпен.";
-    sendEvent("error", { message, tool: "github" });
+        : "Избраният инструмент временно не е достъпен.",
+      capability: isCalendarReadRequest(cleanMessage)
+        ? "calendar.read"
+        : "code.read",
+    });
     res.end();
     return;
   }

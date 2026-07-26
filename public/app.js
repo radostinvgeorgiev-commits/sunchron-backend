@@ -779,8 +779,16 @@ async function sendMessage() {
                     throw new Error(
                         parsed.data?.message || 'AI агентът върна грешка.'
                     );
+                } else if (
+                    parsed.event === 'activity' &&
+                    typeof parsed.data?.message === 'string'
+                ) {
+                    logAction(parsed.data.message);
                 } else if (parsed.event === 'done') {
                     completed = true;
+                    if (typeof parsed.data?.tool === 'string') {
+                        logAction('Използван инструмент: ' + parsed.data.tool);
+                    }
                 }
             }
         };

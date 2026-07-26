@@ -3,7 +3,24 @@ import crypto from "node:crypto";
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DRIVE_API_URL = "https://www.googleapis.com/drive/v3";
-const MAX_PDF_BYTES = 20 * 1024 * 1024;
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const GOOGLE_DOC = "application/vnd.google-apps.document";
+const GOOGLE_SHEET = "application/vnd.google-apps.spreadsheet";
+const SUPPORTED_MIME_TYPES = new Set([
+  "application/pdf",
+  GOOGLE_DOC,
+  GOOGLE_SHEET,
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "text/plain",
+  "text/csv",
+  "text/markdown",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
 const sessions = new Map();
 
 export class GoogleDriveError extends Error {
@@ -147,19 +164,22 @@ export function hasSession(id) {
   return Boolean(id && sessions.has(id));
 }
 
-export async function listPdfFiles(id, fetchImpl = fetch) {
+export async function listDriveFiles(id, fetchImpl = fetch) {
+  const mimeQuery = [...SUPPORTED_MIME_TYPES]
+    .map((mimeType) => `mimeType='${mimeType}'`)
+    .join(" or ");
   const params = new URLSearchParams({
-    q: "mimeType='application/pdf' and trashed=false",
+    q: `(${mimeQuery}) and trashed=false`,
     orderBy: "modifiedTime desc",
     pageSize: "50",
-    fields: "files(id,name,size,modifiedTime,webViewLink)",
+    fields: "files(id,name,size,mimeType,modifiedTime,webViewLink)",
   });
   const response = await driveFetch(id, `/files?${params}`, {}, fetchImpl);
   const data = await response.json();
   return Array.isArray(data.files) ? data.files : [];
 }
 
-export async function downloadPdf(id, fileId, fetchImpl = fetch) {
+export async function downloadDriveFile(id, fileId, fetchImpl = fetch) {
   if (!/^[A-Za-z0-9_-]+$/u.test(fileId || "")) {
     throw new GoogleDriveError("Невалиден Google Drive файл.", 400, "INVALID_FILE_ID");
   }
@@ -170,28 +190,60 @@ export async function downloadPdf(id, fileId, fetchImpl = fetch) {
     fetchImpl,
   );
   const meta = await metaResponse.json();
-  if (meta.mimeType !== "application/pdf") {
-    throw new GoogleDriveError("Избраният файл не е PDF.", 415, "NOT_PDF");
+  if (!SUPPORTED_MIME_TYPES.has(meta.mimeType)) {
+    throw new GoogleDriveError("Този тип файл още не се поддържа.", 415, "UNSUPPORTED_FILE");
   }
-  if (Number(meta.size || 0) > MAX_PDF_BYTES) {
-    throw new GoogleDriveError("PDF файлът трябва да бъде до 20 MB.", 413, "PDF_TOO_LARGE");
+  if (Number(meta.size || 0) > MAX_FILE_BYTES) {
+    throw new GoogleDriveError("Файлът трябва да бъде до 20 MB.", 413, "FILE_TOO_LARGE");
+  }
+  let path = `/files/${encodeURIComponent(fileId)}?alt=media`;
+  let mimeType = meta.mimeType;
+  let name = meta.name || "document";
+  if (meta.mimeType === GOOGLE_DOC) {
+    mimeType = "application/pdf";
+    name = `${name}.pdf`;
+    path = `/files/${encodeURIComponent(fileId)}/export?mimeType=${encodeURIComponent(mimeType)}`;
+  } else if (meta.mimeType === GOOGLE_SHEET) {
+    mimeType = "text/csv";
+    name = `${name}.csv`;
+    path = `/files/${encodeURIComponent(fileId)}/export?mimeType=${encodeURIComponent(mimeType)}`;
   }
   const response = await driveFetch(
     id,
-    `/files/${encodeURIComponent(fileId)}?alt=media`,
+    path,
     {},
     fetchImpl,
   );
   const buffer = Buffer.from(await response.arrayBuffer());
-  if (!buffer.length || buffer.length > MAX_PDF_BYTES) {
-    throw new GoogleDriveError("PDF файлът трябва да бъде до 20 MB.", 413, "PDF_TOO_LARGE");
+  if (!buffer.length || buffer.length > MAX_FILE_BYTES) {
+    throw new GoogleDriveError("Файлът трябва да бъде до 20 MB.", 413, "FILE_TOO_LARGE");
   }
-  return { name: meta.name || "document.pdf", buffer };
+  return { name, mimeType, buffer };
 }
 
-export async function analyzePdf({ name, buffer, prompt, fetchImpl = fetch }) {
+export async function analyzeDriveFile({ name, mimeType, buffer, prompt, fetchImpl = fetch }) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new GoogleDriveError("Анализът на документи не е конфигуриран.", 503, "OPENAI_NOT_CONFIGURED");
+  const instruction =
+    prompt || "Обобщи този файл на български и посочи най-важното.";
+  let fileContent;
+  if (mimeType.startsWith("image/")) {
+    fileContent = {
+      type: "input_image",
+      image_url: `data:${mimeType};base64,${buffer.toString("base64")}`,
+    };
+  } else if (mimeType.startsWith("text/")) {
+    fileContent = {
+      type: "input_text",
+      text: `Файл: ${name}\n\n${buffer.toString("utf8")}`,
+    };
+  } else {
+    fileContent = {
+      type: "input_file",
+      filename: name,
+      file_data: `data:${mimeType};base64,${buffer.toString("base64")}`,
+    };
+  }
   const response = await fetchImpl("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -200,14 +252,10 @@ export async function analyzePdf({ name, buffer, prompt, fetchImpl = fetch }) {
       input: [{
         role: "user",
         content: [
-          {
-            type: "input_file",
-            filename: name,
-            file_data: `data:application/pdf;base64,${buffer.toString("base64")}`,
-          },
+          fileContent,
           {
             type: "input_text",
-            text: prompt || "Обобщи този документ на български и посочи най-важното.",
+            text: instruction,
           },
         ],
       }],
@@ -215,12 +263,12 @@ export async function analyzePdf({ name, buffer, prompt, fetchImpl = fetch }) {
   });
   const data = await response.json();
   if (!response.ok) {
-    console.error("[Google Drive PDF]", response.status, data?.error?.message || "unknown error");
-    throw new GoogleDriveError("Анализът на PDF документа не успя.", 502, "PDF_ANALYSIS_FAILED");
+    console.error("[Google Drive file]", response.status, data?.error?.message || "unknown error");
+    throw new GoogleDriveError("Анализът на файла не успя.", 502, "FILE_ANALYSIS_FAILED");
   }
   const text = data.output_text || data.output?.flatMap((item) => item.content || [])
     .filter((item) => item.type === "output_text")
     .map((item) => item.text || "").join("").trim();
-  if (!text) throw new GoogleDriveError("Не получих анализ на PDF документа.", 502, "EMPTY_PDF_ANALYSIS");
+  if (!text) throw new GoogleDriveError("Не получих анализ на файла.", 502, "EMPTY_FILE_ANALYSIS");
   return text;
 }

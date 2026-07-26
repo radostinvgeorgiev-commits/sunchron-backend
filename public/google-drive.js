@@ -52,15 +52,15 @@
       const files = Array.isArray(data.files) ? data.files : [];
       body.innerHTML = `
         <section class="drawer-section">
-          <div class="permission-default">Свързан е достъп само за четене. Избери PDF за анализ.</div>
+          <div class="permission-default">Свързан е достъп само за четене. Поддържа PDF, Google Docs, Word, текст, Google Sheets, Excel и снимки.</div>
           ${files.length ? files.map((file) => `
             <article class="permission-card">
               <button type="button" data-drive-file="${escapeHtml(file.id)}" data-drive-name="${escapeHtml(file.name)}" style="text-align:left;background:none;border:0;padding:0;color:inherit">
                 <strong>${escapeHtml(file.name)}</strong>
-                <p>${file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString("bg-BG") : "PDF документ"}</p>
+                <p>${file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString("bg-BG") : "Файл от Google Drive"}</p>
               </button>
               <button type="button" data-drive-file="${escapeHtml(file.id)}" data-drive-name="${escapeHtml(file.name)}">Отвори текста</button>
-            </article>`).join("") : '<div class="drawer-empty">Няма намерени PDF документи.</div>'}
+            </article>`).join("") : '<div class="drawer-empty">Няма намерени поддържани файлове.</div>'}
           <button type="button" id="disconnectGoogleDrive">Прекъсни връзката</button>
         </section>`;
     } catch (error) {
@@ -90,7 +90,7 @@
             <h3>${escapeHtml(data.fileName || fileName)}</h3>
             <div class="permission-default" style="white-space:pre-wrap">${escapeHtml(lastAnalysis)}</div>
             <button type="button" id="sendDriveAnalysis">Изпрати в разговора</button>
-            <button type="button" id="backToDriveFiles">Назад към PDF файловете</button>
+            <button type="button" id="backToDriveFiles">Назад към файловете</button>
           </section>`;
       } catch (error) {
         fileButton.disabled = false;

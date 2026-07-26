@@ -16,10 +16,7 @@ export class CapabilityError extends Error {
 }
 
 function resolvePermission(tool, capability) {
-  const exactPermission = tool.permissions.find(
-    (permission) => permission === capability,
-  );
-  return exactPermission || tool.permissions[0] || null;
+  return tool.capabilityPermissions?.[capability] || null;
 }
 
 export function resolveCapability(capability, options = {}) {

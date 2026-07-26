@@ -119,15 +119,24 @@ export function detectCapabilityRequests(message) {
   return requests;
 }
 
+function hasConfirmedMemoryWritePrefix(message) {
+  if (typeof message !== "string") return false;
+  const separatorIndex = message.indexOf(":");
+  if (separatorIndex < 0) return false;
+  const prefix = message.slice(0, separatorIndex).trim().toLowerCase();
+  const expectedPrefix = MEMORY_WRITE_CONFIRM_PREFIX.toLowerCase().replace(
+    /:$/u,
+    "",
+  );
+  return prefix === expectedPrefix;
+}
+
 export function extractConfirmedMemoryWriteCommands(message) {
-  const match =
-    typeof message === "string"
-      ? message.match(
-          /^потвърждавам\s+запис\s+в\s+постоянната\s+памет\s*:\s*(.+)$/iu,
-        )
-      : null;
-  if (!match) return null;
-  return extractPersistentMemoryCommands(match[1].trim());
+  if (!hasConfirmedMemoryWritePrefix(message)) return [];
+  const separatorIndex = message.indexOf(":");
+
+  const payload = message.slice(separatorIndex + 1).trim();
+  return extractPersistentMemoryCommands(payload);
 }
 
 export async function executeDetectedCapabilities(message, executeFn) {
@@ -142,6 +151,28 @@ export async function executeDetectedCapabilities(message, executeFn) {
     }
   }
   return results;
+}
+
+function capabilityLabel(capability) {
+  if (capability === "calendar.read") return "календар";
+  if (capability === "code.read") return "GitHub";
+  return capability;
+}
+
+function formatCapabilityFailureMessage(error) {
+  if (error instanceof CalendarServiceError || error instanceof GitHubServiceError) {
+    return error.message;
+  }
+  if (error instanceof CapabilityError) {
+    if (
+      error.code === "CAPABILITY_PERMISSION_DENIED" ||
+      error.code === "CAPABILITY_CONFIRMATION_REQUIRED"
+    ) {
+      return error.message;
+    }
+    return "Инструментът за тази заявка временно не е достъпен.";
+  }
+  return "Избраният инструмент временно не е достъпен.";
 }
 
 function extractTokenFromAgentEvent(rawEvent) {
@@ -197,12 +228,17 @@ router.post("/chat", async (req, res) => {
   let memoryAction = null;
   let autoMemoryCount = 0;
   try {
-    const confirmedMemoryCommands =
-      extractConfirmedMemoryWriteCommands(cleanMessage);
-    const memoryCommands =
-      confirmedMemoryCommands || extractPersistentMemoryCommands(cleanMessage);
+    const confirmedMemoryWrite = hasConfirmedMemoryWritePrefix(cleanMessage);
+    const confirmedMemoryCommands = confirmedMemoryWrite
+      ? extractConfirmedMemoryWriteCommands(cleanMessage)
+      : [];
+    const memoryCommands = confirmedMemoryWrite
+      ? confirmedMemoryCommands
+      : extractPersistentMemoryCommands(cleanMessage);
     if (memoryCommands.length) {
-      if (!confirmedMemoryCommands) {
+      if (!confirmedMemoryWrite) {
+        // Explicit memory writes are gated until the user confirms with the
+        // dedicated confirmation prefix.
         memoryAction = { type: "write-confirmation-required", items: memoryCommands };
       } else {
         const items = [];
@@ -369,13 +405,9 @@ router.post("/chat", async (req, res) => {
       memoryAction.type === "clear-confirmation-required";
     const isWriteConfirmationRequest =
       memoryAction.type === "write-confirmation-required";
+    const memoryAuditAction = isDeleteAction ? "memory.delete" : "memory.write";
     await auditAction({
-      action:
-        isDeleteAction || isWriteConfirmationRequest
-          ? isDeleteAction
-            ? "memory.delete"
-            : "memory.write"
-          : "memory.write",
+      action: memoryAuditAction,
       decision:
         memoryAction.type === "clear-confirmation-required" ||
         isWriteConfirmationRequest
@@ -443,14 +475,9 @@ router.post("/chat", async (req, res) => {
         });
       } else {
         const { request, error } = capabilityResult;
-        const message =
-          error instanceof CapabilityError ||
-          error instanceof GitHubServiceError ||
-          error instanceof CalendarServiceError
-            ? error.message
-            : "Избраният инструмент временно не е достъпен.";
+        const message = formatCapabilityFailureMessage(error);
         capabilityReplies.push(
-          `Не успях да изпълня "${request.capability}": ${message}`,
+          `Не успях да изпълня заявката за ${capabilityLabel(request.capability)}: ${message}`,
         );
         await auditAction({
           action: request.action,
@@ -465,9 +492,7 @@ router.post("/chat", async (req, res) => {
   }
 
   if (memoryReply || capabilityReplies.length) {
-    const fullReply = [memoryReply, ...capabilityReplies]
-      .filter((item) => typeof item === "string" && item.trim())
-      .join("\n\n");
+    const fullReply = [memoryReply, ...capabilityReplies].filter(Boolean).join("\n\n");
     await saveConversationTurn(cleanSessionId, cleanMessage, fullReply);
     sendEvent("token", { token: fullReply });
     sendEvent("done", {

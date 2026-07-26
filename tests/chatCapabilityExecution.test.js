@@ -21,7 +21,7 @@ test("executes all detected subtasks sequentially even after a failure", async (
   const calls = [];
   const results = await executeDetectedCapabilities(
     "Провери календара и GitHub.",
-    async (capability) => {
+    async (capability, _options) => {
       calls.push(capability);
       if (capability === "calendar.read") {
         throw new Error("calendar temporary failure");
@@ -37,6 +37,7 @@ test("executes all detected subtasks sequentially even after a failure", async (
   assert.deepEqual(calls, ["calendar.read", "code.read"]);
   assert.equal(results.length, 2);
   assert.equal(results[0].status, "rejected");
+  assert.equal(results[0].error.message, "calendar temporary failure");
   assert.equal(results[1].status, "fulfilled");
   assert.equal(results[1].result.output, "GitHub result");
 });
@@ -48,10 +49,10 @@ test("requires explicit memory-write confirmation prefix", () => {
   assert.deepEqual(commands, [
     { fact: "проектът е SYNCHRON-X", scope: "personal" },
   ]);
-  assert.equal(
+  assert.deepEqual(
     extractConfirmedMemoryWriteCommands(
       "Запомни, че проектът е SYNCHRON-X.",
     ),
-    null,
+    [],
   );
 });

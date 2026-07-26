@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --check server.js && node --check src/routes/chat.js && node --check src/routes/githubRouter.js && node --check src/routes/calendarRouter.js && node --check src/routes/memoryRouter.js && node --check src/routes/permissionsRouter.js && node --check src/routes/confirmedActionsRouter.js && node --check src/services/githubService.js && node --check src/services/calendarService.js && node --check src/services/imageService.js && node --check src/services/memoryService.js && node --check src/services/permissionService.js && node --check src/services/confirmationService.js && node --check src/services/githubWriteService.js && node --check public/app.js && node --test tests/*.test.js"
+    "test": "node --check server.js && node --check src/routes/chat.js && node --check src/routes/githubRouter.js && node --check src/routes/calendarRouter.js && node --check src/routes/memoryRouter.js && node --check src/routes/permissionsRouter.js && node --check src/routes/confirmedActionsRouter.js && node --check src/services/githubService.js && node --check src/services/calendarService.js && node --check src/services/imageService.js && node --check src/routes/googleDriveRouter.js && node --check src/services/googleDriveService.js && node --check src/services/memoryService.js && node --check src/services/permissionService.js && node --check src/services/confirmationService.js && node --check src/services/githubWriteService.js && node --check public/app.js && node --test tests/*.test.js"
   },
   "dependencies": {
     "@opensearch-project/opensearch": "^3.5.1",

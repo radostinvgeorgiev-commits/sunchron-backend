@@ -6,6 +6,7 @@ import {
   extractForgetMemoryCommand,
   extractImplicitMemoryCandidates,
   extractPersistentMemoryCommands,
+  isConfirmedForgetAllCommand,
   isForgetAllCommand,
   listConversationMessages,
   listProfileMemories,
@@ -151,9 +152,11 @@ router.post("/chat", async (req, res) => {
               scope: items[0].scope,
             }
           : { type: "batch", items };
-    } else if (isForgetAllCommand(cleanMessage)) {
+    } else if (isConfirmedForgetAllCommand(cleanMessage)) {
       const deleted = await clearProfileMemories();
       memoryAction = { type: "cleared", deleted };
+    } else if (isForgetAllCommand(cleanMessage)) {
+      memoryAction = { type: "clear-confirmation-required" };
     } else {
       const forgetCommand = extractForgetMemoryCommand(cleanMessage);
       if (forgetCommand) {
@@ -219,7 +222,10 @@ router.post("/chat", async (req, res) => {
 
     if (memoryAction) {
     let fullReply;
-    if (memoryAction.type === "cleared") {
+    if (memoryAction.type === "clear-confirmation-required") {
+      fullReply =
+        "Това ще изтрие цялата постоянна памет. За да потвърдиш, напиши точно: „Потвърждавам изтриването на цялата постоянна памет“.";
+    } else if (memoryAction.type === "cleared") {
       fullReply = "Изчистих постоянната памет.";
     } else if (memoryAction.type === "forgot") {
       fullReply = memoryAction.deleted
@@ -243,16 +249,22 @@ router.post("/chat", async (req, res) => {
     }
 
     await saveConversationTurn(cleanSessionId, cleanMessage, fullReply);
+    const isDeleteAction =
+      memoryAction.type === "cleared" ||
+      memoryAction.type === "forgot" ||
+      memoryAction.type === "clear-confirmation-required";
     await auditAction({
-      action:
-        memoryAction.type === "cleared" || memoryAction.type === "forgot"
-          ? "memory.delete"
-          : "memory.write",
+      action: isDeleteAction ? "memory.delete" : "memory.write",
       decision:
-        memoryAction.type === "cleared" || memoryAction.type === "forgot"
-          ? "confirmed"
-          : "allow",
-      outcome: "succeeded",
+        memoryAction.type === "clear-confirmation-required"
+          ? "confirm"
+          : isDeleteAction
+            ? "confirmed"
+            : "allow",
+      outcome:
+        memoryAction.type === "clear-confirmation-required"
+          ? "requested"
+          : "succeeded",
       resource: "profile-memory",
       details: memoryAction.type,
       sessionId: cleanSessionId,

@@ -6,6 +6,8 @@ const state = {
     chatBusy: false,
     speakingButton: null,
     pendingImage: null
+    ,
+    conversations: []
 };
 
 const elements = {
@@ -28,6 +30,12 @@ const elements = {
     serverStatusDisplay: document.getElementById('serverStatusDisplay'),
     opensearchStatusDisplay: document.getElementById('opensearchStatusDisplay'),
     actionsLog: document.getElementById('actionsLog')
+    ,
+    conversationList: document.getElementById('conversationList'),
+    conversationSearch: document.getElementById('conversationSearch'),
+    searchChatsBtn: document.getElementById('searchChatsBtn'),
+    mobileMenuBtn: document.getElementById('mobileMenuBtn'),
+    sidebar: document.getElementById('sidebar')
 };
 
 function createSessionId() {
@@ -62,6 +70,12 @@ async function init() {
     elements.toggleStatusBtn.addEventListener('click', openStatus);
     elements.closeContextBtn.addEventListener('click', closeStatus);
     elements.chatMessages.addEventListener('click', handleMessageAction);
+    elements.conversationList.addEventListener('click', handleConversationClick);
+    elements.conversationSearch.addEventListener('input', renderConversationList);
+    elements.searchChatsBtn.addEventListener('click', toggleConversationSearch);
+    elements.mobileMenuBtn.addEventListener('click', () => {
+        elements.sidebar.classList.toggle('mobile-visible');
+    });
 
     checkHealth();
     checkOpenSearch();
@@ -69,6 +83,7 @@ async function init() {
     setInterval(checkOpenSearch, 20000);
 
     await restoreConversation();
+    await loadConversations();
 }
 
 function updateSessionDisplay() {
@@ -162,7 +177,57 @@ async function startNewChat() {
     renderActionsLog();
     await showWelcomeMessage();
     logAction('Започнат е нов разговор');
+    renderConversationList();
     elements.chatInput.focus();
+}
+
+async function loadConversations() {
+    try {
+        const response = await fetch('/memory/conversations', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Списъкът не е достъпен.');
+        const data = await response.json();
+        state.conversations = Array.isArray(data.items) ? data.items : [];
+        renderConversationList();
+    } catch (error) {
+        console.error(error);
+        state.conversations = [];
+        renderConversationList();
+    }
+}
+
+function renderConversationList() {
+    const query = elements.conversationSearch.value.trim().toLocaleLowerCase('bg-BG');
+    const conversations = state.conversations.filter((item) =>
+        !query || item.title.toLocaleLowerCase('bg-BG').includes(query)
+    );
+    elements.conversationList.replaceChildren();
+
+    for (const item of conversations) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'conversation';
+        if (item.sessionId === state.sessionId) button.classList.add('active');
+        button.dataset.sessionId = item.sessionId;
+        button.textContent = item.title;
+        elements.conversationList.appendChild(button);
+    }
+}
+
+async function handleConversationClick(event) {
+    const button = event.target.closest('button[data-session-id]');
+    if (!button || state.chatBusy || button.dataset.sessionId === state.sessionId) return;
+    state.sessionId = button.dataset.sessionId;
+    localStorage.setItem('synchronSessionId', state.sessionId);
+    elements.chatMessages.replaceChildren();
+    updateSessionDisplay();
+    renderConversationList();
+    await restoreConversation();
+    elements.sidebar.classList.remove('mobile-visible');
+}
+
+function toggleConversationSearch() {
+    elements.conversationSearch.hidden = !elements.conversationSearch.hidden;
+    if (!elements.conversationSearch.hidden) elements.conversationSearch.focus();
 }
 
 function handleImageSelection(event) {
@@ -495,6 +560,7 @@ async function sendMessage() {
 
         responseActions.hidden = false;
         logAction('Получен AI отговор');
+        await loadConversations();
     } catch (error) {
         console.error(error);
         const message =

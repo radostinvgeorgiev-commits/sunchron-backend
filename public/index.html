@@ -22,14 +22,15 @@
                 <span>Нов разговор</span>
             </button>
             <nav class="sidebar-nav" aria-label="Основно меню">
-                <button type="button"><i class="fa-solid fa-magnifying-glass"></i><span>Търси</span></button>
+                <button id="searchChatsBtn" type="button"><i class="fa-solid fa-magnifying-glass"></i><span>Търси</span></button>
                 <button type="button"><i class="fa-regular fa-images"></i><span>Снимки и файлове</span></button>
                 <button type="button"><i class="fa-solid fa-brain"></i><span>Памет</span></button>
                 <button type="button"><i class="fa-solid fa-puzzle-piece"></i><span>Модули</span></button>
             </nav>
             <div class="sidebar-section">
                 <span>Разговори</span>
-                <button class="conversation active" type="button">Личен AI аватар</button>
+                <input id="conversationSearch" class="conversation-search" type="search" placeholder="Търси разговори" hidden>
+                <div id="conversationList" class="conversation-list"></div>
             </div>
             <button id="toggleStatusBtn" class="profile-button" type="button">
                 <span class="profile-avatar">Р</span>
@@ -40,7 +41,7 @@
 
         <section class="chatPanel" id="chat-container">
             <header class="chat-toolbar">
-                <button class="mobile-menu" type="button" aria-label="Меню"><i class="fa-solid fa-bars"></i></button>
+                <button id="mobileMenuBtn" class="mobile-menu" type="button" aria-label="Меню"><i class="fa-solid fa-bars"></i></button>
                 <div class="model-title">Synchron-X <i class="fa-solid fa-chevron-down"></i></div>
                 <div class="status-indicator" aria-live="polite">
                     <span id="agentStatusDot" class="offline"></span>

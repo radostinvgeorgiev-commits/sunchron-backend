@@ -8,6 +8,7 @@ const CONVERSATION_INDEX =
 const OWNER_ID = process.env.MEMORY_OWNER_ID || "primary-user";
 const MAX_MEMORIES = 200;
 const MAX_CONVERSATION_MESSAGES = 20;
+const MAX_CONVERSATIONS = 50;
 const VALID_SCOPES = new Set(["personal", "project"]);
 const indexPromises = new Map();
 
@@ -640,6 +641,64 @@ export async function listConversationMessages(
   return hits
     .map((hit) => ({ id: hit._id, ...hit._source }))
     .reverse();
+}
+
+export function conversationTitleFromMessages(messages) {
+  const firstUserMessage = messages.find(
+    (message) =>
+      message?.role === "user" && typeof message.content === "string",
+  );
+  const title = firstUserMessage?.content?.trim().replace(/\s+/g, " ");
+  if (!title) return "Нов разговор";
+  return title.length > 52 ? `${title.slice(0, 49).trimEnd()}…` : title;
+}
+
+export async function listConversationSummaries(limit = MAX_CONVERSATIONS) {
+  await ensureConversationIndex();
+  const response = await getClientOrThrow().search({
+    index: CONVERSATION_INDEX,
+    body: {
+      size: 0,
+      query: { term: { ownerId: OWNER_ID } },
+      aggs: {
+        conversations: {
+          terms: {
+            field: "sessionId",
+            size: Math.min(Math.max(limit, 1), MAX_CONVERSATIONS),
+            order: { last_message: "desc" },
+          },
+          aggs: {
+            last_message: { max: { field: "createdAt" } },
+            messages: {
+              top_hits: {
+                size: MAX_CONVERSATION_MESSAGES,
+                sort: [{ createdAt: { order: "asc" } }],
+                _source: ["role", "content", "createdAt"],
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  const buckets =
+    response.body?.aggregations?.conversations?.buckets ??
+    response.aggregations?.conversations?.buckets ??
+    [];
+
+  return buckets.map((bucket) => {
+    const hits = bucket.messages?.hits?.hits ?? [];
+    const messages = hits.map((hit) => hit._source);
+    return {
+      sessionId: bucket.key,
+      title: conversationTitleFromMessages(messages),
+      updatedAt:
+        bucket.last_message?.value_as_string ??
+        messages.at(-1)?.createdAt ??
+        null,
+      messageCount: bucket.doc_count ?? messages.length,
+    };
+  });
 }
 
 export async function saveConversationTurn(sessionId, userText, replyText) {

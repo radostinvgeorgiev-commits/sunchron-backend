@@ -1,4 +1,6 @@
 import { evaluatePermission } from "../services/permissionService.js";
+import { answerCalendarReadRequest } from "../services/calendarService.js";
+import { answerGitHubReadRequest } from "../services/githubService.js";
 import {
   findToolsByCapability,
   registerCoreTools,
@@ -70,4 +72,41 @@ export function resolveCapability(capability, options = {}) {
     requiresConfirmation:
       tool.requiresConfirmation || permission.decision === "confirm",
   });
+}
+
+const executors = Object.freeze({
+  "google-calendar-read": async ({ message }) =>
+    answerCalendarReadRequest(message),
+  "github-read": async ({ message }) => answerGitHubReadRequest(message),
+});
+
+export async function executeCapability(capability, input = {}, options = {}) {
+  const resolved = resolveCapability(capability, options);
+  if (resolved.requiresConfirmation && options.confirmed !== true) {
+    throw new CapabilityError(
+      `Способността "${capability}" изисква потвърждение.`,
+      "CAPABILITY_CONFIRMATION_REQUIRED",
+      409,
+    );
+  }
+
+  const executor = executors[resolved.tool.id];
+  if (!executor) {
+    throw new CapabilityError(
+      `Инструментът "${resolved.tool.name}" още няма изпълнима връзка.`,
+      "CAPABILITY_NOT_EXECUTABLE",
+      503,
+    );
+  }
+
+  const output = await executor(input);
+  if (typeof output !== "string" || !output.trim()) {
+    throw new CapabilityError(
+      `Инструментът "${resolved.tool.name}" не върна валиден резултат.`,
+      "CAPABILITY_EMPTY_RESULT",
+      502,
+    );
+  }
+
+  return Object.freeze({ ...resolved, output });
 }

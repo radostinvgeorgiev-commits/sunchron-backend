@@ -32,30 +32,38 @@ test("image input rejects unsupported formats", () => {
   );
 });
 
-test("vision uses the Responses API with text, context, and image", async () => {
+test("vision uses the existing DigitalOcean agent with text, context, and image", async () => {
   let request;
   const answer = await analyzeImage({
     image: tinyPng,
     prompt: "Какво виждаш?",
     context: "Отговаряй на български.",
-    apiKey: "test-key",
+    agentUrl: "https://example.agents.do-ai.run/",
+    agentKey: "test-key",
     fetchImpl: async (url, options) => {
       request = { url, options };
       return new Response(
-        JSON.stringify({ output_text: "Виждам тестова снимка." }),
+        JSON.stringify({
+          choices: [
+            { message: { content: "Виждам тестова снимка." } },
+          ],
+        }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
     },
   });
 
   assert.equal(answer, "Виждам тестова снимка.");
-  assert.equal(request.url, "https://api.openai.com/v1/responses");
+  assert.equal(
+    request.url,
+    "https://example.agents.do-ai.run/api/v1/chat/completions",
+  );
   assert.equal(request.options.headers.Authorization, "Bearer test-key");
 
   const body = JSON.parse(request.options.body);
-  assert.equal(body.model, "gpt-4o-mini");
-  assert.equal(body.input[0].content[0].type, "input_text");
-  assert.match(body.input[0].content[0].text, /Отговаряй на български/u);
-  assert.equal(body.input[0].content[1].type, "input_image");
-  assert.equal(body.input[0].content[1].image_url, tinyPng.dataUrl);
+  assert.equal(body.stream, false);
+  assert.equal(body.messages[0].content[0].type, "text");
+  assert.match(body.messages[0].content[0].text, /Отговаряй на български/u);
+  assert.equal(body.messages[0].content[1].type, "image_url");
+  assert.equal(body.messages[0].content[1].image_url.url, tinyPng.dataUrl);
 });

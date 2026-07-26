@@ -7,7 +7,9 @@ const state = {
     speakingButton: null,
     pendingImage: null,
     conversations: [],
-    memoryItems: []
+    memoryItems: [],
+    recognition: null,
+    listening: false
 };
 
 const elements = {
@@ -42,7 +44,8 @@ const elements = {
     dataDrawerTitle: document.getElementById('dataDrawerTitle'),
     dataDrawerBody: document.getElementById('dataDrawerBody'),
     drawerBackdrop: document.getElementById('drawerBackdrop'),
-    closeDataDrawerBtn: document.getElementById('closeDataDrawerBtn')
+    closeDataDrawerBtn: document.getElementById('closeDataDrawerBtn'),
+    voiceBtn: document.getElementById('voiceBtn')
 };
 
 function createSessionId() {
@@ -88,6 +91,8 @@ async function init() {
     elements.closeDataDrawerBtn.addEventListener('click', closeDataDrawer);
     elements.drawerBackdrop.addEventListener('click', closeDataDrawer);
     elements.dataDrawerBody.addEventListener('click', handleDataDrawerAction);
+    elements.voiceBtn.addEventListener('click', toggleVoiceInput);
+    prepareVoiceInput();
 
     checkHealth();
     checkOpenSearch();
@@ -294,6 +299,58 @@ function closeStatus() {
     elements.statusPanel.classList.remove('mobile-visible');
 }
 
+function prepareVoiceInput() {
+    const SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        elements.voiceBtn.hidden = true;
+        return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'bg-BG';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+
+    recognition.onstart = () => setListening(true);
+    recognition.onend = () => setListening(false);
+    recognition.onerror = (event) => {
+        setListening(false);
+        if (event.error !== 'aborted' && event.error !== 'no-speech') {
+            appendMessage(
+                'agent',
+                'Гласовото въвеждане не можа да стартира. Провери достъпа до микрофона.'
+            );
+        }
+    };
+    recognition.onresult = (event) => {
+        let transcript = '';
+        for (let index = event.resultIndex; index < event.results.length; index += 1) {
+            transcript += event.results[index][0].transcript;
+        }
+        elements.chatInput.value = transcript.trim();
+        const lastResult = event.results[event.results.length - 1];
+        if (lastResult?.isFinal) elements.chatInput.focus();
+    };
+    state.recognition = recognition;
+}
+
+function setListening(isListening) {
+    state.listening = isListening;
+    elements.voiceBtn.classList.toggle('listening', isListening);
+    elements.voiceBtn.setAttribute('aria-pressed', String(isListening));
+    elements.voiceBtn.title = isListening ? 'Спри слушането' : 'Гласово въвеждане';
+}
+
+function toggleVoiceInput() {
+    if (!state.recognition || state.chatBusy) return;
+    if (state.listening) {
+        state.recognition.stop();
+    } else {
+        state.recognition.start();
+    }
+}
+
 function openDataDrawer(title) {
     elements.dataDrawerTitle.textContent = title;
     elements.dataDrawer.hidden = false;
@@ -454,6 +511,7 @@ function setChatBusy(isBusy) {
     elements.chatInput.disabled = isBusy;
     elements.newChatBtn.disabled = isBusy;
     elements.attachBtn.disabled = isBusy;
+    elements.voiceBtn.disabled = isBusy;
 }
 
 function renderAgentText(element, text) {

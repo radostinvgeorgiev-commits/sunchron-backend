@@ -27,6 +27,11 @@ import {
   evaluatePermission,
   recordAuditEvent,
 } from "../services/permissionService.js";
+import {
+  analyzeImage,
+  ImageServiceError,
+  validateImageInput,
+} from "../services/imageService.js";
 
 const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
@@ -145,12 +150,6 @@ router.post("/chat", async (req, res) => {
   if (!cleanSessionId) {
     return res.status(400).json({ error: "Липсва валидна сесия." });
   }
-  if (image) {
-    return res.status(422).json({
-      error:
-        "Разпознаването на снимки ще бъде добавено по-късно. Текстовият чат работи.",
-    });
-  }
   if (!cleanMessage) {
     return res.status(400).json({ error: "Напиши съобщение." });
   }
@@ -233,6 +232,15 @@ router.post("/chat", async (req, res) => {
 
   const messages = buildAvatarMessages(memories, history, cleanMessage);
 
+  if (image) {
+    try {
+      validateImageInput(image);
+    } catch (error) {
+      const status = error instanceof ImageServiceError ? error.status : 400;
+      return res.status(status).json({ error: error.message });
+    }
+  }
+
   res.status(200);
   res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -250,6 +258,37 @@ router.post("/chat", async (req, res) => {
       res.write(`: heartbeat ${Date.now()}\n\n`);
     }
   };
+
+  if (image) {
+    try {
+      const fullReply = await analyzeImage({
+        image,
+        prompt: cleanMessage,
+        context: messages[0].content,
+      });
+      await saveConversationTurn(cleanSessionId, cleanMessage, fullReply);
+      await auditAction({
+        action: "image.read",
+        decision: "allow",
+        outcome: "succeeded",
+        resource: image.name || "chat-image",
+        sessionId: cleanSessionId,
+      });
+      sendEvent("token", { token: fullReply });
+      sendEvent("done", { ok: true, tool: "vision" });
+    } catch (error) {
+      console.error(`[Vision] Failure for ${cleanSessionId}:`, error);
+      sendEvent("error", {
+        status: error instanceof ImageServiceError ? error.status : 502,
+        message:
+          error instanceof ImageServiceError
+            ? error.message
+            : "Снимката не можа да бъде разпозната. Опитай отново.",
+      });
+    }
+    res.end();
+    return;
+  }
 
   if (memoryAction) {
     let fullReply;

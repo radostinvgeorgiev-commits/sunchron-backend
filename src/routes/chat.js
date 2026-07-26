@@ -19,6 +19,11 @@ import {
   isGitHubReadRequest,
 } from "../services/githubService.js";
 import {
+  answerCalendarReadRequest,
+  CalendarServiceError,
+  isCalendarReadRequest,
+} from "../services/calendarService.js";
+import {
   evaluatePermission,
   recordAuditEvent,
 } from "../services/permissionService.js";
@@ -317,6 +322,35 @@ router.post("/chat", async (req, res) => {
   }
 
   try {
+    const wantsCalendarRead = isCalendarReadRequest(cleanMessage);
+    const calendarPermission = wantsCalendarRead
+      ? evaluatePermission("calendar.read")
+      : null;
+    if (calendarPermission && calendarPermission.decision !== "allow") {
+      throw new CalendarServiceError(
+        calendarPermission.reason,
+        403,
+        "PERMISSION_DENIED",
+      );
+    }
+    const calendarReply = wantsCalendarRead
+      ? await answerCalendarReadRequest(cleanMessage)
+      : null;
+    if (calendarReply) {
+      await saveConversationTurn(cleanSessionId, cleanMessage, calendarReply);
+      await auditAction({
+        action: "calendar.read",
+        decision: calendarPermission.decision,
+        outcome: "succeeded",
+        resource: "chat-tool",
+        sessionId: cleanSessionId,
+      });
+      sendEvent("token", { token: calendarReply });
+      sendEvent("done", { ok: true, tool: "calendar", mode: "read-only" });
+      res.end();
+      return;
+    }
+
     const wantsGitHubRead = isGitHubReadRequest(cleanMessage);
     const githubPermission = wantsGitHubRead
       ? evaluatePermission("github.read")

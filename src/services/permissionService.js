@@ -16,6 +16,16 @@ const POLICY = Object.freeze({
     risk: "medium",
     reason: "Промените в GitHub изискват отделно разрешение.",
   }),
+  "calendar.read": Object.freeze({
+    decision: "allow",
+    risk: "low",
+    reason: "Четенето на собствения календар е разрешено.",
+  }),
+  "calendar.write": Object.freeze({
+    decision: "confirm",
+    risk: "medium",
+    reason: "Промените в календара изискват отделно потвърждение.",
+  }),
   "memory.read": Object.freeze({
     decision: "allow",
     risk: "low",

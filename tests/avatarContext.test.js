@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { buildAvatarMessages } from "../src/routes/chat.js";
 
-test("avatar sends identity rules and verified memory as system context", () => {
+test("avatar sends identity rules and verified memory as agent-compatible context", () => {
   const messages = buildAvatarMessages(
     [
       { fact: "Живея във Варна", scope: "personal" },
@@ -17,7 +17,7 @@ test("avatar sends identity rules and verified memory as system context", () => 
   );
 
   assert.equal(messages.length, 2);
-  assert.equal(messages[0].role, "system");
+  assert.equal(messages[0].role, "user");
   assert.match(messages[0].content, /личният AI асистент и AI аватар/u);
   assert.match(messages[0].content, /Живея във Варна/u);
   assert.match(messages[0].content, /работещ личен AI аватар/u);
@@ -40,7 +40,7 @@ test("avatar preserves conversation order without repeating its instructions", (
 
   assert.deepEqual(
     messages.map(({ role }) => role),
-    ["system", "user", "assistant", "user"],
+    ["user", "user", "assistant", "user"],
   );
   assert.equal(
     messages.filter(({ content }) =>

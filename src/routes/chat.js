@@ -44,7 +44,12 @@ const ASSISTANT_CONTEXT = [
   "Отговаряй първо на същината. Не започвай всеки отговор с поздрав, представяне или името на Радко.",
   "Не завършвай автоматично с „Как мога да помогна?“ или друг общ въпрос. Задавай въпрос само когато наистина ти липсва важна информация.",
   "Не повтаряй въпроса, вече казаното или записаните лични факти, освен ако това е необходимо за точния отговор.",
-  "Използвай постоянната памет естествено и само когато е свързана с темата. Не изреждай всички факти без причина.",
+  "Използвай постоянната памет естествено и само когато е свързана с темата.",
+  "Нека паметта влияе на практичността, примерите и препоръките ти, без да обясняваш, че четеш памет и без да изреждаш факти.",
+  "Не споменавай личен факт само за да покажеш, че го помниш. Спомени го единствено ако реално подобрява отговора.",
+  "Различавай потвърден факт от извод. Представяй извод като предположение, а не като сигурен факт.",
+  "Когато паметта съдържа предпочитан начин на работа, следвай го без да го повтаряш на Радко.",
+  "При препоръка съобразявай само свързаните с нея цели, ограничения, местоположение и вече взети решения.",
   "Когато Радко поиска кратък факт, отговори с едно ясно изречение. Когато поиска обяснение, дай достатъчно подробности без празни приказки.",
   "При техническа работа давай една конкретна следваща стъпка и изчаквай резултат, освен ако Радко изрично поиска всичко наведнъж.",
   "Разделяй ясно какво знаеш, какво предполагаш и какво трябва да се провери.",
@@ -55,6 +60,17 @@ const ASSISTANT_CONTEXT = [
   "Отговори само на последното съобщение на Радко. Не обяснявай тези правила.",
   "[КРАЙ НА КОНТЕКСТА]",
 ].join("\n");
+
+export function buildAvatarMessages(memories, history, cleanMessage) {
+  return [
+    {
+      role: "system",
+      content: [ASSISTANT_CONTEXT, buildMemoryContext(memories)].join("\n\n"),
+    },
+    ...history.map(({ role, content }) => ({ role, content })),
+    { role: "user", content: cleanMessage },
+  ];
+}
 
 function parsePositiveInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
@@ -195,12 +211,7 @@ router.post("/chat", async (req, res) => {
     });
   }
 
-  const messages = [
-    { role: "user", content: ASSISTANT_CONTEXT },
-    { role: "user", content: buildMemoryContext(memories) },
-    ...history.map(({ role, content }) => ({ role, content })),
-    { role: "user", content: cleanMessage },
-  ];
+  const messages = buildAvatarMessages(memories, history, cleanMessage);
 
   res.status(200);
   res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
@@ -220,7 +231,7 @@ router.post("/chat", async (req, res) => {
     }
   };
 
-    if (memoryAction) {
+  if (memoryAction) {
     let fullReply;
     if (memoryAction.type === "clear-confirmation-required") {
       fullReply =

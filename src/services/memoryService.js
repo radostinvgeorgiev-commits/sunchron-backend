@@ -337,7 +337,13 @@ export function extractForgetMemoryCommand(message) {
 }
 
 export function isForgetAllCommand(message) {
-  return /^(?:забрави|изтрий)\s+(?:цялата|всичко\s+от)\s+постоянната\s+(?:ми\s+)?памет[.!]?$/iu.test(
+  return /^(?:забрави|изтрий)\s+(?:цялата|всичко\s+от)\s+постоянна(?:та)?\s+(?:ми\s+)?памет[.!]?$/iu.test(
+    message.trim(),
+  );
+}
+
+export function isConfirmedForgetAllCommand(message) {
+  return /^потвърждавам\s+изтриването\s+на\s+цялата\s+постоянна\s+(?:ми\s+)?памет[.!]?$/iu.test(
     message.trim(),
   );
 }

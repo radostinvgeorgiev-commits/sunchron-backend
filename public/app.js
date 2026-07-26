@@ -385,20 +385,12 @@ function toggleVoiceInput() {
 function openModulesDrawer() {
     openDataDrawer('Модули');
     elements.dataDrawerBody.innerHTML = `
-        <section class="drawer-section permission-list">
-            <article class="permission-card"><div><strong>Разговор с AI</strong><p>Основен разговор със Synchron-X</p></div><span class="permission-badge allow">Работи</span></article>
-            <article class="permission-card"><div><strong>Памет</strong><p>Личен и проектен контекст</p></div><span class="permission-badge allow">Работи</span></article>
-            <article class="permission-card"><div><strong>Снимки</strong><p>Избор и анализ на изображение</p></div><span class="permission-badge confirm">За тест</span></article>
-            <article class="permission-card"><div><strong>Google Calendar</strong><p>Предстои проверка от край до край</p></div><span class="permission-badge deny">Неактивен</span></article>
-            <article class="permission-card"><div><strong>Здраве</strong><p>Здравни данни, показатели и контролирани известия</p></div><span class="permission-badge deny">Планиран</span></article>
-            <article class="permission-card"><div><strong>Спорт и хранене</strong><p>Активност, тренировки и хранителен режим</p></div><span class="permission-badge deny">Планиран</span></article>
-            <article class="permission-card"><div><strong>Бизнес</strong><p>Обекти, задачи, анализи и оперативна помощ</p></div><span class="permission-badge deny">Планиран</span></article>
-            <article class="permission-card"><div><strong>Пътувания и резервации</strong><p>Маршрути, места за настаняване и резервации</p></div><span class="permission-badge deny">Планиран</span></article>
-            <article class="permission-card"><div><strong>Реклама и социални мрежи</strong><p>Съдържание, кампании и проследяване на резултати</p></div><span class="permission-badge deny">Планиран</span></article>
-            <article class="permission-card"><div><strong>Документи и Google Drive</strong><p>Четене и анализ на разрешени файлове</p></div><span class="permission-badge confirm">За тест</span></article>
-            <article class="permission-card"><div><strong>Задачи и напомняния</strong><p>Лични задачи, срокове и известия</p></div><span class="permission-badge deny">Планиран</span></article>
-            <article class="permission-card"><div><strong>Обучение</strong><p>Лични учебни планове и помощ с материали</p></div><span class="permission-badge deny">Планиран</span></article>
-        </section>`;
+        <div class="module-summary">
+            Всички модули имат работеща основа. Външните действия се включват
+            отделно, когато свържеш съответния акаунт.
+        </div>
+        <section class="drawer-section permission-list module-list" data-module-list></section>`;
+    document.dispatchEvent(new CustomEvent('synchron:modules-opened'));
 }
 
 function openDataDrawer(title) {

@@ -34,7 +34,9 @@ app.use(
     maxAge: 0,
     setHeaders(res, filePath) {
       if (/\.(html|js|css)$/.test(filePath)) {
-        res.setHeader("Cache-Control", "no-store, max-age=0");
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
       }
     },
   }),
@@ -66,6 +68,9 @@ app.get("/opensearch-status", async (req, res) => {
 });
 
 app.get("/", (req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   res.sendFile(`${process.cwd()}/public/index.html`);
 });
 

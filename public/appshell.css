@@ -26,6 +26,8 @@
 .chat-input-area input{min-width:0;flex:1;border:0;outline:0;padding:8px;color:#222;background:transparent}
 .attach-btn,.voice-btn,#sendBtn{width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;border:0;border-radius:50%;cursor:pointer}
 .attach-btn,.voice-btn{color:#303030;background:transparent}#sendBtn{color:#fff;background:#111}#sendBtn span{display:none}
+.voice-btn.listening{color:#fff;background:#d93025;animation:voice-pulse 1.2s ease-in-out infinite}
+@keyframes voice-pulse{50%{box-shadow:0 0 0 6px rgba(217,48,37,.16)}}
 .composer-note{padding-top:7px;color:#777;font-size:11px;text-align:center}
 .statusPanel{width:340px;max-width:calc(100vw - 24px);position:fixed;top:12px;right:12px;bottom:12px;z-index:50;display:none;overflow:hidden;border:1px solid #ddd;border-radius:16px;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.18)}
 .statusPanel.mobile-visible{display:flex}

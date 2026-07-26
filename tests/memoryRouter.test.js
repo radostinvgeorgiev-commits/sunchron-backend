@@ -15,7 +15,7 @@ function requestWithConfirmation(value) {
   };
 }
 
-test("bulk memory API deletion requires exact explicit confirmation", () => {
+test("memory API deletion requires exact explicit confirmation", () => {
   assert.equal(hasClearMemoryConfirmation(requestWithConfirmation()), false);
   assert.equal(
     hasClearMemoryConfirmation(requestWithConfirmation("да, изтрий")),

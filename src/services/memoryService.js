@@ -342,6 +342,12 @@ export function isForgetAllCommand(message) {
   );
 }
 
+export function isConfirmedForgetAllCommand(message) {
+  return /^потвърждавам\s+изтриването\s+на\s+цялата\s+постоянна\s+(?:ми\s+)?памет[.!]?$/iu.test(
+    message.trim(),
+  );
+}
+
 async function fetchProfileHits() {
   const response = await getClientOrThrow().search({
     index: PROFILE_INDEX,

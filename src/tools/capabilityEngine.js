@@ -104,5 +104,6 @@ export async function executeCapability(capability, input = {}, options = {}) {
       502,
     );
   }
+
   return Object.freeze({ ...resolved, output });
 }

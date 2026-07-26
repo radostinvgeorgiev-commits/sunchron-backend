@@ -1,15 +1,15 @@
 import express from "express";
 import {
   GoogleDriveError,
-  analyzePdf,
+  analyzeDriveFile,
   buildAuthorizationUrl,
   createNonce,
   createSession,
   disconnectSession,
-  downloadPdf,
+  downloadDriveFile,
   exchangeCode,
   hasSession,
-  listPdfFiles,
+  listDriveFiles,
   parseCookies,
 } from "../services/googleDriveService.js";
 
@@ -68,7 +68,7 @@ router.post("/disconnect", (req, res) => {
 
 router.get("/files", async (req, res) => {
   try {
-    res.json({ files: await listPdfFiles(sessionId(req)) });
+    res.json({ files: await listDriveFiles(sessionId(req)) });
   } catch (error) {
     sendError(res, error);
   }
@@ -77,12 +77,12 @@ router.get("/files", async (req, res) => {
 router.post("/analyze", async (req, res) => {
   try {
     const { fileId, prompt } = req.body || {};
-    const pdf = await downloadPdf(sessionId(req), String(fileId || ""));
-    const analysis = await analyzePdf({
-      ...pdf,
+    const file = await downloadDriveFile(sessionId(req), String(fileId || ""));
+    const analysis = await analyzeDriveFile({
+      ...file,
       prompt: typeof prompt === "string" ? prompt.trim() : "",
     });
-    res.json({ analysis, fileName: pdf.name });
+    res.json({ analysis, fileName: file.name });
   } catch (error) {
     sendError(res, error);
   }

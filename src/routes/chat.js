@@ -67,13 +67,28 @@ const ASSISTANT_CONTEXT = [
 ].join("\n");
 
 export function buildAvatarMessages(memories, history, cleanMessage) {
+  const conversationHistory = history.length
+    ? [
+        "[ПРЕДИШЕН РАЗГОВОР]",
+        ...history.map(({ role, content }) =>
+          `${role === "assistant" ? "Synchron-X" : "Радко"}: ${content}`,
+        ),
+        "[КРАЙ НА ПРЕДИШНИЯ РАЗГОВОР]",
+      ].join("\n")
+    : "";
+
   return [
     {
       role: "user",
-      content: [ASSISTANT_CONTEXT, buildMemoryContext(memories)].join("\n\n"),
+      content: [
+        ASSISTANT_CONTEXT,
+        buildMemoryContext(memories),
+        conversationHistory,
+        `[ПОСЛЕДНО СЪОБЩЕНИЕ НА РАДКО]\n${cleanMessage}`,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
     },
-    ...history.map(({ role, content }) => ({ role, content })),
-    { role: "user", content: cleanMessage },
   ];
 }
 

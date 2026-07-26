@@ -9,6 +9,13 @@ import {
 
 const router = express.Router();
 
+export const CLEAR_MEMORY_CONFIRMATION =
+  "Потвърждавам изтриването на постоянната памет";
+
+export function hasClearMemoryConfirmation(req) {
+  return req.get("x-confirm-memory-delete") === CLEAR_MEMORY_CONFIRMATION;
+}
+
 function sendMemoryError(res, error) {
   const status = error?.code === "INVALID_MEMORY" ? 400 : 503;
   console.error("[Memory]", error?.message || error);
@@ -67,6 +74,13 @@ router.delete("/profile/:id", async (req, res) => {
 
 router.delete("/profile", async (req, res) => {
   try {
+    if (!hasClearMemoryConfirmation(req)) {
+      return res.status(409).json({
+        error: "Изтриването изисква отделно точно потвърждение.",
+        confirmationHeader: "x-confirm-memory-delete",
+        confirmationValue: CLEAR_MEMORY_CONFIRMATION,
+      });
+    }
     const scope =
       typeof req.query.scope === "string" ? req.query.scope : undefined;
     const deleted = await clearProfileMemories(scope);

@@ -42,5 +42,7 @@ test("avatar preserves conversation order without repeating its instructions", (
     ).length,
     1,
   );
-  assert.match(messages[0].content, /Радко: Първи въпрос/u);\n  assert.match(messages[0].content, /Synchron-X: Първи отговор/u);\n  assert.match(messages[0].content, /Следващ въпрос/u);
+  assert.match(messages[0].content, /Радко: Първи въпрос/u);
+  assert.match(messages[0].content, /Synchron-X: Първи отговор/u);
+  assert.match(messages[0].content, /Следващ въпрос/u);
 });

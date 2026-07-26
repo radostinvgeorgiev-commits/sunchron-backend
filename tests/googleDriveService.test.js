@@ -5,6 +5,8 @@ import {
   analyzeDriveFile,
   createSession,
   downloadDriveFile,
+  listGmailMessages,
+  listGoogleCalendarEvents,
   listDriveFiles,
 } from "../src/services/googleDriveService.js";
 
@@ -85,4 +87,40 @@ test("sends images to OpenAI as vision input", async () => {
   assert.equal(analysis, "Виждам снимка.");
   assert.equal(requestBody.input[0].content[0].type, "input_image");
   assert.match(requestBody.input[0].content[0].image_url, /^data:image\/jpeg;base64,/);
+});
+
+test("requests Gmail messages and returns safe summaries", async () => {
+  const sessionId = createSession({ access_token: "token", expires_in: 3600 });
+  const messages = await listGmailMessages(sessionId, 5, async (url) => {
+    if (String(url).includes("/messages?")) {
+      return jsonResponse({ messages: [{ id: "mail_1" }] });
+    }
+    return jsonResponse({
+      id: "mail_1",
+      threadId: "thread_1",
+      labelIds: ["UNREAD"],
+      snippet: "Кратък текст",
+      payload: { headers: [
+        { name: "From", value: "sender@example.com" },
+        { name: "Subject", value: "Тест" },
+      ] },
+    });
+  });
+  assert.equal(messages[0].subject, "Тест");
+  assert.equal(messages[0].unread, true);
+  assert.match(messages[0].url, /mail_1$/);
+});
+
+test("requests upcoming Google Calendar events", async () => {
+  const sessionId = createSession({ access_token: "token", expires_in: 3600 });
+  const events = await listGoogleCalendarEvents(sessionId, 7, 10, async () => jsonResponse({
+    items: [{
+      id: "event_1",
+      summary: "Среща",
+      start: { dateTime: "2026-07-27T10:00:00+03:00" },
+      end: { dateTime: "2026-07-27T11:00:00+03:00" },
+    }],
+  }));
+  assert.equal(events[0].title, "Среща");
+  assert.equal(events[0].allDay, false);
 });

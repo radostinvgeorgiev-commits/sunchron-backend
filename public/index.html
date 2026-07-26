@@ -23,10 +23,10 @@
             </button>
             <nav class="sidebar-nav" aria-label="Основно меню">
                 <button id="searchChatsBtn" type="button"><i class="fa-solid fa-magnifying-glass"></i><span>Търси</span></button>
-                <button type="button"><i class="fa-regular fa-images"></i><span>Снимки и файлове</span></button>
+                <button id="imagesBtn" type="button"><i class="fa-regular fa-images"></i><span>Снимки и файлове</span></button>
                 <button id="memoryBtn" type="button"><i class="fa-solid fa-brain"></i><span>Памет</span></button>
                 <button id="permissionsBtn" type="button"><i class="fa-solid fa-shield-halved"></i><span>Разрешения</span></button>
-                <button type="button"><i class="fa-solid fa-puzzle-piece"></i><span>Модули</span></button>
+                <button id="modulesBtn" type="button"><i class="fa-solid fa-puzzle-piece"></i><span>Модули</span></button>
             </nav>
             <div class="sidebar-section">
                 <span>Разговори</span>
@@ -104,6 +104,7 @@
             </div>
         </aside>
 
+        <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
         <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
         <aside class="data-drawer" id="dataDrawer" aria-label="Памет и разрешения" hidden>
             <header class="data-drawer-header">
@@ -119,6 +120,6 @@
         </aside>
     </main>
 
-    <script src="/app.js?v=20260726-image-analysis"></script>
+    <script src="/app.js?v=20260726-menu-actions"></script>
 </body>
 </html>

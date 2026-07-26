@@ -38,6 +38,9 @@ const elements = {
     searchChatsBtn: document.getElementById('searchChatsBtn'),
     mobileMenuBtn: document.getElementById('mobileMenuBtn'),
     sidebar: document.getElementById('sidebar'),
+    sidebarBackdrop: document.getElementById('sidebarBackdrop'),
+    imagesBtn: document.getElementById('imagesBtn'),
+    modulesBtn: document.getElementById('modulesBtn'),
     memoryBtn: document.getElementById('memoryBtn'),
     permissionsBtn: document.getElementById('permissionsBtn'),
     dataDrawer: document.getElementById('dataDrawer'),
@@ -83,15 +86,17 @@ async function init() {
     elements.conversationList.addEventListener('click', handleConversationClick);
     elements.conversationSearch.addEventListener('input', renderConversationList);
     elements.searchChatsBtn.addEventListener('click', toggleConversationSearch);
-    elements.mobileMenuBtn.addEventListener('click', () => {
-        elements.sidebar.classList.toggle('mobile-visible');
-    });
+    elements.mobileMenuBtn.addEventListener('click', toggleSidebar);
+    elements.sidebarBackdrop.addEventListener('click', closeSidebar);
+    elements.imagesBtn.addEventListener('click', openImagePicker);
+    elements.modulesBtn.addEventListener('click', openModulesDrawer);
     elements.memoryBtn.addEventListener('click', openMemoryDrawer);
     elements.permissionsBtn.addEventListener('click', openPermissionsDrawer);
     elements.closeDataDrawerBtn.addEventListener('click', closeDataDrawer);
     elements.drawerBackdrop.addEventListener('click', closeDataDrawer);
     elements.dataDrawerBody.addEventListener('click', handleDataDrawerAction);
     elements.voiceBtn.addEventListener('click', toggleVoiceInput);
+    document.addEventListener('keydown', handleGlobalKeydown);
     prepareVoiceInput();
 
     checkHealth();
@@ -185,6 +190,7 @@ async function restoreConversation() {
 
 async function startNewChat() {
     if (state.chatBusy) return;
+    closeSidebar();
     clearPendingImage();
     state.sessionId = createSessionId();
     localStorage.setItem('synchronSessionId', state.sessionId);
@@ -239,7 +245,31 @@ async function handleConversationClick(event) {
     updateSessionDisplay();
     renderConversationList();
     await restoreConversation();
+    closeSidebar();
+}
+
+function toggleSidebar() {
+    const isOpen = elements.sidebar.classList.toggle('mobile-visible');
+    elements.sidebarBackdrop.hidden = !isOpen;
+    elements.mobileMenuBtn.setAttribute('aria-expanded', String(isOpen));
+}
+
+function closeSidebar() {
     elements.sidebar.classList.remove('mobile-visible');
+    elements.sidebarBackdrop.hidden = true;
+    elements.mobileMenuBtn.setAttribute('aria-expanded', 'false');
+}
+
+function openImagePicker() {
+    closeSidebar();
+    elements.imageInput.click();
+}
+
+function handleGlobalKeydown(event) {
+    if (event.key !== 'Escape') return;
+    closeSidebar();
+    closeStatus();
+    closeDataDrawer();
 }
 
 function toggleConversationSearch() {
@@ -292,6 +322,7 @@ function clearPendingImage() {
 }
 
 function openStatus() {
+    closeSidebar();
     elements.statusPanel.classList.add('mobile-visible');
 }
 
@@ -349,6 +380,17 @@ function toggleVoiceInput() {
     } else {
         state.recognition.start();
     }
+}
+
+function openModulesDrawer() {
+    openDataDrawer('Модули');
+    elements.dataDrawerBody.innerHTML = `
+        <section class="drawer-section permission-list">
+            <article class="permission-card"><div><strong>Разговор с AI</strong><p>Основен разговор със Synchron-X</p></div><span class="permission-badge allow">Работи</span></article>
+            <article class="permission-card"><div><strong>Памет</strong><p>Личен и проектен контекст</p></div><span class="permission-badge allow">Работи</span></article>
+            <article class="permission-card"><div><strong>Снимки</strong><p>Избор и анализ на изображение</p></div><span class="permission-badge confirm">За тест</span></article>
+            <article class="permission-card"><div><strong>Google Calendar</strong><p>Предстои проверка от край до край</p></div><span class="permission-badge deny">Неактивен</span></article>
+        </section>`;
 }
 
 function openDataDrawer(title) {

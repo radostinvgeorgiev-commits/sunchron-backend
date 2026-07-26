@@ -31,7 +31,7 @@
 .composer-note{padding-top:7px;color:#777;font-size:11px;text-align:center}
 .statusPanel{width:340px;max-width:calc(100vw - 24px);position:fixed;top:12px;right:12px;bottom:12px;z-index:50;display:none;overflow:hidden;border:1px solid #ddd;border-radius:16px;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.18)}
 .statusPanel.mobile-visible{display:flex}
-.drawer-backdrop{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.28);backdrop-filter:blur(2px)}
+.sidebar-backdrop{display:none}\n.drawer-backdrop{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.28);backdrop-filter:blur(2px)}
 .data-drawer{width:min(480px,100vw);position:fixed;inset:0 0 0 auto;z-index:71;display:flex;flex-direction:column;background:#fff;box-shadow:-16px 0 50px rgba(0,0,0,.16)}
 .data-drawer[hidden],.drawer-backdrop[hidden]{display:none}
 .data-drawer-header{min-height:78px;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ececec}
@@ -47,7 +47,7 @@
 .permission-card{align-items:center}.permission-card strong{font-size:13px}.permission-card p{margin-top:4px;color:#666;font-size:12px}.permission-badge{padding:5px 8px;flex:0 0 auto;border-radius:999px;font-size:11px;font-weight:700}
 .permission-badge.allow{color:#137333;background:#e6f4ea}.permission-badge.confirm{color:#8a4b00;background:#fff4df}.permission-badge.deny{color:#b42318;background:#feeceb}
 @media(max-width:760px){
-  .app-shell{display:block}.sidebar{display:none}.sidebar.mobile-visible{width:min(86vw,320px);position:fixed;inset:0 auto 0 0;z-index:60;display:flex;box-shadow:16px 0 50px rgba(0,0,0,.18)}.chatPanel{height:100dvh}.mobile-menu{display:block}
+  .app-shell{display:block}.sidebar{display:none}.sidebar.mobile-visible{width:min(86vw,320px);position:fixed;inset:0 auto 0 0;z-index:60;display:flex;box-shadow:16px 0 50px rgba(0,0,0,.18)}.sidebar-backdrop{position:fixed;inset:0;z-index:59;display:block;background:rgba(0,0,0,.28)}.sidebar-backdrop[hidden]{display:none}.chatPanel{height:100dvh}.mobile-menu{display:block}
   .chat-toolbar{min-height:56px;padding:7px 12px}.status-indicator{padding:6px}#agentStatusText{display:none}
   #chatMessages{padding:18px 14px 8px}.user-turn{max-width:88%}
   .composer-wrap{padding:8px 10px max(8px,env(safe-area-inset-bottom))}

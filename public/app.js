@@ -5,9 +5,9 @@ const state = {
     lastActions: [],
     chatBusy: false,
     speakingButton: null,
-    pendingImage: null
-    ,
-    conversations: []
+    pendingImage: null,
+    conversations: [],
+    memoryItems: []
 };
 
 const elements = {
@@ -35,7 +35,14 @@ const elements = {
     conversationSearch: document.getElementById('conversationSearch'),
     searchChatsBtn: document.getElementById('searchChatsBtn'),
     mobileMenuBtn: document.getElementById('mobileMenuBtn'),
-    sidebar: document.getElementById('sidebar')
+    sidebar: document.getElementById('sidebar'),
+    memoryBtn: document.getElementById('memoryBtn'),
+    permissionsBtn: document.getElementById('permissionsBtn'),
+    dataDrawer: document.getElementById('dataDrawer'),
+    dataDrawerTitle: document.getElementById('dataDrawerTitle'),
+    dataDrawerBody: document.getElementById('dataDrawerBody'),
+    drawerBackdrop: document.getElementById('drawerBackdrop'),
+    closeDataDrawerBtn: document.getElementById('closeDataDrawerBtn')
 };
 
 function createSessionId() {
@@ -76,6 +83,11 @@ async function init() {
     elements.mobileMenuBtn.addEventListener('click', () => {
         elements.sidebar.classList.toggle('mobile-visible');
     });
+    elements.memoryBtn.addEventListener('click', openMemoryDrawer);
+    elements.permissionsBtn.addEventListener('click', openPermissionsDrawer);
+    elements.closeDataDrawerBtn.addEventListener('click', closeDataDrawer);
+    elements.drawerBackdrop.addEventListener('click', closeDataDrawer);
+    elements.dataDrawerBody.addEventListener('click', handleDataDrawerAction);
 
     checkHealth();
     checkOpenSearch();
@@ -280,6 +292,139 @@ function openStatus() {
 
 function closeStatus() {
     elements.statusPanel.classList.remove('mobile-visible');
+}
+
+function openDataDrawer(title) {
+    elements.dataDrawerTitle.textContent = title;
+    elements.dataDrawer.hidden = false;
+    elements.drawerBackdrop.hidden = false;
+    elements.sidebar.classList.remove('mobile-visible');
+}
+
+function closeDataDrawer() {
+    elements.dataDrawer.hidden = true;
+    elements.drawerBackdrop.hidden = true;
+}
+
+function renderDrawerLoading() {
+    elements.dataDrawerBody.innerHTML =
+        '<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Зареждане…</div>';
+}
+
+function renderDrawerError(message) {
+    elements.dataDrawerBody.innerHTML =
+        `<div class="drawer-state drawer-error">${escapeHtml(message)}</div>`;
+}
+
+function escapeHtml(value) {
+    const div = document.createElement('div');
+    div.textContent = String(value ?? '');
+    return div.innerHTML;
+}
+
+async function openMemoryDrawer() {
+    openDataDrawer('Памет');
+    renderDrawerLoading();
+    try {
+        const response = await fetch('/memory/profile', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Паметта временно не е достъпна.');
+        const data = await response.json();
+        state.memoryItems = Array.isArray(data.items) ? data.items : [];
+        renderMemoryItems();
+    } catch (error) {
+        renderDrawerError(error.message);
+    }
+}
+
+function renderMemoryItems() {
+    const personal = state.memoryItems.filter(
+        (item) => (item.scope || 'personal') === 'personal'
+    );
+    const project = state.memoryItems.filter((item) => item.scope === 'project');
+    const section = (title, items) => `
+        <section class="drawer-section">
+            <h3>${title} <span>${items.length}</span></h3>
+            ${items.length
+                ? items.map((item) => `
+                    <article class="memory-card">
+                        <p>${escapeHtml(item.fact)}</p>
+                        <button type="button" data-memory-delete="${escapeHtml(item.id)}"
+                            aria-label="Изтрий този спомен" title="Изтрий">
+                            <i class="fa-regular fa-trash-can"></i>
+                        </button>
+                    </article>`).join('')
+                : '<div class="drawer-empty">Няма записани спомени.</div>'}
+        </section>`;
+    elements.dataDrawerBody.innerHTML =
+        section('За теб', personal) + section('За проекта', project);
+}
+
+async function openPermissionsDrawer() {
+    openDataDrawer('Разрешения');
+    renderDrawerLoading();
+    try {
+        const response = await fetch('/permissions', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Разрешенията временно не са достъпни.');
+        const data = await response.json();
+        const labels = { allow: 'Разрешено', confirm: 'Иска потвърждение', deny: 'Забранено' };
+        elements.dataDrawerBody.innerHTML = `
+            <div class="permission-default">
+                Непознатите действия са <strong>забранени по подразбиране</strong>.
+            </div>
+            <section class="drawer-section permission-list">
+                ${(data.permissions || []).map((item) => `
+                    <article class="permission-card">
+                        <div>
+                            <strong>${escapeHtml(item.action)}</strong>
+                            <p>${escapeHtml(item.reason)}</p>
+                        </div>
+                        <span class="permission-badge ${escapeHtml(item.decision)}">
+                            ${labels[item.decision] || escapeHtml(item.decision)}
+                        </span>
+                    </article>`).join('')}
+            </section>`;
+    } catch (error) {
+        renderDrawerError(error.message);
+    }
+}
+
+async function handleDataDrawerAction(event) {
+    const button = event.target.closest('button[data-memory-delete]');
+    if (!button) return;
+    const item = state.memoryItems.find(
+        (candidate) => candidate.id === button.dataset.memoryDelete
+    );
+    if (!item) return;
+
+    const confirmed = window.confirm(
+        `Да изтрия ли този спомен?\n\n${item.fact}`
+    );
+    if (!confirmed) return;
+
+    button.disabled = true;
+    try {
+        const response = await fetch(
+            '/memory/profile/' + encodeURIComponent(item.id),
+            {
+                method: 'DELETE',
+                headers: {
+                    'x-confirm-memory-delete':
+                        'Потвърждавам изтриването на постоянната памет'
+                }
+            }
+        );
+        if (!response.ok) {
+            const data = await response.json().catch(() => null);
+            throw new Error(data?.error || 'Споменът не можа да бъде изтрит.');
+        }
+        state.memoryItems = state.memoryItems.filter(
+            (candidate) => candidate.id !== item.id
+        );
+        renderMemoryItems();
+        logAction('Изтрит е потвърден спомен');
+    } catch (error) {
+        renderDrawerError(error.message);
+    }
 }
 
 function showTypingIndicator() {

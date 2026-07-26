@@ -5,22 +5,25 @@
 
   const bar = document.createElement("div");
   bar.className = "search-mode-bar";
-  bar.setAttribute("aria-label", "Режим на търсене");
+  bar.setAttribute("aria-label", "Режим на работа");
   bar.innerHTML = [
-    '<button type="button" class="search-mode active" data-mode="ai"><i class="fa-solid fa-wand-magic-sparkles"></i> AI търсене</button>',
+    '<button type="button" class="search-mode active" data-mode="chat"><i class="fa-regular fa-message"></i> Разговор</button>',
+    '<button type="button" class="search-mode" data-mode="ai"><i class="fa-solid fa-wand-magic-sparkles"></i> AI търсене</button>',
     '<button type="button" class="search-mode" data-mode="google"><i class="fa-brands fa-google"></i> Google</button>',
   ].join("");
   composer.prepend(bar);
 
-  let mode = "ai";
+  let mode = "chat";
   const buttons = [...bar.querySelectorAll(".search-mode")];
 
   function selectMode(nextMode) {
     mode = nextMode;
     buttons.forEach((button) => button.classList.toggle("active", button.dataset.mode === mode));
-    input.placeholder = mode === "ai"
-      ? "Потърси с AI в интернет"
-      : "Потърси в Google";
+    input.placeholder = mode === "chat"
+      ? "Попитай нещо"
+      : mode === "ai"
+        ? "Потърси с AI в интернет"
+        : "Потърси в Google";
     input.focus();
   }
 
@@ -76,17 +79,17 @@
   }
 
   elements.sendBtn.addEventListener("click", (event) => {
-    if (mode !== "ai" && mode !== "google") return;
+    if (mode === "chat") return;
     event.stopImmediatePropagation();
     runSearch();
   }, true);
 
   input.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.shiftKey) return;
+    if (mode === "chat" || event.key !== "Enter" || event.shiftKey) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     runSearch();
   }, true);
 
-  selectMode("ai");
+  selectMode("chat");
 })();

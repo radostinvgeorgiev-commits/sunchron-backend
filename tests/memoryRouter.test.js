@@ -28,3 +28,7 @@ test("memory API deletion requires exact explicit confirmation", () => {
     true,
   );
 });
+
+test("memory deletion confirmation is safe for an HTTP header", () => {
+  assert.match(CLEAR_MEMORY_CONFIRMATION, /^[\x20-\x7E]+$/u);
+});

@@ -5,6 +5,7 @@
   const title = document.getElementById("dataDrawerTitle");
   const body = document.getElementById("dataDrawerBody");
   const sidebar = document.getElementById("sidebar");
+  let lastAnalysis = "";
 
   if (!button || !drawer || !body) return;
 
@@ -54,11 +55,11 @@
           <div class="permission-default">Свързан е достъп само за четене. Избери PDF за анализ.</div>
           ${files.length ? files.map((file) => `
             <article class="permission-card">
-              <div>
+              <button type="button" data-drive-file="${escapeHtml(file.id)}" data-drive-name="${escapeHtml(file.name)}" style="text-align:left;background:none;border:0;padding:0;color:inherit">
                 <strong>${escapeHtml(file.name)}</strong>
                 <p>${file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString("bg-BG") : "PDF документ"}</p>
-              </div>
-              <button type="button" data-drive-file="${escapeHtml(file.id)}" data-drive-name="${escapeHtml(file.name)}">Анализирай</button>
+              </button>
+              <button type="button" data-drive-file="${escapeHtml(file.id)}" data-drive-name="${escapeHtml(file.name)}">Отвори текста</button>
             </article>`).join("") : '<div class="drawer-empty">Няма намерени PDF документи.</div>'}
           <button type="button" id="disconnectGoogleDrive">Прекъсни връзката</button>
         </section>`;
@@ -83,16 +84,32 @@
             prompt: "Обобщи документа на български. Изведи най-важните факти, срокове, суми и действия, които трябва да предприема.",
           }),
         });
+        lastAnalysis = data.analysis || "";
         body.innerHTML = `
           <section class="drawer-section">
             <h3>${escapeHtml(data.fileName || fileName)}</h3>
-            <div class="permission-default" style="white-space:pre-wrap">${escapeHtml(data.analysis)}</div>
+            <div class="permission-default" style="white-space:pre-wrap">${escapeHtml(lastAnalysis)}</div>
+            <button type="button" id="sendDriveAnalysis">Изпрати в разговора</button>
             <button type="button" id="backToDriveFiles">Назад към PDF файловете</button>
           </section>`;
       } catch (error) {
         fileButton.disabled = false;
         fileButton.textContent = "Анализирай";
         alert(error.message);
+      }
+      return;
+    }
+
+    if (event.target.closest("#sendDriveAnalysis")) {
+      const chatInput = document.getElementById("chatInput");
+      const sendButton = document.getElementById("sendBtn");
+      if (chatInput && sendButton && lastAnalysis) {
+        chatInput.value = `Анализ на документ от Google Drive:\n\n${lastAnalysis}`;
+        chatInput.dispatchEvent(new Event("input", { bubbles: true }));
+        drawer.hidden = true;
+        drawerBackdrop.hidden = true;
+        sendButton.disabled = false;
+        sendButton.click();
       }
       return;
     }

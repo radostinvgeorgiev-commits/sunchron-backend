@@ -67,12 +67,12 @@ export async function analyzeImage({
   prompt,
   context,
   fetchImpl = fetch,
-  apiKey = process.env.OPENAI_API_KEY,
-  model = process.env.OPENAI_VISION_MODEL || "gpt-4o-mini",
+  agentUrl = process.env.AGENT_URL,
+  agentKey = process.env.AGENT_KEY,
   signal,
 }) {
   const validated = validateImageInput(image);
-  if (!apiKey) {
+  if (!agentUrl || !agentKey) {
     throw new ImageServiceError(
       "Разпознаването на снимки не е конфигурирано.",
       503,
@@ -80,33 +80,38 @@ export async function analyzeImage({
     );
   }
 
-  const response = await fetchImpl("https://api.openai.com/v1/responses", {
+  const response = await fetchImpl(
+    `${agentUrl.replace(/\/+$/u, "")}/api/v1/chat/completions`,
+    {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${agentKey}`,
     },
     body: JSON.stringify({
-      model,
-      input: [
+      messages: [
         {
           role: "user",
           content: [
             {
-              type: "input_text",
+              type: "text",
               text: [context, prompt].filter(Boolean).join("\n\n"),
             },
             {
-              type: "input_image",
-              image_url: validated.dataUrl,
-              detail: "auto",
+              type: "image_url",
+              image_url: {
+                url: validated.dataUrl,
+                detail: "auto",
+              },
             },
           ],
         },
       ],
+      stream: false,
     }),
     signal,
-  });
+    },
+  );
 
   if (!response.ok) {
     const body = await response.text();
@@ -119,15 +124,16 @@ export async function analyzeImage({
   }
 
   const result = await response.json();
-  const text =
-    typeof result.output_text === "string"
-      ? result.output_text.trim()
-      : result.output
-          ?.flatMap((item) => item.content || [])
-          .filter((item) => item.type === "output_text")
-          .map((item) => item.text)
-          .join("")
-          .trim();
+  const content = result.choices?.[0]?.message?.content;
+  const text = Array.isArray(content)
+    ? content
+        .filter((item) => item?.type === "text")
+        .map((item) => item.text || "")
+        .join("")
+        .trim()
+    : typeof content === "string"
+      ? content.trim()
+      : "";
 
   if (!text) {
     throw new ImageServiceError(

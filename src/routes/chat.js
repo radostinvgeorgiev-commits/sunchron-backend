@@ -60,6 +60,15 @@ function parsePositiveInteger(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+export function isOverviewQuestion(message, subject) {
+  const normalizedQuestion = message.replace(/[„“"'’]/gu, "").trim();
+  const questionEnd = String.raw`(?=\s|[?!.,:;]|$)`;
+  return new RegExp(
+    String.raw`^какво\s+знаеш\s+за\s+${subject}${questionEnd}`,
+    "iu",
+  ).test(normalizedQuestion);
+}
+
 function extractTokenFromAgentEvent(rawEvent) {
   const dataLines = rawEvent
     .split(/\r?\n/)
@@ -254,16 +263,11 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
-  const normalizedQuestion = cleanMessage
-    .replace(/[„“"'’]/gu, "")
-    .trim();
-  const isProfileOverviewQuestion = /^какво\s+знаеш\s+за\s+мен\b/iu.test(
-    normalizedQuestion,
+  const isProfileOverviewQuestion = isOverviewQuestion(cleanMessage, "мен");
+  const isProjectOverviewQuestion = isOverviewQuestion(
+    cleanMessage,
+    "(?:проекта|synchron-x)",
   );
-  const isProjectOverviewQuestion =
-    /^какво\s+знаеш\s+за\s+(?:проекта|synchron-x)\b/iu.test(
-      normalizedQuestion,
-    );
   if (isProfileOverviewQuestion || isProjectOverviewQuestion) {
     const requestedScope = isProjectOverviewQuestion ? "project" : "personal";
     const scopedMemories = memories.filter(

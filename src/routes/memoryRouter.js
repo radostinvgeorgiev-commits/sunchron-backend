@@ -6,6 +6,7 @@ import {
   listProfileMemories,
   saveProfileMemory,
 } from "../services/memoryService.js";
+import { recordAuditEvent } from "../services/permissionService.js";
 
 const router = express.Router();
 
@@ -14,6 +15,14 @@ export const CLEAR_MEMORY_CONFIRMATION =
 
 export function hasClearMemoryConfirmation(req) {
   return req.get("x-confirm-memory-delete") === CLEAR_MEMORY_CONFIRMATION;
+}
+
+async function auditMemoryAction(event) {
+  try {
+    await recordAuditEvent(event);
+  } catch (error) {
+    console.error("[Audit] Memory API write failure:", error);
+  }
 }
 
 function sendMemoryError(res, error) {
@@ -54,6 +63,13 @@ router.post("/profile", async (req, res) => {
       return res.status(400).json({ error: "Полето fact е задължително." });
     }
     const item = await saveProfileMemory(fact, "memory-api", scope);
+    await auditMemoryAction({
+      action: "memory.write",
+      decision: "allow",
+      outcome: "succeeded",
+      resource: "profile-memory",
+      details: `api:${item.scope}:${item.id}`,
+    });
     return res.status(201).json({ status: "ok", item });
   } catch (error) {
     return sendMemoryError(res, error);
@@ -63,6 +79,13 @@ router.post("/profile", async (req, res) => {
 router.delete("/profile/:id", async (req, res) => {
   try {
     const deleted = await deleteProfileMemory(req.params.id);
+    await auditMemoryAction({
+      action: "memory.delete",
+      decision: "confirmed",
+      outcome: deleted ? "succeeded" : "not-found",
+      resource: "profile-memory",
+      details: `api:item:${req.params.id}`,
+    });
     return res.json({ status: "ok", deleted });
   } catch (error) {
     if (error?.meta?.statusCode === 404) {
@@ -75,6 +98,13 @@ router.delete("/profile/:id", async (req, res) => {
 router.delete("/profile", async (req, res) => {
   try {
     if (!hasClearMemoryConfirmation(req)) {
+      await auditMemoryAction({
+        action: "memory.delete",
+        decision: "confirm",
+        outcome: "requested",
+        resource: "profile-memory",
+        details: "api:bulk",
+      });
       return res.status(409).json({
         error: "Изтриването изисква отделно точно потвърждение.",
         confirmationHeader: "x-confirm-memory-delete",
@@ -84,6 +114,13 @@ router.delete("/profile", async (req, res) => {
     const scope =
       typeof req.query.scope === "string" ? req.query.scope : undefined;
     const deleted = await clearProfileMemories(scope);
+    await auditMemoryAction({
+      action: "memory.delete",
+      decision: "confirmed",
+      outcome: "succeeded",
+      resource: "profile-memory",
+      details: `api:bulk:${scope || "all"}:${deleted}`,
+    });
     return res.json({ status: "ok", deleted });
   } catch (error) {
     return sendMemoryError(res, error);

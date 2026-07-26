@@ -9,6 +9,8 @@ import {
   downloadDriveFile,
   exchangeCode,
   hasSession,
+  listGmailMessages,
+  listGoogleCalendarEvents,
   listDriveFiles,
   parseCookies,
 } from "../services/googleDriveService.js";
@@ -69,6 +71,29 @@ router.post("/disconnect", (req, res) => {
 router.get("/files", async (req, res) => {
   try {
     res.json({ files: await listDriveFiles(sessionId(req)) });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.get("/gmail/messages", async (req, res) => {
+  try {
+    res.json({ messages: await listGmailMessages(sessionId(req), req.query.limit) });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.get("/calendar/events", async (req, res) => {
+  try {
+    res.json({
+      timezone: "Europe/Sofia",
+      events: await listGoogleCalendarEvents(
+        sessionId(req),
+        req.query.days,
+        req.query.limit,
+      ),
+    });
   } catch (error) {
     sendError(res, error);
   }

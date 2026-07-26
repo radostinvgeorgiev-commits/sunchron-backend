@@ -898,3 +898,59 @@ async function checkOpenSearch() {
         }
     } catch {
         updateOpenSearchUI('unreachable');
+    }
+}
+
+function setServerStatus(isOnline) {
+    state.serverOnline = isOnline;
+    elements.agentStatusDot.className = isOnline ? 'online' : 'offline';
+    elements.agentStatusText.textContent = isOnline
+        ? 'Сървър онлайн'
+        : 'Сървър офлайн';
+    elements.serverStatusDisplay.textContent = isOnline ? 'Онлайн' : 'Офлайн';
+    elements.serverStatusDisplay.className =
+        `context-value ${isOnline ? 'status-green' : 'status-red'}`;
+}
+
+function updateOpenSearchUI(status) {
+    state.opensearchStatus = status;
+    elements.opensearchStatusDisplay.textContent = status;
+    elements.opensearchStatusDisplay.className = 'context-value';
+
+    if (status === 'green') {
+        elements.opensearchStatusDisplay.classList.add('status-green');
+    } else if (status === 'red' || status === 'error' || status === 'unreachable') {
+        elements.opensearchStatusDisplay.classList.add('status-red');
+    } else {
+        elements.opensearchStatusDisplay.classList.add('status-yellow');
+    }
+}
+
+function logAction(actionName) {
+    const time = new Date().toLocaleTimeString('bg-BG', {
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    state.lastActions.unshift(`[${time}] ${actionName}`);
+    if (state.lastActions.length > 5) state.lastActions.pop();
+    renderActionsLog();
+}
+
+function renderActionsLog() {
+    elements.actionsLog.replaceChildren();
+
+    if (state.lastActions.length === 0) {
+        const item = document.createElement('li');
+        item.textContent = 'Няма скорошни действия';
+        elements.actionsLog.appendChild(item);
+        return;
+    }
+
+    for (const action of state.lastActions) {
+        const item = document.createElement('li');
+        item.textContent = action;
+        elements.actionsLog.appendChild(item);
+    }
+}
+
+window.addEventListener('load', init);

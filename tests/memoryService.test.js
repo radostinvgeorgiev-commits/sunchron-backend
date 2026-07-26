@@ -7,6 +7,8 @@ import {
   deriveMemoryMetadata,
   extractForgetMemoryCommand,
   extractImplicitMemoryCandidates,
+  isConfirmedForgetAllCommand,
+  isForgetAllCommand,
   extractPersistentMemoryCommand,
 } from "../src/services/memoryService.js";
 
@@ -199,4 +201,21 @@ test("splits and deduplicates legacy profile lists without deleting history", ()
     ["живея във Варна", "имам бизнес с бунгала в Камчия", "Казвам се Радко"],
   );
   assert.equal(items.some((item) => item.fact.startsWith("-")), false);
+});
+
+test("full memory deletion requires a separate explicit confirmation phrase", () => {
+  assert.equal(
+    isForgetAllCommand("Изтрий цялата постоянна памет."),
+    true,
+  );
+  assert.equal(
+    isConfirmedForgetAllCommand(
+      "Потвърждавам изтриването на цялата постоянна памет.",
+    ),
+    true,
+  );
+  assert.equal(
+    isConfirmedForgetAllCommand("Да, изтрий я."),
+    false,
+  );
 });

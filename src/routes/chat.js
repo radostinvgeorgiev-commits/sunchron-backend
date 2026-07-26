@@ -69,7 +69,7 @@ const ASSISTANT_CONTEXT = [
 export function buildAvatarMessages(memories, history, cleanMessage) {
   return [
     {
-      role: "system",
+      // DigitalOcean GenAI Agent accepts user/assistant messages.\n      // A system role makes the upstream endpoint return HTTP 400.\n      role: "user",
       content: [ASSISTANT_CONTEXT, buildMemoryContext(memories)].join("\n\n"),
     },
     ...history.map(({ role, content }) => ({ role, content })),

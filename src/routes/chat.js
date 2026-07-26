@@ -437,7 +437,6 @@ router.post("/chat", async (req, res) => {
       sendEvent("error", {
         status: agentRes.status,
         message: `AI агентът върна грешка ${agentRes.status}. Опитай отново.`,
-        diagnostic: body.slice(0, 1000),
       });
       return;
     }

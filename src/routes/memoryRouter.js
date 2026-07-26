@@ -12,7 +12,7 @@ import { recordAuditEvent } from "../services/permissionService.js";
 const router = express.Router();
 
 export const CLEAR_MEMORY_CONFIRMATION =
-  "Потвърждавам изтриването на постоянната памет";
+  "confirm-delete-profile-memory";
 
 export function hasClearMemoryConfirmation(req) {
   return req.get("x-confirm-memory-delete") === CLEAR_MEMORY_CONFIRMATION;

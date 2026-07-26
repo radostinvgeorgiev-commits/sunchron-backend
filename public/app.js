@@ -508,7 +508,7 @@ async function handleDataDrawerAction(event) {
                 method: 'DELETE',
                 headers: {
                     'x-confirm-memory-delete':
-                        'Потвърждавам изтриването на постоянната памет'
+                        'confirm-delete-profile-memory'
                 }
             }
         );

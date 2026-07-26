@@ -68,10 +68,9 @@ export async function analyzeImage({
   context,
   fetchImpl = fetch,
   inferenceUrl =
-    process.env.DIGITALOCEAN_INFERENCE_URL ||
-    "https://inference.do-ai.run/v1/chat/completions",
-  modelAccessKey = process.env.MODEL_ACCESS_KEY,
-  model = process.env.DIGITALOCEAN_VISION_MODEL || "openai-gpt-4o-mini",
+    process.env.OPENAI_API_URL || "https://api.openai.com/v1/chat/completions",
+  modelAccessKey = process.env.OPENAI_API_KEY,
+  model = process.env.OPENAI_VISION_MODEL || "gpt-4o-mini",
   signal,
 }) {
   const validated = validateImageInput(image);

@@ -78,6 +78,20 @@ router.post("/profile", async (req, res) => {
 
 router.delete("/profile/:id", async (req, res) => {
   try {
+    if (!hasClearMemoryConfirmation(req)) {
+      await auditMemoryAction({
+        action: "memory.delete",
+        decision: "confirm",
+        outcome: "requested",
+        resource: "profile-memory",
+        details: `api:item:${req.params.id}`,
+      });
+      return res.status(409).json({
+        error: "Изтриването изисква отделно точно потвърждение.",
+        confirmationHeader: "x-confirm-memory-delete",
+        confirmationValue: CLEAR_MEMORY_CONFIRMATION,
+      });
+    }
     const deleted = await deleteProfileMemory(req.params.id);
     await auditMemoryAction({
       action: "memory.delete",

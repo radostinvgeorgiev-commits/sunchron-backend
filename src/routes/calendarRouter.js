@@ -9,6 +9,18 @@ import {
 } from "../services/permissionService.js";
 
 const router = express.Router();
+const AUDIT_TIMEOUT_MS = 2000;
+
+async function auditAction(event) {
+  try {
+    await Promise.race([
+      recordAuditEvent(event),
+      new Promise((resolve) => setTimeout(resolve, AUDIT_TIMEOUT_MS)),
+    ]);
+  } catch (error) {
+    console.error("[Calendar audit] Write failure:", error);
+  }
+}
 
 router.get("/status", async (req, res) => {
   const permission = evaluatePermission("calendar.read");
@@ -17,7 +29,7 @@ router.get("/status", async (req, res) => {
   }
   try {
     const events = await listUpcomingEvents({ days: 1, limit: 1 });
-    await recordAuditEvent({
+    await auditAction({
       action: "calendar.read",
       decision: permission.decision,
       outcome: "succeeded",
@@ -25,7 +37,7 @@ router.get("/status", async (req, res) => {
     });
     res.json({ status: "connected", mode: "read-only", reachable: true, events: events.length });
   } catch (error) {
-    await recordAuditEvent({
+    await auditAction({
       action: "calendar.read",
       decision: permission.decision,
       outcome: "failed",
@@ -53,7 +65,7 @@ router.get("/events", async (req, res) => {
       limit: req.query.limit,
       timeMin: req.query.timeMin,
     });
-    await recordAuditEvent({
+    await auditAction({
       action: "calendar.read",
       decision: permission.decision,
       outcome: "succeeded",

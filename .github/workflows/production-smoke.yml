@@ -1,0 +1,37 @@
+name: Production smoke check
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke-check
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check public site
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error             --retry 3 --retry-delay 10 --retry-all-errors             --max-time 30             https://synchron.foundation/             | grep -qi "Synchron"
+
+      - name: Check application health
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error             --retry 3 --retry-delay 10 --retry-all-errors             --max-time 30             https://synchron.foundation/health             | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'
+
+      - name: Check persistent-memory service
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error             --retry 3 --retry-delay 10 --retry-all-errors             --max-time 30             https://synchron.foundation/opensearch-status             | grep -Eq '"status"[[:space:]]*:[[:space:]]*"(green|yellow)"'

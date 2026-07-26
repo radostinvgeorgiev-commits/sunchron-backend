@@ -32,14 +32,13 @@ test("image input rejects unsupported formats", () => {
   );
 });
 
-test("vision uses the existing DigitalOcean agent with text, context, and image", async () => {
+test("vision uses DigitalOcean inference with text, context, and image", async () => {
   let request;
   const answer = await analyzeImage({
     image: tinyPng,
     prompt: "Какво виждаш?",
     context: "Отговаряй на български.",
-    agentUrl: "https://example.agents.do-ai.run/",
-    agentKey: "test-key",
+    modelAccessKey: "test-key",
     fetchImpl: async (url, options) => {
       request = { url, options };
       return new Response(
@@ -56,11 +55,12 @@ test("vision uses the existing DigitalOcean agent with text, context, and image"
   assert.equal(answer, "Виждам тестова снимка.");
   assert.equal(
     request.url,
-    "https://example.agents.do-ai.run/api/v1/chat/completions",
+    "https://inference.do-ai.run/v1/chat/completions",
   );
   assert.equal(request.options.headers.Authorization, "Bearer test-key");
 
   const body = JSON.parse(request.options.body);
+  assert.equal(body.model, "openai-gpt-4o-mini");
   assert.equal(body.stream, false);
   assert.equal(body.messages[0].content[0].type, "text");
   assert.match(body.messages[0].content[0].text, /Отговаряй на български/u);

@@ -67,12 +67,15 @@ export async function analyzeImage({
   prompt,
   context,
   fetchImpl = fetch,
-  agentUrl = process.env.AGENT_URL,
-  agentKey = process.env.AGENT_KEY,
+  inferenceUrl =
+    process.env.DIGITALOCEAN_INFERENCE_URL ||
+    "https://inference.do-ai.run/v1/chat/completions",
+  modelAccessKey = process.env.MODEL_ACCESS_KEY,
+  model = process.env.DIGITALOCEAN_VISION_MODEL || "openai-gpt-4o-mini",
   signal,
 }) {
   const validated = validateImageInput(image);
-  if (!agentUrl || !agentKey) {
+  if (!modelAccessKey) {
     throw new ImageServiceError(
       "Разпознаването на снимки не е конфигурирано.",
       503,
@@ -80,15 +83,14 @@ export async function analyzeImage({
     );
   }
 
-  const response = await fetchImpl(
-    `${agentUrl.replace(/\/+$/u, "")}/api/v1/chat/completions`,
-    {
+  const response = await fetchImpl(inferenceUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${agentKey}`,
+      Authorization: `Bearer ${modelAccessKey}`,
     },
     body: JSON.stringify({
+      model,
       messages: [
         {
           role: "user",
@@ -110,8 +112,7 @@ export async function analyzeImage({
       stream: false,
     }),
     signal,
-    },
-  );
+  });
 
   if (!response.ok) {
     const body = await response.text();

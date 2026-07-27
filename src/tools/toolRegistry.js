@@ -114,6 +114,23 @@ export function registerCoreTools() {
       healthStatus: "healthy",
     },
     {
+      id: "github-write",
+      provider: "github",
+      name: "GitHub Write",
+      version: "0.1.0",
+      category: "code",
+      capabilities: ["code.write", "code.branch", "code.pull-request"],
+      permissions: ["github.write"],
+      capabilityPermissions: {
+        "code.write": "github.write",
+        "code.branch": "github.write",
+        "code.pull-request": "github.write",
+      },
+      enabled: false,
+      requiresConfirmation: true,
+      healthStatus: "unavailable",
+    },
+    {
       id: "google-drive-read",
       provider: "google",
       name: "Google Drive Read",

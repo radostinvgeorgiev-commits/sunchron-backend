@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
+import { getOpenSearchClient } from "../config/opensearch.js";
+import {
+  decryptGitHubSession,
+  encryptGitHubSession,
+} from "./githubOAuthService.js";
 
 const CONFIRMATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const CONFIRMATION_INDEX =
+  process.env.CONFIRMATION_INDEX || "synchron-confirmations-v1";
 
 // Only the OAuth-backed Copilot flow may create GitHub confirmations.
 // Legacy direct write actions are intentionally blocked by default.
@@ -18,6 +25,63 @@ const SENSITIVE_PARAM_KEYS = new Set([
 ]);
 
 const pendingConfirmations = new Map();
+
+function persistenceError() {
+  const error = new Error(
+    "Потвърждението не може да бъде запазено или проверено устойчиво.",
+  );
+  error.code = "CONFIRMATION_PERSISTENCE_FAILED";
+  return error;
+}
+
+export function requiresPersistentConfirmations(env = process.env) {
+  return env.NODE_ENV === "production";
+}
+
+async function persistConfirmation(confirmation) {
+  const client = getOpenSearchClient();
+  if (!client) return false;
+  await client.index({
+    index: CONFIRMATION_INDEX,
+    id: confirmation.id,
+    body: encryptGitHubSession(confirmation),
+    refresh: true,
+  });
+  return true;
+}
+
+async function loadStoredConfirmation(id) {
+  const client = getOpenSearchClient();
+  if (!client) return null;
+  try {
+    const response = await client.get({
+      index: CONFIRMATION_INDEX,
+      id,
+    });
+    return decryptGitHubSession(response.body?._source ?? response._source);
+  } catch (error) {
+    const status = error?.statusCode || error?.meta?.statusCode;
+    if (status === 404) return null;
+    throw persistenceError();
+  }
+}
+
+async function removeStoredConfirmation(id) {
+  const client = getOpenSearchClient();
+  if (!client) return false;
+  try {
+    await client.delete({
+      index: CONFIRMATION_INDEX,
+      id,
+      refresh: true,
+    });
+    return true;
+  } catch (error) {
+    const status = error?.statusCode || error?.meta?.statusCode;
+    if (status === 404) return false;
+    throw persistenceError();
+  }
+}
 
 function purgeExpired() {
   const now = Date.now();
@@ -100,6 +164,29 @@ export function createConfirmation({
   return confirmation;
 }
 
+export async function createDurableConfirmation(options) {
+  const confirmation = createConfirmation(options);
+  let persisted = false;
+  try {
+    persisted = await persistConfirmation(confirmation);
+  } catch (error) {
+    if (requiresPersistentConfirmations()) {
+      pendingConfirmations.delete(confirmation.id);
+      throw persistenceError();
+    }
+    console.error(
+      "[Confirmation] Persistence failure:",
+      error?.message || "unknown",
+    );
+  }
+
+  if (!persisted && requiresPersistentConfirmations()) {
+    pendingConfirmations.delete(confirmation.id);
+    throw persistenceError();
+  }
+  return confirmation;
+}
+
 /**
  * Validates a pending confirmation.
  * Throws with a typed error code on any failure.
@@ -129,12 +216,37 @@ export function validateConfirmation(confirmationId, sessionId) {
   return conf;
 }
 
+export async function validateDurableConfirmation(confirmationId, sessionId) {
+  if (!pendingConfirmations.has(confirmationId)) {
+    const stored = await loadStoredConfirmation(confirmationId);
+    if (stored) pendingConfirmations.set(stored.id, stored);
+  }
+  return validateConfirmation(confirmationId, sessionId);
+}
+
 /**
  * Marks a confirmation as used by removing it from the store immediately.
  * Must be called before executing the action to prevent double-execution.
  */
 export function markConfirmationUsed(confirmationId) {
   pendingConfirmations.delete(confirmationId);
+}
+
+export async function markDurableConfirmationUsed(confirmationId) {
+  if (requiresPersistentConfirmations()) {
+    const removed = await removeStoredConfirmation(confirmationId);
+    if (!removed) throw persistenceError();
+  } else {
+    try {
+      await removeStoredConfirmation(confirmationId);
+    } catch (error) {
+      console.error(
+        "[Confirmation] Delete failure:",
+        error?.message || "unknown",
+      );
+    }
+  }
+  markConfirmationUsed(confirmationId);
 }
 
 /**

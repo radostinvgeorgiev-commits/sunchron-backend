@@ -8,6 +8,7 @@ import {
   encryptGitHubSession,
   exchangeGitHubCode,
   getGitHubSession,
+  resolveGitHubRedirectUri,
   resetGitHubSessionsForTests,
 } from "../src/services/githubOAuthService.js";
 
@@ -37,11 +38,30 @@ test("builds GitHub OAuth URL with exact callback state", () => {
   assert.equal(url.origin, "https://github.com");
   assert.equal(url.pathname, "/login/oauth/authorize");
   assert.equal(url.searchParams.get("client_id"), "client-id");
+  assert.equal(
+    url.searchParams.get("redirect_uri"),
+    process.env.GITHUB_REDIRECT_URI,
+  );
+  assert.equal(url.searchParams.get("scope"), "public_repo");
   assert.equal(url.searchParams.get("state"), "state-123");
 });
 
 test("uses the production callback when no redirect variable is set", () => {
   delete process.env.GITHUB_REDIRECT_URI;
+  const url = new URL(buildGitHubAuthorizationUrl("state-123"));
+  assert.equal(
+    url.searchParams.get("redirect_uri"),
+    "https://synchron.foundation/api/github/callback",
+  );
+});
+
+test("falls back to the production callback when the redirect variable is invalid", () => {
+  process.env.GITHUB_REDIRECT_URI = process.env.GITHUB_CLIENT_ID;
+  assert.equal(
+    resolveGitHubRedirectUri(),
+    "https://synchron.foundation/api/github/callback",
+  );
+
   const url = new URL(buildGitHubAuthorizationUrl("state-123"));
   assert.equal(
     url.searchParams.get("redirect_uri"),

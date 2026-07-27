@@ -6,6 +6,7 @@ const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const GITHUB_USER_URL = "https://api.github.com/user";
 export const DEFAULT_GITHUB_REDIRECT_URI =
   "https://synchron.foundation/api/github/callback";
+const GITHUB_OAUTH_SCOPE = "public_repo";
 const GITHUB_SESSION_INDEX =
   process.env.GITHUB_SESSION_INDEX || "synchron-github-sessions-v1";
 const sessions = new Map();
@@ -19,11 +20,27 @@ export class GitHubOAuthError extends Error {
   }
 }
 
+export function resolveGitHubRedirectUri(
+  value = process.env.GITHUB_REDIRECT_URI,
+) {
+  const candidate = typeof value === "string" ? value.trim() : "";
+  if (!candidate) return DEFAULT_GITHUB_REDIRECT_URI;
+
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      return DEFAULT_GITHUB_REDIRECT_URI;
+    }
+    return candidate;
+  } catch {
+    return DEFAULT_GITHUB_REDIRECT_URI;
+  }
+}
+
 function configuration() {
   const clientId = process.env.GITHUB_CLIENT_ID;
   const clientSecret = process.env.GITHUB_CLIENT_SECRET;
-  const redirectUri =
-    process.env.GITHUB_REDIRECT_URI || DEFAULT_GITHUB_REDIRECT_URI;
+  const redirectUri = resolveGitHubRedirectUri();
   if (!clientId || !clientSecret) {
     throw new GitHubOAuthError(
       "GitHub връзката не е конфигурирана.",
@@ -71,6 +88,7 @@ export function buildGitHubAuthorizationUrl(state) {
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
+    scope: GITHUB_OAUTH_SCOPE,
     state,
   });
   return `${GITHUB_AUTHORIZE_URL}?${params}`;

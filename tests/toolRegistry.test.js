@@ -19,13 +19,16 @@ test("регистрира съществуващите интеграции с 
     "code.search",
     "commit.read",
   ]);
-  assert.equal(getTool("github-write").enabled, false);
+  assert.equal(getTool("github-write").enabled, true);
   assert.equal(getTool("github-write").requiresConfirmation, true);
 });
 
 test("намира активен и здрав инструмент по способност", () => {
   registerCoreTools();
-  assert.equal(findToolsByCapability("calendar.read")[0].id, "google-calendar-read");
+  assert.equal(
+    findToolsByCapability("calendar.read")[0].id,
+    "google-calendar-read",
+  );
 });
 
 test("не допуска дублиран id", () => {

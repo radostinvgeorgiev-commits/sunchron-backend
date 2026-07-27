@@ -15,6 +15,7 @@ import calendarRouter from "./src/routes/calendarRouter.js";
 import permissionsRouter from "./src/routes/permissionsRouter.js";
 import confirmedActionsRouter from "./src/routes/confirmedActionsRouter.js";
 import googleDriveRouter from "./src/routes/googleDriveRouter.js";
+import githubOAuthRouter from "./src/routes/githubOAuthRouter.js";
 import webSearchRouter from "./src/routes/webSearchRouter.js";
 
 dotenv.config();
@@ -49,6 +50,7 @@ app.use("/calendar", calendarRouter);
 app.use("/permissions", permissionsRouter);
 app.use("/confirmed-actions", confirmedActionsRouter);
 app.use("/api/google", googleDriveRouter);
+app.use("/api/github", githubOAuthRouter);
 app.use("/search", webSearchRouter);
 
 app.get("/opensearch-status", async (req, res) => {

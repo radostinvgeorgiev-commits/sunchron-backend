@@ -28,13 +28,18 @@ test("integration status reports configuration without exposing secret values", 
     const status = getIntegrationStatus();
     assert.equal(status.core.chatAgent.configured, true);
     assert.equal(status.core.openai.configured, true);
-    assert.equal(status.tools.length, 6);
+    assert.equal(status.tools.length, 7);
     assert.equal(
-      status.tools.every(
+      status.tools
+        .filter((tool) => tool.id !== "github-write")
+        .every(
         (tool) => tool.executable && tool.configured && tool.healthStatus,
       ),
       true,
     );
+    const githubWrite = status.tools.find((tool) => tool.id === "github-write");
+    assert.equal(githubWrite.enabled, false);
+    assert.equal(githubWrite.executable, false);
     assert.doesNotMatch(JSON.stringify(status), /secret-/u);
   } finally {
     for (const [name, value] of Object.entries(original)) {

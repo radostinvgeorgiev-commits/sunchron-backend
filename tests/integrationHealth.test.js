@@ -15,6 +15,9 @@ const ENV_NAMES = [
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
   "GOOGLE_REDIRECT_URI",
+  "GITHUB_CLIENT_ID",
+  "GITHUB_CLIENT_SECRET",
+  "GITHUB_REDIRECT_URI",
 ];
 
 test("integration status reports configuration without exposing secret values", () => {
@@ -33,13 +36,14 @@ test("integration status reports configuration without exposing secret values", 
       status.tools
         .filter((tool) => tool.id !== "github-write")
         .every(
-        (tool) => tool.executable && tool.configured && tool.healthStatus,
-      ),
+          (tool) => tool.executable && tool.configured && tool.healthStatus,
+        ),
       true,
     );
     const githubWrite = status.tools.find((tool) => tool.id === "github-write");
-    assert.equal(githubWrite.enabled, false);
-    assert.equal(githubWrite.executable, false);
+    assert.equal(githubWrite.enabled, true);
+    assert.equal(githubWrite.executable, true);
+    assert.equal(githubWrite.configured, true);
     assert.doesNotMatch(JSON.stringify(status), /secret-/u);
   } finally {
     for (const [name, value] of Object.entries(original)) {

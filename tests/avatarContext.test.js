@@ -19,9 +19,13 @@ test("avatar sends identity rules and verified memory as agent-compatible contex
   assert.equal(messages.length, 1);
   assert.equal(messages[0].role, "user");
   assert.match(messages[0].content, /личната AI операционна система/u);
-  assert.match(messages[0].content, /AI аватарът е твоят начин на общуване/u);
+  assert.match(messages[0].content, /AI аватарът е интерфейсът/u);
+  assert.match(messages[0].content, /избира най-подходящия AI модел/u);
   assert.match(messages[0].content, /Живея във Варна/u);
-  assert.match(messages[0].content, /работещ личен AI аватар/u);
+  assert.doesNotMatch(
+    messages[0].content,
+    /\[КОНТЕКСТ НА ПРОЕКТА\][\s\S]*Текущата цел е работещ личен AI аватар/u,
+  );
   assert.match(messages[0].content, /без да обясняваш, че четеш памет/u);
   assert.match(messages[0].content, /Какво да направим днес\\?/u);
 });

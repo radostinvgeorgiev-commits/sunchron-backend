@@ -8,11 +8,11 @@ import {
   saveProfileMemory,
 } from "../services/memoryService.js";
 import { recordAuditEvent } from "../services/permissionService.js";
+import { CANONICAL_PROJECT_MEMORY_ID } from "../config/projectIdentity.js";
 
 const router = express.Router();
 
-export const CLEAR_MEMORY_CONFIRMATION =
-  "confirm-delete-profile-memory";
+export const CLEAR_MEMORY_CONFIRMATION = "confirm-delete-profile-memory";
 
 export function hasClearMemoryConfirmation(req) {
   return req.get("x-confirm-memory-delete") === CLEAR_MEMORY_CONFIRMATION;
@@ -88,6 +88,12 @@ router.post("/profile", async (req, res) => {
 
 router.delete("/profile/:id", async (req, res) => {
   try {
+    if (req.params.id === CANONICAL_PROJECT_MEMORY_ID) {
+      return res.status(409).json({
+        error:
+          "Текущата основна формулировка се управлява от проекта и не е обикновен спомен.",
+      });
+    }
     if (!hasClearMemoryConfirmation(req)) {
       await auditMemoryAction({
         action: "memory.delete",

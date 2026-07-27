@@ -14,9 +14,7 @@ import {
 
 test("a correction replaces the same personal preference topic", () => {
   const oldFact = deriveMemoryMetadata("Любимият ми цвят е син");
-  const correctedFact = deriveMemoryMetadata(
-    "Любимият ми цвят вече е зелен",
-  );
+  const correctedFact = deriveMemoryMetadata("Любимият ми цвят вече е зелен");
 
   assert.equal(oldFact.memoryKey, "personal:preference:favorite-color");
   assert.equal(correctedFact.memoryKey, oldFact.memoryKey);
@@ -78,6 +76,22 @@ test("memory context labels personal and project facts separately", () => {
   assert.match(
     context,
     /\[КОНТЕКСТ НА ПРОЕКТА\][\s\S]*Текущата цел на проекта е стабилен AI разговор/,
+  );
+  assert.match(context, /избира най-подходящия AI модел/u);
+});
+
+test("canonical project definition replaces an obsolete avatar-only goal in context", () => {
+  const context = buildMemoryContext([
+    {
+      fact: "Текущата цел е работещ личен AI аватар",
+      scope: "project",
+    },
+  ]);
+
+  assert.match(context, /SYNCHRON-X е лична AI операционна система/u);
+  assert.doesNotMatch(
+    context,
+    /\[КОНТЕКСТ НА ПРОЕКТА\][\s\S]*Текущата цел е работещ личен AI аватар/u,
   );
 });
 
@@ -170,7 +184,6 @@ test("classifies different businesses as separate work memories", () => {
   assert.notEqual(shop.memoryKey, bungalows.memoryKey);
 });
 
-
 test("splits and deduplicates legacy profile lists without deleting history", () => {
   const items = consolidateMemoryView([
     {
@@ -200,22 +213,19 @@ test("splits and deduplicates legacy profile lists without deleting history", ()
     items.map((item) => item.fact),
     ["живея във Варна", "имам бизнес с бунгала в Камчия", "Казвам се Радко"],
   );
-  assert.equal(items.some((item) => item.fact.startsWith("-")), false);
+  assert.equal(
+    items.some((item) => item.fact.startsWith("-")),
+    false,
+  );
 });
 
 test("full memory deletion requires a separate explicit confirmation phrase", () => {
-  assert.equal(
-    isForgetAllCommand("Изтрий цялата постоянна памет."),
-    true,
-  );
+  assert.equal(isForgetAllCommand("Изтрий цялата постоянна памет."), true);
   assert.equal(
     isConfirmedForgetAllCommand(
       "Потвърждавам изтриването на цялата постоянна памет.",
     ),
     true,
   );
-  assert.equal(
-    isConfirmedForgetAllCommand("Да, изтрий я."),
-    false,
-  );
+  assert.equal(isConfirmedForgetAllCommand("Да, изтрий я."), false);
 });

@@ -2,7 +2,7 @@ const synchronModules = [
   {
     id: "chat",
     name: "Разговор с AI",
-    description: "Основен разговор с личната AI система",
+    description: "Основен разговор с личната AI операционна система",
     status: "Основна функция",
     action: "chat",
     prompt: "Продължаваме нормален разговор.",

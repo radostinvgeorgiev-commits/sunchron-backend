@@ -43,6 +43,8 @@
 .memory-card,.permission-card{margin-bottom:8px;padding:13px 14px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border:1px solid #e6e6e6;border-radius:12px}
 .memory-card p,.permission-card p{margin:0;color:#333;line-height:1.45}.memory-card button{width:32px;height:32px;flex:0 0 32px;color:#777;border-radius:8px}.memory-card button:hover{color:#c0362c;background:#fff0ef}
 .drawer-empty{padding:18px;color:#777;border:1px dashed #ddd;border-radius:12px;text-align:center}
+.memory-badge{display:inline-flex;margin-bottom:6px;padding:3px 7px;border-radius:999px;background:#e9f2ff;color:#0b63b6;font-size:11px;font-weight:700}
+.memory-card>div{min-width:0;flex:1}
 .permission-default{margin-bottom:18px;padding:13px 14px;border-radius:12px;background:#f3f6f8;line-height:1.45}.permission-list{display:grid;gap:2px}
 .permission-card{align-items:center}.permission-card strong{font-size:13px}.permission-card p{margin-top:4px;color:#666;font-size:12px}.permission-badge{padding:5px 8px;flex:0 0 auto;border-radius:999px;font-size:11px;font-weight:700}
 .permission-badge.allow{color:#137333;background:#e6f4ea}.permission-badge.confirm{color:#8a4b00;background:#fff4df}.permission-badge.deny{color:#b42318;background:#feeceb}

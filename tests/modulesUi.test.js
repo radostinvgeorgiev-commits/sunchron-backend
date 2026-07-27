@@ -7,7 +7,7 @@ const source = fs.readFileSync(
   "utf8",
 );
 
-test("личната AI система показва точно 12 работни области", () => {
+test("личната AI операционна система показва точно 12 работни области", () => {
   const ids = [...source.matchAll(/^\s+id: ["']([^"']+)["']/gm)].map(
     (match) => match[1],
   );

@@ -115,46 +115,18 @@ function updateSessionDisplay() {
   elements.sessionIdDisplay.textContent = state.sessionId;
 }
 
-function formatMemorySummary(items) {
-  const personal = items.filter(
-    (item) => (item.scope || "personal") === "personal",
-  );
-  const project = items.filter((item) => item.scope === "project");
-  const sections = ["**Тест на паметта — това знам в момента:**"];
-
-  if (personal.length) {
-    sections.push(
-      "**За теб:**\n" + personal.map((item) => "- " + item.fact).join("\n"),
-    );
-  }
-
-  if (project.length) {
-    sections.push(
-      "**За проекта:**\n" + project.map((item) => "- " + item.fact).join("\n"),
-    );
-  }
-
-  if (!personal.length && !project.length) {
-    sections.push("Все още няма записани постоянни спомени.");
-  }
-
-  return sections.join("\n\n");
-}
-
 async function showWelcomeMessage() {
-  try {
-    const response = await fetch("/memory/profile", { cache: "no-store" });
-    if (!response.ok) throw new Error("Паметта не е достъпна.");
-    const data = await response.json();
-    const items = Array.isArray(data.items) ? data.items : [];
-    appendMessage("agent", formatMemorySummary(items));
-  } catch (error) {
-    console.error(error);
-    appendMessage(
-      "agent",
-      "Здравей, Радко. Аз съм Synchron-X — твоят личен AI асистент. Паметта временно не можа да бъде заредена.",
-    );
-  }
+  appendMessage(
+    "agent",
+    [
+      "## SYNCHRON-X",
+      "**Твоята лична AI операционна система.**",
+      "",
+      "Едно AI ядро, постоянна контролирана памет и разрешени инструменти за реални задачи.",
+      "",
+      "AI аватарът е моят начин на общуване. Ти контролираш данните, паметта и рисковите действия.",
+    ].join("\n"),
+  );
 }
 
 async function restoreConversation() {
@@ -398,7 +370,7 @@ function openModulesDrawer() {
   openDataDrawer("Работни области");
   elements.dataDrawerBody.innerHTML = `
         <div class="module-summary">
-            Това са области, в които личната AI система използва разговора,
+            Това са области, в които личната AI операционна система използва разговора,
             паметта и разрешените инструменти. Областта сама по себе си не
             означава, че външна услуга е свързана.
         </div>
@@ -461,11 +433,18 @@ function renderMemoryItems() {
                     .map(
                       (item) => `
                     <article class="memory-card">
-                        <p>${escapeHtml(item.fact)}</p>
-                        <button type="button" data-memory-delete="${escapeHtml(item.id)}"
-                            aria-label="Изтрий този спомен" title="Изтрий">
-                            <i class="fa-regular fa-trash-can"></i>
-                        </button>
+                        <div>
+                          ${item.readOnly ? '<span class="memory-badge">Текуща основа</span>' : ""}
+                          <p>${escapeHtml(item.fact)}</p>
+                        </div>
+                        ${
+                          item.readOnly
+                            ? ""
+                            : `<button type="button" data-memory-delete="${escapeHtml(item.id)}"
+                              aria-label="Изтрий този спомен" title="Изтрий">
+                              <i class="fa-regular fa-trash-can"></i>
+                            </button>`
+                        }
                     </article>`,
                     )
                     .join("")

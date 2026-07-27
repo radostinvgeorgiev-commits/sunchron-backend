@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { getOpenSearchClient } from "../config/opensearch.js";
+import {
+  CANONICAL_PROJECT_MEMORY_ID,
+  PROJECT_DEFINITION,
+  isSupersededProjectDefinition,
+} from "../config/projectIdentity.js";
 
 const PROFILE_INDEX = process.env.MEMORY_INDEX || "synchron-profile-memory-v1";
 const CONVERSATION_INDEX =
@@ -245,7 +250,7 @@ export function extractPersistentMemoryCommand(message) {
 export function extractPersistentMemoryCommands(message) {
   const text = message.trim();
   const embeddedCommand = text.match(
-    /(?:^|[.!?]\s+)(?:накрая\s+)?запомни(?:\s+в\s+постоянната\s+ми\s+памет)?\s*:\s*[„“"'’]?([^„“"'’]+?)[„“"'’]?(?=\s+(?:преди\s+запис|не\s+променяй)|$)/iu,
+    /(?:^|[.!?]\s+)(?:накрая\s+)?(?:поискай\s+потвърждение\s+да\s+)?запомни(?:ш)?(?:\s+в\s+постоянната\s+ми\s+памет)?\s*:\s*[„“"'’]?([^„“"'’]+?)[„“"'’]?(?=\s+(?:преди\s+запис|не\s+записвай|не\s+променяй)|$)/iu,
   );
   if (embeddedCommand?.[1]) {
     const fact = cleanMemoryFact(embeddedCommand[1]);
@@ -488,7 +493,42 @@ export async function listProfileMemories(options = {}) {
     seenKeys.add(memory.memoryKey);
     memories.push(memory);
   }
-  return consolidateMemoryView(memories);
+  const consolidated = consolidateMemoryView(memories);
+  if (requestedScope === "personal") return consolidated;
+
+  const currentProjectMemories = consolidated.filter(
+    (memory) =>
+      memory.scope !== "project" ||
+      (!isSupersededProjectDefinition(memory.fact) &&
+        memory.memoryKey !== "project:identity:definition" &&
+        normalizeFact(memory.fact) !== normalizeFact(PROJECT_DEFINITION)),
+  );
+  const canonicalProjectMemory = {
+    id: CANONICAL_PROJECT_MEMORY_ID,
+    fact: PROJECT_DEFINITION,
+    normalizedFact: normalizeFact(PROJECT_DEFINITION),
+    memoryKey: "project:identity:definition",
+    category: "identity",
+    scope: "project",
+    source: "system-canonical",
+    readOnly: true,
+  };
+
+  if (requestedScope === "project") {
+    return [canonicalProjectMemory, ...currentProjectMemories];
+  }
+
+  const firstProjectIndex = currentProjectMemories.findIndex(
+    (memory) => memory.scope === "project",
+  );
+  if (firstProjectIndex < 0) {
+    return [...currentProjectMemories, canonicalProjectMemory];
+  }
+  return currentProjectMemories.toSpliced(
+    firstProjectIndex,
+    0,
+    canonicalProjectMemory,
+  );
 }
 
 export async function saveProfileMemory(
@@ -734,7 +774,24 @@ export function buildMemoryContext(memories) {
   const personal = memories.filter(
     (memory) => (memory.scope || "personal") === "personal",
   );
-  const project = memories.filter((memory) => memory.scope === "project");
+  const storedProject = memories.filter(
+    (memory) =>
+      memory.scope === "project" && !isSupersededProjectDefinition(memory.fact),
+  );
+  const project = storedProject.some(
+    (memory) =>
+      normalizeFact(memory.fact) === normalizeFact(PROJECT_DEFINITION),
+  )
+    ? storedProject
+    : [
+        {
+          id: CANONICAL_PROJECT_MEMORY_ID,
+          fact: PROJECT_DEFINITION,
+          scope: "project",
+          readOnly: true,
+        },
+        ...storedProject,
+      ];
   const format = (items, emptyText) =>
     items.length
       ? items.map((item, index) => `${index + 1}. ${item.fact}`).join("\n")

@@ -99,13 +99,16 @@ test("complex 5-check command runs all checks, merges results, and asks memory-w
     type: "write-confirmation-required",
     items: [{ fact: "трябва да пуснем деплой след merge" }],
   });
-  assert.match(memoryReply, /Искаш запис в постоянната памет/u);
-  assert.match(memoryReply, /За потвърждение изпрати точно/u);
+  assert.match(memoryReply, /Потвърждение за запис в постоянната памет/u);
+  assert.match(
+    memoryReply,
+    /Потвърждавам запис в постоянната памет: трябва да пуснем деплой/u,
+  );
 
   const fullReply = [memoryReply, ...capabilityReplies].join("\n\n");
   assert.match(fullReply, /Result 1/u);
   assert.match(fullReply, /Result 5/u);
-  assert.match(fullReply, /потвърждение/u);
+  assert.match(fullReply, /потвърждение/iu);
 
   assert.deepEqual(
     extractConfirmedMemoryWriteCommands(
@@ -162,6 +165,20 @@ test("splits and detects the real one-line five-check GitHub command without tre
       "Кои са трите последно поправени проблема.",
     ],
   );
+  const statusLines = buildCapabilityReplies(
+    requests.map((request) => ({
+      status: "fulfilled",
+      request,
+      result: {
+        output: "ok",
+        tool: { id: "github-read", name: "GitHub Read" },
+      },
+    })),
+  )
+    .at(-1)
+    .split("\n")
+    .filter((line) => /GitHub Read/u.test(line));
+  assert.equal(statusLines.length, 1);
   assert.equal(
     requests.some(({ message: subtask }) => /запомни/iu.test(subtask)),
     false,
@@ -188,8 +205,17 @@ test("detects a combined personal-OS tool check without duplicate GitHub tasks",
     "Кажи кои инструменти използва успешно и кои не са достъпни.",
   ].join(" ");
 
+  const requests = detectCapabilityRequests(message);
   assert.deepEqual(
-    detectCapabilityRequests(message).map(({ capability }) => capability),
+    requests.map(({ capability }) => capability),
     ["code.read", "calendar.read", "memory.read", "web.search"],
+  );
+  assert.equal(
+    requests.filter(({ capability }) => capability === "code.read").length,
+    1,
+  );
+  assert.equal(
+    requests.find(({ capability }) => capability === "memory.read").scope,
+    "project",
   );
 });

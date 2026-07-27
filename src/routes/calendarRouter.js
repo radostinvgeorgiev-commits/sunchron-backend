@@ -1,8 +1,10 @@
 import express from "express";
 import {
-  CalendarServiceError,
-  listUpcomingEvents,
-} from "../services/calendarService.js";
+  GoogleDriveError,
+  hasSession,
+  listGoogleCalendarEvents,
+  parseCookies,
+} from "../services/googleDriveService.js";
 import {
   evaluatePermission,
   recordAuditEvent,
@@ -11,6 +13,10 @@ import {
 const router = express.Router();
 const AUDIT_TIMEOUT_MS = 2000;
 
+function sessionId(req) {
+  return parseCookies(req.headers.cookie).synchron_google_session;
+}
+
 async function auditAction(event) {
   try {
     await Promise.race([
@@ -18,8 +24,22 @@ async function auditAction(event) {
       new Promise((resolve) => setTimeout(resolve, AUDIT_TIMEOUT_MS)),
     ]);
   } catch (error) {
-    console.error("[Calendar audit] Write failure:", error);
+    console.error(
+      "[Calendar audit] Write failure:",
+      error?.message || "unknown",
+    );
   }
+}
+
+function sendError(res, error) {
+  const status = error instanceof GoogleDriveError ? error.status : 500;
+  res.status(status).json({
+    error:
+      error instanceof GoogleDriveError
+        ? error.message
+        : "Неочаквана грешка в календарния модул.",
+    code: error?.code || "INTERNAL_ERROR",
+  });
 }
 
 router.get("/status", async (req, res) => {
@@ -27,30 +47,22 @@ router.get("/status", async (req, res) => {
   if (permission.decision !== "allow") {
     return res.status(403).json({ error: permission.reason });
   }
+
   try {
-    const events = await listUpcomingEvents({ days: 1, limit: 1 });
+    const connected = await hasSession(sessionId(req));
     await auditAction({
       action: "calendar.read",
       decision: permission.decision,
-      outcome: "succeeded",
+      outcome: connected ? "succeeded" : "not-connected",
       resource: "GET /calendar/status",
     });
-    res.json({ status: "connected", mode: "read-only", reachable: true, events: events.length });
+    res.json({
+      status: connected ? "connected" : "not-connected",
+      mode: "read-only",
+      reachable: connected,
+    });
   } catch (error) {
-    await auditAction({
-      action: "calendar.read",
-      decision: permission.decision,
-      outcome: "failed",
-      resource: "GET /calendar/status",
-      details: error?.code,
-    });
-    const status = error instanceof CalendarServiceError ? error.status : 500;
-    res.status(status).json({
-      error: error instanceof CalendarServiceError
-        ? error.message
-        : "Неочаквана грешка в календарния модул.",
-      code: error?.code || "INTERNAL_ERROR",
-    });
+    sendError(res, error);
   }
 });
 
@@ -59,12 +71,13 @@ router.get("/events", async (req, res) => {
   if (permission.decision !== "allow") {
     return res.status(403).json({ error: permission.reason });
   }
+
   try {
-    const events = await listUpcomingEvents({
-      days: req.query.days,
-      limit: req.query.limit,
-      timeMin: req.query.timeMin,
-    });
+    const events = await listGoogleCalendarEvents(
+      sessionId(req),
+      req.query.days,
+      req.query.limit,
+    );
     await auditAction({
       action: "calendar.read",
       decision: permission.decision,
@@ -74,13 +87,14 @@ router.get("/events", async (req, res) => {
     });
     res.json({ mode: "read-only", timezone: "Europe/Sofia", events });
   } catch (error) {
-    const status = error instanceof CalendarServiceError ? error.status : 500;
-    res.status(status).json({
-      error: error instanceof CalendarServiceError
-        ? error.message
-        : "Неочаквана грешка в календарния модул.",
-      code: error?.code || "INTERNAL_ERROR",
+    await auditAction({
+      action: "calendar.read",
+      decision: permission.decision,
+      outcome: "failed",
+      resource: "GET /calendar/events",
+      details: error?.code,
     });
+    sendError(res, error);
   }
 });
 

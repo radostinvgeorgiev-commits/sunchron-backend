@@ -7,6 +7,7 @@ import {
   exchangeGitHubCode,
   getGitHubSession,
   GitHubOAuthError,
+  isGitHubOAuthConfigured,
   parseGitHubCookies,
 } from "../services/githubOAuthService.js";
 
@@ -73,11 +74,7 @@ router.get("/status", async (req, res) => {
   try {
     const session = await getGitHubSession(sessionId(req));
     res.json({
-      configured: Boolean(
-        process.env.GITHUB_CLIENT_ID &&
-        process.env.GITHUB_CLIENT_SECRET &&
-        process.env.GITHUB_REDIRECT_URI,
-      ),
+      configured: isGitHubOAuthConfigured(),
       connected: Boolean(session),
       login: session?.login || null,
     });

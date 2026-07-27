@@ -4,6 +4,8 @@ import { getOpenSearchClient } from "../config/opensearch.js";
 const GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const GITHUB_USER_URL = "https://api.github.com/user";
+export const DEFAULT_GITHUB_REDIRECT_URI =
+  "https://synchron.foundation/api/github/callback";
 const GITHUB_SESSION_INDEX =
   process.env.GITHUB_SESSION_INDEX || "synchron-github-sessions-v1";
 const sessions = new Map();
@@ -20,8 +22,9 @@ export class GitHubOAuthError extends Error {
 function configuration() {
   const clientId = process.env.GITHUB_CLIENT_ID;
   const clientSecret = process.env.GITHUB_CLIENT_SECRET;
-  const redirectUri = process.env.GITHUB_REDIRECT_URI;
-  if (!clientId || !clientSecret || !redirectUri) {
+  const redirectUri =
+    process.env.GITHUB_REDIRECT_URI || DEFAULT_GITHUB_REDIRECT_URI;
+  if (!clientId || !clientSecret) {
     throw new GitHubOAuthError(
       "GitHub връзката не е конфигурирана.",
       503,
@@ -29,6 +32,12 @@ function configuration() {
     );
   }
   return { clientId, clientSecret, redirectUri };
+}
+
+export function isGitHubOAuthConfigured() {
+  return Boolean(
+    process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET,
+  );
 }
 
 function sessionEncryptionKey() {

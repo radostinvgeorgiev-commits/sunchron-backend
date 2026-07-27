@@ -124,6 +124,7 @@ export function splitCapabilitySubtasks(message) {
     .split(/\n+/u)
     .flatMap((line) => line.split(/;/u))
     .flatMap((part) => part.split(/(?<=[.!?])\s+/u))
+    .flatMap((part) => part.split(/\s+(?=\d+[\).:-]\s*)/u))
     .flatMap((part) =>
       part.split(
         /,\s+(?=(?:провери|покажи|изброй|дай|върни|виж|check|show|list)\b)/iu,
@@ -138,7 +139,15 @@ export function splitCapabilitySubtasks(message) {
 export function detectCapabilityRequests(message) {
   const requests = [];
   const subtasks = splitCapabilitySubtasks(message);
+  const hasGitHubContext = isGitHubReadRequest(message);
   for (const subtask of subtasks) {
+    if (
+      /^(?:накрая\s+)?(?:запомни|запиши|помни)\b|преди\s+запис\s+в\s+паметта/iu.test(
+        subtask,
+      )
+    ) {
+      continue;
+    }
     if (isCalendarReadRequest(subtask)) {
       requests.push({
         capability: "calendar.read",
@@ -146,7 +155,14 @@ export function detectCapabilityRequests(message) {
         message: subtask,
       });
     }
-    if (isGitHubReadRequest(subtask)) {
+    const repositoryInspectionSubtask =
+      /(?:tool\s+registry|capability\s+engine|инструмент|разрешени|чатът|поправен|проблем)/iu.test(
+        subtask,
+      );
+    if (
+      isGitHubReadRequest(subtask) ||
+      (hasGitHubContext && repositoryInspectionSubtask)
+    ) {
       requests.push({
         capability: "code.read",
         action: "github.read",

@@ -216,3 +216,74 @@ test("answers a commit details question with changed files", async () => {
   assert.match(reply, /src\/services\/githubService\.js/u);
   assert.match(reply, /\+10\/-2/u);
 });
+
+test("answers each repository architecture check from main instead of repeating commits", async () => {
+  const registrySource = `
+    { id: "github-read", name: "GitHub Read",
+      capabilities: ["code.read"], permissions: ["github.read"] },
+    { id: "opensearch-memory", name: "Synchron Memory",
+      capabilities: ["memory.read"], permissions: ["memory.read", "memory.write"] }
+  `;
+  global.fetch = async (url) => {
+    const path = String(url);
+    if (path.includes("toolRegistry.js")) {
+      return jsonResponse({
+        type: "file",
+        path: "src/tools/toolRegistry.js",
+        sha: "registry",
+        size: registrySource.length,
+        content: Buffer.from(registrySource).toString("base64"),
+      });
+    }
+    if (path.includes("capabilityEngine.js")) {
+      const content =
+        'const x = capabilityPermissions?.[capability]; "github-read": answerGitHubReadRequest; CAPABILITY_EMPTY_RESULT';
+      return jsonResponse({
+        type: "file",
+        path: "src/tools/capabilityEngine.js",
+        sha: "engine",
+        size: content.length,
+        content: Buffer.from(content).toString("base64"),
+      });
+    }
+    if (path.includes("chat.js")) {
+      const content = "executeDetectedCapabilities(executeCapability)";
+      return jsonResponse({
+        type: "file",
+        path: "src/routes/chat.js",
+        sha: "chat",
+        size: content.length,
+        content: Buffer.from(content).toString("base64"),
+      });
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const locations = await answerGitHubReadRequest(
+    "Къде са Tool Registry и Capability Engine в GitHub?",
+  );
+  assert.match(locations, /src\/tools\/toolRegistry\.js/u);
+
+  const tools = await answerGitHubReadRequest(
+    "Кои инструменти са регистрирани в GitHub проекта?",
+  );
+  assert.match(tools, /GitHub Read/u);
+  assert.match(tools, /Synchron Memory/u);
+
+  const permissions = await answerGitHubReadRequest(
+    "Какви разрешения изисква всеки инструмент в GitHub проекта?",
+  );
+  assert.match(permissions, /github\.read/u);
+  assert.match(permissions, /memory\.write/u);
+
+  const connection = await answerGitHubReadRequest(
+    "Дали чатът действително използва Capability Engine в GitHub проекта?",
+  );
+  assert.match(connection, /Да — chat\.js/u);
+
+  const fixes = await answerGitHubReadRequest(
+    "Кои са трите последно поправени проблема в GitHub проекта?",
+  );
+  assert.match(fixes, /capability → permission/u);
+  assert.match(fixes, /празен или невалиден резултат/u);
+});

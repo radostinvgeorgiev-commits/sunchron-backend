@@ -214,10 +214,139 @@ export function isGitHubReadRequest(message) {
   );
 }
 
+function isRepositoryArchitectureRequest(message) {
+  const text = typeof message === "string" ? message.trim().toLowerCase() : "";
+  return /(?:tool\s+registry|capability\s+engine|регистрирани\s+инструменти|разрешения.*инструмент|последно\s+поправени\s+проблем)/iu.test(
+    text,
+  );
+}
+
+function extractArray(block, field) {
+  const match = block.match(
+    new RegExp(`${field}:\\s*\\[([\\s\\S]*?)\\]`, "u"),
+  );
+  if (!match) return [];
+  return [...match[1].matchAll(/"([^"]+)"/gu)].map((item) => item[1]);
+}
+
+function parseRegisteredTools(source) {
+  const definitions = [];
+  const starts = [...source.matchAll(/\{\s*id:\s*"([^"]+)"/gu)];
+  for (const [index, start] of starts.entries()) {
+    const end = starts[index + 1]?.index ?? source.length;
+    const block = source.slice(start.index, end);
+    const name = block.match(/name:\s*"([^"]+)"/u)?.[1] || start[1];
+    definitions.push({
+      id: start[1],
+      name,
+      capabilities: extractArray(block, "capabilities"),
+      permissions: extractArray(block, "permissions"),
+    });
+  }
+  return definitions;
+}
+
+async function answerRepositoryArchitectureQuestion(text) {
+  const repository = getConfiguredRepository();
+
+  if (/къде\s+(?:са|се намират).*tool\s+registry.*capability\s+engine/iu.test(text)) {
+    return [
+      "1. Основните файлове са:",
+      "• Tool Registry: src/tools/toolRegistry.js",
+      "• Capability Engine: src/tools/capabilityEngine.js",
+    ].join("\n");
+  }
+
+  if (/кои\s+инструменти.*регистриран/iu.test(text)) {
+    const registry = await getFileContent(
+      "src/tools/toolRegistry.js",
+      repository,
+      "main",
+    );
+    const tools = parseRegisteredTools(registry.content);
+    return [
+      `2. В Tool Registry са регистрирани ${tools.length} инструмента:`,
+      ...tools.map((tool) => `• ${tool.name} (${tool.id})`),
+    ].join("\n");
+  }
+
+  if (/какви\s+разрешения.*(?:всеки|инструмент)/iu.test(text)) {
+    const registry = await getFileContent(
+      "src/tools/toolRegistry.js",
+      repository,
+      "main",
+    );
+    const tools = parseRegisteredTools(registry.content);
+    return [
+      "3. Разрешения по инструменти:",
+      ...tools.map(
+        (tool) =>
+          `• ${tool.name}: ${tool.permissions.length ? tool.permissions.join(", ") : "няма"}`,
+      ),
+    ].join("\n");
+  }
+
+  if (/чатът.*(?:действително\s+)?използва.*capability\s+engine/iu.test(text)) {
+    const [chat, engine] = await Promise.all([
+      getFileContent("src/routes/chat.js", repository, "main"),
+      getFileContent("src/tools/capabilityEngine.js", repository, "main"),
+    ]);
+    const chatUsesEngine =
+      /executeDetectedCapabilities/gu.test(chat.content) &&
+      /executeCapability/gu.test(chat.content);
+    const engineHasGitHubExecutor =
+      /"github-read"[\s\S]*answerGitHubReadRequest/gu.test(engine.content);
+    return [
+      "4. Проверка на връзката:",
+      chatUsesEngine && engineHasGitHubExecutor
+        ? "• Да — chat.js подава засечените GitHub задачи към executeCapability, а Capability Engine ги изпълнява чрез github-read."
+        : "• Не успях да потвърдя пълната изпълнима връзка в актуалния main.",
+    ].join("\n");
+  }
+
+  if (/кои\s+са.*(?:три|3).*последно\s+поправен.*проблем/iu.test(text)) {
+    const [registry, engine] = await Promise.all([
+      getFileContent("src/tools/toolRegistry.js", repository, "main"),
+      getFileContent("src/tools/capabilityEngine.js", repository, "main"),
+    ]);
+    const checks = [
+      {
+        ok: /capabilityPermissions\?\.\[capability\]/u.test(engine.content),
+        text: "точно съпоставяне capability → permission",
+      },
+      {
+        ok: /if\s*\(!tools\.has\(definition\.id\)\)\s*registerTool/u.test(
+          registry.content,
+        ),
+        text: "идемпотентна регистрация на основните инструменти",
+      },
+      {
+        ok: /CAPABILITY_EMPTY_RESULT/u.test(engine.content),
+        text: "отхвърляне на празен или невалиден резултат",
+      },
+    ];
+    return [
+      "5. Трите последно поправени проблема са:",
+      ...checks.map(
+        (check) => `• ${check.text}${check.ok ? " — потвърдено в main" : " — не е потвърдено"}`,
+      ),
+    ].join("\n");
+  }
+
+  return null;
+}
+
 export async function answerGitHubReadRequest(message) {
-  if (!isGitHubReadRequest(message)) return null;
+  if (
+    !isGitHubReadRequest(message) &&
+    !isRepositoryArchitectureRequest(message)
+  ) {
+    return null;
+  }
 
   const text = message.toLowerCase();
+  const architectureAnswer = await answerRepositoryArchitectureQuestion(text);
+  if (architectureAnswer) return architectureAnswer;
   const explicitRef = message.match(/\b[a-f0-9]{7,40}\b/iu)?.[0];
   const asksForDetails =
     /(?:кои|изброй|файлов|файли|diff|разлик|подробност|какво точно|във всеки файл)/u.test(

@@ -8,6 +8,7 @@ import {
   executeDetectedCapabilities,
   extractConfirmedMemoryDeleteCommand,
   extractConfirmedMemoryWriteCommands,
+  mergeCapabilityRequests,
   splitCapabilitySubtasks,
 } from "../src/routes/chat.js";
 
@@ -20,6 +21,53 @@ test("detects multiple capability subtasks in one message", () => {
     [
       { capability: "calendar.read", action: "calendar.read" },
       { capability: "code.read", action: "github.read" },
+    ],
+  );
+});
+
+test("recognizes common Bulgarian GitHub spellings as a real tool request", () => {
+  for (const message of [
+    "Провери ГитХъб.",
+    "Провери гит хъб.",
+    "Провери хъба.",
+  ]) {
+    assert.deepEqual(
+      detectCapabilityRequests(message).map(({ capability }) => capability),
+      ["code.read"],
+    );
+  }
+});
+
+test("deterministic tool requests survive an empty or weaker AI plan", () => {
+  const fallback = [
+    {
+      capability: "code.read",
+      action: "github.read",
+      message: "Провери GitHub.",
+    },
+  ];
+
+  assert.deepEqual(mergeCapabilityRequests(fallback, []), fallback);
+  assert.deepEqual(
+    mergeCapabilityRequests(fallback, [
+      {
+        capability: "code.read",
+        action: "github.read",
+        message: "Провери последния commit.",
+      },
+      {
+        capability: "calendar.read",
+        action: "calendar.read",
+        message: "Провери календара.",
+      },
+    ]),
+    [
+      ...fallback,
+      {
+        capability: "calendar.read",
+        action: "calendar.read",
+        message: "Провери календара.",
+      },
     ],
   );
 });

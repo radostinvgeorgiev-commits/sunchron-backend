@@ -74,13 +74,11 @@ test("блокира липсваща способност по подразби
   );
 });
 
-test("не представя GitHub запис като работещ преди да има адаптер", () => {
-  assert.throws(
-    () => resolveCapability("code.write"),
-    (error) =>
-      error instanceof CapabilityError &&
-      error.code === "CAPABILITY_UNAVAILABLE",
-  );
+test("маркира GitHub Copilot адаптера като изпълним и изисква потвърждение", () => {
+  const result = resolveCapability("code.write");
+  assert.equal(result.tool.id, "github-write");
+  assert.equal(result.requiresConfirmation, true);
+  assert.equal(isToolExecutable("github-write"), true);
 });
 
 test("изпълнява GitHub четене чрез избрания инструмент", async () => {
@@ -128,6 +126,7 @@ test("всеки регистриран основен инструмент им
   registerCoreTools();
   for (const id of [
     "github-read",
+    "github-write",
     "google-drive-read",
     "google-calendar-read",
     "gmail-read",

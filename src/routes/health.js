@@ -17,11 +17,15 @@ export function getIntegrationStatus() {
   const configuration = {
     "github-read": {
       configured: true,
-      authenticated: Boolean(process.env.GITHUB_TOKEN),
+      authenticated: true,
     },
     "github-write": {
-      configured: Boolean(process.env.GITHUB_TOKEN),
-      authenticated: Boolean(process.env.GITHUB_TOKEN),
+      configured: hasAllEnvironmentVariables(
+        "GITHUB_CLIENT_ID",
+        "GITHUB_CLIENT_SECRET",
+        "GITHUB_REDIRECT_URI",
+      ),
+      authenticated: false,
     },
     "google-drive-read": {
       configured: hasAllEnvironmentVariables(

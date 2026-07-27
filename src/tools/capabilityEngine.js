@@ -16,6 +16,7 @@ import {
   formatWebSearchResult,
   searchWeb,
 } from "../services/webSearchService.js";
+import { prepareCopilotTask } from "../services/copilotTaskService.js";
 import { findToolsByCapability, registerCoreTools } from "./toolRegistry.js";
 
 export class CapabilityError extends Error {
@@ -85,6 +86,14 @@ export function resolveCapability(capability, options = {}) {
 
 const executors = Object.freeze({
   "github-read": async ({ input }) => answerGitHubReadRequest(input.message),
+  "github-write": async ({ input }) => {
+    const prepared = await prepareCopilotTask({
+      sessionId: input.sessionId,
+      githubSessionId: input.githubSessionId,
+      prompt: input.message,
+    });
+    return prepared.output;
+  },
   "google-calendar-read": async ({ input }) => {
     if (await hasSession(input.googleSessionId)) {
       const events = await listGoogleCalendarEvents(input.googleSessionId);
@@ -177,11 +186,16 @@ const executors = Object.freeze({
 export async function executeCapability(capability, input = {}, options = {}) {
   const resolved = resolveCapability(capability, options);
   if (resolved.requiresConfirmation && options.confirmed !== true) {
-    throw new CapabilityError(
-      `Способността "${capability}" изисква потвърждение.`,
-      "CAPABILITY_CONFIRMATION_REQUIRED",
-      409,
-    );
+    const canPrepareGitHubConfirmation =
+      options.prepareConfirmation === true &&
+      resolved.tool.id === "github-write";
+    if (!canPrepareGitHubConfirmation) {
+      throw new CapabilityError(
+        `Способността "${capability}" изисква потвърждение.`,
+        "CAPABILITY_CONFIRMATION_REQUIRED",
+        409,
+      );
+    }
   }
 
   const executor = executors[resolved.tool.id];

@@ -25,6 +25,16 @@ import {
   GoogleDriveError,
   parseCookies,
 } from "../services/googleDriveService.js";
+import {
+  GitHubOAuthError,
+  parseGitHubCookies,
+} from "../services/githubOAuthService.js";
+import {
+  confirmCopilotTask,
+  CopilotTaskError,
+  extractCopilotConfirmationId,
+  formatCopilotTaskResult,
+} from "../services/copilotTaskService.js";
 import { recordAuditEvent } from "../services/permissionService.js";
 import {
   isWebSearchRequest,
@@ -366,17 +376,25 @@ export async function executeDetectedCapabilities(
   executionContext = {},
 ) {
   const results = [];
+  const { prepareConfirmation = false, ...capabilityInputContext } =
+    executionContext;
   for (const [index, request] of requests.entries()) {
     const requestMessage = request.message || message;
     console.info(
       `[CapabilityExecution] Start #${index + 1}/${requests.length}: ${request.capability}`,
     );
     try {
-      const result = await executeFn(request.capability, {
-        message: requestMessage,
-        scope: request.scope,
-        ...executionContext,
-      });
+      const result = await executeFn(
+        request.capability,
+        {
+          message: requestMessage,
+          scope: request.scope,
+          ...capabilityInputContext,
+        },
+        {
+          prepareConfirmation,
+        },
+      );
       results.push({ status: "fulfilled", request, result });
       console.info(
         `[CapabilityExecution] Success #${index + 1}/${requests.length}: ${request.capability}`,
@@ -406,6 +424,8 @@ function formatCapabilityFailureMessage(error) {
   if (
     error instanceof CalendarServiceError ||
     error instanceof GitHubServiceError ||
+    error instanceof GitHubOAuthError ||
+    error instanceof CopilotTaskError ||
     error instanceof GoogleDriveError ||
     error instanceof WebSearchError
   ) {
@@ -566,6 +586,8 @@ router.post("/chat", async (req, res) => {
   const { sessionId, message, image } = req.body || {};
   const googleSessionId =
     parseCookies(req.headers.cookie).synchron_google_session || "";
+  const githubSessionId =
+    parseGitHubCookies(req.headers.cookie).synchron_github_session || "";
   const cleanSessionId = typeof sessionId === "string" ? sessionId.trim() : "";
   const cleanMessage = typeof message === "string" ? message.trim() : "";
 
@@ -750,6 +772,56 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
+  const copilotConfirmationId = extractCopilotConfirmationId(cleanMessage);
+  if (copilotConfirmationId) {
+    try {
+      const result = await confirmCopilotTask({
+        confirmationId: copilotConfirmationId,
+        sessionId: cleanSessionId,
+        githubSessionId,
+      });
+      const fullReply = formatCopilotTaskResult(result);
+      await saveConversationTurnBestEffort(
+        cleanSessionId,
+        cleanMessage,
+        fullReply,
+      );
+      await auditAction({
+        action: "github.write",
+        decision: "confirmed",
+        outcome: "started",
+        resource: result.repository,
+        details: `issue:${result.issueNumber}`,
+        sessionId: cleanSessionId,
+      });
+      sendEvent("token", { token: fullReply });
+      sendEvent("done", {
+        ok: true,
+        mode: "copilot-task",
+        issueNumber: result.issueNumber,
+      });
+    } catch (error) {
+      console.error("[Copilot confirmation]", error);
+      await auditAction({
+        action: "github.write",
+        decision: "confirmed",
+        outcome: "failed",
+        resource: "github-copilot",
+        details: error?.code || error?.message,
+        sessionId: cleanSessionId,
+      });
+      sendEvent("error", {
+        status: error?.status || 500,
+        message:
+          error instanceof CopilotTaskError || error instanceof GitHubOAuthError
+            ? error.message
+            : "GitHub Copilot задачата не можа да бъде стартирана.",
+      });
+    }
+    res.end();
+    return;
+  }
+
   const memoryReply = buildMemoryReply(memoryAction);
   if (memoryAction) {
     const isDeleteAction =
@@ -849,7 +921,9 @@ router.post("/chat", async (req, res) => {
     detectedCapabilityRequests,
     {
       googleSessionId,
+      githubSessionId,
       sessionId: cleanSessionId,
+      prepareConfirmation: true,
     },
   );
   const capabilityReplies = buildCapabilityReplies(capabilityResults);

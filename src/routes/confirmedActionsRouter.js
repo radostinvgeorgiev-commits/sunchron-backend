@@ -16,6 +16,14 @@ import {
   createPullRequest,
   updateFile,
 } from "../services/githubWriteService.js";
+import {
+  CopilotTaskError,
+  startCopilotTask,
+} from "../services/copilotTaskService.js";
+import {
+  GitHubOAuthError,
+  parseGitHubCookies,
+} from "../services/githubOAuthService.js";
 import { recordAuditEvent } from "../services/permissionService.js";
 
 const router = express.Router();
@@ -154,7 +162,9 @@ router.post("/confirm", async (req, res) => {
 
   let result;
   try {
-    result = await executeAction(confirmation);
+    const githubSessionId =
+      parseGitHubCookies(req.headers.cookie).synchron_github_session || "";
+    result = await executeAction(confirmation, githubSessionId);
   } catch (error) {
     await auditAction({
       action: confirmation.action,
@@ -165,7 +175,11 @@ router.post("/confirm", async (req, res) => {
       sessionId: cleanSessionId,
     });
     const status =
-      error instanceof GitHubServiceError ? error.status : 500;
+      error instanceof GitHubServiceError ||
+      error instanceof GitHubOAuthError ||
+      error instanceof CopilotTaskError
+        ? error.status
+        : 500;
     return res
       .status(status)
       .json({ error: error.message, code: error.code || "EXECUTION_ERROR" });
@@ -203,9 +217,7 @@ router.post("/deny", async (req, res) => {
     confirmation = denyConfirmation(cleanId, cleanSessionId);
   } catch (error) {
     const status = error.code === "CONFIRMATION_NOT_FOUND" ? 404 : 403;
-    return res
-      .status(status)
-      .json({ error: error.message, code: error.code });
+    return res.status(status).json({ error: error.message, code: error.code });
   }
 
   await auditAction({
@@ -233,7 +245,7 @@ function buildPrompt(confirmation) {
   );
 }
 
-async function executeAction(confirmation) {
+async function executeAction(confirmation, githubSessionId = "") {
   const { action, resource, params } = confirmation;
   const defaultRepo = getConfiguredRepository();
 
@@ -271,6 +283,14 @@ async function executeAction(confirmation) {
         body: params.body || "",
         head: resource.head,
         base: resource.base || "main",
+      });
+
+    case "github.copilot:start_task":
+      return startCopilotTask({
+        githubSessionId,
+        prompt: params.prompt,
+        repository: resource.repository || defaultRepo,
+        baseRef: resource.baseRef || "main",
       });
 
     default: {

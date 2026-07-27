@@ -474,14 +474,25 @@ export function buildMemoryReply(memoryAction) {
 
 export function buildCapabilityReplies(capabilityResults) {
   const replies = [];
+  const seenReplyKeys = new Set();
+  const addUniqueReply = (reply) => {
+    if (typeof reply !== "string") return;
+    const trimmedReply = reply.trim();
+    if (!trimmedReply) return;
+    const key = trimmedReply.replace(/\s+/gu, " ");
+    if (seenReplyKeys.has(key)) return;
+    seenReplyKeys.add(key);
+    replies.push(trimmedReply);
+  };
+
   for (const capabilityResult of capabilityResults) {
     if (capabilityResult.status === "fulfilled") {
-      replies.push(capabilityResult.result.output);
+      addUniqueReply(capabilityResult.result.output);
       continue;
     }
     const { request, error } = capabilityResult;
     const message = formatCapabilityFailureMessage(error);
-    replies.push(
+    addUniqueReply(
       `Не успях да изпълня заявката за ${capabilityLabel(request.capability)}: ${message}`,
     );
   }
@@ -499,7 +510,7 @@ export function buildCapabilityReplies(capabilityResults) {
         failed: item.status === "rejected" || Boolean(existing?.failed),
       });
     }
-    replies.push(
+    addUniqueReply(
       [
         "Използвани инструменти:",
         ...[...statusByCapability.values()].map((status) => {

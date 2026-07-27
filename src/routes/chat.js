@@ -33,6 +33,8 @@ const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
 const DEFAULT_AGENT_TIMEOUT_MS = 120000;
 const MEMORY_WRITE_CONFIRM_PREFIX = "Потвърждавам запис в постоянната памет:";
+const TOOL_FAILURE_REPORT_PATTERN =
+  /^(?:не\s+успях\s+да\s+изпълня\s+заявката\s+за|инструментът.+не\s+е\s+достъпен|google\s+calendar.+не\s+е\s+свързан)/u;
 
 async function auditAction(event) {
   try {
@@ -143,15 +145,11 @@ export function detectCapabilityRequests(message) {
     const hasCapabilityIntent =
       /^(?:провери|покажи|изброй|дай|върни|виж|кажи|check|show|list)(?=\s|[?!.,:;]|$)/u.test(
         normalizedSubtask,
-      ) || /\?\s*$/u.test(subtask);
+      ) || /\?\s*$/u.test(normalizedSubtask);
     if (!hasCapabilityIntent) {
       continue;
     }
-    if (
-      /^(?:не\s+успях\s+да\s+изпълня\s+заявката\s+за|инструментът\s+за\s+тази\s+заявка\s+временно\s+не\s+е\s+достъпен|google\s+calendar\s+още\s+не\s+е\s+свързан)/u.test(
-        normalizedSubtask,
-      )
-    ) {
+    if (TOOL_FAILURE_REPORT_PATTERN.test(normalizedSubtask)) {
       continue;
     }
     if (isCalendarReadRequest(subtask)) {

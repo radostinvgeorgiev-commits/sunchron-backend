@@ -1,4 +1,5 @@
 import express from "express";
+import { isGitHubOAuthConfigured } from "../services/githubOAuthService.js";
 import { isToolExecutable } from "../tools/capabilityEngine.js";
 import { listTools, registerCoreTools } from "../tools/toolRegistry.js";
 
@@ -20,11 +21,7 @@ export function getIntegrationStatus() {
       authenticated: true,
     },
     "github-write": {
-      configured: hasAllEnvironmentVariables(
-        "GITHUB_CLIENT_ID",
-        "GITHUB_CLIENT_SECRET",
-        "GITHUB_REDIRECT_URI",
-      ),
+      configured: isGitHubOAuthConfigured(),
       authenticated: false,
     },
     "google-drive-read": {

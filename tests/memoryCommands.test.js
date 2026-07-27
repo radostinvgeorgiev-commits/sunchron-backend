@@ -53,3 +53,14 @@ test("keeps backward compatibility with one correction command", () => {
     extractPersistentMemoryCommand(message),
   ]);
 });
+
+test("extracts an embedded memory request from a complex command", () => {
+  const message =
+    "Провери петте GitHub точки. Накрая запомни в постоянната ми памет: „На 27 юли 2026 г. проверихме връзката между чата, GitHub и Capability Engine.“ Преди запис в паметта поискай моето потвърждение.";
+  assert.deepEqual(extractPersistentMemoryCommands(message), [
+    {
+      fact: "На 27 юли 2026 г. проверихме връзката между чата, GitHub и Capability Engine",
+      scope: "personal",
+    },
+  ]);
+});

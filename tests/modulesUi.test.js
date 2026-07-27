@@ -7,8 +7,8 @@ const source = fs.readFileSync(
   "utf8",
 );
 
-test("личният аватар показва точно 12 модула", () => {
-  const ids = [...source.matchAll(/^\s+id: '([^']+)'/gm)].map(
+test("личната AI система показва точно 12 работни области", () => {
+  const ids = [...source.matchAll(/^\s+id: ["']([^"']+)["']/gm)].map(
     (match) => match[1],
   );
   assert.equal(ids.length, 12);
@@ -21,7 +21,7 @@ test("външните действия пазят изричното потвъ
   assert.match(source, /Не създавай външно напомняне без потвърждение/);
 });
 
-test("модулите използват съществуващите Drive, Calendar, memory и image входове", () => {
+test("работните области използват съществуващите Drive, Calendar, memory и image входове", () => {
   for (const id of [
     "memoryBtn",
     "imageInput",

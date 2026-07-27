@@ -1,129 +1,216 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="bg">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#087cf0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#087cf0" />
     <title>Synchron-X</title>
-    <link rel="stylesheet" href="/styles.css?v=20260726-appshell">
-    <link rel="stylesheet" href="/appshell.css?v=20260726-appshell">
-    <link rel="stylesheet" href="/search.css?v=20260726-search">
-    <link rel="stylesheet" href="/modules.css?v=20260726-modules">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/styles.css?v=20260726-appshell" />
+    <link rel="stylesheet" href="/appshell.css?v=20260726-appshell" />
+    <link rel="stylesheet" href="/search.css?v=20260726-search" />
+    <link rel="stylesheet" href="/modules.css?v=20260726-modules" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-</head>
-<body>
+  </head>
+  <body>
     <main class="app-shell">
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-brand">
-                <span class="brand-icon"><i class="fa-solid fa-atom"></i></span>
-                <span>Synchron-X</span>
-            </div>
-            <button id="newChatBtn" class="new-chat" type="button">
-                <i class="fa-regular fa-pen-to-square"></i>
-                <span>Нов разговор</span>
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+          <span class="brand-icon"><i class="fa-solid fa-atom"></i></span>
+          <span>Synchron-X</span>
+        </div>
+        <button id="newChatBtn" class="new-chat" type="button">
+          <i class="fa-regular fa-pen-to-square"></i>
+          <span>Нов разговор</span>
+        </button>
+        <nav class="sidebar-nav" aria-label="Основно меню">
+          <button id="searchChatsBtn" type="button">
+            <i class="fa-solid fa-magnifying-glass"></i><span>Търси</span>
+          </button>
+          <button id="imagesBtn" type="button">
+            <i class="fa-regular fa-images"></i><span>Снимки и файлове</span>
+          </button>
+          <button id="googleDriveBtn" type="button">
+            <i class="fa-brands fa-google-drive"></i><span>Google Drive</span>
+          </button>
+          <button id="gmailBtn" type="button">
+            <i class="fa-regular fa-envelope"></i><span>Gmail</span>
+          </button>
+          <button id="googleCalendarBtn" type="button">
+            <i class="fa-regular fa-calendar"></i><span>Google Calendar</span>
+          </button>
+          <button id="googleMapsBtn" type="button">
+            <i class="fa-solid fa-map-location-dot"></i><span>Google Maps</span>
+          </button>
+          <button id="memoryBtn" type="button">
+            <i class="fa-solid fa-brain"></i><span>Памет</span>
+          </button>
+          <button id="permissionsBtn" type="button">
+            <i class="fa-solid fa-shield-halved"></i><span>Разрешения</span>
+          </button>
+          <button id="modulesBtn" type="button">
+            <i class="fa-solid fa-layer-group"></i><span>Работни области</span>
+          </button>
+        </nav>
+        <div class="sidebar-section">
+          <span>Разговори</span>
+          <input
+            id="conversationSearch"
+            class="conversation-search"
+            type="search"
+            placeholder="Търси разговори"
+            hidden
+          />
+          <div id="conversationList" class="conversation-list"></div>
+        </div>
+        <button id="toggleStatusBtn" class="profile-button" type="button">
+          <span class="profile-avatar">Р</span>
+          <span><strong>Радко</strong><small>Настройки и статус</small></span>
+          <i class="fa-solid fa-ellipsis"></i>
+        </button>
+      </aside>
+
+      <section class="chatPanel" id="chat-container">
+        <header class="chat-toolbar">
+          <button
+            id="mobileMenuBtn"
+            class="mobile-menu"
+            type="button"
+            aria-label="Меню"
+          >
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <div class="model-title">Synchron-X · Лична AI система</div>
+          <div class="status-indicator" aria-live="polite">
+            <span id="agentStatusDot" class="offline"></span>
+            <span id="agentStatusText">Свързване…</span>
+          </div>
+        </header>
+
+        <div id="chatMessages" aria-live="polite"></div>
+
+        <div id="attachmentPreview" class="attachment-preview" hidden>
+          <img id="attachmentImage" alt="Избрана снимка" />
+          <div>
+            <strong id="attachmentName"></strong>
+            <span>Готова за изпращане</span>
+          </div>
+          <button
+            id="removeAttachmentBtn"
+            type="button"
+            aria-label="Премахни снимката"
+          >
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="composer-wrap">
+          <div class="chat-input-area">
+            <button
+              id="attachBtn"
+              class="attach-btn"
+              type="button"
+              aria-label="Добави файл"
+              title="Добави файл"
+            >
+              <i class="fa-solid fa-plus"></i>
             </button>
-            <nav class="sidebar-nav" aria-label="Основно меню">
-                <button id="searchChatsBtn" type="button"><i class="fa-solid fa-magnifying-glass"></i><span>Търси</span></button>
-                <button id="imagesBtn" type="button"><i class="fa-regular fa-images"></i><span>Снимки и файлове</span></button>
-                <button id="googleDriveBtn" type="button"><i class="fa-brands fa-google-drive"></i><span>Google Drive</span></button>
-                <button id="gmailBtn" type="button"><i class="fa-regular fa-envelope"></i><span>Gmail</span></button>
-                <button id="googleCalendarBtn" type="button"><i class="fa-regular fa-calendar"></i><span>Google Calendar</span></button>
-                <button id="googleMapsBtn" type="button"><i class="fa-solid fa-map-location-dot"></i><span>Google Maps</span></button>
-                <button id="memoryBtn" type="button"><i class="fa-solid fa-brain"></i><span>Памет</span></button>
-                <button id="permissionsBtn" type="button"><i class="fa-solid fa-shield-halved"></i><span>Разрешения</span></button>
-                <button id="modulesBtn" type="button"><i class="fa-solid fa-puzzle-piece"></i><span>Модули</span></button>
-            </nav>
-            <div class="sidebar-section">
-                <span>Разговори</span>
-                <input id="conversationSearch" class="conversation-search" type="search" placeholder="Търси разговори" hidden>
-                <div id="conversationList" class="conversation-list"></div>
-            </div>
-            <button id="toggleStatusBtn" class="profile-button" type="button">
-                <span class="profile-avatar">Р</span>
-                <span><strong>Радко</strong><small>Настройки и статус</small></span>
-                <i class="fa-solid fa-ellipsis"></i>
+            <input
+              id="imageInput"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              hidden
+            />
+            <input
+              type="text"
+              id="chatInput"
+              placeholder="Попитай нещо"
+              autocomplete="off"
+              enterkeyhint="send"
+              autofocus
+            />
+            <button
+              id="voiceBtn"
+              class="voice-btn"
+              type="button"
+              aria-label="Гласово въвеждане"
+              title="Гласово въвеждане"
+            >
+              <i class="fa-solid fa-wave-square"></i>
             </button>
-        </aside>
+            <button id="sendBtn" type="button" aria-label="Изпрати">
+              <i class="fa-solid fa-arrow-up"></i><span>Изпрати</span>
+            </button>
+          </div>
+          <div class="composer-note">
+            Synchron-X може да допуска грешки. Проверявай важната информация.
+          </div>
+        </div>
+      </section>
 
-        <section class="chatPanel" id="chat-container">
-            <header class="chat-toolbar">
-                <button id="mobileMenuBtn" class="mobile-menu" type="button" aria-label="Меню"><i class="fa-solid fa-bars"></i></button>
-                <div class="model-title">Synchron-X <i class="fa-solid fa-chevron-down"></i></div>
-                <div class="status-indicator" aria-live="polite">
-                    <span id="agentStatusDot" class="offline"></span>
-                    <span id="agentStatusText">Свързване…</span>
-                </div>
-            </header>
-
-            <div id="chatMessages" aria-live="polite"></div>
-
-            <div id="attachmentPreview" class="attachment-preview" hidden>
-                <img id="attachmentImage" alt="Избрана снимка">
-                <div>
-                    <strong id="attachmentName"></strong>
-                    <span>Готова за изпращане</span>
-                </div>
-                <button id="removeAttachmentBtn" type="button" aria-label="Премахни снимката">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
+      <aside
+        class="statusPanel"
+        id="statusPanel"
+        aria-label="Състояние и данни"
+      >
+        <div class="panel-header status-header">
+          <span>Състояние</span>
+          <button
+            id="closeContextBtn"
+            class="close-btn"
+            type="button"
+            aria-label="Затвори"
+          >
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div class="panel-content">
+          <div class="context-box">
+            <div class="context-label">Сесия</div>
+            <div class="context-value" id="sessionIdDisplay">…</div>
+          </div>
+          <div class="context-box">
+            <div class="context-label">Сървър</div>
+            <div class="context-value" id="serverStatusDisplay">Проверка…</div>
+          </div>
+          <div class="context-box">
+            <div class="context-label">OpenSearch</div>
+            <div class="context-value" id="opensearchStatusDisplay">
+              Проверка…
             </div>
+          </div>
+          <div class="context-label activity-title">Последни действия</div>
+          <ul class="log-list" id="actionsLog">
+            <li>Няма скорошни действия</li>
+          </ul>
+        </div>
+      </aside>
 
-            <div class="composer-wrap">
-                <div class="chat-input-area">
-                    <button id="attachBtn" class="attach-btn" type="button" aria-label="Добави файл" title="Добави файл">
-                        <i class="fa-solid fa-plus"></i>
-                    </button>
-                    <input id="imageInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
-                    <input type="text" id="chatInput" placeholder="Попитай нещо" autocomplete="off" enterkeyhint="send" autofocus>
-                    <button id="voiceBtn" class="voice-btn" type="button" aria-label="Гласово въвеждане" title="Гласово въвеждане"><i class="fa-solid fa-wave-square"></i></button>
-                    <button id="sendBtn" type="button" aria-label="Изпрати"><i class="fa-solid fa-arrow-up"></i><span>Изпрати</span></button>
-                </div>
-                <div class="composer-note">Synchron-X може да допуска грешки. Проверявай важната информация.</div>
-            </div>
-        </section>
-
-        <aside class="statusPanel" id="statusPanel" aria-label="Състояние и данни">
-            <div class="panel-header status-header">
-                <span>Състояние</span>
-                <button id="closeContextBtn" class="close-btn" type="button" aria-label="Затвори">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-            <div class="panel-content">
-                <div class="context-box">
-                    <div class="context-label">Сесия</div>
-                    <div class="context-value" id="sessionIdDisplay">…</div>
-                </div>
-                <div class="context-box">
-                    <div class="context-label">Сървър</div>
-                    <div class="context-value" id="serverStatusDisplay">Проверка…</div>
-                </div>
-                <div class="context-box">
-                    <div class="context-label">OpenSearch</div>
-                    <div class="context-value" id="opensearchStatusDisplay">Проверка…</div>
-                </div>
-                <div class="context-label activity-title">Последни действия</div>
-                <ul class="log-list" id="actionsLog">
-                    <li>Няма скорошни действия</li>
-                </ul>
-            </div>
-        </aside>
-
-        <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
-        <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
-        <aside class="data-drawer" id="dataDrawer" aria-label="Памет и разрешения" hidden>
-            <header class="data-drawer-header">
-                <div>
-                    <span class="data-drawer-kicker">Твоите данни</span>
-                    <h2 id="dataDrawerTitle">Памет</h2>
-                </div>
-                <button id="closeDataDrawerBtn" type="button" aria-label="Затвори">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </header>
-            <div class="data-drawer-body" id="dataDrawerBody"></div>
-        </aside>
+      <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
+      <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
+      <aside
+        class="data-drawer"
+        id="dataDrawer"
+        aria-label="Памет и разрешения"
+        hidden
+      >
+        <header class="data-drawer-header">
+          <div>
+            <span class="data-drawer-kicker">Твоите данни</span>
+            <h2 id="dataDrawerTitle">Памет</h2>
+          </div>
+          <button id="closeDataDrawerBtn" type="button" aria-label="Затвори">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </header>
+        <div class="data-drawer-body" id="dataDrawerBody"></div>
+      </aside>
     </main>
 
     <script src="/app.js?v=20260726-menu-actions"></script>
@@ -131,5 +218,5 @@
     <script src="/google-apps.js?v=20260726-google-apps"></script>
     <script src="/search.js?v=20260726-search"></script>
     <script src="/modules.js?v=20260726-modules"></script>
-</body>
+  </body>
 </html>

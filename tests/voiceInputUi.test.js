@@ -10,6 +10,6 @@ test("application supports Bulgarian browser voice input", async () => {
 
   assert.match(html, /id="voiceBtn"/u);
   assert.match(script, /webkitSpeechRecognition/u);
-  assert.match(script, /recognition\.lang = 'bg-BG'/u);
+  assert.match(script, /recognition\.lang = ["']bg-BG["']/u);
   assert.match(script, /toggleVoiceInput/u);
 });

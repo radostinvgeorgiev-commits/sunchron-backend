@@ -6,6 +6,7 @@ import {
   buildMemoryReply,
   detectCapabilityRequests,
   executeDetectedCapabilities,
+  extractConfirmedMemoryDeleteCommand,
   extractConfirmedMemoryWriteCommands,
   splitCapabilitySubtasks,
 } from "../src/routes/chat.js";
@@ -17,8 +18,8 @@ test("detects multiple capability subtasks in one message", () => {
   assert.deepEqual(
     requests.map(({ capability, action }) => ({ capability, action })),
     [
-    { capability: "calendar.read", action: "calendar.read" },
-    { capability: "code.read", action: "github.read" },
+      { capability: "calendar.read", action: "calendar.read" },
+      { capability: "code.read", action: "github.read" },
     ],
   );
 });
@@ -60,25 +61,27 @@ test("executes all detected subtasks sequentially even after a failure", async (
 });
 
 test("complex 5-check command runs all checks, merges results, and asks memory-write confirmation", async () => {
-  const message =
-    [
-      "Провери GitHub последните commit-и;",
-      "Провери GitHub подробности за последния commit;",
-      "Провери GitHub променените файлове;",
-      "Провери GitHub историята за днес;",
-      "Провери GitHub последната реална промяна;",
-      "Запомни, че трябва да пуснем деплой след merge.",
-    ].join(" ");
+  const message = [
+    "Провери GitHub последните commit-и;",
+    "Провери GitHub подробности за последния commit;",
+    "Провери GitHub променените файлове;",
+    "Провери GitHub историята за днес;",
+    "Провери GitHub последната реална промяна;",
+    "Запомни, че трябва да пуснем деплой след merge.",
+  ].join(" ");
 
   const calls = [];
-  const results = await executeDetectedCapabilities(message, async (capability, options) => {
-    calls.push({ capability, message: options.message });
-    return {
-      output: `Result ${calls.length}: ${options.message}`,
-      permission: { decision: "allow" },
-      tool: { id: "github-read" },
-    };
-  });
+  const results = await executeDetectedCapabilities(
+    message,
+    async (capability, options) => {
+      calls.push({ capability, message: options.message });
+      return {
+        output: `Result ${calls.length}: ${options.message}`,
+        permission: { decision: "allow" },
+        tool: { id: "github-read" },
+      };
+    },
+  );
 
   assert.equal(calls.length, 5);
   assert.deepEqual(
@@ -87,9 +90,10 @@ test("complex 5-check command runs all checks, merges results, and asks memory-w
   );
 
   const capabilityReplies = buildCapabilityReplies(results);
-  assert.equal(capabilityReplies.length, 5);
+  assert.equal(capabilityReplies.length, 6);
   assert.match(capabilityReplies[0], /Result 1/u);
   assert.match(capabilityReplies[4], /Result 5/u);
+  assert.match(capabilityReplies[5], /Използвани инструменти/u);
 
   const memoryReply = buildMemoryReply({
     type: "write-confirmation-required",
@@ -119,10 +123,26 @@ test("requires explicit memory-write confirmation prefix", () => {
     { fact: "проектът е SYNCHRON-X", scope: "personal" },
   ]);
   assert.deepEqual(
-    extractConfirmedMemoryWriteCommands(
-      "Запомни, че проектът е SYNCHRON-X.",
-    ),
+    extractConfirmedMemoryWriteCommands("Запомни, че проектът е SYNCHRON-X."),
     [],
+  );
+});
+
+test("requires an exact confirmation prefix before deleting one memory", () => {
+  assert.equal(
+    extractConfirmedMemoryDeleteCommand(
+      "Изтрий от паметта: любимият ми цвят е син.",
+    ),
+    null,
+  );
+  assert.deepEqual(
+    extractConfirmedMemoryDeleteCommand(
+      "Потвърждавам изтриване от постоянната памет: любимият ми цвят е син.",
+    ),
+    {
+      fact: "любимият ми цвят е син",
+      scope: "personal",
+    },
   );
 });
 
@@ -131,9 +151,9 @@ test("splits and detects the real one-line five-check GitHub command without tre
     "Провери актуалния main на GitHub хранилището radostinvgeorgiev-commits/sunchron-backend. Намери: 1. Къде са Tool Registry и Capability Engine. 2. Кои инструменти са регистрирани. 3. Какви разрешения изисква всеки инструмент. 4. Дали чатът действително използва Capability Engine. 5. Кои са трите последно поправени проблема. Не променяй никакъв файл. Накрая запомни в постоянната ми памет: „На 27 юли 2026 г. проверихме връзката между чата, GitHub и Capability Engine.“ Преди запис в паметта поискай моето потвърждение.";
 
   const requests = detectCapabilityRequests(message);
-  assert.equal(requests.length, 6);
+  assert.equal(requests.length, 5);
   assert.deepEqual(
-    requests.slice(1).map(({ message: subtask }) => subtask),
+    requests.map(({ message: subtask }) => subtask),
     [
       "Къде са Tool Registry и Capability Engine.",
       "Кои инструменти са регистрирани.",
@@ -145,5 +165,31 @@ test("splits and detects the real one-line five-check GitHub command without tre
   assert.equal(
     requests.some(({ message: subtask }) => /запомни/iu.test(subtask)),
     false,
+  );
+  assert.deepEqual(
+    extractConfirmedMemoryWriteCommands(
+      "Потвърждавам запис в постоянната памет: На 27 юли 2026 г. проверихме връзката между чата, GitHub и Capability Engine.",
+    ),
+    [
+      {
+        fact: "На 27 юли 2026 г. проверихме връзката между чата, GitHub и Capability Engine",
+        scope: "personal",
+      },
+    ],
+  );
+});
+
+test("detects a combined personal-OS tool check without duplicate GitHub tasks", () => {
+  const message = [
+    "Провери последния commit в GitHub.",
+    "Покажи събитията ми в календара за утре.",
+    "Провери какво помниш за проекта SYNCHRON-X.",
+    "Провери актуалното време във Варна.",
+    "Кажи кои инструменти използва успешно и кои не са достъпни.",
+  ].join(" ");
+
+  assert.deepEqual(
+    detectCapabilityRequests(message).map(({ capability }) => capability),
+    ["code.read", "calendar.read", "memory.read", "web.search"],
   );
 });

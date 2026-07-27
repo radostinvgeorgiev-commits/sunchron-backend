@@ -1,10 +1,13 @@
 import crypto from "node:crypto";
+import { getOpenSearchClient } from "../config/opensearch.js";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DRIVE_API_URL = "https://www.googleapis.com/drive/v3";
 const GMAIL_API_URL = "https://gmail.googleapis.com/gmail/v1";
 const CALENDAR_API_URL = "https://www.googleapis.com/calendar/v3";
+const GOOGLE_SESSION_INDEX =
+  process.env.GOOGLE_SESSION_INDEX || "synchron-google-sessions-v1";
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const GOOGLE_DOC = "application/vnd.google-apps.document";
 const GOOGLE_SHEET = "application/vnd.google-apps.spreadsheet";
@@ -25,6 +28,104 @@ const SUPPORTED_MIME_TYPES = new Set([
 ]);
 const sessions = new Map();
 
+function sessionEncryptionKey() {
+  const secret =
+    process.env.GOOGLE_SESSION_ENCRYPTION_KEY ||
+    process.env.GOOGLE_CLIENT_SECRET;
+  return secret ? crypto.createHash("sha256").update(secret).digest() : null;
+}
+
+export function encryptGoogleSession(session) {
+  const key = sessionEncryptionKey();
+  if (!key) {
+    throw new GoogleDriveError(
+      "Липсва ключ за защита на Google сесията.",
+      503,
+      "GOOGLE_SESSION_KEY_MISSING",
+    );
+  }
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([
+    cipher.update(JSON.stringify(session), "utf8"),
+    cipher.final(),
+  ]);
+  return {
+    version: 1,
+    iv: iv.toString("base64"),
+    tag: cipher.getAuthTag().toString("base64"),
+    data: encrypted.toString("base64"),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function decryptGoogleSession(payload) {
+  const key = sessionEncryptionKey();
+  if (!key || payload?.version !== 1) {
+    throw new GoogleDriveError(
+      "Google сесията не може да бъде възстановена.",
+      401,
+      "GOOGLE_SESSION_INVALID",
+    );
+  }
+  try {
+    const decipher = crypto.createDecipheriv(
+      "aes-256-gcm",
+      key,
+      Buffer.from(payload.iv, "base64"),
+    );
+    decipher.setAuthTag(Buffer.from(payload.tag, "base64"));
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(payload.data, "base64")),
+      decipher.final(),
+    ]);
+    return JSON.parse(decrypted.toString("utf8"));
+  } catch {
+    throw new GoogleDriveError(
+      "Google сесията не може да бъде възстановена.",
+      401,
+      "GOOGLE_SESSION_INVALID",
+    );
+  }
+}
+
+async function persistSession(id, session) {
+  const client = getOpenSearchClient();
+  if (!client) return false;
+  await client.index({
+    index: GOOGLE_SESSION_INDEX,
+    id,
+    body: encryptGoogleSession(session),
+    refresh: true,
+  });
+  return true;
+}
+
+async function loadSession(id) {
+  if (!id) return null;
+  const cached = sessions.get(id);
+  if (cached) return cached;
+
+  const client = getOpenSearchClient();
+  if (!client) return null;
+  try {
+    const response = await client.get({
+      index: GOOGLE_SESSION_INDEX,
+      id,
+    });
+    const payload = response.body?._source ?? response._source;
+    const session = decryptGoogleSession(payload);
+    sessions.set(id, session);
+    return session;
+  } catch (error) {
+    const status = error?.statusCode || error?.meta?.statusCode;
+    if (status !== 404) {
+      console.error("[Google session] Restore failure:", error);
+    }
+    return null;
+  }
+}
+
 export class GoogleDriveError extends Error {
   constructor(message, status = 502, code = "GOOGLE_DRIVE_ERROR") {
     super(message);
@@ -40,12 +141,16 @@ export function createNonce() {
 
 export function parseCookies(header = "") {
   return Object.fromEntries(
-    header.split(";").map((part) => part.trim()).filter(Boolean).map((part) => {
-      const index = part.indexOf("=");
-      return index < 0
-        ? [part, ""]
-        : [part.slice(0, index), decodeURIComponent(part.slice(index + 1))];
-    }),
+    header
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const index = part.indexOf("=");
+        return index < 0
+          ? [part, ""]
+          : [part.slice(0, index), decodeURIComponent(part.slice(index + 1))];
+      }),
   );
 }
 
@@ -108,26 +213,55 @@ export async function exchangeCode(code, fetchImpl = fetch) {
   return data;
 }
 
-export function createSession(tokens) {
+export async function createSession(tokens) {
   const id = createNonce();
-  sessions.set(id, {
+  const session = {
     ...tokens,
     expiresAt: Date.now() + Number(tokens.expires_in || 3600) * 1000,
-  });
+  };
+  sessions.set(id, session);
+  try {
+    await persistSession(id, session);
+  } catch (error) {
+    console.error("[Google session] Persistence failure:", error);
+  }
   return id;
 }
 
-export function disconnectSession(id) {
+export async function disconnectSession(id) {
   if (id) sessions.delete(id);
+  const client = getOpenSearchClient();
+  if (!id || !client) return;
+  try {
+    await client.delete({
+      index: GOOGLE_SESSION_INDEX,
+      id,
+      refresh: true,
+    });
+  } catch (error) {
+    const status = error?.statusCode || error?.meta?.statusCode;
+    if (status !== 404) {
+      console.error("[Google session] Delete failure:", error);
+    }
+  }
 }
 
 async function refreshSession(id, fetchImpl = fetch) {
-  const session = sessions.get(id);
-  if (!session) throw new GoogleDriveError("Google Drive не е свързан.", 401, "NOT_CONNECTED");
+  const session = await loadSession(id);
+  if (!session)
+    throw new GoogleDriveError(
+      "Google Drive не е свързан.",
+      401,
+      "NOT_CONNECTED",
+    );
   if (session.expiresAt > Date.now() + 60_000) return session.access_token;
   if (!session.refresh_token) {
     sessions.delete(id);
-    throw new GoogleDriveError("Google връзката е изтекла. Свържи я отново.", 401, "TOKEN_EXPIRED");
+    throw new GoogleDriveError(
+      "Google връзката е изтекла. Свържи я отново.",
+      401,
+      "TOKEN_EXPIRED",
+    );
   }
   const { clientId, clientSecret } = configuration();
   const response = await fetchImpl(GOOGLE_TOKEN_URL, {
@@ -143,20 +277,41 @@ async function refreshSession(id, fetchImpl = fetch) {
   const data = await response.json();
   if (!response.ok || !data.access_token) {
     sessions.delete(id);
-    throw new GoogleDriveError("Google връзката е изтекла. Свържи я отново.", 401, "REFRESH_FAILED");
+    throw new GoogleDriveError(
+      "Google връзката е изтекла. Свържи я отново.",
+      401,
+      "REFRESH_FAILED",
+    );
   }
   Object.assign(session, data, {
     refresh_token: data.refresh_token || session.refresh_token,
     expiresAt: Date.now() + Number(data.expires_in || 3600) * 1000,
   });
+  try {
+    await persistSession(id, session);
+  } catch (error) {
+    console.error("[Google session] Refresh persistence failure:", error);
+  }
   return session.access_token;
 }
 
 async function driveFetch(id, path, options = {}, fetchImpl = fetch) {
-  return googleFetch(id, `${DRIVE_API_URL}${path}`, options, fetchImpl, "Google Drive");
+  return googleFetch(
+    id,
+    `${DRIVE_API_URL}${path}`,
+    options,
+    fetchImpl,
+    "Google Drive",
+  );
 }
 
-async function googleFetch(id, url, options = {}, fetchImpl = fetch, serviceName = "Google") {
+async function googleFetch(
+  id,
+  url,
+  options = {},
+  fetchImpl = fetch,
+  serviceName = "Google",
+) {
   const token = await refreshSession(id, fetchImpl);
   const response = await fetchImpl(url, {
     ...options,
@@ -175,8 +330,8 @@ async function googleFetch(id, url, options = {}, fetchImpl = fetch, serviceName
   return response;
 }
 
-export function hasSession(id) {
-  return Boolean(id && sessions.has(id));
+export async function hasSession(id) {
+  return Boolean(await loadSession(id));
 }
 
 export async function listDriveFiles(id, fetchImpl = fetch) {
@@ -196,7 +351,11 @@ export async function listDriveFiles(id, fetchImpl = fetch) {
 
 export async function downloadDriveFile(id, fileId, fetchImpl = fetch) {
   if (!/^[A-Za-z0-9_-]+$/u.test(fileId || "")) {
-    throw new GoogleDriveError("Невалиден Google Drive файл.", 400, "INVALID_FILE_ID");
+    throw new GoogleDriveError(
+      "Невалиден Google Drive файл.",
+      400,
+      "INVALID_FILE_ID",
+    );
   }
   const metaResponse = await driveFetch(
     id,
@@ -206,10 +365,18 @@ export async function downloadDriveFile(id, fileId, fetchImpl = fetch) {
   );
   const meta = await metaResponse.json();
   if (!SUPPORTED_MIME_TYPES.has(meta.mimeType)) {
-    throw new GoogleDriveError("Този тип файл още не се поддържа.", 415, "UNSUPPORTED_FILE");
+    throw new GoogleDriveError(
+      "Този тип файл още не се поддържа.",
+      415,
+      "UNSUPPORTED_FILE",
+    );
   }
   if (Number(meta.size || 0) > MAX_FILE_BYTES) {
-    throw new GoogleDriveError("Файлът трябва да бъде до 20 MB.", 413, "FILE_TOO_LARGE");
+    throw new GoogleDriveError(
+      "Файлът трябва да бъде до 20 MB.",
+      413,
+      "FILE_TOO_LARGE",
+    );
   }
   let path = `/files/${encodeURIComponent(fileId)}?alt=media`;
   let mimeType = meta.mimeType;
@@ -223,22 +390,32 @@ export async function downloadDriveFile(id, fileId, fetchImpl = fetch) {
     name = `${name}.csv`;
     path = `/files/${encodeURIComponent(fileId)}/export?mimeType=${encodeURIComponent(mimeType)}`;
   }
-  const response = await driveFetch(
-    id,
-    path,
-    {},
-    fetchImpl,
-  );
+  const response = await driveFetch(id, path, {}, fetchImpl);
   const buffer = Buffer.from(await response.arrayBuffer());
   if (!buffer.length || buffer.length > MAX_FILE_BYTES) {
-    throw new GoogleDriveError("Файлът трябва да бъде до 20 MB.", 413, "FILE_TOO_LARGE");
+    throw new GoogleDriveError(
+      "Файлът трябва да бъде до 20 MB.",
+      413,
+      "FILE_TOO_LARGE",
+    );
   }
   return { name, mimeType, buffer };
 }
 
-export async function analyzeDriveFile({ name, mimeType, buffer, prompt, fetchImpl = fetch }) {
+export async function analyzeDriveFile({
+  name,
+  mimeType,
+  buffer,
+  prompt,
+  fetchImpl = fetch,
+}) {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new GoogleDriveError("Анализът на документи не е конфигуриран.", 503, "OPENAI_NOT_CONFIGURED");
+  if (!apiKey)
+    throw new GoogleDriveError(
+      "Анализът на документи не е конфигуриран.",
+      503,
+      "OPENAI_NOT_CONFIGURED",
+    );
   const instruction =
     prompt || "Обобщи този файл на български и посочи най-важното.";
   let fileContent;
@@ -261,30 +438,53 @@ export async function analyzeDriveFile({ name, mimeType, buffer, prompt, fetchIm
   }
   const response = await fetchImpl("https://api.openai.com/v1/responses", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
     body: JSON.stringify({
       model: process.env.OPENAI_DOCUMENT_MODEL || "gpt-4o-mini",
-      input: [{
-        role: "user",
-        content: [
-          fileContent,
-          {
-            type: "input_text",
-            text: instruction,
-          },
-        ],
-      }],
+      input: [
+        {
+          role: "user",
+          content: [
+            fileContent,
+            {
+              type: "input_text",
+              text: instruction,
+            },
+          ],
+        },
+      ],
     }),
   });
   const data = await response.json();
   if (!response.ok) {
-    console.error("[Google Drive file]", response.status, data?.error?.message || "unknown error");
-    throw new GoogleDriveError("Анализът на файла не успя.", 502, "FILE_ANALYSIS_FAILED");
+    console.error(
+      "[Google Drive file]",
+      response.status,
+      data?.error?.message || "unknown error",
+    );
+    throw new GoogleDriveError(
+      "Анализът на файла не успя.",
+      502,
+      "FILE_ANALYSIS_FAILED",
+    );
   }
-  const text = data.output_text || data.output?.flatMap((item) => item.content || [])
-    .filter((item) => item.type === "output_text")
-    .map((item) => item.text || "").join("").trim();
-  if (!text) throw new GoogleDriveError("Не получих анализ на файла.", 502, "EMPTY_FILE_ANALYSIS");
+  const text =
+    data.output_text ||
+    data.output
+      ?.flatMap((item) => item.content || [])
+      .filter((item) => item.type === "output_text")
+      .map((item) => item.text || "")
+      .join("")
+      .trim();
+  if (!text)
+    throw new GoogleDriveError(
+      "Не получих анализ на файла.",
+      502,
+      "EMPTY_FILE_ANALYSIS",
+    );
   return text;
 }
 
@@ -310,36 +510,45 @@ export async function listGmailMessages(id, limit = 10, fetchImpl = fetch) {
   );
   const list = await listResponse.json();
   const messages = Array.isArray(list.messages) ? list.messages : [];
-  return Promise.all(messages.map(async ({ id: messageId }) => {
-    const detailParams = new URLSearchParams({
-      format: "metadata",
-      metadataHeaders: "From",
-    });
-    detailParams.append("metadataHeaders", "Subject");
-    detailParams.append("metadataHeaders", "Date");
-    const detailResponse = await googleFetch(
-      id,
-      `${GMAIL_API_URL}/users/me/messages/${encodeURIComponent(messageId)}?${detailParams}`,
-      {},
-      fetchImpl,
-      "Gmail",
-    );
-    const message = await detailResponse.json();
-    const headers = message.payload?.headers || [];
-    return {
-      id: message.id,
-      threadId: message.threadId,
-      from: headerValue(headers, "From"),
-      subject: headerValue(headers, "Subject") || "(Без тема)",
-      date: headerValue(headers, "Date"),
-      snippet: message.snippet || "",
-      unread: Array.isArray(message.labelIds) && message.labelIds.includes("UNREAD"),
-      url: `https://mail.google.com/mail/u/0/#all/${message.id}`,
-    };
-  }));
+  return Promise.all(
+    messages.map(async ({ id: messageId }) => {
+      const detailParams = new URLSearchParams({
+        format: "metadata",
+        metadataHeaders: "From",
+      });
+      detailParams.append("metadataHeaders", "Subject");
+      detailParams.append("metadataHeaders", "Date");
+      const detailResponse = await googleFetch(
+        id,
+        `${GMAIL_API_URL}/users/me/messages/${encodeURIComponent(messageId)}?${detailParams}`,
+        {},
+        fetchImpl,
+        "Gmail",
+      );
+      const message = await detailResponse.json();
+      const headers = message.payload?.headers || [];
+      return {
+        id: message.id,
+        threadId: message.threadId,
+        from: headerValue(headers, "From"),
+        subject: headerValue(headers, "Subject") || "(Без тема)",
+        date: headerValue(headers, "Date"),
+        snippet: message.snippet || "",
+        unread:
+          Array.isArray(message.labelIds) &&
+          message.labelIds.includes("UNREAD"),
+        url: `https://mail.google.com/mail/u/0/#all/${message.id}`,
+      };
+    }),
+  );
 }
 
-export async function listGoogleCalendarEvents(id, days = 14, limit = 20, fetchImpl = fetch) {
+export async function listGoogleCalendarEvents(
+  id,
+  days = 14,
+  limit = 20,
+  fetchImpl = fetch,
+) {
   const timeMin = new Date();
   const safeDays = Math.min(Math.max(Number(days) || 14, 1), 30);
   const timeMax = new Date(timeMin.getTime() + safeDays * 86400000);

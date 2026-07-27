@@ -20,8 +20,13 @@ export function registerTool(definition) {
       throw new TypeError(`Tool Registry: липсва валидно поле "${field}".`);
     }
   }
-  if (!Array.isArray(definition.capabilities) || !definition.capabilities.length) {
-    throw new TypeError("Tool Registry: инструментът трябва да има способности.");
+  if (
+    !Array.isArray(definition.capabilities) ||
+    !definition.capabilities.length
+  ) {
+    throw new TypeError(
+      "Tool Registry: инструментът трябва да има способности.",
+    );
   }
   if (!Array.isArray(definition.permissions)) {
     throw new TypeError("Tool Registry: permissions трябва да е списък.");
@@ -192,7 +197,7 @@ export function registerCoreTools() {
         "memory.delete": "memory.delete",
       },
       enabled: true,
-      requiresConfirmation: true,
+      requiresConfirmation: false,
       healthStatus: "healthy",
     },
   ].forEach((definition) => {

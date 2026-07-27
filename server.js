@@ -21,7 +21,7 @@ dotenv.config();
 
 if (!process.env.AGENT_KEY) {
   console.warn(
-    "⚠️  AGENT_KEY is not configured. Chat requests will fail until it is set.",
+    "⚠️  AGENT_KEY is not configured. Direct AI conversation is unavailable; independent tools can still run.",
   );
 }
 

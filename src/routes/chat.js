@@ -21,18 +21,31 @@ import {
   CalendarServiceError,
   isCalendarReadRequest,
 } from "../services/calendarService.js";
+import {
+  GoogleDriveError,
+  parseCookies,
+} from "../services/googleDriveService.js";
 import { recordAuditEvent } from "../services/permissionService.js";
+import {
+  isWebSearchRequest,
+  WebSearchError,
+} from "../services/webSearchService.js";
 import {
   analyzeImage,
   ImageServiceError,
   validateImageInput,
 } from "../services/imageService.js";
-import { CapabilityError, executeCapability } from "../tools/capabilityEngine.js";
+import {
+  CapabilityError,
+  executeCapability,
+} from "../tools/capabilityEngine.js";
 
 const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
 const DEFAULT_AGENT_TIMEOUT_MS = 120000;
 const MEMORY_WRITE_CONFIRM_PREFIX = "Потвърждавам запис в постоянната памет:";
+const MEMORY_DELETE_CONFIRM_PREFIX =
+  "Потвърждавам изтриване от постоянната памет:";
 
 async function auditAction(event) {
   try {
@@ -42,9 +55,21 @@ async function auditAction(event) {
   }
 }
 
+async function saveConversationTurnBestEffort(sessionId, userText, replyText) {
+  try {
+    await saveConversationTurn(sessionId, userText, replyText);
+    return true;
+  } catch (error) {
+    console.error(`[ConversationMemory] Save failure for ${sessionId}:`, error);
+    return false;
+  }
+}
+
 const ASSISTANT_CONTEXT = [
   "[КОНТЕКСТ И ПРАВИЛА ЗА ТОЗИ РАЗГОВОР]",
-  "Ти си Synchron-X — личният AI асистент и AI аватар на Радко.",
+  "Ти си Synchron-X — личната AI операционна система на Радко.",
+  "AI аватарът е твоят начин на общуване: лице, глас, характер и поведение. Паметта, инструментите и разрешенията са отделни части на системата.",
+  "Използвай само инструменти, които реално са изпълнени и разрешени. Не твърди, че услуга е свързана, ако не е проверена.",
   "Човекът, с когото разговаряш, е Радко. Никога не казвай, че ти си Радко.",
   "Говори само на български, освен ако Радко изрично поиска друг език.",
   "Обръщай се към Радко на „ти“. Говори естествено, спокойно, директно и човешки.",
@@ -72,8 +97,9 @@ export function buildAvatarMessages(memories, history, cleanMessage) {
   const conversationHistory = history.length
     ? [
         "[ПРЕДИШЕН РАЗГОВОР]",
-        ...history.map(({ role, content }) =>
-          `${role === "assistant" ? "Synchron-X" : "Радко"}: ${content}`,
+        ...history.map(
+          ({ role, content }) =>
+            `${role === "assistant" ? "Synchron-X" : "Радко"}: ${content}`,
         ),
         "[КРАЙ НА ПРЕДИШНИЯ РАЗГОВОР]",
       ].join("\n")
@@ -140,7 +166,17 @@ export function detectCapabilityRequests(message) {
   const requests = [];
   const subtasks = splitCapabilitySubtasks(message);
   const hasGitHubContext = isGitHubReadRequest(message);
-  for (const subtask of subtasks) {
+  const hasExplicitNumberedChecks =
+    /намери\s*:\s*1[\).:-]\s*/iu.test(message) && subtasks.length > 1;
+  for (const [index, subtask] of subtasks.entries()) {
+    if (
+      hasExplicitNumberedChecks &&
+      index === 0 &&
+      subtasks[1] &&
+      /^намери\s*:\s*$/iu.test(subtasks[1])
+    ) {
+      continue;
+    }
     if (
       /^(?:накрая\s+)?(?:запомни|запиши|помни)\b|преди\s+запис\s+в\s+паметта/iu.test(
         subtask,
@@ -155,13 +191,51 @@ export function detectCapabilityRequests(message) {
         message: subtask,
       });
     }
+    if (
+      /(?:google\s+drive|драйв|моите?\s+файлове|файловете?\s+ми)/iu.test(
+        subtask,
+      )
+    ) {
+      requests.push({
+        capability: "files.read",
+        action: "drive.read",
+        message: subtask,
+      });
+    }
+    if (/(?:gmail|джимейл|имейлите?\s+ми|пощата\s+ми)/iu.test(subtask)) {
+      requests.push({
+        capability: "mail.read",
+        action: "mail.read",
+        message: subtask,
+      });
+    }
+    if (
+      /(?:какво\s+помниш|провери\s+паметта|постоянната\s+(?:ми\s+)?памет)/iu.test(
+        subtask,
+      ) &&
+      !/(?:запомни|запиши|изтрий|забрави|преди\s+запис)/iu.test(subtask)
+    ) {
+      requests.push({
+        capability: "memory.read",
+        action: "memory.read",
+        message: subtask,
+      });
+    }
+    if (isWebSearchRequest(subtask)) {
+      requests.push({
+        capability: "web.search",
+        action: "web.read",
+        message: subtask,
+      });
+    }
     const repositoryInspectionSubtask =
       /(?:tool\s+registry|capability\s+engine|инструмент|разрешени|чатът|поправен|проблем)/iu.test(
         subtask,
       );
     if (
-      isGitHubReadRequest(subtask) ||
-      (hasGitHubContext && repositoryInspectionSubtask)
+      !/(?:използва\s+успешно|кои\s+са\s+достъпни)/iu.test(subtask) &&
+      (isGitHubReadRequest(subtask) ||
+        (hasGitHubContext && repositoryInspectionSubtask))
     ) {
       requests.push({
         capability: "code.read",
@@ -190,13 +264,40 @@ export function extractConfirmedMemoryWriteCommands(message) {
   const separatorIndex = message.indexOf(":");
 
   const payload = message.slice(separatorIndex + 1).trim();
-  return extractPersistentMemoryCommands(payload);
+  const commands = extractPersistentMemoryCommands(payload);
+  if (commands.length) return commands;
+
+  const fact = payload
+    .replace(/^[„“"'’]+|[„“"'’]+$/gu, "")
+    .replace(/[.!?]+$/u, "")
+    .trim();
+  return fact ? [{ fact, scope: "personal" }] : [];
+}
+
+function hasConfirmedMemoryDeletePrefix(message) {
+  if (typeof message !== "string") return false;
+  const separatorIndex = message.indexOf(":");
+  if (separatorIndex < 0) return false;
+  return (
+    message
+      .slice(0, separatorIndex + 1)
+      .trim()
+      .toLowerCase() === MEMORY_DELETE_CONFIRM_PREFIX.toLowerCase()
+  );
+}
+
+export function extractConfirmedMemoryDeleteCommand(message) {
+  if (!hasConfirmedMemoryDeletePrefix(message)) return null;
+  const separatorIndex = message.indexOf(":");
+  const payload = message.slice(separatorIndex + 1).trim();
+  return extractForgetMemoryCommand(`Изтрий от паметта: ${payload}`);
 }
 
 export async function executeDetectedCapabilities(
   message,
   executeFn,
   requests = detectCapabilityRequests(message),
+  executionContext = {},
 ) {
   const results = [];
   for (const [index, request] of requests.entries()) {
@@ -205,7 +306,10 @@ export async function executeDetectedCapabilities(
       `[CapabilityExecution] Start #${index + 1}/${requests.length}: ${request.capability}`,
     );
     try {
-      const result = await executeFn(request.capability, { message: requestMessage });
+      const result = await executeFn(request.capability, {
+        message: requestMessage,
+        ...executionContext,
+      });
       results.push({ status: "fulfilled", request, result });
       console.info(
         `[CapabilityExecution] Success #${index + 1}/${requests.length}: ${request.capability}`,
@@ -223,11 +327,20 @@ export async function executeDetectedCapabilities(
 function capabilityLabel(capability) {
   if (capability === "calendar.read") return "календар";
   if (capability === "code.read") return "GitHub";
+  if (capability === "files.read") return "Google Drive";
+  if (capability === "mail.read") return "Gmail";
+  if (capability === "memory.read") return "памет";
+  if (capability === "web.search") return "интернет търсене";
   return capability;
 }
 
 function formatCapabilityFailureMessage(error) {
-  if (error instanceof CalendarServiceError || error instanceof GitHubServiceError) {
+  if (
+    error instanceof CalendarServiceError ||
+    error instanceof GitHubServiceError ||
+    error instanceof GoogleDriveError ||
+    error instanceof WebSearchError
+  ) {
     return error.message;
   }
   if (error instanceof CapabilityError) {
@@ -253,6 +366,12 @@ export function buildMemoryReply(memoryAction) {
   if (memoryAction.type === "clear-confirmation-required") {
     return "Това ще изтрие цялата постоянна памет. За да потвърдиш, напиши точно: „Потвърждавам изтриването на цялата постоянна памет“.";
   }
+  if (memoryAction.type === "delete-confirmation-required") {
+    return [
+      `Искаш да изтрия от постоянната памет: ${memoryAction.fact}.`,
+      `За потвърждение изпрати точно: ${MEMORY_DELETE_CONFIRM_PREFIX} ${memoryAction.fact}`,
+    ].join("\n");
+  }
   if (memoryAction.type === "cleared") {
     return "Изчистих постоянната памет.";
   }
@@ -262,8 +381,12 @@ export function buildMemoryReply(memoryAction) {
       : "Не намерих такъв запис в постоянната памет.";
   }
   if (memoryAction.type === "batch") {
-    const updatedCount = memoryAction.items.filter((item) => item.replaced).length;
-    const updatedSuffix = updatedCount ? `, от които ${updatedCount} обновени` : "";
+    const updatedCount = memoryAction.items.filter(
+      (item) => item.replaced,
+    ).length;
+    const updatedSuffix = updatedCount
+      ? `, от които ${updatedCount} обновени`
+      : "";
     return [
       `Записах ${memoryAction.items.length} факта в постоянната памет${updatedSuffix}:`,
       ...memoryAction.items.map(({ fact }) => `• ${fact}`),
@@ -286,6 +409,18 @@ export function buildCapabilityReplies(capabilityResults) {
     const message = formatCapabilityFailureMessage(error);
     replies.push(
       `Не успях да изпълня заявката за ${capabilityLabel(request.capability)}: ${message}`,
+    );
+  }
+  if (capabilityResults.length > 1) {
+    replies.push(
+      [
+        "Използвани инструменти:",
+        ...capabilityResults.map(({ status, request, result }) => {
+          const name =
+            result?.tool?.name || capabilityLabel(request.capability);
+          return `• ${name} — ${status === "fulfilled" ? "успешно" : "недостъпен"}`;
+        }),
+      ].join("\n"),
     );
   }
   return replies;
@@ -323,8 +458,9 @@ router.post("/chat", async (req, res) => {
     DEFAULT_AGENT_TIMEOUT_MS,
   );
   const { sessionId, message, image } = req.body || {};
-  const cleanSessionId =
-    typeof sessionId === "string" ? sessionId.trim() : "";
+  const googleSessionId =
+    parseCookies(req.headers.cookie).synchron_google_session || "";
+  const cleanSessionId = typeof sessionId === "string" ? sessionId.trim() : "";
   const cleanMessage = typeof message === "string" ? message.trim() : "";
 
   if (!cleanSessionId) {
@@ -333,16 +469,20 @@ router.post("/chat", async (req, res) => {
   if (!cleanMessage) {
     return res.status(400).json({ error: "Напиши съобщение." });
   }
-  if (!agentKey) {
-    return res.status(500).json({ error: "AI връзката не е конфигурирана." });
-  }
-
   console.log(`[POST /chat] sessionId: ${cleanSessionId}`);
 
   let memories;
   let history;
   let memoryAction = null;
   let autoMemoryCount = 0;
+  let memoryAvailable = true;
+  const explicitMemoryIntent =
+    hasConfirmedMemoryWritePrefix(cleanMessage) ||
+    extractPersistentMemoryCommands(cleanMessage).length > 0 ||
+    isConfirmedForgetAllCommand(cleanMessage) ||
+    isForgetAllCommand(cleanMessage) ||
+    hasConfirmedMemoryDeletePrefix(cleanMessage) ||
+    Boolean(extractForgetMemoryCommand(cleanMessage));
   try {
     const confirmedMemoryWrite = hasConfirmedMemoryWritePrefix(cleanMessage);
     const confirmedMemoryCommands = confirmedMemoryWrite
@@ -355,7 +495,10 @@ router.post("/chat", async (req, res) => {
       if (!confirmedMemoryWrite) {
         // Explicit memory writes are gated until the user confirms with the
         // dedicated confirmation prefix.
-        memoryAction = { type: "write-confirmation-required", items: memoryCommands };
+        memoryAction = {
+          type: "write-confirmation-required",
+          items: memoryCommands,
+        };
       } else {
         const items = [];
         for (const memoryCommand of memoryCommands) {
@@ -385,18 +528,28 @@ router.post("/chat", async (req, res) => {
     } else if (isForgetAllCommand(cleanMessage)) {
       memoryAction = { type: "clear-confirmation-required" };
     } else {
-      const forgetCommand = extractForgetMemoryCommand(cleanMessage);
+      const confirmedDelete = extractConfirmedMemoryDeleteCommand(cleanMessage);
+      const forgetCommand =
+        confirmedDelete || extractForgetMemoryCommand(cleanMessage);
       if (forgetCommand) {
-        const deleted = await deleteProfileMemoryByFact(
-          forgetCommand.fact,
-          forgetCommand.scope,
-        );
-        memoryAction = {
-          type: "forgot",
-          fact: forgetCommand.fact,
-          scope: forgetCommand.scope,
-          deleted,
-        };
+        if (!confirmedDelete) {
+          memoryAction = {
+            type: "delete-confirmation-required",
+            fact: forgetCommand.fact,
+            scope: forgetCommand.scope,
+          };
+        } else {
+          const deleted = await deleteProfileMemoryByFact(
+            forgetCommand.fact,
+            forgetCommand.scope,
+          );
+          memoryAction = {
+            type: "forgot",
+            fact: forgetCommand.fact,
+            scope: forgetCommand.scope,
+            deleted,
+          };
+        }
       }
     }
     if (!memoryAction || memoryAction.type === "write-confirmation-required") {
@@ -416,10 +569,15 @@ router.post("/chat", async (req, res) => {
     ]);
   } catch (error) {
     console.error(`[Memory] Failure for ${cleanSessionId}:`, error);
-    return res.status(503).json({
-      error:
-        "Постоянната памет временно не е достъпна. Нищо не беше записано.",
-    });
+    if (explicitMemoryIntent) {
+      return res.status(503).json({
+        error:
+          "Постоянната памет временно не е достъпна. Нищо не беше записано или изтрито.",
+      });
+    }
+    memories = [];
+    history = [];
+    memoryAvailable = false;
   }
 
   const messages = buildAvatarMessages(memories, history, cleanMessage);
@@ -458,7 +616,11 @@ router.post("/chat", async (req, res) => {
         prompt: cleanMessage,
         context: messages[0].content,
       });
-      await saveConversationTurn(cleanSessionId, cleanMessage, fullReply);
+      await saveConversationTurnBestEffort(
+        cleanSessionId,
+        cleanMessage,
+        fullReply,
+      );
       await auditAction({
         action: "image.read",
         decision: "allow",
@@ -487,6 +649,7 @@ router.post("/chat", async (req, res) => {
     const isDeleteAction =
       memoryAction.type === "cleared" ||
       memoryAction.type === "forgot" ||
+      memoryAction.type === "delete-confirmation-required" ||
       memoryAction.type === "clear-confirmation-required";
     const isWriteConfirmationRequest =
       memoryAction.type === "write-confirmation-required";
@@ -495,6 +658,7 @@ router.post("/chat", async (req, res) => {
       action: memoryAuditAction,
       decision:
         memoryAction.type === "clear-confirmation-required" ||
+        memoryAction.type === "delete-confirmation-required" ||
         isWriteConfirmationRequest
           ? "confirm"
           : isDeleteAction
@@ -502,6 +666,7 @@ router.post("/chat", async (req, res) => {
             : "allow",
       outcome:
         memoryAction.type === "clear-confirmation-required" ||
+        memoryAction.type === "delete-confirmation-required" ||
         isWriteConfirmationRequest
           ? "requested"
           : "succeeded",
@@ -528,16 +693,19 @@ router.post("/chat", async (req, res) => {
       ? "Все още нямам записани факти за проекта."
       : "Все още нямам записани лични факти за теб.";
     const fullReply = scopedMemories.length
-      ? [
-          heading,
-          ...scopedMemories.map(({ fact }) => `• ${fact}`),
-        ].join("\n")
+      ? [heading, ...scopedMemories.map(({ fact }) => `• ${fact}`)].join("\n")
       : emptyReply;
 
-    await saveConversationTurn(cleanSessionId, cleanMessage, fullReply);
+    await saveConversationTurnBestEffort(
+      cleanSessionId,
+      cleanMessage,
+      fullReply,
+    );
     sendEvent("token", { token: fullReply });
     sendEvent("done", { ok: true, memoryCount: scopedMemories.length });
-    console.info(`[Chat] Response completed (memory overview) for ${cleanSessionId}`);
+    console.info(
+      `[Chat] Response completed (memory overview) for ${cleanSessionId}`,
+    );
     res.end();
     return;
   }
@@ -552,6 +720,10 @@ router.post("/chat", async (req, res) => {
     cleanMessage,
     executeCapability,
     detectedCapabilityRequests,
+    {
+      googleSessionId,
+      sessionId: cleanSessionId,
+    },
   );
   const capabilityReplies = buildCapabilityReplies(capabilityResults);
   if (capabilityResults.length) {
@@ -586,18 +758,35 @@ router.post("/chat", async (req, res) => {
   }
 
   if (memoryReply || capabilityReplies.length) {
-    const fullReply = [memoryReply, ...capabilityReplies].filter(Boolean).join("\n\n");
-    await saveConversationTurn(cleanSessionId, cleanMessage, fullReply);
+    const fullReply = [memoryReply, ...capabilityReplies]
+      .filter(Boolean)
+      .join("\n\n");
+    await saveConversationTurnBestEffort(
+      cleanSessionId,
+      cleanMessage,
+      fullReply,
+    );
     sendEvent("token", { token: fullReply });
     sendEvent("done", {
       ok: true,
       memoryUpdated: Boolean(memoryAction),
       capabilities: capabilityResults.map(({ request }) => request.capability),
       mode: capabilityResults.length ? "read-only" : undefined,
+      memoryAvailable,
     });
     console.info(
       `[Chat] Response completed (memory/capabilities shortcut) for ${cleanSessionId}`,
     );
+    res.end();
+    return;
+  }
+
+  if (!agentKey) {
+    sendEvent("error", {
+      status: 503,
+      message:
+        "AI разговорът временно не е конфигуриран. Независимите инструменти остават достъпни.",
+    });
     res.end();
     return;
   }
@@ -688,14 +877,21 @@ router.post("/chat", async (req, res) => {
       throw new Error("AI agent completed without returning text.");
     }
 
-    await saveConversationTurn(cleanSessionId, cleanMessage, fullReply);
+    await saveConversationTurnBestEffort(
+      cleanSessionId,
+      cleanMessage,
+      fullReply,
+    );
     sendEvent("done", {
       ok: true,
       memoryCount: memories.length,
       autoMemoryCount,
+      memoryAvailable,
     });
     console.log(`[Agent] Stream success for ${cleanSessionId}`);
-    console.info(`[Chat] Response completed (agent stream) for ${cleanSessionId}`);
+    console.info(
+      `[Chat] Response completed (agent stream) for ${cleanSessionId}`,
+    );
   } catch (error) {
     if (abortController.signal.aborted && !timedOut) return;
     console.error(`[Agent] Failure for ${cleanSessionId}:`, error);

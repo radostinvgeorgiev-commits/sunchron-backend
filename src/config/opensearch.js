@@ -22,7 +22,7 @@ export function createOpenSearchClient() {
     if (!OPENSEARCH_HOST) missing.push("OPENSEARCH_HOST");
     if (!OPENSEARCH_PORT) missing.push("OPENSEARCH_PORT");
 
-    const missingConfigKey = missing.join(",");
+    const missingConfigKey = missing.join(", ");
     if (shouldWarnForMissingConfig() && lastMissingConfigKey !== missingConfigKey) {
       console.warn(`⚠️  OpenSearch credentials not configured. Missing: ${missingConfigKey}`);
       lastMissingConfigKey = missingConfigKey;

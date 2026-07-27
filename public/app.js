@@ -392,12 +392,12 @@ function openFocusDrawer() {
     </section>
     <section class="focus-card">
       <span class="focus-kicker">Текуща задача</span>
-      <h3>Реални действия през разрешени инструменти</h3>
-      <p>Четенето е автоматично. Записът в GitHub остава блокиран, докато няма изпълним адаптер и точно потвърждение.</p>
+      <h3>Свързване на GitHub Copilot</h3>
+      <p>AI Core води разговора, а потвърдените кодови задачи се предават на Copilot в отделен клон и Pull Request.</p>
     </section>
     <section class="focus-next">
       <span>Следваща проверка</span>
-      <strong>Дай една сложна GitHub задача и провери дали системата връща един резултат и честно показва какво не може да изпълни.</strong>
+      <strong>Свържи GitHub еднократно, после изпълни една малка кодова задача с точно потвърждение.</strong>
     </section>`;
 }
 
@@ -409,7 +409,7 @@ function isGoogleTool(tool) {
   );
 }
 
-function toolState(tool, googleConnected) {
+function toolState(tool, googleConnected, githubConnected) {
   if (!tool.enabled || !tool.executable) {
     return { label: "Не е свързан", className: "deny" };
   }
@@ -419,17 +419,27 @@ function toolState(tool, googleConnected) {
   if (isGoogleTool(tool) && !googleConnected) {
     return { label: "Иска свързване", className: "confirm" };
   }
+  if (tool.id === "github-write" && !githubConnected) {
+    return { label: "Иска свързване", className: "confirm" };
+  }
   return { label: "Работи", className: "allow" };
 }
 
-function toolStatusActions(tool, status, googleConnected) {
+function toolStatusActions(tool, status, googleConnected, githubConnected) {
   let action = "";
   if (isGoogleTool(tool) && !googleConnected && tool.configured) {
     action =
       '<button type="button" class="tool-connect-btn" data-connect-service="google">Свържи Google</button>';
-  } else if (tool.id === "github-write" && status.className === "deny") {
+  } else if (
+    tool.id === "github-write" &&
+    tool.configured &&
+    !githubConnected
+  ) {
     action =
-      '<button type="button" class="tool-connect-btn" data-connect-service="github">Настрой GitHub</button>';
+      '<button type="button" class="tool-connect-btn" data-connect-service="github">Свържи GitHub</button>';
+  } else if (tool.id === "github-write" && !tool.configured) {
+    action =
+      '<button type="button" class="tool-connect-btn" data-github-setup>Настрой GitHub</button>';
   }
 
   return `
@@ -439,7 +449,7 @@ function toolStatusActions(tool, status, googleConnected) {
     </div>`;
 }
 
-function permissionAction(item, toolMap, googleConnected) {
+function permissionAction(item, toolMap, googleConnected, githubConnected) {
   const googlePermissions = new Set([
     "calendar.read",
     "calendar.write",
@@ -453,9 +463,17 @@ function permissionAction(item, toolMap, googleConnected) {
   const githubWrite = toolMap.get("github-write");
   if (
     item.action === "github.write" &&
+    githubWrite?.configured &&
+    githubWrite?.executable &&
+    !githubConnected
+  ) {
+    return '<button type="button" class="tool-connect-btn" data-connect-service="github">Свържи GitHub</button>';
+  }
+  if (
+    item.action === "github.write" &&
     (!githubWrite?.configured || !githubWrite?.executable)
   ) {
-    return '<button type="button" class="tool-connect-btn" data-connect-service="github">Настрой GitHub</button>';
+    return '<button type="button" class="tool-connect-btn" data-github-setup>Настрой GitHub</button>';
   }
 
   if (item.decision === "confirm") {
@@ -468,16 +486,21 @@ async function openToolsDrawer() {
   openDataDrawer("Инструменти");
   renderDrawerLoading();
   try {
-    const [healthResponse, googleResponse] = await Promise.all([
+    const [healthResponse, googleResponse, githubResponse] = await Promise.all([
       fetch("/health/integrations", { cache: "no-store" }),
       fetch("/api/google/status", { cache: "no-store" }).catch(() => null),
+      fetch("/api/github/status", { cache: "no-store" }).catch(() => null),
     ]);
     if (!healthResponse.ok) {
       throw new Error("Състоянието на инструментите не е достъпно.");
     }
     const data = await healthResponse.json();
-    const googleData =
-      googleResponse?.ok ? await googleResponse.json().catch(() => ({})) : {};
+    const googleData = googleResponse?.ok
+      ? await googleResponse.json().catch(() => ({}))
+      : {};
+    const githubData = githubResponse?.ok
+      ? await githubResponse.json().catch(() => ({}))
+      : {};
     const tools = Array.isArray(data.tools) ? data.tools : [];
     const descriptions = {
       "github-read": "Проверява commit-и и файлове. Само за четене.",
@@ -499,14 +522,23 @@ async function openToolsDrawer() {
         </article>
         ${tools
           .map((tool) => {
-            const status = toolState(tool, Boolean(googleData.connected));
+            const status = toolState(
+              tool,
+              Boolean(googleData.connected),
+              Boolean(githubData.connected),
+            );
             return `
               <article class="permission-card tool-status-card">
                 <div>
                   <strong>${escapeHtml(tool.name)}</strong>
                   <p>${escapeHtml(descriptions[tool.id] || "Инструмент на SYNCHRON-X.")}</p>
                 </div>
-                ${toolStatusActions(tool, status, Boolean(googleData.connected))}
+                ${toolStatusActions(
+                  tool,
+                  status,
+                  Boolean(googleData.connected),
+                  Boolean(githubData.connected),
+                )}
               </article>`;
           })
           .join("")}
@@ -597,12 +629,17 @@ async function openPermissionsDrawer() {
   openDataDrawer("Разрешения");
   renderDrawerLoading();
   try {
-    const [permissionsResponse, healthResponse, googleResponse] =
-      await Promise.all([
-        fetch("/permissions", { cache: "no-store" }),
-        fetch("/health/integrations", { cache: "no-store" }),
-        fetch("/api/google/status", { cache: "no-store" }).catch(() => null),
-      ]);
+    const [
+      permissionsResponse,
+      healthResponse,
+      googleResponse,
+      githubResponse,
+    ] = await Promise.all([
+      fetch("/permissions", { cache: "no-store" }),
+      fetch("/health/integrations", { cache: "no-store" }),
+      fetch("/api/google/status", { cache: "no-store" }).catch(() => null),
+      fetch("/api/github/status", { cache: "no-store" }).catch(() => null),
+    ]);
     if (!permissionsResponse.ok || !healthResponse.ok) {
       throw new Error("Разрешенията временно не са достъпни.");
     }
@@ -610,8 +647,12 @@ async function openPermissionsDrawer() {
       permissionsResponse.json(),
       healthResponse.json(),
     ]);
-    const googleData =
-      googleResponse?.ok ? await googleResponse.json().catch(() => ({})) : {};
+    const googleData = googleResponse?.ok
+      ? await googleResponse.json().catch(() => ({}))
+      : {};
+    const githubData = githubResponse?.ok
+      ? await githubResponse.json().catch(() => ({}))
+      : {};
     const toolMap = new Map(
       (healthData.tools || []).map((tool) => [tool.id, tool]),
     );
@@ -642,6 +683,7 @@ async function openPermissionsDrawer() {
                             item,
                             toolMap,
                             Boolean(googleData.connected),
+                            Boolean(githubData.connected),
                           )}
                         </div>
                     </article>`,
@@ -658,32 +700,25 @@ function showGitHubSetup() {
   elements.dataDrawerBody.innerHTML = `
     <section class="setup-guide">
       <div class="permission-default">
-        GitHub Read работи. За GitHub Write липсва защитен достъп до хранилището.
-        За пилота използвай ограничен token само за
-        <strong>radostinvgeorgiev-commits/sunchron-backend</strong>.
+        GitHub Read работи. За кодови задачи SYNCHRON-X използва GitHub Copilot
+        чрез еднократен вход с GitHub. Не се използва личен постоянен token.
       </div>
       <article class="setup-step">
         <span>1</span>
         <div>
-          <strong>Създай ограничен GitHub достъп</strong>
-          <p>Избери само това хранилище. Дай Contents: Read and write и Pull requests: Read and write.</p>
-          <a class="setup-action" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">
-            Отвори точната GitHub страница
-          </a>
+          <strong>Регистрирай GitHub App за SYNCHRON-X</strong>
+          <p>Приложението се ограничава до хранилището и получава потребителско разрешение за Copilot задачи.</p>
         </div>
       </article>
       <article class="setup-step">
         <span>2</span>
         <div>
-          <strong>Добави тайната в DigitalOcean</strong>
-          <p>Отвори приложението <strong>sunchron-backend</strong>, после Settings → App-Level Environment Variables → GITHUB_TOKEN. Стойността трябва да е отбелязана като Encrypt.</p>
-          <a class="setup-action" href="https://cloud.digitalocean.com/apps" target="_blank" rel="noopener noreferrer">
-            Отвори DigitalOcean Apps
-          </a>
+          <strong>Добави OAuth настройките</strong>
+          <p>В DigitalOcean са нужни GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET и GITHUB_REDIRECT_URI. Secret се пази криптирано.</p>
         </div>
       </article>
       <div class="setup-note">
-        След запазване DigitalOcean ще направи нов deployment. GitHub Write ще остане с потвърждение за всяка промяна.
+        След конфигуриране бутонът ще стане „Свържи GitHub“. Всяка кодова задача ще изисква отделно потвърждение и няма да се слива автоматично в main.
       </div>
       <button type="button" class="permission-info-btn" data-back-tools>Назад към инструментите</button>
     </section>`;
@@ -706,7 +741,8 @@ function showPermissionInfo(action) {
   elements.dataDrawerBody.innerHTML = `
     <section class="setup-guide">
       <div class="permission-default">${escapeHtml(
-        messages[action] || "Това действие се изпълнява само след твое потвърждение.",
+        messages[action] ||
+          "Това действие се изпълнява само след твое потвърждение.",
       )}</div>
       <button type="button" class="permission-info-btn" data-back-permissions>Назад към разрешенията</button>
     </section>`;
@@ -718,8 +754,13 @@ async function handleDataDrawerAction(event) {
     if (connectionButton.dataset.connectService === "google") {
       window.location.href = "/api/google/connect";
     } else if (connectionButton.dataset.connectService === "github") {
-      showGitHubSetup();
+      window.location.href = "/api/github/connect";
     }
+    return;
+  }
+
+  if (event.target.closest("[data-github-setup]")) {
+    showGitHubSetup();
     return;
   }
 

@@ -139,6 +139,21 @@ export function detectCapabilityRequests(message) {
   const requests = [];
   const subtasks = splitCapabilitySubtasks(message);
   for (const subtask of subtasks) {
+    const normalizedSubtask = subtask.trim().toLowerCase();
+    const hasCapabilityIntent =
+      /^(?:провери|покажи|изброй|дай|върни|виж|кажи|check|show|list)(?=\s|[?!.,:;]|$)/u.test(
+        normalizedSubtask,
+      ) || /\?\s*$/u.test(subtask);
+    if (!hasCapabilityIntent) {
+      continue;
+    }
+    if (
+      /^(?:не\s+успях\s+да\s+изпълня\s+заявката\s+за|инструментът\s+за\s+тази\s+заявка\s+временно\s+не\s+е\s+достъпен|google\s+calendar\s+още\s+не\s+е\s+свързан)/u.test(
+        normalizedSubtask,
+      )
+    ) {
+      continue;
+    }
     if (isCalendarReadRequest(subtask)) {
       requests.push({
         capability: "calendar.read",

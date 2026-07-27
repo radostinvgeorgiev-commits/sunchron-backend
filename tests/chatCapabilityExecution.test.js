@@ -23,6 +23,17 @@ test("detects multiple capability subtasks in one message", () => {
   );
 });
 
+test("ignores tool-failure report lines as capability requests", () => {
+  const requests = detectCapabilityRequests(
+    [
+      "Не успях да изпълня заявката за GitHub: Инструментът за тази заявка временно не е достъпен.",
+      "Последната реална промяна в GitHub е: f3ca2a8.",
+      "Не успях да изпълня заявката за календар: Google Calendar още не е свързан със Synchron-X.",
+    ].join("\n"),
+  );
+  assert.deepEqual(requests, []);
+});
+
 test("splits a complex command into independent subtasks", () => {
   const subtasks = splitCapabilitySubtasks(
     "1) Провери GitHub последните commit-и; 2) Провери GitHub подробностите за последния commit.\n3) Провери GitHub кои файлове са пипани.",

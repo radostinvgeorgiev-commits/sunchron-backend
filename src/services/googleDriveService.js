@@ -213,18 +213,35 @@ export async function exchangeCode(code, fetchImpl = fetch) {
   return data;
 }
 
+export function requiresPersistentGoogleSessions(env = process.env) {
+  return env.NODE_ENV === "production";
+}
+
 export async function createSession(tokens) {
   const id = createNonce();
   const session = {
     ...tokens,
     expiresAt: Date.now() + Number(tokens.expires_in || 3600) * 1000,
   };
-  sessions.set(id, session);
+  let persisted = false;
   try {
-    await persistSession(id, session);
+    persisted = await persistSession(id, session);
   } catch (error) {
-    console.error("[Google session] Persistence failure:", error);
+    console.error(
+      "[Google session] Persistence failure:",
+      error?.message || "unknown",
+    );
   }
+
+  if (!persisted && requiresPersistentGoogleSessions()) {
+    throw new GoogleDriveError(
+      "Google връзката не можа да бъде запазена защитено.",
+      503,
+      "GOOGLE_SESSION_PERSISTENCE_FAILED",
+    );
+  }
+
+  sessions.set(id, session);
   return id;
 }
 

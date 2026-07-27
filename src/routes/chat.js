@@ -34,7 +34,7 @@ const HEARTBEAT_INTERVAL_MS = 15000;
 const DEFAULT_AGENT_TIMEOUT_MS = 120000;
 const MEMORY_WRITE_CONFIRM_PREFIX = "Потвърждавам запис в постоянната памет:";
 const TOOL_FAILURE_REPORT_PATTERN =
-  /^(?:не\s+успях\s+да\s+изпълня\s+заявката\s+за|инструментът.+не\s+е\s+достъпен|google\s+calendar.+не\s+е\s+свързан)/iu;
+  /^(?:не\s+успях\s+да\s+изпълня\s+заявката\s+за|инструментът.*не\s+е\s+достъпен|google\s+calendar.*не\s+е\s+свързан)/iu;
 
 async function auditAction(event) {
   try {
@@ -143,7 +143,7 @@ export function detectCapabilityRequests(message) {
   for (const subtask of subtasks) {
     const normalizedSubtask = subtask.trim().toLowerCase();
     const hasCapabilityIntent =
-      /^(?:провери|покажи|изброй|дай|върни|виж|кажи|check|show|list)(?=\s|[?!.,:;]|$)/iu.test(
+      /^(?:провери|покажи|изброй|дай|върни|виж|кажи|check|show|list)(?=\s|$)/iu.test(
         normalizedSubtask,
       ) || /\?\s*$/u.test(normalizedSubtask);
     if (!hasCapabilityIntent) {

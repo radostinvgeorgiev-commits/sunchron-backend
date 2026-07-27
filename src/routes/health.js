@@ -1,5 +1,6 @@
 import express from "express";
 import { getOpenSearchClient } from "../config/opensearch.js";
+import { resolveRuntimeVersion } from "../config/runtimeVersion.js";
 import { isGitHubOAuthConfigured } from "../services/githubOAuthService.js";
 import { isToolExecutable } from "../tools/capabilityEngine.js";
 import { listTools, registerCoreTools } from "../tools/toolRegistry.js";
@@ -8,10 +9,7 @@ const router = express.Router();
 const DEFAULT_READINESS_TIMEOUT_MS = 2_000;
 
 export function getRuntimeVersion(env = process.env) {
-  return {
-    version: env.npm_package_version || "1.0.0",
-    commit: env.APP_COMMIT_SHA || "unknown",
-  };
+  return resolveRuntimeVersion(env);
 }
 
 router.get("/", (req, res) => {

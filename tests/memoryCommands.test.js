@@ -64,3 +64,17 @@ test("extracts an embedded memory request from a complex command", () => {
     },
   ]);
 });
+
+test("extracts a requested confirmation without writing before approval", () => {
+  const message = `Направи общ тест на инструментите.
+Накрая поискай потвърждение да запомниш:
+„На 27 юли 2026 г. направихме цялостен тест на инструментите.“
+Не записвай, преди да потвърдя.`;
+
+  assert.deepEqual(extractPersistentMemoryCommands(message), [
+    {
+      fact: "На 27 юли 2026 г. направихме цялостен тест на инструментите",
+      scope: "personal",
+    },
+  ]);
+});

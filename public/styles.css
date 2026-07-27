@@ -41,6 +41,25 @@
     font-weight: 750;
 }
 
+.sidebar-brand > span:last-child {
+    min-width: 0;
+}
+
+.sidebar-brand strong,
+.sidebar-brand small {
+    display: block;
+}
+
+.sidebar-brand small {
+    margin-top: 2px;
+    overflow: hidden;
+    color: #6f6f74;
+    font-size: 10px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .sidebar button {
     width: 100%;
     border: 0;
@@ -70,6 +89,15 @@
 .sidebar-nav {
     display: grid;
     gap: 2px;
+}
+
+.sidebar-nav .sidebar-nav-label {
+    padding: 12px 12px 4px;
+    color: #77777c;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
 }
 
 .sidebar-nav i {
@@ -150,8 +178,25 @@
 }
 
 .model-title {
-    font-size: 18px;
-    font-weight: 650;
+    min-width: 0;
+}
+
+.model-title strong,
+.model-title small {
+    display: block;
+}
+
+.model-title strong {
+    font-size: 16px;
+    font-weight: 750;
+    letter-spacing: .01em;
+}
+
+.model-title small {
+    margin-top: 1px;
+    color: #737373;
+    font-size: 11px;
+    font-weight: 550;
 }
 
 .model-title i {
@@ -302,6 +347,10 @@
 
     .status-indicator {
         padding: 6px;
+    }
+
+    .model-title small {
+        font-size: 10px;
     }
 
     #agentStatusText {

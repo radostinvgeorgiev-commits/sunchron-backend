@@ -39,6 +39,10 @@ import {
   CapabilityError,
   executeCapability,
 } from "../tools/capabilityEngine.js";
+import {
+  AVATAR_DEFINITION,
+  PROJECT_DEFINITION,
+} from "../config/projectIdentity.js";
 
 const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
@@ -68,7 +72,10 @@ async function saveConversationTurnBestEffort(sessionId, userText, replyText) {
 const ASSISTANT_CONTEXT = [
   "[КОНТЕКСТ И ПРАВИЛА ЗА ТОЗИ РАЗГОВОР]",
   "Ти си Synchron-X — личната AI операционна система на Радко.",
-  "AI аватарът е твоят начин на общуване: лице, глас, характер и поведение. Паметта, инструментите и разрешенията са отделни части на системата.",
+  `[КАНОНИЧНА ФОРМУЛИРОВКА] ${PROJECT_DEFINITION}`,
+  AVATAR_DEFINITION,
+  "Тази формулировка е по-нова и има предимство пред стари записи, които описват целия проект само като AI аватар.",
+  "Паметта, инструментите, разрешенията и изборът на AI модел са отделни части на системата.",
   "Използвай само инструменти, които реално са изпълнени и разрешени. Не твърди, че услуга е свързана, ако не е проверена.",
   "Човекът, с когото разговаряш, е Радко. Никога не казвай, че ти си Радко.",
   "Говори само на български, освен ако Радко изрично поиска друг език.",
@@ -219,6 +226,9 @@ export function detectCapabilityRequests(message) {
         capability: "memory.read",
         action: "memory.read",
         message: subtask,
+        scope: /(?:проекта|synchron-x|novarium)/iu.test(subtask)
+          ? "project"
+          : undefined,
       });
     }
     if (isWebSearchRequest(subtask)) {
@@ -229,7 +239,7 @@ export function detectCapabilityRequests(message) {
       });
     }
     const repositoryInspectionSubtask =
-      /(?:tool\s+registry|capability\s+engine|инструмент|разрешени|чатът|поправен|проблем)/iu.test(
+      /(?:tool\s+registry|capability\s+engine|(?:кои\s+)?инструменти.*регистрирани|регистрирани\s+инструменти|разрешения.*инструмент|чатът.*capability|последно\s+поправен.*проблем)/iu.test(
         subtask,
       );
     if (
@@ -308,6 +318,7 @@ export async function executeDetectedCapabilities(
     try {
       const result = await executeFn(request.capability, {
         message: requestMessage,
+        scope: request.scope,
         ...executionContext,
       });
       results.push({ status: "fulfilled", request, result });
@@ -358,9 +369,16 @@ function formatCapabilityFailureMessage(error) {
 export function buildMemoryReply(memoryAction) {
   if (!memoryAction) return null;
   if (memoryAction.type === "write-confirmation-required") {
+    const facts = Array.isArray(memoryAction.items)
+      ? memoryAction.items.map(({ fact }) => fact).filter(Boolean)
+      : [];
+    const content =
+      facts.length === 1
+        ? facts[0]
+        : facts.map((fact) => `- ${fact}`).join("\n");
     return [
-      "Искаш запис в постоянната памет.",
-      `За потвърждение изпрати точно: ${MEMORY_WRITE_CONFIRM_PREFIX} <съдържание>`,
+      "Потвърждение за запис в постоянната памет:",
+      `${MEMORY_WRITE_CONFIRM_PREFIX} ${content || "<съдържание>"}`,
     ].join("\n");
   }
   if (memoryAction.type === "clear-confirmation-required") {
@@ -412,13 +430,30 @@ export function buildCapabilityReplies(capabilityResults) {
     );
   }
   if (capabilityResults.length > 1) {
+    const statusByCapability = new Map();
+    for (const item of capabilityResults) {
+      const key = item.request.capability;
+      const existing = statusByCapability.get(key);
+      const name =
+        item.result?.tool?.name || existing?.name || capabilityLabel(key);
+      statusByCapability.set(key, {
+        name,
+        successful:
+          item.status === "fulfilled" || Boolean(existing?.successful),
+        failed: item.status === "rejected" || Boolean(existing?.failed),
+      });
+    }
     replies.push(
       [
         "Използвани инструменти:",
-        ...capabilityResults.map(({ status, request, result }) => {
-          const name =
-            result?.tool?.name || capabilityLabel(request.capability);
-          return `• ${name} — ${status === "fulfilled" ? "успешно" : "недостъпен"}`;
+        ...[...statusByCapability.values()].map((status) => {
+          const result =
+            status.successful && status.failed
+              ? "частично достъпен"
+              : status.successful
+                ? "успешно"
+                : "недостъпен";
+          return `• ${status.name} — ${result}`;
         }),
       ].join("\n"),
     );
@@ -758,7 +793,7 @@ router.post("/chat", async (req, res) => {
   }
 
   if (memoryReply || capabilityReplies.length) {
-    const fullReply = [memoryReply, ...capabilityReplies]
+    const fullReply = [...capabilityReplies, memoryReply]
       .filter(Boolean)
       .join("\n\n");
     await saveConversationTurnBestEffort(

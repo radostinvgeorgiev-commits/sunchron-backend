@@ -126,9 +126,20 @@ const executors = Object.freeze({
         scope: input.scope,
       });
       if (!memories.length) return "Постоянната памет е празна.";
+      const visibleMemories = memories.slice(0, 8);
+      const hiddenCount = memories.length - visibleMemories.length;
+      const heading =
+        input.scope === "project"
+          ? "Проектна памет:"
+          : input.scope === "personal"
+            ? "Лична памет:"
+            : "Постоянна памет:";
       return [
-        "Постоянна памет:",
-        ...memories.map(({ fact }) => `• ${fact}`),
+        heading,
+        ...visibleMemories.map(({ fact }) => `• ${fact}`),
+        ...(hiddenCount > 0
+          ? [`• Още ${hiddenCount} свързани записа не са показани.`]
+          : []),
       ].join("\n");
     }
     if (capability === "memory.save" || capability === "memory.update") {

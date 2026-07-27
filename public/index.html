@@ -6,10 +6,14 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#087cf0" />
-    <title>Synchron-X</title>
-    <link rel="stylesheet" href="/styles.css?v=20260726-appshell" />
-    <link rel="stylesheet" href="/appshell.css?v=20260726-appshell" />
+    <meta name="theme-color" content="#111111" />
+    <meta
+      name="description"
+      content="SYNCHRON-X — лична AI операционна система с контролирана памет и разрешени инструменти."
+    />
+    <title>SYNCHRON-X · Лична AI операционна система</title>
+    <link rel="stylesheet" href="/styles.css?v=20260727-personal-os" />
+    <link rel="stylesheet" href="/appshell.css?v=20260727-personal-os" />
     <link rel="stylesheet" href="/search.css?v=20260726-search" />
     <link rel="stylesheet" href="/modules.css?v=20260726-modules" />
     <link
@@ -23,7 +27,10 @@
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-brand">
           <span class="brand-icon"><i class="fa-solid fa-atom"></i></span>
-          <span>Synchron-X</span>
+          <span>
+            <strong>SYNCHRON-X</strong>
+            <small>Лична AI операционна система</small>
+          </span>
         </div>
         <button id="newChatBtn" class="new-chat" type="button">
           <i class="fa-regular fa-pen-to-square"></i>
@@ -36,6 +43,7 @@
           <button id="imagesBtn" type="button">
             <i class="fa-regular fa-images"></i><span>Снимки и файлове</span>
           </button>
+          <span class="sidebar-nav-label">Инструменти</span>
           <button id="googleDriveBtn" type="button">
             <i class="fa-brands fa-google-drive"></i><span>Google Drive</span>
           </button>
@@ -48,6 +56,7 @@
           <button id="googleMapsBtn" type="button">
             <i class="fa-solid fa-map-location-dot"></i><span>Google Maps</span>
           </button>
+          <span class="sidebar-nav-label">Система</span>
           <button id="memoryBtn" type="button">
             <i class="fa-solid fa-brain"></i><span>Памет</span>
           </button>
@@ -86,7 +95,10 @@
           >
             <i class="fa-solid fa-bars"></i>
           </button>
-          <div class="model-title">Synchron-X · Лична AI система</div>
+          <div class="model-title">
+            <strong>SYNCHRON-X</strong>
+            <small>Лична AI операционна система</small>
+          </div>
           <div class="status-indicator" aria-live="polite">
             <span id="agentStatusDot" class="offline"></span>
             <span id="agentStatusText">Свързване…</span>
@@ -130,7 +142,7 @@
             <input
               type="text"
               id="chatInput"
-              placeholder="Попитай нещо"
+              placeholder="Пиши на SYNCHRON-X"
               autocomplete="off"
               enterkeyhint="send"
               autofocus
@@ -149,7 +161,7 @@
             </button>
           </div>
           <div class="composer-note">
-            Synchron-X може да допуска грешки. Проверявай важната информация.
+            Ти контролираш паметта, инструментите и разрешенията.
           </div>
         </div>
       </section>
@@ -171,6 +183,10 @@
           </button>
         </div>
         <div class="panel-content">
+          <div class="context-box">
+            <div class="context-label">Система</div>
+            <div class="context-value">Лична AI операционна система</div>
+          </div>
           <div class="context-box">
             <div class="context-label">Сесия</div>
             <div class="context-value" id="sessionIdDisplay">…</div>
@@ -213,7 +229,7 @@
       </aside>
     </main>
 
-    <script src="/app.js?v=20260726-menu-actions"></script>
+    <script src="/app.js?v=20260727-personal-os"></script>
     <script src="/google-drive.js?v=20260726-drive-files"></script>
     <script src="/google-apps.js?v=20260726-google-apps"></script>
     <script src="/search.js?v=20260726-search"></script>

@@ -1,7 +1,7 @@
 import { evaluatePermission } from "../services/permissionService.js";
-import { answerCalendarReadRequest } from "../services/calendarService.js";
 import { answerGitHubReadRequest } from "../services/githubService.js";
 import {
+  GoogleDriveError,
   hasSession,
   listDriveFiles,
   listGmailMessages,
@@ -95,18 +95,22 @@ const executors = Object.freeze({
     return prepared.output;
   },
   "google-calendar-read": async ({ input }) => {
-    if (await hasSession(input.googleSessionId)) {
-      const events = await listGoogleCalendarEvents(input.googleSessionId);
-      if (!events.length) return "Няма предстоящи събития в Google Calendar.";
-      return [
-        "Предстоящи събития:",
-        ...events.map(
-          (event) =>
-            `• ${event.title} — ${event.start || "без посочен начален час"}`,
-        ),
-      ].join("\n");
+    if (!(await hasSession(input.googleSessionId))) {
+      throw new GoogleDriveError(
+        "Google Calendar не е свързан. [Свържи Google](https://synchron.foundation/api/google/connect).",
+        401,
+        "NOT_CONNECTED",
+      );
     }
-    return answerCalendarReadRequest(input.message);
+    const events = await listGoogleCalendarEvents(input.googleSessionId);
+    if (!events.length) return "Няма предстоящи събития в Google Calendar.";
+    return [
+      "Предстоящи събития:",
+      ...events.map(
+        (event) =>
+          `• ${event.title} — ${event.start || "без посочен начален час"}`,
+      ),
+    ].join("\n");
   },
   "google-drive-read": async ({ input }) => {
     const files = await listDriveFiles(input.googleSessionId);

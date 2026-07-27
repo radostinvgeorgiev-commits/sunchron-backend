@@ -1,11 +1,11 @@
 import express from "express";
-import cors from "cors";
 import dotenv from "dotenv";
 import {
   createOpenSearchClient,
   getOpenSearchClient,
 } from "./src/config/opensearch.js";
 import { requireOwnerSession } from "./src/middleware/ownerAuth.js";
+import { createRateLimiters } from "./src/middleware/rateLimits.js";
 
 import chatRouter from "./src/routes/chat.js";
 import healthRouter from "./src/routes/health.js";
@@ -20,6 +20,9 @@ import webSearchRouter from "./src/routes/webSearchRouter.js";
 
 dotenv.config();
 
+const { oauthRateLimiter, paidAiRateLimiter, privateApiRateLimiter } =
+  createRateLimiters();
+
 if (!process.env.AGENT_KEY) {
   console.warn(
     "⚠️  AGENT_KEY is not configured. Direct AI conversation is unavailable; independent tools can still run.",
@@ -28,7 +31,7 @@ if (!process.env.AGENT_KEY) {
 
 const app = express();
 
-app.use(cors());
+app.set("trust proxy", 1);
 app.use(express.json({ limit: "8mb" }));
 app.use(
   express.static("public", {
@@ -42,16 +45,31 @@ app.use(
 );
 
 app.use("/health", healthRouter);
-app.use("/api/github", githubOAuthRouter);
+app.use("/api/github", oauthRateLimiter, githubOAuthRouter);
 
-app.use("/chat", requireOwnerSession, chatRouter);
-app.use("/memory", requireOwnerSession, memoryRouter);
-app.use("/cloud", requireOwnerSession, cloudRouter);
-app.use("/github", requireOwnerSession, githubRouter);
-app.use("/calendar", requireOwnerSession, calendarRouter);
-app.use("/permissions", requireOwnerSession, permissionsRouter);
-app.use("/api/google", requireOwnerSession, googleDriveRouter);
-app.use("/search", requireOwnerSession, webSearchRouter);
+app.use("/chat", requireOwnerSession, paidAiRateLimiter, chatRouter);
+app.use("/memory", requireOwnerSession, privateApiRateLimiter, memoryRouter);
+app.use("/cloud", requireOwnerSession, privateApiRateLimiter, cloudRouter);
+app.use("/github", requireOwnerSession, privateApiRateLimiter, githubRouter);
+app.use(
+  "/calendar",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  calendarRouter,
+);
+app.use(
+  "/permissions",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  permissionsRouter,
+);
+app.use(
+  "/api/google",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  googleDriveRouter,
+);
+app.use("/search", requireOwnerSession, paidAiRateLimiter, webSearchRouter);
 
 app.get("/opensearch-status", requireOwnerSession, async (req, res) => {
   const client = getOpenSearchClient();

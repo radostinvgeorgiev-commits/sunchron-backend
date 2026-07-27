@@ -33,6 +33,9 @@ services:
       - key: OPENSEARCH_PASSWORD
         scope: RUN_TIME
         type: SECRET
+      - key: OPENSEARCH_TLS_REJECT_UNAUTHORIZED
+        value: "true"
+        scope: RUN_TIME
       - key: AGENT_KEY
         scope: RUN_TIME
         type: SECRET
@@ -71,4 +74,13 @@ services:
         type: SECRET
       - key: GOOGLE_REDIRECT_URI
         value: https://synchron.foundation/api/google/callback
+        scope: RUN_TIME
+      - key: OAUTH_RATE_LIMIT
+        value: "60"
+        scope: RUN_TIME
+      - key: PRIVATE_API_RATE_LIMIT
+        value: "300"
+        scope: RUN_TIME
+      - key: PAID_AI_RATE_LIMIT
+        value: "60"
         scope: RUN_TIME

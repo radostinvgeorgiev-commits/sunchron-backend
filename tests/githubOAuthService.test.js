@@ -40,6 +40,15 @@ test("builds GitHub OAuth URL with exact callback state", () => {
   assert.equal(url.searchParams.get("state"), "state-123");
 });
 
+test("uses the production callback when no redirect variable is set", () => {
+  delete process.env.GITHUB_REDIRECT_URI;
+  const url = new URL(buildGitHubAuthorizationUrl("state-123"));
+  assert.equal(
+    url.searchParams.get("redirect_uri"),
+    "https://synchron.foundation/api/github/callback",
+  );
+});
+
 test("exchanges the authorization code without exposing credentials", async () => {
   let requestBody;
   const tokens = await exchangeGitHubCode("code-123", async (_url, options) => {

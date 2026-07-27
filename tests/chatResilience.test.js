@@ -36,6 +36,90 @@ test("normal AI chat continues when persistent memory is unavailable", async () 
   }
 });
 
+test("tool results return to the AI core for one synthesized answer", async () => {
+  const originalFetch = globalThis.fetch;
+  let agentCalls = 0;
+  let githubCalls = 0;
+
+  globalThis.fetch = async (url, options = {}) => {
+    if (String(url).includes("/api/v1/chat/completions")) {
+      agentCalls += 1;
+      const body = JSON.parse(options.body);
+      if (body.stream === false) {
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content:
+                    '{"calls":[{"capability":"code.read","request":"Покажи последния commit в GitHub."}]}',
+                },
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        );
+      }
+
+      assert.match(body.messages[0].content, /РЕЗУЛТАТИ ОТ ИНСТРУМЕНТИ/u);
+      assert.match(body.messages[0].content, /abc1234/u);
+      return new Response(
+        'data: {"choices":[{"delta":{"content":"Проверих GitHub. Последният commit е abc1234."}}]}\n\n' +
+          "data: [DONE]\n\n",
+        {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        },
+      );
+    }
+
+    if (String(url).includes("api.github.com/repos/")) {
+      githubCalls += 1;
+      return new Response(
+        JSON.stringify([
+          {
+            sha: "abc123456789",
+            html_url: "https://github.com/example/repo/commit/abc123456789",
+            commit: {
+              message: "Agentic result",
+              author: { name: "Synchron", date: "2026-07-27T12:00:00Z" },
+            },
+          },
+        ]),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
+    }
+
+    throw new Error(`Unexpected request: ${url}`);
+  };
+
+  try {
+    const response = await request(app)
+      .post("/chat/chat")
+      .send({
+        sessionId: "agentic-tool-test",
+        message: "Покажи последния commit в GitHub.",
+      })
+      .expect(200);
+
+    assert.equal(agentCalls, 2);
+    assert.equal(githubCalls, 1);
+    assert.match(
+      response.text,
+      /Проверих GitHub\. Последният commit е abc1234\./u,
+    );
+    assert.match(response.text, /"mode":"agentic"/u);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("explicit memory writes fail safely when memory is unavailable", async () => {
   const response = await request(app)
     .post("/chat/chat")

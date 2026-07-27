@@ -5,6 +5,7 @@ import {
   createOpenSearchClient,
   getOpenSearchClient,
 } from "./src/config/opensearch.js";
+import { requireOwnerSession } from "./src/middleware/ownerAuth.js";
 
 import chatRouter from "./src/routes/chat.js";
 import healthRouter from "./src/routes/health.js";
@@ -40,15 +41,18 @@ app.use(
   }),
 );
 
-app.use("/chat", chatRouter);
 app.use("/health", healthRouter);
+app.use("/api/github", githubOAuthRouter);
+
+app.use(requireOwnerSession);
+
+app.use("/chat", chatRouter);
 app.use("/memory", memoryRouter);
 app.use("/cloud", cloudRouter);
 app.use("/github", githubRouter);
 app.use("/calendar", calendarRouter);
 app.use("/permissions", permissionsRouter);
 app.use("/api/google", googleDriveRouter);
-app.use("/api/github", githubOAuthRouter);
 app.use("/search", webSearchRouter);
 
 app.get("/opensearch-status", async (req, res) => {

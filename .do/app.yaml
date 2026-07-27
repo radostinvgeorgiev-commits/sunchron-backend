@@ -42,9 +42,24 @@ services:
       - key: OPENAI_API_KEY
         scope: RUN_TIME
         type: SECRET
-      - key: GITHUB_TOKEN
+      - key: GITHUB_CLIENT_ID
         scope: RUN_TIME
         type: SECRET
+      - key: GITHUB_CLIENT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: GITHUB_REDIRECT_URI
+        value: https://synchron.foundation/api/github/callback
+        scope: RUN_TIME
+      - key: GITHUB_SESSION_ENCRYPTION_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: GITHUB_REPOSITORY
+        value: radostinvgeorgiev-commits/sunchron-backend
+        scope: RUN_TIME
+      - key: SYNCHRON_OWNER_GITHUB_LOGIN
+        value: radostinvgeorgiev-commits
+        scope: RUN_TIME
       - key: GOOGLE_CLIENT_ID
         scope: RUN_TIME
         type: SECRET

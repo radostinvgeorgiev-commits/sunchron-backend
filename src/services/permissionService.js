@@ -26,15 +26,35 @@ const POLICY = Object.freeze({
     risk: "medium",
     reason: "Промените в календара изискват отделно потвърждение.",
   }),
+  "drive.read": Object.freeze({
+    decision: "allow",
+    risk: "low",
+    reason: "Четенето е ограничено до изрично свързания Google Drive.",
+  }),
+  "mail.read": Object.freeze({
+    decision: "allow",
+    risk: "medium",
+    reason: "Четенето е ограничено до изрично свързания Gmail.",
+  }),
+  "web.read": Object.freeze({
+    decision: "allow",
+    risk: "low",
+    reason: "Интернет търсенето е само за четене.",
+  }),
+  "image.read": Object.freeze({
+    decision: "allow",
+    risk: "medium",
+    reason: "Анализира се само снимката, изпратена от Радко.",
+  }),
   "memory.read": Object.freeze({
     decision: "allow",
     risk: "low",
     reason: "Четенето на собствената памет е разрешено.",
   }),
   "memory.write": Object.freeze({
-    decision: "allow",
+    decision: "confirm",
     risk: "medium",
-    reason: "Записът е разрешен, когато е поискан в разговора.",
+    reason: "Записът в постоянната памет изисква изрично потвърждение.",
   }),
   "memory.delete": Object.freeze({
     decision: "confirm",
@@ -44,7 +64,8 @@ const POLICY = Object.freeze({
   "external.send": Object.freeze({
     decision: "confirm",
     risk: "high",
-    reason: "Изпращането или публикуването от името на Радко изисква потвърждение.",
+    reason:
+      "Изпращането или публикуването от името на Радко изисква потвърждение.",
   }),
   payment: Object.freeze({
     decision: "confirm",
@@ -65,7 +86,8 @@ export function evaluatePermission(action) {
     action: cleanAction || "unknown",
     decision: "deny",
     risk: "unknown",
-    reason: "Действието не е описано в разрешенията и е блокирано по подразбиране.",
+    reason:
+      "Действието не е описано в разрешенията и е блокирано по подразбиране.",
   };
 }
 

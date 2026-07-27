@@ -39,3 +39,21 @@ services:
       - key: AGENT_URL
         scope: RUN_TIME
         type: SECRET
+      - key: OPENAI_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: GITHUB_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+      - key: GOOGLE_CLIENT_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: GOOGLE_CLIENT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: GOOGLE_SESSION_ENCRYPTION_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: GOOGLE_REDIRECT_URI
+        value: https://synchron.foundation/api/google/callback
+        scope: RUN_TIME

@@ -16,7 +16,8 @@ import {
 } from "../services/googleDriveService.js";
 
 const router = express.Router();
-const COOKIE_OPTIONS = "Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000";
+const COOKIE_OPTIONS =
+  "Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000";
 
 function sessionId(req) {
   return parseCookies(req.headers.cookie).synchron_google_session;
@@ -25,14 +26,20 @@ function sessionId(req) {
 function sendError(res, error) {
   const status = error instanceof GoogleDriveError ? error.status : 500;
   res.status(status).json({
-    error: error instanceof GoogleDriveError ? error.message : "Google Drive временно не е достъпен.",
+    error:
+      error instanceof GoogleDriveError
+        ? error.message
+        : "Google Drive временно не е достъпен.",
   });
 }
 
 router.get("/connect", (req, res) => {
   try {
     const state = createNonce();
-    res.setHeader("Set-Cookie", `synchron_google_state=${state}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`);
+    res.setHeader(
+      "Set-Cookie",
+      `synchron_google_state=${state}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
+    );
     res.redirect(buildAuthorizationUrl(state));
   } catch (error) {
     sendError(res, error);
@@ -42,11 +49,19 @@ router.get("/connect", (req, res) => {
 router.get("/callback", async (req, res) => {
   try {
     const cookies = parseCookies(req.headers.cookie);
-    if (!req.query.code || !req.query.state || req.query.state !== cookies.synchron_google_state) {
-      throw new GoogleDriveError("Невалидно или изтекло Google потвърждение.", 400, "INVALID_OAUTH_STATE");
+    if (
+      !req.query.code ||
+      !req.query.state ||
+      req.query.state !== cookies.synchron_google_state
+    ) {
+      throw new GoogleDriveError(
+        "Невалидно или изтекло Google потвърждение.",
+        400,
+        "INVALID_OAUTH_STATE",
+      );
     }
     const tokens = await exchangeCode(String(req.query.code));
-    const id = createSession(tokens);
+    const id = await createSession(tokens);
     res.setHeader("Set-Cookie", [
       `synchron_google_session=${id}; ${COOKIE_OPTIONS}`,
       "synchron_google_state=; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
@@ -58,13 +73,16 @@ router.get("/callback", async (req, res) => {
   }
 });
 
-router.get("/status", (req, res) => {
-  res.json({ connected: hasSession(sessionId(req)) });
+router.get("/status", async (req, res) => {
+  res.json({ connected: await hasSession(sessionId(req)) });
 });
 
-router.post("/disconnect", (req, res) => {
-  disconnectSession(sessionId(req));
-  res.setHeader("Set-Cookie", "synchron_google_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0");
+router.post("/disconnect", async (req, res) => {
+  await disconnectSession(sessionId(req));
+  res.setHeader(
+    "Set-Cookie",
+    "synchron_google_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
+  );
   res.json({ connected: false });
 });
 
@@ -78,7 +96,9 @@ router.get("/files", async (req, res) => {
 
 router.get("/gmail/messages", async (req, res) => {
   try {
-    res.json({ messages: await listGmailMessages(sessionId(req), req.query.limit) });
+    res.json({
+      messages: await listGmailMessages(sessionId(req), req.query.limit),
+    });
   } catch (error) {
     sendError(res, error);
   }

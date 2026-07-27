@@ -4,7 +4,9 @@ import test from "node:test";
 import {
   analyzeDriveFile,
   createSession,
+  decryptGoogleSession,
   downloadDriveFile,
+  encryptGoogleSession,
   listGmailMessages,
   listGoogleCalendarEvents,
   listDriveFiles,
@@ -18,11 +20,16 @@ function jsonResponse(data) {
 }
 
 test("lists all supported Drive file types", async () => {
-  const sessionId = createSession({ access_token: "token", expires_in: 3600 });
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
   let requestedUrl = "";
   const files = await listDriveFiles(sessionId, async (url) => {
     requestedUrl = String(url);
-    return jsonResponse({ files: [{ id: "one", name: "Test", mimeType: "application/pdf" }] });
+    return jsonResponse({
+      files: [{ id: "one", name: "Test", mimeType: "application/pdf" }],
+    });
   });
   assert.equal(files.length, 1);
   const query = new URL(requestedUrl).searchParams.get("q");
@@ -34,7 +41,10 @@ test("lists all supported Drive file types", async () => {
 });
 
 test("exports Google Docs as PDF before analysis", async () => {
-  const sessionId = createSession({ access_token: "token", expires_in: 3600 });
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
   const urls = [];
   const file = await downloadDriveFile(sessionId, "valid_id", async (url) => {
     urls.push(String(url));
@@ -53,7 +63,10 @@ test("exports Google Docs as PDF before analysis", async () => {
 });
 
 test("exports Google Sheets as CSV before analysis", async () => {
-  const sessionId = createSession({ access_token: "token", expires_in: 3600 });
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
   const urls = [];
   const file = await downloadDriveFile(sessionId, "sheet_id", async (url) => {
     urls.push(String(url));
@@ -86,11 +99,17 @@ test("sends images to OpenAI as vision input", async () => {
   });
   assert.equal(analysis, "Виждам снимка.");
   assert.equal(requestBody.input[0].content[0].type, "input_image");
-  assert.match(requestBody.input[0].content[0].image_url, /^data:image\/jpeg;base64,/);
+  assert.match(
+    requestBody.input[0].content[0].image_url,
+    /^data:image\/jpeg;base64,/,
+  );
 });
 
 test("requests Gmail messages and returns safe summaries", async () => {
-  const sessionId = createSession({ access_token: "token", expires_in: 3600 });
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
   const messages = await listGmailMessages(sessionId, 5, async (url) => {
     if (String(url).includes("/messages?")) {
       return jsonResponse({ messages: [{ id: "mail_1" }] });
@@ -100,10 +119,12 @@ test("requests Gmail messages and returns safe summaries", async () => {
       threadId: "thread_1",
       labelIds: ["UNREAD"],
       snippet: "Кратък текст",
-      payload: { headers: [
-        { name: "From", value: "sender@example.com" },
-        { name: "Subject", value: "Тест" },
-      ] },
+      payload: {
+        headers: [
+          { name: "From", value: "sender@example.com" },
+          { name: "Subject", value: "Тест" },
+        ],
+      },
     });
   });
   assert.equal(messages[0].subject, "Тест");
@@ -112,15 +133,46 @@ test("requests Gmail messages and returns safe summaries", async () => {
 });
 
 test("requests upcoming Google Calendar events", async () => {
-  const sessionId = createSession({ access_token: "token", expires_in: 3600 });
-  const events = await listGoogleCalendarEvents(sessionId, 7, 10, async () => jsonResponse({
-    items: [{
-      id: "event_1",
-      summary: "Среща",
-      start: { dateTime: "2026-07-27T10:00:00+03:00" },
-      end: { dateTime: "2026-07-27T11:00:00+03:00" },
-    }],
-  }));
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
+  const events = await listGoogleCalendarEvents(sessionId, 7, 10, async () =>
+    jsonResponse({
+      items: [
+        {
+          id: "event_1",
+          summary: "Среща",
+          start: { dateTime: "2026-07-27T10:00:00+03:00" },
+          end: { dateTime: "2026-07-27T11:00:00+03:00" },
+        },
+      ],
+    }),
+  );
   assert.equal(events[0].title, "Среща");
   assert.equal(events[0].allDay, false);
+});
+
+test("encrypts persisted Google sessions without exposing OAuth tokens", () => {
+  const originalKey = process.env.GOOGLE_SESSION_ENCRYPTION_KEY;
+  process.env.GOOGLE_SESSION_ENCRYPTION_KEY =
+    "test-only-google-session-encryption-key";
+  const session = {
+    access_token: "private-access-token",
+    refresh_token: "private-refresh-token",
+    expiresAt: Date.now() + 3600000,
+  };
+
+  try {
+    const encrypted = encryptGoogleSession(session);
+    assert.doesNotMatch(JSON.stringify(encrypted), /private-access-token/u);
+    assert.doesNotMatch(JSON.stringify(encrypted), /private-refresh-token/u);
+    assert.deepEqual(decryptGoogleSession(encrypted), session);
+  } finally {
+    if (originalKey === undefined) {
+      delete process.env.GOOGLE_SESSION_ENCRYPTION_KEY;
+    } else {
+      process.env.GOOGLE_SESSION_ENCRYPTION_KEY = originalKey;
+    }
+  }
 });

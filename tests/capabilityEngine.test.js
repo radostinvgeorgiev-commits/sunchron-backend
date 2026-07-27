@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   CapabilityError,
   executeCapability,
+  isToolExecutable,
   resolveCapability,
 } from "../src/tools/capabilityEngine.js";
 import {
@@ -112,4 +113,54 @@ test("не изпълнява способност за потвърждение
       error instanceof CapabilityError &&
       error.code === "CAPABILITY_CONFIRMATION_REQUIRED",
   );
+});
+
+test("всеки регистриран основен инструмент има изпълним адаптер", () => {
+  registerCoreTools();
+  for (const id of [
+    "github-read",
+    "google-drive-read",
+    "google-calendar-read",
+    "gmail-read",
+    "openai-web-search",
+    "opensearch-memory",
+  ]) {
+    assert.equal(isToolExecutable(id), true, id);
+  }
+});
+
+test("изпълнява интернет търсене през OpenAI инструмента", async () => {
+  const originalFetch = global.fetch;
+  const originalKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "test-openai-key";
+  global.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        output: [
+          {
+            type: "message",
+            content: [
+              {
+                type: "output_text",
+                text: "Във Варна е слънчево.",
+                annotations: [],
+              },
+            ],
+          },
+        ],
+      }),
+      { status: 200 },
+    );
+
+  try {
+    const result = await executeCapability("web.search", {
+      message: "Провери актуалното време във Варна.",
+    });
+    assert.equal(result.tool.id, "openai-web-search");
+    assert.match(result.output, /Във Варна е слънчево/u);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = originalKey;
+  }
 });

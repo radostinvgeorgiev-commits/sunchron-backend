@@ -18,7 +18,8 @@ test("avatar sends identity rules and verified memory as agent-compatible contex
 
   assert.equal(messages.length, 1);
   assert.equal(messages[0].role, "user");
-  assert.match(messages[0].content, /личният AI асистент и AI аватар/u);
+  assert.match(messages[0].content, /личната AI операционна система/u);
+  assert.match(messages[0].content, /AI аватарът е твоят начин на общуване/u);
   assert.match(messages[0].content, /Живея във Варна/u);
   assert.match(messages[0].content, /работещ личен AI аватар/u);
   assert.match(messages[0].content, /без да обясняваш, че четеш памет/u);
@@ -35,10 +36,13 @@ test("avatar preserves conversation order without repeating its instructions", (
     "Следващ въпрос",
   );
 
-  assert.deepEqual(messages.map(({ role }) => role), ["user"]);
+  assert.deepEqual(
+    messages.map(({ role }) => role),
+    ["user"],
+  );
   assert.equal(
     messages.filter(({ content }) =>
-      content.includes("личният AI асистент и AI аватар"),
+      content.includes("личната AI операционна система"),
     ).length,
     1,
   );

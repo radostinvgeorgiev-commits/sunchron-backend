@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getOpenSearchClient } from "../config/opensearch.js";
 
-const PROFILE_INDEX =
-  process.env.MEMORY_INDEX || "synchron-profile-memory-v1";
+const PROFILE_INDEX = process.env.MEMORY_INDEX || "synchron-profile-memory-v1";
 const CONVERSATION_INDEX =
   process.env.CONVERSATION_INDEX || "synchron-conversation-memory-v1";
 const OWNER_ID = process.env.MEMORY_OWNER_ID || "primary-user";
@@ -94,11 +93,7 @@ function splitMemoryFacts(value) {
   const normalized = value.replace(/\r\n/g, "\n").trim();
   const lines = normalized
     .split(/\n+/u)
-    .map((line) =>
-      line
-        .replace(/^\s*(?:[-*•]|(?:\d+)[.)])\s*/u, "")
-        .trim(),
-    )
+    .map((line) => line.replace(/^\s*(?:[-*•]|(?:\d+)[.)])\s*/u, "").trim())
     .filter(Boolean);
   const candidates =
     lines.length > 1 ? lines : normalized.split(/\s*;\s*/u).filter(Boolean);
@@ -118,21 +113,27 @@ function normalizedWords(fact) {
 
 export function deriveMemoryMetadata(fact, requestedScope = "personal") {
   const normalized = normalizedWords(fact);
-  const scope = VALID_SCOPES.has(requestedScope)
-    ? requestedScope
-    : "personal";
+  const scope = VALID_SCOPES.has(requestedScope) ? requestedScope : "personal";
 
   if (scope === "project") {
     const projectName = normalized.match(
       /^(?:проектът|проекта|името на проекта)\s+(?:се казва|е)\s+/u,
     );
     if (projectName) {
-      return { memoryKey: "project:identity:name", category: "identity", scope };
+      return {
+        memoryKey: "project:identity:name",
+        category: "identity",
+        scope,
+      };
     }
     if (/(?:целта|текущата цел|приоритетът) на проекта/u.test(normalized)) {
       return { memoryKey: "project:goal:current", category: "goal", scope };
     }
-    if (/(?:инфраструктура|digitalocean|github|opensearch|cloudflare)/u.test(normalized)) {
+    if (
+      /(?:инфраструктура|digitalocean|github|opensearch|cloudflare)/u.test(
+        normalized,
+      )
+    ) {
       return {
         memoryKey: `project:infrastructure:${normalized
           .replace(/\s+/g, "-")
@@ -178,10 +179,9 @@ export function deriveMemoryMetadata(fact, requestedScope = "personal") {
   );
   if (workHolding) {
     return {
-      memoryKey: `personal:work:${workHolding[1]}:${workHolding[2]
-        .trim()
-        .replace(/\s+/g, "-")
-        .slice(0, 80) || "general"}`,
+      memoryKey: `personal:work:${workHolding[1]}:${
+        workHolding[2].trim().replace(/\s+/g, "-").slice(0, 80) || "general"
+      }`,
       category: "work",
       scope,
     };
@@ -244,6 +244,14 @@ export function extractPersistentMemoryCommand(message) {
 
 export function extractPersistentMemoryCommands(message) {
   const text = message.trim();
+  const embeddedCommand = text.match(
+    /(?:^|[.!?]\s+)(?:накрая\s+)?запомни(?:\s+в\s+постоянната\s+ми\s+памет)?\s*:\s*[„“"'’]?([^„“"'’]+?)[„“"'’]?(?=\s+(?:преди\s+запис|не\s+променяй)|$)/iu,
+  );
+  if (embeddedCommand?.[1]) {
+    const fact = cleanMemoryFact(embeddedCommand[1]);
+    if (fact) return [{ fact, scope: "personal" }];
+  }
+
   const bulkPatterns = [
     {
       scope: "project",
@@ -467,8 +475,7 @@ export function consolidateMemoryView(memories) {
 
 export async function listProfileMemories(options = {}) {
   await ensureProfileIndex();
-  const requestedScope =
-    typeof options === "string" ? options : options?.scope;
+  const requestedScope = typeof options === "string" ? options : options?.scope;
   const hits = await fetchProfileHits();
   const seenKeys = new Set();
   const memories = [];
@@ -555,8 +562,8 @@ export async function saveProfileMemory(
     source,
     replaced: Boolean(
       existing &&
-        (existing.normalizedFact || normalizeFact(existing.fact)) !==
-          normalizedFact,
+      (existing.normalizedFact || normalizeFact(existing.fact)) !==
+        normalizedFact,
     ),
   };
 }
@@ -628,19 +635,14 @@ export async function listConversationMessages(
       sort: [{ createdAt: { order: "desc" } }],
       query: {
         bool: {
-          filter: [
-            { term: { ownerId: OWNER_ID } },
-            { term: { sessionId } },
-          ],
+          filter: [{ term: { ownerId: OWNER_ID } }, { term: { sessionId } }],
         },
       },
       _source: ["role", "content", "createdAt"],
     },
   });
   const hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
-  return hits
-    .map((hit) => ({ id: hit._id, ...hit._source }))
-    .reverse();
+  return hits.map((hit) => ({ id: hit._id, ...hit._source })).reverse();
 }
 
 export function conversationTitleFromMessages(messages) {

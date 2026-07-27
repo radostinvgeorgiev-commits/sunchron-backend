@@ -323,6 +323,35 @@ export function detectCapabilityRequests(message) {
   return requests;
 }
 
+export function mergeCapabilityRequests(
+  fallbackRequests = [],
+  plannedRequests = [],
+) {
+  const safeFallback = Array.isArray(fallbackRequests) ? fallbackRequests : [];
+  const safePlanned = Array.isArray(plannedRequests) ? plannedRequests : [];
+  const merged = [...safeFallback];
+  const fallbackCapabilities = new Set(
+    safeFallback.map(({ capability }) => capability).filter(Boolean),
+  );
+  const seen = new Set(
+    merged.map(
+      ({ capability, message, scope }) =>
+        `${capability || ""}\u0000${message || ""}\u0000${scope || ""}`,
+    ),
+  );
+
+  for (const request of safePlanned) {
+    if (!request?.capability) continue;
+    if (fallbackCapabilities.has(request.capability)) continue;
+    const key = `${request.capability}\u0000${request.message || ""}\u0000${request.scope || ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(request);
+  }
+
+  return merged;
+}
+
 function hasConfirmedMemoryWritePrefix(message) {
   if (typeof message !== "string") return false;
   const separatorIndex = message.indexOf(":");
@@ -895,11 +924,15 @@ router.post("/chat", async (req, res) => {
     shouldUseAgentPlanner(cleanMessage, fallbackCapabilityRequests)
   ) {
     try {
-      detectedCapabilityRequests = await planCapabilities({
+      const plannedCapabilityRequests = await planCapabilities({
         agentUrl,
         agentKey,
         message: cleanMessage,
       });
+      detectedCapabilityRequests = mergeCapabilityRequests(
+        fallbackCapabilityRequests,
+        plannedCapabilityRequests,
+      );
       console.info(
         `[AgentPlanner] Planned ${detectedCapabilityRequests.length} capability calls for ${cleanSessionId}.`,
       );

@@ -120,6 +120,80 @@ test("tool results return to the AI core for one synthesized answer", async () =
   }
 });
 
+test("explicit GitHub request still runs when the AI planner returns no tools", async () => {
+  const originalFetch = globalThis.fetch;
+  let plannerCalls = 0;
+  let githubCalls = 0;
+
+  globalThis.fetch = async (url, options = {}) => {
+    if (String(url).includes("/api/v1/chat/completions")) {
+      const body = JSON.parse(options.body);
+      if (body.stream === false) {
+        plannerCalls += 1;
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: '{"calls":[]}' } }],
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        );
+      }
+
+      assert.match(body.messages[0].content, /РЕЗУЛТАТИ ОТ ИНСТРУМЕНТИ/u);
+      assert.match(body.messages[0].content, /Planner cannot suppress tools/u);
+      return new Response(
+        'data: {"choices":[{"delta":{"content":"Проверих GitHub успешно."}}]}\n\n' +
+          "data: [DONE]\n\n",
+        {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        },
+      );
+    }
+
+    if (String(url).includes("api.github.com/repos/")) {
+      githubCalls += 1;
+      return new Response(
+        JSON.stringify([
+          {
+            sha: "planner-safe123456",
+            html_url:
+              "https://github.com/example/repo/commit/planner-safe123456",
+            commit: {
+              message: "Planner cannot suppress tools",
+              author: { name: "Synchron", date: "2026-07-27T12:00:00Z" },
+            },
+          },
+        ]),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
+    }
+
+    throw new Error(`Unexpected request: ${url}`);
+  };
+
+  try {
+    const response = await request(app)
+      .post("/chat/chat")
+      .send({
+        sessionId: "planner-empty-github-test",
+        message: "Провери хъба.",
+      })
+      .expect(200);
+
+    assert.equal(plannerCalls, 1);
+    assert.equal(githubCalls, 1);
+    assert.match(response.text, /Проверих GitHub успешно\./u);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("explicit memory writes fail safely when memory is unavailable", async () => {
   const response = await request(app)
     .post("/chat/chat")

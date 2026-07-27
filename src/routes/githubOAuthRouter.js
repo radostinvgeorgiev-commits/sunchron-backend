@@ -7,6 +7,7 @@ import {
   exchangeGitHubCode,
   getGitHubSession,
   GitHubOAuthError,
+  isAuthorizedGitHubLogin,
   isGitHubOAuthConfigured,
   parseGitHubCookies,
 } from "../services/githubOAuthService.js";
@@ -59,6 +60,14 @@ router.get("/callback", async (req, res) => {
     }
     const tokens = await exchangeGitHubCode(String(req.query.code));
     const session = await createGitHubSession(tokens);
+    if (!isAuthorizedGitHubLogin(session.login)) {
+      await disconnectGitHubSession(session.id);
+      throw new GitHubOAuthError(
+        "Този GitHub профил няма достъп до личната система.",
+        403,
+        "OWNER_GITHUB_LOGIN_REQUIRED",
+      );
+    }
     res.setHeader("Set-Cookie", [
       `synchron_github_session=${session.id}; ${COOKIE_OPTIONS}`,
       "synchron_github_state=; Path=/api/github; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
@@ -73,10 +82,14 @@ router.get("/callback", async (req, res) => {
 router.get("/status", async (req, res) => {
   try {
     const session = await getGitHubSession(sessionId(req));
+    const authorized = Boolean(
+      session && isAuthorizedGitHubLogin(session.login),
+    );
     res.json({
       configured: isGitHubOAuthConfigured(),
-      connected: Boolean(session),
-      login: session?.login || null,
+      connected: authorized,
+      authorized,
+      login: authorized ? session.login : null,
     });
   } catch (error) {
     sendError(res, error);

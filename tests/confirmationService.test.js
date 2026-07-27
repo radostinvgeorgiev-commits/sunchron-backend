@@ -7,6 +7,7 @@ import {
   listAllowedActions,
   markConfirmationUsed,
   resetConfirmationsForTests,
+  requiresPersistentConfirmations,
   validateConfirmation,
 } from "../src/services/confirmationService.js";
 
@@ -259,4 +260,10 @@ test("deny of non-existent confirmation returns CONFIRMATION_NOT_FOUND", () => {
     () => denyConfirmation("00000000-0000-0000-0000-000000000000", "sess-1"),
     (error) => error.code === "CONFIRMATION_NOT_FOUND",
   );
+});
+
+
+test("requires durable confirmations in production", () => {
+  assert.equal(requiresPersistentConfirmations({ NODE_ENV: "production" }), true);
+  assert.equal(requiresPersistentConfirmations({ NODE_ENV: "test" }), false);
 });

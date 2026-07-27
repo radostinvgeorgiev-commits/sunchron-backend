@@ -1,7 +1,7 @@
 import {
-  createConfirmation,
-  markConfirmationUsed,
-  validateConfirmation,
+  createDurableConfirmation,
+  markDurableConfirmationUsed,
+  validateDurableConfirmation,
 } from "./confirmationService.js";
 import { getGitHubSession, GitHubOAuthError } from "./githubOAuthService.js";
 
@@ -253,7 +253,7 @@ export async function prepareCopilotTask({
       "GITHUB_SESSION_REQUIRED",
     );
   }
-  const confirmation = createConfirmation({
+  const confirmation = await createDurableConfirmation({
     sessionId,
     action: "github.copilot:start_task",
     resource: { repository, baseRef },
@@ -287,7 +287,10 @@ export async function confirmCopilotTask({
   githubSessionId,
   fetchImpl = fetch,
 }) {
-  const confirmation = validateConfirmation(confirmationId, sessionId);
+  const confirmation = await validateDurableConfirmation(
+    confirmationId,
+    sessionId,
+  );
   if (confirmation.action !== "github.copilot:start_task") {
     throw new CopilotTaskError(
       "Потвърждението не е за GitHub Copilot задача.",
@@ -295,7 +298,7 @@ export async function confirmCopilotTask({
       "CONFIRMATION_ACTION_MISMATCH",
     );
   }
-  markConfirmationUsed(confirmationId);
+  await markDurableConfirmationUsed(confirmationId);
   return startCopilotTask({
     githubSessionId,
     prompt: confirmation.params.prompt,

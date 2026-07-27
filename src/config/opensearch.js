@@ -1,6 +1,11 @@
 import { Client } from "@opensearch-project/opensearch";
 
 let opensearchClient = null;
+let lastMissingConfigKey = null;
+
+function shouldWarnForMissingConfig() {
+  return !process.env.NODE_TEST_CONTEXT;
+}
 
 export function createOpenSearchClient() {
   const {
@@ -16,8 +21,12 @@ export function createOpenSearchClient() {
     if (!OPENSEARCH_PASSWORD) missing.push("OPENSEARCH_PASSWORD");
     if (!OPENSEARCH_HOST) missing.push("OPENSEARCH_HOST");
     if (!OPENSEARCH_PORT) missing.push("OPENSEARCH_PORT");
-    
-    console.warn(`⚠️  OpenSearch credentials not configured. Missing: ${missing.join(", ")}`);
+
+    const missingConfigKey = missing.join(",");
+    if (shouldWarnForMissingConfig() && lastMissingConfigKey !== missingConfigKey) {
+      console.warn(`⚠️  OpenSearch credentials not configured. Missing: ${missingConfigKey}`);
+      lastMissingConfigKey = missingConfigKey;
+    }
     return null;
   }
 
@@ -34,6 +43,7 @@ export function createOpenSearchClient() {
     });
 
     console.log("✅ OpenSearch client initialized");
+    lastMissingConfigKey = null;
     return opensearchClient;
   } catch (error) {
     console.error("❌ Failed to initialize OpenSearch client:", error.message);

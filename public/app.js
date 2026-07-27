@@ -40,6 +40,8 @@ const elements = {
   sidebarBackdrop: document.getElementById("sidebarBackdrop"),
   imagesBtn: document.getElementById("imagesBtn"),
   modulesBtn: document.getElementById("modulesBtn"),
+  focusBtn: document.getElementById("focusBtn"),
+  toolsBtn: document.getElementById("toolsBtn"),
   memoryBtn: document.getElementById("memoryBtn"),
   permissionsBtn: document.getElementById("permissionsBtn"),
   dataDrawer: document.getElementById("dataDrawer"),
@@ -93,6 +95,8 @@ async function init() {
   elements.sidebarBackdrop.addEventListener("click", closeSidebar);
   elements.imagesBtn.addEventListener("click", openImagePicker);
   elements.modulesBtn.addEventListener("click", openModulesDrawer);
+  elements.focusBtn.addEventListener("click", openFocusDrawer);
+  elements.toolsBtn.addEventListener("click", openToolsDrawer);
   elements.memoryBtn.addEventListener("click", openMemoryDrawer);
   elements.permissionsBtn.addEventListener("click", openPermissionsDrawer);
   elements.closeDataDrawerBtn.addEventListener("click", closeDataDrawer);
@@ -376,6 +380,91 @@ function openModulesDrawer() {
         </div>
         <section class="drawer-section permission-list module-list" data-module-list></section>`;
   document.dispatchEvent(new CustomEvent("synchron:modules-opened"));
+}
+
+function openFocusDrawer() {
+  openDataDrawer("Днешен фокус");
+  elements.dataDrawerBody.innerHTML = `
+    <section class="focus-card focus-primary">
+      <span class="focus-kicker">Текущ етап</span>
+      <h3>Стабилен разговор и постоянна памет</h3>
+      <p>Една задача трябва да се изпълнява веднъж, с ясен резултат и без повторения.</p>
+    </section>
+    <section class="focus-card">
+      <span class="focus-kicker">Текуща задача</span>
+      <h3>Реални действия през разрешени инструменти</h3>
+      <p>Четенето е автоматично. Записът в GitHub остава блокиран, докато няма изпълним адаптер и точно потвърждение.</p>
+    </section>
+    <section class="focus-next">
+      <span>Следваща проверка</span>
+      <strong>Дай една сложна GitHub задача и провери дали системата връща един резултат и честно показва какво не може да изпълни.</strong>
+    </section>`;
+}
+
+function toolState(tool, googleConnected) {
+  const isGoogle = tool.provider === "google" || tool.id.startsWith("google-") || tool.id === "gmail-read";
+  if (!tool.enabled || !tool.executable) {
+    return { label: "Не е свързан", className: "deny" };
+  }
+  if (!tool.configured) {
+    return { label: "Не е конфигуриран", className: "deny" };
+  }
+  if (isGoogle && !googleConnected) {
+    return { label: "Иска свързване", className: "confirm" };
+  }
+  return { label: "Работи", className: "allow" };
+}
+
+async function openToolsDrawer() {
+  openDataDrawer("Инструменти");
+  renderDrawerLoading();
+  try {
+    const [healthResponse, googleResponse] = await Promise.all([
+      fetch("/health/integrations", { cache: "no-store" }),
+      fetch("/api/google/status", { cache: "no-store" }).catch(() => null),
+    ]);
+    if (!healthResponse.ok) {
+      throw new Error("Състоянието на инструментите не е достъпно.");
+    }
+    const data = await healthResponse.json();
+    const googleData =
+      googleResponse?.ok ? await googleResponse.json().catch(() => ({})) : {};
+    const tools = Array.isArray(data.tools) ? data.tools : [];
+    const descriptions = {
+      "github-read": "Проверява commit-и и файлове. Само за четене.",
+      "github-write": "Клон, промяна и Pull Request след точно потвърждение.",
+      "google-drive-read": "Чете разрешени файлове от Google Drive.",
+      "google-calendar-read": "Показва събития от Google Calendar.",
+      "gmail-read": "Показва разрешени имейли. Не изпраща.",
+      "openai-web-search": "Търси актуална информация в интернет.",
+      "opensearch-memory": "Пази лична и проектна памет под твой контрол.",
+    };
+    elements.dataDrawerBody.innerHTML = `
+      <div class="permission-default">
+        Показано е реалното състояние. „Регистриран“ не означава автоматично „работи“.
+      </div>
+      <section class="drawer-section permission-list">
+        <article class="permission-card tool-status-card">
+          <div><strong>Снимки и файлове</strong><p>Качване и анализ на изображение.</p></div>
+          <span class="permission-badge allow">Работи</span>
+        </article>
+        ${tools
+          .map((tool) => {
+            const status = toolState(tool, Boolean(googleData.connected));
+            return `
+              <article class="permission-card tool-status-card">
+                <div>
+                  <strong>${escapeHtml(tool.name)}</strong>
+                  <p>${escapeHtml(descriptions[tool.id] || "Инструмент на SYNCHRON-X.")}</p>
+                </div>
+                <span class="permission-badge ${status.className}">${status.label}</span>
+              </article>`;
+          })
+          .join("")}
+      </section>`;
+  } catch (error) {
+    renderDrawerError(error.message);
+  }
 }
 
 function openDataDrawer(title) {

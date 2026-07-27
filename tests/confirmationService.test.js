@@ -10,8 +10,8 @@ import {
   validateConfirmation,
 } from "../src/services/confirmationService.js";
 
-const VALID_ACTION = "github.write:create_file";
-const VALID_RESOURCE = { repository: "owner/repo", branch: "main", path: "hello.txt" };
+const VALID_ACTION = "github.copilot:start_task";
+const VALID_RESOURCE = { repository: "owner/repo", baseRef: "main" };
 
 test.beforeEach(() => {
   resetConfirmationsForTests();
@@ -21,7 +21,11 @@ test.beforeEach(() => {
 
 test("recognises all declared write actions as allowed", () => {
   for (const action of listAllowedActions()) {
-    assert.equal(isAllowedAction(action), true, `expected "${action}" to be allowed`);
+    assert.equal(
+      isAllowedAction(action),
+      true,
+      `expected "${action}" to be allowed`,
+    );
   }
 });
 
@@ -29,6 +33,21 @@ test("rejects unknown actions", () => {
   assert.equal(isAllowedAction("github.write:delete_everything"), false);
   assert.equal(isAllowedAction("unknown"), false);
   assert.equal(isAllowedAction(""), false);
+});
+
+test("blocks every legacy direct GitHub write action", () => {
+  for (const action of [
+    "github.write:create_file",
+    "github.write:update_file",
+    "github.write:create_branch",
+    "github.write:create_pr",
+  ]) {
+    assert.equal(
+      isAllowedAction(action),
+      false,
+      `expected "${action}" to be blocked`,
+    );
+  }
 });
 
 // ─── createConfirmation ───────────────────────────────────────────────────────
@@ -41,7 +60,10 @@ test("creates a confirmation with correct structure", () => {
     params: { content: "hello", message: "Add hello.txt" },
   });
 
-  assert.ok(typeof conf.id === "string" && conf.id.length > 0, "id must be a non-empty string");
+  assert.ok(
+    typeof conf.id === "string" && conf.id.length > 0,
+    "id must be a non-empty string",
+  );
   assert.equal(conf.sessionId, "sess-1");
   assert.equal(conf.action, VALID_ACTION);
   assert.deepEqual(conf.resource, VALID_RESOURCE);
@@ -65,7 +87,11 @@ test("blocks missing or invalid session", () => {
   for (const sessionId of ["", "  ", null, undefined]) {
     assert.throws(
       () =>
-        createConfirmation({ sessionId, action: VALID_ACTION, resource: VALID_RESOURCE }),
+        createConfirmation({
+          sessionId,
+          action: VALID_ACTION,
+          resource: VALID_RESOURCE,
+        }),
       (error) => error.code === "MISSING_SESSION",
       `should reject sessionId: ${JSON.stringify(sessionId)}`,
     );
@@ -74,7 +100,12 @@ test("blocks missing or invalid session", () => {
 
 test("blocks missing resource", () => {
   assert.throws(
-    () => createConfirmation({ sessionId: "sess-1", action: VALID_ACTION, resource: null }),
+    () =>
+      createConfirmation({
+        sessionId: "sess-1",
+        action: VALID_ACTION,
+        resource: null,
+      }),
     (error) => error.code === "MISSING_RESOURCE",
   );
 });
@@ -161,27 +192,30 @@ test("rejects reuse of a confirmation — CONFIRMATION_NOT_FOUND after mark used
 
 test("rejects non-existent confirmation id", () => {
   assert.throws(
-    () => validateConfirmation("00000000-0000-0000-0000-000000000000", "sess-1"),
+    () =>
+      validateConfirmation("00000000-0000-0000-0000-000000000000", "sess-1"),
     (error) => error.code === "CONFIRMATION_NOT_FOUND",
   );
 });
 
-test("one confirmation cannot approve a different action — ids are unique", () => {
+test("one confirmation cannot approve a different Copilot task — ids are unique", () => {
   const conf1 = createConfirmation({
     sessionId: "sess-1",
-    action: "github.write:create_file",
-    resource: { branch: "main", path: "a.txt" },
+    action: VALID_ACTION,
+    resource: VALID_RESOURCE,
+    params: { prompt: "Create a.txt" },
   });
 
   const conf2 = createConfirmation({
     sessionId: "sess-1",
-    action: "github.write:create_pr",
-    resource: { head: "feature", base: "main" },
+    action: VALID_ACTION,
+    resource: VALID_RESOURCE,
+    params: { prompt: "Create b.txt" },
   });
 
-  // Using conf1's id only approves conf1's action, not conf2's
+  // Using conf1's id only approves conf1's task, not conf2's
   const validated = validateConfirmation(conf1.id, "sess-1");
-  assert.equal(validated.action, "github.write:create_file");
+  assert.equal(validated.params.prompt, "Create a.txt");
   assert.notEqual(conf1.id, conf2.id);
 });
 

@@ -8,7 +8,9 @@ import {
   encryptGitHubSession,
   exchangeGitHubCode,
   getGitHubSession,
+  isAuthorizedGitHubLogin,
   resolveGitHubRedirectUri,
+  resolveOwnerGitHubLogin,
   resetGitHubSessionsForTests,
 } from "../src/services/githubOAuthService.js";
 
@@ -17,6 +19,8 @@ const ENV_NAMES = [
   "GITHUB_CLIENT_SECRET",
   "GITHUB_REDIRECT_URI",
   "GITHUB_SESSION_ENCRYPTION_KEY",
+  "GITHUB_REPOSITORY",
+  "SYNCHRON_OWNER_GITHUB_LOGIN",
 ];
 
 test.beforeEach(() => {
@@ -42,7 +46,7 @@ test("builds GitHub OAuth URL with exact callback state", () => {
     url.searchParams.get("redirect_uri"),
     process.env.GITHUB_REDIRECT_URI,
   );
-  assert.equal(url.searchParams.get("scope"), "public_repo");
+  assert.equal(url.searchParams.has("scope"), false);
   assert.equal(url.searchParams.get("state"), "state-123");
 });
 
@@ -106,4 +110,20 @@ test("creates a browser session after checking the GitHub user", async () => {
   const stored = await getGitHubSession(session.id);
   assert.equal(session.login, "radostinvgeorgiev-commits");
   assert.equal(stored.accessToken, "ghu-user-token");
+});
+
+
+test("derives the only allowed owner from the configured repository", () => {
+  process.env.GITHUB_REPOSITORY =
+    "radostinvgeorgiev-commits/sunchron-backend";
+  assert.equal(resolveOwnerGitHubLogin(), "radostinvgeorgiev-commits");
+  assert.equal(isAuthorizedGitHubLogin("radostinvgeorgiev-commits"), true);
+  assert.equal(isAuthorizedGitHubLogin("another-user"), false);
+});
+
+test("supports an explicit owner login without widening access", () => {
+  process.env.SYNCHRON_OWNER_GITHUB_LOGIN = "Radko-Owner";
+  assert.equal(resolveOwnerGitHubLogin(), "Radko-Owner");
+  assert.equal(isAuthorizedGitHubLogin("radko-owner"), true);
+  assert.equal(isAuthorizedGitHubLogin("radostinvgeorgiev-commits"), false);
 });

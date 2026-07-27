@@ -5,6 +5,7 @@ import {
   createOpenSearchClient,
   getOpenSearchClient,
 } from "./src/config/opensearch.js";
+import { requireOwnerSession } from "./src/middleware/ownerAuth.js";
 
 import chatRouter from "./src/routes/chat.js";
 import healthRouter from "./src/routes/health.js";
@@ -40,18 +41,19 @@ app.use(
   }),
 );
 
-app.use("/chat", chatRouter);
 app.use("/health", healthRouter);
-app.use("/memory", memoryRouter);
-app.use("/cloud", cloudRouter);
-app.use("/github", githubRouter);
-app.use("/calendar", calendarRouter);
-app.use("/permissions", permissionsRouter);
-app.use("/api/google", googleDriveRouter);
 app.use("/api/github", githubOAuthRouter);
-app.use("/search", webSearchRouter);
 
-app.get("/opensearch-status", async (req, res) => {
+app.use("/chat", requireOwnerSession, chatRouter);
+app.use("/memory", requireOwnerSession, memoryRouter);
+app.use("/cloud", requireOwnerSession, cloudRouter);
+app.use("/github", requireOwnerSession, githubRouter);
+app.use("/calendar", requireOwnerSession, calendarRouter);
+app.use("/permissions", requireOwnerSession, permissionsRouter);
+app.use("/api/google", requireOwnerSession, googleDriveRouter);
+app.use("/search", requireOwnerSession, webSearchRouter);
+
+app.get("/opensearch-status", requireOwnerSession, async (req, res) => {
   const client = getOpenSearchClient();
   if (!client) {
     return res.json({ status: "not-configured" });

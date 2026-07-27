@@ -6,7 +6,8 @@ const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const GITHUB_USER_URL = "https://api.github.com/user";
 export const DEFAULT_GITHUB_REDIRECT_URI =
   "https://synchron.foundation/api/github/callback";
-const GITHUB_OAUTH_SCOPE = "public_repo";
+const DEFAULT_GITHUB_REPOSITORY =
+  "radostinvgeorgiev-commits/sunchron-backend";
 const GITHUB_SESSION_INDEX =
   process.env.GITHUB_SESSION_INDEX || "synchron-github-sessions-v1";
 const sessions = new Map();
@@ -57,6 +58,28 @@ export function isGitHubOAuthConfigured() {
   );
 }
 
+export function resolveOwnerGitHubLogin(env = process.env) {
+  const explicitLogin =
+    typeof env.SYNCHRON_OWNER_GITHUB_LOGIN === "string"
+      ? env.SYNCHRON_OWNER_GITHUB_LOGIN.trim()
+      : "";
+  if (explicitLogin) return explicitLogin;
+
+  const repository =
+    typeof env.GITHUB_REPOSITORY === "string" && env.GITHUB_REPOSITORY.trim()
+      ? env.GITHUB_REPOSITORY.trim()
+      : DEFAULT_GITHUB_REPOSITORY;
+  return repository.split("/", 1)[0];
+}
+
+export function isAuthorizedGitHubLogin(login, env = process.env) {
+  return (
+    typeof login === "string" &&
+    login.trim().toLocaleLowerCase("en-US") ===
+      resolveOwnerGitHubLogin(env).toLocaleLowerCase("en-US")
+  );
+}
+
 function sessionEncryptionKey() {
   const secret =
     process.env.GITHUB_SESSION_ENCRYPTION_KEY ||
@@ -88,7 +111,6 @@ export function buildGitHubAuthorizationUrl(state) {
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
-    scope: GITHUB_OAUTH_SCOPE,
     state,
   });
   return `${GITHUB_AUTHORIZE_URL}?${params}`;

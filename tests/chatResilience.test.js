@@ -4,11 +4,24 @@ import request from "supertest";
 
 process.env.NODE_ENV = "test";
 process.env.AGENT_KEY = "test-agent-key";
+process.env.GITHUB_REPOSITORY =
+  "radostinvgeorgiev-commits/sunchron-backend";
 delete process.env.OPENSEARCH_HOST;
 delete process.env.OPENSEARCH_USERNAME;
 delete process.env.OPENSEARCH_PASSWORD;
 
 const { default: app } = await import("../server.js");
+const { createGitHubSession } = await import(
+  "../src/services/githubOAuthService.js"
+);
+const ownerSession = await createGitHubSession(
+  { access_token: "test-owner-token" },
+  async () =>
+    new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
+      status: 200,
+    }),
+);
+const OWNER_COOKIE = `synchron_github_session=${ownerSession.id}`;
 
 test("normal AI chat continues when persistent memory is unavailable", async () => {
   const originalFetch = globalThis.fetch;
@@ -25,6 +38,7 @@ test("normal AI chat continues when persistent memory is unavailable", async () 
   try {
     const response = await request(app)
       .post("/chat/chat")
+      .set("Cookie", OWNER_COOKIE)
       .send({ sessionId: "resilience-test", message: "Здравей" })
       .expect(200);
 
@@ -102,6 +116,7 @@ test("tool results return to the AI core for one synthesized answer", async () =
   try {
     const response = await request(app)
       .post("/chat/chat")
+      .set("Cookie", OWNER_COOKIE)
       .send({
         sessionId: "agentic-tool-test",
         message: "Покажи последния commit в GitHub.",
@@ -180,6 +195,7 @@ test("explicit GitHub request still runs when the AI planner returns no tools", 
   try {
     const response = await request(app)
       .post("/chat/chat")
+      .set("Cookie", OWNER_COOKIE)
       .send({
         sessionId: "planner-empty-github-test",
         message: "Провери хъба.",
@@ -197,6 +213,7 @@ test("explicit GitHub request still runs when the AI planner returns no tools", 
 test("explicit memory writes fail safely when memory is unavailable", async () => {
   const response = await request(app)
     .post("/chat/chat")
+      .set("Cookie", OWNER_COOKIE)
     .send({
       sessionId: "resilience-memory-test",
       message: "Запомни, че любимият ми цвят е син.",
@@ -233,6 +250,7 @@ test("independent tools still run when the AI agent key is unavailable", async (
   try {
     const response = await request(app)
       .post("/chat/chat")
+      .set("Cookie", OWNER_COOKIE)
       .send({
         sessionId: "tool-without-agent-test",
         message:
@@ -257,6 +275,7 @@ test("normal chat reports only the missing AI connection", async () => {
   try {
     const response = await request(app)
       .post("/chat/chat")
+      .set("Cookie", OWNER_COOKIE)
       .send({ sessionId: "missing-agent-test", message: "Здравей" })
       .expect(200);
 

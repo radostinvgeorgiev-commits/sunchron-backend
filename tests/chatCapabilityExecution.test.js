@@ -118,6 +118,37 @@ test("complex 5-check command runs all checks, merges results, and asks memory-w
   );
 });
 
+test("collapses identical tool outputs into one visible reply", () => {
+  const request = {
+    capability: "code.read",
+    action: "github.read",
+    message: "Провери последната промяна в GitHub.",
+  };
+  const repeatedOutput = [
+    "Последната реална промяна в GitHub е:",
+    "• 691cc3c — Поправка на агентските задачи и опростяване на интерфейса (#53)",
+  ].join("\n");
+  const results = Array.from({ length: 5 }, () => ({
+    status: "fulfilled",
+    request,
+    result: {
+      output: repeatedOutput,
+      tool: { id: "github-read", name: "GitHub Read" },
+    },
+  }));
+
+  const replies = buildCapabilityReplies(results);
+
+  assert.equal(replies.length, 2);
+  assert.equal(replies[0], repeatedOutput);
+  assert.match(replies[1], /Използвани инструменти/u);
+  assert.equal(
+    replies.join("\n").split("Последната реална промяна в GitHub е:").length -
+      1,
+    1,
+  );
+});
+
 test("requires explicit memory-write confirmation prefix", () => {
   const commands = extractConfirmedMemoryWriteCommands(
     "Потвърждавам запис в постоянната памет: Запомни, че проектът е SYNCHRON-X.",

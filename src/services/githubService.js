@@ -208,7 +208,9 @@ export async function getFileContent(
 export function isGitHubReadRequest(message) {
   const text = typeof message === "string" ? message.trim().toLowerCase() : "";
   return (
-    /\bgithub\b/u.test(text) ||
+    /(?:\bgithub\b|ги[тд][\s-]*хъб|(?:^|\s)хъб(?:ът|а)?(?=\s|[?!.,:;]|$))/iu.test(
+      text,
+    ) ||
     /\b(commit|комит|хранилищ|репозитор)/u.test(text) ||
     /последн(?:ата|ите)\s+промян/u.test(text)
   );

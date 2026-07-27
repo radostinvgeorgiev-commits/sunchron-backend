@@ -53,3 +53,25 @@ test("integration status reports configuration without exposing secret values", 
     resetToolRegistryForTests();
   }
 });
+
+test("GitHub Write is configured with client id and secret only", () => {
+  const original = Object.fromEntries(
+    ENV_NAMES.map((name) => [name, process.env[name]]),
+  );
+  process.env.GITHUB_CLIENT_ID = "client-id";
+  process.env.GITHUB_CLIENT_SECRET = "client-secret";
+  delete process.env.GITHUB_REDIRECT_URI;
+  resetToolRegistryForTests();
+
+  try {
+    const status = getIntegrationStatus();
+    const githubWrite = status.tools.find((tool) => tool.id === "github-write");
+    assert.equal(githubWrite.configured, true);
+  } finally {
+    for (const [name, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    resetToolRegistryForTests();
+  }
+});

@@ -66,10 +66,10 @@
           .map((source) => "- [" + source.title.replace(/[\[\]]/g, "") + "](" + source.url + ")")
           .join("\n");
       }
-      pending.querySelector(".message-content").innerHTML = marked.parse(answer);
+      renderAgentText(pending, answer);
       logAction("AI търсене в интернет");
     } catch (error) {
-      pending.querySelector(".message-content").textContent = "❌ " + error.message;
+      renderAgentText(pending, "❌ " + error.message);
     } finally {
       state.chatBusy = false;
       elements.sendBtn.disabled = false;

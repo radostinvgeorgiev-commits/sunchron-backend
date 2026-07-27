@@ -1,9 +1,8 @@
 # synchron-backend
-# synchron-backend
 
 ## Runtime архитектура (активна)
 
-- Source of truth: `/home/runner/work/sunchron-backend/sunchron-backend/server.js`
+- Source of truth: `server.js`
 - Основни маршрути:
   - `POST /chat/chat`
   - `GET /health`
@@ -18,9 +17,9 @@
 
 ## Legacy
 
-- `/home/runner/work/sunchron-backend/sunchron-backend/src/routes/index.js`
-- `/home/runner/work/sunchron-backend/sunchron-backend/src/routes/cloudRouter.js`
-- `/home/runner/work/sunchron-backend/sunchron-backend/services/logic-core` (архивиран, не е част от активния Node.js runtime)
+- `src/routes/index.js`
+- `src/routes/cloudRouter.js`
+- `services/logic-core` (архивиран, не е част от активния Node.js runtime)
 
 ## CI/CD
 

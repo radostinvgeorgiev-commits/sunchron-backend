@@ -31,10 +31,10 @@ export function createOpenSearchClient() {
   }
 
   try {
-    const insecureTlsEnabled =
+    const tlsVerificationDisabled =
       process.env.NODE_ENV !== "production" &&
-      process.env.OPENSEARCH_ALLOW_INSECURE_TLS !== "false";
-    if (insecureTlsEnabled) {
+      process.env.OPENSEARCH_ALLOW_INSECURE_TLS === "true";
+    if (tlsVerificationDisabled) {
       console.warn(
         "⚠️  OpenSearch TLS verification is disabled for non-production runtime.",
       );
@@ -46,7 +46,7 @@ export function createOpenSearchClient() {
         password: OPENSEARCH_PASSWORD,
       },
       ssl: {
-        rejectUnauthorized: !insecureTlsEnabled,
+        rejectUnauthorized: !tlsVerificationDisabled,
       },
     });
 

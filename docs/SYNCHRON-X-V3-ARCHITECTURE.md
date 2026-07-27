@@ -15,7 +15,7 @@ OpenSearch.
 
 ## Runtime source of truth (активно днес)
 
-- Единствен runtime entrypoint: `/home/runner/work/sunchron-backend/sunchron-backend/server.js`.
+- Единствен runtime entrypoint: `server.js`.
 - Активни маршрути от runtime:
   - `/chat`
   - `/health`
@@ -30,9 +30,9 @@ OpenSearch.
 
 ## Legacy (не е source of truth)
 
-- `/home/runner/work/sunchron-backend/sunchron-backend/src/routes/index.js`
-- `/home/runner/work/sunchron-backend/sunchron-backend/src/routes/cloudRouter.js`
-- `/home/runner/work/sunchron-backend/sunchron-backend/services/logic-core` (архивиран референтен модул, не участва в текущия Node.js runtime)
+- `src/routes/index.js`
+- `src/routes/cloudRouter.js`
+- `services/logic-core` (архивиран референтен модул, не участва в текущия Node.js runtime)
 
 Тези два файла са запазени за съвместимост и исторически контекст, но не са
 основната runtime архитектура.

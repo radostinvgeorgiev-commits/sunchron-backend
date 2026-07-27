@@ -125,3 +125,25 @@ test("requires explicit memory-write confirmation prefix", () => {
     [],
   );
 });
+
+test("splits and detects the real one-line five-check GitHub command without treating memory as GitHub", () => {
+  const message =
+    "Провери актуалния main на GitHub хранилището radostinvgeorgiev-commits/sunchron-backend. Намери: 1. Къде са Tool Registry и Capability Engine. 2. Кои инструменти са регистрирани. 3. Какви разрешения изисква всеки инструмент. 4. Дали чатът действително използва Capability Engine. 5. Кои са трите последно поправени проблема. Не променяй никакъв файл. Накрая запомни в постоянната ми памет: „На 27 юли 2026 г. проверихме връзката между чата, GitHub и Capability Engine.“ Преди запис в паметта поискай моето потвърждение.";
+
+  const requests = detectCapabilityRequests(message);
+  assert.equal(requests.length, 6);
+  assert.deepEqual(
+    requests.slice(1).map(({ message: subtask }) => subtask),
+    [
+      "Къде са Tool Registry и Capability Engine.",
+      "Кои инструменти са регистрирани.",
+      "Какви разрешения изисква всеки инструмент.",
+      "Дали чатът действително използва Capability Engine.",
+      "Кои са трите последно поправени проблема.",
+    ],
+  );
+  assert.equal(
+    requests.some(({ message: subtask }) => /запомни/iu.test(subtask)),
+    false,
+  );
+});

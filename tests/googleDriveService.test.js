@@ -176,3 +176,69 @@ test("encrypts persisted Google sessions without exposing OAuth tokens", () => {
     }
   }
 });
+
+
+test("calendar permission error includes a direct reconnect link", async () => {
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
+
+  await assert.rejects(
+    () =>
+      listGoogleCalendarEvents(sessionId, 7, 10, async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 403,
+              message: "Request had insufficient authentication scopes.",
+              errors: [{ reason: "forbidden" }],
+            },
+          }),
+          {
+            status: 403,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      ),
+    (error) => {
+      assert.equal(error.code, "GOOGLE_SCOPE_REQUIRED");
+      assert.match(error.message, /Разреши Google Calendar/u);
+      assert.match(error.message, /\/api\/google\/connect/u);
+      return true;
+    },
+  );
+});
+
+test("calendar disabled API is not reported as an expired connection", async () => {
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
+
+  await assert.rejects(
+    () =>
+      listGoogleCalendarEvents(sessionId, 7, 10, async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 403,
+              message:
+                "Google Calendar API has not been used in project or it is disabled.",
+              errors: [{ reason: "accessNotConfigured" }],
+            },
+          }),
+          {
+            status: 403,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      ),
+    (error) => {
+      assert.equal(error.code, "GOOGLE_API_DISABLED");
+      assert.match(error.message, /API не е включен/u);
+      assert.doesNotMatch(error.message, /ново свързване/u);
+      return true;
+    },
+  );
+});

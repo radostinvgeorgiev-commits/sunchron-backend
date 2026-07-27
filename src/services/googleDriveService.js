@@ -305,6 +305,30 @@ async function driveFetch(id, path, options = {}, fetchImpl = fetch) {
   );
 }
 
+function googleConnectLink(label = "Свържи Google") {
+  const url =
+    process.env.GOOGLE_CONNECT_URL ||
+    "https://synchron.foundation/api/google/connect";
+  return `[${label}](${url})`;
+}
+
+async function googleErrorDetails(response) {
+  try {
+    const data = await response.json();
+    const errors = Array.isArray(data?.error?.errors)
+      ? data.error.errors
+      : [];
+    return {
+      message: String(data?.error?.message || ""),
+      reasons: errors
+        .map((item) => String(item?.reason || ""))
+        .filter(Boolean),
+    };
+  } catch {
+    return { message: "", reasons: [] };
+  }
+}
+
 async function googleFetch(
   id,
   url,
@@ -317,17 +341,48 @@ async function googleFetch(
     ...options,
     headers: { ...(options.headers || {}), Authorization: `Bearer ${token}` },
   });
-  if (!response.ok) {
-    const reconnect = response.status === 401 || response.status === 403;
+  if (response.ok) return response;
+
+  const details = await googleErrorDetails(response);
+  const reasonText = [details.message, ...details.reasons]
+    .join(" ")
+    .toLowerCase();
+
+  if (response.status === 401) {
+    sessions.delete(id);
     throw new GoogleDriveError(
-      reconnect
-        ? `${serviceName} трябва да бъде разрешен чрез ново свързване.`
-        : `${serviceName} временно не е достъпен.`,
-      reconnect ? 401 : 502,
-      "GOOGLE_REQUEST_FAILED",
+      `Google връзката е изтекла. ${googleConnectLink("Свържи Google отново")}.`,
+      401,
+      "GOOGLE_RECONNECT_REQUIRED",
     );
   }
-  return response;
+
+  if (response.status === 403) {
+    const apiDisabled =
+      /accessnotconfigured|api has not been used|api is disabled|service_disabled/u.test(
+        reasonText,
+      );
+    if (apiDisabled) {
+      throw new GoogleDriveError(
+        `${serviceName} API не е включен в Google Cloud. Отвори настройката на Google проекта и включи услугата.`,
+        503,
+        "GOOGLE_API_DISABLED",
+      );
+    }
+    throw new GoogleDriveError(
+      `${serviceName} няма дадено разрешение. ${googleConnectLink(
+        `Разреши ${serviceName}`,
+      )}.`,
+      403,
+      "GOOGLE_SCOPE_REQUIRED",
+    );
+  }
+
+  throw new GoogleDriveError(
+    `${serviceName} временно не е достъпен (Google грешка ${response.status}).`,
+    502,
+    "GOOGLE_REQUEST_FAILED",
+  );
 }
 
 export async function hasSession(id) {

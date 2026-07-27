@@ -126,9 +126,9 @@ export function registerCoreTools() {
         "code.branch": "github.write",
         "code.pull-request": "github.write",
       },
-      enabled: false,
+      enabled: true,
       requiresConfirmation: true,
-      healthStatus: "unavailable",
+      healthStatus: "healthy",
     },
     {
       id: "google-drive-read",

@@ -10,6 +10,7 @@ import {
   listGmailMessages,
   listGoogleCalendarEvents,
   listDriveFiles,
+  requiresPersistentGoogleSessions,
 } from "../src/services/googleDriveService.js";
 
 function jsonResponse(data) {
@@ -241,4 +242,10 @@ test("calendar disabled API is not reported as an expired connection", async () 
       return true;
     },
   );
+});
+
+
+test("requires persistent Google sessions in production", () => {
+  assert.equal(requiresPersistentGoogleSessions({ NODE_ENV: "production" }), true);
+  assert.equal(requiresPersistentGoogleSessions({ NODE_ENV: "test" }), false);
 });

@@ -8,6 +8,7 @@ const ALLOWED_ACTIONS = new Set([
   "github.write:update_file",
   "github.write:create_branch",
   "github.write:create_pr",
+  "github.copilot:start_task",
 ]);
 
 // Fields that must never be stored in a confirmation (audit safety)
@@ -112,9 +113,7 @@ export function validateConfirmation(confirmationId, sessionId) {
   const conf = pendingConfirmations.get(confirmationId);
 
   if (!conf) {
-    const error = new Error(
-      "Потвърждението не е намерено или вече е изтекло.",
-    );
+    const error = new Error("Потвърждението не е намерено или вече е изтекло.");
     error.code = "CONFIRMATION_NOT_FOUND";
     throw error;
   }

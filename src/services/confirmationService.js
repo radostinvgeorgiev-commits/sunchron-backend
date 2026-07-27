@@ -2,14 +2,9 @@ import { randomUUID } from "node:crypto";
 
 const CONFIRMATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
-// Allowed write actions — unknown ones are blocked by default
-const ALLOWED_ACTIONS = new Set([
-  "github.write:create_file",
-  "github.write:update_file",
-  "github.write:create_branch",
-  "github.write:create_pr",
-  "github.copilot:start_task",
-]);
+// Only the OAuth-backed Copilot flow may create GitHub confirmations.
+// Legacy direct write actions are intentionally blocked by default.
+const ALLOWED_ACTIONS = new Set(["github.copilot:start_task"]);
 
 // Fields that must never be stored in a confirmation (audit safety)
 const SENSITIVE_PARAM_KEYS = new Set([

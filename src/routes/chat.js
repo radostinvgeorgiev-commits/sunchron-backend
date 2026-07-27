@@ -17,10 +17,7 @@ import {
   GitHubServiceError,
   isGitHubReadRequest,
 } from "../services/githubService.js";
-import {
-  CalendarServiceError,
-  isCalendarReadRequest,
-} from "../services/calendarService.js";
+import { isCalendarReadRequest } from "../services/calendarService.js";
 import {
   GoogleDriveError,
   parseCookies,
@@ -451,7 +448,6 @@ function capabilityLabel(capability) {
 
 function formatCapabilityFailureMessage(error) {
   if (
-    error instanceof CalendarServiceError ||
     error instanceof GitHubServiceError ||
     error instanceof GitHubOAuthError ||
     error instanceof CopilotTaskError ||

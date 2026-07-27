@@ -4,7 +4,7 @@ let opensearchClient = null;
 let lastMissingConfigKey = null;
 
 function shouldWarnForMissingConfig() {
-  return !process.env.NODE_TEST_CONTEXT;
+  return process.env.NODE_ENV !== "test" && !process.env.NODE_TEST_CONTEXT;
 }
 
 export function createOpenSearchClient() {

@@ -13,12 +13,14 @@ test.beforeEach(() => resetToolRegistryForTests());
 
 test("регистрира съществуващите интеграции с пълни метаданни", () => {
   registerCoreTools();
-  assert.equal(listTools().length, 6);
+  assert.equal(listTools().length, 7);
   assert.deepEqual(getTool("github-read").capabilities, [
     "code.read",
     "code.search",
     "commit.read",
   ]);
+  assert.equal(getTool("github-write").enabled, false);
+  assert.equal(getTool("github-write").requiresConfirmation, true);
 });
 
 test("намира активен и здрав инструмент по способност", () => {

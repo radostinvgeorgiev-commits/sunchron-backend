@@ -108,13 +108,51 @@ export function isOverviewQuestion(message, subject) {
   ).test(normalizedQuestion);
 }
 
+function normalizeSubtaskText(text) {
+  return text
+    .replace(/^\s*(?:[-*•]\s*)?/u, "")
+    .replace(/^\s*\d+[\).:-]\s*/u, "")
+    .trim();
+}
+
+export function splitCapabilitySubtasks(message) {
+  if (typeof message !== "string") return [];
+  const normalized = message.replace(/\r\n/g, "\n").trim();
+  if (!normalized) return [];
+
+  const byLine = normalized
+    .split(/\n+/u)
+    .flatMap((line) => line.split(/;/u))
+    .flatMap((part) => part.split(/(?<=[.!?])\s+/u))
+    .flatMap((part) =>
+      part.split(
+        /,\s+(?=(?:провери|покажи|изброй|дай|върни|виж|check|show|list)\b)/iu,
+      ),
+    )
+    .map(normalizeSubtaskText)
+    .filter(Boolean);
+
+  return byLine.length ? byLine : [normalized];
+}
+
 export function detectCapabilityRequests(message) {
   const requests = [];
-  if (isCalendarReadRequest(message)) {
-    requests.push({ capability: "calendar.read", action: "calendar.read" });
-  }
-  if (isGitHubReadRequest(message)) {
-    requests.push({ capability: "code.read", action: "github.read" });
+  const subtasks = splitCapabilitySubtasks(message);
+  for (const subtask of subtasks) {
+    if (isCalendarReadRequest(subtask)) {
+      requests.push({
+        capability: "calendar.read",
+        action: "calendar.read",
+        message: subtask,
+      });
+    }
+    if (isGitHubReadRequest(subtask)) {
+      requests.push({
+        capability: "code.read",
+        action: "github.read",
+        message: subtask,
+      });
+    }
   }
   return requests;
 }
@@ -139,15 +177,28 @@ export function extractConfirmedMemoryWriteCommands(message) {
   return extractPersistentMemoryCommands(payload);
 }
 
-export async function executeDetectedCapabilities(message, executeFn) {
-  const requests = detectCapabilityRequests(message);
+export async function executeDetectedCapabilities(
+  message,
+  executeFn,
+  requests = detectCapabilityRequests(message),
+) {
   const results = [];
-  for (const request of requests) {
+  for (const [index, request] of requests.entries()) {
+    const requestMessage = request.message || message;
+    console.info(
+      `[CapabilityExecution] Start #${index + 1}/${requests.length}: ${request.capability}`,
+    );
     try {
-      const result = await executeFn(request.capability, { message });
+      const result = await executeFn(request.capability, { message: requestMessage });
       results.push({ status: "fulfilled", request, result });
+      console.info(
+        `[CapabilityExecution] Success #${index + 1}/${requests.length}: ${request.capability}`,
+      );
     } catch (error) {
       results.push({ status: "rejected", request, error });
+      console.info(
+        `[CapabilityExecution] Failure #${index + 1}/${requests.length}: ${request.capability}`,
+      );
     }
   }
   return results;
@@ -173,6 +224,55 @@ function formatCapabilityFailureMessage(error) {
     return "Инструментът за тази заявка временно не е достъпен.";
   }
   return "Избраният инструмент временно не е достъпен.";
+}
+
+export function buildMemoryReply(memoryAction) {
+  if (!memoryAction) return null;
+  if (memoryAction.type === "write-confirmation-required") {
+    return [
+      "Искаш запис в постоянната памет.",
+      `За потвърждение изпрати точно: ${MEMORY_WRITE_CONFIRM_PREFIX} <съдържание>`,
+    ].join("\n");
+  }
+  if (memoryAction.type === "clear-confirmation-required") {
+    return "Това ще изтрие цялата постоянна памет. За да потвърдиш, напиши точно: „Потвърждавам изтриването на цялата постоянна памет“.";
+  }
+  if (memoryAction.type === "cleared") {
+    return "Изчистих постоянната памет.";
+  }
+  if (memoryAction.type === "forgot") {
+    return memoryAction.deleted
+      ? `Забравих: ${memoryAction.fact}.`
+      : "Не намерих такъв запис в постоянната памет.";
+  }
+  if (memoryAction.type === "batch") {
+    const updatedCount = memoryAction.items.filter((item) => item.replaced).length;
+    const updatedSuffix = updatedCount ? `, от които ${updatedCount} обновени` : "";
+    return [
+      `Записах ${memoryAction.items.length} факта в постоянната памет${updatedSuffix}:`,
+      ...memoryAction.items.map(({ fact }) => `• ${fact}`),
+    ].join("\n");
+  }
+  if (memoryAction.type === "updated") {
+    return `Поправих постоянната памет: ${memoryAction.fact}.`;
+  }
+  return `Запомних: ${memoryAction.fact}.`;
+}
+
+export function buildCapabilityReplies(capabilityResults) {
+  const replies = [];
+  for (const capabilityResult of capabilityResults) {
+    if (capabilityResult.status === "fulfilled") {
+      replies.push(capabilityResult.result.output);
+      continue;
+    }
+    const { request, error } = capabilityResult;
+    const message = formatCapabilityFailureMessage(error);
+    replies.push(
+      `Не успях да изпълня заявката за ${capabilityLabel(request.capability)}: ${message}`,
+    );
+  }
+  return replies;
 }
 
 function extractTokenFromAgentEvent(rawEvent) {
@@ -366,39 +466,8 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
-  let memoryReply = null;
+  const memoryReply = buildMemoryReply(memoryAction);
   if (memoryAction) {
-    if (memoryAction.type === "write-confirmation-required") {
-      memoryReply = [
-        "Искаш запис в постоянната памет.",
-        `За потвърждение изпрати точно: ${MEMORY_WRITE_CONFIRM_PREFIX} <съдържание>`,
-      ].join("\n");
-    } else if (memoryAction.type === "clear-confirmation-required") {
-      memoryReply =
-        "Това ще изтрие цялата постоянна памет. За да потвърдиш, напиши точно: „Потвърждавам изтриването на цялата постоянна памет“.";
-    } else if (memoryAction.type === "cleared") {
-      memoryReply = "Изчистих постоянната памет.";
-    } else if (memoryAction.type === "forgot") {
-      memoryReply = memoryAction.deleted
-        ? `Забравих: ${memoryAction.fact}.`
-        : "Не намерих такъв запис в постоянната памет.";
-    } else if (memoryAction.type === "batch") {
-      const updatedCount = memoryAction.items.filter(
-        (item) => item.replaced,
-      ).length;
-      const updatedSuffix = updatedCount
-        ? `, от които ${updatedCount} обновени`
-        : "";
-      memoryReply = [
-        `Записах ${memoryAction.items.length} факта в постоянната памет${updatedSuffix}:`,
-        ...memoryAction.items.map(({ fact }) => `• ${fact}`),
-      ].join("\n");
-    } else if (memoryAction.type === "updated") {
-      memoryReply = `Поправих постоянната памет: ${memoryAction.fact}.`;
-    } else {
-      memoryReply = `Запомних: ${memoryAction.fact}.`;
-    }
-
     const isDeleteAction =
       memoryAction.type === "cleared" ||
       memoryAction.type === "forgot" ||
@@ -452,20 +521,30 @@ router.post("/chat", async (req, res) => {
     await saveConversationTurn(cleanSessionId, cleanMessage, fullReply);
     sendEvent("token", { token: fullReply });
     sendEvent("done", { ok: true, memoryCount: scopedMemories.length });
+    console.info(`[Chat] Response completed (memory overview) for ${cleanSessionId}`);
     res.end();
     return;
   }
 
-  const capabilityReplies = [];
+  const detectedCapabilityRequests = detectCapabilityRequests(cleanMessage);
+  console.info(
+    `[Chat] Detected ${detectedCapabilityRequests.length} capability subtasks for ${cleanSessionId}: ${detectedCapabilityRequests
+      .map((request, index) => `#${index + 1}:${request.capability}`)
+      .join(", ")}`,
+  );
   const capabilityResults = await executeDetectedCapabilities(
     cleanMessage,
     executeCapability,
+    detectedCapabilityRequests,
   );
+  const capabilityReplies = buildCapabilityReplies(capabilityResults);
   if (capabilityResults.length) {
-    for (const capabilityResult of capabilityResults) {
+    for (const [index, capabilityResult] of capabilityResults.entries()) {
       if (capabilityResult.status === "fulfilled") {
         const { request, result } = capabilityResult;
-        capabilityReplies.push(result.output);
+        console.info(
+          `[Chat] Subtask result #${index + 1}/${capabilityResults.length}: ${request.capability} -> success`,
+        );
         await auditAction({
           action: request.action,
           decision: result.permission.decision,
@@ -475,9 +554,8 @@ router.post("/chat", async (req, res) => {
         });
       } else {
         const { request, error } = capabilityResult;
-        const message = formatCapabilityFailureMessage(error);
-        capabilityReplies.push(
-          `Не успях да изпълня заявката за ${capabilityLabel(request.capability)}: ${message}`,
+        console.info(
+          `[Chat] Subtask result #${index + 1}/${capabilityResults.length}: ${request.capability} -> failed`,
         );
         await auditAction({
           action: request.action,
@@ -501,6 +579,9 @@ router.post("/chat", async (req, res) => {
       capabilities: capabilityResults.map(({ request }) => request.capability),
       mode: capabilityResults.length ? "read-only" : undefined,
     });
+    console.info(
+      `[Chat] Response completed (memory/capabilities shortcut) for ${cleanSessionId}`,
+    );
     res.end();
     return;
   }
@@ -598,6 +679,7 @@ router.post("/chat", async (req, res) => {
       autoMemoryCount,
     });
     console.log(`[Agent] Stream success for ${cleanSessionId}`);
+    console.info(`[Chat] Response completed (agent stream) for ${cleanSessionId}`);
   } catch (error) {
     if (abortController.signal.aborted && !timedOut) return;
     console.error(`[Agent] Failure for ${cleanSessionId}:`, error);

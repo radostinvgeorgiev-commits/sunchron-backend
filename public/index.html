@@ -12,8 +12,8 @@
       content="SYNCHRON-X — лична AI операционна система с контролирана памет и разрешени инструменти."
     />
     <title>SYNCHRON-X · Лична AI операционна система</title>
-    <link rel="stylesheet" href="/styles.css?v=20260727-personal-os" />
-    <link rel="stylesheet" href="/appshell.css?v=20260727-personal-os" />
+    <link rel="stylesheet" href="/styles.css?v=20260727-focus-tools" />
+    <link rel="stylesheet" href="/appshell.css?v=20260727-focus-tools" />
     <link rel="stylesheet" href="/search.css?v=20260726-search" />
     <link rel="stylesheet" href="/modules.css?v=20260726-modules" />
     <link
@@ -40,21 +40,11 @@
           <button id="searchChatsBtn" type="button">
             <i class="fa-solid fa-magnifying-glass"></i><span>Търси</span>
           </button>
-          <button id="imagesBtn" type="button">
-            <i class="fa-regular fa-images"></i><span>Снимки и файлове</span>
+          <button id="focusBtn" type="button">
+            <i class="fa-solid fa-bullseye"></i><span>Днешен фокус</span>
           </button>
-          <span class="sidebar-nav-label">Инструменти</span>
-          <button id="googleDriveBtn" type="button">
-            <i class="fa-brands fa-google-drive"></i><span>Google Drive</span>
-          </button>
-          <button id="gmailBtn" type="button">
-            <i class="fa-regular fa-envelope"></i><span>Gmail</span>
-          </button>
-          <button id="googleCalendarBtn" type="button">
-            <i class="fa-regular fa-calendar"></i><span>Google Calendar</span>
-          </button>
-          <button id="googleMapsBtn" type="button">
-            <i class="fa-solid fa-map-location-dot"></i><span>Google Maps</span>
+          <button id="toolsBtn" type="button">
+            <i class="fa-solid fa-toolbox"></i><span>Инструменти</span>
           </button>
           <span class="sidebar-nav-label">Система</span>
           <button id="memoryBtn" type="button">
@@ -63,10 +53,15 @@
           <button id="permissionsBtn" type="button">
             <i class="fa-solid fa-shield-halved"></i><span>Разрешения</span>
           </button>
-          <button id="modulesBtn" type="button">
-            <i class="fa-solid fa-layer-group"></i><span>Работни области</span>
-          </button>
         </nav>
+        <div class="tool-hooks" hidden aria-hidden="true">
+          <button id="imagesBtn" type="button">Снимки</button>
+          <button id="googleDriveBtn" type="button">Google Drive</button>
+          <button id="gmailBtn" type="button">Gmail</button>
+          <button id="googleCalendarBtn" type="button">Google Calendar</button>
+          <button id="googleMapsBtn" type="button">Google Maps</button>
+          <button id="modulesBtn" type="button">Работни области</button>
+        </div>
         <div class="sidebar-section">
           <span>Разговори</span>
           <input
@@ -229,7 +224,7 @@
       </aside>
     </main>
 
-    <script src="/app.js?v=20260727-personal-os"></script>
+    <script src="/app.js?v=20260727-focus-tools"></script>
     <script src="/google-drive.js?v=20260726-drive-files"></script>
     <script src="/google-apps.js?v=20260726-google-apps"></script>
     <script src="/search.js?v=20260726-search"></script>

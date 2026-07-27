@@ -19,6 +19,10 @@ export function getIntegrationStatus() {
       configured: true,
       authenticated: Boolean(process.env.GITHUB_TOKEN),
     },
+    "github-write": {
+      configured: Boolean(process.env.GITHUB_TOKEN),
+      authenticated: Boolean(process.env.GITHUB_TOKEN),
+    },
     "google-drive-read": {
       configured: hasAllEnvironmentVariables(
         "GOOGLE_CLIENT_ID",

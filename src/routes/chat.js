@@ -169,10 +169,48 @@ export function splitCapabilitySubtasks(message) {
   return byLine.length ? byLine : [normalized];
 }
 
+export function isGitHubWriteRequest(message) {
+  const text = typeof message === "string" ? message.trim().toLowerCase() : "";
+  if (!text) return false;
+
+  const hasWriteOutcome =
+    /(?:промени|обнови|редактирай|поправи|направи\s+промян|създай\s+(?:клон|branch|pull\s*request|pr)|слей)/iu.test(
+      text,
+    );
+  const hasCodeTarget =
+    /(?:github|хранилищ|репозитор|код|интерфейс|файл|commit|комит|pull\s*request|\bpr\b|клон|branch|main|deployment|деплой)/iu.test(
+      text,
+    );
+  const onlyNegativeInstruction =
+    /^(?:не\s+променяй|не\s+редактирай|не\s+публикувай|не\s+създавай)/iu.test(
+      text,
+    ) && !hasWriteOutcome;
+
+  return hasWriteOutcome && hasCodeTarget && !onlyNegativeInstruction;
+}
+
+function isExplicitGitHubReadSubtask(subtask, hasGitHubContext) {
+  if (
+    /(?:провери|покажи|намери|прочети|изброй|виж|анализирай|какви|кои|къде|дали)/iu.test(
+      subtask,
+    ) &&
+    (isGitHubReadRequest(subtask) ||
+      (hasGitHubContext &&
+        /(?:main|код|интерфейс|tool\s+registry|capability\s+engine|регистрирани\s+инструменти|разрешения.*инструмент|последно\s+поправен.*проблем)/iu.test(
+          subtask,
+        )))
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function detectCapabilityRequests(message) {
   const requests = [];
   const subtasks = splitCapabilitySubtasks(message);
   const hasGitHubContext = isGitHubReadRequest(message);
+  const hasGitHubWriteIntent = isGitHubWriteRequest(message);
+  let writeTaskReadAdded = false;
   const hasExplicitNumberedChecks =
     /намери\s*:\s*1[\).:-]\s*/iu.test(message) && subtasks.length > 1;
   for (const [index, subtask] of subtasks.entries()) {
@@ -242,17 +280,31 @@ export function detectCapabilityRequests(message) {
       /(?:tool\s+registry|capability\s+engine|(?:кои\s+)?инструменти.*регистрирани|регистрирани\s+инструменти|разрешения.*инструмент|чатът.*capability|последно\s+поправен.*проблем)/iu.test(
         subtask,
       );
-    if (
+    const wantsGitHubRead =
       !/(?:използва\s+успешно|кои\s+са\s+достъпни)/iu.test(subtask) &&
       (isGitHubReadRequest(subtask) ||
-        (hasGitHubContext && repositoryInspectionSubtask))
-    ) {
+        (hasGitHubContext && repositoryInspectionSubtask) ||
+        (hasGitHubWriteIntent &&
+          isExplicitGitHubReadSubtask(subtask, hasGitHubContext)));
+    const allowReadForWriteTask =
+      !hasGitHubWriteIntent ||
+      (!writeTaskReadAdded &&
+        isExplicitGitHubReadSubtask(subtask, hasGitHubContext));
+    if (wantsGitHubRead && allowReadForWriteTask) {
       requests.push({
         capability: "code.read",
         action: "github.read",
         message: subtask,
       });
+      if (hasGitHubWriteIntent) writeTaskReadAdded = true;
     }
+  }
+  if (hasGitHubWriteIntent) {
+    requests.push({
+      capability: "code.write",
+      action: "github.write",
+      message,
+    });
   }
   return requests;
 }
@@ -338,6 +390,7 @@ export async function executeDetectedCapabilities(
 function capabilityLabel(capability) {
   if (capability === "calendar.read") return "календар";
   if (capability === "code.read") return "GitHub";
+  if (capability === "code.write") return "GitHub запис";
   if (capability === "files.read") return "Google Drive";
   if (capability === "mail.read") return "Gmail";
   if (capability === "memory.read") return "памет";
@@ -359,6 +412,9 @@ function formatCapabilityFailureMessage(error) {
       error.code === "CAPABILITY_PERMISSION_DENIED" ||
       error.code === "CAPABILITY_CONFIRMATION_REQUIRED"
     ) {
+      return error.message;
+    }
+    if (error.code === "CAPABILITY_UNAVAILABLE") {
       return error.message;
     }
     return "Инструментът за тази заявка временно не е достъпен.";

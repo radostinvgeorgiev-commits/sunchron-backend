@@ -13,6 +13,8 @@ test("application exposes working memory and permission controls", async () => {
   assert.match(html, /id="dataDrawer"/u);
   assert.match(html, /id="imagesBtn"/u);
   assert.match(html, /id="modulesBtn"/u);
+  assert.match(html, /id="focusBtn"/u);
+  assert.match(html, /id="toolsBtn"/u);
   assert.match(html, /id="sidebarBackdrop"/u);
   assert.match(html, /Лична AI операционна система/u);
   assert.match(html, /Инструменти/u);
@@ -22,6 +24,9 @@ test("application exposes working memory and permission controls", async () => {
   assert.match(script, /elements\.imageInput\.click\(\)/u);
   assert.match(script, /function closeSidebar\(\)/u);
   assert.match(script, /function openModulesDrawer\(\)/u);
+  assert.match(script, /function openFocusDrawer\(\)/u);
+  assert.match(script, /function openToolsDrawer\(\)/u);
+  assert.match(script, /fetch\(["']\/health\/integrations["']/u);
   assert.match(script, /Твоята лична AI операционна система/u);
   assert.match(script, /item\.readOnly/u);
 });

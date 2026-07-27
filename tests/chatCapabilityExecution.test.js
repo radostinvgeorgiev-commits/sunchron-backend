@@ -219,3 +219,32 @@ test("detects a combined personal-OS tool check without duplicate GitHub tasks",
     "project",
   );
 });
+
+test("a GitHub implementation task creates one read check and one honest write attempt", () => {
+  const message = [
+    "Работи по GitHub хранилището radostinvgeorgiev-commits/sunchron-backend.",
+    "1. Провери актуалния main и сегашния интерфейс.",
+    "2. Провери кои инструменти действително работят.",
+    "3. Обнови интерфейса и скрий неактуалните функции.",
+    "4. Не променяй AI Core и Memory.",
+    "5. Използвай само свързаното GitHub приложение.",
+    "6. Направи промяната в отделен клон.",
+    "7. Пусни тестовете.",
+    "8. Създай Pull Request и го слей в main.",
+    "9. Провери deployment.",
+  ].join("\n");
+
+  const requests = detectCapabilityRequests(message);
+  assert.deepEqual(
+    requests.map(({ capability }) => capability),
+    ["code.read", "code.write"],
+  );
+  assert.equal(
+    requests.filter(({ capability }) => capability === "code.read").length,
+    1,
+  );
+  assert.equal(
+    requests.filter(({ capability }) => capability === "code.write").length,
+    1,
+  );
+});

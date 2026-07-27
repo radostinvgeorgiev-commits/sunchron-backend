@@ -74,6 +74,15 @@ test("блокира липсваща способност по подразби
   );
 });
 
+test("не представя GitHub запис като работещ преди да има адаптер", () => {
+  assert.throws(
+    () => resolveCapability("code.write"),
+    (error) =>
+      error instanceof CapabilityError &&
+      error.code === "CAPABILITY_UNAVAILABLE",
+  );
+});
+
 test("изпълнява GitHub четене чрез избрания инструмент", async () => {
   const originalFetch = global.fetch;
   const originalApiUrl = process.env.GITHUB_API_URL;

@@ -1,13 +1,11 @@
 import { randomUUID } from "node:crypto";
+import { listGitHubWriteActions } from "./permissionService.js";
 
 const CONFIRMATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // Allowed write actions — unknown ones are blocked by default
 const ALLOWED_ACTIONS = new Set([
-  "github.write:create_file",
-  "github.write:update_file",
-  "github.write:create_branch",
-  "github.write:create_pr",
+  ...listGitHubWriteActions(),
 ]);
 
 // Fields that must never be stored in a confirmation (audit safety)

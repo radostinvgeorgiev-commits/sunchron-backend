@@ -1,5 +1,8 @@
 import express from "express";
 const router = express.Router();
+// Legacy compatibility router. Keep read-only/minimal behavior.
+const LEGACY_NOTICE =
+  "Legacy Cloud Router. Runtime source of truth is server.js and dedicated routes under /chat, /memory, /github, /calendar, /api/google, /search.";
 
 function ok(data) {
   return {
@@ -24,18 +27,47 @@ router.post("/", async (req, res) => {
     switch (module) {
       case "system":
         if (action === "heartbeat") {
-          return res.json(ok({ module: "system", action: "heartbeat", time: new Date().toISOString() }));
+          return res.json(
+            ok({
+              module: "system",
+              action: "heartbeat",
+              legacy: true,
+              notice: LEGACY_NOTICE,
+              time: new Date().toISOString(),
+            }),
+          );
         }
         break;
       case "memory":
         if (action === "write_memory") {
-          return res.json(ok({ operation: "memory.write", stored: params?.data || null }));
+          return res.json(
+            ok({
+              operation: "memory.write",
+              stored: params?.data || null,
+              legacy: true,
+              notice: LEGACY_NOTICE,
+            }),
+          );
         }
         if (action === "get_memory") {
-          return res.json(ok({ operation: "memory.get", key: params?.key }));
+          return res.json(
+            ok({
+              operation: "memory.get",
+              key: params?.key,
+              legacy: true,
+              notice: LEGACY_NOTICE,
+            }),
+          );
         }
         if (action === "list_memory") {
-          return res.json(ok({ operation: "memory.list", items: [] }));
+          return res.json(
+            ok({
+              operation: "memory.list",
+              items: [],
+              legacy: true,
+              notice: LEGACY_NOTICE,
+            }),
+          );
         }
         break;
       default:

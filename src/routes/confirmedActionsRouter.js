@@ -16,16 +16,12 @@ import {
   createPullRequest,
   updateFile,
 } from "../services/githubWriteService.js";
-import { recordAuditEvent } from "../services/permissionService.js";
+import { auditIntegrationEvent } from "../services/auditService.js";
 
 const router = express.Router();
 
 async function auditAction(event) {
-  try {
-    await recordAuditEvent(event);
-  } catch (error) {
-    console.error("[Audit] Write failure:", error);
-  }
+  await auditIntegrationEvent(event, "Confirmed actions audit");
 }
 
 function resourceLabel(resource) {

@@ -13,6 +13,30 @@ SYNCHRON-X е един AI Core, който заявява способности
 Постоянната памет остава отделна основна услуга и продължава да използва
 OpenSearch.
 
+## Runtime source of truth (активно днес)
+
+- Единствен runtime entrypoint: `/home/runner/work/sunchron-backend/sunchron-backend/server.js`.
+- Активни маршрути от runtime:
+  - `/chat`
+  - `/health`
+  - `/memory`
+  - `/github`
+  - `/calendar`
+  - `/permissions`
+  - `/confirmed-actions`
+  - `/api/google`
+  - `/search`
+  - `/opensearch-status`
+
+## Legacy (не е source of truth)
+
+- `/home/runner/work/sunchron-backend/sunchron-backend/src/routes/index.js`
+- `/home/runner/work/sunchron-backend/sunchron-backend/src/routes/cloudRouter.js`
+- `/home/runner/work/sunchron-backend/sunchron-backend/services/logic-core` (архивиран референтен модул, не участва в текущия Node.js runtime)
+
+Тези два файла са запазени за съвместимост и исторически контекст, но не са
+основната runtime архитектура.
+
 ## Граници на прехода
 
 Тази първа фаза:
@@ -39,3 +63,22 @@ OpenSearch.
 След одобрение съществуващите маршрути се свързват един по един към
 Capability Engine. Старото им поведение остава достъпно, докато новият път не
 мине същите тестове.
+
+## Целеви модел за интеграции (преходен и краен)
+
+### Вече минават през Capability Engine
+
+- Чат заявки за `calendar.read`
+- Чат заявки за `code.read` (GitHub read)
+
+### Временно са директни маршрути
+
+- `/search/ai`
+- `/api/google/*`
+- `/confirmed-actions/*`
+
+### План за изравняване
+
+1. Всяка директна интеграция да декларира capability и permission.
+2. Изпълнението да се оркестрира през Capability Engine + Tool Registry.
+3. Audit форматът да е единен: `action`, `decision`, `outcome`, `resource`, `details`, `sessionId`.

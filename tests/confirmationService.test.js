@@ -9,6 +9,7 @@ import {
   resetConfirmationsForTests,
   validateConfirmation,
 } from "../src/services/confirmationService.js";
+import { evaluatePermission } from "../src/services/permissionService.js";
 
 const VALID_ACTION = "github.write:create_file";
 const VALID_RESOURCE = { repository: "owner/repo", branch: "main", path: "hello.txt" };
@@ -22,6 +23,14 @@ test.beforeEach(() => {
 test("recognises all declared write actions as allowed", () => {
   for (const action of listAllowedActions()) {
     assert.equal(isAllowedAction(action), true, `expected "${action}" to be allowed`);
+  }
+});
+
+test("all confirmation write actions exist in the permission policy", () => {
+  for (const action of listAllowedActions()) {
+    const permission = evaluatePermission(action);
+    assert.notEqual(permission.decision, "deny", `missing permission policy for ${action}`);
+    assert.equal(permission.decision, "confirm");
   }
 });
 

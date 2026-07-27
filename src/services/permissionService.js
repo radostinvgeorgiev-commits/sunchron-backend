@@ -4,6 +4,12 @@ import { getOpenSearchClient } from "../config/opensearch.js";
 const AUDIT_INDEX = process.env.AUDIT_INDEX || "synchron-action-audit";
 const MAX_FALLBACK_EVENTS = 500;
 const fallbackEvents = [];
+const GITHUB_WRITE_ACTIONS = Object.freeze({
+  "github.write:create_file": "Създаването на файл в GitHub изисква потвърждение.",
+  "github.write:update_file": "Промяната на файл в GitHub изисква потвърждение.",
+  "github.write:create_branch": "Създаването на клон в GitHub изисква потвърждение.",
+  "github.write:create_pr": "Създаването на pull request изисква потвърждение.",
+});
 
 const POLICY = Object.freeze({
   "github.read": Object.freeze({
@@ -20,6 +26,21 @@ const POLICY = Object.freeze({
     decision: "allow",
     risk: "low",
     reason: "Четенето на собствения календар е разрешено.",
+  }),
+  "drive.read": Object.freeze({
+    decision: "allow",
+    risk: "low",
+    reason: "Четенето на Google Drive е разрешено.",
+  }),
+  "mail.read": Object.freeze({
+    decision: "allow",
+    risk: "low",
+    reason: "Четенето на Gmail е разрешено.",
+  }),
+  "web.read": Object.freeze({
+    decision: "allow",
+    risk: "low",
+    reason: "Интернет търсенето в режим само за четене е разрешено.",
   }),
   "calendar.write": Object.freeze({
     decision: "confirm",
@@ -51,6 +72,16 @@ const POLICY = Object.freeze({
     risk: "critical",
     reason: "Плащане, покупка или резервация изисква потвърждение.",
   }),
+  ...Object.fromEntries(
+    Object.entries(GITHUB_WRITE_ACTIONS).map(([action, reason]) => [
+      action,
+      Object.freeze({
+        decision: "confirm",
+        risk: "medium",
+        reason,
+      }),
+    ]),
+  ),
 });
 
 function cleanText(value, fallback = null) {
@@ -67,6 +98,10 @@ export function evaluatePermission(action) {
     risk: "unknown",
     reason: "Действието не е описано в разрешенията и е блокирано по подразбиране.",
   };
+}
+
+export function listGitHubWriteActions() {
+  return Object.keys(GITHUB_WRITE_ACTIONS);
 }
 
 export function listPermissions() {

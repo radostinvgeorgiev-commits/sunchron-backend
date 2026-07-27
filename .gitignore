@@ -1,2 +1,6 @@
 node_modules
 .env
+services/logic-core/venv/
+services/logic-core/__pycache__/
+**/__pycache__/
+*.pyc

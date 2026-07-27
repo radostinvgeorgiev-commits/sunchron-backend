@@ -18,6 +18,7 @@ import googleDriveRouter from "./src/routes/googleDriveRouter.js";
 import webSearchRouter from "./src/routes/webSearchRouter.js";
 
 dotenv.config();
+// Runtime source of truth: this file mounts all active HTTP routes.
 
 if (!process.env.AGENT_KEY) {
   console.warn(

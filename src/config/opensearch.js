@@ -31,6 +31,14 @@ export function createOpenSearchClient() {
   }
 
   try {
+    const insecureTlsEnabled =
+      process.env.NODE_ENV !== "production" &&
+      process.env.OPENSEARCH_ALLOW_INSECURE_TLS !== "false";
+    if (insecureTlsEnabled) {
+      console.warn(
+        "⚠️  OpenSearch TLS verification is disabled for non-production runtime.",
+      );
+    }
     opensearchClient = new Client({
       node: `https://${OPENSEARCH_HOST}:${OPENSEARCH_PORT}`,
       auth: {
@@ -38,7 +46,7 @@ export function createOpenSearchClient() {
         password: OPENSEARCH_PASSWORD,
       },
       ssl: {
-        rejectUnauthorized: false, // За development; за production използвай валиден сертификат
+        rejectUnauthorized: !insecureTlsEnabled,
       },
     });
 

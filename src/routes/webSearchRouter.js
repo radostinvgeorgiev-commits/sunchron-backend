@@ -1,4 +1,6 @@
 import express from "express";
+import { auditIntegrationEvent } from "../services/auditService.js";
+import { evaluatePermission } from "../services/permissionService.js";
 
 const router = express.Router();
 const DEFAULT_MODEL = "gpt-4.1-mini";
@@ -28,6 +30,21 @@ function extractSearchResult(response) {
 }
 
 router.post("/ai", async (req, res) => {
+  const permission = evaluatePermission("web.read");
+  if (permission.decision !== "allow") {
+    await auditIntegrationEvent(
+      {
+        action: "web.read",
+        decision: permission.decision,
+        outcome: "blocked",
+        resource: "POST /search/ai",
+        details: permission.reason,
+      },
+      "Web search audit",
+    );
+    return res.status(403).json({ error: permission.reason });
+  }
+
   const query = typeof req.body?.query === "string" ? req.body.query.trim() : "";
   if (!query) return res.status(400).json({ error: "Напиши какво да потърся." });
   if (query.length > MAX_QUERY_LENGTH) {
@@ -62,16 +79,55 @@ router.post("/ai", async (req, res) => {
     if (!response.ok) {
       const body = await response.text();
       console.error("[Web search] OpenAI error:", response.status, body);
+      await auditIntegrationEvent(
+        {
+          action: "web.read",
+          decision: permission.decision,
+          outcome: "failed",
+          resource: "POST /search/ai",
+          details: `OPENAI_HTTP_${response.status}`,
+        },
+        "Web search audit",
+      );
       return res.status(502).json({ error: "AI търсенето временно не е достъпно." });
     }
 
     const result = extractSearchResult(await response.json());
     if (!result.text) {
+      await auditIntegrationEvent(
+        {
+          action: "web.read",
+          decision: permission.decision,
+          outcome: "failed",
+          resource: "POST /search/ai",
+          details: "EMPTY_RESULT",
+        },
+        "Web search audit",
+      );
       return res.status(502).json({ error: "Търсенето не върна отговор." });
     }
+    await auditIntegrationEvent(
+      {
+        action: "web.read",
+        decision: permission.decision,
+        outcome: "succeeded",
+        resource: "POST /search/ai",
+      },
+      "Web search audit",
+    );
     return res.json(result);
   } catch (error) {
     console.error("[Web search] Failure:", error);
+    await auditIntegrationEvent(
+      {
+        action: "web.read",
+        decision: permission.decision,
+        outcome: "failed",
+        resource: "POST /search/ai",
+        details: error?.name || "REQUEST_FAILED",
+      },
+      "Web search audit",
+    );
     return res.status(502).json({ error: "AI търсенето беше прекъснато. Опитай пак." });
   }
 });

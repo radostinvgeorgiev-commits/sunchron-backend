@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createRequireOwnerSession } from "../src/middleware/ownerAuth.js";
+import {
+  createRequireOwnerSession,
+  resolveMemoryOwnerId,
+} from "../src/middleware/ownerAuth.js";
 
-process.env.GITHUB_REPOSITORY =
-  "radostinvgeorgiev-commits/sunchron-backend";
+process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 
 function responseRecorder() {
   return {
@@ -83,6 +85,43 @@ test("allows only the configured owner and attaches verified identity", async ()
   assert.deepEqual(request.owner, {
     id: "radostinvgeorgiev-commits",
     login: "radostinvgeorgiev-commits",
+    memoryOwnerId: "primary-user",
   });
   assert.equal(response.payload, null);
+});
+
+test("memory owner id is stable before and after a new OAuth callback", () => {
+  const env = {
+    GITHUB_REPOSITORY: "radostinvgeorgiev-commits/sunchron-backend",
+    MEMORY_OWNER_ID: "primary-user",
+  };
+
+  const firstSessionOwner = resolveMemoryOwnerId(
+    "RadostinVGeorgiev-Commits",
+    env,
+  );
+  const refreshedSessionOwner = resolveMemoryOwnerId(
+    "radostinvgeorgiev-commits",
+    env,
+  );
+
+  assert.equal(firstSessionOwner, "primary-user");
+  assert.equal(refreshedSessionOwner, firstSessionOwner);
+});
+
+test("different GitHub users receive different memory namespaces", () => {
+  const env = {
+    GITHUB_REPOSITORY: "owner/sunchron-backend",
+    MEMORY_OWNER_ID: "legacy-owner",
+  };
+
+  assert.equal(resolveMemoryOwnerId("owner", env), "legacy-owner");
+  assert.equal(
+    resolveMemoryOwnerId("another-user", env),
+    "github:another-user",
+  );
+  assert.notEqual(
+    resolveMemoryOwnerId("owner", env),
+    resolveMemoryOwnerId("another-user", env),
+  );
 });

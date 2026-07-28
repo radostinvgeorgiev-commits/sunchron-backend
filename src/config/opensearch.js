@@ -69,4 +69,8 @@ export function getOpenSearchClient() {
   return opensearchClient;
 }
 
+export function setOpenSearchClientForTests(client) {
+  opensearchClient = client;
+}
+
 export default getOpenSearchClient;

@@ -14,7 +14,17 @@ const css = await readFile(
   "utf8",
 );
 
-function createHarness({ config, fetchFails = false } = {}) {
+function createHarness({
+  config,
+  readiness = {
+    status: "ready",
+    checks: {
+      chatAgent: { ready: true },
+      memory: { ready: true, status: "green" },
+    },
+  },
+  fetchFails = false,
+} = {}) {
   const dom = new JSDOM(`<!doctype html><body>
     <aside id="sidebar"></aside>
     <button id="workCenterBtn">Работен център</button>
@@ -33,11 +43,14 @@ function createHarness({ config, fetchFails = false } = {}) {
     console,
     document: dom.window.document,
     Event: dom.window.Event,
-    fetch: async () => {
+    fetch: async (url) => {
       if (fetchFails) throw new Error("offline");
+      const result = String(url).includes("/health/ready")
+        ? readiness
+        : config || {};
       return {
         ok: true,
-        json: async () => config || {},
+        json: async () => result,
       };
     },
   };
@@ -110,12 +123,49 @@ test("external cards use exact GitHub URLs and safe link attributes", async () =
 test("ChatGPT falls back safely when public config is unavailable", async () => {
   const harness = createHarness({ fetchFails: true });
   await openCenter(harness);
-  const firstLink = harness.dom.window.document.querySelector(
-    ".work-center-card.featured",
+  const chatGptLink = [
+    ...harness.dom.window.document.querySelectorAll("a"),
+  ].find((link) => link.textContent.includes("ChatGPT"));
+
+  assert.equal(chatGptLink.href, "https://chatgpt.com/");
+  assert.match(chatGptLink.textContent, /Без автоматична връзка с паметта/u);
+});
+
+test("featured connected chat reports real core readiness and returns to chat", async () => {
+  const harness = createHarness();
+  await openCenter(harness);
+  const { document } = harness.dom.window;
+  const connectedChat = document.querySelector(
+    '[data-work-center-target="chat"]',
   );
 
-  assert.equal(firstLink.href, "https://chatgpt.com/");
-  assert.match(firstLink.textContent, /Може да изисква вход/u);
+  assert.ok(connectedChat.classList.contains("featured"));
+  assert.match(
+    connectedChat.textContent,
+    /AI ядро и постоянна памет: свързани/u,
+  );
+  connectedChat.click();
+  assert.equal(document.getElementById("dataDrawer").hidden, true);
+  assert.equal(document.getElementById("chatInput").value, "Незавършен текст");
+});
+
+test("connected chat never claims readiness when memory is unavailable", async () => {
+  const harness = createHarness({
+    readiness: {
+      status: "not-ready",
+      checks: {
+        chatAgent: { ready: true },
+        memory: { ready: false, status: "unavailable" },
+      },
+    },
+  });
+  await openCenter(harness);
+  const connectedChat = harness.dom.window.document.querySelector(
+    '[data-work-center-target="chat"]',
+  );
+
+  assert.match(connectedChat.textContent, /не са напълно готови/u);
+  assert.doesNotMatch(connectedChat.textContent, /памет: свързани/u);
 });
 
 test("Google cards reuse the existing hidden integration actions", async () => {
@@ -140,11 +190,11 @@ test("Google cards reuse the existing hidden integration actions", async () => {
 
 test("mobile drawer cards use full width without horizontal overflow", () => {
   assert.doesNotMatch(css, /display:none\}\\\\n\.drawer-backdrop/u);
-  assert.match(css, /@media\(max-width:520px\)/u);
+  assert.match(css, /@media\s*\(max-width:\s*520px\)/u);
   assert.match(
     css,
-    /\.permission-card,\.tool-status-card\{width:100%;min-width:0;flex-direction:column/u,
+    /\.permission-card,\s*\.tool-status-card\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;[^}]*flex-direction:\s*column/su,
   );
-  assert.match(css, /\.data-drawer-body\{[^}]*overflow-x:hidden/u);
-  assert.match(css, /\.work-center-card\{min-height:104px/u);
+  assert.match(css, /\.data-drawer-body\s*\{[^}]*overflow-x:\s*hidden/u);
+  assert.match(css, /\.work-center-card\s*\{\s*min-height:\s*104px/u);
 });

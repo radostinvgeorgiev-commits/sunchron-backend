@@ -77,9 +77,14 @@ async function auditAction(event) {
   }
 }
 
-async function saveConversationTurnBestEffort(sessionId, userText, replyText) {
+async function saveConversationTurnBestEffort(
+  sessionId,
+  userText,
+  replyText,
+  ownerId,
+) {
   try {
-    await saveConversationTurn(sessionId, userText, replyText);
+    await saveConversationTurn(sessionId, userText, replyText, ownerId);
     return true;
   } catch (error) {
     console.error(`[ConversationMemory] Save failure for ${sessionId}:`, error);
@@ -621,6 +626,7 @@ router.post("/chat", async (req, res) => {
     parseCookies(req.headers.cookie).synchron_google_session || "";
   const githubSessionId =
     parseGitHubCookies(req.headers.cookie).synchron_github_session || "";
+  const ownerId = req.owner.memoryOwnerId;
   const cleanSessionId = typeof sessionId === "string" ? sessionId.trim() : "";
   const cleanMessage = typeof message === "string" ? message.trim() : "";
 
@@ -667,7 +673,7 @@ router.post("/chat", async (req, res) => {
       // The user confirmed a previously requested delete with a short phrase
       // ("Да", "Потвърждавам"). Execute the stored pending delete.
       const { fact, scope } = pendingDelete;
-      const deleted = await deleteProfileMemoryByFact(fact, scope);
+      const deleted = await deleteProfileMemoryByFact(fact, scope, ownerId);
       // Clear only after a successful (or idempotent not-found) delete so
       // the user can retry if OpenSearch was temporarily unavailable.
       clearPendingDelete(cleanSessionId);
@@ -695,6 +701,7 @@ router.post("/chat", async (req, res) => {
               memoryCommand.fact,
               "explicit-chat-command",
               memoryCommand.scope,
+              ownerId,
             );
             items.push({
               fact: saved.fact,
@@ -712,7 +719,7 @@ router.post("/chat", async (req, res) => {
               : { type: "batch", items };
         }
       } else if (isConfirmedForgetAllCommand(cleanMessage)) {
-        const deleted = await clearProfileMemories();
+        const deleted = await clearProfileMemories(undefined, ownerId);
         memoryAction = { type: "cleared", deleted };
       } else if (isForgetAllCommand(cleanMessage)) {
         memoryAction = { type: "clear-confirmation-required" };
@@ -740,6 +747,7 @@ router.post("/chat", async (req, res) => {
             const deleted = await deleteProfileMemoryByFact(
               forgetCommand.fact,
               forgetCommand.scope,
+              ownerId,
             );
             clearPendingDelete(cleanSessionId);
             memoryAction = {
@@ -759,13 +767,14 @@ router.post("/chat", async (req, res) => {
           memory.fact,
           "automatic-high-confidence",
           memory.scope,
+          ownerId,
         );
         autoMemoryCount += 1;
       }
     }
     [memories, history] = await Promise.all([
-      listProfileMemories(),
-      listConversationMessages(cleanSessionId),
+      listProfileMemories({ ownerId }),
+      listConversationMessages(cleanSessionId, undefined, ownerId),
     ]);
   } catch (error) {
     console.error(`[Memory] Failure for ${cleanSessionId}:`, error);
@@ -824,6 +833,7 @@ router.post("/chat", async (req, res) => {
         cleanSessionId,
         cleanMessage,
         fullReply,
+        ownerId,
       );
       await auditAction({
         action: "image.read",
@@ -861,6 +871,7 @@ router.post("/chat", async (req, res) => {
         cleanSessionId,
         cleanMessage,
         fullReply,
+        ownerId,
       );
       await auditAction({
         action: "github.write",
@@ -959,6 +970,7 @@ router.post("/chat", async (req, res) => {
       cleanSessionId,
       cleanMessage,
       fullReply,
+      ownerId,
     );
     sendEvent("token", { token: fullReply });
     sendEvent("done", { ok: true, memoryCount: scopedMemories.length });
@@ -1007,6 +1019,7 @@ router.post("/chat", async (req, res) => {
     {
       googleSessionId,
       githubSessionId,
+      ownerId,
       sessionId: cleanSessionId,
       prepareConfirmation: true,
     },
@@ -1051,6 +1064,7 @@ router.post("/chat", async (req, res) => {
       cleanSessionId,
       cleanMessage,
       fullReply,
+      ownerId,
     );
     sendEvent("token", { token: fullReply });
     sendEvent("done", {
@@ -1076,6 +1090,7 @@ router.post("/chat", async (req, res) => {
         cleanSessionId,
         cleanMessage,
         fullReply,
+        ownerId,
       );
       sendEvent("token", { token: fullReply });
       sendEvent("done", {
@@ -1207,6 +1222,7 @@ router.post("/chat", async (req, res) => {
       cleanSessionId,
       cleanMessage,
       fullReply,
+      ownerId,
     );
     sendEvent("done", {
       ok: true,

@@ -137,6 +137,7 @@ const executors = Object.freeze({
     if (capability === "memory.read" || capability === "memory.search") {
       const memories = await listProfileMemories({
         scope: input.scope,
+        ownerId: input.ownerId,
       });
       if (!memories.length) return "Постоянната памет е празна.";
       const visibleMemories = memories.slice(0, 8);
@@ -166,6 +167,7 @@ const executors = Object.freeze({
         input.fact,
         "capability-engine",
         input.scope,
+        input.ownerId,
       );
       return saved.replaced
         ? `Обнових постоянната памет: ${saved.fact}.`
@@ -178,7 +180,11 @@ const executors = Object.freeze({
           "MISSING_MEMORY_FACT",
         );
       }
-      const deleted = await deleteProfileMemoryByFact(input.fact, input.scope);
+      const deleted = await deleteProfileMemoryByFact(
+        input.fact,
+        input.scope,
+        input.ownerId,
+      );
       return deleted
         ? `Изтрих от постоянната памет: ${input.fact}.`
         : "Не намерих такъв запис в постоянната памет.";

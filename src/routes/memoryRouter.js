@@ -39,7 +39,10 @@ function sendMemoryError(res, error) {
 
 router.get("/conversations", async (req, res) => {
   try {
-    const items = await listConversationSummaries();
+    const items = await listConversationSummaries(
+      undefined,
+      req.owner.memoryOwnerId,
+    );
     return res.json({ status: "ok", items });
   } catch (error) {
     return sendMemoryError(res, error);
@@ -48,7 +51,11 @@ router.get("/conversations", async (req, res) => {
 
 router.get("/conversation/:sessionId", async (req, res) => {
   try {
-    const items = await listConversationMessages(req.params.sessionId);
+    const items = await listConversationMessages(
+      req.params.sessionId,
+      undefined,
+      req.owner.memoryOwnerId,
+    );
     return res.json({ status: "ok", items });
   } catch (error) {
     return sendMemoryError(res, error);
@@ -59,7 +66,10 @@ router.get("/profile", async (req, res) => {
   try {
     const scope =
       typeof req.query.scope === "string" ? req.query.scope : undefined;
-    const items = await listProfileMemories({ scope });
+    const items = await listProfileMemories({
+      scope,
+      ownerId: req.owner.memoryOwnerId,
+    });
     return res.json({ status: "ok", items });
   } catch (error) {
     return sendMemoryError(res, error);
@@ -72,7 +82,12 @@ router.post("/profile", async (req, res) => {
     if (typeof fact !== "string") {
       return res.status(400).json({ error: "Полето fact е задължително." });
     }
-    const item = await saveProfileMemory(fact, "memory-api", scope);
+    const item = await saveProfileMemory(
+      fact,
+      "memory-api",
+      scope,
+      req.owner.memoryOwnerId,
+    );
     await auditMemoryAction({
       action: "memory.write",
       decision: "allow",
@@ -108,7 +123,10 @@ router.delete("/profile/:id", async (req, res) => {
         confirmationValue: CLEAR_MEMORY_CONFIRMATION,
       });
     }
-    const deleted = await deleteProfileMemory(req.params.id);
+    const deleted = await deleteProfileMemory(
+      req.params.id,
+      req.owner.memoryOwnerId,
+    );
     await auditMemoryAction({
       action: "memory.delete",
       decision: "confirmed",
@@ -143,7 +161,7 @@ router.delete("/profile", async (req, res) => {
     }
     const scope =
       typeof req.query.scope === "string" ? req.query.scope : undefined;
-    const deleted = await clearProfileMemories(scope);
+    const deleted = await clearProfileMemories(scope, req.owner.memoryOwnerId);
     await auditMemoryAction({
       action: "memory.delete",
       decision: "confirmed",

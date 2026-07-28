@@ -409,8 +409,12 @@ function hydrateMemory(hit) {
   return {
     id: hit._id,
     ...hit._source,
-    memoryKey: hit._source.memoryKey || inferred.memoryKey,
-    category: hit._source.category || inferred.category,
+    storedMemoryKey: hit._source.memoryKey || null,
+    // Always infer with the current rules. This makes old value-included keys
+    // compatible with the new topic keys without deleting or rebuilding the
+    // production index.
+    memoryKey: inferred.memoryKey,
+    category: inferred.category,
     scope: hit._source.scope || inferred.scope,
   };
 }
@@ -649,10 +653,7 @@ export async function deleteProfileMemoryByFact(
     body: {
       query: {
         bool: {
-          filter: [
-            { term: { ownerId } },
-            { terms: { _id: matchingIds } },
-          ],
+          filter: [{ term: { ownerId } }, { terms: { _id: matchingIds } }],
         },
       },
     },
@@ -660,14 +661,20 @@ export async function deleteProfileMemoryByFact(
   return response.body?.deleted ?? response.deleted ?? 0;
 }
 
-export async function deleteProfileMemory(id) {
+export async function deleteProfileMemory(id, ownerId = OWNER_ID) {
   await ensureProfileIndex();
-  const response = await getClientOrThrow().delete({
+  const response = await getClientOrThrow().deleteByQuery({
     index: PROFILE_INDEX,
-    id,
     refresh: true,
+    body: {
+      query: {
+        bool: {
+          filter: [{ term: { ownerId } }, { term: { _id: id } }],
+        },
+      },
+    },
   });
-  return response.body?.result === "deleted" || response.result === "deleted";
+  return (response.body?.deleted ?? response.deleted ?? 0) > 0;
 }
 
 export async function clearProfileMemories(scope, ownerId = OWNER_ID) {

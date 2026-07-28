@@ -4,6 +4,23 @@ import {
   parseGitHubCookies,
 } from "../services/githubOAuthService.js";
 
+export function resolveMemoryOwnerId(login, env = process.env) {
+  const normalizedLogin =
+    typeof login === "string" ? login.trim().toLocaleLowerCase("en-US") : "";
+  if (!normalizedLogin) return "";
+
+  // Preserve the existing single-owner production data while binding access
+  // to the verified GitHub identity. Future authorized users receive their own
+  // stable namespace instead of sharing the legacy owner id.
+  if (isAuthorizedGitHubLogin(normalizedLogin, env)) {
+    const legacyOwnerId =
+      typeof env.MEMORY_OWNER_ID === "string" ? env.MEMORY_OWNER_ID.trim() : "";
+    return legacyOwnerId || "primary-user";
+  }
+
+  return `github:${normalizedLogin}`;
+}
+
 export function createRequireOwnerSession({
   getSession = getGitHubSession,
 } = {}) {
@@ -24,6 +41,7 @@ export function createRequireOwnerSession({
       req.owner = {
         id: session.login.toLocaleLowerCase("en-US"),
         login: session.login,
+        memoryOwnerId: resolveMemoryOwnerId(session.login),
       };
       return next();
     } catch (error) {

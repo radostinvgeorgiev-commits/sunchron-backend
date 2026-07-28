@@ -846,12 +846,14 @@ function setChatBusy(isBusy) {
 }
 
 function renderAgentText(element, text) {
-  element.dataset.rawText = text;
-  if (typeof marked !== "undefined") {
-    element.innerHTML = marked.parse(text);
-  } else {
-    element.textContent = text;
+  const value = String(text ?? "");
+  if (globalThis.SynchronMarkdown?.renderSafeMarkdown) {
+    globalThis.SynchronMarkdown.renderSafeMarkdown(element, value);
+    return;
   }
+
+  element.dataset.rawText = value;
+  element.textContent = value;
 }
 
 function createAssistantTurn(text = "", showActions = true) {

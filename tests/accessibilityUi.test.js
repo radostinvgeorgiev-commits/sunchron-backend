@@ -22,9 +22,9 @@ function createHarness(storedMode = null) {
   const dom = new JSDOM(`<!doctype html>
     <html data-font-scale="max">
       <body>
-        <button id="fontSizeBtn" aria-pressed="true">
-          <span id="fontSizeLabel">Много едър шрифт</span>
-        </button>
+        <button id="fontSizeDecreaseBtn">Намали</button>
+        <output id="fontSizeLabel">Много едър · 48 px</output>
+        <button id="fontSizeIncreaseBtn">Увеличи</button>
       </body>
     </html>`);
   const values = new Map();
@@ -47,31 +47,66 @@ test("very large text is the permanent default", () => {
   const { document } = harness.dom.window;
 
   assert.equal(document.documentElement.dataset.fontScale, "max");
+  assert.equal(document.documentElement.dataset.fontLevel, "max");
   assert.equal(harness.values.get("synchron.ui.fontScale"), "max");
   assert.equal(
-    document.getElementById("fontSizeBtn").getAttribute("aria-pressed"),
-    "true",
+    document.getElementById("fontSizeLabel").textContent,
+    "Много едър · 48 px",
   );
 });
 
-test("font control can switch modes and remembers the selected mode", () => {
+test("plus and minus controls change one level and remember it", () => {
   const harness = createHarness();
   const { document } = harness.dom.window;
+  const decrease = document.getElementById("fontSizeDecreaseBtn");
+  const increase = document.getElementById("fontSizeIncreaseBtn");
 
-  document.getElementById("fontSizeBtn").click();
-  assert.equal(document.documentElement.dataset.fontScale, "standard");
-  assert.equal(harness.values.get("synchron.ui.fontScale"), "standard");
-
-  document.getElementById("fontSizeBtn").click();
+  increase.click();
   assert.equal(document.documentElement.dataset.fontScale, "max");
+  assert.equal(document.documentElement.dataset.fontLevel, "ultra");
+  assert.equal(harness.values.get("synchron.ui.fontScale"), "ultra");
   assert.equal(
     document.getElementById("fontSizeLabel").textContent,
-    "Много едър шрифт",
+    "Огромен · 60 px",
   );
+  assert.equal(increase.disabled, true);
+
+  decrease.click();
+  assert.equal(document.documentElement.dataset.fontLevel, "max");
+  decrease.click();
+  assert.equal(document.documentElement.dataset.fontLevel, "large");
+  assert.equal(harness.values.get("synchron.ui.fontScale"), "large");
 });
 
-test("chat text is exactly three times the former 16px size", () => {
+test("saved level is restored and controls stop at the safe limits", () => {
+  const harness = createHarness("standard");
+  const { document } = harness.dom.window;
+  const decrease = document.getElementById("fontSizeDecreaseBtn");
+
+  assert.equal(document.documentElement.dataset.fontScale, "standard");
+  assert.equal(document.documentElement.dataset.fontLevel, "standard");
+  assert.equal(decrease.disabled, true);
+  assert.equal(
+    document.getElementById("fontSizeLabel").textContent,
+    "Обикновен · 16 px",
+  );
+
+  harness.context.SynchronAccessibility.increase();
+  assert.equal(document.documentElement.dataset.fontScale, "max");
+  assert.equal(document.documentElement.dataset.fontLevel, "large");
+  assert.equal(harness.values.get("synchron.ui.fontScale"), "large");
+});
+
+test("chat offers four readable sizes including 48px and 60px", () => {
+  assert.match(
+    css,
+    /data-font-level="large"[^}]*--synchron-chat-text:\s*32px/u,
+  );
   assert.match(css, /--synchron-chat-text:\s*48px/u);
+  assert.match(
+    css,
+    /data-font-level="ultra"[^}]*--synchron-chat-text:\s*60px/u,
+  );
   assert.match(
     css,
     /\.message\s*\{[^}]*font-size:\s*var\(--synchron-chat-text\)\s*!important/u,
@@ -88,6 +123,8 @@ test("accessibility assets load after the ordinary interface styles", () => {
   assert.ok(accessibilityPosition > modulesPosition);
   assert.ok(accessibilityScriptPosition > appPosition);
   assert.match(html, /<html lang="bg" data-font-scale="max">/u);
+  assert.match(html, /id="fontSizeDecreaseBtn"/u);
+  assert.match(html, /id="fontSizeIncreaseBtn"/u);
 });
 
 test("mobile large-text layout keeps cards and drawers inside the viewport", () => {

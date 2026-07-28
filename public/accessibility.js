@@ -1,23 +1,29 @@
 (() => {
   const STORAGE_KEY = "synchron.ui.fontScale";
   const DEFAULT_MODE = "max";
+  const MODE_ORDER = Object.freeze(["standard", "large", "max", "ultra"]);
   const MODES = Object.freeze({
-    max: {
-      label: "Много едър шрифт",
-      title: "Текстът е много едър. Натисни за стандартен размер.",
-      pressed: true,
-      next: "standard",
-    },
     standard: {
-      label: "Стандартен шрифт",
-      title: "Текстът е стандартен. Натисни за много едър размер.",
-      pressed: false,
-      next: "max",
+      label: "Обикновен · 16 px",
+      pixels: 16,
+    },
+    large: {
+      label: "Едър · 32 px",
+      pixels: 32,
+    },
+    max: {
+      label: "Много едър · 48 px",
+      pixels: 48,
+    },
+    ultra: {
+      label: "Огромен · 60 px",
+      pixels: 60,
     },
   });
 
   const root = document.documentElement;
-  const button = document.getElementById("fontSizeBtn");
+  const decreaseButton = document.getElementById("fontSizeDecreaseBtn");
+  const increaseButton = document.getElementById("fontSizeIncreaseBtn");
   const label = document.getElementById("fontSizeLabel");
 
   function readStoredMode() {
@@ -40,24 +46,47 @@
   function applyMode(mode, { persist = true } = {}) {
     const safeMode = MODES[mode] ? mode : DEFAULT_MODE;
     const settings = MODES[safeMode];
-    root.dataset.fontScale = safeMode;
+    const modeIndex = MODE_ORDER.indexOf(safeMode);
+    root.dataset.fontLevel = safeMode;
+    root.dataset.fontScale = safeMode === "standard" ? "standard" : "max";
 
-    if (button) {
-      button.setAttribute("aria-pressed", String(settings.pressed));
-      button.title = settings.title;
+    if (decreaseButton) {
+      decreaseButton.disabled = modeIndex === 0;
+      decreaseButton.setAttribute("aria-disabled", String(modeIndex === 0));
+    }
+    if (increaseButton) {
+      increaseButton.disabled = modeIndex === MODE_ORDER.length - 1;
+      increaseButton.setAttribute(
+        "aria-disabled",
+        String(modeIndex === MODE_ORDER.length - 1),
+      );
     }
     if (label) label.textContent = settings.label;
     if (persist) storeMode(safeMode);
     return safeMode;
   }
 
+  function stepMode(direction) {
+    const currentIndex = MODE_ORDER.indexOf(currentMode);
+    const nextIndex = Math.min(
+      MODE_ORDER.length - 1,
+      Math.max(0, currentIndex + direction),
+    );
+    currentMode = applyMode(MODE_ORDER[nextIndex]);
+    return currentMode;
+  }
+
   let currentMode = applyMode(readStoredMode());
-  button?.addEventListener("click", () => {
-    currentMode = applyMode(MODES[currentMode].next);
-  });
+  decreaseButton?.addEventListener("click", () => stepMode(-1));
+  increaseButton?.addEventListener("click", () => stepMode(1));
 
   globalThis.SynchronAccessibility = Object.freeze({
-    applyMode,
+    applyMode: (mode, options) => {
+      currentMode = applyMode(mode, options);
+      return currentMode;
+    },
     getMode: () => currentMode,
+    increase: () => stepMode(1),
+    decrease: () => stepMode(-1),
   });
 })();

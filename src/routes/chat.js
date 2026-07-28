@@ -58,6 +58,7 @@ import {
   clearPendingDelete,
   getPendingDelete,
   isSimpleDeleteConfirmation,
+  isSimpleDenial,
   storePendingDelete,
 } from "../services/pendingDeleteService.js";
 
@@ -499,6 +500,9 @@ export function buildMemoryReply(memoryAction) {
       `За потвърждение изпрати точно: ${MEMORY_DELETE_CONFIRM_PREFIX} ${memoryAction.fact}`,
     ].join("\n");
   }
+  if (memoryAction.type === "denied") {
+    return "Отмених заявката за изтриване от постоянната памет.";
+  }
   if (memoryAction.type === "cleared") {
     return "Изчистих постоянната памет.";
   }
@@ -639,8 +643,14 @@ router.post("/chat", async (req, res) => {
   // This ensures a plain "Да" in normal conversation never triggers deletion.
   const isSimpleConfirmation =
     isSimpleDeleteConfirmation(cleanMessage) && Boolean(pendingDelete);
+  // isSimpleDenialAction is only true when BOTH the message is a short "Не"/
+  // "Отказвам" AND there is an active pending delete for this session.
+  // This prevents the pending entry from surviving a user denial.
+  const isSimpleDenialAction =
+    isSimpleDenial(cleanMessage) && Boolean(pendingDelete);
   const explicitMemoryIntent =
     isSimpleConfirmation ||
+    isSimpleDenialAction ||
     hasConfirmedMemoryWritePrefix(cleanMessage) ||
     extractPersistentMemoryCommands(cleanMessage).length > 0 ||
     isConfirmedForgetAllCommand(cleanMessage) ||
@@ -648,12 +658,19 @@ router.post("/chat", async (req, res) => {
     hasConfirmedMemoryDeletePrefix(cleanMessage) ||
     Boolean(extractForgetMemoryCommand(cleanMessage));
   try {
-    if (isSimpleConfirmation) {
+    if (isSimpleDenialAction) {
+      // The user denied a previously requested delete ("Не", "Отказвам").
+      // Clear the pending entry so it cannot be accidentally triggered later.
+      clearPendingDelete(cleanSessionId);
+      memoryAction = { type: "denied" };
+    } else if (isSimpleConfirmation) {
       // The user confirmed a previously requested delete with a short phrase
       // ("Да", "Потвърждавам"). Execute the stored pending delete.
       const { fact, scope } = pendingDelete;
-      clearPendingDelete(cleanSessionId);
       const deleted = await deleteProfileMemoryByFact(fact, scope);
+      // Clear only after a successful (or idempotent not-found) delete so
+      // the user can retry if OpenSearch was temporarily unavailable.
+      clearPendingDelete(cleanSessionId);
       memoryAction = { type: "forgot", fact, scope, deleted };
     } else {
       const confirmedMemoryWrite = hasConfirmedMemoryWritePrefix(cleanMessage);
@@ -717,12 +734,14 @@ router.post("/chat", async (req, res) => {
               scope: forgetCommand.scope,
             };
           } else {
-            // Exact-phrase confirmation — also clears any pending entry.
-            clearPendingDelete(cleanSessionId);
+            // Exact-phrase confirmation — clear any pending entry AFTER
+            // a successful (or idempotent not-found) delete so the user
+            // can retry if OpenSearch was temporarily unavailable.
             const deleted = await deleteProfileMemoryByFact(
               forgetCommand.fact,
               forgetCommand.scope,
             );
+            clearPendingDelete(cleanSessionId);
             memoryAction = {
               type: "forgot",
               fact: forgetCommand.fact,
@@ -880,6 +899,7 @@ router.post("/chat", async (req, res) => {
     const isDeleteAction =
       memoryAction.type === "cleared" ||
       memoryAction.type === "forgot" ||
+      memoryAction.type === "denied" ||
       memoryAction.type === "delete-confirmation-required" ||
       memoryAction.type === "clear-confirmation-required";
     const isWriteConfirmationRequest =
@@ -892,15 +912,19 @@ router.post("/chat", async (req, res) => {
         memoryAction.type === "delete-confirmation-required" ||
         isWriteConfirmationRequest
           ? "confirm"
-          : isDeleteAction
-            ? "confirmed"
-            : "allow",
+          : memoryAction.type === "denied"
+            ? "denied"
+            : isDeleteAction
+              ? "confirmed"
+              : "allow",
       outcome:
         memoryAction.type === "clear-confirmation-required" ||
         memoryAction.type === "delete-confirmation-required" ||
         isWriteConfirmationRequest
           ? "requested"
-          : "succeeded",
+          : memoryAction.type === "denied"
+            ? "cancelled"
+            : "succeeded",
       resource: "profile-memory",
       details: memoryAction.type,
       sessionId: cleanSessionId,

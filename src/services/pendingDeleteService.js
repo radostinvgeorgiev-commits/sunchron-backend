@@ -75,6 +75,18 @@ export function isSimpleDeleteConfirmation(message) {
   return /^(?:да|потвърждавам)[.!]?$/iu.test(message.trim());
 }
 
+/**
+ * Returns true when the message is a short unconditional denial
+ * ("Не", "Отказвам", optionally followed by punctuation).
+ * This is intentionally narrow so that it only matches the active
+ * pending-delete denial path when there is an active pending delete.
+ *
+ * Callers should call message.trim() before passing the value.
+ */
+export function isSimpleDenial(message) {
+  return /^(?:не|отказвам)[.!]?$/iu.test(message.trim());
+}
+
 /** Test helper — clears all pending deletes. */
 export function resetPendingDeletesForTests() {
   pendingDeletes.clear();

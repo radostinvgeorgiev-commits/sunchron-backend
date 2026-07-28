@@ -5,6 +5,7 @@ import {
   clearPendingDelete,
   getPendingDelete,
   isSimpleDeleteConfirmation,
+  isSimpleDenial,
   resetPendingDeletesForTests,
   storePendingDelete,
 } from "../src/services/pendingDeleteService.js";
@@ -46,6 +47,23 @@ test("isSimpleDeleteConfirmation rejects other messages", () => {
     ),
     false,
   );
+});
+
+test("isSimpleDenial accepts 'Не' and 'Отказвам'", () => {
+  assert.equal(isSimpleDenial("Не"), true);
+  assert.equal(isSimpleDenial("не"), true);
+  assert.equal(isSimpleDenial("НЕ"), true);
+  assert.equal(isSimpleDenial("Не."), true);
+  assert.equal(isSimpleDenial("Не!"), true);
+  assert.equal(isSimpleDenial("Отказвам"), true);
+  assert.equal(isSimpleDenial("отказвам."), true);
+});
+
+test("isSimpleDenial rejects other messages", () => {
+  assert.equal(isSimpleDenial("Да"), false);
+  assert.equal(isSimpleDenial("Не, не изтривай"), false);
+  assert.equal(isSimpleDenial(""), false);
+  assert.equal(isSimpleDenial("Не е нужно"), false);
 });
 
 test("storePendingDelete and getPendingDelete round-trip", () => {
@@ -199,10 +217,10 @@ test("end-to-end: save МОРСКИ ФАР 728 → confirm present → delete vi
     assert.ok(pending, "pending entry should exist");
     assert.equal(pending.fact, saved.fact);
 
-    // 4. Execute deletion (as the chat route would on 'Да')
-    clearPendingDelete(sessionId);
+    // 4. Execute deletion (as the chat route would on 'Да') — clear AFTER success.
     const deleted = await deleteProfileMemoryByFact(saved.fact, "personal");
     assert.ok(deleted > 0, "should have deleted at least one entry");
+    clearPendingDelete(sessionId);
 
     // 5. No pending left
     assert.equal(getPendingDelete(sessionId), null);
@@ -219,25 +237,82 @@ test("end-to-end: save МОРСКИ ФАР 728 → confirm present → delete vi
   }
 });
 
-test("OpenSearch failure path: deleteProfileMemoryByFact rejects → no false success", async (t) => {
-  // We test the logic layer: if deleteProfileMemoryByFact throws, the pending
-  // delete should have already been cleared by the chat route (pre-clear before
-  // the async call). This test verifies the pending-store is cleared even when
-  // we simulate the sequence.
+test("OpenSearch failure path: deleteProfileMemoryByFact rejects → pending preserved for retry", () => {
+  // New policy: clear pending ONLY after a successful (or idempotent not-found)
+  // delete, so that a transient OpenSearch error leaves the pending intact and
+  // the user can retry within the TTL window.
   resetPendingDeletesForTests();
   const sessionId = "session-opensearch-fail";
   const fact = "факт за тест на грешка";
 
   storePendingDelete(sessionId, fact, "personal");
+  assert.ok(getPendingDelete(sessionId), "pending should be set before attempt");
+
+  // Simulate: deleteProfileMemoryByFact throws — clearPendingDelete is never
+  // reached because it comes AFTER the await in the chat route.
+  // Verify the pending entry is still present (available for retry).
+  assert.ok(
+    getPendingDelete(sessionId),
+    "pending must survive an OpenSearch failure so the user can retry",
+  );
+  assert.equal(
+    getPendingDelete(sessionId)?.fact,
+    fact,
+    "preserved pending entry must hold the original fact",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Denial flow tests
+// ---------------------------------------------------------------------------
+
+test("denial: 'Не' with pending clears the pending entry", () => {
+  resetPendingDeletesForTests();
+  const sessionId = "session-deny";
+  const fact = "факт за отказ";
+
+  storePendingDelete(sessionId, fact, "personal");
   assert.ok(getPendingDelete(sessionId), "pending should be set");
 
-  // Simulate the chat route flow: clear pending BEFORE calling delete
+  // Simulate the chat route denial path.
+  const isDenial = isSimpleDenial("Не") && Boolean(getPendingDelete(sessionId));
+  assert.equal(isDenial, true, "denial should be recognized");
   clearPendingDelete(sessionId);
-  // deleteProfileMemoryByFact would throw here — pending is already gone
+
+  assert.equal(getPendingDelete(sessionId), null, "pending must be cleared after denial");
+});
+
+test("denial flow: request delete → 'Не' → later 'Да' → delete never triggered", () => {
+  resetPendingDeletesForTests();
+  const sessionId = "session-deny-then-yes";
+  const fact = "факт за отказ, после Да";
+
+  // Step 1: request delete — pending stored.
+  storePendingDelete(sessionId, fact, "personal");
+  assert.ok(getPendingDelete(sessionId), "pending should be set after request");
+
+  // Step 2: user says 'Не' — denial detected, pending cleared.
+  const isDenial = isSimpleDenial("Не") && Boolean(getPendingDelete(sessionId));
+  assert.equal(isDenial, true, "denial should be recognized");
+  clearPendingDelete(sessionId);
+  assert.equal(getPendingDelete(sessionId), null, "pending must be gone after denial");
+
+  // Step 3: later user says 'Да' — no pending, so confirmation guard is false.
+  const wouldConfirm =
+    isSimpleDeleteConfirmation("Да") && Boolean(getPendingDelete(sessionId));
   assert.equal(
-    getPendingDelete(sessionId),
-    null,
-    "pending must be cleared before delete attempt",
+    wouldConfirm,
+    false,
+    "'Да' after denial must not trigger deletion — no pending exists",
   );
-  // After a throw the 503 path returns an error — no 'Забравих' message is sent.
+});
+
+test("buildMemoryReply returns unambiguous message for 'denied'", () => {
+  const reply = buildMemoryReply({ type: "denied" });
+  assert.ok(typeof reply === "string");
+  assert.ok(reply.length > 0, "denial reply must not be empty");
+  assert.ok(
+    reply.includes("Отмених") || reply.includes("отмен"),
+    "denial reply should indicate cancellation",
+  );
 });

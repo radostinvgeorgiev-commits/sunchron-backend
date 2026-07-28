@@ -18,6 +18,10 @@ import {
   saveProfileMemory,
 } from "../src/services/memoryService.js";
 
+// The phrase used in the issue and in the corresponding regression tests.
+// Using a named constant makes the relation between tests explicit.
+const МОРСКИ_ФАР_FACT = "Тестова дума — МОРСКИ ФАР 728";
+
 // ---------------------------------------------------------------------------
 // Unit tests for pendingDeleteService helpers
 // ---------------------------------------------------------------------------
@@ -78,19 +82,13 @@ test("pending delete for session A cannot affect session B", () => {
   assert.equal(getPendingDelete("session-b")?.fact, "факт за B");
 });
 
-test("expired pending delete is treated as absent", async () => {
+test("expired pending delete is treated as absent", () => {
   resetPendingDeletesForTests();
-  // Directly insert an already-expired entry by manipulating via store then
-  // re-testing with a zero-TTL entry through a manual approach.
-  storePendingDelete("session-expired", "old fact");
-  // Patch the entry's expiresAt to the past.
-  // We can't do this through the public API, but we can verify the behaviour
-  // indirectly: when TTL has passed, getPendingDelete should return null.
-  // Since we cannot travel in time here, we verify that the returned entry
-  // has an expiresAt in the future.
-  const entry = getPendingDelete("session-expired");
-  assert.ok(entry);
-  assert.ok(entry.expiresAt > Date.now());
+  // Use a zero-millisecond TTL so the entry expires immediately.
+  storePendingDelete("session-expired", "old fact", "personal", 0);
+  // After ttl=0, the entry's expiresAt is <= Date.now() and purgeExpired()
+  // inside getPendingDelete should remove it.
+  assert.equal(getPendingDelete("session-expired"), null);
 });
 
 // ---------------------------------------------------------------------------
@@ -99,19 +97,21 @@ test("expired pending delete is treated as absent", async () => {
 
 test("'Да' without a pending delete never triggers deletion (guard test)", () => {
   resetPendingDeletesForTests();
-  // No pending entry stored — isSimpleDeleteConfirmation is not enough alone.
-  // The chat route checks `getPendingDelete(sessionId)` before executing.
-  const pending = getPendingDelete("session-no-pending");
-  assert.equal(pending, null);
-  // The route only acts when BOTH isSimpleDeleteConfirmation AND pending is set.
-  const isSimple = isSimpleDeleteConfirmation("Да");
-  assert.equal(isSimple && Boolean(pending), false);
+  // No pending entry stored — isSimpleDeleteConfirmation alone is not enough.
+  // The chat route only acts when BOTH conditions hold.
+  const sessionId = "session-no-pending";
+  assert.equal(getPendingDelete(sessionId), null);
+  assert.equal(isSimpleDeleteConfirmation("Да"), true);
+  // Simulating the chat route's guard condition:
+  const pending = getPendingDelete(sessionId);
+  const wouldConfirm = isSimpleDeleteConfirmation("Да") && Boolean(pending);
+  assert.equal(wouldConfirm, false, "'Да' should not confirm deletion without a pending entry");
 });
 
 test("pending delete stores correct fact and scope for later confirmation", () => {
   resetPendingDeletesForTests();
   const sessionId = "session-confirm";
-  const fact = "Тестова дума — МОРСКИ ФАР 728";
+  const fact = МОРСКИ_ФАР_FACT;
   const scope = "personal";
 
   storePendingDelete(sessionId, fact, scope);
@@ -127,7 +127,7 @@ test("pending delete stores correct fact and scope for later confirmation", () =
 });
 
 test("buildMemoryReply returns correct delete-confirmation message", () => {
-  const fact = "Тестова дума — МОРСКИ ФАР 728";
+  const fact = МОРСКИ_ФАР_FACT;
   const reply = buildMemoryReply({
     type: "delete-confirmation-required",
     fact,
@@ -163,10 +163,10 @@ test("buildMemoryReply for 'forgot' indicates not-found when deleted===0", () =>
 
 test("extractConfirmedMemoryDeleteCommand parses МОРСКИ ФАР 728 fact", () => {
   const cmd = extractConfirmedMemoryDeleteCommand(
-    "Потвърждавам изтриването от постоянната памет само на факта: Тестова дума — МОРСКИ ФАР 728",
+    `Потвърждавам изтриването от постоянната памет само на факта: ${МОРСКИ_ФАР_FACT}`,
   );
   assert.ok(cmd);
-  assert.equal(cmd.fact, "Тестова дума — МОРСКИ ФАР 728");
+  assert.equal(cmd.fact, МОРСКИ_ФАР_FACT);
   assert.equal(cmd.scope, "personal");
 });
 
@@ -175,7 +175,7 @@ test("extractConfirmedMemoryDeleteCommand parses МОРСКИ ФАР 728 fact", 
 // ---------------------------------------------------------------------------
 
 test("end-to-end: save МОРСКИ ФАР 728 → confirm present → delete via pending → confirm absent", async (t) => {
-  const fact = `Тестова дума — МОРСКИ ФАР 728 e2e-${Date.now()}`;
+  const fact = `${МОРСКИ_ФАР_FACT} e2e-${Date.now()}`;
 
   // 1. Save
   let saved;
@@ -186,30 +186,37 @@ test("end-to-end: save МОРСКИ ФАР 728 → confirm present → delete vi
     return;
   }
 
-  // 2. Confirm it appears in listing
-  const before = await listProfileMemories();
-  const found = before.some((m) => m.fact === saved.fact);
-  assert.ok(found, "fact should be present after saving");
+  try {
+    // 2. Confirm it appears in listing
+    const before = await listProfileMemories();
+    const found = before.some((m) => m.fact === saved.fact);
+    assert.ok(found, "fact should be present after saving");
 
-  // 3. Simulate the pending delete flow
-  const sessionId = `e2e-session-${Date.now()}`;
-  storePendingDelete(sessionId, saved.fact, "personal");
-  const pending = getPendingDelete(sessionId);
-  assert.ok(pending, "pending entry should exist");
-  assert.equal(pending.fact, saved.fact);
+    // 3. Simulate the pending delete flow
+    const sessionId = `e2e-session-${Date.now()}`;
+    storePendingDelete(sessionId, saved.fact, "personal");
+    const pending = getPendingDelete(sessionId);
+    assert.ok(pending, "pending entry should exist");
+    assert.equal(pending.fact, saved.fact);
 
-  // 4. Execute deletion (as the chat route would on 'Да')
-  clearPendingDelete(sessionId);
-  const deleted = await deleteProfileMemoryByFact(saved.fact, "personal");
-  assert.ok(deleted > 0, "should have deleted at least one entry");
+    // 4. Execute deletion (as the chat route would on 'Да')
+    clearPendingDelete(sessionId);
+    const deleted = await deleteProfileMemoryByFact(saved.fact, "personal");
+    assert.ok(deleted > 0, "should have deleted at least one entry");
 
-  // 5. No pending left
-  assert.equal(getPendingDelete(sessionId), null);
+    // 5. No pending left
+    assert.equal(getPendingDelete(sessionId), null);
 
-  // 6. Confirm it is gone
-  const after = await listProfileMemories();
-  const stillPresent = after.some((m) => m.fact === saved.fact);
-  assert.equal(stillPresent, false, "fact should be absent after deletion");
+    // 6. Confirm it is gone
+    const after = await listProfileMemories();
+    const stillPresent = after.some((m) => m.fact === saved.fact);
+    assert.equal(stillPresent, false, "fact should be absent after deletion");
+  } finally {
+    // Best-effort cleanup: ensure the test fact is not left in the store.
+    if (saved?.fact) {
+      await deleteProfileMemoryByFact(saved.fact, "personal").catch(() => {});
+    }
+  }
 });
 
 test("OpenSearch failure path: deleteProfileMemoryByFact rejects → no false success", async (t) => {

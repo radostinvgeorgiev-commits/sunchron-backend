@@ -25,13 +25,22 @@ function purgeExpired() {
 /**
  * Stores a pending delete for the given session.
  * Any previous pending delete for the same session is replaced.
+ * @param {string} sessionId
+ * @param {string} fact
+ * @param {string} [scope]
+ * @param {number} [ttlMs]  – override for tests; defaults to PENDING_DELETE_TTL_MS
  */
-export function storePendingDelete(sessionId, fact, scope = "personal") {
+export function storePendingDelete(
+  sessionId,
+  fact,
+  scope = "personal",
+  ttlMs = PENDING_DELETE_TTL_MS,
+) {
   purgeExpired();
   pendingDeletes.set(sessionId, {
     fact,
     scope,
-    expiresAt: Date.now() + PENDING_DELETE_TTL_MS,
+    expiresAt: Date.now() + ttlMs,
   });
 }
 
@@ -59,7 +68,7 @@ export function clearPendingDelete(sessionId) {
  * are only treated as confirmations when there is an active pending delete.
  */
 export function isSimpleDeleteConfirmation(message) {
-  return /^\s*(?:да|потвърждавам)\s*[.!]?\s*$/iu.test(message);
+  return /^(?:да|потвърждавам)[.!]?$/iu.test(message.trim());
 }
 
 /** Test helper — clears all pending deletes. */

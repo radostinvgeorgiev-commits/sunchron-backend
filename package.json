@@ -19,8 +19,11 @@
     "node": "22.x"
   },
   "devDependencies": {
+    "dompurify": "^3.4.12",
     "eslint": "^9.39.2",
     "jest": "^30.2.0",
+    "jsdom": "^27.0.1",
+    "marked": "^18.0.7",
     "prettier": "^3.7.4",
     "supertest": "^7.1.4"
   }

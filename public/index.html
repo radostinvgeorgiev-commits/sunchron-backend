@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="/appshell.css?v=20260728-work-center" />
     <link rel="stylesheet" href="/search.css?v=20260726-search" />
     <link rel="stylesheet" href="/modules.css?v=20260726-modules" />
-    <link rel="stylesheet" href="/accessibility.css?v=20260728-large-text" />
+    <link rel="stylesheet" href="/accessibility.css?v=20260728-font-stepper" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
@@ -52,15 +52,37 @@
             <i class="fa-solid fa-table-cells-large"></i
             ><span>Работен център</span>
           </button>
-          <button
-            id="fontSizeBtn"
-            class="accessibility-button"
-            type="button"
-            aria-pressed="true"
+          <div
+            class="font-size-control"
+            role="group"
+            aria-label="Размер на текста"
           >
-            <i class="fa-solid fa-text-height"></i
-            ><span id="fontSizeLabel">Много едър шрифт</span>
-          </button>
+            <span class="font-size-control-title">
+              <i class="fa-solid fa-text-height"></i>
+              <span>Размер на текста</span>
+            </span>
+            <span class="font-size-stepper">
+              <button
+                id="fontSizeDecreaseBtn"
+                type="button"
+                aria-label="Намали текста"
+                title="Намали текста"
+              >
+                <i class="fa-solid fa-minus"></i>
+              </button>
+              <output id="fontSizeLabel" aria-live="polite">
+                Много едър · 48 px
+              </output>
+              <button
+                id="fontSizeIncreaseBtn"
+                type="button"
+                aria-label="Увеличи текста"
+                title="Увеличи текста"
+              >
+                <i class="fa-solid fa-plus"></i>
+              </button>
+            </span>
+          </div>
           <span class="sidebar-nav-label">Система</span>
           <button id="memoryBtn" type="button">
             <i class="fa-solid fa-brain"></i><span>Памет</span>
@@ -241,7 +263,7 @@
 
     <script src="/markdown-renderer.js?v=20260728-xss"></script>
     <script src="/app.js?v=20260728-xss"></script>
-    <script src="/accessibility.js?v=20260728-large-text"></script>
+    <script src="/accessibility.js?v=20260728-font-stepper"></script>
     <script src="/work-center.js?v=20260728-core-bridge"></script>
     <script src="/google-drive.js?v=20260727-connection-actions"></script>
     <script src="/google-apps.js?v=20260727-connection-actions"></script>

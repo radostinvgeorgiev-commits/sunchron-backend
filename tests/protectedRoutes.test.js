@@ -3,19 +3,19 @@ import test from "node:test";
 import request from "supertest";
 
 process.env.NODE_ENV = "test";
-process.env.GITHUB_REPOSITORY =
-  "radostinvgeorgiev-commits/sunchron-backend";
+process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 delete process.env.OPENSEARCH_HOST;
 delete process.env.OPENSEARCH_USERNAME;
 delete process.env.OPENSEARCH_PASSWORD;
 
 const { default: app } = await import("../server.js");
-const { createGitHubSession } = await import(
-  "../src/services/githubOAuthService.js"
-);
+const { createGitHubSession } =
+  await import("../src/services/githubOAuthService.js");
 
 test("keeps liveness and GitHub sign-in routes public", async () => {
   await request(app).get("/health").expect(200);
+  const config = await request(app).get("/api/public-config").expect(200);
+  assert.equal(config.body.chatgptWorkUrl, "https://chatgpt.com/");
   const status = await request(app).get("/api/github/status").expect(200);
   assert.equal(status.body.connected, false);
 });

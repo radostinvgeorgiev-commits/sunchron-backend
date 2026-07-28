@@ -15,6 +15,7 @@ test("application exposes working memory and permission controls", async () => {
   assert.match(html, /id="modulesBtn"/u);
   assert.match(html, /id="focusBtn"/u);
   assert.match(html, /id="toolsBtn"/u);
+  assert.match(html, /id="workCenterBtn"/u);
   assert.match(html, /id="sidebarBackdrop"/u);
   assert.match(html, /Лична AI операционна система/u);
   assert.match(html, /Инструменти/u);

@@ -250,3 +250,95 @@ test("full memory deletion requires a separate explicit confirmation phrase", ()
   );
   assert.equal(isConfirmedForgetAllCommand("Да, изтрий я."), false);
 });
+
+// ── New tests covering fix for issue #81 ────────────────────────────────────
+
+test("'моят X е VALUE' facts get a topic-based key without the value", () => {
+  const m1 = deriveMemoryMetadata("моят тестов код е KAMCHIA-7429");
+  assert.equal(m1.memoryKey, "personal:property:моят-тестов-код");
+
+  const m2 = deriveMemoryMetadata("моят тестов код е МОРСКИ ФАР 728");
+  assert.equal(m2.memoryKey, "personal:property:моят-тестов-код");
+
+  // Both should share the same key so the newer value supersedes the older
+  assert.equal(m1.memoryKey, m2.memoryKey);
+});
+
+test("'моята X е VALUE' and 'моето X е VALUE' also use a topic-based key", () => {
+  assert.equal(
+    deriveMemoryMetadata("моята любима книга е Дюн").memoryKey,
+    "personal:property:моят-любима-книга",
+  );
+  assert.equal(
+    deriveMemoryMetadata("моето хоби е плуване").memoryKey,
+    "personal:property:моят-хоби",
+  );
+});
+
+test("'моят X е VALUE' key is distinct from an unrelated 'тестова дума' key", () => {
+  const testCode = deriveMemoryMetadata("моят тестов код е KAMCHIA-7429");
+  const testWord = deriveMemoryMetadata("тестова дума — МОРСКИ ФАР 728");
+
+  assert.notEqual(testCode.memoryKey, testWord.memoryKey);
+});
+
+test("existing patterns are not affected by the new 'моят' rule", () => {
+  // Location key is still derived from "живея"
+  assert.equal(
+    deriveMemoryMetadata("Живея в София").memoryKey,
+    "personal:location:residence",
+  );
+  // Preference key still works for "любимият ми цвят"
+  assert.equal(
+    deriveMemoryMetadata("Любимият ми цвят е червен").memoryKey,
+    "personal:preference:favorite-color",
+  );
+});
+
+test("memory context includes anti-confusion instruction for different fact names", () => {
+  const context = buildMemoryContext([
+    { fact: "моят тестов код е KAMCHIA-7429", scope: "personal" },
+    { fact: "Тестова дума — МОРСКИ ФАР 728", scope: "personal" },
+  ]);
+
+  // Both facts should appear
+  assert.match(context, /KAMCHIA-7429/);
+  assert.match(context, /МОРСКИ ФАР 728/);
+
+  // The anti-confusion instruction must be present
+  assert.match(context, /тестова дума.*тестов код.*РАЗЛИЧНИ факти/u);
+});
+
+test("memory context includes honest-answer instruction for missing facts", () => {
+  const context = buildMemoryContext([
+    { fact: "Живея в Варна", scope: "personal" },
+  ]);
+
+  assert.match(context, /Не знам/u);
+});
+
+test("consolidateMemoryView keeps only newest when two entries share the same 'моят X' key", () => {
+  const items = consolidateMemoryView([
+    {
+      id: "new",
+      fact: "моят тестов код е KAMCHIA-7429",
+      memoryKey: "personal:property:моят-тестов-код",
+      category: "personal-fact",
+      scope: "personal",
+      updatedAt: "2026-07-28T12:00:00.000Z",
+    },
+    {
+      id: "old",
+      fact: "моят тестов код е МОРСКИ ФАР 728",
+      memoryKey: "personal:property:моят-тестов-код",
+      category: "personal-fact",
+      scope: "personal",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    },
+  ]);
+
+  // Only the newer entry should survive deduplication
+  assert.equal(items.length, 1);
+  assert.match(items[0].fact, /KAMCHIA-7429/);
+  assert.doesNotMatch(items[0].fact, /МОРСКИ ФАР/);
+});

@@ -202,6 +202,22 @@ export function deriveMemoryMetadata(fact, requestedScope = "personal") {
     };
   }
 
+  // "моят/моята/моето/моите X е VALUE" — topic-based key (without the value) so
+  // that saving a new value for the same topic correctly supersedes the old one.
+  const myThing = normalized.match(
+    /^(?:моят|моята|моето|моите)\s+(.{2,80}?)\s+(?:вече\s+)?е(?:\s|$)/u,
+  );
+  if (myThing) {
+    return {
+      memoryKey: `personal:property:моят-${myThing[1]
+        .trim()
+        .replace(/\s+/g, "-")
+        .slice(0, 80)}`,
+      category: "personal-fact",
+      scope,
+    };
+  }
+
   const personalProperty = normalized.match(
     /^(.{2,80}?\s+ми)\s+(?:вече\s+)?е(?:\s|$)/u,
   );
@@ -362,13 +378,13 @@ export function isConfirmedForgetAllCommand(message) {
   );
 }
 
-async function fetchProfileHits() {
+async function fetchProfileHits(ownerId = OWNER_ID) {
   const response = await getClientOrThrow().search({
     index: PROFILE_INDEX,
     body: {
       size: MAX_MEMORIES,
       sort: [{ updatedAt: { order: "desc" } }],
-      query: { term: { ownerId: OWNER_ID } },
+      query: { term: { ownerId } },
       _source: [
         "fact",
         "normalizedFact",
@@ -481,7 +497,8 @@ export function consolidateMemoryView(memories) {
 export async function listProfileMemories(options = {}) {
   await ensureProfileIndex();
   const requestedScope = typeof options === "string" ? options : options?.scope;
-  const hits = await fetchProfileHits();
+  const ownerId = (typeof options === "object" && options?.ownerId) || OWNER_ID;
+  const hits = await fetchProfileHits(ownerId);
   const seenKeys = new Set();
   const memories = [];
 
@@ -535,6 +552,7 @@ export async function saveProfileMemory(
   fact,
   source = "explicit-chat-command",
   requestedScope = "personal",
+  ownerId = OWNER_ID,
 ) {
   const cleanFact = cleanMemoryFact(fact);
   if (!cleanFact || cleanFact.length > 500) {
@@ -554,7 +572,7 @@ export async function saveProfileMemory(
   const client = getClientOrThrow();
   const normalizedFact = normalizeFact(cleanFact);
   const metadata = deriveMemoryMetadata(cleanFact, requestedScope);
-  const hits = await fetchProfileHits();
+  const hits = await fetchProfileHits(ownerId);
   const hydrated = hits.map(hydrateMemory).filter(Boolean);
   const sameTopic = hydrated.filter(
     (memory) => memory.memoryKey === metadata.memoryKey,
@@ -584,7 +602,7 @@ export async function saveProfileMemory(
     id,
     refresh: true,
     body: {
-      ownerId: OWNER_ID,
+      ownerId,
       fact: cleanFact,
       normalizedFact,
       ...metadata,
@@ -611,13 +629,14 @@ export async function saveProfileMemory(
 export async function deleteProfileMemoryByFact(
   fact,
   requestedScope = "personal",
+  ownerId = OWNER_ID,
 ) {
   const cleanFact = cleanMemoryFact(fact);
   if (!cleanFact) return 0;
 
   await ensureProfileIndex();
   const metadata = deriveMemoryMetadata(cleanFact, requestedScope);
-  const hits = await fetchProfileHits();
+  const hits = await fetchProfileHits(ownerId);
   const matchingIds = hits
     .map(hydrateMemory)
     .filter((memory) => memory?.memoryKey === metadata.memoryKey)
@@ -631,7 +650,7 @@ export async function deleteProfileMemoryByFact(
       query: {
         bool: {
           filter: [
-            { term: { ownerId: OWNER_ID } },
+            { term: { ownerId } },
             { terms: { _id: matchingIds } },
           ],
         },
@@ -651,9 +670,9 @@ export async function deleteProfileMemory(id) {
   return response.body?.result === "deleted" || response.result === "deleted";
 }
 
-export async function clearProfileMemories(scope) {
+export async function clearProfileMemories(scope, ownerId = OWNER_ID) {
   await ensureProfileIndex();
-  const filters = [{ term: { ownerId: OWNER_ID } }];
+  const filters = [{ term: { ownerId } }];
   if (VALID_SCOPES.has(scope)) filters.push({ term: { scope } });
   const response = await getClientOrThrow().deleteByQuery({
     index: PROFILE_INDEX,
@@ -666,6 +685,7 @@ export async function clearProfileMemories(scope) {
 export async function listConversationMessages(
   sessionId,
   limit = MAX_CONVERSATION_MESSAGES,
+  ownerId = OWNER_ID,
 ) {
   await ensureConversationIndex();
   const response = await getClientOrThrow().search({
@@ -675,7 +695,7 @@ export async function listConversationMessages(
       sort: [{ createdAt: { order: "desc" } }],
       query: {
         bool: {
-          filter: [{ term: { ownerId: OWNER_ID } }, { term: { sessionId } }],
+          filter: [{ term: { ownerId } }, { term: { sessionId } }],
         },
       },
       _source: ["role", "content", "createdAt"],
@@ -695,13 +715,16 @@ export function conversationTitleFromMessages(messages) {
   return title.length > 52 ? `${title.slice(0, 49).trimEnd()}…` : title;
 }
 
-export async function listConversationSummaries(limit = MAX_CONVERSATIONS) {
+export async function listConversationSummaries(
+  limit = MAX_CONVERSATIONS,
+  ownerId = OWNER_ID,
+) {
   await ensureConversationIndex();
   const response = await getClientOrThrow().search({
     index: CONVERSATION_INDEX,
     body: {
       size: 0,
-      query: { term: { ownerId: OWNER_ID } },
+      query: { term: { ownerId } },
       aggs: {
         conversations: {
           terms: {
@@ -743,7 +766,12 @@ export async function listConversationSummaries(limit = MAX_CONVERSATIONS) {
   });
 }
 
-export async function saveConversationTurn(sessionId, userText, replyText) {
+export async function saveConversationTurn(
+  sessionId,
+  userText,
+  replyText,
+  ownerId = OWNER_ID,
+) {
   await ensureConversationIndex();
   const client = getClientOrThrow();
   const timestamp = Date.now();
@@ -752,7 +780,7 @@ export async function saveConversationTurn(sessionId, userText, replyText) {
     body: [
       { index: { _index: CONVERSATION_INDEX, _id: randomUUID() } },
       {
-        ownerId: OWNER_ID,
+        ownerId,
         sessionId,
         role: "user",
         content: userText,
@@ -760,7 +788,7 @@ export async function saveConversationTurn(sessionId, userText, replyText) {
       },
       { index: { _index: CONVERSATION_INDEX, _id: randomUUID() } },
       {
-        ownerId: OWNER_ID,
+        ownerId,
         sessionId,
         role: "assistant",
         content: replyText,
@@ -805,9 +833,11 @@ export function buildMemoryContext(memories) {
     "[КОНТЕКСТ НА ПРОЕКТА]",
     "Тези факти описват проекта, а не личността на Радко.",
     format(project, "Няма записани проектни факти."),
-    "Използвай само фактите, които са свързани с текущия въпрос.",
-    "При противоречие използвай най-новия показан факт.",
-    "Не измисляй липсващи факти и не твърди, че помниш нещо, което не е тук или в разговора.",
+    "Използвай само фактите, които са БУКВАЛНО свързани с текущия въпрос.",
+    "При противоречие използвай най-новия показан факт (с по-висок номер — той е по-нов).",
+    "Не смесвай различни записи: 'тестова дума', 'тестов код', 'тестово число' и подобни са РАЗЛИЧНИ факти — не ги заменяй един с друг.",
+    "Ако точен запис за зададения въпрос липсва в паметта, отговори честно: 'Не знам' — не измисляй и не предполагай стойност от друг несвързан запис.",
+    "Не твърди, че помниш факт, ако не е показан тук или в историята на разговора.",
     "[КРАЙ НА ПАМЕТТА]",
   ].join("\n");
 }

@@ -176,11 +176,13 @@
         url: REPOSITORY_URL,
         icon: "fa-brands fa-github",
       }),
-      createExternalCard({
-        title: "GitHub — задачи",
-        description: "Отворените задачи за проекта.",
-        url: `${REPOSITORY_URL}/issues`,
+      createInternalCard({
+        title: "Дневник на задачите",
+        description:
+          "Текущи, чакащи и завършени задачи на едно място.",
+        targetId: "focusBtn",
         icon: "fa-solid fa-list-check",
+        status: "Вградено · Запазва се автоматично",
       }),
       createExternalCard({
         title: "GitHub — Pull Requests",

@@ -38,6 +38,7 @@
     url,
     icon,
     featured = false,
+    status = "Външна услуга · Може да изисква вход",
   }) {
     const card = document.createElement("a");
     card.className = `work-center-card${featured ? " featured" : ""}`;
@@ -54,12 +55,7 @@
     content.className = "work-center-card-content";
     addText(content, "strong", cardTitle);
     addText(content, "span", description, "work-center-description");
-    addText(
-      content,
-      "span",
-      "Външна услуга · Може да изисква вход",
-      "work-center-status external",
-    );
+    addText(content, "span", status, "work-center-status external");
     card.appendChild(content);
 
     const arrow = document.createElement("i");
@@ -75,10 +71,13 @@
     description,
     targetId,
     icon,
+    featured = false,
+    status = "Вградено и работи в SYNCHRON-X",
+    statusClass = "internal",
   }) {
     const card = document.createElement("button");
     card.type = "button";
-    card.className = "work-center-card";
+    card.className = `work-center-card${featured ? " featured" : ""}`;
     card.dataset.workCenterTarget = targetId;
 
     const iconElement = document.createElement("span");
@@ -90,12 +89,7 @@
     content.className = "work-center-card-content";
     addText(content, "strong", cardTitle);
     addText(content, "span", description, "work-center-description");
-    addText(
-      content,
-      "span",
-      "Вградено и работи в SYNCHRON-X",
-      "work-center-status internal",
-    );
+    addText(content, "span", status, `work-center-status ${statusClass}`);
     card.appendChild(content);
     return card;
   }
@@ -106,7 +100,30 @@
     document.getElementById("chatInput")?.focus();
   }
 
-  function renderWorkCenter(config) {
+  function resolveCoreStatus(readiness) {
+    if (
+      readiness?.status === "ready" &&
+      readiness?.checks?.chatAgent?.ready === true &&
+      readiness?.checks?.memory?.ready === true
+    ) {
+      return {
+        label: "AI ядро и постоянна памет: свързани",
+        className: "internal",
+      };
+    }
+    if (readiness) {
+      return {
+        label: "AI ядрото или паметта не са напълно готови",
+        className: "warning",
+      };
+    }
+    return {
+      label: "Статусът на ядрото не е достъпен",
+      className: "warning",
+    };
+  }
+
+  function renderWorkCenter(config, readiness = null) {
     const chatgptUrl = safeHttpsUrl(
       config.chatgptWorkUrl,
       FALLBACK_CONFIG.chatgptWorkUrl,
@@ -126,20 +143,32 @@
     addText(
       intro,
       "p",
-      "Отвори работните услуги от едно място. Тези карти са навигация и не дават нови права на агента.",
+      "Свързаният разговор е вътре в SYNCHRON-X. Външните услуги не получават автоматично достъп до паметта и не дават нови права на агента.",
     );
     body.appendChild(intro);
 
     const grid = document.createElement("section");
     grid.className = "work-center-grid";
     grid.setAttribute("aria-label", "Услуги на проекта");
+    const coreStatus = resolveCoreStatus(readiness);
     const cards = [
+      createInternalCard({
+        title: "SYNCHRON-X — свързан разговор",
+        description:
+          "Този чат използва AI ядрото и разрешената постоянна памет.",
+        targetId: "chat",
+        icon: "fa-solid fa-brain",
+        featured: true,
+        status: coreStatus.label,
+        statusClass: coreStatus.className,
+      }),
       createExternalCard({
-        title: "Отвори ChatGPT",
-        description: "Продължи работата в ChatGPT чрез безопасен HTTPS адрес.",
+        title: "ChatGPT — отделен разговор",
+        description:
+          "Отваря ChatGPT, но не му дава автоматичен достъп до паметта на SYNCHRON-X.",
         url: chatgptUrl,
         icon: "fa-solid fa-comment-dots",
-        featured: true,
+        status: "Външна услуга · Без автоматична връзка с паметта",
       }),
       createExternalCard({
         title: "GitHub — хранилище",
@@ -215,14 +244,21 @@
     body.innerHTML =
       '<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Зареждане…</div>';
 
+    const [configResult, readinessResult] = await Promise.allSettled([
+      fetch("/api/public-config", { cache: "no-store" }),
+      fetch("/health/ready", { cache: "no-store" }),
+    ]);
+
     let config = FALLBACK_CONFIG;
-    try {
-      const response = await fetch("/api/public-config", { cache: "no-store" });
-      if (response.ok) config = await response.json();
-    } catch {
-      config = FALLBACK_CONFIG;
+    if (configResult.status === "fulfilled" && configResult.value.ok) {
+      config = (await configResult.value.json()) || FALLBACK_CONFIG;
     }
-    renderWorkCenter(config || FALLBACK_CONFIG);
+
+    let readiness = null;
+    if (readinessResult.status === "fulfilled" && readinessResult.value.ok) {
+      readiness = await readinessResult.value.json();
+    }
+    renderWorkCenter(config, readiness);
   }
 
   body.addEventListener("click", (event) => {
@@ -232,12 +268,17 @@
     }
     const internalCard = event.target.closest("[data-work-center-target]");
     if (!internalCard) return;
+    if (internalCard.dataset.workCenterTarget === "chat") {
+      closeWorkCenter();
+      return;
+    }
     document.getElementById(internalCard.dataset.workCenterTarget)?.click();
   });
   button.addEventListener("click", openWorkCenter);
 
   globalThis.SynchronWorkCenter = Object.freeze({
     openWorkCenter,
+    resolveCoreStatus,
     safeHttpsUrl,
   });
 })();

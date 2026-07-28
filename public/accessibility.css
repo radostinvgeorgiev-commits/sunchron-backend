@@ -1,0 +1,276 @@
+:root[data-font-scale="max"] {
+  --synchron-readable-text: 24px;
+  --synchron-chat-text: 48px;
+  --synchron-input-text: 34px;
+  --synchron-small-text: 20px;
+}
+
+:root[data-font-scale="max"] body {
+  font-size: var(--synchron-readable-text);
+}
+
+:root[data-font-scale="max"] .app-shell {
+  grid-template-columns: 360px minmax(0, 1fr);
+}
+
+:root[data-font-scale="max"] .sidebar {
+  gap: 12px;
+  padding: 16px 12px;
+}
+
+:root[data-font-scale="max"] .sidebar-brand,
+:root[data-font-scale="max"] .new-chat,
+:root[data-font-scale="max"] .sidebar-nav button,
+:root[data-font-scale="max"] .conversation,
+:root[data-font-scale="max"] .profile-button {
+  font-size: 24px;
+  line-height: 1.3;
+}
+
+:root[data-font-scale="max"] .sidebar-brand {
+  min-height: 72px;
+}
+
+:root[data-font-scale="max"] .sidebar-brand small,
+:root[data-font-scale="max"] .profile-button small,
+:root[data-font-scale="max"] .sidebar-section > span,
+:root[data-font-scale="max"] .sidebar-nav .sidebar-nav-label {
+  font-size: var(--synchron-small-text);
+  line-height: 1.35;
+  white-space: normal;
+}
+
+:root[data-font-scale="max"] .new-chat,
+:root[data-font-scale="max"] .sidebar-nav button {
+  min-height: 64px;
+}
+
+:root[data-font-scale="max"] .profile-button {
+  min-height: 76px;
+  grid-template-columns: 48px minmax(0, 1fr) 28px;
+}
+
+:root[data-font-scale="max"] .profile-avatar {
+  width: 48px;
+  height: 48px;
+}
+
+:root[data-font-scale="max"] .accessibility-button[aria-pressed="true"] {
+  color: #fff;
+  background: #111;
+}
+
+:root[data-font-scale="max"] .chat-toolbar {
+  min-height: 78px;
+}
+
+:root[data-font-scale="max"] .model-title strong,
+:root[data-font-scale="max"] #agentStatusText {
+  font-size: 24px;
+}
+
+:root[data-font-scale="max"] .model-title small {
+  font-size: var(--synchron-small-text);
+  line-height: 1.3;
+}
+
+:root[data-font-scale="max"] #chatMessages,
+:root[data-font-scale="max"] .composer-wrap {
+  width: min(100%, 1120px);
+}
+
+:root[data-font-scale="max"] .message {
+  font-size: var(--synchron-chat-text) !important;
+  line-height: 1.42 !important;
+  overflow-wrap: anywhere;
+}
+
+:root[data-font-scale="max"]
+  .message.agent
+  :where(p, li, blockquote, strong, em, a, span) {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+:root[data-font-scale="max"] .message.agent :where(code, pre) {
+  font-size: 36px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+:root[data-font-scale="max"] .message-actions button {
+  width: 56px;
+  height: 56px;
+  font-size: 24px;
+}
+
+:root[data-font-scale="max"] .chat-input-area {
+  min-height: 82px;
+  border-radius: 30px;
+}
+
+:root[data-font-scale="max"] .chat-input-area input {
+  font-size: var(--synchron-input-text) !important;
+  line-height: 1.3;
+}
+
+:root[data-font-scale="max"] .attach-btn,
+:root[data-font-scale="max"] .voice-btn,
+:root[data-font-scale="max"] #sendBtn {
+  width: 58px;
+  height: 58px;
+  flex-basis: 58px;
+  font-size: 24px;
+}
+
+:root[data-font-scale="max"] .composer-note {
+  font-size: var(--synchron-small-text);
+  line-height: 1.35;
+}
+
+:root[data-font-scale="max"] .statusPanel {
+  width: min(640px, calc(100vw - 24px));
+  font-size: 24px;
+}
+
+:root[data-font-scale="max"] .context-label,
+:root[data-font-scale="max"] .context-value,
+:root[data-font-scale="max"] .log-list {
+  font-size: 22px;
+  line-height: 1.4;
+}
+
+:root[data-font-scale="max"] .data-drawer {
+  width: min(720px, 100vw);
+}
+
+:root[data-font-scale="max"] .data-drawer-header {
+  min-height: 100px;
+}
+
+:root[data-font-scale="max"] .data-drawer-header h2 {
+  font-size: 36px;
+}
+
+:root[data-font-scale="max"] .data-drawer-kicker,
+:root[data-font-scale="max"] .drawer-section h3,
+:root[data-font-scale="max"] .memory-badge,
+:root[data-font-scale="max"] .permission-badge {
+  font-size: var(--synchron-small-text);
+  line-height: 1.35;
+}
+
+:root[data-font-scale="max"] .drawer-state,
+:root[data-font-scale="max"] .memory-card,
+:root[data-font-scale="max"] .permission-card,
+:root[data-font-scale="max"] .focus-card,
+:root[data-font-scale="max"] .focus-next,
+:root[data-font-scale="max"] .work-center-intro {
+  font-size: var(--synchron-readable-text);
+  line-height: 1.5;
+}
+
+:root[data-font-scale="max"] .memory-card p,
+:root[data-font-scale="max"] .permission-card p,
+:root[data-font-scale="max"] .focus-card p {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+:root[data-font-scale="max"] .work-center-card {
+  min-height: 138px;
+  grid-template-columns: 58px minmax(0, 1fr) 28px;
+  gap: 16px;
+  padding: 20px;
+}
+
+:root[data-font-scale="max"] .work-center-icon {
+  width: 58px;
+  height: 58px;
+  font-size: 28px;
+}
+
+:root[data-font-scale="max"] .work-center-card strong {
+  font-size: 28px;
+  line-height: 1.3;
+}
+
+:root[data-font-scale="max"] .work-center-description {
+  font-size: 22px;
+  line-height: 1.45;
+}
+
+:root[data-font-scale="max"] .work-center-status {
+  font-size: 18px;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+:root[data-font-scale="max"] .work-center-close {
+  min-height: 70px;
+  font-size: 24px;
+}
+
+:root[data-font-scale="max"] .work-center-status.warning {
+  color: #8a4b00;
+  background: #fff4df;
+}
+
+@media (max-width: 760px) {
+  :root[data-font-scale="max"] .sidebar.mobile-visible {
+    width: min(94vw, 420px);
+  }
+
+  :root[data-font-scale="max"] .chat-toolbar {
+    min-height: 74px;
+  }
+
+  :root[data-font-scale="max"] .mobile-menu {
+    font-size: 28px;
+  }
+
+  :root[data-font-scale="max"] #chatMessages {
+    padding: 18px 12px 8px;
+  }
+
+  :root[data-font-scale="max"] .user-turn {
+    max-width: 96%;
+  }
+
+  :root[data-font-scale="max"] .message {
+    font-size: var(--synchron-chat-text) !important;
+  }
+
+  :root[data-font-scale="max"] .composer-wrap {
+    padding-inline: 8px;
+  }
+
+  :root[data-font-scale="max"] .data-drawer-body {
+    padding: 16px 12px;
+  }
+}
+
+@media (max-width: 520px) {
+  :root[data-font-scale="max"] .model-title small {
+    display: none;
+  }
+
+  :root[data-font-scale="max"] .work-center-card {
+    min-height: 0;
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  :root[data-font-scale="max"] .work-center-arrow {
+    display: none;
+  }
+
+  :root[data-font-scale="max"] .permission-card,
+  :root[data-font-scale="max"] .tool-status-card,
+  :root[data-font-scale="max"] .memory-card {
+    width: 100%;
+    min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

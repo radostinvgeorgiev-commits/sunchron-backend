@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="bg">
+<html lang="bg" data-font-scale="max">
   <head>
     <meta charset="UTF-8" />
     <meta
@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="/appshell.css?v=20260728-work-center" />
     <link rel="stylesheet" href="/search.css?v=20260726-search" />
     <link rel="stylesheet" href="/modules.css?v=20260726-modules" />
+    <link rel="stylesheet" href="/accessibility.css?v=20260728-large-text" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
@@ -50,6 +51,15 @@
           <button id="workCenterBtn" type="button">
             <i class="fa-solid fa-table-cells-large"></i
             ><span>Работен център</span>
+          </button>
+          <button
+            id="fontSizeBtn"
+            class="accessibility-button"
+            type="button"
+            aria-pressed="true"
+          >
+            <i class="fa-solid fa-text-height"></i
+            ><span id="fontSizeLabel">Много едър шрифт</span>
           </button>
           <span class="sidebar-nav-label">Система</span>
           <button id="memoryBtn" type="button">
@@ -231,7 +241,8 @@
 
     <script src="/markdown-renderer.js?v=20260728-xss"></script>
     <script src="/app.js?v=20260728-xss"></script>
-    <script src="/work-center.js?v=20260728-work-center"></script>
+    <script src="/accessibility.js?v=20260728-large-text"></script>
+    <script src="/work-center.js?v=20260728-core-bridge"></script>
     <script src="/google-drive.js?v=20260727-connection-actions"></script>
     <script src="/google-apps.js?v=20260727-connection-actions"></script>
     <script src="/search.js?v=20260726-search"></script>

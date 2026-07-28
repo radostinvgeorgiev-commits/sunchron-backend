@@ -640,10 +640,16 @@ export async function deleteProfileMemoryByFact(
 
   await ensureProfileIndex();
   const metadata = deriveMemoryMetadata(cleanFact, requestedScope);
+  const normalizedFact = normalizeFact(cleanFact);
   const hits = await fetchProfileHits(ownerId);
   const matchingIds = hits
     .map(hydrateMemory)
-    .filter((memory) => memory?.memoryKey === metadata.memoryKey)
+    .filter(
+      (memory) =>
+        memory?.memoryKey === metadata.memoryKey &&
+        (memory.normalizedFact || normalizeFact(memory.fact)) ===
+          normalizedFact,
+    )
     .map((memory) => memory.id);
   if (!matchingIds.length) return 0;
 

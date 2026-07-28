@@ -634,6 +634,9 @@ router.post("/chat", async (req, res) => {
   let autoMemoryCount = 0;
   let memoryAvailable = true;
   const pendingDelete = getPendingDelete(cleanSessionId);
+  // isSimpleConfirmation is only true when BOTH the message is a short "Да"/
+  // "Потвърждавам" AND there is an active pending delete for this session.
+  // This ensures a plain "Да" in normal conversation never triggers deletion.
   const isSimpleConfirmation =
     isSimpleDeleteConfirmation(cleanMessage) && Boolean(pendingDelete);
   const explicitMemoryIntent =

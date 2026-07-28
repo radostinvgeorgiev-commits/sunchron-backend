@@ -175,7 +175,7 @@ test("extractConfirmedMemoryDeleteCommand parses МОРСКИ ФАР 728 fact", 
 // ---------------------------------------------------------------------------
 
 test("end-to-end: save МОРСКИ ФАР 728 → confirm present → delete via pending → confirm absent", async (t) => {
-  const fact = `${МОРСКИ_ФАР_FACT} e2e-${Date.now()}`;
+  const fact = `${МОРСКИ_ФАР_FACT} e2e-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   // 1. Save
   let saved;

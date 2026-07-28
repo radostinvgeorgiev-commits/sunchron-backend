@@ -66,6 +66,10 @@ export function clearPendingDelete(sessionId) {
  * ("Да", "Потвърждавам", optionally followed by punctuation).
  * This is intentionally narrow so that normal conversational "Да" answers
  * are only treated as confirmations when there is an active pending delete.
+ *
+ * Whitespace between the word and any trailing punctuation (e.g. "Да .")
+ * is intentionally rejected to keep the pattern unambiguous.  Callers
+ * should call message.trim() before passing the value.
  */
 export function isSimpleDeleteConfirmation(message) {
   return /^(?:да|потвърждавам)[.!]?$/iu.test(message.trim());

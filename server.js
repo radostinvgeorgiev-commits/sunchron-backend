@@ -17,6 +17,7 @@ import permissionsRouter from "./src/routes/permissionsRouter.js";
 import googleDriveRouter from "./src/routes/googleDriveRouter.js";
 import githubOAuthRouter from "./src/routes/githubOAuthRouter.js";
 import webSearchRouter from "./src/routes/webSearchRouter.js";
+import publicConfigRouter from "./src/routes/publicConfigRouter.js";
 
 dotenv.config();
 
@@ -45,6 +46,7 @@ app.use(
 );
 
 app.use("/health", healthRouter);
+app.use("/api/public-config", publicConfigRouter);
 app.use("/api/github", oauthRateLimiter, githubOAuthRouter);
 
 app.use("/chat", requireOwnerSession, paidAiRateLimiter, chatRouter);

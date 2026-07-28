@@ -769,7 +769,11 @@ router.post("/chat", async (req, res) => {
     ]);
   } catch (error) {
     console.error(`[Memory] Failure for ${cleanSessionId}:`, error);
-    if (explicitMemoryIntent) {
+    // A denial action (memoryAction.type === "denied") means the pending entry
+    // was already cleared before the catch was reached; the failure is in the
+    // subsequent memory-context refresh, not in the denial itself.  Return the
+    // denial reply in degraded mode instead of a misleading 503.
+    if (explicitMemoryIntent && memoryAction?.type !== "denied") {
       return res.status(503).json({
         error:
           "Постоянната памет временно не е достъпна. Нищо не беше записано или изтрито.",

@@ -29,6 +29,7 @@ function getCachedPaths(path) {
   return pathsCache.get(parent);
 }
 function getOrCreateCachedPaths(node, parentPath) {
+  ;
   let paths = pathsCache.get(node);
   if (!paths) pathsCache.set(node, paths = new Map());
   return paths;

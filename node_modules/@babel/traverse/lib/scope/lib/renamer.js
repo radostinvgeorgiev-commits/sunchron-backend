@@ -30,9 +30,6 @@ const renameVisitor = {
           path.requeueComputedKeyAndDecorators();
         }
       }
-      if (path.isSwitchStatement()) {
-        path.context.maybeQueue(path.get("discriminant"));
-      }
     }
   },
   ObjectProperty({
@@ -43,9 +40,11 @@ const renameVisitor = {
       name
     } = node.key;
     if (node.shorthand && (name === state.oldName || name === state.newName) && scope.getBindingIdentifier(name) === state.binding.identifier) {
-      var _node$extra;
       node.shorthand = false;
-      if ((_node$extra = node.extra) != null && _node$extra.shorthand) node.extra.shorthand = false;
+      {
+        var _node$extra;
+        if ((_node$extra = node.extra) != null && _node$extra.shorthand) node.extra.shorthand = false;
+      }
     }
   },
   "AssignmentExpression|Declaration|VariableDeclarator"(path, state) {

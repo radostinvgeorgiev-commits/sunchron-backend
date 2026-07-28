@@ -150,19 +150,14 @@ function _evaluate(path, state) {
       deopt(binding.path, state);
       return;
     }
-    if (!binding) {
+    const resolved = path.resolve();
+    if (resolved === path) {
       deopt(path, state);
       return;
     }
-    const bindingPath = binding.path;
-    if (!bindingPath.isVariableDeclarator()) {
-      deopt(bindingPath, state);
-      return;
-    }
-    const initPath = bindingPath.get("init");
-    const value = evaluateCached(initPath, state);
+    const value = evaluateCached(resolved, state);
     if (typeof value === "object" && value !== null && binding.references > 1) {
-      deopt(initPath, state);
+      deopt(resolved, state);
       return;
     }
     return value;

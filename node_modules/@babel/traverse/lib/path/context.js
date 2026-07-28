@@ -4,7 +4,6 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports._call = _call;
-exports._forceSetScope = _forceSetScope;
 exports._getQueueContexts = _getQueueContexts;
 exports._resyncKey = _resyncKey;
 exports._resyncList = _resyncList;
@@ -64,7 +63,9 @@ function isDenylisted() {
   const denylist = (_this$opts$denylist = this.opts.denylist) != null ? _this$opts$denylist : this.opts.blacklist;
   return denylist == null ? void 0 : denylist.includes(this.node.type);
 }
-exports.isBlacklisted = isDenylisted;
+{
+  exports.isBlacklisted = isDenylisted;
+}
 function restoreContext(path, context) {
   if (path.context !== context) {
     path.context = context;
@@ -107,22 +108,8 @@ function skipKey(key) {
 function stop() {
   this._traverseFlags |= _index.SHOULD_SKIP | _index.SHOULD_STOP;
 }
-function _forceSetScope() {
-  var _this$scope;
-  let path = this.parentPath;
-  if ((this.key === "key" || this.listKey === "decorators") && path.isMethod() || this.key === "discriminant" && path.isSwitchStatement()) {
-    path = path.parentPath;
-  }
-  let target;
-  while (path && !target) {
-    target = path.scope;
-    path = path.parentPath;
-  }
-  this.scope = this.getScope(target);
-  (_this$scope = this.scope) == null || _this$scope.init();
-}
 function setScope() {
-  var _this$opts2, _this$scope2;
+  var _this$opts2, _this$scope;
   if ((_this$opts2 = this.opts) != null && _this$opts2.noScope) return;
   let path = this.parentPath;
   if ((this.key === "key" || this.listKey === "decorators") && path.isMethod() || this.key === "discriminant" && path.isSwitchStatement()) {
@@ -136,7 +123,7 @@ function setScope() {
     path = path.parentPath;
   }
   this.scope = this.getScope(target);
-  (_this$scope2 = this.scope) == null || _this$scope2.init();
+  (_this$scope = this.scope) == null || _this$scope.init();
 }
 function setContext(context) {
   if (this.skipKeys != null) {
@@ -221,6 +208,7 @@ function setKey(key) {
 }
 function requeue(pathToQueue = this) {
   if (pathToQueue.removed) return;
+  ;
   const contexts = this.contexts;
   for (const context of contexts) {
     context.maybeQueue(pathToQueue);

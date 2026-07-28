@@ -54,6 +54,12 @@ import {
   AVATAR_DEFINITION,
   PROJECT_DEFINITION,
 } from "../config/projectIdentity.js";
+import {
+  clearPendingDelete,
+  getPendingDelete,
+  isSimpleDeleteConfirmation,
+  storePendingDelete,
+} from "../services/pendingDeleteService.js";
 
 const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
@@ -627,7 +633,11 @@ router.post("/chat", async (req, res) => {
   let memoryAction = null;
   let autoMemoryCount = 0;
   let memoryAvailable = true;
+  const pendingDelete = getPendingDelete(cleanSessionId);
+  const isSimpleConfirmation =
+    isSimpleDeleteConfirmation(cleanMessage) && Boolean(pendingDelete);
   const explicitMemoryIntent =
+    isSimpleConfirmation ||
     hasConfirmedMemoryWritePrefix(cleanMessage) ||
     extractPersistentMemoryCommands(cleanMessage).length > 0 ||
     isConfirmedForgetAllCommand(cleanMessage) ||
@@ -635,71 +645,88 @@ router.post("/chat", async (req, res) => {
     hasConfirmedMemoryDeletePrefix(cleanMessage) ||
     Boolean(extractForgetMemoryCommand(cleanMessage));
   try {
-    const confirmedMemoryWrite = hasConfirmedMemoryWritePrefix(cleanMessage);
-    const confirmedMemoryCommands = confirmedMemoryWrite
-      ? extractConfirmedMemoryWriteCommands(cleanMessage)
-      : [];
-    const memoryCommands = confirmedMemoryWrite
-      ? confirmedMemoryCommands
-      : extractPersistentMemoryCommands(cleanMessage);
-    if (memoryCommands.length) {
-      if (!confirmedMemoryWrite) {
-        // Explicit memory writes are gated until the user confirms with the
-        // dedicated confirmation prefix.
-        memoryAction = {
-          type: "write-confirmation-required",
-          items: memoryCommands,
-        };
-      } else {
-        const items = [];
-        for (const memoryCommand of memoryCommands) {
-          const saved = await saveProfileMemory(
-            memoryCommand.fact,
-            "explicit-chat-command",
-            memoryCommand.scope,
-          );
-          items.push({
-            fact: saved.fact,
-            scope: saved.scope,
-            replaced: saved.replaced,
-          });
-        }
-        memoryAction =
-          items.length === 1
-            ? {
-                type: items[0].replaced ? "updated" : "saved",
-                fact: items[0].fact,
-                scope: items[0].scope,
-              }
-            : { type: "batch", items };
-      }
-    } else if (isConfirmedForgetAllCommand(cleanMessage)) {
-      const deleted = await clearProfileMemories();
-      memoryAction = { type: "cleared", deleted };
-    } else if (isForgetAllCommand(cleanMessage)) {
-      memoryAction = { type: "clear-confirmation-required" };
+    if (isSimpleConfirmation) {
+      // The user confirmed a previously requested delete with a short phrase
+      // ("Да", "Потвърждавам"). Execute the stored pending delete.
+      const { fact, scope } = pendingDelete;
+      clearPendingDelete(cleanSessionId);
+      const deleted = await deleteProfileMemoryByFact(fact, scope);
+      memoryAction = { type: "forgot", fact, scope, deleted };
     } else {
-      const confirmedDelete = extractConfirmedMemoryDeleteCommand(cleanMessage);
-      const forgetCommand =
-        confirmedDelete || extractForgetMemoryCommand(cleanMessage);
-      if (forgetCommand) {
-        if (!confirmedDelete) {
+      const confirmedMemoryWrite = hasConfirmedMemoryWritePrefix(cleanMessage);
+      const confirmedMemoryCommands = confirmedMemoryWrite
+        ? extractConfirmedMemoryWriteCommands(cleanMessage)
+        : [];
+      const memoryCommands = confirmedMemoryWrite
+        ? confirmedMemoryCommands
+        : extractPersistentMemoryCommands(cleanMessage);
+      if (memoryCommands.length) {
+        if (!confirmedMemoryWrite) {
+          // Explicit memory writes are gated until the user confirms with the
+          // dedicated confirmation prefix.
           memoryAction = {
-            type: "delete-confirmation-required",
-            fact: forgetCommand.fact,
-            scope: forgetCommand.scope,
+            type: "write-confirmation-required",
+            items: memoryCommands,
           };
         } else {
-          const deleted = await deleteProfileMemoryByFact(
-            forgetCommand.fact,
-            forgetCommand.scope,
-          );
-          memoryAction = {
-            type: "forgot",
-            fact: forgetCommand.fact,
-            scope: forgetCommand.scope,
-            deleted,
-          };
+          const items = [];
+          for (const memoryCommand of memoryCommands) {
+            const saved = await saveProfileMemory(
+              memoryCommand.fact,
+              "explicit-chat-command",
+              memoryCommand.scope,
+            );
+            items.push({
+              fact: saved.fact,
+              scope: saved.scope,
+              replaced: saved.replaced,
+            });
+          }
+          memoryAction =
+            items.length === 1
+              ? {
+                  type: items[0].replaced ? "updated" : "saved",
+                  fact: items[0].fact,
+                  scope: items[0].scope,
+                }
+              : { type: "batch", items };
+        }
+      } else if (isConfirmedForgetAllCommand(cleanMessage)) {
+        const deleted = await clearProfileMemories();
+        memoryAction = { type: "cleared", deleted };
+      } else if (isForgetAllCommand(cleanMessage)) {
+        memoryAction = { type: "clear-confirmation-required" };
+      } else {
+        const confirmedDelete =
+          extractConfirmedMemoryDeleteCommand(cleanMessage);
+        const forgetCommand =
+          confirmedDelete || extractForgetMemoryCommand(cleanMessage);
+        if (forgetCommand) {
+          if (!confirmedDelete) {
+            storePendingDelete(
+              cleanSessionId,
+              forgetCommand.fact,
+              forgetCommand.scope,
+            );
+            memoryAction = {
+              type: "delete-confirmation-required",
+              fact: forgetCommand.fact,
+              scope: forgetCommand.scope,
+            };
+          } else {
+            // Exact-phrase confirmation — also clears any pending entry.
+            clearPendingDelete(cleanSessionId);
+            const deleted = await deleteProfileMemoryByFact(
+              forgetCommand.fact,
+              forgetCommand.scope,
+            );
+            memoryAction = {
+              type: "forgot",
+              fact: forgetCommand.fact,
+              scope: forgetCommand.scope,
+              deleted,
+            };
+          }
         }
       }
     }

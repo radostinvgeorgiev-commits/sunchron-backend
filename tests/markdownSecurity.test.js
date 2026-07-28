@@ -11,6 +11,10 @@ const rendererSource = await readFile(
   new URL("../public/markdown-renderer.js", import.meta.url),
   "utf8",
 );
+const indexSource = await readFile(
+  new URL("../public/index.html", import.meta.url),
+  "utf8",
+);
 
 function createRenderer() {
   const context = { console };
@@ -59,6 +63,18 @@ test("normal markdown keeps headings, lists, safe links, and code", () => {
     "https://example.com",
   );
   assert.equal(element.querySelector("code")?.textContent, "код");
+});
+
+test("browser loads the pinned Marked UMD build before the safe renderer", () => {
+  const markedPosition = indexSource.indexOf("marked@18.0.7/lib/marked.umd.js");
+  const purifierPosition = indexSource.indexOf(
+    "dompurify@3.4.12/dist/purify.min.js",
+  );
+  const rendererPosition = indexSource.indexOf("/markdown-renderer.js");
+
+  assert.ok(markedPosition >= 0);
+  assert.ok(purifierPosition > markedPosition);
+  assert.ok(rendererPosition > purifierPosition);
 });
 
 test("script elements are removed before insertion", () => {

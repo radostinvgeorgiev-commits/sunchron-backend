@@ -82,7 +82,7 @@ test("work center opens, closes, and preserves unfinished chat text", async () =
   assert.equal(document.getElementById("chatInput").value, "Незавършен текст");
 });
 
-test("external cards use exact GitHub URLs and safe link attributes", async () => {
+test("work center uses safe GitHub links without duplicating the task journal", async () => {
   const harness = createHarness({
     config: {
       chatgptWorkUrl: "https://chatgpt.com/g/example",
@@ -100,10 +100,14 @@ test("external cards use exact GitHub URLs and safe link attributes", async () =
     ),
   );
   assert.ok(
-    hrefs.includes(
+    !hrefs.includes(
       "https://github.com/radostinvgeorgiev-commits/sunchron-backend/issues",
     ),
   );
+  const journalButton = harness.dom.window.document.querySelector(
+    '[data-work-center-target="focusBtn"]',
+  );
+  assert.equal(journalButton?.textContent.includes("Дневник на задачите"), true);
   assert.ok(
     hrefs.includes(
       "https://github.com/radostinvgeorgiev-commits/sunchron-backend/pulls",

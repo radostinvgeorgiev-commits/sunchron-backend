@@ -4,6 +4,7 @@ import test from "node:test";
 import { setOpenSearchClientForTests } from "../src/config/opensearch.js";
 import {
   buildMemoryContext,
+  deleteProfileMemoryByFact,
   listConversationMessages,
   listProfileMemories,
   saveConversationTurn,
@@ -181,4 +182,71 @@ test("user A never reads user B profile or conversation memory", async () => {
   );
   assert.deepEqual(conversationA, []);
   assert.doesNotMatch(buildMemoryContext(profileA), /B-222/u);
+});
+
+test("exact requested fact is deleted", async () => {
+  const client = createMemoryClient();
+  setOpenSearchClientForTests(client);
+  const ownerId = "owner-exact-delete";
+  const fact = "Любимият ми цвят е син";
+
+  await saveProfileMemory(fact, "integration-test", "personal", ownerId);
+
+  const deleted = await deleteProfileMemoryByFact(fact, "personal", ownerId);
+
+  assert.equal(deleted, 1);
+  assert.deepEqual(client.profileFor(ownerId), []);
+});
+
+test("old fact from the same topic never deletes the current fact", async () => {
+  const client = createMemoryClient();
+  setOpenSearchClientForTests(client);
+  const ownerId = "owner-stale-delete";
+
+  await saveProfileMemory(
+    "Любимият ми цвят е син",
+    "integration-test",
+    "personal",
+    ownerId,
+  );
+
+  const deleted = await deleteProfileMemoryByFact(
+    "Любимият ми цвят е червен",
+    "personal",
+    ownerId,
+  );
+
+  assert.equal(deleted, 0);
+  assert.deepEqual(
+    client.profileFor(ownerId).map(({ fact }) => fact),
+    ["Любимият ми цвят е син"],
+  );
+});
+
+test("different normalized fact with the same memory key is preserved", async () => {
+  const client = createMemoryClient();
+  setOpenSearchClientForTests(client);
+  const ownerId = "owner-same-key-delete";
+
+  client.seedProfile("current-color", {
+    ownerId,
+    fact: "Любимият ми цвят е син",
+    normalizedFact: "любимият ми цвят е син",
+    memoryKey: "personal:preference:favorite-color",
+    category: "preference",
+    scope: "personal",
+    createdAt: "2026-07-28T12:00:00.000Z",
+    updatedAt: "2026-07-28T12:00:00.000Z",
+    source: "integration-test",
+  });
+
+  const deleted = await deleteProfileMemoryByFact(
+    "Любимият ми цвят е зелен",
+    "personal",
+    ownerId,
+  );
+
+  assert.equal(deleted, 0);
+  assert.equal(client.profileFor(ownerId).length, 1);
+  assert.equal(client.profileFor(ownerId)[0].fact, "Любимият ми цвят е син");
 });

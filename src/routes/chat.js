@@ -60,7 +60,7 @@ const HEARTBEAT_INTERVAL_MS = 15000;
 const DEFAULT_AGENT_TIMEOUT_MS = 120000;
 const MEMORY_WRITE_CONFIRM_PREFIX = "Потвърждавам запис в постоянната памет:";
 const MEMORY_DELETE_CONFIRM_PREFIX =
-  "Потвърждавам изтриване от постоянната памет:";
+  "Потвърждавам изтриването от постоянната памет само на факта:";
 
 async function auditAction(event) {
   try {
@@ -380,11 +380,9 @@ function hasConfirmedMemoryDeletePrefix(message) {
   if (typeof message !== "string") return false;
   const separatorIndex = message.indexOf(":");
   if (separatorIndex < 0) return false;
-  return (
-    message
-      .slice(0, separatorIndex + 1)
-      .trim()
-      .toLowerCase() === MEMORY_DELETE_CONFIRM_PREFIX.toLowerCase()
+  const prefix = message.slice(0, separatorIndex + 1).trim();
+  return /^потвърждавам\s+изтриване(?:то)?\s+от\s+постоянната\s+(?:ми\s+)?памет(?:та)?(?:\s+само(?:\s+на\s+факта)?)?\s*:$/iu.test(
+    prefix,
   );
 }
 

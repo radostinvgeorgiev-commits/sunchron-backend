@@ -210,7 +210,7 @@ test("requires explicit memory-write confirmation prefix", () => {
   );
 });
 
-test("requires an exact confirmation prefix before deleting one memory", () => {
+test("requires an explicit confirmation before deleting one memory", () => {
   assert.equal(
     extractConfirmedMemoryDeleteCommand(
       "Изтрий от паметта: любимият ми цвят е син.",
@@ -223,6 +223,24 @@ test("requires an exact confirmation prefix before deleting one memory", () => {
     ),
     {
       fact: "любимият ми цвят е син",
+      scope: "personal",
+    },
+  );
+  assert.deepEqual(
+    extractConfirmedMemoryDeleteCommand(
+      "Потвърждавам изтриването от постоянната памет само на факта: Тестова дума — МОРСКИ ФАР 728",
+    ),
+    {
+      fact: "Тестова дума — МОРСКИ ФАР 728",
+      scope: "personal",
+    },
+  );
+  assert.deepEqual(
+    extractConfirmedMemoryDeleteCommand(
+      "Потвърждавам изтриването от постоянната ми памет само: Тестова дума — МОРСКИ ФАР 728",
+    ),
+    {
+      fact: "Тестова дума — МОРСКИ ФАР 728",
       scope: "personal",
     },
   );

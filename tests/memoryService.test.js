@@ -63,6 +63,27 @@ test("personal correction and project deletion commands preserve scope", () => {
   );
 });
 
+test("parses natural commands that delete only one permanent-memory fact", () => {
+  assert.deepEqual(
+    extractForgetMemoryCommand(
+      "Изтрий от постоянната памет само: Тестова дума — МОРСКИ ФАР 728",
+    ),
+    {
+      fact: "Тестова дума — МОРСКИ ФАР 728",
+      scope: "personal",
+    },
+  );
+  assert.deepEqual(
+    extractForgetMemoryCommand(
+      "Изтрий от постоянната памет само на факта: Тестова дума — МОРСКИ ФАР 728",
+    ),
+    {
+      fact: "Тестова дума — МОРСКИ ФАР 728",
+      scope: "personal",
+    },
+  );
+});
+
 test("memory context labels personal and project facts separately", () => {
   const context = buildMemoryContext([
     { fact: "Живея във Варна", scope: "personal" },

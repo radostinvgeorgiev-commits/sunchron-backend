@@ -21,6 +21,19 @@ test("avatar sends identity rules and verified memory as agent-compatible contex
   assert.match(messages[0].content, /личната AI операционна система/u);
   assert.match(messages[0].content, /AI аватарът е интерфейсът/u);
   assert.match(messages[0].content, /избира най-подходящия AI модел/u);
+  assert.match(messages[0].content, /OpenSearch е постоянната AI памет/u);
+  assert.match(
+    messages[0].content,
+    /Supabase е предвиден за потребители, настройки, разрешения, задачи и журнал/u,
+  );
+  assert.match(
+    messages[0].content,
+    /Не се изграждат токен, фондация, корпорация или масова платформа/u,
+  );
+  assert.match(
+    messages[0].content,
+    /Личните и бизнес фактите за Радко се използват само от защитената постоянна памет/u,
+  );
   assert.match(messages[0].content, /Живея във Варна/u);
   assert.doesNotMatch(
     messages[0].content,

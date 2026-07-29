@@ -42,11 +42,13 @@ export async function getReadinessStatus({
   loadOpenSearchClient = getOpenSearchClient,
   timeoutMs = DEFAULT_READINESS_TIMEOUT_MS,
 } = {}) {
-  const chatAgentReady = hasAllEnvironmentVariables(
+  const digitalOceanAgentReady = hasAllEnvironmentVariables(
     env,
     "AGENT_URL",
     "AGENT_KEY",
   );
+  const openAiReady = Boolean(env.OPENAI_API_KEY);
+  const chatAgentReady = openAiReady || digitalOceanAgentReady;
   let memory = { ready: false, status: "unavailable" };
 
   try {
@@ -71,6 +73,12 @@ export async function getReadinessStatus({
       chatAgent: {
         ready: chatAgentReady,
         status: chatAgentReady ? "configured" : "not-configured",
+        primaryProvider: openAiReady
+          ? "openai"
+          : digitalOceanAgentReady
+            ? "digitalocean"
+            : null,
+        fallbackConfigured: openAiReady && digitalOceanAgentReady,
       },
       memory,
     },
@@ -155,7 +163,17 @@ export function getIntegrationStatus() {
     ...getRuntimeVersion(),
     core: {
       chatAgent: {
-        configured: hasAllProcessEnvironmentVariables("AGENT_URL", "AGENT_KEY"),
+        configured:
+          Boolean(process.env.OPENAI_API_KEY) ||
+          hasAllProcessEnvironmentVariables("AGENT_URL", "AGENT_KEY"),
+        primaryProvider: process.env.OPENAI_API_KEY
+          ? "openai"
+          : hasAllProcessEnvironmentVariables("AGENT_URL", "AGENT_KEY")
+            ? "digitalocean"
+            : null,
+        fallbackConfigured:
+          Boolean(process.env.OPENAI_API_KEY) &&
+          hasAllProcessEnvironmentVariables("AGENT_URL", "AGENT_KEY"),
       },
       openai: {
         configured: Boolean(process.env.OPENAI_API_KEY),

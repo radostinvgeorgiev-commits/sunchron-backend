@@ -83,6 +83,78 @@ test("planner creates a single GitHub read and write plan for one implementation
   );
 });
 
+test("planner uses OpenAI Responses as the primary provider", async () => {
+  let digitalOceanCalls = 0;
+  const requests = await planCapabilities({
+    agentUrl: "https://agent.test",
+    agentKey: "agent-key",
+    openAiApiKey: "openai-key",
+    message: "Провери Supabase.",
+    fetchImpl: async (url, options) => {
+      if (String(url).includes("/api/v1/chat/completions")) {
+        digitalOceanCalls += 1;
+        throw new Error("DigitalOcean should be a fallback only.");
+      }
+      assert.equal(url, "https://api.openai.com/v1/responses");
+      const body = JSON.parse(options.body);
+      assert.equal(body.model, "gpt-5.6-luna");
+      return new Response(
+        JSON.stringify({
+          output: [
+            {
+              type: "message",
+              content: [
+                {
+                  type: "output_text",
+                  text: '{"calls":[{"capability":"database.status","request":"Провери статуса на Supabase."}]}',
+                },
+              ],
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    },
+  });
+
+  assert.equal(digitalOceanCalls, 0);
+  assert.equal(requests[0].capability, "database.status");
+});
+
+test("planner falls back to DigitalOcean when OpenAI is unavailable", async () => {
+  const calledUrls = [];
+  const requests = await planCapabilities({
+    agentUrl: "https://agent.test",
+    agentKey: "agent-key",
+    openAiApiKey: "openai-key",
+    message: "Провери Supabase.",
+    fetchImpl: async (url) => {
+      calledUrls.push(String(url));
+      if (String(url).includes("api.openai.com")) {
+        return new Response("temporary failure", { status: 503 });
+      }
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content:
+                  '{"calls":[{"capability":"database.status","request":"Провери Supabase."}]}',
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    },
+  });
+
+  assert.equal(calledUrls.length, 2);
+  assert.match(calledUrls[0], /api\.openai\.com\/v1\/responses/u);
+  assert.match(calledUrls[1], /agent\.test\/api\/v1\/chat\/completions/u);
+  assert.equal(requests[0].capability, "database.status");
+});
+
 test("sanitizer rejects unknown capabilities and keeps valid scopes", () => {
   const requests = sanitizeCapabilityPlan(
     {

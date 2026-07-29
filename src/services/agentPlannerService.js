@@ -1,3 +1,8 @@
+import {
+  DEFAULT_OPENAI_PLANNER_MODEL,
+  requestOpenAIText,
+} from "./aiCoreService.js";
+
 const DEFAULT_PLANNER_TIMEOUT_MS = 30000;
 const MAX_PLANNED_CALLS = 8;
 
@@ -146,11 +151,15 @@ export function shouldUseAgentPlanner(message, fallbackRequests = []) {
 export async function planCapabilities({
   agentUrl,
   agentKey,
+  openAiApiKey = process.env.OPENAI_API_KEY,
+  openAiModel = process.env.OPENAI_PLANNER_MODEL ||
+    DEFAULT_OPENAI_PLANNER_MODEL,
   message,
   fetchImpl = fetch,
   timeoutMs = process.env.AGENT_PLANNER_TIMEOUT_MS,
 }) {
-  if (!agentUrl || !agentKey) {
+  const digitalOceanConfigured = Boolean(agentUrl && agentKey);
+  if (!openAiApiKey && !digitalOceanConfigured) {
     throw new AgentPlannerError(
       "AI планировчикът не е конфигуриран.",
       "AGENT_PLANNER_NOT_CONFIGURED",
@@ -164,6 +173,30 @@ export async function planCapabilities({
   );
 
   try {
+    const plannerInput = `${PLANNER_INSTRUCTIONS}\n\n[ЗАЯВКА]\n${message}`;
+    if (openAiApiKey) {
+      try {
+        const content = await requestOpenAIText({
+          apiKey: openAiApiKey,
+          input: [{ role: "user", content: plannerInput }],
+          model: openAiModel,
+          fetchImpl,
+          signal: controller.signal,
+          verbosity: "low",
+        });
+        const plan = extractJsonObject(content);
+        return sanitizeCapabilityPlan(plan, message);
+      } catch (error) {
+        if (!digitalOceanConfigured || error?.name === "AbortError") {
+          throw error;
+        }
+        console.warn(
+          "[AgentPlanner] OpenAI failed; using DigitalOcean fallback:",
+          error?.code || error?.message,
+        );
+      }
+    }
+
     const response = await fetchImpl(`${agentUrl}/api/v1/chat/completions`, {
       method: "POST",
       headers: {
@@ -174,7 +207,7 @@ export async function planCapabilities({
         messages: [
           {
             role: "user",
-            content: `${PLANNER_INSTRUCTIONS}\n\n[ЗАЯВКА]\n${message}`,
+            content: plannerInput,
           },
         ],
         stream: false,

@@ -4,16 +4,14 @@ import request from "supertest";
 
 process.env.NODE_ENV = "test";
 process.env.AGENT_KEY = "test-agent-key";
-process.env.GITHUB_REPOSITORY =
-  "radostinvgeorgiev-commits/sunchron-backend";
+process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 delete process.env.OPENSEARCH_HOST;
 delete process.env.OPENSEARCH_USERNAME;
 delete process.env.OPENSEARCH_PASSWORD;
 
 const { default: app } = await import("../server.js");
-const { createGitHubSession } = await import(
-  "../src/services/githubOAuthService.js"
-);
+const { createGitHubSession } =
+  await import("../src/services/githubOAuthService.js");
 const ownerSession = await createGitHubSession(
   { access_token: "test-owner-token" },
   async () =>
@@ -47,6 +45,91 @@ test("normal AI chat continues when persistent memory is unavailable", async () 
     assert.match(response.text, /event: done/u);
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test("normal chat uses OpenAI Responses before the DigitalOcean fallback", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalOpenAiKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "test-openai-key";
+  let digitalOceanCalls = 0;
+
+  globalThis.fetch = async (url, options = {}) => {
+    if (String(url).includes("/api/v1/chat/completions")) {
+      digitalOceanCalls += 1;
+      throw new Error("DigitalOcean should be a fallback only.");
+    }
+    assert.equal(String(url), "https://api.openai.com/v1/responses");
+    const body = JSON.parse(options.body);
+    assert.equal(body.store, false);
+    return new Response(
+      JSON.stringify({
+        output: [
+          {
+            type: "message",
+            content: [{ type: "output_text", text: "Отговор от OpenAI." }],
+          },
+        ],
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+
+  try {
+    const response = await request(app)
+      .post("/chat/chat")
+      .set("Cookie", OWNER_COOKIE)
+      .send({ sessionId: "openai-primary-test", message: "Здравей" })
+      .expect(200);
+
+    assert.equal(digitalOceanCalls, 0);
+    assert.match(response.text, /Отговор от OpenAI\./u);
+    assert.match(response.text, /"provider":"openai"/u);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = originalOpenAiKey;
+  }
+});
+
+test("normal chat falls back to DigitalOcean when OpenAI is unavailable", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalOpenAiKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "test-openai-key";
+  const calledUrls = [];
+
+  globalThis.fetch = async (url) => {
+    calledUrls.push(String(url));
+    if (String(url).includes("api.openai.com")) {
+      return new Response("temporary failure", { status: 503 });
+    }
+    if (String(url).includes("/api/v1/chat/completions")) {
+      return new Response(
+        'data: {"choices":[{"delta":{"content":"Резервният агент работи."}}]}\n\n' +
+          "data: [DONE]\n\n",
+        {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        },
+      );
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  };
+
+  try {
+    const response = await request(app)
+      .post("/chat/chat")
+      .set("Cookie", OWNER_COOKIE)
+      .send({ sessionId: "digitalocean-fallback-test", message: "Здравей" })
+      .expect(200);
+
+    assert.equal(calledUrls.length, 2);
+    assert.match(response.text, /Резервният агент работи\./u);
+    assert.match(response.text, /"provider":"digitalocean"/u);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = originalOpenAiKey;
   }
 });
 
@@ -213,7 +296,7 @@ test("explicit GitHub request still runs when the AI planner returns no tools", 
 test("explicit memory writes fail safely when memory is unavailable", async () => {
   const response = await request(app)
     .post("/chat/chat")
-      .set("Cookie", OWNER_COOKIE)
+    .set("Cookie", OWNER_COOKIE)
     .send({
       sessionId: "resilience-memory-test",
       message: "Запомни, че любимият ми цвят е син.",

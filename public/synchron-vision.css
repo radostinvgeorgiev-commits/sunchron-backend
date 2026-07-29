@@ -14,14 +14,28 @@
 html,
 body {
   background:
-    radial-gradient(circle at 8% 4%, rgba(232, 96, 53, 0.12), transparent 28rem),
-    radial-gradient(circle at 94% 96%, rgba(27, 139, 103, 0.1), transparent 34rem),
+    radial-gradient(
+      circle at 8% 4%,
+      rgba(232, 96, 53, 0.12),
+      transparent 28rem
+    ),
+    radial-gradient(
+      circle at 94% 96%,
+      rgba(27, 139, 103, 0.1),
+      transparent 34rem
+    ),
     var(--sx-paper) !important;
 }
 
 body {
   color: var(--sx-ink) !important;
-  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif !important;
 }
 
 button,
@@ -212,6 +226,20 @@ input:focus-visible {
   color: var(--sx-accent) !important;
 }
 
+.typing-indicator[data-task-status="completed"] {
+  color: var(--sx-green) !important;
+}
+
+.typing-indicator[data-task-status="waiting_confirmation"],
+.typing-indicator[data-task-status="partial"] {
+  color: #a35d10 !important;
+}
+
+.typing-indicator .thinking-label {
+  max-width: min(72vw, 620px);
+  line-height: 1.35;
+}
+
 .attachment-preview {
   width: min(calc(100% - 36px), 840px) !important;
   margin: 0 auto 8px !important;
@@ -223,7 +251,11 @@ input:focus-visible {
 .composer-wrap {
   width: min(100%, 940px) !important;
   padding: 12px clamp(14px, 4vw, 54px) max(14px, env(safe-area-inset-bottom)) !important;
-  background: linear-gradient(to top, rgba(244, 241, 233, 0.96) 55%, transparent);
+  background: linear-gradient(
+    to top,
+    rgba(244, 241, 233, 0.96) 55%,
+    transparent
+  );
 }
 
 .chat-input-area {
@@ -237,7 +269,9 @@ input:focus-visible {
 
 .chat-input-area:focus-within {
   border-color: rgba(232, 96, 53, 0.7) !important;
-  box-shadow: 0 18px 50px rgba(33, 45, 40, 0.14), 0 0 0 5px rgba(232, 96, 53, 0.1) !important;
+  box-shadow:
+    0 18px 50px rgba(33, 45, 40, 0.14),
+    0 0 0 5px rgba(232, 96, 53, 0.1) !important;
 }
 
 .chat-input-area input {
@@ -309,7 +343,11 @@ input:focus-visible {
     border-radius: 0 !important;
     box-shadow: none !important;
     background:
-      radial-gradient(circle at 100% 0%, rgba(232, 96, 53, 0.08), transparent 22rem),
+      radial-gradient(
+        circle at 100% 0%,
+        rgba(232, 96, 53, 0.08),
+        transparent 22rem
+      ),
       #fbfaf6 !important;
   }
 

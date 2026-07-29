@@ -823,12 +823,21 @@ function showTypingIndicator() {
         <span class="thinking-avatar" aria-hidden="true">
             <i class="fa-solid fa-atom"></i>
         </span>
-        <span class="thinking-label">Synchron-X мисли</span>
+        <span class="thinking-label">Приемам задачата…</span>
         <span class="thinking-dots" aria-hidden="true">
             <span></span><span></span><span></span>
         </span>
     `;
   elements.chatMessages.appendChild(div);
+  scrollChatToBottom();
+}
+
+function updateTaskIndicator(task) {
+  const indicator = document.getElementById("typingIndicator");
+  const label = indicator?.querySelector(".thinking-label");
+  if (!indicator || !label || typeof task?.message !== "string") return;
+  label.textContent = task.message;
+  indicator.dataset.taskStatus = task.status || "executing";
   scrollChatToBottom();
 }
 
@@ -1040,7 +1049,6 @@ async function sendMessage() {
       throw new Error("Сървърът върна неочакван формат.");
     }
 
-    removeTypingIndicator();
     const assistantTurn = createAssistantTurn("", false);
     responseBubble = assistantTurn.message;
     responseActions = assistantTurn.actions;
@@ -1064,6 +1072,7 @@ async function sendMessage() {
           parsed.event === "token" &&
           typeof parsed.data?.token === "string"
         ) {
+          removeTypingIndicator();
           fullText += parsed.data.token;
           renderAgentText(responseBubble, fullText);
         } else if (parsed.event === "error") {
@@ -1073,8 +1082,25 @@ async function sendMessage() {
           typeof parsed.data?.message === "string"
         ) {
           logAction(parsed.data.message);
+        } else if (
+          parsed.event === "task" &&
+          typeof parsed.data?.message === "string"
+        ) {
+          updateTaskIndicator(parsed.data);
+          logAction(parsed.data.message);
         } else if (parsed.event === "done") {
           completed = true;
+          if (parsed.data?.task?.status === "completed") {
+            logAction(
+              parsed.data.task.verified
+                ? "Задачата е изпълнена и проверена"
+                : "Задачата е изпълнена",
+            );
+          } else if (parsed.data?.task?.status === "waiting_confirmation") {
+            logAction("Задачата чака потвърждение");
+          } else if (parsed.data?.task?.status === "partial") {
+            logAction("Задачата е изпълнена частично");
+          }
           if (typeof parsed.data?.tool === "string") {
             logAction("Използван инструмент: " + parsed.data.tool);
           }

@@ -8,9 +8,25 @@ import {
   executeDetectedCapabilities,
   extractConfirmedMemoryDeleteCommand,
   extractConfirmedMemoryWriteCommands,
+  mergeMemoryTaskStatus,
   mergeCapabilityRequests,
   splitCapabilitySubtasks,
 } from "../src/routes/chat.js";
+
+test("memory confirmation keeps the overall task waiting", () => {
+  const task = {
+    id: "task-1",
+    status: "completed",
+    verified: true,
+    totalSteps: 0,
+  };
+  const waiting = mergeMemoryTaskStatus(task, {
+    type: "write-confirmation-required",
+  });
+
+  assert.equal(waiting.status, "waiting_confirmation");
+  assert.equal(waiting.verified, false);
+});
 
 test("detects multiple capability subtasks in one message", () => {
   const requests = detectCapabilityRequests(

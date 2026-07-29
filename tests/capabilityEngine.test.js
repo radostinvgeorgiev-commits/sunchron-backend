@@ -81,6 +81,14 @@ test("маркира GitHub Copilot адаптера като изпълним �
   assert.equal(isToolExecutable("github-write"), true);
 });
 
+test("регистрира Supabase като изпълним инструмент само за статус", () => {
+  const result = resolveCapability("database.status");
+  assert.equal(result.tool.id, "supabase-status");
+  assert.equal(result.permission.decision, "allow");
+  assert.equal(result.requiresConfirmation, false);
+  assert.equal(isToolExecutable("supabase-status"), true);
+});
+
 test("изпълнява GitHub четене чрез избрания инструмент", async () => {
   const originalFetch = global.fetch;
   const originalApiUrl = process.env.GITHUB_API_URL;
@@ -131,6 +139,7 @@ test("всеки регистриран основен инструмент им
     "google-calendar-read",
     "gmail-read",
     "openai-web-search",
+    "supabase-status",
     "opensearch-memory",
   ]) {
     assert.equal(isToolExecutable(id), true, id);

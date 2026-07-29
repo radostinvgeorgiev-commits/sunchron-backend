@@ -18,6 +18,8 @@ const ENV_NAMES = [
   "GITHUB_CLIENT_ID",
   "GITHUB_CLIENT_SECRET",
   "GITHUB_REDIRECT_URI",
+  "SUPABASE_URL",
+  "SUPABASE_PUBLISHABLE_KEY",
 ];
 
 test("integration status reports configuration without exposing secret values", () => {
@@ -31,7 +33,7 @@ test("integration status reports configuration without exposing secret values", 
     const status = getIntegrationStatus();
     assert.equal(status.core.chatAgent.configured, true);
     assert.equal(status.core.openai.configured, true);
-    assert.equal(status.tools.length, 7);
+    assert.equal(status.tools.length, 8);
     assert.equal(
       status.tools
         .filter((tool) => tool.id !== "github-write")

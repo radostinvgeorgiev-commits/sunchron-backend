@@ -5,6 +5,7 @@ const CAPABILITY_ACTIONS = Object.freeze({
   "calendar.read": "calendar.read",
   "code.read": "github.read",
   "code.write": "github.write",
+  "database.status": "database.read",
   "files.read": "drive.read",
   "mail.read": "mail.read",
   "memory.read": "memory.read",
@@ -20,6 +21,7 @@ const PLANNER_INSTRUCTIONS = [
   "Разрешени способности:",
   "- code.read: четене и проверка на разрешеното GitHub хранилище",
   "- code.write: промяна в GitHub; може да е недостъпна и винаги изисква потвърждение",
+  "- database.status: проверка дали Supabase е свързан и отговаря",
   "- calendar.read: четене на Google Calendar",
   "- files.read: четене на Google Drive",
   "- mail.read: четене на Gmail",
@@ -135,7 +137,7 @@ export function shouldUseAgentPlanner(message, fallbackRequests = []) {
     /(?:^|\s)(?:изпълни|направи|провери|покажи|намери|прочети|потърси|обнови|промени|редактирай|създай|свържи|изпрати|резервирай)\b/iu.test(
       text,
     ) &&
-    /(?:github|ги[тд][\s-]*хъб|хъб(?:ът|а)?|хранилищ|репозитор|код|календар|calendar|drive|драйв|gmail|имейл|поща|памет|интернет|web|сайт)/iu.test(
+    /(?:github|ги[тд][\s-]*хъб|хъб(?:ът|а)?|хранилищ|репозитор|код|календар|calendar|drive|драйв|gmail|имейл|поща|памет|интернет|web|сайт|supabase|супабейс)/iu.test(
       text,
     )
   );

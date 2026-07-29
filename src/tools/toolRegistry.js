@@ -193,6 +193,21 @@ export function registerCoreTools() {
       healthStatus: "healthy",
     },
     {
+      id: "supabase-status",
+      provider: "supabase",
+      name: "Supabase Status",
+      version: "1.0.0",
+      category: "database",
+      capabilities: ["database.status"],
+      permissions: ["database.read"],
+      capabilityPermissions: {
+        "database.status": "database.read",
+      },
+      enabled: true,
+      requiresConfirmation: false,
+      healthStatus: "healthy",
+    },
+    {
       id: "opensearch-memory",
       provider: "opensearch",
       name: "Synchron Memory",

@@ -17,6 +17,7 @@ import {
   searchWeb,
 } from "../services/webSearchService.js";
 import { prepareCopilotTask } from "../services/copilotTaskService.js";
+import { checkSupabaseStatus } from "../services/supabaseService.js";
 import { findToolsByCapability, registerCoreTools } from "./toolRegistry.js";
 
 export class CapabilityError extends Error {
@@ -133,6 +134,15 @@ const executors = Object.freeze({
   },
   "openai-web-search": async ({ input }) =>
     formatWebSearchResult(await searchWeb(input.message)),
+  "supabase-status": async () => {
+    const status = await checkSupabaseStatus();
+    return [
+      "Supabase е свързан и отговаря.",
+      `Услуга: ${status.service}.`,
+      `Време за отговор: ${status.responseTimeMs} ms.`,
+      "OpenSearch остава постоянната AI памет.",
+    ].join("\n");
+  },
   "opensearch-memory": async ({ capability, input }) => {
     if (capability === "memory.read" || capability === "memory.search") {
       const memories = await listProfileMemories({

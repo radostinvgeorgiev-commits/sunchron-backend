@@ -299,6 +299,18 @@ export function detectCapabilityRequests(message) {
         message: subtask,
       });
     }
+    if (
+      /(?:supabase|супабейс)/iu.test(subtask) &&
+      /(?:провери|покажи|статус|свързан|работи|достъпен|check|status)/iu.test(
+        subtask,
+      )
+    ) {
+      requests.push({
+        capability: "database.status",
+        action: "database.read",
+        message: subtask,
+      });
+    }
     const repositoryInspectionSubtask =
       /(?:tool\s+registry|capability\s+engine|(?:кои\s+)?инструменти.*регистрирани|регистрирани\s+инструменти|разрешения.*инструмент|чатът.*capability|последно\s+поправен.*проблем)/iu.test(
         subtask,

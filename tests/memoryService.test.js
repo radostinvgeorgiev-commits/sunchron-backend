@@ -99,6 +99,18 @@ test("memory context labels personal and project facts separately", () => {
     /\[КОНТЕКСТ НА ПРОЕКТА\][\s\S]*Текущата цел на проекта е стабилен AI разговор/,
   );
   assert.match(context, /избира най-подходящия AI модел/u);
+  assert.match(
+    context,
+    /При противоречие използвай най-новия показан факт \(с по-нисък номер/u,
+  );
+});
+
+test("empty permanent memory is described as additional to the base context", () => {
+  const context = buildMemoryContext([]);
+
+  assert.match(context, /Няма допълнително записани лични факти/u);
+  assert.match(context, /SYNCHRON-X е лична AI операционна система/u);
+  assert.doesNotMatch(context, /Няма записани лични факти/u);
 });
 
 test("canonical project definition replaces an obsolete avatar-only goal in context", () => {

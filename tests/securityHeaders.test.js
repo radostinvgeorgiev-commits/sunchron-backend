@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
-import app from "../server.js";
+
+process.env.NODE_ENV = "test";
+const { default: app } = await import("../server.js");
 
 test("public responses include the required security headers", async () => {
   const response = await request(app).get("/health");

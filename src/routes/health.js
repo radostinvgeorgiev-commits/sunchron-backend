@@ -2,6 +2,7 @@ import express from "express";
 import { getOpenSearchClient } from "../config/opensearch.js";
 import { resolveRuntimeVersion } from "../config/runtimeVersion.js";
 import { isGitHubOAuthConfigured } from "../services/githubOAuthService.js";
+import { createMcpRequestHandler } from "../services/mcpReadService.js";
 import { isToolExecutable } from "../tools/capabilityEngine.js";
 import { listTools, registerCoreTools } from "../tools/toolRegistry.js";
 
@@ -93,6 +94,54 @@ export function createReadinessHandler(options = {}) {
 }
 
 router.get("/ready", createReadinessHandler());
+
+export async function getBridgeDiagnosticsStatus({
+  env = process.env,
+  handleMcpRequest = createMcpRequestHandler(),
+} = {}) {
+  const configured =
+    typeof env.MCP_ACCESS_TOKEN === "string" &&
+    env.MCP_ACCESS_TOKEN.length >= 32;
+  let responding = false;
+
+  try {
+    const response = await handleMcpRequest(
+      { jsonrpc: "2.0", id: "diagnostics", method: "initialize" },
+      env.MEMORY_OWNER_ID || "primary-user",
+    );
+    responding = response?.result?.serverInfo?.name === "synchron-x-memory";
+  } catch {
+    responding = false;
+  }
+
+  return {
+    status: configured && responding ? "operational" : "incomplete",
+    ...getRuntimeVersion(env),
+    bridge: {
+      protocol: "mcp-streamable-http",
+      endpoint: "/mcp",
+      configured,
+      reachable: true,
+      responding,
+      readOnly: true,
+      tools: 4,
+      authentication: {
+        mode: "static-bearer",
+        chatgptOAuthReady: false,
+        reason: "oauth-2.1-authorization-server-required",
+      },
+    },
+  };
+}
+
+export function createBridgeDiagnosticsHandler(options = {}) {
+  return async function bridgeDiagnosticsHandler(_req, res) {
+    const result = await getBridgeDiagnosticsStatus(options);
+    res.status(result.status === "operational" ? 200 : 503).json(result);
+  };
+}
+
+router.get("/bridge", createBridgeDiagnosticsHandler());
 
 function hasAllProcessEnvironmentVariables(...names) {
   return hasAllEnvironmentVariables(process.env, ...names);

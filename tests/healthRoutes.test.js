@@ -38,6 +38,24 @@ test("readiness requires the chat agent and a healthy OpenSearch cluster", async
   assert.equal(result.checks.memory.status, "green");
 });
 
+test("readiness accepts OpenAI as the primary chat provider", async () => {
+  const result = await getReadinessStatus({
+    env: {
+      OPENAI_API_KEY: "secret",
+      APP_COMMIT_SHA: "openai123",
+    },
+    loadOpenSearchClient: () => ({
+      cluster: {
+        health: async () => ({ body: { status: "green" } }),
+      },
+    }),
+  });
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.checks.chatAgent.primaryProvider, "openai");
+  assert.equal(result.checks.chatAgent.fallbackConfigured, false);
+});
+
 test("readiness returns 503 when a required dependency is unavailable", async () => {
   const app = express();
   app.get(

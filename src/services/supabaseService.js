@@ -66,24 +66,24 @@ export async function checkSupabaseStatus({
   const startedAt = Date.now();
 
   try {
-    const response = await fetchImpl(`${url}/rest/v1/`, {
+    const response = await fetchImpl(`${url}/auth/v1/settings`, {
       method: "GET",
       headers: {
         apikey: publishableKey.trim(),
-        Accept: "application/openapi+json, application/json",
+        Accept: "application/json",
       },
       signal: controller.signal,
     });
     if (!response.ok) {
       throw new SupabaseServiceError(
-        `Supabase Data API върна грешка ${response.status}.`,
+        `Supabase API върна грешка ${response.status}.`,
         502,
         "SUPABASE_UPSTREAM_ERROR",
       );
     }
     return Object.freeze({
       status: "healthy",
-      service: "Supabase Data API",
+      service: "Supabase API",
       responseTimeMs: Date.now() - startedAt,
     });
   } catch (error) {

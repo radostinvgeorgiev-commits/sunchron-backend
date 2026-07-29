@@ -32,3 +32,15 @@ test("the visual layer preserves the readable text controls and safe drawers", a
   assert.match(css, /width:\s*100vw\s*!important/u);
   assert.match(css, /prefers-reduced-motion/u);
 });
+
+test("the chat shows live autonomous task progress", async () => {
+  const [script, css] = await Promise.all([
+    readFile(new URL("../public/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../public/synchron-vision.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(script, /parsed\.event === "task"/u);
+  assert.match(script, /updateTaskIndicator\(parsed\.data\)/u);
+  assert.match(script, /Задачата е изпълнена и проверена/u);
+  assert.match(css, /data-task-status="waiting_confirmation"/u);
+});

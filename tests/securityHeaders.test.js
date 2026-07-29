@@ -38,6 +38,14 @@ test("public responses include the required security headers", async () => {
   assert.match(csp, /frame-ancestors 'none'/);
   assert.match(csp, /object-src 'none'/);
   assert.match(csp, /script-src 'self' https:\/\/cdn\.jsdelivr\.net/);
+  assert.match(
+    csp,
+    /style-src 'self' 'unsafe-inline' https:\/\/cdnjs\.cloudflare\.com/,
+  );
+  assert.match(
+    csp,
+    /font-src 'self' data: https:\/\/cdnjs\.cloudflare\.com/,
+  );
   assert.match(csp, /connect-src 'self'/);
 });
 

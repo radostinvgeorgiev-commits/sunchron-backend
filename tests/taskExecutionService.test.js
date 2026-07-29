@@ -1,0 +1,100 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { executeTaskPlan } from "../src/services/taskExecutionService.js";
+
+function result(overrides = {}) {
+  return {
+    output: "Проверен резултат",
+    requiresConfirmation: false,
+    permission: { decision: "allow" },
+    tool: { id: "test-tool" },
+    ...overrides,
+  };
+}
+
+test("task execution completes safe steps and reports verified status", async () => {
+  const events = [];
+  const audits = [];
+  const execution = await executeTaskPlan({
+    message: "Провери",
+    requests: [
+      { capability: "code.read", action: "github.read", message: "Провери" },
+      { capability: "web.search", action: "web.read", message: "Потърси" },
+    ],
+    executeFn: async () => result(),
+    executionContext: { sessionId: "sess-test" },
+    notify: (event) => events.push(event),
+    audit: async (event) => audits.push(event),
+  });
+
+  assert.equal(execution.task.status, "completed");
+  assert.equal(execution.task.verified, true);
+  assert.equal(execution.task.successfulSteps, 2);
+  assert.equal(execution.task.failedSteps, 0);
+  assert.equal(audits.length, 2);
+  assert.equal(events.at(-1).status, "completed");
+});
+
+test("task execution stops at the existing confirmation boundary", async () => {
+  const execution = await executeTaskPlan({
+    message: "Промени кода",
+    requests: [
+      { capability: "code.write", action: "github.write", message: "Промени" },
+    ],
+    executeFn: async () =>
+      result({
+        requiresConfirmation: true,
+        permission: { decision: "confirm" },
+      }),
+    executionContext: {
+      sessionId: "sess-test",
+      prepareConfirmation: true,
+    },
+  });
+
+  assert.equal(execution.task.status, "waiting_confirmation");
+  assert.equal(execution.task.verified, false);
+  assert.equal(execution.task.steps[0].status, "waiting_confirmation");
+});
+
+test("task execution reports partial results without hiding failures", async () => {
+  let call = 0;
+  const execution = await executeTaskPlan({
+    message: "Направи две проверки",
+    requests: [
+      { capability: "code.read", action: "github.read" },
+      { capability: "files.read", action: "drive.read" },
+    ],
+    executeFn: async () => {
+      call += 1;
+      if (call === 2) {
+        const error = new Error("Няма връзка");
+        error.code = "NOT_CONNECTED";
+        throw error;
+      }
+      return result();
+    },
+  });
+
+  assert.equal(execution.task.status, "partial");
+  assert.equal(execution.task.verified, false);
+  assert.equal(execution.task.successfulSteps, 1);
+  assert.equal(execution.task.failedSteps, 1);
+  assert.equal(execution.task.steps[1].error, "NOT_CONNECTED");
+});
+
+test("audit storage failure never changes a successful task result", async () => {
+  const execution = await executeTaskPlan({
+    message: "Провери",
+    requests: [{ capability: "code.read", action: "github.read" }],
+    executeFn: async () => result(),
+    audit: async () => {
+      throw new Error("Audit storage unavailable");
+    },
+  });
+
+  assert.equal(execution.task.status, "completed");
+  assert.equal(execution.task.successfulSteps, 1);
+  assert.equal(execution.results.length, 1);
+});

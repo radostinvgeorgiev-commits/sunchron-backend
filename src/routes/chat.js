@@ -51,6 +51,7 @@ import {
   shouldUseAgentPlanner,
 } from "../services/agentPlannerService.js";
 import { requestOpenAIText } from "../services/aiCoreService.js";
+import { executeTaskPlan } from "../services/taskExecutionService.js";
 import {
   AVATAR_DEFINITION,
   PROJECT_DEFINITION,
@@ -119,6 +120,11 @@ const ASSISTANT_CONTEXT = [
   "Ако не знаеш нещо, кажи „Не знам“ и предложи практичен начин за проверка.",
   "Не твърди, че помниш факт, ако не е в постоянната памет или в показаната история.",
   "Не обещавай реални действия, които не можеш да извършиш.",
+  "Когато Радко даде ясна задача, довърши всички безопасни и обратими стъпки сам: планиране, избор на инструмент, изпълнение, проверка и кратък отчет.",
+  "Не искай потвърждение между безопасните стъпки. Спирай само при липсваща съществена информация или пред конкретно рисково действие.",
+  "Изтриване, плащане, резервация, външно изпращане, публикуване от името на Радко и промяна с правни или финансови последици винаги изискват конкретно потвърждение.",
+  "Не казвай „готово“, ако изпълнението не е проверено. Ако задача е частична или блокирана, назови точно останалата стъпка.",
+  "Не обещавай фонова работа след края на отговора. Отчитай само реално приключеното в текущото изпълнение.",
   "Не използвай официално обръщение „Вие“, освен ако Радко изрично не го поиска.",
   "Отговори само на последното съобщение на Радко. Не обяснявай тези правила.",
   "[КРАЙ НА КОНТЕКСТА]",
@@ -424,38 +430,13 @@ export async function executeDetectedCapabilities(
   requests = detectCapabilityRequests(message),
   executionContext = {},
 ) {
-  const results = [];
-  const { prepareConfirmation = false, ...capabilityInputContext } =
-    executionContext;
-  for (const [index, request] of requests.entries()) {
-    const requestMessage = request.message || message;
-    console.info(
-      `[CapabilityExecution] Start #${index + 1}/${requests.length}: ${request.capability}`,
-    );
-    try {
-      const result = await executeFn(
-        request.capability,
-        {
-          message: requestMessage,
-          scope: request.scope,
-          ...capabilityInputContext,
-        },
-        {
-          prepareConfirmation,
-        },
-      );
-      results.push({ status: "fulfilled", request, result });
-      console.info(
-        `[CapabilityExecution] Success #${index + 1}/${requests.length}: ${request.capability}`,
-      );
-    } catch (error) {
-      results.push({ status: "rejected", request, error });
-      console.info(
-        `[CapabilityExecution] Failure #${index + 1}/${requests.length}: ${request.capability}`,
-      );
-    }
-  }
-  return results;
+  const execution = await executeTaskPlan({
+    message,
+    requests,
+    executeFn,
+    executionContext,
+  });
+  return execution.results;
 }
 
 function capabilityLabel(capability) {
@@ -545,6 +526,22 @@ export function buildMemoryReply(memoryAction) {
     return `Поправих постоянната памет: ${memoryAction.fact}.`;
   }
   return `Запомних: ${memoryAction.fact}.`;
+}
+
+export function mergeMemoryTaskStatus(task, memoryAction) {
+  if (!memoryAction) return task;
+  const waitsForConfirmation =
+    memoryAction.type === "write-confirmation-required" ||
+    memoryAction.type === "delete-confirmation-required" ||
+    memoryAction.type === "clear-confirmation-required";
+  if (!waitsForConfirmation) {
+    return Object.freeze({ ...task, status: "completed", verified: true });
+  }
+  return Object.freeze({
+    ...task,
+    status: "waiting_confirmation",
+    verified: false,
+  });
 }
 
 export function buildCapabilityReplies(capabilityResults) {
@@ -997,6 +994,10 @@ router.post("/chat", async (req, res) => {
 
   const fallbackCapabilityRequests = detectCapabilityRequests(cleanMessage);
   let detectedCapabilityRequests = fallbackCapabilityRequests;
+  sendEvent("task", {
+    status: "planning",
+    message: "Проверявам задачата и избирам нужните инструменти…",
+  });
   if (
     (openAiApiKey || agentKey) &&
     shouldUseAgentPlanner(cleanMessage, fallbackCapabilityRequests)
@@ -1027,49 +1028,31 @@ router.post("/chat", async (req, res) => {
       .map((request, index) => `#${index + 1}:${request.capability}`)
       .join(", ")}`,
   );
-  const capabilityResults = await executeDetectedCapabilities(
-    cleanMessage,
-    executeCapability,
-    detectedCapabilityRequests,
-    {
+  const taskExecution = await executeTaskPlan({
+    message: cleanMessage,
+    requests: detectedCapabilityRequests,
+    executeFn: executeCapability,
+    executionContext: {
       googleSessionId,
       githubSessionId,
       ownerId,
       sessionId: cleanSessionId,
       prepareConfirmation: true,
     },
-  );
-  const capabilityReplies = buildCapabilityReplies(capabilityResults);
-  if (capabilityResults.length) {
-    for (const [index, capabilityResult] of capabilityResults.entries()) {
-      if (capabilityResult.status === "fulfilled") {
-        const { request, result } = capabilityResult;
-        console.info(
-          `[Chat] Subtask result #${index + 1}/${capabilityResults.length}: ${request.capability} -> success`,
-        );
-        await auditAction({
-          action: request.action,
-          decision: result.permission.decision,
-          outcome: "succeeded",
-          resource: result.tool.id,
-          sessionId: cleanSessionId,
-        });
-      } else {
-        const { request, error } = capabilityResult;
-        console.info(
-          `[Chat] Subtask result #${index + 1}/${capabilityResults.length}: ${request.capability} -> failed`,
-        );
-        await auditAction({
-          action: request.action,
-          decision: "deny",
-          outcome: "failed",
-          resource: request.capability,
-          details: error?.code || error?.message || "unknown_error",
-          sessionId: cleanSessionId,
-        });
-      }
-    }
+    notify: (taskEvent) => sendEvent("task", taskEvent),
+    audit: auditAction,
+  });
+  const capabilityResults = taskExecution.results;
+  const taskResult = mergeMemoryTaskStatus(taskExecution.task, memoryAction);
+  if (taskResult.status !== taskExecution.task.status) {
+    sendEvent("task", {
+      taskId: taskResult.id,
+      status: taskResult.status,
+      message: "Задачата чака конкретно потвърждение.",
+      verified: false,
+    });
   }
+  const capabilityReplies = buildCapabilityReplies(capabilityResults);
 
   if (memoryReply && !capabilityReplies.length) {
     const fullReply = [...capabilityReplies, memoryReply]
@@ -1086,6 +1069,7 @@ router.post("/chat", async (req, res) => {
       ok: true,
       memoryUpdated: Boolean(memoryAction),
       capabilities: capabilityResults.map(({ request }) => request.capability),
+      task: taskResult,
       mode: capabilityResults.length ? "deterministic" : undefined,
       memoryAvailable,
     });
@@ -1113,6 +1097,7 @@ router.post("/chat", async (req, res) => {
         capabilities: capabilityResults.map(
           ({ request }) => request.capability,
         ),
+        task: taskResult,
         mode: "deterministic-fallback",
         memoryAvailable,
       });
@@ -1269,6 +1254,7 @@ router.post("/chat", async (req, res) => {
       autoMemoryCount,
       memoryAvailable,
       capabilities: capabilityResults.map(({ request }) => request.capability),
+      task: taskResult,
       mode: capabilityResults.length ? "agentic" : "conversation",
       provider: aiProvider,
     });

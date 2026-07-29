@@ -34,6 +34,38 @@ if (!process.env.AGENT_KEY) {
 const app = express();
 
 app.set("trust proxy", 1);
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      "script-src 'self' https://cdn.jsdelivr.net",
+      "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
+      "img-src 'self' data: https:",
+      "connect-src 'self'",
+      "font-src 'self' data: https://cdnjs.cloudflare.com",
+      "media-src 'self'",
+      "worker-src 'self'",
+      "manifest-src 'self'",
+    ].join("; "),
+  );
+  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+  );
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+  next();
+});
 app.use(express.json({ limit: "8mb" }));
 app.use(
   express.static("public", {

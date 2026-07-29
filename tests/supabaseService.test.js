@@ -6,20 +6,21 @@ import {
   SupabaseServiceError,
 } from "../src/services/supabaseService.js";
 
-test("проверява Supabase Data API без да връща ключа", async () => {
+test("проверява Supabase API без да връща ключа", async () => {
   const result = await checkSupabaseStatus({
     projectUrl: "https://project.supabase.co",
     publishableKey: "test-publishable-key",
     fetchImpl: async (url, options) => {
-      assert.equal(url, "https://project.supabase.co/rest/v1/");
+      assert.equal(url, "https://project.supabase.co/auth/v1/settings");
       assert.equal(options.headers.apikey, "test-publishable-key");
+      assert.equal(options.headers.Accept, "application/json");
       assert.equal(options.headers.Authorization, undefined);
       return new Response("{}", { status: 200 });
     },
   });
 
   assert.equal(result.status, "healthy");
-  assert.equal(result.service, "Supabase Data API");
+  assert.equal(result.service, "Supabase API");
   assert.equal("publishableKey" in result, false);
 });
 

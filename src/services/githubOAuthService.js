@@ -4,6 +4,7 @@ import { getOpenSearchClient } from "../config/opensearch.js";
 const GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const GITHUB_USER_URL = "https://api.github.com/user";
+const GITHUB_OAUTH_SCOPE = "public_repo";
 export const DEFAULT_GITHUB_REDIRECT_URI =
   "https://synchron.foundation/api/github/callback";
 const DEFAULT_GITHUB_REPOSITORY =
@@ -111,6 +112,7 @@ export function buildGitHubAuthorizationUrl(state) {
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
+    scope: GITHUB_OAUTH_SCOPE,
     state,
   });
   return `${GITHUB_AUTHORIZE_URL}?${params}`;

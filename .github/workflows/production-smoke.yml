@@ -30,8 +30,22 @@ jobs:
           set -euo pipefail
           curl --fail --silent --show-error             --retry 3 --retry-delay 10 --retry-all-errors             --max-time 30             https://synchron.foundation/health             | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'
 
-      - name: Check persistent-memory service
+      - name: Check production readiness
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error             --retry 3 --retry-delay 10 --retry-all-errors             --max-time 30             https://synchron.foundation/opensearch-status             | grep -Eq '"status"[[:space:]]*:[[:space:]]*"(green|yellow)"'
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 10 --retry-all-errors \
+            --max-time 30 \
+            https://synchron.foundation/health/ready \
+            | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"'
+
+      - name: Check MCP bridge diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 10 --retry-all-errors \
+            --max-time 30 \
+            https://synchron.foundation/health/bridge \
+            | grep -Eq '"responding"[[:space:]]*:[[:space:]]*true'

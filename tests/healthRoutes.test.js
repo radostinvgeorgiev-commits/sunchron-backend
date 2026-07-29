@@ -4,7 +4,9 @@ import express from "express";
 import request from "supertest";
 
 import {
+  createBridgeDiagnosticsHandler,
   createReadinessHandler,
+  getBridgeDiagnosticsStatus,
   getReadinessStatus,
   getRuntimeVersion,
 } from "../src/routes/health.js";
@@ -83,4 +85,47 @@ test("readiness rejects a red OpenSearch cluster", async () => {
 
   assert.equal(result.status, "not-ready");
   assert.equal(result.checks.memory.status, "red");
+});
+
+test("bridge diagnostics distinguish configuration, response and ChatGPT OAuth readiness", async () => {
+  const result = await getBridgeDiagnosticsStatus({
+    env: {
+      MCP_ACCESS_TOKEN: "m".repeat(48),
+      APP_COMMIT_SHA: "bridge123",
+    },
+    handleMcpRequest: async () => ({
+      result: { serverInfo: { name: "synchron-x-memory" } },
+    }),
+  });
+
+  assert.equal(result.status, "operational");
+  assert.equal(result.commit, "bridge123");
+  assert.equal(result.bridge.configured, true);
+  assert.equal(result.bridge.reachable, true);
+  assert.equal(result.bridge.responding, true);
+  assert.equal(result.bridge.readOnly, true);
+  assert.equal(result.bridge.authentication.chatgptOAuthReady, false);
+  assert.equal(
+    result.bridge.authentication.reason,
+    "oauth-2.1-authorization-server-required",
+  );
+});
+
+test("bridge diagnostics fail honestly when the token is missing", async () => {
+  const app = express();
+  app.get(
+    "/health/bridge",
+    createBridgeDiagnosticsHandler({
+      env: {},
+      handleMcpRequest: async () => ({
+        result: { serverInfo: { name: "synchron-x-memory" } },
+      }),
+    }),
+  );
+
+  const response = await request(app).get("/health/bridge").expect(503);
+  assert.equal(response.body.status, "incomplete");
+  assert.equal(response.body.bridge.configured, false);
+  assert.equal(response.body.bridge.responding, true);
+  assert.equal(response.body.bridge.authentication.chatgptOAuthReady, false);
 });

@@ -108,6 +108,29 @@ test("sanitizer rejects unknown capabilities and keeps valid scopes", () => {
   ]);
 });
 
+test("planner accepts the read-only Supabase status capability", () => {
+  assert.deepEqual(
+    sanitizeCapabilityPlan(
+      {
+        calls: [
+          {
+            capability: "database.status",
+            request: "Провери статуса на Supabase.",
+          },
+        ],
+      },
+      "Провери Supabase.",
+    ),
+    [
+      {
+        capability: "database.status",
+        action: "database.read",
+        message: "Провери статуса на Supabase.",
+      },
+    ],
+  );
+});
+
 test("planner is used for likely tool requests but not ordinary conversation", () => {
   assert.equal(
     shouldUseAgentPlanner("Покажи календара ми за утре.", [

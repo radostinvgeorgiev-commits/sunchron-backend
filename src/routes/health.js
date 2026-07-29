@@ -134,6 +134,12 @@ export function getIntegrationStatus() {
     "openai-web-search": {
       configured: Boolean(process.env.OPENAI_API_KEY),
     },
+    "supabase-status": {
+      configured: hasAllProcessEnvironmentVariables(
+        "SUPABASE_URL",
+        "SUPABASE_PUBLISHABLE_KEY",
+      ),
+    },
     "opensearch-memory": {
       configured: hasAllProcessEnvironmentVariables(
         "OPENSEARCH_HOST",

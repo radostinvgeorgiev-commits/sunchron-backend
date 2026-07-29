@@ -38,6 +38,15 @@ test("recognizes common Bulgarian GitHub spellings as a real tool request", () =
   }
 });
 
+test("разпознава изрична проверка на Supabase", () => {
+  assert.deepEqual(
+    detectCapabilityRequests("Провери дали Supabase е свързан и работи.").map(
+      ({ capability, action }) => ({ capability, action }),
+    ),
+    [{ capability: "database.status", action: "database.read" }],
+  );
+});
+
 test("deterministic tool requests survive an empty or weaker AI plan", () => {
   const fallback = [
     {

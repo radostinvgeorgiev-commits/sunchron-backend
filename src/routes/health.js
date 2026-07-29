@@ -1,7 +1,12 @@
 import express from "express";
 import { getOpenSearchClient } from "../config/opensearch.js";
 import { resolveRuntimeVersion } from "../config/runtimeVersion.js";
-import { isGitHubOAuthConfigured } from "../services/githubOAuthService.js";
+import {
+  getGitHubSession,
+  isAuthorizedGitHubLogin,
+  isGitHubOAuthConfigured,
+  parseGitHubCookies,
+} from "../services/githubOAuthService.js";
 import { isToolExecutable } from "../tools/capabilityEngine.js";
 import { listTools, registerCoreTools } from "../tools/toolRegistry.js";
 
@@ -104,7 +109,7 @@ function resolveToolHealthStatus(tool, configuration = {}) {
   return "healthy";
 }
 
-export function getIntegrationStatus() {
+export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
   registerCoreTools();
   const configuration = {
     "github-read": {
@@ -113,7 +118,7 @@ export function getIntegrationStatus() {
     },
     "github-write": {
       configured: isGitHubOAuthConfigured(),
-      authenticated: false,
+      authenticated: githubAuthenticated,
     },
     "google-drive-read": {
       configured: hasAllProcessEnvironmentVariables(
@@ -192,8 +197,13 @@ export function getIntegrationStatus() {
   };
 }
 
-router.get("/integrations", (req, res) => {
-  res.json(getIntegrationStatus());
+router.get("/integrations", async (req, res) => {
+  const cookies = parseGitHubCookies(req.headers.cookie);
+  const session = await getGitHubSession(cookies.synchron_github_session);
+  const githubAuthenticated = Boolean(
+    session && isAuthorizedGitHubLogin(session.login),
+  );
+  res.json(getIntegrationStatus({ githubAuthenticated }));
 });
 
 export default router;

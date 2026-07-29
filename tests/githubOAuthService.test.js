@@ -46,7 +46,7 @@ test("builds GitHub OAuth URL with exact callback state", () => {
     url.searchParams.get("redirect_uri"),
     process.env.GITHUB_REDIRECT_URI,
   );
-  assert.equal(url.searchParams.has("scope"), false);
+  assert.equal(url.searchParams.get("scope"), "public_repo");
   assert.equal(url.searchParams.get("state"), "state-123");
 });
 

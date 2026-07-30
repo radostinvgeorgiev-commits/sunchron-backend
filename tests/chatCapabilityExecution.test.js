@@ -88,6 +88,19 @@ test("общ въпрос за инструментите задейства р�
   }
 });
 
+test("въпрос дали GitHub може да пише минава през реалния статус на Copilot моста", () => {
+  for (const message of [
+    "Демек вече може да пише в хъба и да комитва?",
+    "Работи ли GitHub Write мостът за branch, commit и Pull Request?",
+    "Има ли активен инструмент за писане в GitHub?",
+  ]) {
+    assert.deepEqual(
+      detectCapabilityRequests(message).map(({ capability }) => capability),
+      ["system.integrations.status"],
+    );
+  }
+});
+
 test("въпрос за Tool Registry остава GitHub проверка, а не системен статус", () => {
   assert.deepEqual(
     detectCapabilityRequests(

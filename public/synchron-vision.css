@@ -390,8 +390,16 @@ input:focus-visible {
   }
 
   #chatMessages {
-    padding: 24px 16px calc(var(--sx-mobile-occupied-height, 230px) + 24px) !important;
+    padding: 24px 16px !important;
     scroll-padding-bottom: calc(var(--sx-mobile-occupied-height, 230px) + 24px);
+  }
+
+  #chatMessages::after {
+    content: "";
+    width: 100%;
+    min-height: calc(var(--sx-mobile-occupied-height, 230px) + 24px);
+    flex: 0 0 calc(var(--sx-mobile-occupied-height, 230px) + 24px);
+    pointer-events: none;
   }
 
   .composer-wrap {

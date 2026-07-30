@@ -1,5 +1,6 @@
 const commandBar = document.querySelector(".mobile-command-bar");
 const composer = document.querySelector(".composer-wrap");
+const chatMessages = document.getElementById("chatMessages");
 const root = document.documentElement;
 const mobileLayout = globalThis.matchMedia?.("(max-width: 900px)");
 
@@ -9,13 +10,35 @@ function updateMobileOccupiedHeight() {
     return;
   }
 
-  const occupiedHeight =
-    composer.getBoundingClientRect().height +
-    commandBar.getBoundingClientRect().height;
+  const distanceFromBottom = chatMessages
+    ? chatMessages.scrollHeight -
+      chatMessages.clientHeight -
+      chatMessages.scrollTop
+    : Number.POSITIVE_INFINITY;
+  const composerRect = composer.getBoundingClientRect();
+  const commandBarRect = commandBar.getBoundingClientRect();
+  const viewportBottom =
+    globalThis.visualViewport?.offsetTop + globalThis.visualViewport?.height ||
+    globalThis.innerHeight;
+  const occupiedHeight = Math.max(
+    composerRect.height + commandBarRect.height,
+    viewportBottom - Math.min(composerRect.top, commandBarRect.top),
+  );
   root.style.setProperty(
     "--sx-mobile-occupied-height",
-    `${Math.ceil(occupiedHeight)}px`,
+    `${Math.ceil(occupiedHeight + 20)}px`,
   );
+
+  if (chatMessages && distanceFromBottom <= 80) {
+    const keepLastAnswerVisible = () => {
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    };
+    if (typeof globalThis.requestAnimationFrame === "function") {
+      globalThis.requestAnimationFrame(keepLastAnswerVisible);
+    } else {
+      keepLastAnswerVisible();
+    }
+  }
 }
 
 function scheduleMobileLayoutUpdate() {

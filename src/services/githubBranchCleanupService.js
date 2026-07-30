@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { createDurableConfirmation } from "./confirmationService.js";
 import { getLatestAuthorizedGitHubSession } from "./githubOAuthService.js";
 import { GitHubServiceError } from "./githubService.js";
 
@@ -60,6 +61,61 @@ async function allPages(path, session, fetchImpl) {
 
 function branchFingerprint(branches) {
   return createHash("sha256").update(branches.join("\n")).digest("hex");
+}
+
+export function isMergedBranchCleanupPlanRequest(message) {
+  const text = typeof message === "string" ? message.trim().toLowerCase() : "";
+  if (!text) return false;
+  const hasBranchTarget = /(?:github|гит[\s-]*хъб|клон|branch)/iu.test(text);
+  const hasMergedConstraint = /(?:слет|merged|pull\s*request|\bpr\b)/iu.test(
+    text,
+  );
+  const asksForSafePlan =
+    /(?:подготви|покажи|намери|изброй|списък|провери|безопасн)/iu.test(text);
+  const forbidsDeletion =
+    /(?:не\s+изтривай|без\s+изтриване|нищо\s+не\s+изтривай)/iu.test(text);
+  return (
+    hasBranchTarget &&
+    hasMergedConstraint &&
+    (asksForSafePlan || forbidsDeletion)
+  );
+}
+
+export async function prepareMergedBranchCleanup({
+  ownerId,
+  buildPlan = buildMergedBranchCleanupPlan,
+  createConfirmation = createDurableConfirmation,
+} = {}) {
+  const cleanOwnerId =
+    typeof ownerId === "string" && ownerId.trim() ? ownerId.trim() : "";
+  if (!cleanOwnerId) {
+    throw new GitHubServiceError(
+      "Липсва удостоверен собственик за GitHub почистването.",
+      401,
+      "GITHUB_OWNER_REQUIRED",
+    );
+  }
+  const plan = await buildPlan();
+  const confirmation = await createConfirmation({
+    sessionId: cleanOwnerId,
+    action: "github.write:delete_merged_branches",
+    resource: {
+      repository: plan.repository,
+      count: plan.count,
+      fingerprint: plan.fingerprint,
+    },
+    params: { branchNames: plan.branchNames },
+  });
+  const branches = plan.branchNames.length
+    ? plan.branchNames.map((name) => `• ${name}`)
+    : ["• Няма клонове, които отговарят на всички защити."];
+  return [
+    `Намерени са ${plan.count} безопасни за изтриване клона от вече слети Pull Request-и:`,
+    ...branches,
+    "",
+    "Нищо не е изтрито.",
+    `За изтриване е нужно отделно еднократно потвърждение: ${confirmation.id}`,
+  ].join("\n");
 }
 
 export async function buildMergedBranchCleanupPlan({

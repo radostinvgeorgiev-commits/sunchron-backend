@@ -58,11 +58,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error \
+          page="$(curl --fail --silent --show-error \
             --retry 3 --retry-delay 10 --retry-all-errors \
             --max-time 30 \
-            https://synchron.foundation/ \
-            | grep -qi "Synchron"
+            https://synchron.foundation/)"
+          grep -qi "Synchron" <<< "${page}"
 
       - name: Check application health
         shell: bash

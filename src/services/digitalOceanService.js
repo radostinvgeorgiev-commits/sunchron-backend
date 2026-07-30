@@ -341,6 +341,13 @@ function mapAction(action) {
 
 function buildFindings(audit) {
   const findings = [];
+  if (audit.account.emailVerified === false) {
+    findings.push({
+      severity: "warning",
+      code: "ACCOUNT_EMAIL_NOT_VERIFIED",
+      message: "Имейлът на DigitalOcean акаунта не е потвърден.",
+    });
+  }
   const dropletsWithoutBackups = audit.droplets.filter(
     (droplet) => !droplet.backupsEnabled,
   );
@@ -390,6 +397,26 @@ function buildFindings(audit) {
       message: `${inactiveApps.length} приложение(я) нямат активен успешен deployment.`,
     });
   }
+  const unhealthyDatabases = audit.databases.filter(
+    (database) => database.status && database.status !== "online",
+  );
+  if (unhealthyDatabases.length) {
+    findings.push({
+      severity: "warning",
+      code: "DATABASES_NOT_ONLINE",
+      message: `${unhealthyDatabases.length} управлявана база не е със статус online.`,
+    });
+  }
+  const unassignedReservedIps = audit.reservedIps.filter(
+    (reservedIp) => !reservedIp.assigned,
+  );
+  if (unassignedReservedIps.length) {
+    findings.push({
+      severity: "info",
+      code: "UNASSIGNED_RESERVED_IPS",
+      message: `${unassignedReservedIps.length} Reserved IP адрес(а) не са свързани към Droplet.`,
+    });
+  }
   const failedActions = audit.actions.filter(
     (action) => action.status === "errored",
   );
@@ -425,7 +452,8 @@ function buildFindings(audit) {
     findings.push({
       severity: "ok",
       code: "NO_OBVIOUS_RISKS",
-      message: "Не са открити очевидни проблеми в наличните данни.",
+      message:
+        "Автоматичната проверка не откри предупреждения в достъпните полета. Това не доказва, че няма други проблеми.",
     });
   }
   return findings;
@@ -531,6 +559,7 @@ export async function getDigitalOceanAccountAudit(options = {}) {
 }
 
 export function formatDigitalOceanAudit(audit) {
+  const checkedSections = AUDIT_RESOURCES.length - audit.unavailable.length;
   const counts = [
     `приложения ${audit.apps.length}`,
     `Droplets ${audit.droplets.length}`,
@@ -553,8 +582,9 @@ export function formatDigitalOceanAudit(audit) {
       ? `Разход този месец: ${audit.billing.monthToDateUsage || "няма данни"} ${audit.billing.currency || ""}; баланс: ${audit.billing.accountBalance || "няма данни"} ${audit.billing.currency || ""}.`
       : "Разходи: няма достъпни данни.";
   return [
-    "DigitalOcean — пълен одит само за четене.",
+    "DigitalOcean — преглед на ресурсите само за четене.",
     `Акаунт: ${audit.account.status || "неизвестен статус"}.`,
+    `Покритие: проверени ${checkedSections} от ${AUDIT_RESOURCES.length} заявени секции.`,
     `Ресурси: ${counts}.`,
     billing,
     "Находки:",
@@ -562,6 +592,8 @@ export function formatDigitalOceanAudit(audit) {
     audit.unavailable.length
       ? `Непроверени секции: ${audit.unavailable.map(({ resource }) => resource).join(", ")}.`
       : "Всички заявени секции са проверени.",
+    "Ограничение: това е автоматичен преглед на данните от DigitalOcean API, а не доказателство, че приложението, архивите, тайните и всички настройки за сигурност са правилни.",
+    "Не са направени промени.",
   ].join("\n");
 }
 

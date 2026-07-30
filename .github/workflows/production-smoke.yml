@@ -97,6 +97,9 @@ jobs:
             process.stdin.on("data", (chunk) => { input += chunk; });
             process.stdin.on("end", () => {
               const bridge = JSON.parse(input).checks?.bridge;
+              console.log(
+                `MCP configured=${Boolean(bridge?.configured)} responding=${Boolean(bridge?.responding)}`,
+              );
               if (!bridge?.configured || !bridge?.responding) process.exit(1);
             });
           '

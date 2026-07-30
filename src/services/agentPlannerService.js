@@ -30,7 +30,7 @@ const PLANNER_INSTRUCTIONS = [
   "- code.read: четене и проверка на разрешеното GitHub хранилище",
   "- code.write: промяна в GitHub; може да е недостъпна и винаги изисква потвърждение",
   "- database.status: проверка дали Supabase е свързан и отговаря",
-  "- infrastructure.digitalocean.read: статус и последни деплои в DigitalOcean App Platform",
+  "- infrastructure.digitalocean.read: статус, деплои и пълен одит само за четене на DigitalOcean ресурсите, сигурността и разходите",
   "- infrastructure.cloudflare.read: статус на Cloudflare зоната и DNS записите",
   "- calendar.read: четене на Google Calendar",
   "- files.read: четене на Google Drive",

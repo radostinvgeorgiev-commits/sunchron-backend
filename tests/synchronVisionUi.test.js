@@ -42,9 +42,11 @@ test("mobile chat content clears the measured composer and command bar", async (
 
   assert.match(css, /--sx-mobile-occupied-height/u);
   assert.match(css, /scroll-padding-bottom/u);
+  assert.match(css, /#chatMessages::after/u);
   assert.match(script, /ResizeObserver/u);
-  assert.match(script, /composer\.getBoundingClientRect\(\)\.height/u);
-  assert.match(script, /commandBar\.getBoundingClientRect\(\)\.height/u);
+  assert.match(script, /composerRect\.height/u);
+  assert.match(script, /commandBarRect\.height/u);
+  assert.match(script, /chatMessages\.scrollTop = chatMessages\.scrollHeight/u);
   assert.match(css, /user-select:\s*text/u);
   assert.match(app, /class="action-label">Копирай<\/span>/u);
 });

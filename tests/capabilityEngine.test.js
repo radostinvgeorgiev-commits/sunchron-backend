@@ -4,6 +4,7 @@ import {
   buildIntegrationStatusReport,
   CapabilityError,
   executeCapability,
+  getToolRuntimeAvailability,
   isToolExecutable,
   resolveCapability,
 } from "../src/tools/capabilityEngine.js";
@@ -88,6 +89,52 @@ test("регистрира Supabase като изпълним инструмен
   assert.equal(result.permission.decision, "allow");
   assert.equal(result.requiresConfirmation, false);
   assert.equal(isToolExecutable("supabase-status"), true);
+});
+
+test("runtime availability blocks configured-looking tools without credentials", () => {
+  assert.equal(
+    getToolRuntimeAvailability("supabase-status", {}, {}).available,
+    false,
+  );
+  assert.equal(
+    getToolRuntimeAvailability(
+      "supabase-status",
+      {},
+      {
+        SUPABASE_URL: "https://project.supabase.co",
+        SUPABASE_PUBLISHABLE_KEY: "publishable",
+      },
+    ).available,
+    true,
+  );
+  assert.equal(
+    getToolRuntimeAvailability(
+      "google-calendar-read",
+      {},
+      {
+        GOOGLE_CLIENT_ID: "client",
+        GOOGLE_CLIENT_SECRET: "secret",
+        GOOGLE_REDIRECT_URI: "https://example.test/callback",
+      },
+    ).code,
+    "CAPABILITY_AUTH_REQUIRED",
+  );
+});
+
+test("execution fails closed before calling an unconfigured external tool", async () => {
+  await assert.rejects(
+    () =>
+      executeCapability(
+        "database.status",
+        {},
+        {
+          env: {},
+        },
+      ),
+    (error) =>
+      error instanceof CapabilityError &&
+      error.code === "CAPABILITY_NOT_CONFIGURED",
+  );
 });
 
 test("изпълнява GitHub четене чрез избрания инструмент", async () => {

@@ -80,6 +80,7 @@ test.beforeEach(() => {
   resetGitHubSessionsForTests();
   resetConfirmationsForTests();
   resetToolRegistryForTests();
+  process.env.GITHUB_CLIENT_ID = "test-client";
   process.env.GITHUB_CLIENT_SECRET = "test-secret";
 });
 
@@ -87,6 +88,7 @@ test.afterEach(() => {
   resetGitHubSessionsForTests();
   resetConfirmationsForTests();
   resetToolRegistryForTests();
+  delete process.env.GITHUB_CLIENT_ID;
   delete process.env.GITHUB_CLIENT_SECRET;
 });
 

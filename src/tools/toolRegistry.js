@@ -109,7 +109,7 @@ export function registerCoreTools() {
       },
       enabled: true,
       requiresConfirmation: false,
-      healthStatus: "healthy",
+      healthStatus: "unavailable",
     },
     {
       id: "github-read",
@@ -126,7 +126,7 @@ export function registerCoreTools() {
       },
       enabled: true,
       requiresConfirmation: false,
-      healthStatus: "healthy",
+      healthStatus: "unavailable",
     },
     {
       id: "github-write",
@@ -143,7 +143,7 @@ export function registerCoreTools() {
       },
       enabled: true,
       requiresConfirmation: true,
-      healthStatus: "healthy",
+      healthStatus: "unavailable",
     },
     {
       id: "google-drive-read",
@@ -159,7 +159,7 @@ export function registerCoreTools() {
       },
       enabled: true,
       requiresConfirmation: false,
-      healthStatus: "healthy",
+      healthStatus: "unavailable",
     },
     {
       id: "google-calendar-read",
@@ -174,7 +174,7 @@ export function registerCoreTools() {
       },
       enabled: true,
       requiresConfirmation: false,
-      healthStatus: "healthy",
+      healthStatus: "unavailable",
     },
     {
       id: "gmail-read",
@@ -190,7 +190,7 @@ export function registerCoreTools() {
       },
       enabled: true,
       requiresConfirmation: false,
-      healthStatus: "healthy",
+      healthStatus: "unavailable",
     },
     {
       id: "openai-web-search",
@@ -205,7 +205,7 @@ export function registerCoreTools() {
       },
       enabled: true,
       requiresConfirmation: false,
-      healthStatus: "healthy",
+      healthStatus: "unavailable",
     },
     {
       id: "supabase-status",
@@ -220,7 +220,7 @@ export function registerCoreTools() {
       },
       enabled: true,
       requiresConfirmation: false,
-      healthStatus: "healthy",
+      healthStatus: "unavailable",
     },
     {
       id: "digitalocean-read",
@@ -235,7 +235,7 @@ export function registerCoreTools() {
       },
       enabled: true,
       requiresConfirmation: false,
-      healthStatus: "healthy",
+      healthStatus: "unavailable",
     },
     {
       id: "cloudflare-read",
@@ -250,7 +250,7 @@ export function registerCoreTools() {
       },
       enabled: true,
       requiresConfirmation: false,
-      healthStatus: "healthy",
+      healthStatus: "unavailable",
     },
     {
       id: "opensearch-memory",
@@ -282,7 +282,7 @@ export function registerCoreTools() {
       },
       enabled: true,
       requiresConfirmation: false,
-      healthStatus: "healthy",
+      healthStatus: "unavailable",
     },
   ].forEach((definition) => {
     if (!tools.has(definition.id)) registerTool(definition);

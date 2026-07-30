@@ -33,12 +33,7 @@ function normalizeProjectUrl(value) {
 }
 
 function sessionSecret(env = process.env) {
-  return (
-    env.SUPABASE_SESSION_ENCRYPTION_KEY ||
-    env.GITHUB_SESSION_ENCRYPTION_KEY ||
-    env.GOOGLE_SESSION_ENCRYPTION_KEY ||
-    ""
-  ).trim();
+  return (env.SUPABASE_SESSION_ENCRYPTION_KEY || "").trim();
 }
 
 function authConfig(env = process.env) {
@@ -214,10 +209,7 @@ function createAuthClient(env = process.env) {
 
 function deriveSessionKey(env = process.env) {
   const { encryptionSecret } = requireAuthConfig(env);
-  if (
-    cachedEncryptionKey &&
-    cachedEncryptionSecret === encryptionSecret
-  ) {
+  if (cachedEncryptionKey && cachedEncryptionSecret === encryptionSecret) {
     return cachedEncryptionKey;
   }
   cachedEncryptionSecret = encryptionSecret;

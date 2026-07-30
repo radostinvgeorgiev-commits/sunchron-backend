@@ -35,7 +35,8 @@ AI аватарът е интерфейсът на SYNCHRON-X — лицето, 
 - приложението е Node.js/Express;
 - клиентът е в `public`;
 - чат маршрутът е в `src/routes/chat.js`;
-- OpenAI Responses API е основният AI, а DigitalOcean Agent е резервен;
+- OpenAI Responses API е единственият разговорен AI; старият DigitalOcean
+  Agent е премахнат и не се използва като резервен;
 - OpenSearch се използва/предвижда за постоянната памет;
 - Cloudflare обслужва домейна;
 - `Tool Registry` и `Capability Engine` са добавени;

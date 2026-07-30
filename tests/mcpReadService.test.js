@@ -41,6 +41,18 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
   assert.equal(digitalOceanAudit.annotations.destructiveHint, false);
 });
 
+test("MCP describes the confirmed destructive boundary honestly", async () => {
+  const handle = createMcpRequestHandler();
+  const response = await handle(
+    { jsonrpc: "2.0", id: 1, method: "initialize" },
+    "primary-user",
+  );
+
+  assert.match(response.result.instructions, /Повечето инструменти/u);
+  assert.match(response.result.instructions, /destructive инструмент/u);
+  assert.doesNotMatch(response.result.instructions, /мост е само за четене/u);
+});
+
 test("MCP reads owner-scoped personal memory and audits the call", async () => {
   const calls = [];
   const handle = createMcpRequestHandler({

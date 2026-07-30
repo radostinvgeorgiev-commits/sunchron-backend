@@ -24,6 +24,7 @@ test("регистрира съществуващите интеграции с 
   ]);
   assert.equal(getTool("github-write").enabled, true);
   assert.equal(getTool("github-write").requiresConfirmation, true);
+  assert.equal(getTool("github-write").healthStatus, "unavailable");
   assert.deepEqual(getTool("supabase-status").capabilities, [
     "database.status",
   ]);
@@ -35,10 +36,11 @@ test("регистрира съществуващите интеграции с 
   ]);
 });
 
-test("намира активен и здрав инструмент по способност", () => {
+test("core registry is fail-closed until runtime availability is checked", () => {
   registerCoreTools();
+  assert.equal(findToolsByCapability("calendar.read").length, 0);
   assert.equal(
-    findToolsByCapability("calendar.read")[0].id,
+    findToolsByCapability("calendar.read", { healthyOnly: false })[0].id,
     "google-calendar-read",
   );
 });

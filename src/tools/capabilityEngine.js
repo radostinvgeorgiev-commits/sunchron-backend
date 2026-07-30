@@ -47,6 +47,98 @@ export class CapabilityError extends Error {
   }
 }
 
+function hasEnvironment(env, ...names) {
+  return names.every(
+    (name) => typeof env[name] === "string" && env[name].trim().length > 0,
+  );
+}
+
+export function getToolRuntimeAvailability(
+  toolId,
+  input = {},
+  env = process.env,
+) {
+  const configured = (available, reason, code = "CAPABILITY_NOT_CONFIGURED") =>
+    Object.freeze({ available, reason, code });
+
+  switch (toolId) {
+    case "synchron-integrations-status":
+    case "github-read":
+      return configured(true, null);
+    case "github-write":
+      if (!hasEnvironment(env, "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET")) {
+        return configured(
+          false,
+          "GitHub Write не е конфигуриран.",
+          "CAPABILITY_NOT_CONFIGURED",
+        );
+      }
+      return configured(
+        Boolean(input.githubSessionId),
+        "GitHub Write изисква удостоверена собственическа сесия.",
+        "CAPABILITY_AUTH_REQUIRED",
+      );
+    case "google-drive-read":
+    case "google-calendar-read":
+    case "gmail-read":
+      if (
+        !hasEnvironment(
+          env,
+          "GOOGLE_CLIENT_ID",
+          "GOOGLE_CLIENT_SECRET",
+          "GOOGLE_REDIRECT_URI",
+        )
+      ) {
+        return configured(
+          false,
+          "Google връзката не е конфигурирана.",
+          "CAPABILITY_NOT_CONFIGURED",
+        );
+      }
+      return configured(
+        Boolean(input.googleSessionId),
+        "Google инструментът изисква удостоверена Google сесия.",
+        "CAPABILITY_AUTH_REQUIRED",
+      );
+    case "openai-web-search":
+      return configured(
+        hasEnvironment(env, "OPENAI_API_KEY"),
+        "OpenAI Web Search не е конфигуриран.",
+      );
+    case "supabase-status":
+      return configured(
+        hasEnvironment(env, "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY"),
+        "Supabase Status не е конфигуриран.",
+      );
+    case "digitalocean-read":
+      return configured(
+        Boolean(
+          (env.DIGITALOCEAN_API_TOKEN || env.DIGITALOCEAN_TOKEN) &&
+          env.DIGITALOCEAN_APP_ID,
+        ),
+        "DigitalOcean Read не е конфигуриран.",
+      );
+    case "cloudflare-read":
+      return configured(
+        hasEnvironment(env, "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ZONE_ID"),
+        "Cloudflare Read не е конфигуриран.",
+      );
+    case "opensearch-memory":
+      return configured(
+        hasEnvironment(
+          env,
+          "OPENSEARCH_HOST",
+          "OPENSEARCH_PORT",
+          "OPENSEARCH_USERNAME",
+          "OPENSEARCH_PASSWORD",
+        ),
+        "Постоянната памет не е конфигурирана.",
+      );
+    default:
+      return configured(false, "Инструментът няма runtime проверка.");
+  }
+}
+
 function resolvePermission(tool, capability) {
   return tool.capabilityPermissions?.[capability] || null;
 }
@@ -134,7 +226,9 @@ export function resolveCapability(capability, options = {}) {
   }
 
   registerCoreTools();
-  const candidates = findToolsByCapability(capability.trim());
+  const candidates = findToolsByCapability(capability.trim(), {
+    healthyOnly: false,
+  });
   if (!candidates.length) {
     throw new CapabilityError(
       `Няма активен инструмент за "${capability.trim()}".`,
@@ -354,6 +448,15 @@ export async function executeCapability(capability, input = {}, options = {}) {
       "CAPABILITY_NOT_EXECUTABLE",
       503,
     );
+  }
+
+  const runtime = getToolRuntimeAvailability(
+    resolved.tool.id,
+    input,
+    options.env || process.env,
+  );
+  if (!runtime.available) {
+    throw new CapabilityError(runtime.reason, runtime.code, 503);
   }
 
   const output = await executor({

@@ -109,12 +109,20 @@ test("GitHub Write is configured with client id and secret only", () => {
 });
 
 test("removed DigitalOcean AI Agent is not required by production configuration", async () => {
-  const [appSpec, server] = await Promise.all([
+  const [appSpec, server, identity, envExample] = await Promise.all([
     readFile(new URL("../.do/app.yaml", import.meta.url), "utf8"),
     readFile(new URL("../server.js", import.meta.url), "utf8"),
+    readFile(
+      new URL("../src/config/projectIdentity.js", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../.env.example", import.meta.url), "utf8"),
   ]);
 
   assert.doesNotMatch(appSpec, /key:\s*AGENT_(?:URL|KEY)/u);
   assert.doesNotMatch(server, /if\s*\(!process\.env\.AGENT_KEY\)/u);
   assert.match(server, /if\s*\(!process\.env\.OPENAI_API_KEY\)/u);
+  assert.doesNotMatch(identity, /DigitalOcean Agent е резервният AI/u);
+  assert.match(identity, /DigitalOcean Agent е премахнат/u);
+  assert.doesNotMatch(envExample, /^AGENT_(?:URL|KEY)=/mu);
 });

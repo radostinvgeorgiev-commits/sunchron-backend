@@ -7,7 +7,10 @@ import {
   isGitHubOAuthConfigured,
   parseGitHubCookies,
 } from "../services/githubOAuthService.js";
-import { createMcpRequestHandler } from "../services/mcpReadService.js";
+import {
+  MCP_TOOLS,
+  createMcpRequestHandler,
+} from "../services/mcpReadService.js";
 import { isToolExecutable } from "../tools/capabilityEngine.js";
 import { listTools, registerCoreTools } from "../tools/toolRegistry.js";
 
@@ -102,6 +105,12 @@ export async function getBridgeDiagnosticsStatus({
     typeof env.MCP_ACCESS_TOKEN === "string" &&
     env.MCP_ACCESS_TOKEN.length >= 32;
   let responding = false;
+  const readOnlyTools = MCP_TOOLS.filter(
+    (tool) => tool.annotations?.readOnlyHint === true,
+  ).length;
+  const destructiveTools = MCP_TOOLS.filter(
+    (tool) => tool.annotations?.destructiveHint === true,
+  ).length;
 
   try {
     const response = await withTimeout(
@@ -125,8 +134,10 @@ export async function getBridgeDiagnosticsStatus({
       configured,
       reachable: true,
       responding,
-      readOnly: true,
-      tools: 4,
+      readOnly: destructiveTools === 0,
+      tools: MCP_TOOLS.length,
+      readOnlyTools,
+      destructiveTools,
       authentication: {
         mode: "static-bearer",
         chatgptOAuthReady: false,

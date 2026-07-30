@@ -175,8 +175,12 @@ app.get("/opensearch-status", requireOwnerSession, async (req, res) => {
   try {
     const health = await client.cluster.health();
     res.json({ status: health.body.status });
-  } catch (error) {
-    res.status(500).json({ status: "error", error: error.message });
+  } catch {
+    console.error("[OpenSearch status] Health check failed.");
+    res.status(503).json({
+      status: "error",
+      code: "OPENSEARCH_UNAVAILABLE",
+    });
   }
 });
 

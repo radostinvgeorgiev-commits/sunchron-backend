@@ -295,6 +295,33 @@ export async function hasGitHubSession(id) {
   return Boolean(await getGitHubSession(id));
 }
 
+export async function getLatestAuthorizedGitHubSession() {
+  const cached = [...sessions.values()]
+    .filter((session) => isAuthorizedGitHubLogin(session.login))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+  if (cached?.accessToken) return cached;
+
+  const client = getOpenSearchClient();
+  if (!client) return null;
+  const response = await client.search({
+    index: GITHUB_SESSION_INDEX,
+    body: { size: 20, sort: [{ updatedAt: { order: "desc" } }] },
+  });
+  const hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
+  for (const hit of hits) {
+    try {
+      const session = decryptGitHubSession(hit._source);
+      if (session?.accessToken && isAuthorizedGitHubLogin(session.login)) {
+        sessions.set(hit._id, session);
+        return session;
+      }
+    } catch {
+      // Ignore stale or unreadable sessions and continue fail-closed.
+    }
+  }
+  return null;
+}
+
 export async function disconnectGitHubSession(id) {
   if (id) sessions.delete(id);
   const client = getOpenSearchClient();

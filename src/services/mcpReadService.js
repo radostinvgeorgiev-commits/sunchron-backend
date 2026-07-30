@@ -5,6 +5,15 @@ import {
   listProfileMemories,
 } from "./memoryService.js";
 import { recordAuditEvent } from "./permissionService.js";
+import {
+  createDurableConfirmation,
+  markDurableConfirmationUsed,
+  validateDurableConfirmation,
+} from "./confirmationService.js";
+import {
+  buildMergedBranchCleanupPlan,
+  executeMergedBranchCleanup,
+} from "./githubBranchCleanupService.js";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 
@@ -13,6 +22,12 @@ const READ_ONLY_ANNOTATIONS = Object.freeze({
   destructiveHint: false,
   openWorldHint: false,
   idempotentHint: true,
+});
+const DESTRUCTIVE_ANNOTATIONS = Object.freeze({
+  readOnlyHint: false,
+  destructiveHint: true,
+  openWorldHint: true,
+  idempotentHint: false,
 });
 
 export const MCP_TOOLS = Object.freeze([
@@ -61,6 +76,29 @@ export const MCP_TOOLS = Object.freeze([
     },
     annotations: READ_ONLY_ANNOTATIONS,
   },
+  {
+    name: "prepare_github_merged_branch_cleanup",
+    title: "Подготви почистване на слети GitHub клонове",
+    description:
+      "Проверява кои клонове са от слети PR-и, без отворен PR и без защита. Не изтрива нищо; връща точен списък и еднократно потвърждение.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: READ_ONLY_ANNOTATIONS,
+  },
+  {
+    name: "confirm_github_merged_branch_cleanup",
+    title: "Потвърди изтриването на проверените GitHub клонове",
+    description:
+      "Изтрива само точния предварително проверен списък след еднократно потвърждение и повторна проверка.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        confirmationId: { type: "string", minLength: 1, maxLength: 100 },
+      },
+      required: ["confirmationId"],
+      additionalProperties: false,
+    },
+    annotations: DESTRUCTIVE_ANNOTATIONS,
+  },
 ]);
 
 function textResult(data, summary) {
@@ -88,6 +126,11 @@ export function createMcpRequestHandler({
   listConversations = listConversationSummaries,
   listMessages = listConversationMessages,
   audit = recordAuditEvent,
+  buildCleanupPlan = buildMergedBranchCleanupPlan,
+  executeCleanup = executeMergedBranchCleanup,
+  createConfirmation = createDurableConfirmation,
+  validateConfirmation = validateDurableConfirmation,
+  consumeConfirmation = markDurableConfirmationUsed,
 } = {}) {
   async function callTool(name, args, ownerId) {
     let result;
@@ -120,6 +163,52 @@ export function createMcpRequestHandler({
         { sessionId, items },
         `Прочетени са ${items.length} съобщения от избрания разговор.`,
       );
+    } else if (name === "prepare_github_merged_branch_cleanup") {
+      const plan = await buildCleanupPlan();
+      const confirmation = await createConfirmation({
+        sessionId: ownerId,
+        action: "github.write:delete_merged_branches",
+        resource: {
+          repository: plan.repository,
+          count: plan.count,
+          fingerprint: plan.fingerprint,
+        },
+        params: { branchNames: plan.branchNames },
+      });
+      result = textResult(
+        {
+          ...plan,
+          confirmationId: confirmation.id,
+          expiresAt: new Date(confirmation.expiresAt).toISOString(),
+        },
+        `Намерени са ${plan.count} безопасни за изтриване клона. Нищо не е изтрито.`,
+      );
+    } else if (name === "confirm_github_merged_branch_cleanup") {
+      const confirmationId =
+        typeof args?.confirmationId === "string"
+          ? args.confirmationId.trim()
+          : "";
+      if (!confirmationId) {
+        throw Object.assign(new Error("Липсва confirmationId."), {
+          code: -32602,
+        });
+      }
+      const confirmation = await validateConfirmation(confirmationId, ownerId);
+      if (confirmation.action !== "github.write:delete_merged_branches") {
+        throw Object.assign(new Error("Невалидно потвърждение."), {
+          code: -32602,
+        });
+      }
+      await consumeConfirmation(confirmationId);
+      const cleanup = await executeCleanup({
+        repository: confirmation.resource.repository,
+        branchNames: confirmation.params.branchNames,
+        fingerprint: confirmation.resource.fingerprint,
+      });
+      result = textResult(
+        cleanup,
+        `Изтрити са ${cleanup.count} клона от вече слети Pull Request-и.`,
+      );
     } else {
       throw Object.assign(new Error("Непознат MCP инструмент."), {
         code: -32601,
@@ -128,7 +217,7 @@ export function createMcpRequestHandler({
 
     await audit({
       actor: "chatgpt-mcp",
-      action: "memory.read",
+      action: name.includes("github") ? "github.write" : "memory.read",
       decision: "allow",
       outcome: "succeeded",
       resource: name,

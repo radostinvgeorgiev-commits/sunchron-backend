@@ -33,6 +33,22 @@ test("the visual layer preserves the readable text controls and safe drawers", a
   assert.match(css, /prefers-reduced-motion/u);
 });
 
+test("mobile chat content clears the measured composer and command bar", async () => {
+  const [css, script, app] = await Promise.all([
+    readFile(new URL("../public/synchron-vision.css", import.meta.url), "utf8"),
+    readFile(new URL("../public/synchron-vision.js", import.meta.url), "utf8"),
+    readFile(new URL("../public/app.js", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(css, /--sx-mobile-occupied-height/u);
+  assert.match(css, /scroll-padding-bottom/u);
+  assert.match(script, /ResizeObserver/u);
+  assert.match(script, /composer\.getBoundingClientRect\(\)\.height/u);
+  assert.match(script, /commandBar\.getBoundingClientRect\(\)\.height/u);
+  assert.match(css, /user-select:\s*text/u);
+  assert.match(app, /class="action-label">Копирай<\/span>/u);
+});
+
 test("the chat shows live autonomous task progress", async () => {
   const [script, css] = await Promise.all([
     readFile(new URL("../public/app.js", import.meta.url), "utf8"),

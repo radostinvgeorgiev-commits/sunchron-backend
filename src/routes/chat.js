@@ -68,7 +68,7 @@ import {
 
 const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
-const DEFAULT_AGENT_TIMEOUT_MS = 120000;
+const DEFAULT_AI_TIMEOUT_MS = 120000;
 const MEMORY_WRITE_CONFIRM_PREFIX = "Потвърждавам запис в постоянната памет:";
 const MEMORY_DELETE_CONFIRM_PREFIX =
   "Потвърждавам изтриването от постоянната памет само на факта:";
@@ -669,37 +669,11 @@ export function shouldReplyWithVerifiedToolOutput(capabilityResults) {
   );
 }
 
-function extractTokenFromAgentEvent(rawEvent) {
-  const dataLines = rawEvent
-    .split(/\r?\n/)
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).trimStart());
-  if (dataLines.length === 0) return { type: "ignore" };
-
-  const payload = dataLines.join("\n").trim();
-  if (!payload || payload === "[DONE]") return { type: "done" };
-
-  let data;
-  try {
-    data = JSON.parse(payload);
-  } catch {
-    throw new Error("Invalid JSON event received from the AI agent.");
-  }
-  const token = data.choices?.[0]?.delta?.content;
-  return typeof token === "string" && token
-    ? { type: "token", token }
-    : { type: "ignore" };
-}
-
 router.post("/chat", async (req, res) => {
-  const agentUrl =
-    process.env.AGENT_URL ||
-    "https://a4ppevqrxnzlo6t2bgcpaj3a.agents.do-ai.run";
-  const agentKey = process.env.AGENT_KEY;
   const openAiApiKey = process.env.OPENAI_API_KEY;
-  const agentTimeoutMs = parsePositiveInteger(
-    process.env.AGENT_TIMEOUT_MS,
-    DEFAULT_AGENT_TIMEOUT_MS,
+  const aiTimeoutMs = parsePositiveInteger(
+    process.env.OPENAI_TIMEOUT_MS,
+    DEFAULT_AI_TIMEOUT_MS,
   );
   const { sessionId, message, image } = req.body || {};
   const googleSessionId =
@@ -1068,13 +1042,11 @@ router.post("/chat", async (req, res) => {
     message: "Проверявам задачата и избирам нужните инструменти…",
   });
   if (
-    (openAiApiKey || agentKey) &&
+    openAiApiKey &&
     shouldUseAgentPlanner(cleanMessage, fallbackCapabilityRequests)
   ) {
     try {
       const plannedCapabilityRequests = await planCapabilities({
-        agentUrl,
-        agentKey,
         openAiApiKey,
         message: cleanMessage,
       });
@@ -1176,7 +1148,7 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
-  if (!openAiApiKey && !agentKey) {
+  if (!openAiApiKey) {
     if (capabilityReplies.length) {
       const fullReply = [...capabilityReplies, memoryReply]
         .filter(Boolean)
@@ -1249,93 +1221,17 @@ router.post("/chat", async (req, res) => {
   timeoutHandle = setTimeout(() => {
     timedOut = true;
     abortUpstream();
-  }, agentTimeoutMs);
+  }, aiTimeoutMs);
 
   try {
-    let fullReply = "";
-    let aiProvider = "openai";
-
-    if (openAiApiKey) {
-      try {
-        fullReply = await requestOpenAIText({
-          apiKey: openAiApiKey,
-          input: messages,
-          signal: abortController.signal,
-        });
-        sendEvent("token", { token: fullReply });
-      } catch (error) {
-        if (!agentKey || error?.name === "AbortError") throw error;
-        console.warn(
-          "[AI Core] OpenAI failed; using DigitalOcean fallback:",
-          error?.code || error?.message,
-        );
-        aiProvider = "digitalocean";
-      }
-    } else {
-      aiProvider = "digitalocean";
-    }
-
-    if (!fullReply) {
-      const agentRes = await fetch(`${agentUrl}/api/v1/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${agentKey}`,
-        },
-        body: JSON.stringify({ messages, stream: true }),
-        signal: abortController.signal,
-      });
-
-      if (!agentRes.ok) {
-        const body = await agentRes.text();
-        console.error(`[Agent] ${agentRes.status}:`, body || "<empty>");
-        sendEvent("error", {
-          status: agentRes.status,
-          message: `AI агентът върна грешка ${agentRes.status}. Опитай отново.`,
-        });
-        return;
-      }
-      if (!agentRes.body) throw new Error("Empty AI response stream.");
-
-      const reader = agentRes.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let buffer = "";
-
-      const processEvents = () => {
-        buffer = buffer.replace(/\r\n/g, "\n");
-        const events = buffer.split("\n\n");
-        buffer = events.pop() || "";
-        for (const rawEvent of events) {
-          if (!rawEvent.trim()) continue;
-          const parsed = extractTokenFromAgentEvent(rawEvent);
-          if (parsed.type === "token") {
-            fullReply += parsed.token;
-            if (!sendEvent("token", { token: parsed.token })) {
-              abortUpstream();
-              return false;
-            }
-          }
-        }
-        return true;
-      };
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        if (!processEvents()) return;
-      }
-      buffer += decoder.decode();
-      if (buffer.trim()) {
-        const parsed = extractTokenFromAgentEvent(buffer);
-        if (parsed.type === "token") {
-          fullReply += parsed.token;
-          sendEvent("token", { token: parsed.token });
-        }
-      }
-    }
+    const fullReply = await requestOpenAIText({
+      apiKey: openAiApiKey,
+      input: messages,
+      signal: abortController.signal,
+    });
+    sendEvent("token", { token: fullReply });
     if (!fullReply.trim()) {
-      throw new Error("AI agent completed without returning text.");
+      throw new Error("AI ядрото приключи без текстов отговор.");
     }
 
     await saveConversationTurnBestEffort(
@@ -1352,20 +1248,20 @@ router.post("/chat", async (req, res) => {
       capabilities: capabilityResults.map(({ request }) => request.capability),
       task: taskResult,
       mode: capabilityResults.length ? "agentic" : "conversation",
-      provider: aiProvider,
+      provider: "openai",
     });
-    console.log(`[AI Core] ${aiProvider} success for ${cleanSessionId}`);
+    console.log(`[AI Core] openai success for ${cleanSessionId}`);
     console.info(
       `[Chat] Response completed (agent stream) for ${cleanSessionId}`,
     );
   } catch (error) {
     if (abortController.signal.aborted && !timedOut) return;
-    console.error(`[Agent] Failure for ${cleanSessionId}:`, error);
+    console.error(`[AI Core] Failure for ${cleanSessionId}:`, error);
     sendEvent("error", {
       status: timedOut ? 504 : 502,
       message: timedOut
-        ? "AI агентът се забави прекалено. Опитай отново."
-        : "Връзката с AI агента беше прекъсната. Опитай отново.",
+        ? "AI ядрото се забави прекалено. Опитай отново."
+        : "Връзката с AI ядрото беше прекъсната. Опитай отново.",
     });
   } finally {
     cleanup();

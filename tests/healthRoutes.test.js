@@ -129,3 +129,17 @@ test("bridge diagnostics fail honestly when the token is missing", async () => {
   assert.equal(response.body.bridge.responding, true);
   assert.equal(response.body.bridge.authentication.chatgptOAuthReady, false);
 });
+
+test("bridge diagnostics stop a blocked self-check within the configured timeout", async () => {
+  const startedAt = Date.now();
+  const result = await getBridgeDiagnosticsStatus({
+    env: { MCP_ACCESS_TOKEN: "m".repeat(48) },
+    handleMcpRequest: () => new Promise(() => {}),
+    timeoutMs: 10,
+  });
+
+  assert.equal(result.status, "incomplete");
+  assert.equal(result.bridge.configured, true);
+  assert.equal(result.bridge.responding, false);
+  assert.ok(Date.now() - startedAt < 1_000);
+});

@@ -10,6 +10,7 @@ import {
   extractConfirmedMemoryWriteCommands,
   mergeMemoryTaskStatus,
   mergeCapabilityRequests,
+  shouldReplyWithVerifiedToolOutput,
   splitCapabilitySubtasks,
 } from "../src/routes/chat.js";
 
@@ -91,6 +92,43 @@ test("разпознава изрична проверка на Supabase", () =>
       ({ capability, action }) => ({ capability, action }),
     ),
     [{ capability: "database.status", action: "database.read" }],
+  );
+});
+
+test("recognizes common Bulgarian DigitalOcean spellings as real tool requests", () => {
+  for (const message of [
+    "Направи реален одит на Дигитал Океан.",
+    "Провери целия Дижитал Океан акаунт.",
+    "Направи одит на Дижитал Окан.",
+    "Покажи ресурсите в Digital Ocean.",
+  ]) {
+    assert.deepEqual(
+      detectCapabilityRequests(message).map(({ capability }) => capability),
+      ["infrastructure.digitalocean.read"],
+    );
+  }
+});
+
+test("infrastructure results bypass AI rewriting and stay verified", () => {
+  assert.equal(
+    shouldReplyWithVerifiedToolOutput([
+      {
+        status: "fulfilled",
+        request: { capability: "infrastructure.digitalocean.read" },
+        result: { output: "Проверен DigitalOcean доклад." },
+      },
+    ]),
+    true,
+  );
+  assert.equal(
+    shouldReplyWithVerifiedToolOutput([
+      {
+        status: "fulfilled",
+        request: { capability: "code.read" },
+        result: { output: "GitHub result" },
+      },
+    ]),
+    false,
   );
 });
 

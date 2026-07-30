@@ -3,12 +3,16 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("the personal AI interface keeps chat primary and exposes four mobile commands", async () => {
-  const [html, css, script] = await Promise.all([
+  const [html, css, script, server] = await Promise.all([
     readFile(new URL("../public/index.html", import.meta.url), "utf8"),
     readFile(new URL("../public/synchron-vision.css", import.meta.url), "utf8"),
     readFile(new URL("../public/synchron-vision.js", import.meta.url), "utf8"),
+    readFile(new URL("../server.js", import.meta.url), "utf8"),
   ]);
 
+  assert.match(html, /\/assets\/20260730-v2\/synchron-vision\.css/u);
+  assert.match(html, /\/assets\/20260730-v2\/synchron-vision\.js/u);
+  assert.match(server, /mobileLayoutAssetVersion = "20260730-v2"/u);
   assert.match(html, /class="mobile-command-bar"/u);
   assert.match(html, /data-command="chat"/u);
   assert.match(html, /data-command="memory"/u);

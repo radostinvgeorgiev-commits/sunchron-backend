@@ -194,6 +194,33 @@ test("връща общ статус само след реални провер
   assert.match(report, /GitHub Write — свързан; изисква потвърждение/u);
 });
 
+test("връща фокусиран проверен статус за GitHub Copilot моста", async () => {
+  const report = await buildIntegrationStatusReport(
+    {
+      message: "Работи ли GitHub Write мостът?",
+      githubSessionId: "github-session",
+    },
+    {
+      checkGitHubWriteBridge: async () => ({
+        status: "ready",
+        configured: true,
+        connected: true,
+        copilotEnabled: true,
+        repository: "radostinvgeorgiev-commits/sunchron-backend",
+        createsBranch: true,
+        createsCommits: true,
+        createsPullRequest: true,
+        mergesMainAutomatically: false,
+      }),
+    },
+  );
+
+  assert.match(report, /GitHub Write моста реално: работи/u);
+  assert.match(report, /отделен клон/u);
+  assert.match(report, /Pull Request/u);
+  assert.match(report, /Не слива автоматично/u);
+});
+
 test("не изпълнява способност за потвърждение без разрешение", async () => {
   await assert.rejects(
     () => executeCapability("memory.delete"),

@@ -126,3 +126,20 @@ test("removed DigitalOcean AI Agent is not required by production configuration"
   assert.match(identity, /DigitalOcean Agent е премахнат/u);
   assert.doesNotMatch(envExample, /^AGENT_(?:URL|KEY)=/mu);
 });
+
+test("project identity keeps the bridge-first integration policy", async () => {
+  const identity = await import("../src/config/projectIdentity.js");
+
+  assert.match(
+    identity.BRIDGE_FIRST_POLICY,
+    /първо се търси и проверява реален мост/u,
+  );
+  assert.match(
+    identity.BRIDGE_FIRST_POLICY,
+    /предлага конкретен мост за изграждане/u,
+  );
+  assert.match(identity.BRIDGE_FIRST_POLICY, /не заобикаля разрешенията/u);
+  assert.ok(
+    identity.PROJECT_BASE_CONTEXT.includes(identity.BRIDGE_FIRST_POLICY),
+  );
+});

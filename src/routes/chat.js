@@ -32,6 +32,7 @@ import {
   CopilotTaskError,
   extractCopilotConfirmationId,
   formatCopilotTaskResult,
+  isCopilotBridgeStatusRequest,
 } from "../services/copilotTaskService.js";
 import { recordAuditEvent } from "../services/permissionService.js";
 import {
@@ -115,6 +116,7 @@ const ASSISTANT_CONTEXT = [
   "Тази формулировка е по-нова и има предимство пред стари записи, които описват целия проект само като AI аватар.",
   "Паметта, инструментите, разрешенията и изборът на AI модел са отделни части на системата.",
   "Използвай само инструменти, които реално са изпълнени и разрешени. Не твърди, че услуга е свързана, ако не е проверена.",
+  "GitHub кодовите задачи за собственика могат да минават през проверим Copilot мост: отделен клон, commit-и и Pull Request след точно потвърждение. Не твърди дали мостът работи, преди да е изпълнена реалната му статус проверка.",
   "Човекът, с когото разговаряш, е Радко. Никога не казвай, че ти си Радко.",
   "Говори само на български, освен ако Радко изрично поиска друг език.",
   "Обръщай се към Радко на „ти“. Говори естествено, спокойно, директно и човешки.",
@@ -287,6 +289,7 @@ export function detectCapabilityRequests(message) {
   const hasExplicitNumberedChecks =
     /намери\s*:\s*1[\).:-]\s*/iu.test(message) && subtasks.length > 1;
   for (const [index, subtask] of subtasks.entries()) {
+    const copilotBridgeStatusRequest = isCopilotBridgeStatusRequest(subtask);
     if (
       hasExplicitNumberedChecks &&
       index === 0 &&
@@ -308,6 +311,13 @@ export function detectCapabilityRequests(message) {
       ) &&
       !/(?:регистрирани|tool\s+registry|capability\s+engine)/iu.test(subtask)
     ) {
+      requests.push({
+        capability: "system.integrations.status",
+        action: "infrastructure.read",
+        message: subtask,
+      });
+    }
+    if (copilotBridgeStatusRequest) {
       requests.push({
         capability: "system.integrations.status",
         action: "infrastructure.read",
@@ -420,6 +430,7 @@ export function detectCapabilityRequests(message) {
           subtask,
         ));
     const wantsGitHubRead =
+      !copilotBridgeStatusRequest &&
       !/(?:използва\s+успешно|кои\s+са\s+достъпни)/iu.test(subtask) &&
       (mergedBranchCleanupPlan ||
         isGitHubReadRequest(subtask) ||

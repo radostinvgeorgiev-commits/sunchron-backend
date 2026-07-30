@@ -710,7 +710,8 @@ async function openToolsDrawer() {
     const tools = Array.isArray(data.tools) ? data.tools : [];
     const descriptions = {
       "github-read": "Проверява commit-и и файлове. Само за четене.",
-      "github-write": "Клон, промяна и Pull Request след точно потвърждение.",
+      "github-write":
+        "Copilot мост: отделен клон, commit-и и Pull Request след точно потвърждение. Без автоматично сливане.",
       "google-drive-read": "Чете разрешени файлове от Google Drive.",
       "google-calendar-read": "Показва събития от Google Calendar.",
       "gmail-read": "Показва разрешени имейли. Не изпраща.",

@@ -4,6 +4,9 @@ import test from "node:test";
 import {
   confirmCopilotTask,
   extractCopilotConfirmationId,
+  formatCopilotBridgeStatus,
+  getCopilotBridgeStatus,
+  isCopilotBridgeStatusRequest,
   prepareCopilotTask,
   startCopilotTask,
 } from "../src/services/copilotTaskService.js";
@@ -106,6 +109,53 @@ test("code.write prepares a Copilot confirmation through Capability Engine", asy
   assert.equal(result.tool.id, "github-write");
   assert.match(result.output, /Подготвих кодовата задача/u);
   assert.match(result.output, /Потвърждавам GitHub задача:/u);
+});
+
+test("recognizes a GitHub Write availability question without starting a task", () => {
+  assert.equal(
+    isCopilotBridgeStatusRequest(
+      "Демек вече може да пише в хъба и да комитва?",
+    ),
+    true,
+  );
+  assert.equal(
+    isCopilotBridgeStatusRequest("Промени цвета и създай Pull Request."),
+    false,
+  );
+});
+
+test("checks the real Copilot bridge through the owner GitHub session", async () => {
+  const session = await connectedSession();
+  const status = await getCopilotBridgeStatus({
+    githubSessionId: session.id,
+    repository: REPOSITORY,
+    fetchImpl: copilotGraphqlFetch(),
+  });
+
+  assert.equal(status.status, "ready");
+  assert.equal(status.connected, true);
+  assert.equal(status.copilotEnabled, true);
+  assert.equal(status.createsBranch, true);
+  assert.equal(status.createsCommits, true);
+  assert.equal(status.createsPullRequest, true);
+  assert.equal(status.mergesMainAutomatically, false);
+  assert.match(formatCopilotBridgeStatus(status), /работи/u);
+  assert.match(formatCopilotBridgeStatus(status), /Не слива автоматично/u);
+});
+
+test("reports a missing GitHub owner session without claiming the bridge works", async () => {
+  const status = await getCopilotBridgeStatus({
+    githubSessionId: "",
+    repository: REPOSITORY,
+  });
+
+  assert.equal(status.status, "not-connected");
+  assert.equal(status.copilotEnabled, false);
+  assert.match(formatCopilotBridgeStatus(status), /не е свързана/u);
+  assert.doesNotMatch(
+    formatCopilotBridgeStatus(status),
+    /моста реално: работи/u,
+  );
 });
 
 test("starts a Copilot task through a GitHub user session", async () => {

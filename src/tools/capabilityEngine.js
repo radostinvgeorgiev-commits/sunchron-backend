@@ -20,7 +20,12 @@ import {
   formatWebSearchResult,
   searchWeb,
 } from "../services/webSearchService.js";
-import { prepareCopilotTask } from "../services/copilotTaskService.js";
+import {
+  formatCopilotBridgeStatus,
+  getCopilotBridgeStatus,
+  isCopilotBridgeStatusRequest,
+  prepareCopilotTask,
+} from "../services/copilotTaskService.js";
 import {
   isMergedBranchCleanupPlanRequest,
   prepareMergedBranchCleanup,
@@ -162,9 +167,17 @@ export async function buildIntegrationStatusReport(
     checkSupabase = checkSupabaseStatus,
     checkDigitalOcean = getDigitalOceanAppStatus,
     checkGoogleSession = hasSession,
+    checkGitHubWriteBridge = getCopilotBridgeStatus,
     env = process.env,
   } = {},
 ) {
+  if (isCopilotBridgeStatusRequest(input.message)) {
+    const bridge = await checkGitHubWriteBridge({
+      githubSessionId: input.githubSessionId,
+    });
+    return formatCopilotBridgeStatus(bridge);
+  }
+
   const [githubRead, memory, supabase, digitalOcean, googleConnected] =
     await Promise.all([
       checkedStatus(checkGitHub),

@@ -3,7 +3,12 @@ import {
   markDurableConfirmationUsed,
   validateDurableConfirmation,
 } from "./confirmationService.js";
-import { getGitHubSession, GitHubOAuthError } from "./githubOAuthService.js";
+import {
+  getGitHubSession,
+  GitHubOAuthError,
+  isAuthorizedGitHubLogin,
+  isGitHubOAuthConfigured,
+} from "./githubOAuthService.js";
 
 const DEFAULT_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 const GITHUB_GRAPHQL_URL = "https://api.github.com/graphql";
@@ -51,6 +56,38 @@ function taskTitle(prompt) {
   if (!clean) return "SYNCHRON-X кодова задача";
   const firstSentence = clean.split(/(?<=[.!?])\s/u)[0];
   return firstSentence.slice(0, 80);
+}
+
+export function isCopilotBridgeStatusRequest(message) {
+  const text =
+    typeof message === "string"
+      ? message.trim().toLocaleLowerCase("bg-BG")
+      : "";
+  if (!text) return false;
+
+  const mentionsGitHub =
+    /(?:\bgithub\b|ги[тд][\s-]*хъб|(?:^|\s)хъб(?:ът|а)?(?=\s|[?!.,:;]|$)|github\s*write)/iu.test(
+      text,
+    );
+  const mentionsWrite =
+    /(?:пиш(?:е|а|еш)|писан|запис|\bwrite\b|branch|клон|commit|комит|pull\s*request|\bpr\b|copilot|копилот|merge|слив)/iu.test(
+      text,
+    );
+  const asksAvailability =
+    /(?:може\s+ли|може\s+вече|може\s+да|работи\s+ли|има\s+ли|активен|наличен|свързан|готов|инструмент|мост)/iu.test(
+      text,
+    );
+  const givesImplementationOrder =
+    /(?:^|\s)(?:направи|промени|обнови|редактирай|поправи|създай|слей)(?:\s|$)/iu.test(
+      text,
+    );
+
+  return (
+    mentionsGitHub &&
+    mentionsWrite &&
+    asksAvailability &&
+    !givesImplementationOrder
+  );
 }
 
 async function githubGraphql(accessToken, query, variables, fetchImpl = fetch) {
@@ -140,6 +177,94 @@ async function resolveCopilotContext(accessToken, repository, fetchImpl) {
     );
   }
   return { repositoryId: repositoryData.id, copilotId: copilot.id };
+}
+
+export async function getCopilotBridgeStatus({
+  githubSessionId,
+  repository = configuredRepository(),
+  fetchImpl = fetch,
+} = {}) {
+  splitRepository(repository);
+  if (!isGitHubOAuthConfigured()) {
+    return Object.freeze({
+      status: "not-configured",
+      configured: false,
+      connected: false,
+      copilotEnabled: false,
+      repository,
+      mode: "confirmed-copilot-task",
+    });
+  }
+
+  const session = await getGitHubSession(githubSessionId);
+  if (!session || !isAuthorizedGitHubLogin(session.login)) {
+    return Object.freeze({
+      status: "not-connected",
+      configured: true,
+      connected: false,
+      copilotEnabled: false,
+      repository,
+      mode: "confirmed-copilot-task",
+    });
+  }
+
+  try {
+    await resolveCopilotContext(session.accessToken, repository, fetchImpl);
+    return Object.freeze({
+      status: "ready",
+      configured: true,
+      connected: true,
+      copilotEnabled: true,
+      repository,
+      mode: "confirmed-copilot-task",
+      createsBranch: true,
+      createsCommits: true,
+      createsPullRequest: true,
+      mergesMainAutomatically: false,
+    });
+  } catch (error) {
+    if (!(error instanceof CopilotTaskError)) throw error;
+    return Object.freeze({
+      status: "unavailable",
+      configured: true,
+      connected: true,
+      copilotEnabled: false,
+      repository,
+      mode: "confirmed-copilot-task",
+      reasonCode: error.code,
+    });
+  }
+}
+
+export function formatCopilotBridgeStatus(status) {
+  if (!status.configured) {
+    return [
+      "Проверих GitHub Write моста реално.",
+      "Резултат: не е конфигуриран.",
+      "Липсва пълна сървърна GitHub OAuth конфигурация.",
+    ].join("\n");
+  }
+  if (!status.connected) {
+    return [
+      "Проверих GitHub Write моста реално.",
+      "Резултат: конфигуриран е, но текущата сесия не е свързана с разрешения GitHub профил.",
+      "Свържи GitHub от „Връзки“ и повтори проверката.",
+    ].join("\n");
+  }
+  if (!status.copilotEnabled) {
+    return [
+      "Проверих GitHub Write моста реално.",
+      "GitHub входът е свързан, но Copilot cloud agent не е достъпен за разрешеното хранилище.",
+      `Код на проверката: ${status.reasonCode || "COPILOT_UNAVAILABLE"}.`,
+    ].join("\n");
+  }
+  return [
+    "Проверих GitHub Write моста реално: работи.",
+    `Хранилище: ${status.repository}.`,
+    "След конкретна кодова задача SYNCHRON-X подготвя еднократно потвърждение.",
+    "След потвърждението GitHub Copilot работи в отделен клон, прави commit-и и създава Pull Request.",
+    "Не слива автоматично в main и не публикува без отделно изрично потвърждение.",
+  ].join("\n");
 }
 
 export async function startCopilotTask({

@@ -53,6 +53,44 @@ async function request(path, { env = process.env, fetchImpl = fetch } = {}) {
   return response.json();
 }
 
+export function listDigitalOceanEnvironmentVariables(spec = {}) {
+  const components = [
+    ["app", spec.name || "app", spec.envs],
+    ...[
+      ["service", spec.services],
+      ["worker", spec.workers],
+      ["job", spec.jobs],
+      ["function", spec.functions],
+      ["static-site", spec.static_sites],
+    ].flatMap(([kind, items]) =>
+      (Array.isArray(items) ? items : []).map((item) => [
+        kind,
+        item?.name || kind,
+        item?.envs,
+      ]),
+    ),
+  ];
+
+  return components
+    .flatMap(([sourceKind, sourceName, envs]) =>
+      (Array.isArray(envs) ? envs : [])
+        .filter((item) => typeof item?.key === "string" && item.key.trim())
+        .map((item) => ({
+          key: item.key.trim(),
+          scope: item.scope || null,
+          type: item.type || "GENERAL",
+          sourceKind,
+          sourceName,
+        })),
+    )
+    .sort(
+      (left, right) =>
+        left.key.localeCompare(right.key) ||
+        left.sourceKind.localeCompare(right.sourceKind) ||
+        left.sourceName.localeCompare(right.sourceName),
+    );
+}
+
 export async function getDigitalOceanAppStatus(options = {}) {
   const { appId } = requiredAppConfig(options.env);
   const [appData, deploymentsData] = await Promise.all([
@@ -82,6 +120,7 @@ export async function getDigitalOceanAppStatus(options = {}) {
           phase: app.in_progress_deployment.phase,
         }
       : null,
+    environmentVariables: listDigitalOceanEnvironmentVariables(app.spec),
     deployments: deployments.map((deployment) => ({
       id: deployment.id,
       phase: deployment.phase,
@@ -606,6 +645,7 @@ export function formatDigitalOceanStatus(status) {
       ? `Текущ деплой: ${status.inProgressDeployment.phase} (${status.inProgressDeployment.id}).`
       : "Няма текущ деплой.",
     status.liveUrl ? `Адрес: ${status.liveUrl}` : null,
+    `Environment variables: ${status.environmentVariables?.length || 0} имена; стойностите не се връщат.`,
     `Последни деплои: ${status.deployments.length}.`,
   ]
     .filter(Boolean)

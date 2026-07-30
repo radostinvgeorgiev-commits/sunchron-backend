@@ -11,7 +11,10 @@ const CONFIRMATION_INDEX =
 
 // Only the OAuth-backed Copilot flow may create GitHub confirmations.
 // Legacy direct write actions are intentionally blocked by default.
-const ALLOWED_ACTIONS = new Set(["github.copilot:start_task"]);
+const ALLOWED_ACTIONS = new Set([
+  "github.copilot:start_task",
+  "github.write:delete_merged_branches",
+]);
 
 // Fields that must never be stored in a confirmation (audit safety)
 const SENSITIVE_PARAM_KEYS = new Set([

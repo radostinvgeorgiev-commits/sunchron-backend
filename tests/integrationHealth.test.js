@@ -46,7 +46,32 @@ test("integration status reports configuration without exposing secret values", 
     assert.equal(githubWrite.enabled, true);
     assert.equal(githubWrite.executable, true);
     assert.equal(githubWrite.configured, true);
+    assert.equal(githubWrite.authenticated, false);
+    assert.equal(githubWrite.healthStatus, "degraded");
     assert.doesNotMatch(JSON.stringify(status), /secret-/u);
+  } finally {
+    for (const [name, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    resetToolRegistryForTests();
+  }
+});
+
+test("GitHub Write reports the authenticated owner session", () => {
+  const original = Object.fromEntries(
+    ENV_NAMES.map((name) => [name, process.env[name]]),
+  );
+  process.env.GITHUB_CLIENT_ID = "client-id";
+  process.env.GITHUB_CLIENT_SECRET = "client-secret";
+  resetToolRegistryForTests();
+
+  try {
+    const status = getIntegrationStatus({ githubAuthenticated: true });
+    const githubWrite = status.tools.find((tool) => tool.id === "github-write");
+    assert.equal(githubWrite.configured, true);
+    assert.equal(githubWrite.authenticated, true);
+    assert.equal(githubWrite.healthStatus, "healthy");
   } finally {
     for (const [name, value] of Object.entries(original)) {
       if (value === undefined) delete process.env[name];

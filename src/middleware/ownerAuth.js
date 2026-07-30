@@ -31,6 +31,24 @@ export async function resolveRequestIdentity(
   res,
   { getUserSession = resolveUserSession, getSession = getGitHubSession } = {},
 ) {
+  const cookies = parseGitHubCookies(req.headers.cookie);
+  if (cookies.synchron_github_session) {
+    const githubSession = await getSession(cookies.synchron_github_session);
+    if (githubSession && isAuthorizedGitHubLogin(githubSession.login)) {
+      if (cookies.synchron_user_session) {
+        res.append("Set-Cookie", clearUserSessionCookie());
+      }
+      return {
+        id: githubSession.login.toLocaleLowerCase("en-US"),
+        login: githubSession.login,
+        displayName: "Радко",
+        role: "owner",
+        authProvider: "github",
+        memoryOwnerId: resolveMemoryOwnerId(githubSession.login),
+      };
+    }
+  }
+
   const userSession = await getUserSession(req.headers.cookie);
   if (userSession?.user) {
     if (userSession.refreshed && userSession.session) {
@@ -46,24 +64,11 @@ export async function resolveRequestIdentity(
     };
   }
 
-  if (parseGitHubCookies(req.headers.cookie).synchron_user_session) {
+  if (cookies.synchron_user_session) {
     res.append("Set-Cookie", clearUserSessionCookie());
   }
 
-  const cookies = parseGitHubCookies(req.headers.cookie);
-  const githubSession = await getSession(cookies.synchron_github_session);
-  if (!githubSession || !isAuthorizedGitHubLogin(githubSession.login)) {
-    return null;
-  }
-
-  return {
-    id: githubSession.login.toLocaleLowerCase("en-US"),
-    login: githubSession.login,
-    displayName: "Радко",
-    role: "owner",
-    authProvider: "github",
-    memoryOwnerId: resolveMemoryOwnerId(githubSession.login),
-  };
+  return null;
 }
 
 export function createRequireOwnerSession({

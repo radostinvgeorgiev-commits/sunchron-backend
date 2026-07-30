@@ -74,6 +74,17 @@ test("recognizes common Bulgarian GitHub spellings as a real tool request", () =
   }
 });
 
+test("routes safe merged-branch cleanup planning from chat to GitHub Read", () => {
+  const message =
+    "Подготви безопасен списък за изтриване само на GitHub клоновете от вече слети PR-и. Не изтривай нищо.";
+  const requests = detectCapabilityRequests(message);
+
+  assert.deepEqual(
+    requests.map(({ capability, action }) => ({ capability, action })),
+    [{ capability: "code.read", action: "github.read" }],
+  );
+});
+
 test("разпознава изрична проверка на Supabase", () => {
   assert.deepEqual(
     detectCapabilityRequests("Провери дали Supabase е свързан и работи.").map(

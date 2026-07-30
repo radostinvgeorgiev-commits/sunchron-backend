@@ -88,8 +88,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error \
+          response="$(curl --fail --silent --show-error \
             --retry 3 --retry-delay 10 --retry-all-errors \
             --max-time 30 \
-            https://synchron.foundation/health/mcp-status \
-            | grep -Eq '"responding"[[:space:]]*:[[:space:]]*true'
+            https://synchron.foundation/health/ready)"
+          printf '%s' "${response}" | node -e '
+            let input = "";
+            process.stdin.on("data", (chunk) => { input += chunk; });
+            process.stdin.on("end", () => {
+              const bridge = JSON.parse(input).checks?.bridge;
+              if (!bridge?.configured || !bridge?.responding) process.exit(1);
+            });
+          '

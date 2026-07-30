@@ -3,6 +3,8 @@ import test from "node:test";
 import {
   buildMergedBranchCleanupPlan,
   executeMergedBranchCleanup,
+  isMergedBranchCleanupPlanRequest,
+  prepareMergedBranchCleanup,
 } from "../src/services/githubBranchCleanupService.js";
 
 const repository = "radostinvgeorgiev-commits/sunchron-backend";
@@ -98,4 +100,41 @@ test("cleanup refuses a changed or forged branch list", async () => {
     }),
     (error) => error.code === "BRANCH_CLEANUP_PLAN_CHANGED",
   );
+});
+
+test("recognizes a safe merged-branch cleanup plan request", () => {
+  assert.equal(
+    isMergedBranchCleanupPlanRequest(
+      "Подготви безопасен списък за изтриване само на GitHub клоновете от вече слети PR-и. Не изтривай нищо.",
+    ),
+    true,
+  );
+  assert.equal(
+    isMergedBranchCleanupPlanRequest("Покажи последния GitHub commit."),
+    false,
+  );
+});
+
+test("prepares the exact cleanup plan without deleting branches", async () => {
+  const confirmations = [];
+  const output = await prepareMergedBranchCleanup({
+    ownerId: "github:owner",
+    buildPlan: async () => ({
+      repository,
+      defaultBranch: "main",
+      branchNames: ["merged-safe"],
+      count: 1,
+      fingerprint: "fingerprint",
+    }),
+    createConfirmation: async (data) => {
+      confirmations.push(data);
+      return { ...data, id: "confirmation-1" };
+    },
+  });
+
+  assert.match(output, /merged-safe/u);
+  assert.match(output, /Нищо не е изтрито/u);
+  assert.match(output, /confirmation-1/u);
+  assert.equal(confirmations[0].sessionId, "github:owner");
+  assert.deepEqual(confirmations[0].params.branchNames, ["merged-safe"]);
 });

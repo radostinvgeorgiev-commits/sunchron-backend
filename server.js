@@ -72,6 +72,11 @@ app.use((_req, res, next) => {
 app.use(express.json({ limit: "8mb" }));
 
 const mobileLayoutAssetVersion = "20260730-v2";
+const openSearchStatusAssetVersion = "20260730-opensearch-status-v1";
+app.get(`/assets/${openSearchStatusAssetVersion}/app.js`, (_req, res) => {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.sendFile(`${process.cwd()}/public/app.js`);
+});
 app.get(
   `/assets/${mobileLayoutAssetVersion}/synchron-vision.css`,
   (_req, res) => {

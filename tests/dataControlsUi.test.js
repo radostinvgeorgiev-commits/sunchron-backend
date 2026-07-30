@@ -30,4 +30,10 @@ test("application exposes working memory and permission controls", async () => {
   assert.match(script, /fetch\(["']\/health\/integrations["']/u);
   assert.match(script, /Твоята лична AI операционна система/u);
   assert.match(script, /item\.readOnly/u);
+  assert.match(script, /fetch\(["']\/health\/ready["']/u);
+  assert.match(script, /markMemoryOperational\(\)/u);
+  assert.match(script, /state\.opensearchFailures >= 3/u);
+  assert.match(script, /Свързан · работи/u);
+  assert.doesNotMatch(script, /fetch\(["']\/opensearch-status["']/u);
+  assert.match(html, /\/assets\/20260730-opensearch-status-v1\/app\.js/u);
 });

@@ -12,10 +12,12 @@ const { default: app } = await import("../server.js");
 const { createGitHubSession } =
   await import("../src/services/githubOAuthService.js");
 
-test("keeps liveness and GitHub sign-in routes public", async () => {
+test("keeps liveness and sign-in routes public", async () => {
   await request(app).get("/health").expect(200);
   const config = await request(app).get("/api/public-config").expect(200);
   assert.equal(config.body.chatgptWorkUrl, "https://chatgpt.com/");
+  const auth = await request(app).get("/api/auth/session").expect(200);
+  assert.equal(auth.body.authenticated, false);
   const status = await request(app).get("/api/github/status").expect(200);
   assert.equal(status.body.connected, false);
 });
@@ -32,7 +34,7 @@ test("blocks personal data and paid AI routes without owner sign-in", async () =
   for (const [method, path] of routes) {
     const response = await request(app)[method](path).send({});
     assert.equal(response.status, 401, `${method.toUpperCase()} ${path}`);
-    assert.equal(response.body.code, "OWNER_AUTH_REQUIRED");
+    assert.equal(response.body.code, "AUTH_REQUIRED");
   }
 });
 

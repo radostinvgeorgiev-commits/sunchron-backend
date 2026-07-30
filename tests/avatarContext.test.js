@@ -67,3 +67,21 @@ test("avatar preserves conversation order without repeating its instructions", (
   assert.match(messages[0].content, /Synchron-X: Първи отговор/u);
   assert.match(messages[0].content, /Следващ въпрос/u);
 });
+
+test("tester context uses the tester identity and does not expose Radko context", () => {
+  const messages = buildAvatarMessages(
+    [{ fact: "Любимият ми цвят е зелен", scope: "personal" }],
+    [{ role: "user", content: "Здравей" }],
+    "Какъв е любимият ми цвят?",
+    { role: "tester", displayName: "Иван" },
+  );
+
+  assert.match(messages[0].content, /личен AI асистент на Иван/u);
+  assert.match(messages[0].content, /Иван: Здравей/u);
+  assert.match(messages[0].content, /Любимият ми цвят е зелен/u);
+  assert.doesNotMatch(messages[0].content, /Радко/u);
+  assert.doesNotMatch(
+    messages[0].content,
+    /radostinvgeorgiev-commits|DigitalOcean/u,
+  );
+});

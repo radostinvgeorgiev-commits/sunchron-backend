@@ -3,6 +3,11 @@ import {
   isAuthorizedGitHubLogin,
   parseGitHubCookies,
 } from "../services/githubOAuthService.js";
+import {
+  clearUserSessionCookie,
+  resolveUserSession,
+  userSessionCookie,
+} from "../services/userAuthService.js";
 
 export function resolveMemoryOwnerId(login, env = process.env) {
   const normalizedLogin =
@@ -21,28 +26,65 @@ export function resolveMemoryOwnerId(login, env = process.env) {
   return `github:${normalizedLogin}`;
 }
 
+export async function resolveRequestIdentity(
+  req,
+  res,
+  { getUserSession = resolveUserSession, getSession = getGitHubSession } = {},
+) {
+  const userSession = await getUserSession(req.headers.cookie);
+  if (userSession?.user) {
+    if (userSession.refreshed && userSession.session) {
+      res.append("Set-Cookie", userSessionCookie(userSession.session));
+    }
+    return {
+      id: userSession.user.id,
+      email: userSession.user.email,
+      displayName: userSession.user.displayName,
+      role: userSession.user.role,
+      authProvider: "supabase",
+      memoryOwnerId: userSession.user.memoryOwnerId,
+    };
+  }
+
+  if (parseGitHubCookies(req.headers.cookie).synchron_user_session) {
+    res.append("Set-Cookie", clearUserSessionCookie());
+  }
+
+  const cookies = parseGitHubCookies(req.headers.cookie);
+  const githubSession = await getSession(cookies.synchron_github_session);
+  if (!githubSession || !isAuthorizedGitHubLogin(githubSession.login)) {
+    return null;
+  }
+
+  return {
+    id: githubSession.login.toLocaleLowerCase("en-US"),
+    login: githubSession.login,
+    displayName: "Радко",
+    role: "owner",
+    authProvider: "github",
+    memoryOwnerId: resolveMemoryOwnerId(githubSession.login),
+  };
+}
+
 export function createRequireOwnerSession({
   getSession = getGitHubSession,
+  getUserSession = resolveUserSession,
 } = {}) {
   return async function requireOwnerSession(req, res, next) {
     try {
-      const cookies = parseGitHubCookies(req.headers.cookie);
-      const session = await getSession(cookies.synchron_github_session);
-
-      if (!session || !isAuthorizedGitHubLogin(session.login)) {
+      const identity = await resolveRequestIdentity(req, res, {
+        getSession,
+        getUserSession,
+      });
+      if (!identity) {
         return res.status(401).json({
           error:
-            "Трябва да влезеш с разрешения GitHub профил, за да използваш личните данни и инструменти.",
-          code: "OWNER_AUTH_REQUIRED",
-          connectUrl: "/api/github/connect",
+            "Трябва да влезеш в потребителския си профил, за да използваш SYNCHRON-X.",
+          code: "AUTH_REQUIRED",
         });
       }
 
-      req.owner = {
-        id: session.login.toLocaleLowerCase("en-US"),
-        login: session.login,
-        memoryOwnerId: resolveMemoryOwnerId(session.login),
-      };
+      req.owner = identity;
       return next();
     } catch (error) {
       console.error("[Owner auth]", error);
@@ -52,6 +94,16 @@ export function createRequireOwnerSession({
       });
     }
   };
+}
+
+export function requirePrimaryOwner(req, res, next) {
+  if (req.owner?.role !== "owner") {
+    return res.status(403).json({
+      error: "Този инструмент е достъпен само за собственика.",
+      code: "OWNER_ONLY",
+    });
+  }
+  return next();
 }
 
 export const requireOwnerSession = createRequireOwnerSession();

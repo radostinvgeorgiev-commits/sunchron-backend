@@ -4,7 +4,10 @@ import {
   createOpenSearchClient,
   getOpenSearchClient,
 } from "./src/config/opensearch.js";
-import { requireOwnerSession } from "./src/middleware/ownerAuth.js";
+import {
+  requireOwnerSession,
+  requirePrimaryOwner,
+} from "./src/middleware/ownerAuth.js";
 import { createRateLimiters } from "./src/middleware/rateLimits.js";
 
 import chatRouter from "./src/routes/chat.js";
@@ -18,6 +21,7 @@ import googleDriveRouter from "./src/routes/googleDriveRouter.js";
 import githubOAuthRouter from "./src/routes/githubOAuthRouter.js";
 import webSearchRouter from "./src/routes/webSearchRouter.js";
 import publicConfigRouter from "./src/routes/publicConfigRouter.js";
+import userAuthRouter from "./src/routes/userAuthRouter.js";
 import mcpRouter from "./src/routes/mcpRouter.js";
 
 dotenv.config();
@@ -113,32 +117,54 @@ app.use(
 
 app.use("/health", healthRouter);
 app.use("/api/public-config", publicConfigRouter);
+app.use("/api/auth", oauthRateLimiter, userAuthRouter);
 app.use("/api/github", oauthRateLimiter, githubOAuthRouter);
 app.use("/mcp", privateApiRateLimiter, mcpRouter);
 
 app.use("/chat", requireOwnerSession, paidAiRateLimiter, chatRouter);
 app.use("/memory", requireOwnerSession, privateApiRateLimiter, memoryRouter);
-app.use("/cloud", requireOwnerSession, privateApiRateLimiter, cloudRouter);
-app.use("/github", requireOwnerSession, privateApiRateLimiter, githubRouter);
+app.use(
+  "/cloud",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  privateApiRateLimiter,
+  cloudRouter,
+);
+app.use(
+  "/github",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  privateApiRateLimiter,
+  githubRouter,
+);
 app.use(
   "/calendar",
   requireOwnerSession,
+  requirePrimaryOwner,
   privateApiRateLimiter,
   calendarRouter,
 );
 app.use(
   "/permissions",
   requireOwnerSession,
+  requirePrimaryOwner,
   privateApiRateLimiter,
   permissionsRouter,
 );
 app.use(
   "/api/google",
   requireOwnerSession,
+  requirePrimaryOwner,
   privateApiRateLimiter,
   googleDriveRouter,
 );
-app.use("/search", requireOwnerSession, paidAiRateLimiter, webSearchRouter);
+app.use(
+  "/search",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  paidAiRateLimiter,
+  webSearchRouter,
+);
 
 app.get("/opensearch-status", requireOwnerSession, async (req, res) => {
   const client = getOpenSearchClient();

@@ -290,6 +290,17 @@ export function detectCapabilityRequests(message) {
       });
     }
     if (
+      /(?:тествай|докажи).{0,40}(?:постоянната\s+)?памет(?:та)?|провери.{0,40}(?:постоянната\s+)?памет(?:та)?\s+(?:сама|автоматично|реално)|автоматичен\s+тест.{0,30}памет/iu.test(
+        subtask,
+      ) &&
+      !/(?:само\s+прочети|само\s+покажи|какво\s+помниш)/iu.test(subtask)
+    ) {
+      requests.push({
+        capability: "memory.verify",
+        action: "memory.test",
+        message: subtask,
+      });
+    } else if (
       /(?:какво\s+помниш|провери\s+паметта|постоянната\s+(?:ми\s+)?памет)/iu.test(
         subtask,
       ) &&
@@ -451,6 +462,7 @@ function capabilityLabel(capability) {
   if (capability === "files.read") return "Google Drive";
   if (capability === "mail.read") return "Gmail";
   if (capability === "memory.read") return "памет";
+  if (capability === "memory.verify") return "автоматичен тест на паметта";
   if (capability === "web.search") return "интернет търсене";
   return capability;
 }

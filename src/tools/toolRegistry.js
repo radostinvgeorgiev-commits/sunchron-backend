@@ -216,14 +216,21 @@ export function registerCoreTools() {
       capabilities: [
         "memory.read",
         "memory.search",
+        "memory.verify",
         "memory.save",
         "memory.update",
         "memory.delete",
       ],
-      permissions: ["memory.read", "memory.write", "memory.delete"],
+      permissions: [
+        "memory.read",
+        "memory.test",
+        "memory.write",
+        "memory.delete",
+      ],
       capabilityPermissions: {
         "memory.read": "memory.read",
         "memory.search": "memory.read",
+        "memory.verify": "memory.test",
         "memory.save": "memory.write",
         "memory.update": "memory.write",
         "memory.delete": "memory.delete",

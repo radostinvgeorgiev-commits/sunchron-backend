@@ -41,6 +41,26 @@ test("detects multiple capability subtasks in one message", () => {
   );
 });
 
+test("detects an explicit autonomous permanent-memory test", () => {
+  const requests = detectCapabilityRequests(
+    "Тествай сам и реално постоянната памет.",
+  );
+
+  assert.deepEqual(
+    requests.map(({ capability, action }) => ({ capability, action })),
+    [{ capability: "memory.verify", action: "memory.test" }],
+  );
+});
+
+test("a normal memory check remains read-only", () => {
+  const requests = detectCapabilityRequests("Провери паметта.");
+
+  assert.deepEqual(
+    requests.map(({ capability, action }) => ({ capability, action })),
+    [{ capability: "memory.read", action: "memory.read" }],
+  );
+});
+
 test("recognizes common Bulgarian GitHub spellings as a real tool request", () => {
   for (const message of [
     "Провери ГитХъб.",

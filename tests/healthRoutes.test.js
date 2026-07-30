@@ -21,11 +21,10 @@ test("liveness version exposes the deployed commit without exposing secrets", ()
   );
 });
 
-test("readiness requires the chat agent and a healthy OpenSearch cluster", async () => {
+test("readiness requires OpenAI and a healthy OpenSearch cluster", async () => {
   const result = await getReadinessStatus({
     env: {
-      AGENT_URL: "https://agent.example",
-      AGENT_KEY: "secret",
+      OPENAI_API_KEY: "secret",
       MCP_ACCESS_TOKEN: "m".repeat(48),
       APP_COMMIT_SHA: "abc123",
     },
@@ -39,6 +38,8 @@ test("readiness requires the chat agent and a healthy OpenSearch cluster", async
   assert.equal(result.status, "ready");
   assert.equal(result.commit, "abc123");
   assert.equal(result.checks.memory.status, "green");
+  assert.equal(result.checks.chatAgent.primaryProvider, "openai");
+  assert.equal(result.checks.chatAgent.removedProvider, "digitalocean-agent");
   assert.equal(result.checks.bridge.configured, true);
   assert.equal(result.checks.bridge.responding, true);
 });
@@ -58,7 +59,7 @@ test("readiness accepts OpenAI as the primary chat provider", async () => {
 
   assert.equal(result.status, "ready");
   assert.equal(result.checks.chatAgent.primaryProvider, "openai");
-  assert.equal(result.checks.chatAgent.fallbackConfigured, false);
+  assert.equal(result.checks.chatAgent.removedProvider, "digitalocean-agent");
 });
 
 test("readiness returns 503 when a required dependency is unavailable", async () => {
@@ -66,7 +67,7 @@ test("readiness returns 503 when a required dependency is unavailable", async ()
   app.get(
     "/health/ready",
     createReadinessHandler({
-      env: { AGENT_URL: "https://agent.example", AGENT_KEY: "secret" },
+      env: { OPENAI_API_KEY: "secret" },
       loadOpenSearchClient: () => null,
     }),
   );
@@ -78,7 +79,7 @@ test("readiness returns 503 when a required dependency is unavailable", async ()
 
 test("readiness rejects a red OpenSearch cluster", async () => {
   const result = await getReadinessStatus({
-    env: { AGENT_URL: "https://agent.example", AGENT_KEY: "secret" },
+    env: { OPENAI_API_KEY: "secret" },
     loadOpenSearchClient: () => ({
       cluster: {
         health: async () => ({ body: { status: "red" } }),

@@ -72,6 +72,12 @@ const DEFAULT_AGENT_TIMEOUT_MS = 120000;
 const MEMORY_WRITE_CONFIRM_PREFIX = "Потвърждавам запис в постоянната памет:";
 const MEMORY_DELETE_CONFIRM_PREFIX =
   "Потвърждавам изтриването от постоянната памет само на факта:";
+const DIGITALOCEAN_NAME_PATTERN =
+  /(?:digital\s*ocean|ди[гж]итал\s*о(?:кеа|ка|ке)н|ди[гж]итъл\s*о(?:кеа|ка|ке)н)/iu;
+const DIRECT_CAPABILITY_REPLIES = new Set([
+  "infrastructure.digitalocean.read",
+  "infrastructure.cloudflare.read",
+]);
 
 async function auditAction(event) {
   try {
@@ -337,9 +343,7 @@ export function detectCapabilityRequests(message) {
       });
     }
     if (
-      /(?:digitalocean|digital\s*ocean|дигитал\s*океан|дижитал\s*окен)/iu.test(
-        subtask,
-      ) &&
+      DIGITALOCEAN_NAME_PATTERN.test(subtask) &&
       /(?:провери|покажи|статус|работи|деплой|deployment|публикуван|последн|направи|одит|акаунт|ресурс|droplet|сървър|баз|мреж|firewall|защит|разход|billing|storage|volume|snapshot|kubernetes)/iu.test(
         subtask,
       )
@@ -653,6 +657,16 @@ export function buildCapabilityReplies(capabilityResults) {
     );
   }
   return replies;
+}
+
+export function shouldReplyWithVerifiedToolOutput(capabilityResults) {
+  return (
+    Array.isArray(capabilityResults) &&
+    capabilityResults.length > 0 &&
+    capabilityResults.every(({ request }) =>
+      DIRECT_CAPABILITY_REPLIES.has(request?.capability),
+    )
+  );
 }
 
 function extractTokenFromAgentEvent(rawEvent) {
@@ -1108,6 +1122,33 @@ router.post("/chat", async (req, res) => {
     });
   }
   const capabilityReplies = buildCapabilityReplies(capabilityResults);
+
+  if (
+    capabilityReplies.length &&
+    !memoryReply &&
+    shouldReplyWithVerifiedToolOutput(capabilityResults)
+  ) {
+    const fullReply = capabilityReplies.join("\n\n");
+    await saveConversationTurnBestEffort(
+      cleanSessionId,
+      cleanMessage,
+      fullReply,
+      ownerId,
+    );
+    sendEvent("token", { token: fullReply });
+    sendEvent("done", {
+      ok: taskResult.status !== "failed",
+      capabilities: capabilityResults.map(({ request }) => request.capability),
+      task: taskResult,
+      mode: "verified-tool-output",
+      memoryAvailable,
+    });
+    console.info(
+      `[Chat] Response completed with verified infrastructure output for ${cleanSessionId}`,
+    );
+    res.end();
+    return;
+  }
 
   if (memoryReply && !capabilityReplies.length) {
     const fullReply = [...capabilityReplies, memoryReply]

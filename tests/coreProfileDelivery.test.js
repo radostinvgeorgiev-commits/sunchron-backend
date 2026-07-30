@@ -3,10 +3,8 @@ import test from "node:test";
 import request from "supertest";
 
 process.env.NODE_ENV = "test";
-process.env.AGENT_KEY = "test-agent-key";
 process.env.OPENAI_API_KEY = "test-openai-key";
-process.env.GITHUB_REPOSITORY =
-  "radostinvgeorgiev-commits/sunchron-backend";
+process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 delete process.env.OPENSEARCH_HOST;
 delete process.env.OPENSEARCH_USERNAME;
 delete process.env.OPENSEARCH_PASSWORD;
@@ -88,10 +86,9 @@ function createProfileClient() {
 const ownerSession = await createGitHubSession(
   { access_token: "test-owner-token" },
   async () =>
-    new Response(
-      JSON.stringify({ login: "radostinvgeorgiev-commits" }),
-      { status: 200 },
-    ),
+    new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
+      status: 200,
+    }),
 );
 const OWNER_COOKIE = `synchron_github_session=${ownerSession.id}`;
 

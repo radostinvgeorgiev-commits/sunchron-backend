@@ -26,9 +26,7 @@ import {
   GitHubOAuthError,
   parseGitHubCookies,
 } from "../services/githubOAuthService.js";
-import {
-  isMergedBranchCleanupPlanRequest,
-} from "../services/githubBranchCleanupService.js";
+import { isMergedBranchCleanupPlanRequest } from "../services/githubBranchCleanupService.js";
 import {
   confirmCopilotTask,
   CopilotTaskError,
@@ -342,7 +340,7 @@ export function detectCapabilityRequests(message) {
       /(?:digitalocean|digital\s*ocean|дигитал\s*океан|дижитал\s*окен)/iu.test(
         subtask,
       ) &&
-      /(?:провери|покажи|статус|работи|деплой|deployment|публикуван|последн)/iu.test(
+      /(?:провери|покажи|статус|работи|деплой|deployment|публикуван|последн|направи|одит|акаунт|ресурс|droplet|сървър|баз|мреж|firewall|защит|разход|billing|storage|volume|snapshot|kubernetes)/iu.test(
         subtask,
       )
     ) {
@@ -369,12 +367,12 @@ export function detectCapabilityRequests(message) {
     const mergedBranchCleanupPlan =
       isMergedBranchCleanupPlanRequest(subtask) ||
       (hasGitHubContext &&
-        (/(?:слет|merged).{0,50}(?:клон|branch)|(?:клон|branch).{0,50}(?:слет|merged)/iu.test(
+        /(?:слет|merged).{0,50}(?:клон|branch)|(?:клон|branch).{0,50}(?:слет|merged)/iu.test(
           subtask,
         ) &&
         /(?:подготви|покажи|намери|изброй|списък|провери|безопасн)/iu.test(
           subtask,
-        )));
+        ));
     const wantsGitHubRead =
       !/(?:използва\s+успешно|кои\s+са\s+достъпни)/iu.test(subtask) &&
       (mergedBranchCleanupPlan ||

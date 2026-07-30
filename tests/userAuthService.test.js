@@ -43,6 +43,18 @@ test("detects complete auth and closed/open tester registration", () => {
   );
 });
 
+test("Supabase sessions require their own encryption key", () => {
+  assert.equal(
+    isUserAuthConfigured({
+      SUPABASE_URL: ENV.SUPABASE_URL,
+      SUPABASE_PUBLISHABLE_KEY: ENV.SUPABASE_PUBLISHABLE_KEY,
+      GITHUB_SESSION_ENCRYPTION_KEY: "github-only-key-with-enough-entropy",
+      GOOGLE_SESSION_ENCRYPTION_KEY: "google-only-key-with-enough-entropy",
+    }),
+    false,
+  );
+});
+
 test("encrypts the Supabase session and never leaves tokens in the cookie", () => {
   const original = session("secret");
   const encrypted = encryptUserSession(original, ENV);

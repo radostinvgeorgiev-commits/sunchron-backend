@@ -84,12 +84,12 @@ jobs:
             https://synchron.foundation/health/ready \
             | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"'
 
-      - name: Check MCP bridge diagnostics
+      - name: Check MCP status
         shell: bash
         run: |
           set -euo pipefail
           curl --fail --silent --show-error \
             --retry 3 --retry-delay 10 --retry-all-errors \
             --max-time 30 \
-            https://synchron.foundation/health/bridge \
+            https://synchron.foundation/health/mcp-status \
             | grep -Eq '"responding"[[:space:]]*:[[:space:]]*true'

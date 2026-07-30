@@ -98,6 +98,7 @@ router.get("/ready", createReadinessHandler());
 export async function getBridgeDiagnosticsStatus({
   env = process.env,
   handleMcpRequest = createMcpRequestHandler(),
+  timeoutMs = 1_000,
 } = {}) {
   const configured =
     typeof env.MCP_ACCESS_TOKEN === "string" &&
@@ -105,9 +106,12 @@ export async function getBridgeDiagnosticsStatus({
   let responding = false;
 
   try {
-    const response = await handleMcpRequest(
-      { jsonrpc: "2.0", id: "diagnostics", method: "initialize" },
-      env.MEMORY_OWNER_ID || "primary-user",
+    const response = await withTimeout(
+      handleMcpRequest(
+        { jsonrpc: "2.0", id: "diagnostics", method: "initialize" },
+        env.MEMORY_OWNER_ID || "primary-user",
+      ),
+      timeoutMs,
     );
     responding = response?.result?.serverInfo?.name === "synchron-x-memory";
   } catch {
@@ -142,6 +146,7 @@ export function createBridgeDiagnosticsHandler(options = {}) {
 }
 
 router.get("/bridge", createBridgeDiagnosticsHandler());
+router.get("/mcp-status", createBridgeDiagnosticsHandler());
 
 function hasAllProcessEnvironmentVariables(...names) {
   return hasAllEnvironmentVariables(process.env, ...names);

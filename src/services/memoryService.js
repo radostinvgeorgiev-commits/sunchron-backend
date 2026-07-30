@@ -811,7 +811,7 @@ export async function saveConversationTurn(
   });
 }
 
-export function buildMemoryContext(memories) {
+export function buildMemoryContext(memories, { personName = "Радко" } = {}) {
   const personal = memories.filter(
     (memory) => (memory.scope || "personal") === "personal",
   );
@@ -840,11 +840,11 @@ export function buildMemoryContext(memories) {
 
   return [
     "[ПРОВЕРЕНА ПОСТОЯННА ПАМЕТ]",
-    "[ЛИЧЕН ПРОФИЛ НА РАДКО]",
-    "Тези факти описват Радко — човека. Те не описват теб.",
+    `[ЛИЧЕН ПРОФИЛ НА ${personName.toLocaleUpperCase("bg-BG")}]`,
+    `Тези факти описват ${personName} — човека. Те не описват теб.`,
     format(personal, "Няма допълнително записани лични факти."),
     "[КОНТЕКСТ НА ПРОЕКТА]",
-    "Тези факти описват проекта, а не личността на Радко.",
+    `Тези факти описват проекта, а не личността на ${personName}.`,
     format(project, "Няма допълнително записани проектни факти."),
     "Използвай само фактите, които са БУКВАЛНО свързани с текущия въпрос.",
     "При противоречие използвай най-новия показан факт (с по-нисък номер — той е по-нов).",

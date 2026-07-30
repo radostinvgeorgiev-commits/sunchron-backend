@@ -13,9 +13,27 @@ const state = {
   memoryItems: [],
   recognition: null,
   listening: false,
+  authenticatedUser: null,
+  registrationEnabled: false,
+  applicationStarted: false,
 };
 
 const elements = {
+  authGate: document.getElementById("authGate"),
+  appShell: document.getElementById("appShell"),
+  loginForm: document.getElementById("loginForm"),
+  loginEmail: document.getElementById("loginEmail"),
+  loginPassword: document.getElementById("loginPassword"),
+  loginBtn: document.getElementById("loginBtn"),
+  showRegisterBtn: document.getElementById("showRegisterBtn"),
+  registerForm: document.getElementById("registerForm"),
+  registerName: document.getElementById("registerName"),
+  registerEmail: document.getElementById("registerEmail"),
+  registerPassword: document.getElementById("registerPassword"),
+  registerInviteCode: document.getElementById("registerInviteCode"),
+  registerBtn: document.getElementById("registerBtn"),
+  backToLoginBtn: document.getElementById("backToLoginBtn"),
+  authMessage: document.getElementById("authMessage"),
   chatMessages: document.getElementById("chatMessages"),
   chatInput: document.getElementById("chatInput"),
   sendBtn: document.getElementById("sendBtn"),
@@ -53,6 +71,10 @@ const elements = {
   drawerBackdrop: document.getElementById("drawerBackdrop"),
   closeDataDrawerBtn: document.getElementById("closeDataDrawerBtn"),
   voiceBtn: document.getElementById("voiceBtn"),
+  profileAvatar: document.getElementById("profileAvatar"),
+  profileName: document.getElementById("profileName"),
+  profileRole: document.getElementById("profileRole"),
+  logoutBtn: document.getElementById("logoutBtn"),
 };
 
 function createSessionId() {
@@ -72,7 +94,162 @@ function getOrCreateSessionId() {
   return sessionId;
 }
 
+function setAuthMessage(message = "", success = false) {
+  elements.authMessage.textContent = message;
+  elements.authMessage.classList.toggle("success", success);
+}
+
+function setAuthBusy(isBusy) {
+  elements.loginBtn.disabled = isBusy;
+  elements.registerBtn.disabled = isBusy;
+}
+
+function showLoginForm() {
+  elements.loginForm.hidden = false;
+  elements.registerForm.hidden = true;
+  elements.showRegisterBtn.hidden = !state.registrationEnabled;
+  setAuthMessage();
+  elements.loginEmail.focus();
+}
+
+function showRegisterForm() {
+  elements.loginForm.hidden = true;
+  elements.registerForm.hidden = false;
+  elements.showRegisterBtn.hidden = true;
+  setAuthMessage();
+  elements.registerName.focus();
+}
+
+async function readAuthSession() {
+  const response = await fetch("/api/auth/session", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("Входът временно не е достъпен.");
+  }
+  return response.json();
+}
+
+async function submitAuth(path, body) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(data?.error || "Входът не беше успешен.");
+  }
+  return data;
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  setAuthBusy(true);
+  setAuthMessage();
+  try {
+    await submitAuth("/api/auth/login", {
+      email: elements.loginEmail.value,
+      password: elements.loginPassword.value,
+    });
+    elements.loginPassword.value = "";
+    const session = await readAuthSession();
+    if (!session.authenticated) throw new Error("Сесията не беше създадена.");
+    await startApplication(session.user);
+  } catch (error) {
+    setAuthMessage(error.message);
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
+async function handleRegistration(event) {
+  event.preventDefault();
+  setAuthBusy(true);
+  setAuthMessage();
+  try {
+    const result = await submitAuth("/api/auth/register", {
+      displayName: elements.registerName.value,
+      email: elements.registerEmail.value,
+      password: elements.registerPassword.value,
+      inviteCode: elements.registerInviteCode.value,
+    });
+    elements.registerPassword.value = "";
+    elements.registerInviteCode.value = "";
+    if (result.confirmationRequired) {
+      showLoginForm();
+      elements.loginEmail.value = result.user?.email || "";
+      setAuthMessage(
+        "Профилът е създаден. Потвърди имейла си и после влез.",
+        true,
+      );
+      return;
+    }
+    const session = await readAuthSession();
+    if (!session.authenticated) throw new Error("Сесията не беше създадена.");
+    await startApplication(session.user);
+  } catch (error) {
+    setAuthMessage(error.message);
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
+async function handleLogout() {
+  elements.logoutBtn.disabled = true;
+  try {
+    await fetch("/api/auth/logout", { method: "POST" });
+  } finally {
+    globalThis.location.href = "/";
+  }
+}
+
+function applyAuthenticatedUser(user) {
+  state.authenticatedUser = user;
+  const displayName = user?.displayName || "Потребител";
+  const isOwner = user?.role === "owner";
+  elements.profileName.textContent = displayName;
+  elements.profileAvatar.textContent =
+    displayName.trim().charAt(0).toLocaleUpperCase("bg-BG") || "П";
+  elements.profileRole.textContent = isOwner
+    ? "Собственик · настройки"
+    : "Тестов профил";
+  document.body.dataset.userRole = isOwner ? "owner" : "tester";
+  for (const item of document.querySelectorAll("[data-owner-only]")) {
+    item.hidden = !isOwner;
+  }
+}
+
 async function init() {
+  elements.loginForm.addEventListener("submit", handleLogin);
+  elements.registerForm.addEventListener("submit", handleRegistration);
+  elements.showRegisterBtn.addEventListener("click", showRegisterForm);
+  elements.backToLoginBtn.addEventListener("click", showLoginForm);
+
+  try {
+    const session = await readAuthSession();
+    state.registrationEnabled = Boolean(session.registrationEnabled);
+    elements.showRegisterBtn.hidden = !state.registrationEnabled;
+    if (session.authenticated) {
+      await startApplication(session.user);
+      return;
+    }
+    elements.authGate.hidden = false;
+    elements.appShell.hidden = true;
+    if (!session.configured) {
+      setAuthMessage(
+        "Входът за тестови профили още не е активиран. Собственикът може да влезе с GitHub.",
+      );
+    }
+  } catch (error) {
+    setAuthMessage(error.message);
+  }
+}
+
+async function startApplication(user) {
+  if (state.applicationStarted) return;
+  state.applicationStarted = true;
+  applyAuthenticatedUser(user);
+  elements.authGate.hidden = true;
+  elements.appShell.hidden = false;
   updateSessionDisplay();
 
   elements.sendBtn.addEventListener("click", sendMessage);
@@ -106,6 +283,7 @@ async function init() {
   elements.drawerBackdrop.addEventListener("click", closeDataDrawer);
   elements.dataDrawerBody.addEventListener("click", handleDataDrawerAction);
   elements.voiceBtn.addEventListener("click", toggleVoiceInput);
+  elements.logoutBtn.addEventListener("click", handleLogout);
   document.addEventListener("keydown", handleGlobalKeydown);
   prepareVoiceInput();
 

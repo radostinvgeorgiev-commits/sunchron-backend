@@ -142,13 +142,42 @@ const ASSISTANT_CONTEXT = [
   "[КРАЙ НА КОНТЕКСТА]",
 ].join("\n");
 
-export function buildAvatarMessages(memories, history, cleanMessage) {
+function testerAssistantContext(personName) {
+  return [
+    "[КОНТЕКСТ И ПРАВИЛА ЗА ТОЗИ РАЗГОВОР]",
+    `Ти си SYNCHRON-X — личен AI асистент на ${personName}.`,
+    AVATAR_DEFINITION,
+    "Този профил участва в ограничен тест на разговор и постоянна памет.",
+    "Не твърди, че външни инструменти или услуги са достъпни. В тестовия профил те са изключени.",
+    `Човекът, с когото разговаряш, е ${personName}. Никога не казвай, че ти си този човек.`,
+    "Говори на български, освен ако човекът изрично поиска друг език.",
+    `Обръщай се към ${personName} на „ти“. Говори естествено, спокойно, директно и човешки.`,
+    "Отговаряй първо на същината. Не започвай всеки отговор с поздрав или представяне.",
+    "Използвай постоянната памет само когато е свързана с текущия въпрос.",
+    "Не твърди, че помниш факт, ако той не е в показаната памет или история.",
+    "Ако не знаеш нещо, кажи „Не знам“ и не измисляй.",
+    "Човекът контролира собствената си памет и данни.",
+    "[КРАЙ НА КОНТЕКСТА]",
+  ].join("\n");
+}
+
+export function buildAvatarMessages(
+  memories,
+  history,
+  cleanMessage,
+  identity = { role: "owner", displayName: "Радко" },
+) {
+  const personName = identity?.displayName || "Потребител";
+  const assistantContext =
+    identity?.role === "tester"
+      ? testerAssistantContext(personName)
+      : ASSISTANT_CONTEXT;
   const conversationHistory = history.length
     ? [
         "[ПРЕДИШЕН РАЗГОВОР]",
         ...history.map(
           ({ role, content }) =>
-            `${role === "assistant" ? "Synchron-X" : "Радко"}: ${content}`,
+            `${role === "assistant" ? "Synchron-X" : personName}: ${content}`,
         ),
         "[КРАЙ НА ПРЕДИШНИЯ РАЗГОВОР]",
       ].join("\n")
@@ -158,10 +187,10 @@ export function buildAvatarMessages(memories, history, cleanMessage) {
     {
       role: "user",
       content: [
-        ASSISTANT_CONTEXT,
-        buildMemoryContext(memories),
+        assistantContext,
+        buildMemoryContext(memories, { personName }),
         conversationHistory,
-        `[ПОСЛЕДНО СЪОБЩЕНИЕ НА РАДКО]\n${cleanMessage}`,
+        `[ПОСЛЕДНО СЪОБЩЕНИЕ НА ${personName.toLocaleUpperCase("bg-BG")}]\n${cleanMessage}`,
       ]
         .filter(Boolean)
         .join("\n\n"),
@@ -681,6 +710,7 @@ router.post("/chat", async (req, res) => {
   const githubSessionId =
     parseGitHubCookies(req.headers.cookie).synchron_github_session || "";
   const ownerId = req.owner.memoryOwnerId;
+  const ownerToolsAllowed = req.owner.role === "owner";
   const cleanSessionId = typeof sessionId === "string" ? sessionId.trim() : "";
   const cleanMessage = typeof message === "string" ? message.trim() : "";
 
@@ -847,15 +877,35 @@ router.post("/chat", async (req, res) => {
     memoryAvailable = false;
   }
 
-  let messages = buildAvatarMessages(memories, history, cleanMessage);
+  let messages = buildAvatarMessages(
+    memories,
+    history,
+    cleanMessage,
+    req.owner,
+  );
 
   if (image) {
+    if (!ownerToolsAllowed) {
+      return res.status(403).json({
+        error:
+          "Снимките и външните инструменти още не са включени за тестовите профили.",
+        code: "TESTER_TOOL_DISABLED",
+      });
+    }
     try {
       validateImageInput(image);
     } catch (error) {
       const status = error instanceof ImageServiceError ? error.status : 400;
       return res.status(status).json({ error: error.message });
     }
+  }
+
+  const copilotConfirmationId = extractCopilotConfirmationId(cleanMessage);
+  if (copilotConfirmationId && !ownerToolsAllowed) {
+    return res.status(403).json({
+      error: "GitHub действията са достъпни само за собственика.",
+      code: "OWNER_ONLY",
+    });
   }
 
   res.status(200);
@@ -912,7 +962,6 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
-  const copilotConfirmationId = extractCopilotConfirmationId(cleanMessage);
   if (copilotConfirmationId) {
     try {
       const result = await confirmCopilotTask({
@@ -1035,13 +1084,16 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
-  const fallbackCapabilityRequests = detectCapabilityRequests(cleanMessage);
+  const fallbackCapabilityRequests = ownerToolsAllowed
+    ? detectCapabilityRequests(cleanMessage)
+    : [];
   let detectedCapabilityRequests = fallbackCapabilityRequests;
   sendEvent("task", {
     status: "planning",
     message: "Проверявам задачата и избирам нужните инструменти…",
   });
   if (
+    ownerToolsAllowed &&
     openAiApiKey &&
     shouldUseAgentPlanner(cleanMessage, fallbackCapabilityRequests)
   ) {

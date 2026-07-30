@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="/modules.css?v=20260726-modules" />
     <link rel="stylesheet" href="/accessibility.css?v=20260728-font-stepper" />
     <link rel="stylesheet" href="/task-journal.css?v=20260728-task-journal" />
+    <link rel="stylesheet" href="/auth.css?v=20260730-test-users-v1" />
     <link rel="stylesheet" href="/assets/20260730-v2/synchron-vision.css" />
     <link
       rel="stylesheet"
@@ -27,7 +28,101 @@
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.12/dist/purify.min.js"></script>
   </head>
   <body>
-    <main class="app-shell">
+    <section class="auth-gate" id="authGate" aria-labelledby="authTitle">
+      <div class="auth-card">
+        <div class="auth-brand" aria-hidden="true">
+          <i class="fa-solid fa-atom"></i>
+        </div>
+        <p class="auth-kicker">NOVARIUM</p>
+        <h1 id="authTitle">Вход в SYNCHRON-X</h1>
+        <p class="auth-intro">
+          Всеки тестов потребител има собствен профил, разговори и памет.
+        </p>
+
+        <form id="loginForm" class="auth-form">
+          <label for="loginEmail">Имейл</label>
+          <input
+            id="loginEmail"
+            name="email"
+            type="email"
+            autocomplete="username"
+            inputmode="email"
+            required
+          />
+          <label for="loginPassword">Парола</label>
+          <input
+            id="loginPassword"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            minlength="8"
+            maxlength="128"
+            required
+          />
+          <button id="loginBtn" class="auth-primary" type="submit">Влез</button>
+        </form>
+
+        <button id="showRegisterBtn" class="auth-link" type="button" hidden>
+          Създай тестов профил
+        </button>
+        <form id="registerForm" class="auth-form" hidden>
+          <label for="registerName">Име</label>
+          <input
+            id="registerName"
+            name="displayName"
+            type="text"
+            autocomplete="name"
+            maxlength="80"
+            required
+          />
+          <label for="registerEmail">Имейл</label>
+          <input
+            id="registerEmail"
+            name="email"
+            type="email"
+            autocomplete="username"
+            inputmode="email"
+            required
+          />
+          <label for="registerPassword">Парола</label>
+          <input
+            id="registerPassword"
+            name="password"
+            type="password"
+            autocomplete="new-password"
+            minlength="8"
+            maxlength="128"
+            required
+          />
+          <label for="registerInviteCode">Код за тестов достъп</label>
+          <input
+            id="registerInviteCode"
+            name="inviteCode"
+            type="password"
+            autocomplete="one-time-code"
+            minlength="8"
+            required
+          />
+          <button id="registerBtn" class="auth-primary" type="submit">
+            Създай профил
+          </button>
+          <button id="backToLoginBtn" class="auth-link" type="button">
+            Назад към входа
+          </button>
+        </form>
+
+        <p id="authMessage" class="auth-message" role="alert"></p>
+        <div class="auth-owner">
+          <span>Вход за собственика</span>
+          <a href="/api/github/connect">
+            <i class="fa-brands fa-github"></i>
+            Влез с GitHub
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <main class="app-shell" id="appShell" hidden>
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-brand">
           <span class="brand-icon"><i class="fa-solid fa-atom"></i></span>
@@ -44,13 +139,13 @@
           <button id="searchChatsBtn" type="button">
             <i class="fa-solid fa-clock-rotate-left"></i><span>Разговори</span>
           </button>
-          <button id="focusBtn" type="button">
+          <button id="focusBtn" type="button" data-owner-only>
             <i class="fa-solid fa-bullseye"></i><span>Дневник на задачите</span>
           </button>
-          <button id="toolsBtn" type="button">
+          <button id="toolsBtn" type="button" data-owner-only>
             <i class="fa-solid fa-toolbox"></i><span>Инструменти</span>
           </button>
-          <button id="workCenterBtn" type="button">
+          <button id="workCenterBtn" type="button" data-owner-only>
             <i class="fa-solid fa-table-cells-large"></i
             ><span>Работен център</span>
           </button>
@@ -89,7 +184,7 @@
           <button id="memoryBtn" type="button">
             <i class="fa-solid fa-brain"></i><span>Памет</span>
           </button>
-          <button id="permissionsBtn" type="button">
+          <button id="permissionsBtn" type="button" data-owner-only>
             <i class="fa-solid fa-shield-halved"></i><span>Разрешения</span>
           </button>
         </nav>
@@ -113,8 +208,11 @@
           <div id="conversationList" class="conversation-list"></div>
         </div>
         <button id="toggleStatusBtn" class="profile-button" type="button">
-          <span class="profile-avatar">Р</span>
-          <span><strong>Радко</strong><small>Настройки и статус</small></span>
+          <span class="profile-avatar" id="profileAvatar">Р</span>
+          <span
+            ><strong id="profileName">Радко</strong
+            ><small id="profileRole">Настройки и статус</small></span
+          >
           <i class="fa-solid fa-ellipsis"></i>
         </button>
       </aside>
@@ -162,6 +260,7 @@
               id="attachBtn"
               class="attach-btn"
               type="button"
+              data-owner-only
               aria-label="Добави файл"
               title="Добави файл"
             >
@@ -217,11 +316,11 @@
           </button>
         </div>
         <div class="panel-content">
-          <div class="context-box">
+          <div class="context-box" data-owner-only>
             <div class="context-label">Система</div>
             <div class="context-value">Лична AI операционна система</div>
           </div>
-          <div class="context-box">
+          <div class="context-box" data-owner-only>
             <div class="context-label">Сесия</div>
             <div class="context-value" id="sessionIdDisplay">…</div>
           </div>
@@ -239,6 +338,10 @@
           <ul class="log-list" id="actionsLog">
             <li>Няма скорошни действия</li>
           </ul>
+          <button id="logoutBtn" class="logout-button" type="button">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            Излез от профила
+          </button>
         </div>
       </aside>
 
@@ -271,11 +374,11 @@
           <i class="fa-solid fa-brain"></i>
           <span>Памет</span>
         </button>
-        <button type="button" data-command="tasks">
+        <button type="button" data-command="tasks" data-owner-only>
           <i class="fa-solid fa-list-check"></i>
           <span>Задачи</span>
         </button>
-        <button type="button" data-command="connections">
+        <button type="button" data-command="connections" data-owner-only>
           <i class="fa-solid fa-plug"></i>
           <span>Връзки</span>
         </button>

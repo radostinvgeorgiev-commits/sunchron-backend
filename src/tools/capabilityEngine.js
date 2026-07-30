@@ -21,6 +21,10 @@ import {
   searchWeb,
 } from "../services/webSearchService.js";
 import { prepareCopilotTask } from "../services/copilotTaskService.js";
+import {
+  isMergedBranchCleanupPlanRequest,
+  prepareMergedBranchCleanup,
+} from "../services/githubBranchCleanupService.js";
 import { checkSupabaseStatus } from "../services/supabaseService.js";
 import { findToolsByCapability, registerCoreTools } from "./toolRegistry.js";
 
@@ -90,7 +94,12 @@ export function resolveCapability(capability, options = {}) {
 }
 
 const executors = Object.freeze({
-  "github-read": async ({ input }) => answerGitHubReadRequest(input.message),
+  "github-read": async ({ input }) => {
+    if (isMergedBranchCleanupPlanRequest(input.message)) {
+      return prepareMergedBranchCleanup({ ownerId: input.ownerId });
+    }
+    return answerGitHubReadRequest(input.message);
+  },
   "github-write": async ({ input }) => {
     const prepared = await prepareCopilotTask({
       sessionId: input.sessionId,

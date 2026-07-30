@@ -94,6 +94,33 @@
     return card;
   }
 
+  function createActionCard({
+    title: cardTitle,
+    description,
+    action,
+    icon,
+    status,
+    statusClass = "warning",
+  }) {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "work-center-card";
+    card.dataset.workCenterAction = action;
+
+    const iconElement = document.createElement("span");
+    iconElement.className = "work-center-icon";
+    iconElement.innerHTML = `<i class="${icon}" aria-hidden="true"></i>`;
+    card.appendChild(iconElement);
+
+    const content = document.createElement("span");
+    content.className = "work-center-card-content";
+    addText(content, "strong", cardTitle);
+    addText(content, "span", description, "work-center-description");
+    addText(content, "span", status, `work-center-status ${statusClass}`);
+    card.appendChild(content);
+    return card;
+  }
+
   function closeWorkCenter() {
     drawer.hidden = true;
     backdrop.hidden = true;
@@ -152,6 +179,7 @@
     readiness = null,
     integrations = null,
     sessions = {},
+    testerAuth = null,
   ) {
     const chatgptUrl = safeHttpsUrl(
       config.chatgptWorkUrl,
@@ -258,6 +286,29 @@
         icon: "fa-brands fa-digital-ocean",
         status: `DigitalOcean Read: ${digitalOceanStatus.label.toLocaleLowerCase("bg-BG")}`,
       }),
+      createActionCard({
+        title:
+          testerAuth?.configured && testerAuth?.registrationEnabled
+            ? "Тестови профили"
+            : "Активирай тестови профили",
+        description:
+          testerAuth?.configured && testerAuth?.registrationEnabled
+            ? "Входът е свързан със Supabase. Покажи кода за покана."
+            : "Добавя четирите защитени production настройки чрез DigitalOcean моста.",
+        action:
+          testerAuth?.configured && testerAuth?.registrationEnabled
+            ? "show-tester-invite"
+            : "activate-tester-auth",
+        icon: "fa-solid fa-user-plus",
+        status:
+          testerAuth?.configured && testerAuth?.registrationEnabled
+            ? "Работи · Само за собственика"
+            : "Изисква точно потвърждение",
+        statusClass:
+          testerAuth?.configured && testerAuth?.registrationEnabled
+            ? "internal"
+            : "warning",
+      }),
       createExternalCard({
         title: "Cloudflare",
         description: "Домейн, защита и мрежови настройки.",
@@ -301,6 +352,84 @@
     body.appendChild(closeButton);
   }
 
+  function showTesterAuthResult({ title: resultTitle, message, inviteCode }) {
+    const panel = document.createElement("section");
+    panel.className = "work-center-intro";
+    addText(panel, "strong", resultTitle);
+    addText(panel, "p", message);
+    if (inviteCode) {
+      const code = addText(panel, "code", inviteCode);
+      code.dataset.testerInviteCode = "";
+      const copyButton = addText(panel, "button", "Копирай кода");
+      copyButton.type = "button";
+      copyButton.dataset.copyTesterInvite = "";
+    }
+    body.prepend(panel);
+  }
+
+  async function readJson(response) {
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || "Действието не успя.");
+    }
+    return payload;
+  }
+
+  async function showTesterInvite() {
+    const payload = await readJson(
+      await fetch("/api/tester-auth/invite-code", { cache: "no-store" }),
+    );
+    showTesterAuthResult({
+      title: "Код за тестов достъп",
+      message:
+        "Дай този код само на човека, на когото разрешаваш да създаде тестов профил.",
+      inviteCode: payload.inviteCode,
+    });
+  }
+
+  async function activateTesterAuth(card) {
+    card.disabled = true;
+    try {
+      const prepared = await readJson(
+        await fetch("/api/tester-auth/prepare", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        }),
+      );
+      if (prepared.configured) {
+        await showTesterInvite();
+        return;
+      }
+      const approved = globalThis.confirm(
+        `${prepared.message}\n\nНастройки: ${prepared.missingKeys.join(", ")}\n\nПродължаваме ли?`,
+      );
+      if (!approved) return;
+      const result = await readJson(
+        await fetch("/api/tester-auth/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            confirmationId: prepared.confirmationId,
+          }),
+        }),
+      );
+      showTesterAuthResult({
+        title: "Тестовите профили се активират",
+        message:
+          "DigitalOcean започва нов deployment. След публикуването бутонът „Създай тестов профил“ ще се появи.",
+        inviteCode: result.inviteCode,
+      });
+    } catch (error) {
+      showTesterAuthResult({
+        title: "Активирането не успя",
+        message: error.message,
+      });
+    } finally {
+      card.disabled = false;
+    }
+  }
+
   async function openWorkCenter() {
     title.textContent = "Работен център";
     drawer.hidden = false;
@@ -315,12 +444,14 @@
       integrationsResult,
       googleResult,
       githubResult,
+      testerAuthResult,
     ] = await Promise.allSettled([
       fetch("/api/public-config", { cache: "no-store" }),
       fetch("/health/ready", { cache: "no-store" }),
       fetch("/health/integrations", { cache: "no-store" }),
       fetch("/api/google/status", { cache: "no-store" }),
       fetch("/api/github/status", { cache: "no-store" }),
+      fetch("/api/tester-auth/status", { cache: "no-store" }),
     ]);
 
     let config = FALLBACK_CONFIG;
@@ -349,15 +480,50 @@
       const github = await githubResult.value.json();
       githubConnected = Boolean(github.connected);
     }
-    renderWorkCenter(config, readiness, integrations, {
-      googleConnected,
-      githubConnected,
-    });
+    let testerAuth = null;
+    if (testerAuthResult.status === "fulfilled" && testerAuthResult.value.ok) {
+      testerAuth = await testerAuthResult.value.json();
+    }
+    renderWorkCenter(
+      config,
+      readiness,
+      integrations,
+      {
+        googleConnected,
+        githubConnected,
+      },
+      testerAuth,
+    );
   }
 
-  body.addEventListener("click", (event) => {
+  body.addEventListener("click", async (event) => {
     if (event.target.closest("[data-close-work-center]")) {
       closeWorkCenter();
+      return;
+    }
+    const copyInvite = event.target.closest("[data-copy-tester-invite]");
+    if (copyInvite) {
+      const inviteCode = body.querySelector("[data-tester-invite-code]");
+      await globalThis.navigator?.clipboard?.writeText(
+        inviteCode?.textContent || "",
+      );
+      copyInvite.textContent = "Копирано";
+      return;
+    }
+    const actionCard = event.target.closest("[data-work-center-action]");
+    if (actionCard?.dataset.workCenterAction === "activate-tester-auth") {
+      await activateTesterAuth(actionCard);
+      return;
+    }
+    if (actionCard?.dataset.workCenterAction === "show-tester-invite") {
+      try {
+        await showTesterInvite();
+      } catch (error) {
+        showTesterAuthResult({
+          title: "Кодът не е достъпен",
+          message: error.message,
+        });
+      }
       return;
     }
     const internalCard = event.target.closest("[data-work-center-target]");

@@ -26,6 +26,7 @@ test("blocks personal data and paid AI routes without owner sign-in", async () =
   const routes = [
     ["get", "/memory/conversations"],
     ["get", "/calendar/events"],
+    ["get", "/api/tester-auth/status"],
     ["get", "/permissions/audit"],
     ["post", "/search/ai"],
     ["post", "/chat/chat"],

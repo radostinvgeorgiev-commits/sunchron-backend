@@ -879,6 +879,7 @@ function createAssistantTurn(text = "", showActions = true) {
   actions.innerHTML = `
         <button type="button" data-action="copy" title="Копирай" aria-label="Копирай">
             <i class="fa-regular fa-copy"></i>
+            <span class="action-label">Копирай</span>
         </button>
         <button type="button" data-action="speak" title="Прочети на глас" aria-label="Прочети на глас">
             <i class="fa-solid fa-volume-high"></i>
@@ -1179,6 +1180,7 @@ function appendMessage(role, text, image = null) {
   actions.innerHTML = `
         <button type="button" data-action="copy" title="Копирай" aria-label="Копирай">
             <i class="fa-regular fa-copy"></i>
+            <span class="action-label">Копирай</span>
         </button>
     `;
 

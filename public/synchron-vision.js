@@ -1,4 +1,46 @@
 const commandBar = document.querySelector(".mobile-command-bar");
+const composer = document.querySelector(".composer-wrap");
+const root = document.documentElement;
+const mobileLayout = globalThis.matchMedia?.("(max-width: 900px)");
+
+function updateMobileOccupiedHeight() {
+  if (!mobileLayout?.matches || !composer || !commandBar) {
+    root.style.removeProperty("--sx-mobile-occupied-height");
+    return;
+  }
+
+  const occupiedHeight =
+    composer.getBoundingClientRect().height +
+    commandBar.getBoundingClientRect().height;
+  root.style.setProperty(
+    "--sx-mobile-occupied-height",
+    `${Math.ceil(occupiedHeight)}px`,
+  );
+}
+
+function scheduleMobileLayoutUpdate() {
+  if (typeof globalThis.requestAnimationFrame === "function") {
+    globalThis.requestAnimationFrame(updateMobileOccupiedHeight);
+    return;
+  }
+  updateMobileOccupiedHeight();
+}
+
+if (typeof globalThis.ResizeObserver === "function") {
+  const mobileChromeObserver = new globalThis.ResizeObserver(
+    scheduleMobileLayoutUpdate,
+  );
+  if (composer) mobileChromeObserver.observe(composer);
+  if (commandBar) mobileChromeObserver.observe(commandBar);
+}
+
+mobileLayout?.addEventListener?.("change", scheduleMobileLayoutUpdate);
+globalThis.visualViewport?.addEventListener?.(
+  "resize",
+  scheduleMobileLayoutUpdate,
+);
+globalThis.addEventListener?.("orientationchange", scheduleMobileLayoutUpdate);
+scheduleMobileLayoutUpdate();
 
 function activateCommand(command) {
   if (!commandBar) return;

@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { getIntegrationStatus } from "../src/routes/health.js";
 import { resetToolRegistryForTests } from "../src/tools/toolRegistry.js";
 
 const ENV_NAMES = [
-  "AGENT_URL",
-  "AGENT_KEY",
   "OPENAI_API_KEY",
   "OPENSEARCH_HOST",
   "OPENSEARCH_PORT",
@@ -36,6 +35,8 @@ test("integration status reports configuration without exposing secret values", 
   try {
     const status = getIntegrationStatus();
     assert.equal(status.core.chatAgent.configured, true);
+    assert.equal(status.core.chatAgent.primaryProvider, "openai");
+    assert.equal(status.core.chatAgent.removedProvider, "digitalocean-agent");
     assert.equal(status.core.openai.configured, true);
     assert.equal(status.tools.length, 10);
     assert.equal(
@@ -105,4 +106,15 @@ test("GitHub Write is configured with client id and secret only", () => {
     }
     resetToolRegistryForTests();
   }
+});
+
+test("removed DigitalOcean AI Agent is not required by production configuration", async () => {
+  const [appSpec, server] = await Promise.all([
+    readFile(new URL("../.do/app.yaml", import.meta.url), "utf8"),
+    readFile(new URL("../server.js", import.meta.url), "utf8"),
+  ]);
+
+  assert.doesNotMatch(appSpec, /key:\s*AGENT_(?:URL|KEY)/u);
+  assert.doesNotMatch(server, /if\s*\(!process\.env\.AGENT_KEY\)/u);
+  assert.match(server, /if\s*\(!process\.env\.OPENAI_API_KEY\)/u);
 });

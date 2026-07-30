@@ -37,6 +37,24 @@ test("the visual layer preserves the readable text controls and safe drawers", a
   assert.match(css, /prefers-reduced-motion/u);
 });
 
+test("mobile conversation history stays reachable with very large text", async () => {
+  const [html, css, app] = await Promise.all([
+    readFile(new URL("../public/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../public/synchron-vision.css", import.meta.url), "utf8"),
+    readFile(new URL("../public/app.js", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(html, /id="searchChatsBtn"[\s\S]*?<span>Разговори<\/span>/u);
+  assert.match(css, /\.sidebar\s*\{[\s\S]*?overflow-y:\s*auto\s*!important/u);
+  assert.match(css, /\.sidebar-section\s*\{[\s\S]*?min-height:\s*180px/u);
+  assert.match(
+    app,
+    /scrollIntoView\(\{ block: "start", behavior: "smooth" \}\)/u,
+  );
+  assert.match(app, /Историята временно не е достъпна/u);
+  assert.match(app, /Все още няма запазени разговори/u);
+});
+
 test("mobile chat content clears the measured composer and command bar", async () => {
   const [css, script, app] = await Promise.all([
     readFile(new URL("../public/synchron-vision.css", import.meta.url), "utf8"),

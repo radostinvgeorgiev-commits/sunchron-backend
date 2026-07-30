@@ -9,6 +9,7 @@ const state = {
   speakingButton: null,
   pendingImage: null,
   conversations: [],
+  conversationLoadError: "",
   memoryItems: [],
   recognition: null,
   listening: false,
@@ -192,10 +193,13 @@ async function loadConversations() {
     if (!response.ok) throw new Error("Списъкът не е достъпен.");
     const data = await response.json();
     state.conversations = Array.isArray(data.items) ? data.items : [];
+    state.conversationLoadError = "";
     renderConversationList();
   } catch (error) {
     console.error(error);
     state.conversations = [];
+    state.conversationLoadError =
+      "Историята временно не е достъпна. Опитай отново.";
     renderConversationList();
   }
 }
@@ -208,6 +212,24 @@ function renderConversationList() {
     (item) => !query || item.title.toLocaleLowerCase("bg-BG").includes(query),
   );
   elements.conversationList.replaceChildren();
+
+  if (state.conversationLoadError) {
+    const error = document.createElement("p");
+    error.className = "conversation-state conversation-state-error";
+    error.textContent = state.conversationLoadError;
+    elements.conversationList.appendChild(error);
+    return;
+  }
+
+  if (conversations.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "conversation-state";
+    empty.textContent = query
+      ? "Няма намерени разговори."
+      : "Все още няма запазени разговори.";
+    elements.conversationList.appendChild(empty);
+    return;
+  }
 
   for (const item of conversations) {
     const button = document.createElement("button");
@@ -258,8 +280,11 @@ function handleGlobalKeydown(event) {
 }
 
 function toggleConversationSearch() {
-  elements.conversationSearch.hidden = !elements.conversationSearch.hidden;
-  if (!elements.conversationSearch.hidden) elements.conversationSearch.focus();
+  elements.conversationSearch.hidden = false;
+  elements.conversationList
+    .closest(".sidebar-section")
+    ?.scrollIntoView({ block: "start", behavior: "smooth" });
+  elements.conversationSearch.focus({ preventScroll: true });
 }
 
 function handleImageSelection(event) {

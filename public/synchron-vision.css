@@ -134,6 +134,22 @@ input:focus-visible {
   color: var(--sx-accent);
 }
 
+.conversation-state {
+  margin: 6px 8px;
+  padding: 12px;
+  border: 1px dashed var(--sx-line);
+  border-radius: 14px;
+  color: var(--sx-muted);
+  background: rgba(255, 255, 255, 0.5);
+  line-height: 1.4;
+}
+
+.conversation-state-error {
+  color: #9f2f1c;
+  border-color: rgba(159, 47, 28, 0.25);
+  background: rgba(255, 238, 233, 0.72);
+}
+
 .font-size-control {
   margin: 8px 0;
   padding: 12px !important;
@@ -366,6 +382,21 @@ input:focus-visible {
     border: 0 !important;
     border-radius: 0 28px 28px 0 !important;
     background: rgba(250, 248, 242, 0.98) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sidebar-nav,
+  .sidebar-section,
+  .profile-button {
+    flex: 0 0 auto;
+  }
+
+  .sidebar-section {
+    min-height: 180px;
+    overflow: visible;
+    scroll-margin-top: 12px;
   }
 
   .chat-toolbar {

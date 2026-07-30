@@ -66,6 +66,9 @@ export async function getReadinessStatus({
     memory = { ready: false, status: "unavailable" };
   }
 
+  const bridge = (
+    await getBridgeDiagnosticsStatus({ env, timeoutMs })
+  ).bridge;
   const ready = chatAgentReady && memory.ready;
   return {
     status: ready ? "ready" : "not-ready",
@@ -82,6 +85,7 @@ export async function getReadinessStatus({
         fallbackConfigured: openAiReady && digitalOceanAgentReady,
       },
       memory,
+      bridge,
     },
   };
 }

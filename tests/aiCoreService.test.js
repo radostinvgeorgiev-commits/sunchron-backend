@@ -53,3 +53,21 @@ test("OpenAI Responses request preserves local state and uses the balanced chat 
 
   assert.equal(result, "Работи.");
 });
+
+test("allows the final conversation to request stronger reasoning and detail", async () => {
+  await requestOpenAIText({
+    apiKey: "test-openai-key",
+    input: [{ role: "user", content: "Провери внимателно" }],
+    reasoningEffort: "low",
+    verbosity: "medium",
+    fetchImpl: async (_url, options) => {
+      const body = JSON.parse(options.body);
+      assert.deepEqual(body.reasoning, { effort: "low" });
+      assert.deepEqual(body.text, { verbosity: "medium" });
+      return new Response(JSON.stringify({ output_text: "Проверено." }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+});

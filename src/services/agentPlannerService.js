@@ -7,6 +7,7 @@ const DEFAULT_PLANNER_TIMEOUT_MS = 30000;
 const MAX_PLANNED_CALLS = 8;
 
 const CAPABILITY_ACTIONS = Object.freeze({
+  "system.integrations.status": "infrastructure.read",
   "calendar.read": "calendar.read",
   "code.read": "github.read",
   "code.write": "github.write",
@@ -27,6 +28,7 @@ const PLANNER_INSTRUCTIONS = [
   "Върни само валиден JSON във формат:",
   '{"calls":[{"capability":"code.read","request":"точната подзадача","scope":"project"}]}',
   "Разрешени способности:",
+  "- system.integrations.status: обща реална проверка кои инструменти работят и кои връзки липсват",
   "- code.read: четене и проверка на разрешеното GitHub хранилище",
   "- code.write: промяна в GitHub; може да е недостъпна и винаги изисква потвърждение",
   "- database.status: проверка дали Supabase е свързан и отговаря",

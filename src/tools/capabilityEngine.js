@@ -51,6 +51,80 @@ function resolvePermission(tool, capability) {
   return tool.capabilityPermissions?.[capability] || null;
 }
 
+async function checkedStatus(check) {
+  try {
+    await check();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function buildIntegrationStatusReport(
+  input = {},
+  {
+    checkGitHub = () =>
+      answerGitHubReadRequest("Покажи последния commit в GitHub."),
+    checkMemory = () =>
+      listProfileMemories({ ownerId: input.ownerId, limit: 1 }),
+    checkSupabase = checkSupabaseStatus,
+    checkDigitalOcean = getDigitalOceanAppStatus,
+    checkGoogleSession = hasSession,
+    env = process.env,
+  } = {},
+) {
+  const [githubRead, memory, supabase, digitalOcean, googleConnected] =
+    await Promise.all([
+      checkedStatus(checkGitHub),
+      checkedStatus(checkMemory),
+      checkedStatus(checkSupabase),
+      checkedStatus(checkDigitalOcean),
+      input.googleSessionId
+        ? checkedStatus(() => checkGoogleSession(input.googleSessionId))
+        : false,
+    ]);
+
+  const working = [
+    ["GitHub Read", githubRead],
+    ["Synchron Memory", memory],
+    ["Supabase Status", supabase],
+    ["DigitalOcean Read", digitalOcean],
+    ["OpenAI разговор", Boolean(env.OPENAI_API_KEY)],
+    ["OpenAI Web Search", Boolean(env.OPENAI_API_KEY)],
+  ];
+  const sessionTools = [
+    ["GitHub Write", Boolean(input.githubSessionId), "изисква потвърждение"],
+    ["Google Drive", googleConnected, "изисква Google вход"],
+    ["Google Calendar", googleConnected, "изисква Google вход"],
+    ["Gmail", googleConnected, "изисква Google вход"],
+    [
+      "Cloudflare Read",
+      Boolean(env.CLOUDFLARE_API_TOKEN && env.CLOUDFLARE_ZONE_ID),
+      "липсват Cloudflare настройки",
+    ],
+  ];
+
+  return [
+    "Проверих инструментите реално сега.",
+    "",
+    "Работят:",
+    ...working
+      .filter(([, available]) => available)
+      .map(([name]) => `• ${name}`),
+    "",
+    "Състояние на останалите връзки:",
+    ...sessionTools
+      .filter(([, available]) => !available)
+      .map(([name, , reason]) => `• ${name} — ${reason}`),
+    ...working
+      .filter(([, available]) => !available)
+      .map(([name]) => `• ${name} — реалната проверка е неуспешна`),
+    ...sessionTools
+      .filter(([, available]) => available)
+      .map(([name, , note]) => `• ${name} — свързан; ${note}`),
+  ].join("\n");
+}
+
 export function resolveCapability(capability, options = {}) {
   if (typeof capability !== "string" || !capability.trim()) {
     throw new CapabilityError(
@@ -104,6 +178,8 @@ export function resolveCapability(capability, options = {}) {
 }
 
 const executors = Object.freeze({
+  "synchron-integrations-status": async ({ input }) =>
+    buildIntegrationStatusReport(input),
   "github-read": async ({ input }) => {
     if (isMergedBranchCleanupPlanRequest(input.message)) {
       return prepareMergedBranchCleanup({ ownerId: input.ownerId });

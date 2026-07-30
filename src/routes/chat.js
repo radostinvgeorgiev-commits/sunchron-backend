@@ -75,6 +75,7 @@ const MEMORY_DELETE_CONFIRM_PREFIX =
 const DIGITALOCEAN_NAME_PATTERN =
   /(?:digital\s*ocean|ди[гж]итал\s*о(?:кеа|ка|ке)н|ди[гж]итъл\s*о(?:кеа|ка|ке)н)/iu;
 const DIRECT_CAPABILITY_REPLIES = new Set([
+  "system.integrations.status",
   "infrastructure.digitalocean.read",
   "infrastructure.cloudflare.read",
 ]);
@@ -301,6 +302,18 @@ export function detectCapabilityRequests(message) {
     ) {
       continue;
     }
+    if (
+      /(?:(?:инструмент(?:ите)?|връзк(?:и|ите)|интеграци(?:и|ите)).{0,40}(?:работят|работи|достъпни|активни|статус)|(?:работят|достъпни|активни|статус).{0,40}(?:инструмент(?:ите)?|връзк(?:и|ите)|интеграци(?:и|ите)))/iu.test(
+        subtask,
+      ) &&
+      !/(?:регистрирани|tool\s+registry|capability\s+engine)/iu.test(subtask)
+    ) {
+      requests.push({
+        capability: "system.integrations.status",
+        action: "infrastructure.read",
+        message: subtask,
+      });
+    }
     if (isCalendarReadRequest(subtask)) {
       requests.push({
         capability: "calendar.read",
@@ -525,6 +538,8 @@ export async function executeDetectedCapabilities(
 }
 
 function capabilityLabel(capability) {
+  if (capability === "system.integrations.status")
+    return "статус на инструментите";
   if (capability === "calendar.read") return "календар";
   if (capability === "code.read") return "GitHub";
   if (capability === "code.write") return "GitHub запис";
@@ -1280,6 +1295,8 @@ router.post("/chat", async (req, res) => {
       apiKey: openAiApiKey,
       input: messages,
       signal: abortController.signal,
+      reasoningEffort: "low",
+      verbosity: "medium",
     });
     sendEvent("token", { token: fullReply });
     if (!fullReply.trim()) {

@@ -34,6 +34,7 @@ export async function requestOpenAIText({
   fetchImpl = fetch,
   signal,
   verbosity = "low",
+  reasoningEffort = "none",
 }) {
   if (!apiKey) {
     throw new AiCoreError(
@@ -52,7 +53,7 @@ export async function requestOpenAIText({
     body: JSON.stringify({
       model,
       input,
-      reasoning: { effort: "none" },
+      reasoning: { effort: reasoningEffort },
       text: { verbosity },
       store: false,
     }),

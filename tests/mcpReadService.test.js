@@ -14,7 +14,7 @@ test("MCP token validation is fail-closed and timing-safe compatible", () => {
   assert.equal(isValidMcpToken(`Bearer ${token}`, "short"), false);
 });
 
-test("MCP exposes only four read-only tools", () => {
+test("MCP exposes four read tools and a two-step cleanup flow", () => {
   assert.deepEqual(
     MCP_TOOLS.map((tool) => tool.name),
     [
@@ -22,10 +22,15 @@ test("MCP exposes only four read-only tools", () => {
       "get_project_context",
       "list_synchron_conversations",
       "get_synchron_conversation",
+      "prepare_github_merged_branch_cleanup",
+      "confirm_github_merged_branch_cleanup",
     ],
   );
-  assert.ok(MCP_TOOLS.every((tool) => tool.annotations.readOnlyHint === true));
-  assert.ok(MCP_TOOLS.every((tool) => tool.annotations.destructiveHint === false));
+  const confirm = MCP_TOOLS.find(
+    (tool) => tool.name === "confirm_github_merged_branch_cleanup",
+  );
+  assert.equal(confirm.annotations.readOnlyHint, false);
+  assert.equal(confirm.annotations.destructiveHint, true);
 });
 
 test("MCP reads owner-scoped personal memory and audits the call", async () => {
@@ -77,4 +82,66 @@ test("MCP rejects invalid conversation identifiers without reading", async () =>
   );
   assert.equal(response.error.code, -32602);
   assert.equal(reads, 0);
+});
+
+test("MCP cleanup requires the exact one-time confirmation", async () => {
+  const consumed = [];
+  const handle = createMcpRequestHandler({
+    buildCleanupPlan: async () => ({
+      repository: "radostinvgeorgiev-commits/sunchron-backend",
+      defaultBranch: "main",
+      branchNames: ["merged-safe"],
+      count: 1,
+      fingerprint: "fingerprint",
+    }),
+    createConfirmation: async (data) => ({
+      ...data,
+      id: "confirmation-1",
+      expiresAt: Date.now() + 60_000,
+    }),
+    validateConfirmation: async (id, ownerId) => ({
+      id,
+      sessionId: ownerId,
+      action: "github.write:delete_merged_branches",
+      resource: {
+        repository: "radostinvgeorgiev-commits/sunchron-backend",
+        fingerprint: "fingerprint",
+      },
+      params: { branchNames: ["merged-safe"] },
+    }),
+    consumeConfirmation: async (id) => consumed.push(id),
+    executeCleanup: async ({ branchNames }) => ({
+      deleted: branchNames,
+      count: branchNames.length,
+    }),
+    audit: async () => {},
+  });
+  const prepared = await handle(
+    {
+      jsonrpc: "2.0",
+      id: 9,
+      method: "tools/call",
+      params: {
+        name: "prepare_github_merged_branch_cleanup",
+        arguments: {},
+      },
+    },
+    "primary-user",
+  );
+  assert.equal(prepared.result.structuredContent.confirmationId, "confirmation-1");
+
+  const confirmed = await handle(
+    {
+      jsonrpc: "2.0",
+      id: 10,
+      method: "tools/call",
+      params: {
+        name: "confirm_github_merged_branch_cleanup",
+        arguments: { confirmationId: "confirmation-1" },
+      },
+    },
+    "primary-user",
+  );
+  assert.equal(confirmed.result.structuredContent.count, 1);
+  assert.deepEqual(consumed, ["confirmation-1"]);
 });

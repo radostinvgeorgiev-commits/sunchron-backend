@@ -54,7 +54,10 @@ app.use((_req, res, next) => {
       "manifest-src 'self'",
     ].join("; "),
   );
-  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  res.setHeader(
+    "Strict-Transport-Security",
+    "max-age=31536000; includeSubDomains",
+  );
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -67,6 +70,23 @@ app.use((_req, res, next) => {
   next();
 });
 app.use(express.json({ limit: "8mb" }));
+
+const mobileLayoutAssetVersion = "20260730-v2";
+app.get(
+  `/assets/${mobileLayoutAssetVersion}/synchron-vision.css`,
+  (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    res.sendFile(`${process.cwd()}/public/synchron-vision.css`);
+  },
+);
+app.get(
+  `/assets/${mobileLayoutAssetVersion}/synchron-vision.js`,
+  (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    res.sendFile(`${process.cwd()}/public/synchron-vision.js`);
+  },
+);
+
 app.use(
   express.static("public", {
     maxAge: 0,

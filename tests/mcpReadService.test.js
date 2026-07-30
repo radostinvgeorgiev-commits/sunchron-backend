@@ -14,7 +14,7 @@ test("MCP token validation is fail-closed and timing-safe compatible", () => {
   assert.equal(isValidMcpToken(`Bearer ${token}`, "short"), false);
 });
 
-test("MCP exposes four read tools and a two-step cleanup flow", () => {
+test("MCP exposes read tools and a two-step cleanup flow", () => {
   assert.deepEqual(
     MCP_TOOLS.map((tool) => tool.name),
     [
@@ -22,6 +22,8 @@ test("MCP exposes four read tools and a two-step cleanup flow", () => {
       "get_project_context",
       "list_synchron_conversations",
       "get_synchron_conversation",
+      "get_digitalocean_app_status",
+      "get_cloudflare_zone_status",
       "prepare_github_merged_branch_cleanup",
       "confirm_github_merged_branch_cleanup",
     ],

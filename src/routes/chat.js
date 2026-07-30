@@ -338,6 +338,30 @@ export function detectCapabilityRequests(message) {
         message: subtask,
       });
     }
+    if (
+      /(?:digitalocean|digital\s*ocean|дигитал\s*океан|дижитал\s*окен)/iu.test(
+        subtask,
+      ) &&
+      /(?:провери|покажи|статус|работи|деплой|deployment|публикуван|последн)/iu.test(
+        subtask,
+      )
+    ) {
+      requests.push({
+        capability: "infrastructure.digitalocean.read",
+        action: "infrastructure.read",
+        message: subtask,
+      });
+    }
+    if (
+      /(?:cloudflare|клаудфлеър|клауф\s*фаер)/iu.test(subtask) &&
+      /(?:провери|покажи|статус|работи|dns|домейн|зона|запис)/iu.test(subtask)
+    ) {
+      requests.push({
+        capability: "infrastructure.cloudflare.read",
+        action: "infrastructure.read",
+        message: subtask,
+      });
+    }
     const repositoryInspectionSubtask =
       /(?:tool\s+registry|capability\s+engine|(?:кои\s+)?инструменти.*регистрирани|регистрирани\s+инструменти|разрешения.*инструмент|чатът.*capability|последно\s+поправен.*проблем)/iu.test(
         subtask,
@@ -478,6 +502,8 @@ function capabilityLabel(capability) {
   if (capability === "memory.read") return "памет";
   if (capability === "memory.verify") return "автоматичен тест на паметта";
   if (capability === "web.search") return "интернет търсене";
+  if (capability === "infrastructure.digitalocean.read") return "DigitalOcean";
+  if (capability === "infrastructure.cloudflare.read") return "Cloudflare";
   return capability;
 }
 

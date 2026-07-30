@@ -26,6 +26,14 @@ import {
   prepareMergedBranchCleanup,
 } from "../services/githubBranchCleanupService.js";
 import { checkSupabaseStatus } from "../services/supabaseService.js";
+import {
+  formatDigitalOceanStatus,
+  getDigitalOceanAppStatus,
+} from "../services/digitalOceanService.js";
+import {
+  formatCloudflareStatus,
+  getCloudflareZoneStatus,
+} from "../services/cloudflareService.js";
 import { findToolsByCapability, registerCoreTools } from "./toolRegistry.js";
 
 export class CapabilityError extends Error {
@@ -156,6 +164,10 @@ const executors = Object.freeze({
       "OpenSearch остава постоянната AI памет.",
     ].join("\n");
   },
+  "digitalocean-read": async () =>
+    formatDigitalOceanStatus(await getDigitalOceanAppStatus()),
+  "cloudflare-read": async () =>
+    formatCloudflareStatus(await getCloudflareZoneStatus()),
   "opensearch-memory": async ({ capability, input }) => {
     if (capability === "memory.verify") {
       const report = await runMemoryAcceptanceTest({

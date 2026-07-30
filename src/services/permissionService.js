@@ -46,6 +46,11 @@ const POLICY = Object.freeze({
     risk: "low",
     reason: "Supabase достъпът е ограничен само до проверка на статуса.",
   }),
+  "infrastructure.read": Object.freeze({
+    decision: "allow",
+    risk: "low",
+    reason: "Инфраструктурният достъп е ограничен само до статус и диагностика.",
+  }),
   "image.read": Object.freeze({
     decision: "allow",
     risk: "medium",

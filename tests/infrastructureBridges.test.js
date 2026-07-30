@@ -156,11 +156,13 @@ test("DigitalOcean full audit reads account resources without writes or secrets"
   assert.equal(audit.apps.length, 1);
   assert.equal(audit.droplets.length, 1);
   assert.equal(audit.databases[0].engine, "opensearch");
-  assert.match(formatDigitalOceanAudit(audit), /пълен одит/u);
+  assert.match(formatDigitalOceanAudit(audit), /преглед на ресурсите/u);
+  assert.match(formatDigitalOceanAudit(audit), /проверени 23 от 23/u);
   assert.match(
     formatDigitalOceanAudit(audit),
     /без включени автоматични backups/u,
   );
+  assert.match(formatDigitalOceanAudit(audit), /Не са направени промени/u);
   assert.equal(audit.unavailable.length, 0);
   assert.equal(calls.length, 23);
   assert.ok(calls.every((call) => call.options.method === "GET"));

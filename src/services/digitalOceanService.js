@@ -1,4 +1,12 @@
+import { randomBytes } from "node:crypto";
+
 const DEFAULT_API_URL = "https://api.digitalocean.com/v2";
+export const TESTER_AUTH_ENV_KEYS = Object.freeze([
+  "SUPABASE_URL",
+  "SUPABASE_PUBLISHABLE_KEY",
+  "SUPABASE_SESSION_ENCRYPTION_KEY",
+  "SYNCHRON_TEST_INVITE_CODE",
+]);
 
 export class DigitalOceanError extends Error {
   constructor(message, status = 502, code = "DIGITALOCEAN_ERROR") {
@@ -34,13 +42,26 @@ function requiredAppConfig(env = process.env) {
   return { token, appId };
 }
 
-async function request(path, { env = process.env, fetchImpl = fetch } = {}) {
+async function request(
+  path,
+  {
+    env = process.env,
+    fetchImpl = fetch,
+    method = "GET",
+    body = undefined,
+  } = {},
+) {
   const token = requiredToken(env);
   const response = await fetchImpl(
     `${env.DIGITALOCEAN_API_URL || DEFAULT_API_URL}${path}`,
     {
-      method: "GET",
-      headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+      method,
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     },
   );
   if (!response.ok) {
@@ -51,6 +72,176 @@ async function request(path, { env = process.env, fetchImpl = fetch } = {}) {
     );
   }
   return response.json();
+}
+
+function normalizeTesterAuthConfig({ projectUrl, publishableKey }) {
+  let url;
+  try {
+    url = new URL(String(projectUrl || "").trim());
+  } catch {
+    throw new DigitalOceanError(
+      "Supabase project URL е невалиден.",
+      400,
+      "TESTER_AUTH_INVALID_SUPABASE_URL",
+    );
+  }
+  if (
+    url.protocol !== "https:" ||
+    !/^[a-z0-9]+\.supabase\.co$/u.test(url.hostname) ||
+    url.pathname !== "/"
+  ) {
+    throw new DigitalOceanError(
+      "Supabase project URL трябва да е защитен адрес на Supabase.",
+      400,
+      "TESTER_AUTH_INVALID_SUPABASE_URL",
+    );
+  }
+
+  const key = String(publishableKey || "").trim();
+  if (!/^sb_publishable_[A-Za-z0-9_-]{20,}$/u.test(key)) {
+    throw new DigitalOceanError(
+      "Supabase publishable key е невалиден.",
+      400,
+      "TESTER_AUTH_INVALID_PUBLISHABLE_KEY",
+    );
+  }
+  return { projectUrl: url.origin, publishableKey: key };
+}
+
+function assertSafeSecretRoundTrip(spec) {
+  if (!spec || typeof spec !== "object" || Array.isArray(spec)) {
+    throw new DigitalOceanError(
+      "DigitalOcean не върна валиден app spec.",
+      502,
+      "DIGITALOCEAN_INVALID_APP_SPEC",
+    );
+  }
+  const unsafe = listDigitalOceanEnvironmentVariables(spec).filter(
+    ({ type, sourceKind, sourceName, key }) => {
+      if (type !== "SECRET") return false;
+      const sources =
+        sourceKind === "app"
+          ? [spec]
+          : {
+              service: spec.services,
+              worker: spec.workers,
+              job: spec.jobs,
+              function: spec.functions,
+              "static-site": spec.static_sites,
+            }[sourceKind] || [];
+      const source =
+        sourceKind === "app"
+          ? spec
+          : sources.find((item) => (item?.name || sourceKind) === sourceName);
+      const value = source?.envs?.find((item) => item?.key === key)?.value;
+      return typeof value !== "string" || value.length === 0;
+    },
+  );
+  if (unsafe.length) {
+    throw new DigitalOceanError(
+      "DigitalOcean не върна безопасно съществуващите encrypted variables. App spec няма да бъде променен.",
+      409,
+      "DIGITALOCEAN_SECRET_ROUND_TRIP_UNSAFE",
+    );
+  }
+}
+
+export function missingTesterAuthEnvironmentKeys(spec = {}) {
+  const existing = new Set(
+    listDigitalOceanEnvironmentVariables(spec).map(({ key }) => key),
+  );
+  return TESTER_AUTH_ENV_KEYS.filter((key) => !existing.has(key));
+}
+
+export function addTesterAuthEnvironmentVariables(
+  spec,
+  { projectUrl, publishableKey, sessionEncryptionKey, inviteCode },
+) {
+  if (!spec || typeof spec !== "object" || Array.isArray(spec)) {
+    throw new DigitalOceanError(
+      "DigitalOcean не върна валиден app spec.",
+      502,
+      "DIGITALOCEAN_INVALID_APP_SPEC",
+    );
+  }
+  const missingKeys = missingTesterAuthEnvironmentKeys(spec);
+  const values = {
+    SUPABASE_URL: projectUrl,
+    SUPABASE_PUBLISHABLE_KEY: publishableKey,
+    SUPABASE_SESSION_ENCRYPTION_KEY: sessionEncryptionKey,
+    SYNCHRON_TEST_INVITE_CODE: inviteCode,
+  };
+  const nextSpec = structuredClone(spec);
+  const current = Array.isArray(nextSpec.envs) ? nextSpec.envs : [];
+  nextSpec.envs = [
+    ...current,
+    ...missingKeys.map((key) => ({
+      key,
+      scope: "RUN_TIME",
+      type: "SECRET",
+      value: values[key],
+    })),
+  ];
+  return { spec: nextSpec, missingKeys };
+}
+
+export async function activateTesterAuthConfiguration({
+  projectUrl,
+  publishableKey,
+  expectedAppId = "",
+  env = process.env,
+  fetchImpl = fetch,
+  randomBytesImpl = randomBytes,
+} = {}) {
+  const { token, appId } = requiredAppConfig(env);
+  if (expectedAppId && expectedAppId !== appId) {
+    throw new DigitalOceanError(
+      "Потвърждението е за друго DigitalOcean приложение.",
+      409,
+      "DIGITALOCEAN_APP_CHANGED",
+    );
+  }
+  const config = normalizeTesterAuthConfig({ projectUrl, publishableKey });
+  const options = { env: { ...env, DIGITALOCEAN_API_TOKEN: token }, fetchImpl };
+  const appData = await request(`/apps/${encodeURIComponent(appId)}`, options);
+  const app = appData.app || {};
+  const currentSpec = app.spec;
+  assertSafeSecretRoundTrip(currentSpec);
+  const existingMissing = missingTesterAuthEnvironmentKeys(currentSpec);
+  if (!existingMissing.length) {
+    return {
+      updated: false,
+      appId,
+      changedKeys: [],
+      deploymentId: app.in_progress_deployment?.id || null,
+      inviteCode: env.SYNCHRON_TEST_INVITE_CODE || null,
+    };
+  }
+
+  const sessionEncryptionKey = randomBytesImpl(32).toString("base64url");
+  const inviteCode = randomBytesImpl(12).toString("base64url");
+  const update = addTesterAuthEnvironmentVariables(currentSpec, {
+    ...config,
+    sessionEncryptionKey,
+    inviteCode,
+  });
+  const updatedData = await request(`/apps/${encodeURIComponent(appId)}`, {
+    ...options,
+    method: "PUT",
+    body: { spec: update.spec },
+  });
+  return {
+    updated: true,
+    appId,
+    changedKeys: update.missingKeys,
+    deploymentId:
+      updatedData.app?.in_progress_deployment?.id ||
+      updatedData.app?.active_deployment?.id ||
+      null,
+    inviteCode: update.missingKeys.includes("SYNCHRON_TEST_INVITE_CODE")
+      ? inviteCode
+      : env.SYNCHRON_TEST_INVITE_CODE || null,
+  };
 }
 
 export function listDigitalOceanEnvironmentVariables(spec = {}) {

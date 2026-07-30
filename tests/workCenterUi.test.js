@@ -65,6 +65,7 @@ function createHarness({
   },
   googleConnected = false,
   githubConnected = false,
+  testerAuth = { configured: false, registrationEnabled: false },
   fetchFails = false,
 } = {}) {
   const dom = new JSDOM(`<!doctype html><body>
@@ -96,7 +97,9 @@ function createHarness({
             ? { connected: googleConnected }
             : path.includes("/api/github/status")
               ? { connected: githubConnected }
-              : config || {};
+              : path.includes("/api/tester-auth/status")
+                ? testerAuth
+                : config || {};
       return {
         ok: true,
         json: async () => result,
@@ -255,6 +258,21 @@ test("work center shows real connection state instead of claiming everything wor
   assert.match(text, /DigitalOcean Read: работи/u);
   assert.match(text, /Cloudflare Read: не е конфигуриран/u);
   assert.match(text, /Изисква еднократен вход в Google/u);
+  assert.match(text, /Активирай тестови профили/u);
+  assert.match(text, /Изисква точно потвърждение/u);
+});
+
+test("work center shows the invite action only after tester auth is active", async () => {
+  const harness = createHarness({
+    testerAuth: { configured: true, registrationEnabled: true },
+  });
+  await openCenter(harness);
+  const card = harness.dom.window.document.querySelector(
+    '[data-work-center-action="show-tester-invite"]',
+  );
+
+  assert.match(card.textContent, /Тестови профили/u);
+  assert.match(card.textContent, /Работи · Само за собственика/u);
 });
 
 test("one Google login marks Drive, Gmail, and Calendar as connected", async () => {

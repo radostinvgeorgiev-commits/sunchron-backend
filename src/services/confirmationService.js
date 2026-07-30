@@ -9,11 +9,12 @@ const CONFIRMATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const CONFIRMATION_INDEX =
   process.env.CONFIRMATION_INDEX || "synchron-confirmations-v1";
 
-// Only the OAuth-backed Copilot flow may create GitHub confirmations.
-// Legacy direct write actions are intentionally blocked by default.
+// Only explicitly listed, narrow write flows may create confirmations.
+// Legacy direct GitHub writes and arbitrary infrastructure writes stay blocked.
 const ALLOWED_ACTIONS = new Set([
   "github.copilot:start_task",
   "github.write:delete_merged_branches",
+  "infrastructure.digitalocean:activate_tester_auth",
 ]);
 
 // Fields that must never be stored in a confirmation (audit safety)

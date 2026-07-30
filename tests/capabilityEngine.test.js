@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildIntegrationStatusReport,
   CapabilityError,
   executeCapability,
   isToolExecutable,
@@ -121,6 +122,31 @@ test("изпълнява GitHub четене чрез избрания инст�
   }
 });
 
+test("връща общ статус само след реални проверки", async () => {
+  const report = await buildIntegrationStatusReport(
+    {
+      ownerId: "primary-user",
+      githubSessionId: "github-session",
+      googleSessionId: "",
+    },
+    {
+      checkGitHub: async () => true,
+      checkMemory: async () => [],
+      checkSupabase: async () => ({ status: "healthy" }),
+      checkDigitalOcean: async () => ({ app: { id: "app-1" } }),
+      env: { OPENAI_API_KEY: "configured" },
+    },
+  );
+
+  assert.match(report, /Проверих инструментите реално сега/u);
+  assert.match(report, /GitHub Read/u);
+  assert.match(report, /Synchron Memory/u);
+  assert.match(report, /Supabase Status/u);
+  assert.match(report, /DigitalOcean Read/u);
+  assert.match(report, /Google Drive — изисква Google вход/u);
+  assert.match(report, /GitHub Write — свързан; изисква потвърждение/u);
+});
+
 test("не изпълнява способност за потвърждение без разрешение", async () => {
   await assert.rejects(
     () => executeCapability("memory.delete"),
@@ -134,6 +160,7 @@ test("всеки регистриран основен инструмент им
   registerCoreTools();
   for (const id of [
     "github-read",
+    "synchron-integrations-status",
     "github-write",
     "google-drive-read",
     "google-calendar-read",

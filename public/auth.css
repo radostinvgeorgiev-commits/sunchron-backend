@@ -180,6 +180,17 @@
   font-weight: 800;
 }
 
+.profile-button-visible {
+  flex: 0 0 auto;
+  border: 1px solid rgba(18, 32, 29, 0.1) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+}
+
+.profile-button-visible #profileRole {
+  color: #1b6f57;
+  font-weight: 800;
+}
+
 @media (max-width: 520px) {
   .auth-card {
     padding: 24px 20px;

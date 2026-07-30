@@ -97,6 +97,21 @@ export function resetToolRegistryForTests() {
 export function registerCoreTools() {
   [
     {
+      id: "synchron-integrations-status",
+      provider: "synchron",
+      name: "SYNCHRON-X Status",
+      version: "1.0.0",
+      category: "system",
+      capabilities: ["system.integrations.status"],
+      permissions: ["infrastructure.read"],
+      capabilityPermissions: {
+        "system.integrations.status": "infrastructure.read",
+      },
+      enabled: true,
+      requiresConfirmation: false,
+      healthStatus: "healthy",
+    },
+    {
       id: "github-read",
       provider: "github",
       name: "GitHub Read",

@@ -159,6 +159,10 @@ function resolveToolHealthStatus(tool, configuration = {}) {
 export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
   registerCoreTools();
   const configuration = {
+    "synchron-integrations-status": {
+      configured: true,
+      authenticated: true,
+    },
     "github-read": {
       configured: true,
       authenticated: true,

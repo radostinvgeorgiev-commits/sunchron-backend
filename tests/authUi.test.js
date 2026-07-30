@@ -36,3 +36,14 @@ test("hides owner tools for tester profiles and exposes logout", () => {
   assert.match(app, /user\?\.role === "owner"/u);
   assert.match(app, /\/api\/auth\/logout/u);
 });
+
+test("shows the authenticated profile before the long navigation list", () => {
+  const profilePosition = html.indexOf('id="toggleStatusBtn"');
+  const navigationPosition = html.indexOf('class="sidebar-nav"');
+  const conversationPosition = html.indexOf('id="conversationList"');
+
+  assert.ok(profilePosition > 0);
+  assert.ok(profilePosition < navigationPosition);
+  assert.ok(profilePosition < conversationPosition);
+  assert.match(html, /id="profileRole">Проверка на профила/u);
+});

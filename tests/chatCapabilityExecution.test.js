@@ -75,6 +75,28 @@ test("recognizes common Bulgarian GitHub spellings as a real tool request", () =
   }
 });
 
+test("общ въпрос за инструментите задейства реална системна проверка", () => {
+  for (const message of [
+    "А инструментите работят ли?",
+    "Кои връзки са активни?",
+    "Покажи статус на интеграциите.",
+  ]) {
+    assert.deepEqual(
+      detectCapabilityRequests(message).map(({ capability }) => capability),
+      ["system.integrations.status"],
+    );
+  }
+});
+
+test("въпрос за Tool Registry остава GitHub проверка, а не системен статус", () => {
+  assert.deepEqual(
+    detectCapabilityRequests(
+      "Провери в GitHub кои инструменти са регистрирани в Tool Registry.",
+    ).map(({ capability }) => capability),
+    ["code.read"],
+  );
+});
+
 test("routes safe merged-branch cleanup planning from chat to GitHub Read", () => {
   const message =
     "Подготви безопасен списък за изтриване само на GitHub клоновете от вече слети PR-и. Не изтривай нищо.";
@@ -399,7 +421,13 @@ test("detects a combined personal-OS tool check without duplicate GitHub tasks",
   const requests = detectCapabilityRequests(message);
   assert.deepEqual(
     requests.map(({ capability }) => capability),
-    ["code.read", "calendar.read", "memory.read", "web.search"],
+    [
+      "code.read",
+      "calendar.read",
+      "memory.read",
+      "web.search",
+      "system.integrations.status",
+    ],
   );
   assert.equal(
     requests.filter(({ capability }) => capability === "code.read").length,
@@ -428,7 +456,7 @@ test("a GitHub implementation task creates one read check and one honest write a
   const requests = detectCapabilityRequests(message);
   assert.deepEqual(
     requests.map(({ capability }) => capability),
-    ["code.read", "code.write"],
+    ["code.read", "system.integrations.status", "code.write"],
   );
   assert.equal(
     requests.filter(({ capability }) => capability === "code.read").length,

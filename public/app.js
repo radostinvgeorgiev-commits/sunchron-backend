@@ -2,6 +2,8 @@ const state = {
   sessionId: getOrCreateSessionId(),
   serverOnline: false,
   opensearchStatus: "unknown",
+  opensearchFailures: 0,
+  lastMemorySuccessAt: 0,
   lastActions: [],
   chatBusy: false,
   speakingButton: null,
@@ -141,6 +143,7 @@ async function restoreConversation() {
     );
     if (!response.ok) throw new Error("Историята не е достъпна.");
     const data = await response.json();
+    markMemoryOperational();
     const items = Array.isArray(data.items) ? data.items : [];
     if (items.length === 0) {
       await showWelcomeMessage();
@@ -582,6 +585,7 @@ async function openMemoryDrawer() {
     const response = await fetch("/memory/profile", { cache: "no-store" });
     if (!response.ok) throw new Error("Паметта временно не е достъпна.");
     const data = await response.json();
+    markMemoryOperational();
     state.memoryItems = Array.isArray(data.items) ? data.items : [];
     renderMemoryItems();
   } catch (error) {
@@ -1205,16 +1209,38 @@ async function checkHealth() {
 
 async function checkOpenSearch() {
   try {
-    const response = await fetch("/opensearch-status", { cache: "no-store" });
-    if (response.ok) {
-      const data = await response.json();
-      updateOpenSearchUI(data.status);
-    } else {
-      updateOpenSearchUI("error");
+    const response = await fetch("/health/ready", { cache: "no-store" });
+    const data = await response.json();
+    const memory = data?.checks?.memory;
+
+    if (memory?.ready) {
+      state.opensearchFailures = 0;
+      updateOpenSearchUI(memory.status || "operational");
+      return;
     }
+
+    handleOpenSearchProbeFailure(memory?.status || "unavailable");
   } catch {
-    updateOpenSearchUI("unreachable");
+    handleOpenSearchProbeFailure("unreachable");
   }
+}
+
+function markMemoryOperational() {
+  state.lastMemorySuccessAt = Date.now();
+  state.opensearchFailures = 0;
+  updateOpenSearchUI("operational");
+}
+
+function handleOpenSearchProbeFailure(status) {
+  const memoryWorkedRecently = Date.now() - state.lastMemorySuccessAt < 60_000;
+
+  if (memoryWorkedRecently) {
+    updateOpenSearchUI("operational");
+    return;
+  }
+
+  state.opensearchFailures += 1;
+  updateOpenSearchUI(state.opensearchFailures >= 3 ? status : "checking");
 }
 
 function setServerStatus(isOnline) {
@@ -1229,18 +1255,28 @@ function setServerStatus(isOnline) {
 
 function updateOpenSearchUI(status) {
   state.opensearchStatus = status;
-  elements.opensearchStatusDisplay.textContent = status;
   elements.opensearchStatusDisplay.className = "context-value";
 
-  if (status === "green") {
+  if (status === "green" || status === "operational") {
+    elements.opensearchStatusDisplay.textContent = "Свързан · работи";
     elements.opensearchStatusDisplay.classList.add("status-green");
+  } else if (status === "yellow") {
+    elements.opensearchStatusDisplay.textContent = "Работи · ограничен резерв";
+    elements.opensearchStatusDisplay.classList.add("status-yellow");
   } else if (
     status === "red" ||
     status === "error" ||
-    status === "unreachable"
+    status === "unreachable" ||
+    status === "unavailable"
   ) {
+    elements.opensearchStatusDisplay.textContent =
+      status === "red" ? "Проблем в паметта" : "Временно недостъпен";
+    elements.opensearchStatusDisplay.classList.add("status-red");
+  } else if (status === "not-configured") {
+    elements.opensearchStatusDisplay.textContent = "Не е настроен";
     elements.opensearchStatusDisplay.classList.add("status-red");
   } else {
+    elements.opensearchStatusDisplay.textContent = "Проверка…";
     elements.opensearchStatusDisplay.classList.add("status-yellow");
   }
 }

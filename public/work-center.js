@@ -123,7 +123,36 @@
     };
   }
 
-  function renderWorkCenter(config, readiness = null) {
+  function resolveToolStatus(
+    integrations,
+    toolId,
+    { connected = true, connectionName = "услугата" } = {},
+  ) {
+    const tool = integrations?.tools?.find((item) => item.id === toolId);
+    if (!tool?.configured || !tool?.enabled || !tool?.executable) {
+      return {
+        label: "Не е конфигуриран",
+        className: "warning",
+      };
+    }
+    if (!connected) {
+      return {
+        label: `Изисква еднократен вход в ${connectionName}`,
+        className: "warning",
+      };
+    }
+    return {
+      label: toolId === "github-read" ? "GitHub Read: работи" : "Работи",
+      className: "internal",
+    };
+  }
+
+  function renderWorkCenter(
+    config,
+    readiness = null,
+    integrations = null,
+    sessions = {},
+  ) {
     const chatgptUrl = safeHttpsUrl(
       config.chatgptWorkUrl,
       FALLBACK_CONFIG.chatgptWorkUrl,
@@ -151,6 +180,32 @@
     grid.className = "work-center-grid";
     grid.setAttribute("aria-label", "Услуги на проекта");
     const coreStatus = resolveCoreStatus(readiness);
+    const githubReadStatus = resolveToolStatus(integrations, "github-read");
+    const digitalOceanStatus = resolveToolStatus(
+      integrations,
+      "digitalocean-read",
+    );
+    const cloudflareStatus = resolveToolStatus(integrations, "cloudflare-read");
+    const googleDriveStatus = resolveToolStatus(
+      integrations,
+      "google-drive-read",
+      {
+        connected: Boolean(sessions.googleConnected),
+        connectionName: "Google",
+      },
+    );
+    const gmailStatus = resolveToolStatus(integrations, "gmail-read", {
+      connected: Boolean(sessions.googleConnected),
+      connectionName: "Google",
+    });
+    const calendarStatus = resolveToolStatus(
+      integrations,
+      "google-calendar-read",
+      {
+        connected: Boolean(sessions.googleConnected),
+        connectionName: "Google",
+      },
+    );
     const cards = [
       createInternalCard({
         title: "SYNCHRON-X — свързан разговор",
@@ -175,11 +230,11 @@
         description: "Кодът и историята на SYNCHRON-X.",
         url: REPOSITORY_URL,
         icon: "fa-brands fa-github",
+        status: githubReadStatus.label,
       }),
       createInternalCard({
         title: "Дневник на задачите",
-        description:
-          "Текущи, чакащи и завършени задачи на едно място.",
+        description: "Текущи, чакащи и завършени задачи на едно място.",
         targetId: "focusBtn",
         icon: "fa-solid fa-list-check",
         status: "Вградено · Запазва се автоматично",
@@ -201,30 +256,38 @@
         description: "Облачната услуга, която публикува сайта.",
         url: digitalOceanUrl,
         icon: "fa-brands fa-digital-ocean",
+        status: `DigitalOcean Read: ${digitalOceanStatus.label.toLocaleLowerCase("bg-BG")}`,
       }),
       createExternalCard({
         title: "Cloudflare",
         description: "Домейн, защита и мрежови настройки.",
         url: cloudflareUrl,
         icon: "fa-brands fa-cloudflare",
+        status: `Cloudflare Read: ${cloudflareStatus.label.toLocaleLowerCase("bg-BG")}`,
       }),
       createInternalCard({
         title: "Google Drive",
         description: "Преглед и анализ на разрешени файлове.",
         targetId: "googleDriveBtn",
         icon: "fa-brands fa-google-drive",
+        status: googleDriveStatus.label,
+        statusClass: googleDriveStatus.className,
       }),
       createInternalCard({
         title: "Gmail",
         description: "Преглед на разрешените имейли само за четене.",
         targetId: "gmailBtn",
         icon: "fa-solid fa-envelope",
+        status: gmailStatus.label,
+        statusClass: gmailStatus.className,
       }),
       createInternalCard({
         title: "Google Calendar",
         description: "Преглед на предстоящите събития.",
         targetId: "googleCalendarBtn",
         icon: "fa-solid fa-calendar-days",
+        status: calendarStatus.label,
+        statusClass: calendarStatus.className,
       }),
     ];
     cards.forEach((card) => grid.appendChild(card));
@@ -246,9 +309,18 @@
     body.innerHTML =
       '<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Зареждане…</div>';
 
-    const [configResult, readinessResult] = await Promise.allSettled([
+    const [
+      configResult,
+      readinessResult,
+      integrationsResult,
+      googleResult,
+      githubResult,
+    ] = await Promise.allSettled([
       fetch("/api/public-config", { cache: "no-store" }),
       fetch("/health/ready", { cache: "no-store" }),
+      fetch("/health/integrations", { cache: "no-store" }),
+      fetch("/api/google/status", { cache: "no-store" }),
+      fetch("/api/github/status", { cache: "no-store" }),
     ]);
 
     let config = FALLBACK_CONFIG;
@@ -260,7 +332,27 @@
     if (readinessResult.status === "fulfilled" && readinessResult.value.ok) {
       readiness = await readinessResult.value.json();
     }
-    renderWorkCenter(config, readiness);
+    let integrations = null;
+    if (
+      integrationsResult.status === "fulfilled" &&
+      integrationsResult.value.ok
+    ) {
+      integrations = await integrationsResult.value.json();
+    }
+    let googleConnected = false;
+    if (googleResult.status === "fulfilled" && googleResult.value.ok) {
+      const google = await googleResult.value.json();
+      googleConnected = Boolean(google.connected);
+    }
+    let githubConnected = false;
+    if (githubResult.status === "fulfilled" && githubResult.value.ok) {
+      const github = await githubResult.value.json();
+      githubConnected = Boolean(github.connected);
+    }
+    renderWorkCenter(config, readiness, integrations, {
+      googleConnected,
+      githubConnected,
+    });
   }
 
   body.addEventListener("click", (event) => {
@@ -281,6 +373,7 @@
   globalThis.SynchronWorkCenter = Object.freeze({
     openWorkCenter,
     resolveCoreStatus,
+    resolveToolStatus,
     safeHttpsUrl,
   });
 })();

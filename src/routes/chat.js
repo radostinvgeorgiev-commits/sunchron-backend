@@ -27,6 +27,9 @@ import {
   parseGitHubCookies,
 } from "../services/githubOAuthService.js";
 import {
+  isMergedBranchCleanupPlanRequest,
+} from "../services/githubBranchCleanupService.js";
+import {
   confirmCopilotTask,
   CopilotTaskError,
   extractCopilotConfirmationId,
@@ -243,7 +246,8 @@ function isExplicitGitHubReadSubtask(subtask, hasGitHubContext) {
 export function detectCapabilityRequests(message) {
   const requests = [];
   const subtasks = splitCapabilitySubtasks(message);
-  const hasGitHubContext = isGitHubReadRequest(message);
+  const hasGitHubContext =
+    isGitHubReadRequest(message) || isMergedBranchCleanupPlanRequest(message);
   const hasGitHubWriteIntent = isGitHubWriteRequest(message);
   let writeTaskReadAdded = false;
   const hasExplicitNumberedChecks =
@@ -338,9 +342,19 @@ export function detectCapabilityRequests(message) {
       /(?:tool\s+registry|capability\s+engine|(?:кои\s+)?инструменти.*регистрирани|регистрирани\s+инструменти|разрешения.*инструмент|чатът.*capability|последно\s+поправен.*проблем)/iu.test(
         subtask,
       );
+    const mergedBranchCleanupPlan =
+      isMergedBranchCleanupPlanRequest(subtask) ||
+      (hasGitHubContext &&
+        (/(?:слет|merged).{0,50}(?:клон|branch)|(?:клон|branch).{0,50}(?:слет|merged)/iu.test(
+          subtask,
+        ) &&
+        /(?:подготви|покажи|намери|изброй|списък|провери|безопасн)/iu.test(
+          subtask,
+        )));
     const wantsGitHubRead =
       !/(?:използва\s+успешно|кои\s+са\s+достъпни)/iu.test(subtask) &&
-      (isGitHubReadRequest(subtask) ||
+      (mergedBranchCleanupPlan ||
+        isGitHubReadRequest(subtask) ||
         (hasGitHubContext && repositoryInspectionSubtask) ||
         (hasGitHubWriteIntent &&
           isExplicitGitHubReadSubtask(subtask, hasGitHubContext)));

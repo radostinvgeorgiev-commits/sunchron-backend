@@ -13,6 +13,12 @@ function responseRecorder() {
   return {
     statusCode: 200,
     payload: null,
+    headers: {},
+    append(name, value) {
+      this.headers[name] ||= [];
+      this.headers[name].push(value);
+      return this;
+    },
     status(value) {
       this.statusCode = value;
       return this;
@@ -92,6 +98,42 @@ test("allows only the configured owner and attaches verified identity", async ()
     memoryOwnerId: "primary-user",
   });
   assert.equal(response.payload, null);
+});
+
+test("verified GitHub owner takes priority over a stale tester session", async () => {
+  const middleware = createRequireOwnerSession({
+    getSession: async (id) => {
+      assert.equal(id, "owner-session");
+      return {
+        login: "radostinvgeorgiev-commits",
+        accessToken: "protected-token",
+      };
+    },
+    getUserSession: async () =>
+      assert.fail("A verified owner session must bypass the tester session"),
+  });
+  const request = {
+    headers: {
+      cookie:
+        "synchron_user_session=stale-tester; synchron_github_session=owner-session",
+    },
+  };
+  const response = responseRecorder();
+  let continued = false;
+
+  await middleware(request, response, () => {
+    continued = true;
+  });
+
+  assert.equal(continued, true);
+  assert.equal(request.owner.role, "owner");
+  assert.equal(request.owner.authProvider, "github");
+  assert.equal(request.owner.memoryOwnerId, "primary-user");
+  assert.equal(response.headers["Set-Cookie"].length, 1);
+  assert.match(
+    response.headers["Set-Cookie"][0],
+    /^synchron_user_session=;/u,
+  );
 });
 
 test("allows a Supabase tester with a separate memory namespace", async () => {

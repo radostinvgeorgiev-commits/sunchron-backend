@@ -23,6 +23,7 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
       "list_synchron_conversations",
       "get_synchron_conversation",
       "get_digitalocean_app_status",
+      "get_digitalocean_account_audit",
       "get_cloudflare_zone_status",
       "prepare_github_merged_branch_cleanup",
       "confirm_github_merged_branch_cleanup",
@@ -33,6 +34,11 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
   );
   assert.equal(confirm.annotations.readOnlyHint, false);
   assert.equal(confirm.annotations.destructiveHint, true);
+  const digitalOceanAudit = MCP_TOOLS.find(
+    (tool) => tool.name === "get_digitalocean_account_audit",
+  );
+  assert.equal(digitalOceanAudit.annotations.readOnlyHint, true);
+  assert.equal(digitalOceanAudit.annotations.destructiveHint, false);
 });
 
 test("MCP reads owner-scoped personal memory and audits the call", async () => {
@@ -53,7 +59,10 @@ test("MCP reads owner-scoped personal memory and audits the call", async () => {
     },
     "primary-user",
   );
-  assert.equal(response.result.structuredContent.items[0].fact, "Живея във Варна");
+  assert.equal(
+    response.result.structuredContent.items[0].fact,
+    "Живея във Варна",
+  );
   assert.deepEqual(calls[0][1], {
     scope: "personal",
     ownerId: "primary-user",
@@ -130,7 +139,10 @@ test("MCP cleanup requires the exact one-time confirmation", async () => {
     },
     "primary-user",
   );
-  assert.equal(prepared.result.structuredContent.confirmationId, "confirmation-1");
+  assert.equal(
+    prepared.result.structuredContent.confirmationId,
+    "confirmation-1",
+  );
 
   const confirmed = await handle(
     {

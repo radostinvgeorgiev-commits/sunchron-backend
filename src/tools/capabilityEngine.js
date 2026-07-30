@@ -27,7 +27,9 @@ import {
 } from "../services/githubBranchCleanupService.js";
 import { checkSupabaseStatus } from "../services/supabaseService.js";
 import {
+  formatDigitalOceanAudit,
   formatDigitalOceanStatus,
+  getDigitalOceanAccountAudit,
   getDigitalOceanAppStatus,
 } from "../services/digitalOceanService.js";
 import {
@@ -164,8 +166,15 @@ const executors = Object.freeze({
       "OpenSearch остава постоянната AI памет.",
     ].join("\n");
   },
-  "digitalocean-read": async () =>
-    formatDigitalOceanStatus(await getDigitalOceanAppStatus()),
+  "digitalocean-read": async ({ input }) => {
+    const wantsFullAudit =
+      /(?:пълен|цял|одит|акаунт|ресурс|droplet|сървър|баз|мреж|firewall|защит|разход|billing|storage|volume|snapshot|kubernetes)/iu.test(
+        input.message || "",
+      );
+    return wantsFullAudit
+      ? formatDigitalOceanAudit(await getDigitalOceanAccountAudit())
+      : formatDigitalOceanStatus(await getDigitalOceanAppStatus());
+  },
   "cloudflare-read": async () =>
     formatCloudflareStatus(await getCloudflareZoneStatus()),
   "opensearch-memory": async ({ capability, input }) => {

@@ -15,7 +15,9 @@ import {
   executeMergedBranchCleanup,
 } from "./githubBranchCleanupService.js";
 import {
+  formatDigitalOceanAudit,
   formatDigitalOceanStatus,
+  getDigitalOceanAccountAudit,
   getDigitalOceanAppStatus,
 } from "./digitalOceanService.js";
 import {
@@ -44,7 +46,11 @@ export const MCP_TOOLS = Object.freeze([
     title: "Прочети личния контекст",
     description:
       "Прочита проверените лични факти за Радко от постоянната памет на SYNCHRON-X. Използвай само когато са нужни за текущия въпрос.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
@@ -52,7 +58,11 @@ export const MCP_TOOLS = Object.freeze([
     title: "Прочети контекста на проекта",
     description:
       "Прочита проверените факти за NOVARIUM / SYNCHRON-X. Не ги смесвай с личните факти за Радко.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
@@ -89,7 +99,23 @@ export const MCP_TOOLS = Object.freeze([
     title: "Провери DigitalOcean приложението",
     description:
       "Показва статуса на SYNCHRON-X в DigitalOcean App Platform и последните деплои. Не променя нищо.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    annotations: READ_ONLY_ANNOTATIONS,
+  },
+  {
+    name: "get_digitalocean_account_audit",
+    title: "Направи пълен DigitalOcean одит",
+    description:
+      "Проверява само за четене приложения, Droplets, бази, storage, мрежи, firewalls, домейни, разходи и последни действия. Не връща тайни и не променя нищо.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
@@ -97,7 +123,11 @@ export const MCP_TOOLS = Object.freeze([
     title: "Провери Cloudflare и DNS",
     description:
       "Показва статуса на Cloudflare зоната и DNS записите. Не променя нищо.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
@@ -105,7 +135,11 @@ export const MCP_TOOLS = Object.freeze([
     title: "Подготви почистване на слети GitHub клонове",
     description:
       "Проверява кои клонове са от слети PR-и, без отворен PR и без защита. Не изтрива нищо; връща точен списък и еднократно потвърждение.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
@@ -134,15 +168,20 @@ function textResult(data, summary) {
 
 function safeLimit(value, fallback = 20) {
   const parsed = Number(value);
-  return Number.isInteger(parsed) ? Math.min(Math.max(parsed, 1), 50) : fallback;
+  return Number.isInteger(parsed)
+    ? Math.min(Math.max(parsed, 1), 50)
+    : fallback;
 }
 
 export function isValidMcpToken(header, expectedToken) {
-  if (typeof expectedToken !== "string" || expectedToken.length < 32) return false;
+  if (typeof expectedToken !== "string" || expectedToken.length < 32)
+    return false;
   if (typeof header !== "string" || !header.startsWith("Bearer ")) return false;
   const supplied = Buffer.from(header.slice(7), "utf8");
   const expected = Buffer.from(expectedToken, "utf8");
-  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
+  return (
+    supplied.length === expected.length && timingSafeEqual(supplied, expected)
+  );
 }
 
 export function createMcpRequestHandler({
@@ -156,6 +195,7 @@ export function createMcpRequestHandler({
   validateConfirmation = validateDurableConfirmation,
   consumeConfirmation = markDurableConfirmationUsed,
   getDigitalOceanStatus = getDigitalOceanAppStatus,
+  getDigitalOceanAudit = getDigitalOceanAccountAudit,
   getCloudflareStatus = getCloudflareZoneStatus,
 } = {}) {
   async function callTool(name, args, ownerId) {
@@ -182,7 +222,9 @@ export function createMcpRequestHandler({
       const sessionId =
         typeof args?.sessionId === "string" ? args.sessionId.trim() : "";
       if (!sessionId || sessionId.length > 160) {
-        throw Object.assign(new Error("Невалиден sessionId."), { code: -32602 });
+        throw Object.assign(new Error("Невалиден sessionId."), {
+          code: -32602,
+        });
       }
       const items = await listMessages(sessionId, undefined, ownerId);
       result = textResult(
@@ -192,6 +234,9 @@ export function createMcpRequestHandler({
     } else if (name === "get_digitalocean_app_status") {
       const status = await getDigitalOceanStatus();
       result = textResult(status, formatDigitalOceanStatus(status));
+    } else if (name === "get_digitalocean_account_audit") {
+      const auditReport = await getDigitalOceanAudit();
+      result = textResult(auditReport, formatDigitalOceanAudit(auditReport));
     } else if (name === "get_cloudflare_zone_status") {
       const status = await getCloudflareStatus();
       result = textResult(status, formatCloudflareStatus(status));

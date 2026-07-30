@@ -193,6 +193,8 @@ input:focus-visible {
 .message {
   color: var(--sx-ink) !important;
   letter-spacing: -0.012em;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .message.user {
@@ -220,6 +222,10 @@ input:focus-visible {
 .message-actions button {
   border-radius: 12px !important;
   color: var(--sx-muted) !important;
+}
+
+.message-actions .action-label {
+  display: none;
 }
 
 .typing-indicator {
@@ -384,7 +390,8 @@ input:focus-visible {
   }
 
   #chatMessages {
-    padding: 24px 16px 160px !important;
+    padding: 24px 16px calc(var(--sx-mobile-occupied-height, 230px) + 24px) !important;
+    scroll-padding-bottom: calc(var(--sx-mobile-occupied-height, 230px) + 24px);
   }
 
   .composer-wrap {
@@ -397,9 +404,43 @@ input:focus-visible {
     background: linear-gradient(to top, #fbfaf6 72%, transparent) !important;
   }
 
+  .search-mode-bar {
+    width: 100%;
+    margin-bottom: 7px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .search-mode-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .search-mode {
+    flex: 0 0 auto;
+    min-height: 42px;
+  }
+
   .chat-input-area {
     min-height: 62px !important;
     border-radius: 22px !important;
+  }
+
+  .message-actions button[data-action="copy"] {
+    width: auto !important;
+    min-width: 112px;
+    height: 46px !important;
+    padding: 0 14px;
+    gap: 8px;
+    border: 1px solid var(--sx-line);
+    background: rgba(255, 255, 255, 0.72);
+    font-size: 16px;
+    font-weight: 800;
+  }
+
+  .message-actions button[data-action="copy"] .action-label {
+    display: inline;
   }
 
   .composer-note {

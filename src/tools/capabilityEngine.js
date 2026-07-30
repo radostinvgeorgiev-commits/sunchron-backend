@@ -13,6 +13,10 @@ import {
   saveProfileMemory,
 } from "../services/memoryService.js";
 import {
+  formatMemoryAcceptanceReport,
+  runMemoryAcceptanceTest,
+} from "../services/memoryAcceptanceService.js";
+import {
   formatWebSearchResult,
   searchWeb,
 } from "../services/webSearchService.js";
@@ -144,6 +148,25 @@ const executors = Object.freeze({
     ].join("\n");
   },
   "opensearch-memory": async ({ capability, input }) => {
+    if (capability === "memory.verify") {
+      const report = await runMemoryAcceptanceTest({
+        ownerId: input.ownerId,
+        verifyDeleteGuard: async ({ fact, scope, ownerId }) => {
+          try {
+            await executeCapability(
+              "memory.delete",
+              { fact, scope, ownerId },
+              { confirmed: false },
+            );
+          } catch (error) {
+            if (error?.code === "CAPABILITY_CONFIRMATION_REQUIRED") return true;
+            throw error;
+          }
+          return false;
+        },
+      });
+      return formatMemoryAcceptanceReport(report);
+    }
     if (capability === "memory.read" || capability === "memory.search") {
       const memories = await listProfileMemories({
         scope: input.scope,

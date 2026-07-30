@@ -56,6 +56,12 @@ const POLICY = Object.freeze({
     risk: "low",
     reason: "Четенето на собствената памет е разрешено.",
   }),
+  "memory.test": Object.freeze({
+    decision: "allow",
+    risk: "low",
+    reason:
+      "Автоматичният тест използва отделен временен собственик и не променя истинската памет.",
+  }),
   "memory.write": Object.freeze({
     decision: "confirm",
     risk: "medium",

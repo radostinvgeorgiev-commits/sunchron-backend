@@ -2,6 +2,9 @@ name: Production smoke check
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
   schedule:
     - cron: "17 */6 * * *"
 
@@ -15,20 +18,61 @@ concurrency:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 12
 
     steps:
+      - name: Wait for exact production commit
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 24); do
+            response="$(curl --fail --silent --show-error --max-time 30 \
+              https://synchron.foundation/health 2>/dev/null || true)"
+            actual_commit="$(printf '%s' "${response}" | node -e '
+              let input = "";
+              process.stdin.on("data", (chunk) => { input += chunk; });
+              process.stdin.on("end", () => {
+                try {
+                  process.stdout.write(String(JSON.parse(input).commit || ""));
+                } catch {
+                  process.stdout.write("");
+                }
+              });
+            ')"
+
+            if [ "${actual_commit}" = "${EXPECTED_COMMIT}" ]; then
+              echo "Production is running commit ${actual_commit}"
+              exit 0
+            fi
+
+            echo "Attempt ${attempt}/24: production commit is ${actual_commit:-unknown}; waiting for ${EXPECTED_COMMIT}"
+            sleep 15
+          done
+
+          echo "Production did not deploy commit ${EXPECTED_COMMIT} within the verification window." >&2
+          exit 1
+
       - name: Check public site
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error             --retry 3 --retry-delay 10 --retry-all-errors             --max-time 30             https://synchron.foundation/             | grep -qi "Synchron"
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 10 --retry-all-errors \
+            --max-time 30 \
+            https://synchron.foundation/ \
+            | grep -qi "Synchron"
 
       - name: Check application health
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error             --retry 3 --retry-delay 10 --retry-all-errors             --max-time 30             https://synchron.foundation/health             | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 10 --retry-all-errors \
+            --max-time 30 \
+            https://synchron.foundation/health \
+            | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'
 
       - name: Check production readiness
         shell: bash

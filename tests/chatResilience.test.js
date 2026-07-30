@@ -3,7 +3,7 @@ import test from "node:test";
 import request from "supertest";
 
 process.env.NODE_ENV = "test";
-process.env.AGENT_KEY = "test-agent-key";
+process.env.OPENAI_API_KEY = "test-openai-key";
 process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 delete process.env.OPENSEARCH_HOST;
 delete process.env.OPENSEARCH_USERNAME;
@@ -25,11 +25,17 @@ test("normal AI chat continues when persistent memory is unavailable", async () 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () =>
     new Response(
-      'data: {"choices":[{"delta":{"content":"Работя нормално."}}]}\n\n' +
-        "data: [DONE]\n\n",
+      JSON.stringify({
+        output: [
+          {
+            type: "message",
+            content: [{ type: "output_text", text: "Работя нормално." }],
+          },
+        ],
+      }),
       {
         status: 200,
-        headers: { "content-type": "text/event-stream" },
+        headers: { "content-type": "application/json" },
       },
     );
 
@@ -48,17 +54,12 @@ test("normal AI chat continues when persistent memory is unavailable", async () 
   }
 });
 
-test("normal chat uses OpenAI Responses before the DigitalOcean fallback", async () => {
+test("normal chat uses OpenAI Responses without the removed DigitalOcean agent", async () => {
   const originalFetch = globalThis.fetch;
   const originalOpenAiKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = "test-openai-key";
-  let digitalOceanCalls = 0;
 
   globalThis.fetch = async (url, options = {}) => {
-    if (String(url).includes("/api/v1/chat/completions")) {
-      digitalOceanCalls += 1;
-      throw new Error("DigitalOcean should be a fallback only.");
-    }
     assert.equal(String(url), "https://api.openai.com/v1/responses");
     const body = JSON.parse(options.body);
     assert.equal(body.store, false);
@@ -82,7 +83,6 @@ test("normal chat uses OpenAI Responses before the DigitalOcean fallback", async
       .send({ sessionId: "openai-primary-test", message: "Здравей" })
       .expect(200);
 
-    assert.equal(digitalOceanCalls, 0);
     assert.match(response.text, /Отговор от OpenAI\./u);
     assert.match(response.text, /"provider":"openai"/u);
   } finally {
@@ -92,7 +92,7 @@ test("normal chat uses OpenAI Responses before the DigitalOcean fallback", async
   }
 });
 
-test("normal chat falls back to DigitalOcean when OpenAI is unavailable", async () => {
+test("normal chat does not call the removed DigitalOcean agent when OpenAI is unavailable", async () => {
   const originalFetch = globalThis.fetch;
   const originalOpenAiKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = "test-openai-key";
@@ -100,20 +100,7 @@ test("normal chat falls back to DigitalOcean when OpenAI is unavailable", async 
 
   globalThis.fetch = async (url) => {
     calledUrls.push(String(url));
-    if (String(url).includes("api.openai.com")) {
-      return new Response("temporary failure", { status: 503 });
-    }
-    if (String(url).includes("/api/v1/chat/completions")) {
-      return new Response(
-        'data: {"choices":[{"delta":{"content":"Резервният агент работи."}}]}\n\n' +
-          "data: [DONE]\n\n",
-        {
-          status: 200,
-          headers: { "content-type": "text/event-stream" },
-        },
-      );
-    }
-    throw new Error(`Unexpected request: ${url}`);
+    return new Response("temporary failure", { status: 503 });
   };
 
   try {
@@ -123,9 +110,10 @@ test("normal chat falls back to DigitalOcean when OpenAI is unavailable", async 
       .send({ sessionId: "digitalocean-fallback-test", message: "Здравей" })
       .expect(200);
 
-    assert.equal(calledUrls.length, 2);
-    assert.match(response.text, /Резервният агент работи\./u);
-    assert.match(response.text, /"provider":"digitalocean"/u);
+    assert.equal(calledUrls.length, 1);
+    assert.match(calledUrls[0], /api\.openai\.com\/v1\/responses/u);
+    assert.match(response.text, /Връзката с AI ядрото/u);
+    assert.doesNotMatch(response.text, /"provider":"digitalocean"/u);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
@@ -135,22 +123,25 @@ test("normal chat falls back to DigitalOcean when OpenAI is unavailable", async 
 
 test("tool results return to the AI core for one synthesized answer", async () => {
   const originalFetch = globalThis.fetch;
-  let agentCalls = 0;
+  let openAiCalls = 0;
   let githubCalls = 0;
 
   globalThis.fetch = async (url, options = {}) => {
-    if (String(url).includes("/api/v1/chat/completions")) {
-      agentCalls += 1;
+    if (String(url).includes("api.openai.com/v1/responses")) {
+      openAiCalls += 1;
       const body = JSON.parse(options.body);
-      if (body.stream === false) {
+      if (body.model === "gpt-5.6-luna") {
         return new Response(
           JSON.stringify({
-            choices: [
+            output: [
               {
-                message: {
-                  content:
-                    '{"calls":[{"capability":"code.read","request":"Покажи последния commit в GitHub."}]}',
-                },
+                type: "message",
+                content: [
+                  {
+                    type: "output_text",
+                    text: '{"calls":[{"capability":"code.read","request":"Покажи последния commit в GitHub."}]}',
+                  },
+                ],
               },
             ],
           }),
@@ -161,14 +152,25 @@ test("tool results return to the AI core for one synthesized answer", async () =
         );
       }
 
-      assert.match(body.messages[0].content, /РЕЗУЛТАТИ ОТ ИНСТРУМЕНТИ/u);
-      assert.match(body.messages[0].content, /abc1234/u);
+      assert.match(body.input[0].content, /РЕЗУЛТАТИ ОТ ИНСТРУМЕНТИ/u);
+      assert.match(body.input[0].content, /abc1234/u);
       return new Response(
-        'data: {"choices":[{"delta":{"content":"Проверих GitHub. Последният commit е abc1234."}}]}\n\n' +
-          "data: [DONE]\n\n",
+        JSON.stringify({
+          output: [
+            {
+              type: "message",
+              content: [
+                {
+                  type: "output_text",
+                  text: "Проверих GitHub. Последният commit е abc1234.",
+                },
+              ],
+            },
+          ],
+        }),
         {
           status: 200,
-          headers: { "content-type": "text/event-stream" },
+          headers: { "content-type": "application/json" },
         },
       );
     }
@@ -206,7 +208,7 @@ test("tool results return to the AI core for one synthesized answer", async () =
       })
       .expect(200);
 
-    assert.equal(agentCalls, 2);
+    assert.equal(openAiCalls, 2);
     assert.equal(githubCalls, 1);
     assert.match(
       response.text,
@@ -224,13 +226,18 @@ test("explicit GitHub request still runs when the AI planner returns no tools", 
   let githubCalls = 0;
 
   globalThis.fetch = async (url, options = {}) => {
-    if (String(url).includes("/api/v1/chat/completions")) {
+    if (String(url).includes("api.openai.com/v1/responses")) {
       const body = JSON.parse(options.body);
-      if (body.stream === false) {
+      if (body.model === "gpt-5.6-luna") {
         plannerCalls += 1;
         return new Response(
           JSON.stringify({
-            choices: [{ message: { content: '{"calls":[]}' } }],
+            output: [
+              {
+                type: "message",
+                content: [{ type: "output_text", text: '{"calls":[]}' }],
+              },
+            ],
           }),
           {
             status: 200,
@@ -239,14 +246,22 @@ test("explicit GitHub request still runs when the AI planner returns no tools", 
         );
       }
 
-      assert.match(body.messages[0].content, /РЕЗУЛТАТИ ОТ ИНСТРУМЕНТИ/u);
-      assert.match(body.messages[0].content, /Planner cannot suppress tools/u);
+      assert.match(body.input[0].content, /РЕЗУЛТАТИ ОТ ИНСТРУМЕНТИ/u);
+      assert.match(body.input[0].content, /Planner cannot suppress tools/u);
       return new Response(
-        'data: {"choices":[{"delta":{"content":"Проверих GitHub успешно."}}]}\n\n' +
-          "data: [DONE]\n\n",
+        JSON.stringify({
+          output: [
+            {
+              type: "message",
+              content: [
+                { type: "output_text", text: "Проверих GitHub успешно." },
+              ],
+            },
+          ],
+        }),
         {
           status: 200,
-          headers: { "content-type": "text/event-stream" },
+          headers: { "content-type": "application/json" },
         },
       );
     }
@@ -306,10 +321,10 @@ test("explicit memory writes fail safely when memory is unavailable", async () =
   assert.match(response.body.error, /Нищо не беше записано или изтрито/u);
 });
 
-test("independent tools still run when the AI agent key is unavailable", async () => {
+test("independent tools still run when the OpenAI key is unavailable", async () => {
   const originalFetch = globalThis.fetch;
-  const originalAgentKey = process.env.AGENT_KEY;
-  delete process.env.AGENT_KEY;
+  const originalOpenAiKey = process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
   globalThis.fetch = async (url) => {
     assert.match(String(url), /api\.github\.com\/repos\//u);
     return new Response(
@@ -346,14 +361,14 @@ test("independent tools still run when the AI agent key is unavailable", async (
     assert.doesNotMatch(response.text, /AI разговорът временно/u);
   } finally {
     globalThis.fetch = originalFetch;
-    if (originalAgentKey === undefined) delete process.env.AGENT_KEY;
-    else process.env.AGENT_KEY = originalAgentKey;
+    if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = originalOpenAiKey;
   }
 });
 
 test("normal chat reports only the missing AI connection", async () => {
-  const originalAgentKey = process.env.AGENT_KEY;
-  delete process.env.AGENT_KEY;
+  const originalOpenAiKey = process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
 
   try {
     const response = await request(app)
@@ -366,7 +381,7 @@ test("normal chat reports only the missing AI connection", async () => {
     assert.match(response.text, /AI разговорът временно не е конфигуриран/u);
     assert.match(response.text, /Независимите инструменти остават достъпни/u);
   } finally {
-    if (originalAgentKey === undefined) delete process.env.AGENT_KEY;
-    else process.env.AGENT_KEY = originalAgentKey;
+    if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = originalOpenAiKey;
   }
 });

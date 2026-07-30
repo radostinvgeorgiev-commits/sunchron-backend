@@ -48,13 +48,8 @@ export async function getReadinessStatus({
   loadOpenSearchClient = getOpenSearchClient,
   timeoutMs = DEFAULT_READINESS_TIMEOUT_MS,
 } = {}) {
-  const digitalOceanAgentReady = hasAllEnvironmentVariables(
-    env,
-    "AGENT_URL",
-    "AGENT_KEY",
-  );
   const openAiReady = Boolean(env.OPENAI_API_KEY);
-  const chatAgentReady = openAiReady || digitalOceanAgentReady;
+  const chatAgentReady = openAiReady;
   let memory = { ready: false, status: "unavailable" };
 
   try {
@@ -71,9 +66,7 @@ export async function getReadinessStatus({
     memory = { ready: false, status: "unavailable" };
   }
 
-  const bridge = (
-    await getBridgeDiagnosticsStatus({ env, timeoutMs })
-  ).bridge;
+  const bridge = (await getBridgeDiagnosticsStatus({ env, timeoutMs })).bridge;
   const ready = chatAgentReady && memory.ready;
   return {
     status: ready ? "ready" : "not-ready",
@@ -82,12 +75,8 @@ export async function getReadinessStatus({
       chatAgent: {
         ready: chatAgentReady,
         status: chatAgentReady ? "configured" : "not-configured",
-        primaryProvider: openAiReady
-          ? "openai"
-          : digitalOceanAgentReady
-            ? "digitalocean"
-            : null,
-        fallbackConfigured: openAiReady && digitalOceanAgentReady,
+        primaryProvider: openAiReady ? "openai" : null,
+        removedProvider: "digitalocean-agent",
       },
       memory,
       bridge,
@@ -214,8 +203,7 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
     "digitalocean-read": {
       configured:
         Boolean(
-          process.env.DIGITALOCEAN_API_TOKEN ||
-            process.env.DIGITALOCEAN_TOKEN,
+          process.env.DIGITALOCEAN_API_TOKEN || process.env.DIGITALOCEAN_TOKEN,
         ) && Boolean(process.env.DIGITALOCEAN_APP_ID),
     },
     "cloudflare-read": {
@@ -238,17 +226,9 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
     ...getRuntimeVersion(),
     core: {
       chatAgent: {
-        configured:
-          Boolean(process.env.OPENAI_API_KEY) ||
-          hasAllProcessEnvironmentVariables("AGENT_URL", "AGENT_KEY"),
-        primaryProvider: process.env.OPENAI_API_KEY
-          ? "openai"
-          : hasAllProcessEnvironmentVariables("AGENT_URL", "AGENT_KEY")
-            ? "digitalocean"
-            : null,
-        fallbackConfigured:
-          Boolean(process.env.OPENAI_API_KEY) &&
-          hasAllProcessEnvironmentVariables("AGENT_URL", "AGENT_KEY"),
+        configured: Boolean(process.env.OPENAI_API_KEY),
+        primaryProvider: process.env.OPENAI_API_KEY ? "openai" : null,
+        removedProvider: "digitalocean-agent",
       },
       openai: {
         configured: Boolean(process.env.OPENAI_API_KEY),

@@ -23,6 +23,48 @@ function createHarness({
       memory: { ready: true, status: "green" },
     },
   },
+  integrations = {
+    tools: [
+      {
+        id: "github-read",
+        enabled: true,
+        executable: true,
+        configured: true,
+      },
+      {
+        id: "digitalocean-read",
+        enabled: true,
+        executable: true,
+        configured: true,
+      },
+      {
+        id: "cloudflare-read",
+        enabled: true,
+        executable: true,
+        configured: false,
+      },
+      {
+        id: "google-drive-read",
+        enabled: true,
+        executable: true,
+        configured: true,
+      },
+      {
+        id: "gmail-read",
+        enabled: true,
+        executable: true,
+        configured: true,
+      },
+      {
+        id: "google-calendar-read",
+        enabled: true,
+        executable: true,
+        configured: true,
+      },
+    ],
+  },
+  googleConnected = false,
+  githubConnected = false,
   fetchFails = false,
 } = {}) {
   const dom = new JSDOM(`<!doctype html><body>
@@ -45,9 +87,16 @@ function createHarness({
     Event: dom.window.Event,
     fetch: async (url) => {
       if (fetchFails) throw new Error("offline");
-      const result = String(url).includes("/health/ready")
+      const path = String(url);
+      const result = path.includes("/health/ready")
         ? readiness
-        : config || {};
+        : path.includes("/health/integrations")
+          ? integrations
+          : path.includes("/api/google/status")
+            ? { connected: googleConnected }
+            : path.includes("/api/github/status")
+              ? { connected: githubConnected }
+              : config || {};
       return {
         ok: true,
         json: async () => result,
@@ -107,7 +156,10 @@ test("work center uses safe GitHub links without duplicating the task journal", 
   const journalButton = harness.dom.window.document.querySelector(
     '[data-work-center-target="focusBtn"]',
   );
-  assert.equal(journalButton?.textContent.includes("Дневник на задачите"), true);
+  assert.equal(
+    journalButton?.textContent.includes("Дневник на задачите"),
+    true,
+  );
   assert.ok(
     hrefs.includes(
       "https://github.com/radostinvgeorgiev-commits/sunchron-backend/pulls",
@@ -190,6 +242,35 @@ test("Google cards reuse the existing hidden integration actions", async () => {
     .click();
 
   assert.deepEqual(clicks, ["googleDriveBtn", "gmailBtn", "googleCalendarBtn"]);
+});
+
+test("work center shows real connection state instead of claiming everything works", async () => {
+  const harness = createHarness();
+  await openCenter(harness);
+  const text = harness.dom.window.document
+    .getElementById("dataDrawerBody")
+    .textContent.replace(/\s+/gu, " ");
+
+  assert.match(text, /GitHub Read: работи/u);
+  assert.match(text, /DigitalOcean Read: работи/u);
+  assert.match(text, /Cloudflare Read: не е конфигуриран/u);
+  assert.match(text, /Изисква еднократен вход в Google/u);
+});
+
+test("one Google login marks Drive, Gmail, and Calendar as connected", async () => {
+  const harness = createHarness({ googleConnected: true });
+  await openCenter(harness);
+  const googleCards = ["googleDriveBtn", "gmailBtn", "googleCalendarBtn"].map(
+    (target) =>
+      harness.dom.window.document.querySelector(
+        `[data-work-center-target="${target}"]`,
+      ),
+  );
+
+  googleCards.forEach((card) => {
+    assert.match(card.textContent, /Работи/u);
+    assert.doesNotMatch(card.textContent, /Изисква еднократен вход/u);
+  });
 });
 
 test("mobile drawer cards use full width without horizontal overflow", () => {

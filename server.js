@@ -25,9 +25,9 @@ dotenv.config();
 const { oauthRateLimiter, paidAiRateLimiter, privateApiRateLimiter } =
   createRateLimiters();
 
-if (!process.env.AGENT_KEY) {
+if (!process.env.OPENAI_API_KEY) {
   console.warn(
-    "⚠️  AGENT_KEY is not configured. Direct AI conversation is unavailable; independent tools can still run.",
+    "⚠️  OPENAI_API_KEY is not configured. Direct AI conversation is unavailable; independent tools can still run.",
   );
 }
 
@@ -73,10 +73,18 @@ app.use(express.json({ limit: "8mb" }));
 
 const mobileLayoutAssetVersion = "20260730-v2";
 const openSearchStatusAssetVersion = "20260730-opensearch-status-v1";
+const connectionStatusAssetVersion = "20260730-connections-v1";
 app.get(`/assets/${openSearchStatusAssetVersion}/app.js`, (_req, res) => {
   res.setHeader("Cache-Control", "no-store, max-age=0");
   res.sendFile(`${process.cwd()}/public/app.js`);
 });
+app.get(
+  `/assets/${connectionStatusAssetVersion}/work-center.js`,
+  (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    res.sendFile(`${process.cwd()}/public/work-center.js`);
+  },
+);
 app.get(
   `/assets/${mobileLayoutAssetVersion}/synchron-vision.css`,
   (_req, res) => {

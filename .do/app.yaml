@@ -50,12 +50,6 @@ services:
       - key: OPENSEARCH_TLS_REJECT_UNAUTHORIZED
         value: "true"
         scope: RUN_TIME
-      - key: AGENT_KEY
-        scope: RUN_TIME
-        type: SECRET
-      - key: AGENT_URL
-        scope: RUN_TIME
-        type: SECRET
       - key: OPENAI_API_KEY
         scope: RUN_TIME
         type: SECRET

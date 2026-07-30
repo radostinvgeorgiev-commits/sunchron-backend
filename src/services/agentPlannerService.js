@@ -62,23 +62,6 @@ function parsePositiveInteger(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function extractAssistantContent(data) {
-  const content = data?.choices?.[0]?.message?.content;
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((item) =>
-        typeof item === "string"
-          ? item
-          : typeof item?.text === "string"
-            ? item.text
-            : "",
-      )
-      .join("");
-  }
-  return "";
-}
-
 function extractJsonObject(content) {
   const cleanContent = String(content || "")
     .replace(/^```(?:json)?\s*/iu, "")
@@ -156,17 +139,14 @@ export function shouldUseAgentPlanner(message, fallbackRequests = []) {
 }
 
 export async function planCapabilities({
-  agentUrl,
-  agentKey,
   openAiApiKey = process.env.OPENAI_API_KEY,
   openAiModel = process.env.OPENAI_PLANNER_MODEL ||
     DEFAULT_OPENAI_PLANNER_MODEL,
   message,
   fetchImpl = fetch,
-  timeoutMs = process.env.AGENT_PLANNER_TIMEOUT_MS,
+  timeoutMs = process.env.OPENAI_PLANNER_TIMEOUT_MS,
 }) {
-  const digitalOceanConfigured = Boolean(agentUrl && agentKey);
-  if (!openAiApiKey && !digitalOceanConfigured) {
+  if (!openAiApiKey) {
     throw new AgentPlannerError(
       "AI планировчикът не е конфигуриран.",
       "AGENT_PLANNER_NOT_CONFIGURED",
@@ -181,57 +161,15 @@ export async function planCapabilities({
 
   try {
     const plannerInput = `${PLANNER_INSTRUCTIONS}\n\n[ЗАЯВКА]\n${message}`;
-    if (openAiApiKey) {
-      try {
-        const content = await requestOpenAIText({
-          apiKey: openAiApiKey,
-          input: [{ role: "user", content: plannerInput }],
-          model: openAiModel,
-          fetchImpl,
-          signal: controller.signal,
-          verbosity: "low",
-        });
-        const plan = extractJsonObject(content);
-        return sanitizeCapabilityPlan(plan, message);
-      } catch (error) {
-        if (!digitalOceanConfigured || error?.name === "AbortError") {
-          throw error;
-        }
-        console.warn(
-          "[AgentPlanner] OpenAI failed; using DigitalOcean fallback:",
-          error?.code || error?.message,
-        );
-      }
-    }
-
-    const response = await fetchImpl(`${agentUrl}/api/v1/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${agentKey}`,
-      },
-      body: JSON.stringify({
-        messages: [
-          {
-            role: "user",
-            content: plannerInput,
-          },
-        ],
-        stream: false,
-        temperature: 0,
-      }),
+    const content = await requestOpenAIText({
+      apiKey: openAiApiKey,
+      input: [{ role: "user", content: plannerInput }],
+      model: openAiModel,
+      fetchImpl,
       signal: controller.signal,
+      verbosity: "low",
     });
-
-    if (!response.ok) {
-      throw new AgentPlannerError(
-        `AI планировчикът върна грешка ${response.status}.`,
-        "AGENT_PLANNER_UPSTREAM_ERROR",
-      );
-    }
-
-    const data = await response.json();
-    const plan = extractJsonObject(extractAssistantContent(data));
+    const plan = extractJsonObject(content);
     return sanitizeCapabilityPlan(plan, message);
   } catch (error) {
     if (error instanceof AgentPlannerError) throw error;

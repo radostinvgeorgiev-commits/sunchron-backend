@@ -14,6 +14,14 @@ import {
   buildMergedBranchCleanupPlan,
   executeMergedBranchCleanup,
 } from "./githubBranchCleanupService.js";
+import {
+  formatDigitalOceanStatus,
+  getDigitalOceanAppStatus,
+} from "./digitalOceanService.js";
+import {
+  formatCloudflareStatus,
+  getCloudflareZoneStatus,
+} from "./cloudflareService.js";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 
@@ -77,6 +85,22 @@ export const MCP_TOOLS = Object.freeze([
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
+    name: "get_digitalocean_app_status",
+    title: "Провери DigitalOcean приложението",
+    description:
+      "Показва статуса на SYNCHRON-X в DigitalOcean App Platform и последните деплои. Не променя нищо.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: READ_ONLY_ANNOTATIONS,
+  },
+  {
+    name: "get_cloudflare_zone_status",
+    title: "Провери Cloudflare и DNS",
+    description:
+      "Показва статуса на Cloudflare зоната и DNS записите. Не променя нищо.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: READ_ONLY_ANNOTATIONS,
+  },
+  {
     name: "prepare_github_merged_branch_cleanup",
     title: "Подготви почистване на слети GitHub клонове",
     description:
@@ -131,6 +155,8 @@ export function createMcpRequestHandler({
   createConfirmation = createDurableConfirmation,
   validateConfirmation = validateDurableConfirmation,
   consumeConfirmation = markDurableConfirmationUsed,
+  getDigitalOceanStatus = getDigitalOceanAppStatus,
+  getCloudflareStatus = getCloudflareZoneStatus,
 } = {}) {
   async function callTool(name, args, ownerId) {
     let result;
@@ -163,6 +189,12 @@ export function createMcpRequestHandler({
         { sessionId, items },
         `Прочетени са ${items.length} съобщения от избрания разговор.`,
       );
+    } else if (name === "get_digitalocean_app_status") {
+      const status = await getDigitalOceanStatus();
+      result = textResult(status, formatDigitalOceanStatus(status));
+    } else if (name === "get_cloudflare_zone_status") {
+      const status = await getCloudflareStatus();
+      result = textResult(status, formatCloudflareStatus(status));
     } else if (name === "prepare_github_merged_branch_cleanup") {
       const plan = await buildCleanupPlan();
       const confirmation = await createConfirmation({
@@ -217,7 +249,11 @@ export function createMcpRequestHandler({
 
     await audit({
       actor: "chatgpt-mcp",
-      action: name.includes("github") ? "github.write" : "memory.read",
+      action: name.includes("github")
+        ? "github.write"
+        : name.includes("digitalocean") || name.includes("cloudflare")
+          ? "infrastructure.read"
+          : "memory.read",
       decision: "allow",
       outcome: "succeeded",
       resource: name,

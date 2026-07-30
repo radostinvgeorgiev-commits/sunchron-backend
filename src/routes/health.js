@@ -211,6 +211,18 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
         "SUPABASE_PUBLISHABLE_KEY",
       ),
     },
+    "digitalocean-read": {
+      configured:
+        Boolean(
+          process.env.DIGITALOCEAN_API_TOKEN ||
+            process.env.DIGITALOCEAN_TOKEN,
+        ) && Boolean(process.env.DIGITALOCEAN_APP_ID),
+    },
+    "cloudflare-read": {
+      configured:
+        Boolean(process.env.CLOUDFLARE_API_TOKEN) &&
+        Boolean(process.env.CLOUDFLARE_ZONE_ID),
+    },
     "opensearch-memory": {
       configured: hasAllProcessEnvironmentVariables(
         "OPENSEARCH_HOST",

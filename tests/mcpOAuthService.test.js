@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 
 import {
+  consumeMcpGrantOnce,
   createMcpAuthorizationCode,
   exchangeMcpAuthorizationCode,
   exchangeMcpRefreshToken,
@@ -10,6 +11,7 @@ import {
   getMcpProtectedResourceMetadata,
   MCP_GITHUB_WRITE_SCOPE,
   MCP_READ_SCOPE,
+  requiresPersistentMcpReplayGuard,
   resetMcpOAuthStateForTests,
   validateMcpAuthorizationRequest,
   verifyMcpAccessToken,
@@ -113,7 +115,7 @@ test("exchanges a one-time PKCE code for an opaque owner-scoped token", async ()
     code_verifier: VERIFIER,
     resource: ENV.MCP_RESOURCE_URL,
   };
-  const token = exchangeMcpAuthorizationCode(input, ENV);
+  const token = await exchangeMcpAuthorizationCode(input, ENV);
   assert.equal(token.token_type, "Bearer");
   assert.doesNotMatch(token.access_token, /owner-id|primary-user/u);
   assert.deepEqual(
@@ -130,7 +132,7 @@ test("exchanges a one-time PKCE code for an opaque owner-scoped token", async ()
       clientId: CLIENT_ID,
     },
   );
-  const refreshed = exchangeMcpRefreshToken(
+  const refreshed = await exchangeMcpRefreshToken(
     {
       grant_type: "refresh_token",
       refresh_token: token.refresh_token,
@@ -141,7 +143,7 @@ test("exchanges a one-time PKCE code for an opaque owner-scoped token", async ()
   );
   assert.ok(refreshed.access_token);
   assert.notEqual(refreshed.refresh_token, token.refresh_token);
-  assert.throws(
+  await assert.rejects(
     () =>
       exchangeMcpRefreshToken(
         {
@@ -154,7 +156,7 @@ test("exchanges a one-time PKCE code for an opaque owner-scoped token", async ()
       ),
     (error) => error.code === "invalid_grant",
   );
-  assert.throws(
+  await assert.rejects(
     () => exchangeMcpAuthorizationCode(input, ENV),
     (error) => error.code === "invalid_grant",
   );
@@ -195,7 +197,7 @@ test("distinguishes an invalid token from a valid token without scope", async ()
     { id: "owner-id", memoryOwnerId: "primary-user", role: "owner" },
     ENV,
   );
-  const token = exchangeMcpAuthorizationCode(
+  const token = await exchangeMcpAuthorizationCode(
     {
       grant_type: "authorization_code",
       code,
@@ -234,7 +236,7 @@ test("rejects an invalid PKCE verifier without consuming the code", async () => 
     redirect_uri: REDIRECT_URI,
     resource: ENV.MCP_RESOURCE_URL,
   };
-  assert.throws(
+  await assert.rejects(
     () =>
       exchangeMcpAuthorizationCode(
         { ...base, code_verifier: "x".repeat(64) },
@@ -243,7 +245,94 @@ test("rejects an invalid PKCE verifier without consuming the code", async () => 
     (error) => error.code === "invalid_grant",
   );
   assert.ok(
-    exchangeMcpAuthorizationCode({ ...base, code_verifier: VERIFIER }, ENV)
-      .access_token,
+    (
+      await exchangeMcpAuthorizationCode(
+        { ...base, code_verifier: VERIFIER },
+        ENV,
+      )
+    ).access_token,
+  );
+});
+
+test("refresh tokens survive a fresh application module instance", async () => {
+  const first =
+    await import("../src/services/mcpOAuthService.js?oauth-instance=first");
+  const second =
+    await import("../src/services/mcpOAuthService.js?oauth-instance=second");
+  const request = {
+    clientId: CLIENT_ID,
+    redirectUri: REDIRECT_URI,
+    codeChallenge: createHash("sha256").update(VERIFIER).digest("base64url"),
+    resource: ENV.MCP_RESOURCE_URL,
+    scopes: [MCP_READ_SCOPE],
+  };
+  const code = first.createMcpAuthorizationCode(
+    request,
+    { id: "owner-id", memoryOwnerId: "primary-user", role: "owner" },
+    ENV,
+  );
+  const token = await first.exchangeMcpAuthorizationCode(
+    {
+      grant_type: "authorization_code",
+      code,
+      client_id: CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: VERIFIER,
+      resource: ENV.MCP_RESOURCE_URL,
+    },
+    ENV,
+  );
+
+  const refreshed = await second.exchangeMcpRefreshToken(
+    {
+      grant_type: "refresh_token",
+      refresh_token: token.refresh_token,
+      client_id: CLIENT_ID,
+      resource: ENV.MCP_RESOURCE_URL,
+    },
+    ENV,
+  );
+  assert.ok(refreshed.access_token);
+});
+
+test("production replay guard is atomic across local state resets", async () => {
+  const seen = new Set();
+  const client = {
+    async create({ id }) {
+      if (seen.has(id)) {
+        const error = new Error("version conflict");
+        error.meta = { statusCode: 409 };
+        throw error;
+      }
+      seen.add(id);
+    },
+  };
+  const input = {
+    grantType: "refresh_token",
+    tokenId: "one-time-token-id",
+    expiresAt: Math.floor(Date.now() / 1_000) + 60,
+    env: { ...ENV, NODE_ENV: "production" },
+    client,
+  };
+
+  assert.equal(await consumeMcpGrantOnce(input), true);
+  resetMcpOAuthStateForTests();
+  assert.equal(await consumeMcpGrantOnce(input), false);
+});
+
+test("production OAuth fails closed without the durable replay store", async () => {
+  assert.equal(
+    requiresPersistentMcpReplayGuard({ NODE_ENV: "production" }),
+    true,
+  );
+  await assert.rejects(
+    consumeMcpGrantOnce({
+      grantType: "authorization_code",
+      tokenId: "code-id",
+      expiresAt: Math.floor(Date.now() / 1_000) + 60,
+      env: { ...ENV, NODE_ENV: "production" },
+      client: null,
+    }),
+    (error) => error.code === "temporarily_unavailable" && error.status === 503,
   );
 });

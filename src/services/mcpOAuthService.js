@@ -5,6 +5,7 @@ import {
   randomBytes,
   timingSafeEqual,
 } from "node:crypto";
+import { getOpenSearchClient } from "../config/opensearch.js";
 
 export const DEFAULT_MCP_RESOURCE_URL = "https://synchron.foundation/mcp";
 export const MCP_READ_SCOPE = "synchron:read";
@@ -18,7 +19,8 @@ const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
 const AUTHORIZATION_CODE_TTL_SECONDS = 5 * 60;
 const MAX_CONSUMED_TOKEN_RECORDS = 10_000;
-const codeInstanceSecret = randomBytes(32);
+const MCP_OAUTH_REPLAY_INDEX =
+  process.env.MCP_OAUTH_REPLAY_INDEX || "synchron-mcp-oauth-replay-v1";
 const consumedAuthorizationCodes = new Map();
 const consumedRefreshTokens = new Map();
 
@@ -76,10 +78,10 @@ function oauthSecret(env = process.env) {
     .digest();
 }
 
-function codeSecret(env = process.env) {
+function grantSecret(env = process.env) {
   return createHash("sha256")
     .update(oauthSecret(env))
-    .update(codeInstanceSecret)
+    .update("synchron-mcp-oauth-grants-v2\0")
     .digest();
 }
 
@@ -325,7 +327,7 @@ export function createMcpAuthorizationCode(
       iat: now,
       exp: now + AUTHORIZATION_CODE_TTL_SECONDS,
     },
-    codeSecret(env),
+    grantSecret(env),
   );
 }
 
@@ -347,6 +349,72 @@ function markTokenConsumed(store, tokenId, expiresAt) {
   while (store.size > MAX_CONSUMED_TOKEN_RECORDS) {
     store.delete(store.keys().next().value);
   }
+}
+
+function replayStore(grantType) {
+  return grantType === "authorization_code"
+    ? consumedAuthorizationCodes
+    : consumedRefreshTokens;
+}
+
+function replayRecordId(grantType, tokenId) {
+  return createHash("sha256")
+    .update(String(grantType))
+    .update("\0")
+    .update(String(tokenId))
+    .digest("hex");
+}
+
+function openSearchStatus(error) {
+  return error?.statusCode || error?.meta?.statusCode || 0;
+}
+
+export function requiresPersistentMcpReplayGuard(env = process.env) {
+  return env.NODE_ENV === "production";
+}
+
+export async function consumeMcpGrantOnce({
+  grantType,
+  tokenId,
+  expiresAt,
+  env = process.env,
+  client = getOpenSearchClient(),
+}) {
+  const store = replayStore(grantType);
+  const now = Math.floor(Date.now() / 1_000);
+  if (wasTokenConsumed(store, tokenId, now)) return false;
+
+  if (client) {
+    try {
+      await client.create({
+        index: env.MCP_OAUTH_REPLAY_INDEX || MCP_OAUTH_REPLAY_INDEX,
+        id: replayRecordId(grantType, tokenId),
+        body: {
+          grantType,
+          expiresAt: new Date(expiresAt * 1_000).toISOString(),
+        },
+        refresh: true,
+      });
+    } catch (error) {
+      if (openSearchStatus(error) === 409) return false;
+      if (requiresPersistentMcpReplayGuard(env)) {
+        throw new McpOAuthError(
+          "MCP OAuth еднократната защита временно не е достъпна.",
+          503,
+          "temporarily_unavailable",
+        );
+      }
+    }
+  } else if (requiresPersistentMcpReplayGuard(env)) {
+    throw new McpOAuthError(
+      "MCP OAuth еднократната защита не е конфигурирана.",
+      503,
+      "temporarily_unavailable",
+    );
+  }
+
+  markTokenConsumed(store, tokenId, expiresAt);
+  return true;
 }
 
 function createAccessAndRefreshTokens(payload, env, now) {
@@ -382,7 +450,7 @@ function createAccessAndRefreshTokens(payload, env, now) {
       iat: now,
       exp: now + REFRESH_TOKEN_TTL_SECONDS,
     },
-    codeSecret(env),
+    grantSecret(env),
   );
   return {
     access_token: accessToken,
@@ -393,17 +461,20 @@ function createAccessAndRefreshTokens(payload, env, now) {
   };
 }
 
-export function exchangeMcpAuthorizationCode(input, env = process.env) {
+export async function exchangeMcpAuthorizationCode(
+  input,
+  env = process.env,
+  { consumeGrant = consumeMcpGrantOnce } = {},
+) {
   const code = String(input?.code || "");
-  const payload = decryptPayload(code, "sx-code", codeSecret(env));
+  const payload = decryptPayload(code, "sx-code", grantSecret(env));
   const now = Math.floor(Date.now() / 1_000);
   if (
     !payload ||
     payload.typ !== "authorization_code" ||
     payload.iss !== resolveMcpIssuerUrl(env) ||
     payload.aud !== resolveMcpResourceUrl(env) ||
-    payload.exp <= now ||
-    wasTokenConsumed(consumedAuthorizationCodes, payload.jti, now)
+    payload.exp <= now
   ) {
     throw new McpOAuthError(
       "Невалиден или изтекъл authorization code.",
@@ -436,15 +507,31 @@ export function exchangeMcpAuthorizationCode(input, env = process.env) {
     );
   }
 
-  markTokenConsumed(consumedAuthorizationCodes, payload.jti, payload.exp);
+  const consumed = await consumeGrant({
+    grantType: "authorization_code",
+    tokenId: payload.jti,
+    expiresAt: payload.exp,
+    env,
+  });
+  if (!consumed) {
+    throw new McpOAuthError(
+      "Невалиден или изтекъл authorization code.",
+      400,
+      "invalid_grant",
+    );
+  }
   return createAccessAndRefreshTokens(payload, env, now);
 }
 
-export function exchangeMcpRefreshToken(input, env = process.env) {
+export async function exchangeMcpRefreshToken(
+  input,
+  env = process.env,
+  { consumeGrant = consumeMcpGrantOnce } = {},
+) {
   const payload = decryptPayload(
     String(input?.refresh_token || ""),
     "sx-refresh",
-    codeSecret(env),
+    grantSecret(env),
   );
   const now = Math.floor(Date.now() / 1_000);
   if (
@@ -453,7 +540,6 @@ export function exchangeMcpRefreshToken(input, env = process.env) {
     payload.iss !== resolveMcpIssuerUrl(env) ||
     payload.aud !== resolveMcpResourceUrl(env) ||
     payload.exp <= now ||
-    wasTokenConsumed(consumedRefreshTokens, payload.jti, now) ||
     !safeStringEqual(input?.client_id, payload.clientId) ||
     !safeStringEqual(input?.resource, payload.aud)
   ) {
@@ -463,11 +549,23 @@ export function exchangeMcpRefreshToken(input, env = process.env) {
       "invalid_grant",
     );
   }
-  markTokenConsumed(consumedRefreshTokens, payload.jti, payload.exp);
+  const consumed = await consumeGrant({
+    grantType: "refresh_token",
+    tokenId: payload.jti,
+    expiresAt: payload.exp,
+    env,
+  });
+  if (!consumed) {
+    throw new McpOAuthError(
+      "Невалиден или изтекъл refresh token.",
+      400,
+      "invalid_grant",
+    );
+  }
   return createAccessAndRefreshTokens(payload, env, now);
 }
 
-export function exchangeMcpToken(input, env = process.env) {
+export async function exchangeMcpToken(input, env = process.env) {
   if (input?.grant_type === "authorization_code") {
     return exchangeMcpAuthorizationCode(input, env);
   }

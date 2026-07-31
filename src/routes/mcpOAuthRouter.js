@@ -158,15 +158,20 @@ export function createMcpOAuthRouter({
     },
   );
 
-  router.post("/oauth/token", oauthRateLimiter, formParser, (req, res) => {
-    try {
-      const token = exchangeMcpToken(req.body || {});
-      noStore(res);
-      return res.json(token);
-    } catch (error) {
-      return oauthError(res, error);
-    }
-  });
+  router.post(
+    "/oauth/token",
+    oauthRateLimiter,
+    formParser,
+    async (req, res) => {
+      try {
+        const token = await exchangeMcpToken(req.body || {});
+        noStore(res);
+        return res.json(token);
+      } catch (error) {
+        return oauthError(res, error);
+      }
+    },
+  );
 
   return router;
 }

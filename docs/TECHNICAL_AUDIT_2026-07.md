@@ -123,10 +123,10 @@ Library или други вътрешни ChatGPT данни в SYNCHRON-X.
   минава през реалния Express route и доказва „обикновен текст → 0 записа“,
   „Запомни… → 0 записа + предложение“ и „точно еднократно потвърждение → 1
   запис“.
-- **Оставащ отделен риск:** DELETE API още използва повторяемата константа
-  `confirm-delete-profile-memory`, а pending delete в чата е process-local.
-  Това не отваря отново поправения memory write риск; проследява се отделно в
-  SX-05 и трябва да бъде мигрирано към същия durable one-time модел.
+- **Историческа бележка:** рискът при DELETE API и process-local pending
+  delete вече е отстранен с PR №165. Текущата реализация е описана в SX-05 и
+  не трябва да се отчита повторно като активен риск.
+
 - **Повторна проверка:** пази route теста, owner/session mismatch тестовете,
   replay теста и production smoke като задължителни регресионни граници.
 
@@ -276,11 +276,14 @@ Library или други вътрешни ChatGPT данни в SYNCHRON-X.
 ### SX-11 — Автоматичните тестове не покриват всички production граници
 
 - **Критичност:** P2 средна.
-- **Доказателство:** 397/398 локални теста минават; един E2E тест в
-  `tests/pendingDeleteService.test.js` се skip-ва без реален OpenSearch. Има
-  mock integration тестове за isolation/exact delete и реален production
-  startup acceptance, но няма паралелен memory write test, restore test,
-  sustained load test, истински provider OAuth test или forced restart test.
+- **Доказателство:** GitHub Actions run `30650129095` върху head commit
+  `08039e2ff160b32790b9031416314f64d2e3f610` изпълнява `npm test` с 382
+  теста: 382 успешни, 0 неуспешни и 0 пропуснати. Отделният production smoke
+  run `30650175520` е успешен върху merge commit `d5300c52` и доказва
+  startup acceptance и изолирания OpenSearch поток. Няма паралелен memory write
+  test, restore test, sustained load test, истински provider OAuth test или
+  forced restart test.
+
 - **Реален проблем:** regression в concurrency, provider policy, deployment
   lifecycle или capacity може да остане невидима.
 - **Проверка:** прегледай test names и production smoke; изпълни отделни test

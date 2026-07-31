@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   decryptUserSession,
   encryptUserSession,
+  getTesterInviteCode,
   isTesterRegistrationEnabled,
   isUserAuthConfigured,
   registerTester,
@@ -43,16 +44,42 @@ test("detects complete auth and closed/open tester registration", () => {
   );
 });
 
-test("Supabase sessions require their own encryption key", () => {
-  assert.equal(
-    isUserAuthConfigured({
-      SUPABASE_URL: ENV.SUPABASE_URL,
-      SUPABASE_PUBLISHABLE_KEY: ENV.SUPABASE_PUBLISHABLE_KEY,
-      GITHUB_SESSION_ENCRYPTION_KEY: "github-only-key-with-enough-entropy",
-      GOOGLE_SESSION_ENCRYPTION_KEY: "google-only-key-with-enough-entropy",
-    }),
-    false,
+test("derives isolated tester secrets from the existing owner session secret", () => {
+  const fallbackEnv = {
+    SUPABASE_URL: ENV.SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY: ENV.SUPABASE_PUBLISHABLE_KEY,
+    GITHUB_SESSION_ENCRYPTION_KEY: "github-only-key-with-enough-entropy",
+  };
+  assert.equal(isUserAuthConfigured(fallbackEnv), true);
+  assert.equal(isTesterRegistrationEnabled(fallbackEnv), true);
+  assert.equal(getTesterInviteCode(fallbackEnv).length, 16);
+  assert.notEqual(
+    getTesterInviteCode(fallbackEnv),
+    fallbackEnv.GITHUB_SESSION_ENCRYPTION_KEY,
   );
+  assert.deepEqual(
+    decryptUserSession(
+      encryptUserSession(session("derived"), fallbackEnv),
+      fallbackEnv,
+    ),
+    session("derived"),
+  );
+});
+
+test("dedicated tester secrets override the owner-session fallback", () => {
+  assert.equal(getTesterInviteCode(ENV), ENV.SYNCHRON_TEST_INVITE_CODE);
+  assert.equal(isUserAuthConfigured(ENV), true);
+});
+
+test("the configured GitHub client secret is a safe final fallback", () => {
+  const fallbackEnv = {
+    SUPABASE_URL: ENV.SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY: ENV.SUPABASE_PUBLISHABLE_KEY,
+    GITHUB_CLIENT_SECRET: "github-client-secret-with-enough-entropy",
+  };
+  assert.equal(isUserAuthConfigured(fallbackEnv), true);
+  assert.equal(isTesterRegistrationEnabled(fallbackEnv), true);
+  assert.equal(getTesterInviteCode(fallbackEnv).length, 16);
 });
 
 test("encrypts the Supabase session and never leaves tokens in the cookie", () => {

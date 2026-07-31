@@ -26,6 +26,7 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
       "get_system_configuration",
       "get_digitalocean_account_audit",
       "get_cloudflare_zone_status",
+      "get_github_copilot_task_status",
       "prepare_github_merged_branch_cleanup",
       "confirm_github_merged_branch_cleanup",
     ],
@@ -51,6 +52,52 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
   );
   assert.equal(systemConfiguration.annotations.readOnlyHint, true);
   assert.deepEqual(systemConfiguration.securitySchemes, [
+    { type: "oauth2", scopes: ["synchron:read"] },
+  ]);
+});
+
+test("MCP tracks a GitHub Copilot task as a read-only tool", async () => {
+  const events = [];
+  const handle = createMcpRequestHandler({
+    getLatestGitHubSession: async () => ({
+      login: "radostinvgeorgiev-commits",
+      accessToken: "protected-token",
+    }),
+    getGitHubTaskStatus: async ({ githubSession, issueNumber }) => {
+      assert.equal(githubSession.accessToken, "protected-token");
+      assert.equal(issueNumber, 83);
+      return {
+        issue: {
+          number: 83,
+          title: "Проследи Copilot",
+          url: "https://github.com/example/repo/issues/83",
+        },
+        pullRequest: null,
+        checks: [],
+        status: "copilot-working",
+      };
+    },
+    audit: async (event) => events.push(event),
+  });
+  const response = await handle(
+    {
+      jsonrpc: "2.0",
+      id: 12,
+      method: "tools/call",
+      params: {
+        name: "get_github_copilot_task_status",
+        arguments: { issueNumber: 83 },
+      },
+    },
+    "primary-user",
+  );
+  assert.equal(response.result.structuredContent.status, "copilot-working");
+  assert.equal(events[0].action, "github.read");
+  const tool = MCP_TOOLS.find(
+    (candidate) => candidate.name === "get_github_copilot_task_status",
+  );
+  assert.equal(tool.annotations.readOnlyHint, true);
+  assert.deepEqual(tool.securitySchemes, [
     { type: "oauth2", scopes: ["synchron:read"] },
   ]);
 });

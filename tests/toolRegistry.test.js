@@ -24,6 +24,7 @@ test("регистрира съществуващите интеграции с 
     "code.read",
     "code.search",
     "commit.read",
+    "code.task-status",
   ]);
   assert.equal(getTool("github-write").enabled, true);
   assert.equal(getTool("github-write").requiresConfirmation, true);

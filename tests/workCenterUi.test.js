@@ -87,6 +87,13 @@ function createHarness({
     console,
     document: dom.window.document,
     Event: dom.window.Event,
+    navigator: {
+      clipboard: {
+        writeText: async (value) => {
+          dom.window.document.body.dataset.copiedText = value;
+        },
+      },
+    },
     location: {
       assign: (url) => {
         dom.window.document.body.dataset.redirectedTo = url;
@@ -188,15 +195,61 @@ test("work center uses safe GitHub links without duplicating the task journal", 
   });
 });
 
-test("ChatGPT falls back safely when public config is unavailable", async () => {
+test("ChatGPT app setup falls back safely and never sends the user to /plugins", async () => {
   const harness = createHarness({ fetchFails: true });
   await openCenter(harness);
-  const chatGptLink = [
-    ...harness.dom.window.document.querySelectorAll("a"),
-  ].find((link) => link.textContent.includes("ChatGPT"));
+  const { document } = harness.dom.window;
+  const card = document.querySelector(
+    '[data-work-center-action="show-chatgpt-app-setup"]',
+  );
+  card.click();
+  const setup = document.querySelector("[data-chatgpt-app-setup]");
+  const chatGptLink = [...setup.querySelectorAll("a")].find((link) =>
+    link.textContent.includes("ChatGPT web"),
+  );
 
   assert.equal(chatGptLink.href, "https://chatgpt.com/");
-  assert.match(chatGptLink.textContent, /Без автоматична връзка с паметта/u);
+  assert.doesNotMatch(chatGptLink.href, /\/plugins/u);
+  assert.match(setup.textContent, /браузър на компютър/u);
+  assert.match(setup.textContent, /не от приложението за iPhone/u);
+  assert.match(setup.textContent, /Developer mode/u);
+  assert.match(setup.textContent, /https:\/\/synchron\.foundation\/mcp/u);
+});
+
+test("ChatGPT app card reports the live bridge and copies the exact MCP URL", async () => {
+  const harness = createHarness({
+    readiness: {
+      status: "ready",
+      checks: {
+        chatAgent: { ready: true },
+        memory: { ready: true, status: "green" },
+        bridge: {
+          configured: true,
+          responding: true,
+          tools: 11,
+          authentication: { chatgptOAuthReady: true },
+        },
+      },
+    },
+  });
+  await openCenter(harness);
+  const { document } = harness.dom.window;
+  const card = document.querySelector(
+    '[data-work-center-action="show-chatgpt-app-setup"]',
+  );
+
+  assert.match(card.textContent, /11 инструмента · OAuth е готов/u);
+  card.click();
+  document.querySelector("[data-copy-mcp-url]").click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(
+    document.body.dataset.copiedText,
+    "https://synchron.foundation/mcp",
+  );
+  assert.equal(
+    document.querySelector("[data-copy-mcp-url]").textContent,
+    "Копирано",
+  );
 });
 
 test("featured connected chat reports real core readiness and returns to chat", async () => {

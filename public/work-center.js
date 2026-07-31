@@ -1,6 +1,9 @@
 (() => {
   const REPOSITORY_URL =
     "https://github.com/radostinvgeorgiev-commits/sunchron-backend";
+  const MCP_RESOURCE_URL = "https://synchron.foundation/mcp";
+  const CHATGPT_APP_GUIDE_URL =
+    "https://developers.openai.com/apps-sdk/deploy/testing";
   const FALLBACK_CONFIG = Object.freeze({
     chatgptWorkUrl: "https://chatgpt.com/",
     digitalOceanUrl: "https://cloud.digitalocean.com/",
@@ -181,6 +184,25 @@
     };
   }
 
+  function resolveChatGptAppStatus(readiness) {
+    const bridge = readiness?.checks?.bridge;
+    if (
+      bridge?.configured === true &&
+      bridge?.responding === true &&
+      bridge?.authentication?.chatgptOAuthReady === true &&
+      bridge?.tools >= 11
+    ) {
+      return {
+        label: `${bridge.tools} инструмента · OAuth е готов`,
+        className: "internal",
+      };
+    }
+    return {
+      label: "Мостът още не е потвърден",
+      className: "warning",
+    };
+  }
+
   function renderWorkCenter(
     config,
     readiness = null,
@@ -241,6 +263,18 @@
         connectionName: "Google",
       },
     );
+    const chatGptAppStatus = resolveChatGptAppStatus(readiness);
+    const chatGptAppCard = createActionCard({
+      title: "ChatGPT приложение — SYNCHRON-X",
+      description:
+        "Свързва ChatGPT с разрешените инструменти чрез защитен OAuth вход.",
+      action: "show-chatgpt-app-setup",
+      icon: "fa-solid fa-plug-circle-check",
+      status: chatGptAppStatus.label,
+      statusClass: chatGptAppStatus.className,
+      actionLabel: "Покажи еднократните стъпки",
+    });
+    chatGptAppCard.dataset.chatgptUrl = chatgptUrl;
     const cards = [
       createInternalCard({
         title: "SYNCHRON-X — свързан разговор",
@@ -252,14 +286,7 @@
         status: coreStatus.label,
         statusClass: coreStatus.className,
       }),
-      createExternalCard({
-        title: "ChatGPT — отделен разговор",
-        description:
-          "Отваря ChatGPT, но не му дава автоматичен достъп до паметта на SYNCHRON-X.",
-        url: chatgptUrl,
-        icon: "fa-solid fa-comment-dots",
-        status: "Външна услуга · Без автоматична връзка с паметта",
-      }),
+      chatGptAppCard,
       createExternalCard({
         title: "GitHub — хранилище",
         description: "Кодът и историята на SYNCHRON-X.",
@@ -395,6 +422,76 @@
     } else {
       body.prepend(panel);
     }
+    panel.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+  }
+
+  function showChatGptAppSetup(card) {
+    body.querySelector("[data-chatgpt-app-setup]")?.remove();
+    const panel = document.createElement("section");
+    panel.className = "work-center-intro chatgpt-app-setup";
+    panel.dataset.chatgptAppSetup = "";
+    addText(panel, "strong", "Свържи SYNCHRON-X с ChatGPT");
+    addText(
+      panel,
+      "p",
+      "Мостът е готов. Създаването на приложението се прави еднократно от ChatGPT в браузър на компютър, не от приложението за iPhone.",
+    );
+
+    const steps = document.createElement("ol");
+    steps.className = "chatgpt-app-steps";
+    [
+      "Отвори chatgpt.com на компютър и влез в своя профил.",
+      "В Settings отвори Apps / Connectors и включи Developer mode. За служебен workspace отвори Workspace settings → Apps.",
+      "Избери Create app, напиши име SYNCHRON-X и постави MCP адреса отдолу.",
+      "Завърши OAuth входа в SYNCHRON-X. Не изпращай парола или код в чата.",
+    ].forEach((step) => addText(steps, "li", step));
+    panel.appendChild(steps);
+
+    addText(panel, "span", "MCP адрес", "chatgpt-app-label");
+    const endpoint = addText(
+      panel,
+      "code",
+      MCP_RESOURCE_URL,
+      "chatgpt-app-endpoint",
+    );
+    endpoint.dataset.mcpResourceUrl = "";
+
+    const actions = document.createElement("div");
+    actions.className = "chatgpt-app-actions";
+    const copyButton = addText(
+      actions,
+      "button",
+      "Копирай MCP адреса",
+      "chatgpt-app-copy",
+    );
+    copyButton.type = "button";
+    copyButton.dataset.copyMcpUrl = "";
+
+    const chatGptLink = addText(
+      actions,
+      "a",
+      "Отвори ChatGPT web",
+      "chatgpt-app-link",
+    );
+    chatGptLink.href = safeHttpsUrl(
+      card?.dataset.chatgptUrl,
+      FALLBACK_CONFIG.chatgptWorkUrl,
+    );
+    chatGptLink.target = "_blank";
+    chatGptLink.rel = "noopener noreferrer";
+
+    const guideLink = addText(
+      actions,
+      "a",
+      "Официални инструкции",
+      "chatgpt-app-link secondary",
+    );
+    guideLink.href = CHATGPT_APP_GUIDE_URL;
+    guideLink.target = "_blank";
+    guideLink.rel = "noopener noreferrer";
+    panel.appendChild(actions);
+
+    card.insertAdjacentElement("afterend", panel);
     panel.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
   }
 
@@ -556,7 +653,17 @@
       copyInvite.textContent = "Копирано";
       return;
     }
+    const copyMcpUrl = event.target.closest("[data-copy-mcp-url]");
+    if (copyMcpUrl) {
+      await globalThis.navigator?.clipboard?.writeText(MCP_RESOURCE_URL);
+      copyMcpUrl.textContent = "Копирано";
+      return;
+    }
     const actionCard = event.target.closest("[data-work-center-action]");
+    if (actionCard?.dataset.workCenterAction === "show-chatgpt-app-setup") {
+      showChatGptAppSetup(actionCard);
+      return;
+    }
     if (actionCard?.dataset.workCenterAction === "activate-tester-auth") {
       await activateTesterAuth(actionCard);
       return;
@@ -584,6 +691,7 @@
 
   globalThis.SynchronWorkCenter = Object.freeze({
     openWorkCenter,
+    resolveChatGptAppStatus,
     resolveCoreStatus,
     resolveToolStatus,
     safeHttpsUrl,

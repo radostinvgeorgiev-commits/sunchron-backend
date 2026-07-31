@@ -72,6 +72,7 @@
 .work-center-status.external{color:#7c4a03;background:#fff4d7}.work-center-status.internal{color:#137333;background:#e6f4ea}
 .work-center-arrow{color:#94a3b8}.featured .work-center-arrow{color:#fff}
 .work-center-close{width:100%;min-height:48px;margin-top:8px;border:1px solid #cbd5e1;border-radius:14px;color:#17212b;background:#fff;font:inherit;font-weight:750;cursor:pointer}
+.chatgpt-app-setup{margin-top:2px}.chatgpt-app-steps{margin:12px 0;padding-left:22px}.chatgpt-app-steps li{margin:8px 0}.chatgpt-app-label{display:block;margin-top:12px;font-size:12px;font-weight:800}.chatgpt-app-endpoint{display:block;margin-top:6px;padding:11px;border-radius:10px;color:#0f172a;background:#e8eef7;overflow-wrap:anywhere}.chatgpt-app-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.chatgpt-app-copy,.chatgpt-app-link{min-height:44px;padding:10px 13px;border:0;border-radius:10px;color:#fff;background:#1d4ed8;font:inherit;font-weight:800;text-decoration:none;cursor:pointer}.chatgpt-app-link.secondary{color:#17212b;background:#e2e8f0}
 .system-control-link{width:100%;font:inherit;text-align:left;background:#fff;cursor:pointer}
 .system-summary p{margin:5px 0}.system-summary small{display:block;margin-top:8px}
 .configuration-group{margin-bottom:10px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}
@@ -93,5 +94,6 @@
   .permission-card-actions,.tool-status-actions{width:100%;align-items:stretch}
   .tool-status-card .permission-badge{max-width:100%;align-self:flex-start}
   .work-center-card{min-height:104px;grid-template-columns:44px minmax(0,1fr);align-items:start}
+  .chatgpt-app-actions>*{width:100%;text-align:center}
   .work-center-arrow{display:none}
 }

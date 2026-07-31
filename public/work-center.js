@@ -486,6 +486,14 @@
         icon: "fa-solid fa-sliders",
         status: "Защитено · Само за собственика",
       }),
+      createInternalCard({
+        title: "Инструменти",
+        description:
+          "Реален статус, налични връзки и действия за всеки инструмент.",
+        targetId: "toolsBtn",
+        icon: "fa-solid fa-toolbox",
+        status: "Вградено · Показва живото състояние",
+      }),
       createActionCard({
         title:
           testerAuth?.configured && testerAuth?.registrationEnabled

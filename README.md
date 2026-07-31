@@ -19,7 +19,10 @@ SYNCHRON-X обединява:
 
 ## Основен поток
 
-`Сайт → SYNCHRON-X server → DigitalOcean AI Agent → AI model`
+`Сайт → SYNCHRON-X server → OpenAI Responses API → AI model`
+
+DigitalOcean App Platform публикува приложението, но не е доставчикът на
+разговорния AI. Предишният DigitalOcean AI Agent е премахнат.
 
 Инструментите се избират през `Capability Engine` и `Tool Registry`. Регистрация
 без изпълним адаптер и конфигурация не се счита за работеща интеграция.
@@ -43,3 +46,8 @@ npm test
 ```
 
 Всеки push и pull request към `main` стартира автоматичните проверки.
+
+За проверка на точния production commit, readiness, паметта, MCP и безопасен
+incident/rollback процес използвай
+[`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md). Не приемай записан в
+документация commit или стара тестова бройка за текущо operational доказателство.

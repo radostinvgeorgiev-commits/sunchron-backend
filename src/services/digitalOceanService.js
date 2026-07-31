@@ -17,6 +17,68 @@ export class DigitalOceanError extends Error {
   }
 }
 
+function safeUpstreamMessage(payload) {
+  const message =
+    typeof payload?.message === "string" ? payload.message.trim() : "";
+  if (!message) return "";
+  return message
+    .replace(/\b(?:dop|doo|dor)_v1_[A-Za-z0-9_-]+\b/gu, "[скрит токен]")
+    .replace(/\bBearer\s+[A-Za-z0-9._-]+\b/giu, "Bearer [скрит токен]")
+    .slice(0, 300);
+}
+
+async function readErrorPayload(response) {
+  try {
+    const payload = await response.json();
+    return payload && typeof payload === "object" ? payload : {};
+  } catch {
+    return {};
+  }
+}
+
+function digitalOceanRequestError(response, payload, { method, path }) {
+  const upstreamMessage = safeUpstreamMessage(payload);
+  const suffix = upstreamMessage ? ` DigitalOcean: ${upstreamMessage}` : "";
+
+  if (response.status === 401) {
+    return new DigitalOceanError(
+      `DigitalOcean токенът е невалиден, изтекъл или е отнет.${suffix}`,
+      401,
+      "DIGITALOCEAN_TOKEN_INVALID",
+    );
+  }
+  if (
+    response.status === 403 &&
+    method === "PUT" &&
+    /^\/apps\/[^/]+$/u.test(path)
+  ) {
+    return new DigitalOceanError(
+      `DigitalOcean токенът няма право да променя App Platform. Нужно е разрешение app:update заедно с app:read.${suffix}`,
+      403,
+      "DIGITALOCEAN_APP_UPDATE_FORBIDDEN",
+    );
+  }
+  if (response.status === 403) {
+    return new DigitalOceanError(
+      `DigitalOcean токенът няма право за това действие.${suffix}`,
+      403,
+      "DIGITALOCEAN_FORBIDDEN",
+    );
+  }
+  if (response.status === 422) {
+    return new DigitalOceanError(
+      `DigitalOcean отхвърли настройките на приложението.${suffix}`,
+      422,
+      "DIGITALOCEAN_APP_SPEC_REJECTED",
+    );
+  }
+  return new DigitalOceanError(
+    `DigitalOcean API върна грешка ${response.status}.${suffix}`,
+    response.status >= 400 && response.status < 500 ? response.status : 502,
+    "DIGITALOCEAN_UPSTREAM_ERROR",
+  );
+}
+
 function requiredToken(env = process.env) {
   const token = env.DIGITALOCEAN_API_TOKEN || env.DIGITALOCEAN_TOKEN;
   if (!token) {
@@ -65,11 +127,8 @@ async function request(
     },
   );
   if (!response.ok) {
-    throw new DigitalOceanError(
-      `DigitalOcean API върна грешка ${response.status}.`,
-      response.status === 401 || response.status === 403 ? 401 : 502,
-      "DIGITALOCEAN_UPSTREAM_ERROR",
-    );
+    const payload = await readErrorPayload(response);
+    throw digitalOceanRequestError(response, payload, { method, path });
   }
   return response.json();
 }
@@ -185,13 +244,12 @@ export function addTesterAuthEnvironmentVariables(
   return { spec: nextSpec, missingKeys };
 }
 
-export async function activateTesterAuthConfiguration({
+async function loadTesterAuthActivation({
   projectUrl,
   publishableKey,
   expectedAppId = "",
   env = process.env,
   fetchImpl = fetch,
-  randomBytesImpl = randomBytes,
 } = {}) {
   const { token, appId } = requiredAppConfig(env);
   if (expectedAppId && expectedAppId !== appId) {
@@ -207,7 +265,50 @@ export async function activateTesterAuthConfiguration({
   const app = appData.app || {};
   const currentSpec = app.spec;
   assertSafeSecretRoundTrip(currentSpec);
-  const existingMissing = missingTesterAuthEnvironmentKeys(currentSpec);
+  return {
+    app,
+    appId,
+    config,
+    currentSpec,
+    missingKeys: missingTesterAuthEnvironmentKeys(currentSpec),
+    options,
+  };
+}
+
+export async function inspectTesterAuthActivation(options = {}) {
+  const inspection = await loadTesterAuthActivation(options);
+  return {
+    appId: inspection.appId,
+    missingKeys: inspection.missingKeys,
+    readAccessVerified: true,
+    requiredWriteScope: "app:update",
+    writeAccess:
+      inspection.missingKeys.length === 0 ? "not-needed" : "verified-on-update",
+  };
+}
+
+export async function activateTesterAuthConfiguration({
+  projectUrl,
+  publishableKey,
+  expectedAppId = "",
+  env = process.env,
+  fetchImpl = fetch,
+  randomBytesImpl = randomBytes,
+} = {}) {
+  const {
+    app,
+    appId,
+    config,
+    currentSpec,
+    missingKeys: existingMissing,
+    options,
+  } = await loadTesterAuthActivation({
+    projectUrl,
+    publishableKey,
+    expectedAppId,
+    env,
+    fetchImpl,
+  });
   if (!existingMissing.length) {
     return {
       updated: false,

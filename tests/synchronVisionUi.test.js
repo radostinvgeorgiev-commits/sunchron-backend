@@ -22,7 +22,7 @@ test("the personal AI interface keeps chat primary and exposes four mobile comma
   assert.match(css, /bottom:\s*calc\(70px \+ env\(safe-area-inset-bottom\)\)/u);
   assert.match(script, /forwardClick\("memoryBtn", "memory"\)/u);
   assert.match(script, /forwardClick\("focusBtn", "tasks"\)/u);
-  assert.match(script, /forwardClick\("toolsBtn", "connections"\)/u);
+  assert.match(script, /forwardClick\("workCenterBtn", "connections"\)/u);
 });
 
 test("the visual layer preserves the readable text controls and safe drawers", async () => {

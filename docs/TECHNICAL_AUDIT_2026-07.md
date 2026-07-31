@@ -2,9 +2,9 @@
 
 Дата: 31 юли 2026 г.
 
-Проверен commit: `dad5ec3d6f6bf565e1f4f0b55e3ac8d48c52605b`
+Проверен commit: `d1b671d8acddb929489f949a7642f920e7854537`
 
-Production доказателство: GitHub Actions run `30647473973`
+Production доказателство: GitHub Actions run `30648538512`
 
 Обхват: актуалният `main`, наличната DigitalOcean App Platform конфигурация,
 GitHub Actions, приложният код и автоматичните тестове.
@@ -17,16 +17,16 @@ GitHub Actions, приложният код и автоматичните тес
   доказва стабилен commit, публичен сайт, liveness, readiness, реален изолиран
   OpenSearch запис/прочит/промяна/изтриване, непроменена лична памет, MCP
   каталог и OAuth challenge, както и готовност на тестовите профили.
-- Локалният пакет има 387 теста: 386 успешни, 0 неуспешни и 1 пропуснат
+- Локалният пакет има 396 теста: 395 успешни, 0 неуспешни и 1 пропуснат
   production OpenSearch тест. Production зависимостите имат 0 известни high
   уязвимости.
 - Собственикът и тестовите потребители получават отделни `memoryOwnerId`.
   Всички основни заявки към паметта филтрират по собственик.
 - MCP OAuth има PKCE, CSRF защита, кратки access tokens, въртящи refresh tokens,
   scopes и устойчив еднократен replay guard в OpenSearch.
-- Рисковите GitHub и Calendar действия използват устойчиви еднократни
-  потвърждения, свързани с потребител/сесия. Тестов профил не получава owner
-  write права.
+- Рисковите GitHub, Calendar и постоянни memory write действия използват
+  устойчиви еднократни потвърждения, свързани с потребител/сесия. Тестов
+  профил не получава owner write права.
 - Има TLS проверка към OpenSearch, CSP, HSTS, забрана за cross-origin browser
   достъп, rate limiting, HttpOnly/Secure/SameSite cookies и входна валидация.
 - Генерираните `node_modules`, Python `venv` и `server.log` вече не се следят в
@@ -34,20 +34,20 @@ GitHub Actions, приложният код и автоматичните тес
 
 ### Какво е опасно
 
-Няма открит P0 дефект. Има четири P1 риска:
+Няма открит P0 дефект. Има три P1 риска:
 
 1. няма доказан OpenSearch backup и restore;
-2. записът и изтриването на памет имат несъвместими потвърдителни граници;
-3. стар статичен MCP Bearer token още дава owner достъп без OAuth scopes;
-4. реалните owner интеграции не са проверени край до край в личните акаунти.
+2. стар статичен MCP Bearer token още дава owner достъп без OAuth scopes;
+3. реалните owner интеграции не са проверени край до край в личните акаунти.
 
 ### Готовност за един реален потребител
 
 Системата е **условно готова за ежедневен чат, четене, търсене и контролирани
-интеграции за един човек**, но не трябва да бъде единственото незаменимо място
-за лична памет, докато не се докаже restore. Не е готова за напълно автономни
-записи: всички write входове първо трябва да имат еднаква еднократна
-потвърдителна граница и устойчив одит.
+интеграции за един човек**. Постоянният запис вече е защитен с еднаква
+еднократна потвърдителна граница през чата и API, но системата не трябва да бъде
+единственото незаменимо място за лична памет, докато не се докаже restore.
+Изтриването и външните write действия остават човешки потвърждавани, а одитът
+трябва да стане устойчив преди по-широка автономност.
 
 ## Проверена архитектура и поток
 
@@ -109,32 +109,24 @@ Library или други вътрешни ChatGPT данни в SYNCHRON-X.
   connection по време на проверката.
 - **Трудност:** средна.
 
-### SX-02 — Потвърждението за памет не е еднакво във всички входове
+### SX-02 — Еднократното потвърждение за постоянен запис е отстранено
 
-- **Критичност:** P1 висока.
-- **Доказателство:** `src/routes/chat.js`, `POST /chat`, изисква dedicated prefix
-  за явна memory write команда, но после записва `automatic-high-confidence`
-  кандидати без отделно потвърждение. `src/routes/memoryRouter.js`,
-  `POST /profile`, извиква `saveProfileMemory` директно. DELETE маршрутите
-  приемат константата `confirm-delete-profile-memory` в
-  `x-confirm-memory-delete`; тя е публично върната и се използва повторно от
-  `public/app.js`. Permission policy в `src/services/permissionService.js`
-  декларира `memory.write=confirm` и `memory.delete=confirm`.
-- **Реален проблем:** authenticated клиент, повреден UI или XSS може да запише
-  или изтрие памет без еднократно потвърждение, свързано с точния факт и
-  потребителското намерение. Автоматичен extractor може да превърне обикновено
-  изречение в постоянен факт.
-- **Проверка:** с тестова owner сесия изпрати директен `POST /memory/profile` без
-  confirmation и DELETE с известния header; провери, че операцията в момента
-  минава. За чата изпрати изречение, разпознато като implicit memory, без
-  dedicated prefix.
-- **Поправка:** единен confirmation service за chat, UI API и MCP; еднократен
-  ID, точни fact/scope/owner/session, 10-минутен TTL, consume-before-write.
-  Автоматичните кандидати да се предложат, но да не се записват преди
-  потвърждение.
-- **Риск от поправката:** среден — може временно да счупи текущите бутони за
-  памет и acceptance теста, ако клиентът не бъде мигриран атомарно.
-- **Трудност:** средна.
+- **Състояние:** затворена констатация, не активен риск. Поправена с PR №159 и
+  допълнително доказана през реалния chat route с PR №160.
+- **Доказателство:** `src/services/memoryWriteConfirmationService.js` свързва
+  точните факти, scope, хеширан owner и session с устойчиво потвърждение,
+  използва кратък TTL и consume-before-write. `POST /memory/profile` връща 409 и
+  не записва преди confirmation ID. `POST /chat` не записва implicit факти;
+  явната команда само подготвя точния запис. `tests/memoryWriteRoute.test.js`
+  минава през реалния Express route и доказва „обикновен текст → 0 записа“,
+  „Запомни… → 0 записа + предложение“ и „точно еднократно потвърждение → 1
+  запис“.
+- **Оставащ отделен риск:** DELETE API още използва повторяемата константа
+  `confirm-delete-profile-memory`, а pending delete в чата е process-local.
+  Това не отваря отново поправения memory write риск; проследява се отделно в
+  SX-05 и трябва да бъде мигрирано към същия durable one-time модел.
+- **Повторна проверка:** пази route теста, owner/session mismatch тестовете,
+  replay теста и production smoke като задължителни регресионни граници.
 
 ### SX-03 — Legacy MCP Bearer token заобикаля OAuth scopes
 
@@ -286,7 +278,7 @@ Library или други вътрешни ChatGPT данни в SYNCHRON-X.
 ### SX-11 — Автоматичните тестове не покриват всички production граници
 
 - **Критичност:** P2 средна.
-- **Доказателство:** 386/387 локални теста минават; един E2E тест в
+- **Доказателство:** 395/396 локални теста минават; един E2E тест в
   `tests/pendingDeleteService.test.js` се skip-ва без реален OpenSearch. Има
   mock integration тестове за isolation/exact delete и реален production
   startup acceptance, но няма паралелен memory write test, restore test,
@@ -385,7 +377,9 @@ Library или други вътрешни ChatGPT данни в SYNCHRON-X.
 
 1. **SX-01:** доказан OpenSearch restore — след изрично разрешение за временния
    платен клъстер и точен cost ceiling.
-2. **SX-02:** единно еднократно потвърждение за всички memory writes/deletes.
+2. **Memory delete:** замени повторяемия delete header и process-local pending
+   state с durable еднократно потвърждение, без да променяш поправения write
+   поток.
 3. **SX-03:** план за миграция и ротация на legacy MCP static bearer, без да се
    прекъсне текущата ChatGPT/OAuth връзка.
 4. **SX-04:** реален owner acceptance на ChatGPT MCP, GitHub и Google — всяко
@@ -395,13 +389,12 @@ Library или други вътрешни ChatGPT данни в SYNCHRON-X.
 
 ## Какво да се оправи по-късно
 
-1. **SX-05:** durable pending memory delete.
-2. **SX-07:** atomic/deterministic memory upsert.
-3. **SX-08:** видим status при незапазена conversation history.
-4. **SX-09:** upgrade на dev tooling, когато upstream има безопасна версия.
-5. **SX-10:** alerts, recovery drill и измерване на capacity.
-6. **SX-11:** допълнителни restart/concurrency/provider acceptance тестове.
-7. **SX-13:** текущ state и incident runbook.
+1. **SX-07:** atomic/deterministic memory upsert.
+2. **SX-08:** видим status при незапазена conversation history.
+3. **SX-09:** upgrade на dev tooling, когато upstream има безопасна версия.
+4. **SX-10:** alerts, recovery drill и измерване на capacity.
+5. **SX-11:** допълнителни restart/concurrency/provider acceptance тестове.
+6. **SX-13:** текущ state и incident runbook.
 
 ## Какво не е нужно сега
 
@@ -437,10 +430,10 @@ Library или други вътрешни ChatGPT данни в SYNCHRON-X.
 ## Предложен безопасен ред
 
 1. Прегледай този audit; не сливай автоматично.
-2. Отделна задача за SX-02 с tests и production smoke, без промяна на реалната
-   памет.
-3. Отделна задача за SX-06, защото повече write възможности изискват надежден
-   журнал.
+2. Пази поправката на SX-02 чрез route/replay regression tests и production
+   smoke; не прави нови записи в реалната памет при проверката.
+3. Отделна задача за durable memory delete confirmation и SX-06, защото повече
+   write възможности изискват надежден журнал.
 4. Owner read-only ChatGPT MCP acceptance; после refresh-after-deploy test.
 5. Owner GitHub/Google write acceptance само с точни тестови ресурси и cleanup.
 6. Платен restore drill само след cost approval; не пренасочвай production.

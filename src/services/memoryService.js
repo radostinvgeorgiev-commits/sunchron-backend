@@ -94,6 +94,23 @@ function cleanMemoryFact(fact) {
     .trim();
 }
 
+export function normalizeProfileMemoryDraft(fact, requestedScope = "personal") {
+  const cleanFact = typeof fact === "string" ? cleanMemoryFact(fact) : "";
+  if (!cleanFact || cleanFact.length > 500) {
+    const error = new Error(
+      "Фактът за паметта трябва да бъде между 1 и 500 знака.",
+    );
+    error.code = "INVALID_MEMORY";
+    throw error;
+  }
+  if (!VALID_SCOPES.has(requestedScope)) {
+    const error = new Error("Невалиден тип памет.");
+    error.code = "INVALID_MEMORY";
+    throw error;
+  }
+  return Object.freeze({ fact: cleanFact, scope: requestedScope });
+}
+
 function splitMemoryFacts(value) {
   const normalized = value.replace(/\r\n/g, "\n").trim();
   const lines = normalized
@@ -305,41 +322,6 @@ export function extractPersistentMemoryCommands(message) {
 
   const singleCommand = extractPersistentMemoryCommand(text);
   return singleCommand ? [singleCommand] : [];
-}
-
-export function extractImplicitMemoryCandidates(message) {
-  const text = cleanMemoryFact(message);
-  if (
-    !text ||
-    text.length > 500 ||
-    /[?？]$/u.test(message.trim()) ||
-    extractPersistentMemoryCommands(message).length ||
-    extractForgetMemoryCommand(message) ||
-    isForgetAllCommand(message)
-  ) {
-    return [];
-  }
-
-  const clauses = text
-    .split(
-      /(?:[.!?]\s+|\s+и\s+(?=(?:аз\s+)?(?:се\s+интересувам|живея|имам\s+(?:бизнес|фирма|магазин|заведение|бунгала|къмпинг)|казвам\s+се)))/iu,
-    )
-    .map(cleanMemoryFact)
-    .filter(Boolean);
-  const stablePersonalFactPatterns = [
-    /^(?:аз\s+)?казвам\s+се\s+.+$/iu,
-    /^(?:аз\s+)?живея\s+(?:във?|на)\s+.+$/iu,
-    /^(?:аз\s+)?се\s+интересувам\s+от\s+.+$/iu,
-    /^(?:аз\s+)?имам\s+(?:бизнес|фирма|магазин|заведение|бунгала|къмпинг)(?:\s|$).*$/iu,
-  ];
-
-  return [
-    ...new Set(
-      clauses.filter((clause) =>
-        stablePersonalFactPatterns.some((pattern) => pattern.test(clause)),
-      ),
-    ),
-  ].map((fact) => ({ fact, scope: "personal", confidence: "high" }));
 }
 
 export function extractForgetMemoryCommand(message) {
@@ -558,24 +540,15 @@ export async function saveProfileMemory(
   requestedScope = "personal",
   ownerId = OWNER_ID,
 ) {
-  const cleanFact = cleanMemoryFact(fact);
-  if (!cleanFact || cleanFact.length > 500) {
-    const error = new Error(
-      "Фактът за паметта трябва да бъде между 1 и 500 знака.",
-    );
-    error.code = "INVALID_MEMORY";
-    throw error;
-  }
-  if (!VALID_SCOPES.has(requestedScope)) {
-    const error = new Error("Невалиден тип памет.");
-    error.code = "INVALID_MEMORY";
-    throw error;
-  }
+  const { fact: cleanFact, scope } = normalizeProfileMemoryDraft(
+    fact,
+    requestedScope,
+  );
 
   await ensureProfileIndex();
   const client = getClientOrThrow();
   const normalizedFact = normalizeFact(cleanFact);
-  const metadata = deriveMemoryMetadata(cleanFact, requestedScope);
+  const metadata = deriveMemoryMetadata(cleanFact, scope);
   const hits = await fetchProfileHits(ownerId);
   const hydrated = hits.map(hydrateMemory).filter(Boolean);
   const sameTopic = hydrated.filter(

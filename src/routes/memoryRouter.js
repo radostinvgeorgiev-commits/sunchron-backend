@@ -5,10 +5,15 @@ import {
   listConversationMessages,
   listConversationSummaries,
   listProfileMemories,
-  saveProfileMemory,
 } from "../services/memoryService.js";
 import { recordAuditEvent } from "../services/permissionService.js";
 import { CANONICAL_PROJECT_MEMORY_ID } from "../config/projectIdentity.js";
+import {
+  confirmMemoryWrite,
+  formatMemoryWritePreparation,
+  MemoryWriteConfirmationError,
+  prepareMemoryWrite,
+} from "../services/memoryWriteConfirmationService.js";
 
 const router = express.Router();
 
@@ -27,14 +32,104 @@ async function auditMemoryAction(event) {
 }
 
 function sendMemoryError(res, error) {
-  const status = error?.code === "INVALID_MEMORY" ? 400 : 503;
+  const status = error?.code === "INVALID_MEMORY" ? 400 : error?.status || 503;
   console.error("[Memory]", error?.message || error);
+  if (error instanceof MemoryWriteConfirmationError) {
+    return res.status(status).json({
+      error: error.message,
+      code: error.code,
+    });
+  }
   return res.status(status).json({
     error:
       status === 400
         ? error.message
         : "Постоянната памет временно не е достъпна.",
   });
+}
+
+export function createProfileMemoryWriteHandler({
+  prepare = prepareMemoryWrite,
+  confirm = confirmMemoryWrite,
+  audit = auditMemoryAction,
+} = {}) {
+  return async function profileMemoryWriteHandler(req, res) {
+    const body = req.body || {};
+    const sessionId =
+      typeof body.sessionId === "string" ? body.sessionId.trim() : "";
+    const confirmationId =
+      typeof body.confirmationId === "string" ? body.confirmationId.trim() : "";
+    if (!sessionId) {
+      return res.status(400).json({
+        error: "Полето sessionId е задължително за защитен запис.",
+        code: "MISSING_SESSION",
+      });
+    }
+
+    try {
+      if (confirmationId) {
+        const items = await confirm({
+          confirmationId,
+          sessionId,
+          ownerId: req.owner.memoryOwnerId,
+          source: "confirmed-memory-api",
+        });
+        await audit({
+          action: "memory.write",
+          decision: "confirmed",
+          outcome: "succeeded",
+          resource: "profile-memory",
+          details: `api:confirmed:${items.length}:${[
+            ...new Set(items.map(({ scope }) => scope)),
+          ].join(",")}`,
+          sessionId,
+        });
+        return res.status(201).json({ status: "ok", items });
+      }
+
+      if (typeof body.fact !== "string") {
+        return res.status(400).json({
+          error: "Полето fact е задължително.",
+          code: "INVALID_MEMORY",
+        });
+      }
+      const prepared = await prepare({
+        sessionId,
+        ownerId: req.owner.memoryOwnerId,
+        items: [{ fact: body.fact, scope: body.scope ?? "personal" }],
+      });
+      await audit({
+        action: "memory.write",
+        decision: "confirm",
+        outcome: "requested",
+        resource: "profile-memory",
+        details: `api:prepared:${prepared.items.length}`,
+        sessionId,
+      });
+      return res.status(409).json({
+        error: "Записът в постоянната памет изисква точно потвърждение.",
+        code: "MEMORY_WRITE_CONFIRMATION_REQUIRED",
+        confirmationId: prepared.confirmationId,
+        expiresAt: prepared.expiresAt,
+        items: prepared.items,
+        confirmationPhrase: formatMemoryWritePreparation(prepared)
+          .split("\n")
+          .at(-1),
+      });
+    } catch (error) {
+      if (confirmationId) {
+        await audit({
+          action: "memory.write",
+          decision: "confirmed",
+          outcome: "failed",
+          resource: "profile-memory",
+          details: `api:failed:${error?.code || "unknown"}`,
+          sessionId,
+        });
+      }
+      return sendMemoryError(res, error);
+    }
+  };
 }
 
 router.get("/conversations", async (req, res) => {
@@ -76,30 +171,7 @@ router.get("/profile", async (req, res) => {
   }
 });
 
-router.post("/profile", async (req, res) => {
-  try {
-    const { fact, scope = "personal" } = req.body || {};
-    if (typeof fact !== "string") {
-      return res.status(400).json({ error: "Полето fact е задължително." });
-    }
-    const item = await saveProfileMemory(
-      fact,
-      "memory-api",
-      scope,
-      req.owner.memoryOwnerId,
-    );
-    await auditMemoryAction({
-      action: "memory.write",
-      decision: "allow",
-      outcome: "succeeded",
-      resource: "profile-memory",
-      details: `api:${item.scope}:${item.id}`,
-    });
-    return res.status(201).json({ status: "ok", item });
-  } catch (error) {
-    return sendMemoryError(res, error);
-  }
-});
+router.post("/profile", createProfileMemoryWriteHandler());
 
 router.delete("/profile/:id", async (req, res) => {
   try {

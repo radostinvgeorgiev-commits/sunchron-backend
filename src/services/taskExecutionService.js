@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 
 const TERMINAL_STATUSES = new Set([
   "completed",
@@ -12,7 +13,7 @@ function safeNotify(notify, event) {
   try {
     notify(Object.freeze({ ...event }));
   } catch (error) {
-    console.error("[TaskExecution] Status notification failed:", error);
+    logSafeError("[TaskExecution] Status notification failed", error);
   }
 }
 
@@ -21,7 +22,7 @@ async function safeAudit(audit, event) {
   try {
     await audit(event);
   } catch (error) {
-    console.error("[TaskExecution] Audit write failed:", error);
+    logSafeError("[TaskExecution] Audit write failed", error);
   }
 }
 
@@ -115,7 +116,7 @@ export async function executeTaskPlan({
         decision: "deny",
         outcome: "failed",
         resource: request.capability,
-        details: error?.code || error?.message || "unknown_error",
+        details: safeErrorCode(error, "TASK_EXECUTION_FAILED"),
         sessionId: capabilityInputContext.sessionId,
       });
     }

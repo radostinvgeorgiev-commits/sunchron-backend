@@ -4,6 +4,7 @@ import {
   searchWeb,
   WebSearchError,
 } from "../services/webSearchService.js";
+import { logSafeError } from "../utils/safeLogging.js";
 
 const router = express.Router();
 
@@ -13,7 +14,7 @@ router.post("/ai", async (req, res) => {
   try {
     return res.json(await searchWeb(query));
   } catch (error) {
-    console.error("[Web search] Failure:", error);
+    logSafeError("[Web search] Failure", error);
     const status = error instanceof WebSearchError ? error.status : 502;
     return res.status(status).json({
       error:

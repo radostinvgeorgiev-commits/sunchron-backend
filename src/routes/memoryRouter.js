@@ -21,6 +21,7 @@ import {
   MemoryDeleteConfirmationError,
   prepareMemoryDelete,
 } from "../services/memoryDeleteConfirmationService.js";
+import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 
 const router = express.Router();
 
@@ -28,13 +29,13 @@ async function auditMemoryAction(event) {
   try {
     await recordAuditEvent(event);
   } catch (error) {
-    console.error("[Audit] Memory API write failure:", error);
+    logSafeError("[Memory audit] Write failure", error);
   }
 }
 
 function sendMemoryError(res, error) {
   const status = error?.code === "INVALID_MEMORY" ? 400 : error?.status || 503;
-  console.error("[Memory]", error?.message || error);
+  logSafeError("[Memory] Request failure", error);
   if (
     error instanceof MemoryWriteConfirmationError ||
     error instanceof MemoryDeleteConfirmationError ||
@@ -117,7 +118,7 @@ async function runProtectedMemoryDelete({
         decision: confirmationId ? "confirmed" : "confirm",
         outcome: "failed",
         resource: "profile-memory",
-        details: `api:${target.kind}:failed:${error?.code || "unknown"}`,
+        details: `api:${target.kind}:failed:${safeErrorCode(error, "MEMORY_DELETE_FAILED")}`,
         sessionId,
       });
     }
@@ -232,7 +233,7 @@ export function createProfileMemoryWriteHandler({
           decision: "confirmed",
           outcome: "failed",
           resource: "profile-memory",
-          details: `api:failed:${error?.code || "unknown"}`,
+          details: `api:failed:${safeErrorCode(error, "MEMORY_WRITE_FAILED")}`,
           sessionId,
         });
       }

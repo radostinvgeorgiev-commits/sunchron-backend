@@ -29,6 +29,7 @@ import {
   isAuditSafetyError,
   recordAuditEvent,
 } from "../services/permissionService.js";
+import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 
 const router = express.Router();
 
@@ -36,7 +37,7 @@ async function auditAction(event) {
   try {
     await recordAuditEvent(event);
   } catch (error) {
-    console.error("[Audit] Write failure:", error);
+    logSafeError("[Confirmed action audit] Write failure", error);
   }
 }
 
@@ -80,7 +81,7 @@ router.post("/request", async (req, res) => {
       decision: "deny",
       outcome: "blocked",
       resource: resourceLabel(resource),
-      details: error.code || error.message,
+      details: safeErrorCode(error, "CONFIRMATION_REQUEST_BLOCKED"),
       sessionId: cleanSessionId,
     });
     const status = error.code === "UNKNOWN_ACTION" ? 400 : 422;
@@ -139,7 +140,7 @@ router.post("/confirm", async (req, res) => {
       action: "github.write",
       decision: "confirm",
       outcome: outcomeMap[error.code] || "denied",
-      details: error.code || "confirmation_denied",
+      details: safeErrorCode(error, "CONFIRMATION_DENIED"),
       sessionId: cleanSessionId,
     });
     const statusMap = {
@@ -176,7 +177,7 @@ router.post("/confirm", async (req, res) => {
         decision: "confirmed",
         outcome: "failed",
         resource: resourceLabel(confirmation.resource),
-        details: error.code || "EXECUTION_ERROR",
+        details: safeErrorCode(error, "EXECUTION_ERROR"),
         sessionId: cleanSessionId,
       });
     }

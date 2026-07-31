@@ -9,6 +9,7 @@ import {
   evaluatePermission,
   recordAuditEvent,
 } from "../services/permissionService.js";
+import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 
 const router = express.Router();
 const AUDIT_TIMEOUT_MS = 2000;
@@ -24,10 +25,7 @@ async function auditAction(event) {
       new Promise((resolve) => setTimeout(resolve, AUDIT_TIMEOUT_MS)),
     ]);
   } catch (error) {
-    console.error(
-      "[Calendar audit] Write failure:",
-      error?.message || "unknown",
-    );
+    logSafeError("[Calendar audit] Write failure", error);
   }
 }
 
@@ -92,7 +90,7 @@ router.get("/events", async (req, res) => {
       decision: permission.decision,
       outcome: "failed",
       resource: "GET /calendar/events",
-      details: error?.code,
+      details: safeErrorCode(error, "CALENDAR_READ_FAILED"),
     });
     sendError(res, error);
   }

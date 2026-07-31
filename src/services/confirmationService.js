@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getOpenSearchClient } from "../config/opensearch.js";
+import { logSafeError } from "../utils/safeLogging.js";
 import {
   decryptGitHubSession,
   encryptGitHubSession,
@@ -181,10 +182,7 @@ export async function createDurableConfirmation(options) {
       pendingConfirmations.delete(confirmation.id);
       throw persistenceError();
     }
-    console.error(
-      "[Confirmation] Persistence failure:",
-      error?.message || "unknown",
-    );
+    logSafeError("[Confirmation] Persistence failure", error);
   }
 
   if (!persisted && requiresPersistentConfirmations()) {
@@ -247,10 +245,7 @@ export async function markDurableConfirmationUsed(confirmationId) {
     try {
       await removeStoredConfirmation(confirmationId);
     } catch (error) {
-      console.error(
-        "[Confirmation] Delete failure:",
-        error?.message || "unknown",
-      );
+      logSafeError("[Confirmation] Delete failure", error);
     }
   }
   markConfirmationUsed(confirmationId);

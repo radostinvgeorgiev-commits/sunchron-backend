@@ -11,6 +11,7 @@ import {
   evaluatePermission,
   recordAuditEvent,
 } from "../services/permissionService.js";
+import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 
 const router = express.Router();
 
@@ -36,19 +37,19 @@ async function audit(req, outcome, details = null) {
       details,
     });
   } catch (error) {
-    console.error("[Audit] Write failure:", error);
+    logSafeError("[GitHub audit] Write failure", error);
   }
 }
 
 async function sendError(req, res, error) {
-  await audit(req, "failed", error?.code || error?.message);
+  await audit(req, "failed", safeErrorCode(error, "GITHUB_READ_FAILED"));
   if (error instanceof GitHubServiceError) {
     return res.status(error.status).json({
       error: error.message,
       code: error.code,
     });
   }
-  console.error("[GitHub] Unexpected failure:", error);
+  logSafeError("[GitHub] Unexpected failure", error);
   return res.status(500).json({
     error: "Неочаквана грешка в GitHub модула.",
     code: "INTERNAL_ERROR",

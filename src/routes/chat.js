@@ -80,6 +80,7 @@ import {
   PROJECT_BASE_CONTEXT,
   PROJECT_DEFINITION,
 } from "../config/projectIdentity.js";
+import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 
 const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
@@ -98,7 +99,7 @@ async function auditAction(event) {
   try {
     await recordAuditEvent(event);
   } catch (error) {
-    console.error("[Audit] Write failure:", error);
+    logSafeError("[Chat audit] Write failure", error);
   }
 }
 
@@ -112,7 +113,7 @@ async function saveConversationTurnBestEffort(
     await saveConversationTurn(sessionId, userText, replyText, ownerId);
     return true;
   } catch (error) {
-    console.error(`[ConversationMemory] Save failure for ${sessionId}:`, error);
+    logSafeError("[ConversationMemory] Save failure", error);
     return false;
   }
 }
@@ -842,10 +843,7 @@ router.post("/chat", async (req, res) => {
       listConversationMessages(cleanSessionId, undefined, ownerId),
     ]);
   } catch (error) {
-    console.error(
-      `[Memory] Failure for ${cleanSessionId}:`,
-      error?.code || error?.message || "unknown",
-    );
+    logSafeError("[Memory] Chat request failure", error);
     if (
       error instanceof MemoryDeleteConfirmationError ||
       isAuditSafetyError(error)
@@ -949,7 +947,7 @@ router.post("/chat", async (req, res) => {
         ...getConversationPersistenceMetadata(conversationPersisted),
       });
     } catch (error) {
-      console.error(`[Vision] Failure for ${cleanSessionId}:`, error);
+      logSafeError("[Vision] Chat request failure", error);
       sendEvent("error", {
         status: error instanceof ImageServiceError ? error.status : 502,
         message:
@@ -986,17 +984,14 @@ router.post("/chat", async (req, res) => {
         ...getConversationPersistenceMetadata(conversationPersisted),
       });
     } catch (error) {
-      console.error(
-        "[Memory write confirmation]",
-        error?.code || error?.message || "unknown",
-      );
+      logSafeError("[Memory write confirmation] Failure", error);
       if (!isAuditSafetyError(error)) {
         await auditAction({
           action: "memory.write",
           decision: "confirmed",
           outcome: "failed",
           resource: "profile-memory",
-          details: `chat:failed:${error?.code || "unknown"}`,
+          details: `chat:failed:${safeErrorCode(error, "MEMORY_WRITE_FAILED")}`,
           sessionId: cleanSessionId,
         });
       }
@@ -1052,13 +1047,13 @@ router.post("/chat", async (req, res) => {
         ...getConversationPersistenceMetadata(conversationPersisted),
       });
     } catch (error) {
-      console.error("[Calendar confirmation]", error);
+      logSafeError("[Calendar confirmation] Failure", error);
       await auditAction({
         action: "calendar.write",
         decision: "confirmed",
         outcome: "failed",
         resource: "primary-calendar",
-        details: error?.code || error?.message,
+        details: safeErrorCode(error, "CALENDAR_WRITE_FAILED"),
         sessionId: cleanSessionId,
       });
       sendEvent("error", {
@@ -1103,13 +1098,13 @@ router.post("/chat", async (req, res) => {
         ...getConversationPersistenceMetadata(conversationPersisted),
       });
     } catch (error) {
-      console.error("[Copilot confirmation]", error);
+      logSafeError("[Copilot confirmation] Failure", error);
       await auditAction({
         action: "github.write",
         decision: "confirmed",
         outcome: "failed",
         resource: "github-copilot",
-        details: error?.code || error?.message,
+        details: safeErrorCode(error, "COPILOT_TASK_FAILED"),
         sessionId: cleanSessionId,
       });
       sendEvent("error", {
@@ -1224,7 +1219,7 @@ router.post("/chat", async (req, res) => {
         `[AgentPlanner] Planned ${detectedCapabilityRequests.length} capability calls for ${cleanSessionId}.`,
       );
     } catch (error) {
-      console.error(`[AgentPlanner] Failure for ${cleanSessionId}:`, error);
+      logSafeError("[AgentPlanner] Failure", error);
       detectedCapabilityRequests = memoryAction
         ? []
         : fallbackCapabilityRequests;
@@ -1428,7 +1423,7 @@ router.post("/chat", async (req, res) => {
     );
   } catch (error) {
     if (abortController.signal.aborted && !timedOut) return;
-    console.error(`[AI Core] Failure for ${cleanSessionId}:`, error);
+    logSafeError("[AI Core] Failure", error);
     sendEvent("error", {
       status: timedOut ? 504 : 502,
       message: timedOut

@@ -4,6 +4,7 @@ import {
   listAuditEvents,
   listPermissions,
 } from "../services/permissionService.js";
+import { logSafeError } from "../utils/safeLogging.js";
 
 const router = express.Router();
 
@@ -23,7 +24,7 @@ router.get("/audit", async (req, res) => {
     const events = await listAuditEvents(req.query.limit);
     res.json({ events });
   } catch (error) {
-    console.error("[Audit] Read failure:", error);
+    logSafeError("[Audit] Read failure", error);
     res.status(503).json({
       error: "Дневникът на действията временно не е достъпен.",
       code: "AUDIT_UNAVAILABLE",

@@ -1,5 +1,7 @@
 (() => {
   const STORAGE_KEY = "synchronTaskJournalV1";
+  const ROADMAP_VERSION_KEY = "synchronTaskJournalRoadmapVersion";
+  const ROADMAP_VERSION = 2;
   const STATUS_ORDER = ["now", "waiting", "done"];
   const STATUS_META = Object.freeze({
     now: {
@@ -21,41 +23,58 @@
 
   const DEFAULT_TASKS = Object.freeze([
     {
-      id: "memory-real-data",
-      title: "Тест на постоянната памет с реална информация",
+      id: "autonomous-delivery",
+      title: "Автономно безопасно развитие",
       detail:
-        "Добавяме истински личен и проектен контекст и проверяваме дали се помни в нов разговор.",
+        "Асистентът работи без Copilot чрез отделен клон, тестове, PR, CI и точна production проверка.",
       status: "now",
-      priority: "Основна задача",
+      priority: "Текущ режим",
     },
     {
       id: "agent-consistency",
-      title: "Еднакво поведение на агента",
+      title: "Краен owner тест на свързаните услуги",
       detail:
-        "Изясняваме как външният ChatGPT и чатът на SYNCHRON-X използват един и същ разрешен контекст.",
+        "ChatGPT MCP, GitHub и Google чакат проверка през активна owner сесия, без заобикаляне на входа.",
       status: "waiting",
-      priority: "След паметта",
+      priority: "Изисква owner вход",
+    },
+    {
+      id: "opensearch-backup",
+      title: "Докажи OpenSearch backup инвентара",
+      detail:
+        "Read-only диагностиката е готова; реалните restore точки чакат owner сесия. Restore не се стартира без цена и разрешение.",
+      status: "waiting",
+      priority: "Изисква owner вход",
+    },
+    {
+      id: "memory-real-data",
+      title: "Постоянна памет и изолиран acceptance тест",
+      detail:
+        "Production проверката минава 9 от 9 стъпки, пази изолацията и оставя реалната памет непроменена.",
+      status: "done",
+      priority: "Проверено",
     },
     {
       id: "avatar-profile",
-      title: "Личен AI аватар за Радко",
+      title: "Личен AI аватар и контекст",
       detail:
-        "Изграждаме профил, правила и ежедневна помощ едва след стабилен разговор и памет.",
-      status: "waiting",
-      priority: "Следващ етап",
+        "Интерфейсът използва профил, проектен контекст, контролираната памет и български гласов вход/изход.",
+      status: "done",
+      priority: "Проверено",
     },
     {
       id: "first-integration",
-      title: "Първа реална интеграция",
+      title: "Реални интеграции през Capability Engine",
       detail:
-        "Избираме една полезна услуга и я свързваме с ясни разрешения и потвърждение.",
-      status: "waiting",
-      priority: "По-късно",
+        "GitHub, Google, DigitalOcean, Cloudflare, Supabase, web search и MCP имат изпълними защитени пътища.",
+      status: "done",
+      priority: "Проверено",
     },
     {
       id: "site-chat-core",
       title: "Сайт, AI разговор и постоянна памет",
-      detail: "Живият чат използва AI ядрото, а състоянието на паметта е проверено.",
+      detail:
+        "Живият чат използва AI ядрото, а състоянието на паметта е проверено.",
       status: "done",
       priority: "Завършено",
     },
@@ -68,12 +87,22 @@
     },
     {
       id: "github-bridge",
-      title: "GitHub мост за кода и PR-ите",
-      detail: "GitHub действията минават през свързания мост, без браузър.",
+      title: "GitHub read, PR, CI и production delivery",
+      detail:
+        "Промените минават през точен Git tree, независими тестове и production smoke. Copilot не се използва.",
+      status: "done",
+      priority: "Завършено",
+    },
+    {
+      id: "calendar-reminders",
+      title: "Защитени Google Calendar напомняния",
+      detail:
+        "Напомнянето се подготвя в точен формат и се записва само след еднократно потвърждение.",
       status: "done",
       priority: "Завършено",
     },
   ]);
+  const MANAGED_TASK_IDS = new Set(DEFAULT_TASKS.map((task) => task.id));
 
   const button = document.getElementById("focusBtn");
   const drawer = document.getElementById("dataDrawer");
@@ -89,10 +118,26 @@
     return DEFAULT_TASKS.map((task) => ({ ...task }));
   }
 
+  function persistTasks(nextTasks) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextTasks));
+    localStorage.setItem(ROADMAP_VERSION_KEY, String(ROADMAP_VERSION));
+  }
+
+  function migrateRoadmapTasks(storedTasks) {
+    const personalTasks = storedTasks.filter(
+      (task) => !MANAGED_TASK_IDS.has(task.id),
+    );
+    return [...personalTasks, ...cloneDefaults()];
+  }
+
   function loadTasks() {
     try {
       const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      if (!Array.isArray(parsed)) return cloneDefaults();
+      if (!Array.isArray(parsed)) {
+        const defaults = cloneDefaults();
+        persistTasks(defaults);
+        return defaults;
+      }
       const valid = parsed.filter(
         (task) =>
           task &&
@@ -100,6 +145,14 @@
           typeof task.title === "string" &&
           STATUS_ORDER.includes(task.status),
       );
+      const storedVersion = Number(
+        localStorage.getItem(ROADMAP_VERSION_KEY) || 0,
+      );
+      if (storedVersion < ROADMAP_VERSION) {
+        const migrated = migrateRoadmapTasks(valid);
+        persistTasks(migrated);
+        return migrated;
+      }
       return valid.length ? valid : cloneDefaults();
     } catch {
       return cloneDefaults();
@@ -107,7 +160,7 @@
   }
 
   function saveTasks() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    persistTasks(tasks);
   }
 
   function createElement(tag, className, text) {
@@ -138,9 +191,17 @@
     card.dataset.taskId = task.id;
 
     const content = createElement("div", "task-card-content");
-    const meta = createElement("span", "task-priority", task.priority || "Задача");
+    const meta = createElement(
+      "span",
+      "task-priority",
+      task.priority || "Задача",
+    );
     const heading = createElement("h4", "", task.title);
-    const detail = createElement("p", "", task.detail || "Без допълнително описание.");
+    const detail = createElement(
+      "p",
+      "",
+      task.detail || "Без допълнително описание.",
+    );
     content.append(meta, heading, detail);
 
     const actions = createElement("div", "task-card-actions");
@@ -154,7 +215,11 @@
     actions.appendChild(moveButton);
 
     if (!DEFAULT_TASKS.some((item) => item.id === task.id)) {
-      const removeButton = createElement("button", "task-remove-btn", "Премахни");
+      const removeButton = createElement(
+        "button",
+        "task-remove-btn",
+        "Премахни",
+      );
       removeButton.type = "button";
       removeButton.dataset.taskRemove = task.id;
       actions.appendChild(removeButton);
@@ -166,7 +231,10 @@
 
   function createColumn(status) {
     const meta = STATUS_META[status];
-    const section = createElement("section", `task-column task-column-${status}`);
+    const section = createElement(
+      "section",
+      `task-column task-column-${status}`,
+    );
     section.dataset.taskColumn = status;
 
     const header = createElement("header", "task-column-header");
@@ -176,7 +244,11 @@
     const heading = createElement("h3", "", meta.label);
     const description = createElement("p", "", meta.description);
     headingWrap.append(heading, description);
-    const count = createElement("span", "task-count", String(taskCount(status)));
+    const count = createElement(
+      "span",
+      "task-count",
+      String(taskCount(status)),
+    );
     count.setAttribute("aria-label", `${taskCount(status)} задачи`);
     header.append(icon, headingWrap, count);
     section.appendChild(header);
@@ -212,7 +284,11 @@
     const progress = createElement("div", "task-progress");
     progress.append(
       createElement("strong", "", `${taskCount("done")} завършени`),
-      createElement("span", "", `${taskCount("now")} активни · ${taskCount("waiting")} чакат`),
+      createElement(
+        "span",
+        "",
+        `${taskCount("now")} активни · ${taskCount("waiting")} чакат`,
+      ),
     );
     summary.append(summaryText, progress);
     body.appendChild(summary);
@@ -284,7 +360,9 @@
   body.addEventListener("click", (event) => {
     const moveButton = event.target.closest("[data-task-move]");
     if (moveButton) {
-      const task = tasks.find((item) => item.id === moveButton.dataset.taskMove);
+      const task = tasks.find(
+        (item) => item.id === moveButton.dataset.taskMove,
+      );
       if (!task) return;
       task.status = nextStatus(task.status);
       task.priority = STATUS_META[task.status].label;
@@ -306,5 +384,6 @@
     open: openJournal,
     statuses: STATUS_ORDER,
     storageKey: STORAGE_KEY,
+    roadmapVersion: ROADMAP_VERSION,
   });
 })();

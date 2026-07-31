@@ -80,13 +80,17 @@ function authConfig(env = process.env) {
   };
 }
 
-export function isUserAuthConfigured(env = process.env) {
+export function getUserAuthConfigurationStatus(env = process.env) {
   const config = authConfig(env);
-  return Boolean(
-    config.projectUrl &&
-    config.publishableKey &&
-    config.encryptionSecret.length >= 16,
-  );
+  return {
+    projectConnection: Boolean(config.projectUrl && config.publishableKey),
+    sessionProtection: config.encryptionSecret.length >= 16,
+  };
+}
+
+export function isUserAuthConfigured(env = process.env) {
+  const status = getUserAuthConfigurationStatus(env);
+  return status.projectConnection && status.sessionProtection;
 }
 
 export function isTesterRegistrationEnabled(env = process.env) {

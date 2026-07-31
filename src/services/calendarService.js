@@ -9,6 +9,10 @@ import {
   GoogleDriveError,
   hasSession,
 } from "./googleDriveService.js";
+import {
+  executeAuditedWriteAction,
+  isAuditSafetyError,
+} from "./permissionService.js";
 
 const CALENDAR_ACTION = "calendar.write:create_event";
 const CONFIRM_PREFIX = "Потвърждавам календарно събитие:";
@@ -226,6 +230,7 @@ export async function confirmCalendarEvent({
   validateConfirmation = validateDurableConfirmation,
   consumeConfirmation = markDurableConfirmationUsed,
   createEvent = createGoogleCalendarEvent,
+  executeWrite = executeAuditedWriteAction,
 }) {
   let confirmation;
   try {
@@ -260,14 +265,30 @@ export async function confirmCalendarEvent({
     );
   }
   await consumeConfirmation(confirmationId);
-  return createEvent(googleSessionId, {
-    title: confirmation.resource.title,
-    start: confirmation.resource.start,
-    end: confirmation.resource.end,
-    timeZone: confirmation.resource.timeZone,
-    location: confirmation.params.location || "",
-    description: confirmation.params.description || "",
-  });
+  try {
+    return await executeWrite({
+      action: "calendar.write",
+      capability: "calendar.write",
+      sessionId,
+      confirmationId,
+      resource: "primary-calendar",
+      details: "create_event",
+      execute: () =>
+        createEvent(googleSessionId, {
+          title: confirmation.resource.title,
+          start: confirmation.resource.start,
+          end: confirmation.resource.end,
+          timeZone: confirmation.resource.timeZone,
+          location: confirmation.params.location || "",
+          description: confirmation.params.description || "",
+        }),
+    });
+  } catch (error) {
+    if (isAuditSafetyError(error)) {
+      throw new GoogleDriveError(error.message, error.status, error.code);
+    }
+    throw error;
+  }
 }
 
 export function formatCalendarEventResult(event) {

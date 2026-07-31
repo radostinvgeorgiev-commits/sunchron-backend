@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 concurrency:
   group: production-smoke-check
@@ -161,3 +162,44 @@ jobs:
               }
             });
           '
+
+      - name: Publish production verification status
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          case "${JOB_STATUS}" in
+            success)
+              state="success"
+              description="Production smoke check passed."
+              ;;
+            failure)
+              state="failure"
+              description="Production smoke check failed."
+              ;;
+            *)
+              state="error"
+              description="Production smoke check did not complete."
+              ;;
+          esac
+
+          export state description
+          payload="$(node -e '
+            process.stdout.write(JSON.stringify({
+              state: process.env.state,
+              context: "synchron/production-smoke",
+              description: process.env.description,
+              target_url: `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            }));
+          ')"
+
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --data "${payload}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"

@@ -19,10 +19,13 @@ const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
 const AUTHORIZATION_CODE_TTL_SECONDS = 5 * 60;
 const MAX_CONSUMED_TOKEN_RECORDS = 10_000;
+const REPLAY_CLEANUP_INTERVAL_SECONDS = 6 * 60 * 60;
 const MCP_OAUTH_REPLAY_INDEX =
   process.env.MCP_OAUTH_REPLAY_INDEX || "synchron-mcp-oauth-replay-v1";
 const consumedAuthorizationCodes = new Map();
 const consumedRefreshTokens = new Map();
+let lastReplayCleanupAt = 0;
+let activeReplayCleanup = null;
 
 export class McpOAuthError extends Error {
   constructor(
@@ -373,6 +376,50 @@ export function requiresPersistentMcpReplayGuard(env = process.env) {
   return env.NODE_ENV === "production";
 }
 
+export async function cleanupExpiredMcpReplayRecords({
+  client = getOpenSearchClient(),
+  env = process.env,
+  now = Math.floor(Date.now() / 1_000),
+  force = false,
+} = {}) {
+  if (!client || typeof client.deleteByQuery !== "function") return false;
+  if (activeReplayCleanup) return activeReplayCleanup;
+  if (
+    !force &&
+    lastReplayCleanupAt > 0 &&
+    now - lastReplayCleanupAt < REPLAY_CLEANUP_INTERVAL_SECONDS
+  ) {
+    return false;
+  }
+
+  lastReplayCleanupAt = now;
+  activeReplayCleanup = client
+    .deleteByQuery({
+      index: env.MCP_OAUTH_REPLAY_INDEX || MCP_OAUTH_REPLAY_INDEX,
+      conflicts: "proceed",
+      refresh: false,
+      body: {
+        query: {
+          range: {
+            expiresAt: { lte: new Date(now * 1_000).toISOString() },
+          },
+        },
+      },
+    })
+    .then(() => true)
+    .catch((error) => {
+      if (openSearchStatus(error) !== 404) {
+        console.error("[MCP OAuth replay] Expired-record cleanup failed.");
+      }
+      return openSearchStatus(error) === 404;
+    })
+    .finally(() => {
+      activeReplayCleanup = null;
+    });
+
+  return activeReplayCleanup;
+}
+
 export async function consumeMcpGrantOnce({
   grantType,
   tokenId,
@@ -386,8 +433,9 @@ export async function consumeMcpGrantOnce({
 
   if (client) {
     try {
+      const replayIndex = env.MCP_OAUTH_REPLAY_INDEX || MCP_OAUTH_REPLAY_INDEX;
       await client.create({
-        index: env.MCP_OAUTH_REPLAY_INDEX || MCP_OAUTH_REPLAY_INDEX,
+        index: replayIndex,
         id: replayRecordId(grantType, tokenId),
         body: {
           grantType,
@@ -395,6 +443,7 @@ export async function consumeMcpGrantOnce({
         },
         refresh: true,
       });
+      await cleanupExpiredMcpReplayRecords({ client, env, now });
     } catch (error) {
       if (openSearchStatus(error) === 409) return false;
       if (requiresPersistentMcpReplayGuard(env)) {
@@ -637,4 +686,6 @@ export function verifyMcpAccessToken(
 export function resetMcpOAuthStateForTests() {
   consumedAuthorizationCodes.clear();
   consumedRefreshTokens.clear();
+  lastReplayCleanupAt = 0;
+  activeReplayCleanup = null;
 }

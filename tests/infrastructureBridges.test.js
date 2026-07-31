@@ -4,8 +4,10 @@ import test from "node:test";
 import {
   getDigitalOceanAccountAudit,
   getDigitalOceanDatabaseBackupInventory,
+  getDigitalOceanOpenSearchBackupAudit,
   getDigitalOceanAppStatus,
   formatDigitalOceanAudit,
+  formatDigitalOceanOpenSearchBackupAudit,
   formatDigitalOceanStatus,
 } from "../src/services/digitalOceanService.js";
 import {
@@ -230,6 +232,52 @@ test("database backup inventory distinguishes a verified empty backup list", asy
   assert.equal(inventory[0].backupCount, 0);
   assert.equal(inventory[0].oldestCreatedAt, null);
   assert.equal(inventory[0].newestCreatedAt, null);
+});
+
+test("focused OpenSearch backup audit performs only database and backup reads", async () => {
+  const calls = [];
+  const audit = await getDigitalOceanOpenSearchBackupAudit({
+    env: { DIGITALOCEAN_API_TOKEN: "focused-read-token" },
+    fetchImpl: async (url, options) => {
+      calls.push({ url: String(url), options });
+      if (String(url).endsWith("/databases?per_page=200")) {
+        return Response.json({
+          databases: [
+            { id: "db-search", engine: "opensearch" },
+            { id: "db-postgres", engine: "pg" },
+          ],
+        });
+      }
+      return Response.json({
+        backups: [
+          { created_at: "2026-07-30T02:00:00Z" },
+          { created_at: "2026-07-31T02:00:00Z" },
+        ],
+      });
+    },
+  });
+
+  assert.deepEqual(audit.databaseBackups, [
+    {
+      engine: "opensearch",
+      status: "verified",
+      backupCount: 2,
+      oldestCreatedAt: "2026-07-30T02:00:00.000Z",
+      newestCreatedAt: "2026-07-31T02:00:00.000Z",
+      errorCode: null,
+      errorStatus: null,
+    },
+  ]);
+  assert.deepEqual(
+    calls.map(({ url }) => new URL(url).pathname),
+    ["/v2/databases", "/v2/databases/db-search/backups"],
+  );
+  assert.ok(calls.every(({ options }) => options.method === "GET"));
+  assert.match(
+    formatDigitalOceanOpenSearchBackupAudit(audit),
+    /2 налични restore точки/u,
+  );
+  assert.doesNotMatch(JSON.stringify(audit), /focused-read-token/u);
 });
 
 test("Cloudflare bridge reads zone and DNS without writes", async () => {

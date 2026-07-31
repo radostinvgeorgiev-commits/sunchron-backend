@@ -45,6 +45,9 @@ const elements = {
   removeAttachmentBtn: document.getElementById("removeAttachmentBtn"),
   newChatBtn: document.getElementById("newChatBtn"),
   toggleStatusBtn: document.getElementById("toggleStatusBtn"),
+  profileActions: document.getElementById("profileActions"),
+  profileStatusBtn: document.getElementById("profileStatusBtn"),
+  sidebarLogoutBtn: document.getElementById("sidebarLogoutBtn"),
   closeContextBtn: document.getElementById("closeContextBtn"),
   statusPanel: document.getElementById("statusPanel"),
   agentStatusDot: document.getElementById("agentStatusDot"),
@@ -267,7 +270,9 @@ async function startApplication(user) {
     }
   });
   elements.newChatBtn.addEventListener("click", startNewChat);
-  elements.toggleStatusBtn.addEventListener("click", openStatus);
+  elements.toggleStatusBtn.addEventListener("click", toggleProfileActions);
+  elements.profileStatusBtn.addEventListener("click", openStatus);
+  elements.sidebarLogoutBtn.addEventListener("click", handleLogout);
   elements.closeContextBtn.addEventListener("click", closeStatus);
   elements.chatMessages.addEventListener("click", handleMessageAction);
   elements.conversationList.addEventListener("click", handleConversationClick);
@@ -448,6 +453,18 @@ function closeSidebar() {
   elements.sidebar.classList.remove("mobile-visible");
   elements.sidebarBackdrop.hidden = true;
   elements.mobileMenuBtn.setAttribute("aria-expanded", "false");
+  closeProfileActions();
+}
+
+function toggleProfileActions() {
+  const shouldOpen = elements.profileActions.hidden;
+  elements.profileActions.hidden = !shouldOpen;
+  elements.toggleStatusBtn.setAttribute("aria-expanded", String(shouldOpen));
+}
+
+function closeProfileActions() {
+  elements.profileActions.hidden = true;
+  elements.toggleStatusBtn.setAttribute("aria-expanded", "false");
 }
 
 function openImagePicker() {

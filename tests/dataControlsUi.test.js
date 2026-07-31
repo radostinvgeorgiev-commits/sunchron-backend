@@ -49,5 +49,5 @@ test("application exposes working memory and permission controls", async () => {
     /Кодовият мост е запазен, но е изключен в текущия режим без Copilot/u,
   );
   assert.doesNotMatch(script, /fetch\(["']\/opensearch-status["']/u);
-  assert.match(html, /\/assets\/20260730-opensearch-status-v1\/app\.js/u);
+  assert.match(html, /\/assets\/20260801-profile-actions\/app\.js/u);
 });

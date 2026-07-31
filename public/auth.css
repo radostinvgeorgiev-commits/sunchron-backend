@@ -195,6 +195,46 @@
   font-weight: 800;
 }
 
+.profile-actions {
+  padding: 6px;
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(18, 32, 29, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 28px rgba(18, 32, 29, 0.1);
+}
+
+.profile-actions[hidden] {
+  display: none;
+}
+
+.profile-actions button {
+  min-height: 46px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 800;
+}
+
+.profile-actions button:hover,
+.profile-actions button:focus-visible {
+  background: #edf4f1;
+  outline: none;
+}
+
+.profile-actions .profile-action-logout {
+  color: #9f2f1c;
+}
+
+.profile-actions .profile-action-logout:hover,
+.profile-actions .profile-action-logout:focus-visible {
+  background: #fff4f0;
+}
+
 @media (max-width: 520px) {
   .auth-card {
     padding: 24px 20px;

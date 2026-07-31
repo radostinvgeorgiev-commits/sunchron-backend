@@ -165,6 +165,12 @@
     toolId,
     { connected = true, connectionName = "услугата" } = {},
   ) {
+    if (!Array.isArray(integrations?.tools)) {
+      return {
+        label: "Не е проверено",
+        className: "warning",
+      };
+    }
     const tool = integrations?.tools?.find((item) => item.id === toolId);
     if (!tool?.configured || !tool?.enabled || !tool?.executable) {
       return {
@@ -182,6 +188,150 @@
       label: toolId === "github-read" ? "GitHub Read: работи" : "Работи",
       className: "internal",
     };
+  }
+
+  function resolveCapabilityState(
+    integrations,
+    toolId,
+    { connected = true } = {},
+  ) {
+    if (!Array.isArray(integrations?.tools)) return "unavailable";
+    const tool = integrations.tools.find((item) => item.id === toolId);
+    if (!tool?.configured || !tool?.enabled || !tool?.executable) {
+      return "unavailable";
+    }
+    return connected ? "working" : "action";
+  }
+
+  function buildCurrentCapabilities(
+    readiness,
+    integrations,
+    sessions,
+    testerAuth,
+  ) {
+    const coreReady =
+      readiness?.status === "ready" &&
+      readiness?.checks?.chatAgent?.ready === true &&
+      readiness?.checks?.memory?.ready === true;
+    const bridge = readiness?.checks?.bridge;
+    const bridgeReady =
+      bridge?.configured === true &&
+      bridge?.responding === true &&
+      bridge?.tools >= 11 &&
+      bridge?.authentication?.chatgptOAuthReady === true;
+    const testerStatus = testerAuth
+      ? testerAuth.configured && testerAuth.registrationEnabled
+        ? "working"
+        : "action"
+      : "unavailable";
+
+    return [
+      {
+        label: "AI разговор и постоянна памет",
+        state: coreReady ? "working" : "unavailable",
+      },
+      {
+        label: "ChatGPT MCP мост",
+        state: bridgeReady ? "working" : "unavailable",
+      },
+      {
+        label: "GitHub Read",
+        state: resolveCapabilityState(integrations, "github-read"),
+      },
+      {
+        label: "GitHub запис с точно потвърждение",
+        state: resolveCapabilityState(integrations, "github-write", {
+          connected: Boolean(sessions.githubConnected),
+        }),
+      },
+      {
+        label: "Google Drive",
+        state: resolveCapabilityState(integrations, "google-drive-read", {
+          connected: Boolean(sessions.googleConnected),
+        }),
+      },
+      {
+        label: "Gmail",
+        state: resolveCapabilityState(integrations, "gmail-read", {
+          connected: Boolean(sessions.googleConnected),
+        }),
+      },
+      {
+        label: "Google Calendar",
+        state: resolveCapabilityState(integrations, "google-calendar-read", {
+          connected: Boolean(sessions.googleConnected),
+        }),
+      },
+      { label: "Тестови профили", state: testerStatus },
+    ];
+  }
+
+  function renderCurrentCapabilities(
+    readiness,
+    integrations,
+    sessions,
+    testerAuth,
+  ) {
+    const section = document.createElement("section");
+    section.className = "work-center-capabilities";
+    section.setAttribute("aria-labelledby", "currentCapabilitiesTitle");
+
+    const heading = addText(
+      section,
+      "h3",
+      "Какво мога в момента?",
+      "work-center-capabilities-title",
+    );
+    heading.id = "currentCapabilitiesTitle";
+    addText(
+      section,
+      "p",
+      "Показано е само потвърденото от живия статус на системата.",
+      "work-center-capabilities-note",
+    );
+
+    const capabilities = buildCurrentCapabilities(
+      readiness,
+      integrations,
+      sessions,
+      testerAuth,
+    );
+    const groups = [
+      { state: "working", title: "Работи сега" },
+      {
+        state: "action",
+        title: "Изисква свързване или потвърждение",
+      },
+      {
+        state: "unavailable",
+        title: "Не е проверено или недостъпно",
+      },
+    ];
+
+    const grid = document.createElement("div");
+    grid.className = "work-center-capabilities-grid";
+    groups.forEach(({ state, title: groupTitle }) => {
+      const items = capabilities.filter((item) => item.state === state);
+      const group = document.createElement("div");
+      group.className = `work-center-capability-group ${state}`;
+      group.dataset.capabilityGroup = state;
+      addText(
+        group,
+        "strong",
+        `${groupTitle} · ${items.length}`,
+        "work-center-capability-heading",
+      );
+      const list = document.createElement("ul");
+      if (items.length) {
+        items.forEach((item) => addText(list, "li", item.label));
+      } else {
+        addText(list, "li", "Няма", "work-center-capability-empty");
+      }
+      group.appendChild(list);
+      grid.appendChild(group);
+    });
+    section.appendChild(grid);
+    return section;
   }
 
   function resolveChatGptAppStatus(readiness) {
@@ -232,6 +382,14 @@
       "Свързаният разговор е вътре в SYNCHRON-X. Външните услуги не получават автоматично достъп до паметта и не дават нови права на агента.",
     );
     body.appendChild(intro);
+    body.appendChild(
+      renderCurrentCapabilities(
+        readiness,
+        integrations,
+        sessions,
+        testerAuth,
+      ),
+    );
 
     const grid = document.createElement("section");
     grid.className = "work-center-grid";

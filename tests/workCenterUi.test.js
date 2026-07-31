@@ -13,6 +13,10 @@ const css = await readFile(
   new URL("../public/appshell.css", import.meta.url),
   "utf8",
 );
+const accessibilityCss = await readFile(
+  new URL("../public/accessibility.css", import.meta.url),
+  "utf8",
+);
 
 function createHarness({
   config,
@@ -443,6 +447,85 @@ test("one Google login marks Drive, Gmail, and Calendar as connected", async () 
   });
 });
 
+test("current capabilities summary uses only live verified status", async () => {
+  const harness = createHarness({
+    readiness: {
+      status: "ready",
+      checks: {
+        chatAgent: { ready: true },
+        memory: { ready: true, status: "green" },
+        bridge: {
+          configured: true,
+          responding: true,
+          tools: 11,
+          authentication: { chatgptOAuthReady: true },
+        },
+      },
+    },
+    integrations: {
+      tools: [
+        "github-read",
+        "github-write",
+        "google-drive-read",
+        "gmail-read",
+        "google-calendar-read",
+      ].map((id) => ({
+        id,
+        enabled: true,
+        executable: true,
+        configured: true,
+      })),
+    },
+    googleConnected: true,
+    githubConnected: true,
+    testerAuth: { configured: true, registrationEnabled: true },
+  });
+  await openCenter(harness);
+  const { document } = harness.dom.window;
+  const summary = document.querySelector(".work-center-capabilities");
+  const working = summary.querySelector('[data-capability-group="working"]');
+
+  assert.match(summary.textContent, /Какво мога в момента\?/u);
+  assert.match(working.textContent, /Работи сега · 8/u);
+  assert.match(working.textContent, /AI разговор и постоянна памет/u);
+  assert.match(working.textContent, /ChatGPT MCP мост/u);
+  assert.match(working.textContent, /GitHub Read/u);
+  assert.match(working.textContent, /Google Drive/u);
+  assert.match(working.textContent, /Gmail/u);
+  assert.match(working.textContent, /Google Calendar/u);
+  assert.match(working.textContent, /Тестови профили/u);
+});
+
+test("missing Google session is an action and never a working capability", async () => {
+  const harness = createHarness({ googleConnected: false });
+  await openCenter(harness);
+  const { document } = harness.dom.window;
+  const working = document.querySelector('[data-capability-group="working"]');
+  const action = document.querySelector('[data-capability-group="action"]');
+
+  assert.doesNotMatch(working.textContent, /Google Drive|Gmail|Google Calendar/u);
+  assert.match(action.textContent, /Google Drive/u);
+  assert.match(action.textContent, /Gmail/u);
+  assert.match(action.textContent, /Google Calendar/u);
+});
+
+test("unavailable runtime status is never presented as working", async () => {
+  const harness = createHarness({ fetchFails: true });
+  await openCenter(harness);
+  const { document } = harness.dom.window;
+  const summary = document.querySelector(".work-center-capabilities");
+  const working = summary.querySelector('[data-capability-group="working"]');
+  const unavailable = summary.querySelector(
+    '[data-capability-group="unavailable"]',
+  );
+
+  assert.match(working.textContent, /Работи сега · 0/u);
+  assert.match(unavailable.textContent, /AI разговор и постоянна памет/u);
+  assert.match(unavailable.textContent, /ChatGPT MCP мост/u);
+  assert.match(unavailable.textContent, /Google Drive/u);
+  assert.doesNotMatch(summary.textContent, /secret|token|password/iu);
+});
+
 test("mobile drawer cards use full width without horizontal overflow", () => {
   assert.doesNotMatch(css, /display:none\}\\\\n\.drawer-backdrop/u);
   assert.match(css, /@media\s*\(max-width:\s*520px\)/u);
@@ -452,4 +535,12 @@ test("mobile drawer cards use full width without horizontal overflow", () => {
   );
   assert.match(css, /\.data-drawer-body\s*\{[^}]*overflow-x:\s*hidden/u);
   assert.match(css, /\.work-center-card\s*\{\s*min-height:\s*104px/u);
+  assert.match(
+    css,
+    /@media\s*\(\s*max-width:\s*520px\s*\).*?\.work-center-capabilities-grid\s*\{[^}]*grid-template-columns:\s*1fr/su,
+  );
+  assert.match(
+    accessibilityCss,
+    /data-font-scale="max"[^}]*\.work-center-capabilities-title\s*\{[^}]*font-size:\s*var\(--synchron-card-title\)/su,
+  );
 });

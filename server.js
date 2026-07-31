@@ -26,11 +26,13 @@ import publicConfigRouter from "./src/routes/publicConfigRouter.js";
 import userAuthRouter from "./src/routes/userAuthRouter.js";
 import testerAuthAdminRouter from "./src/routes/testerAuthAdminRouter.js";
 import mcpRouter from "./src/routes/mcpRouter.js";
+import { createMcpOAuthRouter } from "./src/routes/mcpOAuthRouter.js";
 
 dotenv.config();
 
 const { oauthRateLimiter, paidAiRateLimiter, privateApiRateLimiter } =
   createRateLimiters();
+const mcpOAuthRouter = createMcpOAuthRouter({ oauthRateLimiter });
 
 if (!process.env.OPENAI_API_KEY) {
   console.warn(
@@ -106,6 +108,7 @@ app.get(
     res.sendFile(`${process.cwd()}/public/synchron-vision.js`);
   },
 );
+app.use("/", mcpOAuthRouter);
 
 app.use(
   express.static("public", {

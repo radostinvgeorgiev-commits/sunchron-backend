@@ -12,6 +12,7 @@ import {
   MCP_TOOLS,
   createMcpRequestHandler,
 } from "../services/mcpReadService.js";
+import { isMcpOAuthConfigured } from "../services/mcpOAuthService.js";
 import { isToolExecutable } from "../tools/capabilityEngine.js";
 import { listTools, registerCoreTools } from "../tools/toolRegistry.js";
 
@@ -158,9 +159,9 @@ export async function getBridgeDiagnosticsStatus({
       readOnlyTools,
       destructiveTools,
       authentication: {
-        mode: "static-bearer",
-        chatgptOAuthReady: false,
-        reason: "oauth-2.1-authorization-server-required",
+        mode: "oauth2-with-legacy-static-bearer",
+        chatgptOAuthReady: isMcpOAuthConfigured(env),
+        discovery: "/.well-known/oauth-protected-resource",
       },
     },
   };

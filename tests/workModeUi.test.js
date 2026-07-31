@@ -18,7 +18,7 @@ test("Chat and Work are available with projects, agents, and pet state", async (
   assert.match(html, /\/work-mode\.js\?v=/u);
   assert.ok(
     html.indexOf("/work-mode.js") <
-      html.indexOf("/assets/20260730-opensearch-status-v1/app.js"),
+      html.indexOf("/assets/20260801-profile-actions/app.js"),
   );
   assert.doesNotMatch(
     html.match(/<button[^>]+id="workModeBtn"[^>]*>/u)?.[0] || "",

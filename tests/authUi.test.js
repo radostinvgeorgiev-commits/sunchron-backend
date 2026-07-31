@@ -37,6 +37,24 @@ test("hides owner tools for tester profiles and exposes logout", () => {
   assert.match(app, /\/api\/auth\/logout/u);
 });
 
+test("the profile ellipsis opens clear status and logout actions", () => {
+  assert.match(
+    html,
+    /id="toggleStatusBtn"[\s\S]*aria-controls="profileActions"/u,
+  );
+  assert.match(html, /id="profileStatusBtn"[\s\S]*Състояние и настройки/u);
+  assert.match(html, /id="sidebarLogoutBtn"[\s\S]*Излез от профила/u);
+  assert.match(
+    app,
+    /toggleStatusBtn\.addEventListener\("click", toggleProfileActions\)/u,
+  );
+  assert.match(
+    app,
+    /sidebarLogoutBtn\.addEventListener\("click", handleLogout\)/u,
+  );
+  assert.match(css, /\.profile-actions\[hidden\]/u);
+});
+
 test("shows the authenticated profile before the long navigation list", () => {
   const profilePosition = html.indexOf('id="toggleStatusBtn"');
   const navigationPosition = html.indexOf('class="sidebar-nav"');

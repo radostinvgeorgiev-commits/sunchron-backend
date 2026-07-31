@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/modules.css?v=20260726-modules" />
     <link rel="stylesheet" href="/accessibility.css?v=20260728-font-stepper" />
     <link rel="stylesheet" href="/task-journal.css?v=20260728-task-journal" />
-    <link rel="stylesheet" href="/auth.css?v=20260730-test-users-v1" />
+    <link rel="stylesheet" href="/auth.css?v=20260801-profile-actions" />
     <link rel="stylesheet" href="/work-mode.css?v=20260801-workspace-v2" />
     <link rel="stylesheet" href="/assets/20260730-v2/synchron-vision.css" />
     <link
@@ -138,6 +138,8 @@
           id="toggleStatusBtn"
           class="profile-button profile-button-visible"
           type="button"
+          aria-expanded="false"
+          aria-controls="profileActions"
         >
           <span class="profile-avatar" id="profileAvatar">Р</span>
           <span
@@ -146,6 +148,20 @@
           >
           <i class="fa-solid fa-ellipsis"></i>
         </button>
+        <div id="profileActions" class="profile-actions" hidden>
+          <button id="profileStatusBtn" type="button">
+            <i class="fa-solid fa-sliders"></i>
+            <span>Състояние и настройки</span>
+          </button>
+          <button
+            id="sidebarLogoutBtn"
+            class="profile-action-logout"
+            type="button"
+          >
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            <span>Излез от профила</span>
+          </button>
+        </div>
         <button id="newChatBtn" class="new-chat" type="button">
           <i class="fa-regular fa-pen-to-square"></i>
           <span>Нов разговор</span>
@@ -446,7 +462,7 @@
 
     <script src="/markdown-renderer.js?v=20260728-xss"></script>
     <script src="/work-mode.js?v=20260801-workspace-v2"></script>
-    <script src="/assets/20260730-opensearch-status-v1/app.js"></script>
+    <script src="/assets/20260801-profile-actions/app.js"></script>
     <script src="/accessibility.js?v=20260728-font-stepper"></script>
     <script src="/assets/20260730-connections-v1/work-center.js"></script>
     <script src="/task-journal.js?v=20260728-task-journal"></script>

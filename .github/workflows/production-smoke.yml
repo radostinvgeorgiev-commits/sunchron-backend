@@ -84,6 +84,33 @@ jobs:
             https://synchron.foundation/health/ready \
             | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"'
 
+      - name: Check production memory acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail --silent --show-error \
+            --retry 3 --retry-delay 10 --retry-all-errors \
+            --max-time 30 \
+            https://synchron.foundation/health/ready)"
+          printf '%s' "${response}" | node -e '
+            let input = "";
+            process.stdin.on("data", (chunk) => { input += chunk; });
+            process.stdin.on("end", () => {
+              const acceptance = JSON.parse(input).checks?.memoryAcceptance;
+              console.log(JSON.stringify(acceptance));
+              if (
+                !acceptance?.required ||
+                !acceptance?.ready ||
+                acceptance.status !== "works" ||
+                acceptance.isolated !== true ||
+                acceptance.realMemoryUnchanged !== true ||
+                acceptance.cleanupCompleted !== true
+              ) {
+                process.exit(1);
+              }
+            });
+          '
+
       - name: Check MCP status
         shell: bash
         run: |

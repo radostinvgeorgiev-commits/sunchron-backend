@@ -216,11 +216,7 @@ export async function executeAuditedWriteAction({
 
   const auditId = randomUUID();
   const audit =
-    typeof writeAudit === "function"
-      ? writeAudit
-      : process.env.NODE_ENV === "production"
-        ? recordDurableAuditEvent
-        : recordAuditEvent;
+    typeof writeAudit === "function" ? writeAudit : recordDurableAuditEvent;
   const baseEvent = {
     auditId,
     actor,

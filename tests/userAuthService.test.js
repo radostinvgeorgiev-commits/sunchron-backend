@@ -358,6 +358,104 @@ test("registration recovers an existing invited user with the same password", as
   assert.equal(result.confirmationRequired, false);
 });
 
+test("registration recovers an existing invited user from an obfuscated signup response", async () => {
+  const fakeSession = session("recovered-obfuscated");
+  let approvedUser = null;
+  const client = {
+    auth: {
+      async signUp({ email }) {
+        return {
+          data: {
+            user: { id: "obfuscated-user", email, identities: [] },
+            session: null,
+          },
+          error: null,
+        };
+      },
+      async signInWithPassword(credentials) {
+        assert.deepEqual(credentials, {
+          email: "friend@example.com",
+          password: "strong-pass-123",
+        });
+        return {
+          data: {
+            user: { id: "existing-user", email: credentials.email },
+            session: fakeSession,
+          },
+          error: null,
+        };
+      },
+    },
+  };
+
+  const result = await registerTester(
+    {
+      email: "friend@example.com",
+      password: "strong-pass-123",
+      displayName: "Приятел",
+      inviteCode: ENV.SYNCHRON_TEST_INVITE_CODE,
+    },
+    {
+      env: ENV,
+      client,
+      approveEmail: async () => {},
+      approveAccess: async (user) => {
+        approvedUser = user;
+      },
+    },
+  );
+
+  assert.equal(approvedUser.id, "existing-user");
+  assert.equal(result.user.id, "existing-user");
+  assert.deepEqual(result.session, fakeSession);
+  assert.equal(result.confirmationRequired, false);
+});
+
+test("registration keeps a new unconfirmed user when immediate sign in is unavailable", async () => {
+  let approvedUser = null;
+  const client = {
+    auth: {
+      async signUp({ email }) {
+        return {
+          data: {
+            user: { id: "new-unconfirmed-user", email },
+            session: null,
+          },
+          error: null,
+        };
+      },
+      async signInWithPassword() {
+        return {
+          data: { user: null, session: null },
+          error: { status: 400, message: "Email not confirmed" },
+        };
+      },
+    },
+  };
+
+  const result = await registerTester(
+    {
+      email: "new@example.com",
+      password: "strong-pass-123",
+      displayName: "Нов тестер",
+      inviteCode: ENV.SYNCHRON_TEST_INVITE_CODE,
+    },
+    {
+      env: ENV,
+      client,
+      approveEmail: async () => {},
+      approveAccess: async (user) => {
+        approvedUser = user;
+      },
+    },
+  );
+
+  assert.equal(approvedUser.id, "new-unconfirmed-user");
+  assert.equal(result.user.id, "new-unconfirmed-user");
+  assert.equal(result.session, null);
+  assert.equal(result.confirmationRequired, true);
+});
+
 test("sign in refuses a valid Supabase user without application approval", async () => {
   const client = {
     auth: {

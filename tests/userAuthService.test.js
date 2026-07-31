@@ -99,6 +99,15 @@ test("derives session protection from the private production invite code", () =>
   assert.equal(isTesterRegistrationEnabled(productionLikeEnv), true);
 });
 
+test("uses the operational MCP secret when the invite code is short", () => {
+  const productionLikeEnv = {
+    MCP_ACCESS_TOKEN: "mcp-access-token-with-at-least-32-characters",
+    SYNCHRON_TEST_INVITE_CODE: "short-code",
+  };
+  assert.equal(isUserAuthConfigured(productionLikeEnv), true);
+  assert.equal(isTesterRegistrationEnabled(productionLikeEnv), true);
+});
+
 test("encrypts the Supabase session and never leaves tokens in the cookie", () => {
   const original = session("secret");
   const encrypted = encryptUserSession(original, ENV);

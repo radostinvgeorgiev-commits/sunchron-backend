@@ -16,19 +16,25 @@ import {
 
 const CALENDAR_ACTION = "calendar.write:create_event";
 const CONFIRM_PREFIX = "Потвърждавам календарно събитие:";
+const REMINDER_CONFIRM_PREFIX = "Потвърждавам календарно напомняне:";
 const TIME_ZONE = "Europe/Sofia";
 const MAX_TITLE_LENGTH = 200;
 const MAX_LOCATION_LENGTH = 500;
 const MAX_DESCRIPTION_LENGTH = 2000;
+const MAX_REMINDER_MINUTES = 28 * 24 * 60;
+const REMINDER_EVENT_DURATION_MINUTES = 5;
 
 function sessionFingerprint(value) {
-  return createHash("sha256").update(String(value || "")).digest("hex");
+  return createHash("sha256")
+    .update(String(value || ""))
+    .digest("hex");
 }
 
 function formatHelp() {
   return [
-    "Използвай точния формат:",
+    "Използвай един от точните формати:",
     "Създай събитие: Заглавие | ГГГГ-ММ-ДД ЧЧ:ММ | продължителност в минути | място (по желание) | описание (по желание)",
+    "Напомни ми: Заглавие | ГГГГ-ММ-ДД ЧЧ:ММ | 30 минути преди",
   ].join("\n");
 }
 
@@ -99,16 +105,45 @@ function parseDuration(value) {
   return minutes;
 }
 
+function parseReminderMinutes(value) {
+  const match = String(value || "").match(
+    /^(\d{1,5})\s*(?:мин(?:ути?)?|minutes?)\s+преди$/iu,
+  );
+  const minutes = match ? Number(match[1]) : -1;
+  if (
+    !Number.isInteger(minutes) ||
+    minutes < 0 ||
+    minutes > MAX_REMINDER_MINUTES
+  ) {
+    throw invalidDraft(
+      `Напомнянето трябва да е между 0 и ${MAX_REMINDER_MINUTES} минути преди събитието.`,
+      "CALENDAR_REMINDER_OFFSET_INVALID",
+    );
+  }
+  return minutes;
+}
+
+function isValidReminderMinutes(value) {
+  return Number.isInteger(value) && value >= 0 && value <= MAX_REMINDER_MINUTES;
+}
+
 function addMinutes(localStamp, minutes) {
   return new Date(localStamp.getTime() + minutes * 60_000)
     .toISOString()
     .slice(0, 19);
 }
 
+function isReminderWriteRequest(message) {
+  const text = typeof message === "string" ? message.trim() : "";
+  return /^(?:моля[,\s]+)?напомни\s+ми(?=\s|:|$)/iu.test(text);
+}
+
 export function isCalendarWriteRequest(message) {
   const text = typeof message === "string" ? message.trim() : "";
-  return /(?:създай|добави|запиши|направи)\s+(?:ми\s+)?(?:календарно\s+)?(?:събитие|среща|ангажимент)(?:\s+в\s+(?:google\s+)?календара)?/iu.test(
-    text,
+  return (
+    /(?:създай|добави|запиши|направи)\s+(?:ми\s+)?(?:календарно\s+)?(?:събитие|среща|ангажимент)(?:\s+в\s+(?:google\s+)?календара)?/iu.test(
+      text,
+    ) || isReminderWriteRequest(text)
   );
 }
 
@@ -127,6 +162,30 @@ export function parseCalendarEventDraft(message) {
   const segments = String(message)
     .split("|")
     .map((segment) => segment.trim());
+  const isReminder = isReminderWriteRequest(segments[0]);
+  if (isReminder) {
+    if (segments.length !== 3) {
+      throw invalidDraft("Липсват точни данни за напомнянето.");
+    }
+    const title = cleanLimitedText(
+      segments[0].replace(/^(?:моля[,\s]+)?напомни\s+ми\s*:\s*/iu, ""),
+      MAX_TITLE_LENGTH,
+      "заглавие",
+      true,
+    );
+    const start = parseLocalDateTime(segments[1]);
+    const reminderMinutes = parseReminderMinutes(segments[2]);
+    return Object.freeze({
+      title,
+      start: start.dateTime,
+      end: addMinutes(start.stamp, REMINDER_EVENT_DURATION_MINUTES),
+      durationMinutes: REMINDER_EVENT_DURATION_MINUTES,
+      timeZone: TIME_ZONE,
+      location: "",
+      description: "",
+      reminderMinutes,
+    });
+  }
   if (segments.length < 3 || segments.length > 5) {
     throw invalidDraft("Липсват точни данни за събитието.");
   }
@@ -179,6 +238,7 @@ export async function prepareCalendarEvent({
     );
   }
   const draft = parseCalendarEventDraft(message);
+  const isReminder = isValidReminderMinutes(draft.reminderMinutes);
   const confirmation = await createConfirmation({
     sessionId,
     action: CALENDAR_ACTION,
@@ -189,6 +249,7 @@ export async function prepareCalendarEvent({
       start: draft.start,
       end: draft.end,
       timeZone: draft.timeZone,
+      ...(isReminder ? { reminderMinutes: draft.reminderMinutes } : {}),
     },
     params: {
       location: draft.location,
@@ -201,14 +262,18 @@ export async function prepareCalendarEvent({
     expiresAt: confirmation.expiresAt,
     draft,
     output: [
-      "Подготвих календарното събитие, но още не съм го записал.",
+      isReminder
+        ? "Подготвих календарното напомняне, но още не съм го записал."
+        : "Подготвих календарното събитие, но още не съм го записал.",
       `Заглавие: ${draft.title}`,
       `Начало: ${draft.start.replace("T", " ")} (${draft.timeZone})`,
-      `Продължителност: ${draft.durationMinutes} минути`,
+      ...(isReminder
+        ? [`Напомняне: ${draft.reminderMinutes} минути преди`]
+        : [`Продължителност: ${draft.durationMinutes} минути`]),
       ...(draft.location ? [`Място: ${draft.location}`] : []),
       ...(draft.description ? [`Описание: ${draft.description}`] : []),
       "За запис изпрати точно:",
-      `${CONFIRM_PREFIX} ${confirmation.id}`,
+      `${isReminder ? REMINDER_CONFIRM_PREFIX : CONFIRM_PREFIX} ${confirmation.id}`,
     ].join("\n"),
   };
 }
@@ -218,7 +283,7 @@ export function extractCalendarConfirmationId(message) {
   const match = message
     .trim()
     .match(
-      /^Потвърждавам календарно събитие:\s*([0-9a-f]{8}-[0-9a-f-]{27,})$/iu,
+      /^Потвърждавам календарно (?:събитие|напомняне):\s*([0-9a-f]{8}-[0-9a-f-]{27,})$/iu,
     );
   return match?.[1] || null;
 }
@@ -264,6 +329,17 @@ export async function confirmCalendarEvent({
       "GOOGLE_SESSION_MISMATCH",
     );
   }
+  const reminderMinutes = confirmation.resource.reminderMinutes;
+  if (
+    reminderMinutes !== undefined &&
+    !isValidReminderMinutes(reminderMinutes)
+  ) {
+    throw new GoogleDriveError(
+      "Потвърждението съдържа невалидно календарно напомняне.",
+      400,
+      "CALENDAR_REMINDER_OFFSET_INVALID",
+    );
+  }
   await consumeConfirmation(confirmationId);
   try {
     return await executeWrite({
@@ -272,7 +348,8 @@ export async function confirmCalendarEvent({
       sessionId,
       confirmationId,
       resource: "primary-calendar",
-      details: "create_event",
+      details:
+        reminderMinutes !== undefined ? "create_reminder" : "create_event",
       execute: () =>
         createEvent(googleSessionId, {
           title: confirmation.resource.title,
@@ -281,6 +358,7 @@ export async function confirmCalendarEvent({
           timeZone: confirmation.resource.timeZone,
           location: confirmation.params.location || "",
           description: confirmation.params.description || "",
+          ...(reminderMinutes !== undefined ? { reminderMinutes } : {}),
         }),
     });
   } catch (error) {
@@ -292,10 +370,14 @@ export async function confirmCalendarEvent({
 }
 
 export function formatCalendarEventResult(event) {
+  const isReminder = isValidReminderMinutes(event.reminderMinutes);
   return [
-    "Събитието е записано в Google Calendar.",
+    isReminder
+      ? "Напомнянето е записано в Google Calendar."
+      : "Събитието е записано в Google Calendar.",
     `Заглавие: ${event.title}`,
     `Начало: ${String(event.start || "").replace("T", " ")}`,
+    ...(isReminder ? [`Напомняне: ${event.reminderMinutes} минути преди`] : []),
     ...(event.url ? [`Отвори: ${event.url}`] : []),
   ].join("\n");
 }

@@ -40,7 +40,7 @@ const PLANNER_INSTRUCTIONS = [
   "- infrastructure.digitalocean.read: статус, деплои и пълен одит само за четене на DigitalOcean ресурсите, сигурността и разходите",
   "- infrastructure.cloudflare.read: статус на Cloudflare зоната и DNS записите",
   "- calendar.read: четене на Google Calendar",
-  "- calendar.write: подготвяне на ново Google Calendar събитие; винаги изисква точно потвърждение преди запис",
+  "- calendar.write: подготвяне на ново Google Calendar събитие или напомняне; винаги изисква точно потвърждение преди запис",
   "- files.read: четене на Google Drive",
   "- mail.read: четене на Gmail",
   "- memory.read: четене на постоянната памет",
@@ -138,10 +138,10 @@ export function shouldUseAgentPlanner(message, fallbackRequests = []) {
   const text = typeof message === "string" ? message.trim() : "";
   if (!text) return false;
   return (
-    /(?:^|\s)(?:изпълни|направи|провери|покажи|намери|прочети|потърси|обнови|промени|редактирай|създай|свържи|изпрати|резервирай)\b/iu.test(
+    /(?:^|\s)(?:изпълни|направи|провери|покажи|намери|прочети|потърси|обнови|промени|редактирай|създай|свържи|изпрати|резервирай|напомни)(?=\s|:|$)/iu.test(
       text,
     ) &&
-    /(?:github|ги[тд][\s-]*хъб|хъб(?:ът|а)?|хранилищ|репозитор|код|календар|calendar|drive|драйв|gmail|имейл|поща|памет|интернет|web|сайт|supabase|супабейс|digitalocean|digital\s*ocean|дигитал\s*океан|дижитал\s*окен|cloudflare|клаудфлеър|клауф\s*фаер)/iu.test(
+    /(?:github|ги[тд][\s-]*хъб|хъб(?:ът|а)?|хранилищ|репозитор|код|календар|calendar|напомни|напомнян|drive|драйв|gmail|имейл|поща|памет|интернет|web|сайт|supabase|супабейс|digitalocean|digital\s*ocean|дигитал\s*океан|дижитал\s*окен|cloudflare|клаудфлеър|клауф\s*фаер)/iu.test(
       text,
     )
   );

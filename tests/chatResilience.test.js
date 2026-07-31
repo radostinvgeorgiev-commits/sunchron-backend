@@ -123,7 +123,7 @@ test("normal chat does not call the removed DigitalOcean agent when OpenAI is un
   }
 });
 
-test("tool results return to the AI core for one synthesized answer", async () => {
+test("verified GitHub results bypass AI rewriting", async () => {
   const originalFetch = globalThis.fetch;
   let openAiCalls = 0;
   let githubCalls = 0;
@@ -154,27 +154,7 @@ test("tool results return to the AI core for one synthesized answer", async () =
         );
       }
 
-      assert.match(body.input[0].content, /РЕЗУЛТАТИ ОТ ИНСТРУМЕНТИ/u);
-      assert.match(body.input[0].content, /abc1234/u);
-      return new Response(
-        JSON.stringify({
-          output: [
-            {
-              type: "message",
-              content: [
-                {
-                  type: "output_text",
-                  text: "Проверих GitHub. Последният commit е abc1234.",
-                },
-              ],
-            },
-          ],
-        }),
-        {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        },
-      );
+      throw new Error("Verified GitHub output must not be sent back to AI.");
     }
 
     if (String(url).includes("api.github.com/repos/")) {
@@ -210,13 +190,11 @@ test("tool results return to the AI core for one synthesized answer", async () =
       })
       .expect(200);
 
-    assert.equal(openAiCalls, 2);
+    assert.equal(openAiCalls, 1);
     assert.equal(githubCalls, 1);
-    assert.match(
-      response.text,
-      /Проверих GitHub\. Последният commit е abc1234\./u,
-    );
-    assert.match(response.text, /"mode":"agentic"/u);
+    assert.match(response.text, /Последната реална промяна в GitHub е/u);
+    assert.match(response.text, /abc1234 — Agentic result/u);
+    assert.match(response.text, /"mode":"verified-tool-output"/u);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -248,24 +226,7 @@ test("explicit GitHub request still runs when the AI planner returns no tools", 
         );
       }
 
-      assert.match(body.input[0].content, /РЕЗУЛТАТИ ОТ ИНСТРУМЕНТИ/u);
-      assert.match(body.input[0].content, /Planner cannot suppress tools/u);
-      return new Response(
-        JSON.stringify({
-          output: [
-            {
-              type: "message",
-              content: [
-                { type: "output_text", text: "Проверих GitHub успешно." },
-              ],
-            },
-          ],
-        }),
-        {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        },
-      );
+      throw new Error("Verified GitHub output must not be sent back to AI.");
     }
 
     if (String(url).includes("api.github.com/repos/")) {
@@ -304,7 +265,9 @@ test("explicit GitHub request still runs when the AI planner returns no tools", 
 
     assert.equal(plannerCalls, 1);
     assert.equal(githubCalls, 1);
-    assert.match(response.text, /Проверих GitHub успешно\./u);
+    assert.match(response.text, /Последната реална промяна в GitHub е/u);
+    assert.match(response.text, /Planner cannot suppress tools/u);
+    assert.match(response.text, /"mode":"verified-tool-output"/u);
   } finally {
     globalThis.fetch = originalFetch;
   }

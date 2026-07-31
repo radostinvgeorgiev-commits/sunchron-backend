@@ -24,7 +24,11 @@ import {
   GitHubOAuthError,
   parseGitHubCookies,
 } from "../services/githubOAuthService.js";
-import { recordAuditEvent } from "../services/permissionService.js";
+import {
+  executeAuditedWriteAction,
+  isAuditSafetyError,
+  recordAuditEvent,
+} from "../services/permissionService.js";
 
 const router = express.Router();
 
@@ -88,7 +92,7 @@ router.post("/request", async (req, res) => {
     decision: "confirm",
     outcome: "requested",
     resource: resourceLabel(confirmation.resource),
-    details: `confirmationId:${confirmation.id}`,
+    details: "confirmation_requested",
     sessionId: cleanSessionId,
   });
 
@@ -135,7 +139,7 @@ router.post("/confirm", async (req, res) => {
       action: "github.write",
       decision: "confirm",
       outcome: outcomeMap[error.code] || "denied",
-      details: `${error.code}:${cleanId}`,
+      details: error.code || "confirmation_denied",
       sessionId: cleanSessionId,
     });
     const statusMap = {
@@ -148,15 +152,6 @@ router.post("/confirm", async (req, res) => {
       .json({ error: error.message, code: error.code });
   }
 
-  await auditAction({
-    action: confirmation.action,
-    decision: "confirmed",
-    outcome: "executing",
-    resource: resourceLabel(confirmation.resource),
-    details: `confirmationId:${confirmation.id}`,
-    sessionId: cleanSessionId,
-  });
-
   // Mark used before execution to prevent any chance of double-execution
   markConfirmationUsed(cleanId);
 
@@ -164,17 +159,29 @@ router.post("/confirm", async (req, res) => {
   try {
     const githubSessionId =
       parseGitHubCookies(req.headers.cookie).synchron_github_session || "";
-    result = await executeAction(confirmation, githubSessionId);
-  } catch (error) {
-    await auditAction({
-      action: confirmation.action,
-      decision: "confirmed",
-      outcome: "failed",
-      resource: resourceLabel(confirmation.resource),
-      details: error.code || error.message,
+    result = await executeAuditedWriteAction({
+      action: "github.write",
+      capability: confirmation.action,
+      actor: cleanSessionId,
       sessionId: cleanSessionId,
+      confirmationId: cleanId,
+      resource: resourceLabel(confirmation.resource),
+      details: "confirmed_action",
+      execute: () => executeAction(confirmation, githubSessionId),
     });
+  } catch (error) {
+    if (!isAuditSafetyError(error)) {
+      await auditAction({
+        action: confirmation.action,
+        decision: "confirmed",
+        outcome: "failed",
+        resource: resourceLabel(confirmation.resource),
+        details: error.code || "EXECUTION_ERROR",
+        sessionId: cleanSessionId,
+      });
+    }
     const status =
+      isAuditSafetyError(error) ||
       error instanceof GitHubServiceError ||
       error instanceof GitHubOAuthError ||
       error instanceof CopilotTaskError
@@ -184,15 +191,6 @@ router.post("/confirm", async (req, res) => {
       .status(status)
       .json({ error: error.message, code: error.code || "EXECUTION_ERROR" });
   }
-
-  await auditAction({
-    action: confirmation.action,
-    decision: "confirmed",
-    outcome: "succeeded",
-    resource: resourceLabel(confirmation.resource),
-    details: `confirmationId:${confirmation.id}`,
-    sessionId: cleanSessionId,
-  });
 
   return res.json({ status: "ok", action: confirmation.action, result });
 });
@@ -225,7 +223,7 @@ router.post("/deny", async (req, res) => {
     decision: "denied",
     outcome: "denied",
     resource: resourceLabel(confirmation.resource),
-    details: `denied:confirmationId:${confirmation.id}`,
+    details: "confirmation_denied",
     sessionId: cleanSessionId,
   });
 

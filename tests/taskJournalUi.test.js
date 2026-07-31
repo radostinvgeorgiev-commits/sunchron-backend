@@ -67,7 +67,7 @@ test("старият roadmap се обновява без загуба на ли
       },
       personalTask,
     ],
-    version: 1,
+    version: 2,
   });
   const migrated = JSON.parse(
     dom.window.localStorage.getItem("synchronTaskJournalV1"),
@@ -87,11 +87,15 @@ test("старият roadmap се обновява без загуба на ли
   );
   assert.equal(
     migrated.find((task) => task.id === "opensearch-backup").status,
-    "waiting",
+    "done",
+  );
+  assert.equal(
+    migrated.find((task) => task.id === "tester-registration").status,
+    "now",
   );
   assert.equal(
     dom.window.localStorage.getItem("synchronTaskJournalRoadmapVersion"),
-    "2",
+    "3",
   );
 });
 
@@ -109,7 +113,15 @@ test("нова инсталация записва актуалния roadmap", 
     tasks.some((task) => task.id === "autonomous-delivery"),
     true,
   );
-  assert.equal(dom.window.SynchronTaskJournal.roadmapVersion, 2);
+  assert.equal(
+    tasks.find((task) => task.id === "opensearch-backup").status,
+    "done",
+  );
+  assert.equal(
+    tasks.find((task) => task.id === "tester-registration").status,
+    "now",
+  );
+  assert.equal(dom.window.SynchronTaskJournal.roadmapVersion, 3);
 });
 
 test("мобилният изглед остава в една колона", async () => {

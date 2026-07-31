@@ -57,8 +57,9 @@ async function githubWriteRequest(path, options = {}) {
     });
 
     if (!response.ok) {
-      const details = await response.text();
-      console.error(`[GitHub Write] ${response.status}:`, details || "<empty>");
+      console.error(
+        `[GitHub Write] Upstream request failed: ${response.status}`,
+      );
       throw new GitHubServiceError(
         `GitHub върна грешка ${response.status}.`,
         response.status,

@@ -114,8 +114,7 @@ export async function analyzeImage({
   });
 
   if (!response.ok) {
-    const body = await response.text();
-    console.error(`[Vision] ${response.status}:`, body || "<empty>");
+    console.error(`[Vision] Upstream request failed: ${response.status}`);
     throw new ImageServiceError(
       `Разпознаването на снимката върна грешка ${response.status}.`,
       502,

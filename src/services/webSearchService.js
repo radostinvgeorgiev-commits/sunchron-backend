@@ -123,8 +123,9 @@ export async function searchWeb(
   }
 
   if (!response.ok) {
-    const body = await response.text();
-    console.error("[Web search] OpenAI error:", response.status, body);
+    console.error(
+      `[Web search] OpenAI upstream request failed: ${response.status}`,
+    );
     throw new WebSearchError(
       "Интернет търсенето временно не е достъпно.",
       502,

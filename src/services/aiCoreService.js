@@ -61,8 +61,7 @@ export async function requestOpenAIText({
   });
 
   if (!response.ok) {
-    const responseBody = await response.text();
-    console.error(`[OpenAI] ${response.status}:`, responseBody || "<empty>");
+    console.error(`[OpenAI] Upstream request failed: ${response.status}`);
     throw new AiCoreError(
       `OpenAI върна грешка ${response.status}.`,
       "OPENAI_UPSTREAM_ERROR",

@@ -1,5 +1,6 @@
 (() => {
-  const STORAGE_VERSION = 1;
+  const STORAGE_VERSION = 2;
+  const WORKSPACE_ENDPOINT = "/api/workspaces";
   const PETS = Object.freeze([
     { id: "robot", symbol: "🤖", label: "Робот" },
     { id: "cat", symbol: "🐈", label: "Котка" },
@@ -15,6 +16,9 @@
 
   let storageKey = "synchronWorkMode:anonymous";
   let workState = null;
+  let remoteReady = false;
+  let saveTimer = null;
+  let syncStatus = "local";
 
   const elements = {
     chatInput: document.getElementById("chatInput"),
@@ -63,11 +67,12 @@
       agents: [
         {
           id: "synchron-builder",
-          name: "SYNCHRON-X",
+          name: "СЪЗВУК",
           role: "builder",
           purpose: "Подготвя реален резултат и показва какво е проверено.",
         },
       ],
+      activities: [],
     };
   }
 
@@ -102,6 +107,22 @@
           purpose: cleanText(agent?.purpose, 400),
         }))
       : fallback.agents;
+    const activities = Array.isArray(value.activities)
+      ? value.activities.slice(0, 40).map((activity, index) => ({
+          id:
+            cleanText(activity?.id || activity?.taskId, 80) ||
+            `activity-${index + 1}`,
+          projectId: cleanText(activity?.projectId, 80),
+          status: ["ready", "running", "needs-input", "blocked"].includes(
+            activity?.status,
+          )
+            ? activity.status
+            : "ready",
+          message: cleanText(activity?.message, 240),
+          verified: activity?.verified === true,
+          updatedAt: cleanText(activity?.updatedAt, 40),
+        }))
+      : [];
 
     if (!projects.length) projects.push(...fallback.projects);
     if (!agents.length) agents.push(...fallback.agents);
@@ -127,6 +148,7 @@
         : "ready",
       projects,
       agents,
+      activities,
     };
   }
 
@@ -139,11 +161,63 @@
     }
   }
 
-  function saveState() {
+  function saveState({ remote = true } = {}) {
     try {
       localStorage.setItem(storageKey, JSON.stringify(workState));
     } catch {
       // The UI remains usable even when private browsing blocks storage.
+    }
+    if (remote && remoteReady) queueRemoteSave();
+  }
+
+  function queueRemoteSave() {
+    clearTimeout(saveTimer);
+    syncStatus = "saving";
+    saveTimer = setTimeout(() => void persistRemoteState(), 350);
+  }
+
+  async function readJson(response) {
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || "Работната област не е достъпна.");
+    }
+    return payload;
+  }
+
+  async function persistRemoteState() {
+    const snapshot = normalizeState(workState);
+    try {
+      const payload = await readJson(
+        await fetch(WORKSPACE_ENDPOINT, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ state: snapshot }),
+        }),
+      );
+      workState = normalizeState(payload.state);
+      syncStatus = "synced";
+      saveState({ remote: false });
+    } catch {
+      syncStatus = "local";
+    }
+  }
+
+  async function syncRemoteState() {
+    try {
+      const payload = await readJson(
+        await fetch(WORKSPACE_ENDPOINT, { cache: "no-store" }),
+      );
+      if (payload.persisted) {
+        workState = normalizeState(payload.state);
+        saveState({ remote: false });
+      }
+      remoteReady = true;
+      syncStatus = payload.persisted ? "synced" : "saving";
+      renderMode();
+      if (!payload.persisted) await persistRemoteState();
+    } catch {
+      remoteReady = true;
+      syncStatus = "local";
     }
   }
 
@@ -177,13 +251,13 @@
     elements.workModeToolbarBtn?.setAttribute("aria-pressed", String(isWork));
     elements.chatInput.placeholder = isWork
       ? "Какъв резултат да изработим?"
-      : "Пиши на SYNCHRON-X";
+      : "Пиши на СЪЗВУК";
     const project = activeProject();
     const agent = activeAgent();
     elements.projectLabel.textContent = isWork
       ? project?.name || "Без активен проект"
       : "Разговор";
-    elements.agentLabel.textContent = agent?.name || "SYNCHRON-X";
+    elements.agentLabel.textContent = agent?.name || "СЪЗВУК";
     renderPet();
     activateMobileCommand(isWork ? "work" : "chat");
   }
@@ -313,6 +387,66 @@
     );
   }
 
+  function renderActivities(parent) {
+    const activities = workState.activities.filter(
+      (activity) =>
+        !activity.projectId || activity.projectId === workState.activeProjectId,
+    );
+    if (!activities.length) {
+      addText(
+        parent,
+        "p",
+        "Когато изпълниш задача в режим Работа, тук ще се появи проверимият ѝ статус.",
+        "work-storage-note",
+      );
+      return;
+    }
+    const list = document.createElement("div");
+    list.className = "work-activity-list";
+    const labels = {
+      running: "Работи",
+      "needs-input": "Чака решение",
+      ready: "Готово",
+      blocked: "Блокирано",
+    };
+    for (const activity of activities.slice(0, 8)) {
+      const item = document.createElement("article");
+      item.className = "work-activity-item";
+      item.dataset.status = activity.status;
+      addText(item, "strong", labels[activity.status] || "Задача");
+      addText(item, "span", activity.message || "Работна задача");
+      if (activity.verified) addText(item, "small", "Проверено");
+      list.appendChild(item);
+    }
+    parent.appendChild(list);
+  }
+
+  function activityStatus(status) {
+    if (status === "waiting_confirmation") return "needs-input";
+    if (status === "failed" || status === "partial") return "blocked";
+    if (status === "completed") return "ready";
+    return "running";
+  }
+
+  function recordActivity(task) {
+    if (!task || workState?.mode !== "work") return;
+    const id = cleanText(task.taskId || task.id, 80);
+    if (!id) return;
+    const current = workState.activities.find((item) => item.id === id);
+    const activity = {
+      id,
+      projectId: workState.activeProjectId,
+      status: activityStatus(task.status),
+      message: cleanText(task.message, 240) || "Работна задача",
+      verified: task.verified === true,
+      updatedAt: new Date().toISOString(),
+    };
+    if (current) Object.assign(current, activity);
+    else workState.activities.unshift(activity);
+    workState.activities = workState.activities.slice(0, 40);
+    saveState();
+  }
+
   function createProjectForm(parent) {
     const form = document.createElement("form");
     form.className = "work-manager-form";
@@ -413,13 +547,15 @@
     addText(
       elements.drawerBody,
       "p",
-      "Избери проект и личен агент. В режим Работа SYNCHRON-X използва този контекст, показва напредъка и спира преди рискови действия.",
+      "Избери проект и личен агент. В режим Работа СЪЗВУК използва този контекст, показва напредъка и спира преди рискови действия.",
       "work-manager-intro",
     );
     addText(
       elements.drawerBody,
       "p",
-      "Първата тестова версия пази тези настройки само в този браузър. Разговорите и постоянната памет продължават да се пазят от сървъра.",
+      syncStatus === "synced"
+        ? "Проектите, агентите и задачите са запазени в защитения ти профил."
+        : "Работиш в резервен режим на този браузър. Промените ще се синхронизират при възстановяване на връзката.",
       "work-storage-note",
     );
 
@@ -433,6 +569,9 @@
 
     const pets = section(elements.drawerBody, "Домашен любимец");
     renderPetChoices(pets);
+
+    const activity = section(elements.drawerBody, "Последни задачи");
+    renderActivities(activity);
 
     elements.drawer.hidden = false;
     elements.drawerBackdrop.hidden = false;
@@ -450,7 +589,7 @@
           objective: project?.objective || "",
         },
         agent: {
-          name: agent?.name || "SYNCHRON-X",
+          name: agent?.name || "СЪЗВУК",
           role: agent?.role || "general",
           purpose: agent?.purpose || "",
         },
@@ -460,6 +599,7 @@
 
   function onTask(task) {
     if (!workState || workState.mode !== "work") return;
+    recordActivity(task);
     if (task?.status === "waiting_confirmation") {
       setPetState("needs-input");
     } else if (task?.status === "failed" || task?.status === "partial") {
@@ -473,6 +613,7 @@
 
   function onDone(data) {
     if (!workState || workState.mode !== "work") return;
+    recordActivity(data?.task);
     const status = data?.task?.status;
     if (status === "waiting_confirmation") setPetState("needs-input");
     else if (status === "failed" || status === "partial")
@@ -497,6 +638,7 @@
       if (command === "chat") setMode("chat");
     });
     renderMode();
+    void syncRemoteState();
   }
 
   globalThis.SynchronWorkMode = Object.freeze({

@@ -48,7 +48,7 @@
       const messages = Array.isArray(data.messages) ? data.messages : [];
       body.innerHTML = `
         <section class="drawer-section">
-          <div class="permission-default">Последни имейли — само за четене. Synchron-X не може да изпраща или изтрива.</div>
+          <div class="permission-default">Последни имейли — само за четене. СЪЗВУК не може да изпраща или изтрива.</div>
           ${messages.length ? messages.map((message) => `
             <article class="permission-card">
               <div>

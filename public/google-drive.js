@@ -37,7 +37,7 @@
       if (!status.connected) {
         body.innerHTML = `
           <section class="drawer-section">
-            <div class="permission-default">Synchron-X ще има достъп само за четене на избраните от теб файлове.</div>
+            <div class="permission-default">СЪЗВУК ще има достъп само за четене на избраните от теб файлове.</div>
             <button type="button" class="new-chat" id="connectGoogleDrive">
               <i class="fa-brands fa-google-drive"></i><span>Свържи Google Drive</span>
             </button>

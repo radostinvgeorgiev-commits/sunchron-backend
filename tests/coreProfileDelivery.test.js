@@ -142,7 +142,7 @@ test("every real chat request sends Core Profile and owner memory to OpenAI", as
     );
     assert.match(
       input[0].content,
-      /SYNCHRON-X е лична AI операционна система/u,
+      /СЪЗВУК е лична AI операционна система/u,
     );
     assert.match(input[0].content, /\[ЛИЧЕН ПРОФИЛ НА РАДКО\]/u);
     assert.match(

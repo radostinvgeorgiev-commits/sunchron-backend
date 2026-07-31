@@ -34,7 +34,9 @@ test("Chat and Work are available with projects, agents, and pet state", async (
   assert.match(workMode, /function createProjectForm/u);
   assert.match(workMode, /function createAgentForm/u);
   assert.match(workMode, /Любимецът показва/u);
-  assert.match(workMode, /само в този браузър/u);
+  assert.match(workMode, /\/api\/workspaces/u);
+  assert.match(workMode, /защитения ти профил/u);
+  assert.match(workMode, /function recordActivity/u);
 
   assert.match(app, /SynchronWorkMode\?\.getRequestPayload/u);
   assert.match(app, /SynchronWorkMode\?\.onTask/u);

@@ -28,9 +28,13 @@ jobs:
           EXPECTED_COMMIT: ${{ github.sha }}
         run: |
           set -euo pipefail
+          consecutive_matches=0
+          required_matches=5
           for attempt in $(seq 1 24); do
             response="$(curl --fail --silent --show-error --max-time 30 \
-              https://synchron.foundation/health 2>/dev/null || true)"
+              --header 'Cache-Control: no-cache' \
+              "https://synchron.foundation/health?deployment-check=${GITHUB_RUN_ID}-${attempt}" \
+              2>/dev/null || true)"
             actual_commit="$(printf '%s' "${response}" | node -e '
               let input = "";
               process.stdin.on("data", (chunk) => { input += chunk; });
@@ -44,15 +48,22 @@ jobs:
             ')"
 
             if [ "${actual_commit}" = "${EXPECTED_COMMIT}" ]; then
-              echo "Production is running commit ${actual_commit}"
-              exit 0
+              consecutive_matches=$((consecutive_matches + 1))
+              echo "Attempt ${attempt}/24: production commit ${actual_commit} is stable ${consecutive_matches}/${required_matches}."
+              if [ "${consecutive_matches}" -ge "${required_matches}" ]; then
+                echo "Production is stably running commit ${actual_commit}"
+                exit 0
+              fi
+              sleep 3
+              continue
             fi
 
+            consecutive_matches=0
             echo "Attempt ${attempt}/24: production commit is ${actual_commit:-unknown}; waiting for ${EXPECTED_COMMIT}"
             sleep 15
           done
 
-          echo "Production did not deploy commit ${EXPECTED_COMMIT} within the verification window." >&2
+          echo "Production did not stably deploy commit ${EXPECTED_COMMIT} within the verification window." >&2
           exit 1
 
       - name: Check public site

@@ -249,6 +249,7 @@ async function startApplication(user) {
   if (state.applicationStarted) return;
   state.applicationStarted = true;
   applyAuthenticatedUser(user);
+  globalThis.SynchronWorkMode?.init(user);
   elements.authGate.hidden = true;
   elements.appShell.hidden = false;
   updateSessionDisplay();
@@ -1184,6 +1185,7 @@ function setChatBusy(isBusy) {
   elements.newChatBtn.disabled = isBusy;
   elements.attachBtn.disabled = isBusy;
   elements.voiceBtn.disabled = isBusy;
+  globalThis.SynchronWorkMode?.setBusy(isBusy);
 }
 
 function renderAgentText(element, text) {
@@ -1376,6 +1378,7 @@ async function sendMessage() {
         sessionId: state.sessionId,
         message: messageText,
         image,
+        ...globalThis.SynchronWorkMode?.getRequestPayload(),
       }),
     });
 
@@ -1434,9 +1437,11 @@ async function sendMessage() {
           typeof parsed.data?.message === "string"
         ) {
           updateTaskIndicator(parsed.data);
+          globalThis.SynchronWorkMode?.onTask(parsed.data);
           logAction(parsed.data.message);
         } else if (parsed.event === "done") {
           completed = true;
+          globalThis.SynchronWorkMode?.onDone(parsed.data);
           if (
             parsed.data?.conversationPersisted === false &&
             parsed.data?.warningCode === "CONVERSATION_NOT_SAVED"
@@ -1485,6 +1490,7 @@ async function sendMessage() {
     await loadConversations();
   } catch (error) {
     console.error(error);
+    globalThis.SynchronWorkMode?.onError();
     const message = `❌ ${error?.message || "Сървърна грешка. Опитай отново."}`;
 
     if (responseBubble) {

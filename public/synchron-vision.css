@@ -495,7 +495,7 @@ input:focus-visible {
     min-height: calc(70px + env(safe-area-inset-bottom));
     padding: 7px 8px max(7px, env(safe-area-inset-bottom));
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
     border-top: 1px solid var(--sx-line);
     background: rgba(252, 250, 245, 0.94);

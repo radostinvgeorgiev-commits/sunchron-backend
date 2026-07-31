@@ -85,3 +85,44 @@ test("tester context uses the tester identity and does not expose Radko context"
     /radostinvgeorgiev-commits|DigitalOcean/u,
   );
 });
+
+test("work mode adds bounded project and personal-agent context", () => {
+  const messages = buildAvatarMessages(
+    [],
+    [],
+    "Подготви първата версия",
+    { role: "tester", displayName: "Иван" },
+    {
+      mode: "work",
+      workContext: {
+        project: {
+          name: "Моят сайт",
+          objective: "Работеща начална страница за преглед",
+        },
+        agent: {
+          name: "Майстор",
+          role: "builder",
+          purpose: "Показвай проверките",
+        },
+      },
+    },
+  );
+
+  assert.match(messages[0].content, /Активен проект: Моят сайт/u);
+  assert.match(messages[0].content, /Избран личен агент: Майстор/u);
+  assert.match(messages[0].content, /Роля: Създател на проекти/u);
+  assert.match(messages[0].content, /не отменя разрешенията/u);
+  assert.match(messages[0].content, /Подготви първата версия/u);
+});
+
+test("chat mode does not add work-project context", () => {
+  const messages = buildAvatarMessages(
+    [],
+    [],
+    "Здравей",
+    { role: "tester", displayName: "Иван" },
+    { mode: "chat", workContext: null },
+  );
+
+  assert.doesNotMatch(messages[0].content, /РАБОТЕН РЕЖИМ/u);
+});

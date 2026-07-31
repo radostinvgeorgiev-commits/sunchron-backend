@@ -82,6 +82,11 @@ import {
   PROJECT_DEFINITION,
 } from "../config/projectIdentity.js";
 import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
+import {
+  buildWorkModeContext,
+  normalizeInteractionMode,
+  sanitizeWorkContext,
+} from "../services/workModeService.js";
 
 const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
@@ -195,6 +200,7 @@ export function buildAvatarMessages(
   history,
   cleanMessage,
   identity = { role: "owner", displayName: "Радко" },
+  interaction = { mode: "chat", workContext: null },
 ) {
   const personName = identity?.displayName || "Потребител";
   const assistantContext =
@@ -218,6 +224,9 @@ export function buildAvatarMessages(
       content: [
         assistantContext,
         buildMemoryContext(memories, { personName }),
+        interaction.mode === "work"
+          ? buildWorkModeContext(interaction.workContext)
+          : "",
         conversationHistory,
         `[ПОСЛЕДНО СЪОБЩЕНИЕ НА ${personName.toLocaleUpperCase("bg-BG")}]\n${cleanMessage}`,
       ]
@@ -753,7 +762,7 @@ router.post("/chat", async (req, res) => {
     process.env.OPENAI_TIMEOUT_MS,
     DEFAULT_AI_TIMEOUT_MS,
   );
-  const { sessionId, message, image } = req.body || {};
+  const { sessionId, message, image, mode, workContext } = req.body || {};
   const googleSessionId =
     parseCookies(req.headers.cookie).synchron_google_session || "";
   const githubSessionId =
@@ -762,6 +771,9 @@ router.post("/chat", async (req, res) => {
   const ownerToolsAllowed = req.owner.role === "owner";
   const cleanSessionId = typeof sessionId === "string" ? sessionId.trim() : "";
   const cleanMessage = typeof message === "string" ? message.trim() : "";
+  const interactionMode = normalizeInteractionMode(mode);
+  const cleanWorkContext =
+    interactionMode === "work" ? sanitizeWorkContext(workContext) : null;
 
   if (!cleanSessionId) {
     return res.status(400).json({ error: "Липсва валидна сесия." });
@@ -885,6 +897,7 @@ router.post("/chat", async (req, res) => {
     history,
     cleanMessage,
     req.owner,
+    { mode: interactionMode, workContext: cleanWorkContext },
   );
 
   if (image) {

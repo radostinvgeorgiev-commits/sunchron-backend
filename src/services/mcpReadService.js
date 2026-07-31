@@ -24,6 +24,7 @@ import {
   formatCloudflareStatus,
   getCloudflareZoneStatus,
 } from "./cloudflareService.js";
+import { mcpToolSecuritySchemes } from "./mcpOAuthService.js";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 
@@ -51,6 +52,7 @@ export const MCP_TOOLS = Object.freeze([
       properties: {},
       additionalProperties: false,
     },
+    securitySchemes: mcpToolSecuritySchemes("get_personal_context"),
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
@@ -63,6 +65,7 @@ export const MCP_TOOLS = Object.freeze([
       properties: {},
       additionalProperties: false,
     },
+    securitySchemes: mcpToolSecuritySchemes("get_project_context"),
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
@@ -77,6 +80,7 @@ export const MCP_TOOLS = Object.freeze([
       },
       additionalProperties: false,
     },
+    securitySchemes: mcpToolSecuritySchemes("list_synchron_conversations"),
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
@@ -92,6 +96,7 @@ export const MCP_TOOLS = Object.freeze([
       required: ["sessionId"],
       additionalProperties: false,
     },
+    securitySchemes: mcpToolSecuritySchemes("get_synchron_conversation"),
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
@@ -104,6 +109,7 @@ export const MCP_TOOLS = Object.freeze([
       properties: {},
       additionalProperties: false,
     },
+    securitySchemes: mcpToolSecuritySchemes("get_digitalocean_app_status"),
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
@@ -116,6 +122,7 @@ export const MCP_TOOLS = Object.freeze([
       properties: {},
       additionalProperties: false,
     },
+    securitySchemes: mcpToolSecuritySchemes("get_digitalocean_account_audit"),
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
@@ -128,6 +135,7 @@ export const MCP_TOOLS = Object.freeze([
       properties: {},
       additionalProperties: false,
     },
+    securitySchemes: mcpToolSecuritySchemes("get_cloudflare_zone_status"),
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
@@ -140,6 +148,9 @@ export const MCP_TOOLS = Object.freeze([
       properties: {},
       additionalProperties: false,
     },
+    securitySchemes: mcpToolSecuritySchemes(
+      "prepare_github_merged_branch_cleanup",
+    ),
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
@@ -155,6 +166,9 @@ export const MCP_TOOLS = Object.freeze([
       required: ["confirmationId"],
       additionalProperties: false,
     },
+    securitySchemes: mcpToolSecuritySchemes(
+      "confirm_github_merged_branch_cleanup",
+    ),
     annotations: DESTRUCTIVE_ANNOTATIONS,
   },
 ]);
@@ -302,7 +316,11 @@ export function createMcpRequestHandler({
       decision: "allow",
       outcome: "succeeded",
       resource: name,
-      details: "read-only-mcp",
+      details: name.startsWith("confirm_github")
+        ? "confirmed-write-mcp"
+        : name.startsWith("prepare_github")
+          ? "write-plan-mcp"
+          : "read-only-mcp",
     });
     return result;
   }

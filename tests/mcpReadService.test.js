@@ -34,11 +34,17 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
   );
   assert.equal(confirm.annotations.readOnlyHint, false);
   assert.equal(confirm.annotations.destructiveHint, true);
+  assert.deepEqual(confirm.securitySchemes, [
+    { type: "oauth2", scopes: ["synchron:github.write"] },
+  ]);
   const digitalOceanAudit = MCP_TOOLS.find(
     (tool) => tool.name === "get_digitalocean_account_audit",
   );
   assert.equal(digitalOceanAudit.annotations.readOnlyHint, true);
   assert.equal(digitalOceanAudit.annotations.destructiveHint, false);
+  assert.deepEqual(digitalOceanAudit.securitySchemes, [
+    { type: "oauth2", scopes: ["synchron:read"] },
+  ]);
 });
 
 test("MCP describes the confirmed destructive boundary honestly", async () => {

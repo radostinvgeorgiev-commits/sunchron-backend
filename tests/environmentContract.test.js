@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const appSpec = readFileSync(new URL("../.do/app.yaml", import.meta.url), "utf8");
+const appSpec = readFileSync(
+  new URL("../.do/app.yaml", import.meta.url),
+  "utf8",
+);
 const envExample = readFileSync(
   new URL("../.env.example", import.meta.url),
   "utf8",
@@ -24,9 +27,7 @@ function exampleEnvironmentKeys(source) {
 
 function appSpecKeyBlock(source, key) {
   const lines = source.split("\n");
-  const start = lines.findIndex(
-    (line) => line.trim() === `- key: ${key}`,
-  );
+  const start = lines.findIndex((line) => line.trim() === `- key: ${key}`);
   assert.notEqual(start, -1, `${key} must exist in .do/app.yaml`);
 
   const end = lines.findIndex(
@@ -45,12 +46,19 @@ test("required MCP and memory variables stay declared in DigitalOcean", () => {
     assert.match(block, /^\s*type:\s*SECRET\s*$/mu);
     assert.doesNotMatch(block, /^\s*value:/mu);
   }
+
+  const resourceBlock = appSpecKeyBlock(appSpec, "MCP_RESOURCE_URL");
+  assert.match(
+    resourceBlock,
+    /^\s*value:\s*https:\/\/synchron\.foundation\/mcp\s*$/mu,
+  );
 });
 
 test("bridge variables stay documented without real secret values", () => {
   const keys = exampleEnvironmentKeys(envExample);
   const documentedKeys = [
     "MCP_ACCESS_TOKEN",
+    "MCP_RESOURCE_URL",
     "MEMORY_OWNER_ID",
     "DIGITALOCEAN_API_TOKEN",
     "DIGITALOCEAN_TOKEN",

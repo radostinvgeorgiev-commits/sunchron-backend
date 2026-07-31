@@ -163,10 +163,14 @@ test("bridge diagnostics distinguish configuration, response and ChatGPT OAuth r
   assert.equal(result.bridge.tools, 9);
   assert.equal(result.bridge.readOnlyTools, 8);
   assert.equal(result.bridge.destructiveTools, 1);
-  assert.equal(result.bridge.authentication.chatgptOAuthReady, false);
+  assert.equal(result.bridge.authentication.chatgptOAuthReady, true);
   assert.equal(
-    result.bridge.authentication.reason,
-    "oauth-2.1-authorization-server-required",
+    result.bridge.authentication.mode,
+    "oauth2-with-legacy-static-bearer",
+  );
+  assert.equal(
+    result.bridge.authentication.discovery,
+    "/.well-known/oauth-protected-resource",
   );
 });
 

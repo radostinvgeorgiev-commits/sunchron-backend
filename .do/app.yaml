@@ -38,6 +38,9 @@ services:
       - key: MCP_ACCESS_TOKEN
         scope: RUN_TIME
         type: SECRET
+      - key: MCP_RESOURCE_URL
+        value: https://synchron.foundation/mcp
+        scope: RUN_TIME
       - key: MEMORY_OWNER_ID
         scope: RUN_TIME
         type: SECRET

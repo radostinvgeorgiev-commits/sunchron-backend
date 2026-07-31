@@ -8,6 +8,7 @@ import {
   normalizeProfileMemoryDraft,
   saveProfileMemory,
 } from "./memoryService.js";
+import { executeAuditedWriteAction } from "./permissionService.js";
 
 export const MEMORY_WRITE_ACTION = "memory.write:save_profile";
 export const MEMORY_WRITE_CONFIRM_PREFIX = "Потвърждавам постоянен запис:";
@@ -133,6 +134,7 @@ export async function confirmMemoryWrite({
   validateConfirmation = validateDurableConfirmation,
   consumeConfirmation = markDurableConfirmationUsed,
   saveMemory = saveProfileMemory,
+  executeWrite = executeAuditedWriteAction,
   source = "confirmed-memory-write",
 }) {
   let confirmation;
@@ -165,15 +167,26 @@ export async function confirmMemoryWrite({
   }
 
   await consumeConfirmation(confirmationId);
-  const savedItems = [];
-  for (const item of items) {
-    const saved = await saveMemory(item.fact, source, item.scope, ownerId);
-    savedItems.push({
-      id: saved.id,
-      fact: saved.fact,
-      scope: saved.scope,
-      replaced: Boolean(saved.replaced),
-    });
-  }
-  return Object.freeze(savedItems);
+  return executeWrite({
+    action: "memory.write",
+    capability: MEMORY_WRITE_ACTION,
+    actor: "synchron-x-memory",
+    sessionId,
+    confirmationId,
+    resource: "profile-memory",
+    details: `confirmed-items:${items.length}`,
+    execute: async () => {
+      const savedItems = [];
+      for (const item of items) {
+        const saved = await saveMemory(item.fact, source, item.scope, ownerId);
+        savedItems.push({
+          id: saved.id,
+          fact: saved.fact,
+          scope: saved.scope,
+          replaced: Boolean(saved.replaced),
+        });
+      }
+      return Object.freeze(savedItems);
+    },
+  });
 }

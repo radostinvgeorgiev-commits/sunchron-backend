@@ -9,6 +9,7 @@ import {
   createProfileMemoryWriteHandler,
 } from "../src/routes/memoryRouter.js";
 import { MemoryWriteConfirmationError } from "../src/services/memoryWriteConfirmationService.js";
+import { AuditSafetyError } from "../src/services/permissionService.js";
 
 function writeTestApp(options) {
   const app = express();
@@ -196,9 +197,38 @@ test("memory API writes only the fact stored in the one-time confirmation", asyn
   assert.equal(confirmedInput.sessionId, "session-a");
   assert.equal(confirmedInput.source, "confirmed-memory-api");
   assert.equal(response.body.items[0].fact, "Точният потвърден факт");
-  assert.equal(auditEvents[0].decision, "confirmed");
+  assert.deepEqual(auditEvents, []);
   assert.doesNotMatch(JSON.stringify(auditEvents), /Точният потвърден факт/u);
   assert.doesNotMatch(JSON.stringify(auditEvents), /123e4567/u);
+});
+
+test("memory API returns an exact audit safety error without a duplicate audit", async () => {
+  const auditEvents = [];
+  const app = writeTestApp({
+    confirm: async () => {
+      throw new AuditSafetyError(
+        "Журналът не е достъпен. Действието не беше стартирано.",
+        "AUDIT_UNAVAILABLE",
+        503,
+      );
+    },
+    audit: async (event) => auditEvents.push(event),
+  });
+
+  const response = await request(app)
+    .post("/memory/profile")
+    .send({
+      sessionId: "session-a",
+      confirmationId: "123e4567-e89b-12d3-a456-426614174000",
+    })
+    .expect(503);
+
+  assert.equal(response.body.code, "AUDIT_UNAVAILABLE");
+  assert.equal(
+    response.body.error,
+    "Журналът не е достъпен. Действието не беше стартирано.",
+  );
+  assert.deepEqual(auditEvents, []);
 });
 
 test("memory API requires a session before preparing a write", async () => {

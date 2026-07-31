@@ -35,6 +35,9 @@ function createMemoryDouble() {
       owners.set(ownerId, after);
       return before.length - after.length;
     },
+    async executeAuditedWriteAction({ execute }) {
+      return execute();
+    },
     seed(ownerId, items) {
       owners.set(
         ownerId,

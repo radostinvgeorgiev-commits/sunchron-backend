@@ -13,8 +13,19 @@ import {
   MEMORY_DELETE_ACTION,
   prepareMemoryDelete,
 } from "../src/services/memoryDeleteConfirmationService.js";
+import {
+  executeAuditedWriteAction,
+  listAuditEvents,
+  recordAuditEvent,
+  resetAuditFallbackForTests,
+} from "../src/services/permissionService.js";
 
-test.beforeEach(() => resetConfirmationsForTests());
+test.beforeEach(() => {
+  resetConfirmationsForTests();
+  resetAuditFallbackForTests();
+});
+
+const executeWithoutAudit = async ({ execute }) => execute();
 
 test("prepares an exact fact without storing the raw owner id", async () => {
   let created;
@@ -62,6 +73,10 @@ test("consumes before deleting the exact target", async () => {
       return stored;
     },
     consumeConfirmation: async () => order.push("consume"),
+    executeWrite: async (input) => {
+      order.push("audit:intent");
+      return input.execute();
+    },
     deleteByFact: async (fact, scope, ownerId) => {
       order.push(`delete:${fact}:${scope}:${ownerId}`);
       return 1;
@@ -71,6 +86,7 @@ test("consumes before deleting the exact target", async () => {
   assert.deepEqual(order, [
     "validate",
     "consume",
+    "audit:intent",
     "delete:Точен факт:project:owner-a",
   ]);
   assert.equal(result.deleted, 1);
@@ -139,6 +155,7 @@ test("blocks a different session and replay", async () => {
       validateConfirmation(id, sessionId),
     consumeConfirmation: async (id) => markConfirmationUsed(id),
     deleteAll: async () => 2,
+    executeWrite: executeWithoutAudit,
   };
 
   await assert.rejects(
@@ -167,6 +184,127 @@ test("blocks a different session and replay", async () => {
         ...dependencies,
       }),
     (error) => error.code === "CONFIRMATION_NOT_FOUND" && error.status === 404,
+  );
+});
+
+test("durable intent failure consumes once but never calls the delete adapter", async () => {
+  let stored;
+  await prepareMemoryDelete({
+    sessionId: "session-a",
+    ownerId: "owner-a",
+    target: { kind: "all", scope: "personal" },
+    createConfirmation: async (input) => {
+      stored = { ...input, id: "confirmation-1" };
+      return stored;
+    },
+  });
+  let consumed = 0;
+  let deleted = 0;
+
+  await assert.rejects(
+    () =>
+      confirmMemoryDelete({
+        confirmationId: "confirmation-1",
+        sessionId: "session-a",
+        ownerId: "owner-a",
+        validateConfirmation: async () => stored,
+        consumeConfirmation: async () => {
+          consumed += 1;
+        },
+        deleteAll: async () => {
+          deleted += 1;
+        },
+        executeWrite: (input) =>
+          executeAuditedWriteAction({
+            ...input,
+            writeAudit: async () => {
+              throw new Error("audit unavailable");
+            },
+          }),
+      }),
+    (error) => error.code === "AUDIT_UNAVAILABLE" && error.status === 503,
+  );
+
+  assert.equal(consumed, 1);
+  assert.equal(deleted, 0);
+});
+
+test("successful memory delete with failed outcome audit is uncertain", async () => {
+  let stored;
+  await prepareMemoryDelete({
+    sessionId: "session-a",
+    ownerId: "owner-a",
+    target: { kind: "all", scope: "personal" },
+    createConfirmation: async (input) => {
+      stored = { ...input, id: "confirmation-1" };
+      return stored;
+    },
+  });
+  let auditCalls = 0;
+
+  await assert.rejects(
+    () =>
+      confirmMemoryDelete({
+        confirmationId: "confirmation-1",
+        sessionId: "session-a",
+        ownerId: "owner-a",
+        validateConfirmation: async () => stored,
+        consumeConfirmation: async () => {},
+        deleteAll: async () => 2,
+        executeWrite: (input) =>
+          executeAuditedWriteAction({
+            ...input,
+            writeAudit: async () => {
+              auditCalls += 1;
+              if (auditCalls === 2) throw new Error("outcome unavailable");
+            },
+          }),
+      }),
+    (error) =>
+      error.code === "AUDIT_OUTCOME_UNCERTAIN" && error.result?.deleted === 2,
+  );
+});
+
+test("memory delete audit stores one intent/outcome pair without raw private values", async () => {
+  let stored;
+  await prepareMemoryDelete({
+    sessionId: "session-a",
+    ownerId: "private-owner-id",
+    target: {
+      kind: "fact",
+      fact: "Строго частен факт",
+      scope: "personal",
+    },
+    createConfirmation: async (input) => {
+      stored = { ...input, id: "confirmation-secret" };
+      return stored;
+    },
+  });
+
+  const result = await confirmMemoryDelete({
+    confirmationId: "confirmation-secret",
+    sessionId: "session-a",
+    ownerId: "private-owner-id",
+    validateConfirmation: async () => stored,
+    consumeConfirmation: async () => {},
+    deleteByFact: async () => 1,
+    executeWrite: (input) =>
+      executeAuditedWriteAction({ ...input, writeAudit: recordAuditEvent }),
+  });
+
+  assert.equal(result.deleted, 1);
+  const events = await listAuditEvents();
+  assert.deepEqual(
+    events.map(({ phase, outcome }) => ({ phase, outcome })).reverse(),
+    [
+      { phase: "intent", outcome: "intent" },
+      { phase: "outcome", outcome: "succeeded" },
+    ],
+  );
+  assert.equal(events[0].auditId, events[1].auditId);
+  assert.doesNotMatch(
+    JSON.stringify(events),
+    /private-owner-id|Строго частен факт|confirmation-secret/u,
   );
 });
 

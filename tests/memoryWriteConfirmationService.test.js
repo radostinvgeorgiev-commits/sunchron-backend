@@ -13,8 +13,19 @@ import {
   MEMORY_WRITE_ACTION,
   prepareMemoryWrite,
 } from "../src/services/memoryWriteConfirmationService.js";
+import {
+  executeAuditedWriteAction,
+  listAuditEvents,
+  recordAuditEvent,
+  resetAuditFallbackForTests,
+} from "../src/services/permissionService.js";
 
-test.beforeEach(() => resetConfirmationsForTests());
+const executeWithoutAudit = async ({ execute }) => execute();
+
+test.beforeEach(() => {
+  resetConfirmationsForTests();
+  resetAuditFallbackForTests();
+});
 
 test("prepares the exact fact without writing or storing the raw owner id", async () => {
   let created;
@@ -60,6 +71,10 @@ test("consumes before one write bound to the same owner and exact fact", async (
       return storedConfirmation;
     },
     consumeConfirmation: async (id) => order.push(`consume:${id}`),
+    executeWrite: async (input) => {
+      order.push("audit:intent");
+      return input.execute();
+    },
     saveMemory: async (fact, source, scope, ownerId) => {
       order.push(`save:${ownerId}:${source}`);
       return { id: "memory-1", fact, scope, replaced: false };
@@ -69,6 +84,7 @@ test("consumes before one write bound to the same owner and exact fact", async (
   assert.deepEqual(order, [
     "validate:confirmation-1:session-a",
     "consume:confirmation-1",
+    "audit:intent",
     "save:owner-a:confirmed-memory-write",
   ]);
   assert.deepEqual(items, [
@@ -132,6 +148,7 @@ test("blocks a different session and a replay of a consumed confirmation", async
       scope,
       replaced: false,
     }),
+    executeWrite: executeWithoutAudit,
   };
 
   await assert.rejects(
@@ -160,6 +177,133 @@ test("blocks a different session and a replay of a consumed confirmation", async
         ...dependencies,
       }),
     (error) => error.code === "CONFIRMATION_NOT_FOUND" && error.status === 404,
+  );
+});
+
+test("durable intent failure consumes once but never calls the memory adapter", async () => {
+  let storedConfirmation;
+  await prepareMemoryWrite({
+    sessionId: "session-a",
+    ownerId: "owner-a",
+    items: [{ fact: "Частен факт" }],
+    createConfirmation: async (input) => {
+      storedConfirmation = { ...input, id: "confirmation-1" };
+      return storedConfirmation;
+    },
+  });
+  let consumed = 0;
+  let written = 0;
+
+  await assert.rejects(
+    () =>
+      confirmMemoryWrite({
+        confirmationId: "confirmation-1",
+        sessionId: "session-a",
+        ownerId: "owner-a",
+        validateConfirmation: async () => storedConfirmation,
+        consumeConfirmation: async () => {
+          consumed += 1;
+        },
+        saveMemory: async () => {
+          written += 1;
+        },
+        executeWrite: (input) =>
+          executeAuditedWriteAction({
+            ...input,
+            writeAudit: async () => {
+              throw new Error("audit unavailable");
+            },
+          }),
+      }),
+    (error) => error.code === "AUDIT_UNAVAILABLE" && error.status === 503,
+  );
+
+  assert.equal(consumed, 1);
+  assert.equal(written, 0);
+});
+
+test("successful memory write with failed outcome audit is uncertain", async () => {
+  let storedConfirmation;
+  await prepareMemoryWrite({
+    sessionId: "session-a",
+    ownerId: "owner-a",
+    items: [{ fact: "Частен факт" }],
+    createConfirmation: async (input) => {
+      storedConfirmation = { ...input, id: "confirmation-1" };
+      return storedConfirmation;
+    },
+  });
+  let auditCalls = 0;
+
+  await assert.rejects(
+    () =>
+      confirmMemoryWrite({
+        confirmationId: "confirmation-1",
+        sessionId: "session-a",
+        ownerId: "owner-a",
+        validateConfirmation: async () => storedConfirmation,
+        consumeConfirmation: async () => {},
+        saveMemory: async (fact, _source, scope) => ({
+          id: "memory-1",
+          fact,
+          scope,
+          replaced: false,
+        }),
+        executeWrite: (input) =>
+          executeAuditedWriteAction({
+            ...input,
+            writeAudit: async () => {
+              auditCalls += 1;
+              if (auditCalls === 2) throw new Error("outcome unavailable");
+            },
+          }),
+      }),
+    (error) =>
+      error.code === "AUDIT_OUTCOME_UNCERTAIN" &&
+      error.result?.[0]?.id === "memory-1",
+  );
+});
+
+test("memory write audit stores one intent/outcome pair without raw private values", async () => {
+  let storedConfirmation;
+  await prepareMemoryWrite({
+    sessionId: "session-a",
+    ownerId: "private-owner-id",
+    items: [{ fact: "Строго частен факт" }],
+    createConfirmation: async (input) => {
+      storedConfirmation = { ...input, id: "confirmation-secret" };
+      return storedConfirmation;
+    },
+  });
+
+  await confirmMemoryWrite({
+    confirmationId: "confirmation-secret",
+    sessionId: "session-a",
+    ownerId: "private-owner-id",
+    validateConfirmation: async () => storedConfirmation,
+    consumeConfirmation: async () => {},
+    saveMemory: async (fact, _source, scope) => ({
+      id: "memory-1",
+      fact,
+      scope,
+      replaced: false,
+    }),
+    executeWrite: (input) =>
+      executeAuditedWriteAction({ ...input, writeAudit: recordAuditEvent }),
+  });
+
+  const events = await listAuditEvents();
+  assert.deepEqual(
+    events.map(({ phase, outcome }) => ({ phase, outcome })).reverse(),
+    [
+      { phase: "intent", outcome: "intent" },
+      { phase: "outcome", outcome: "succeeded" },
+    ],
+  );
+  assert.equal(events[0].auditId, events[1].auditId);
+  assert.doesNotMatch(
+    JSON.stringify(events),
+    /private-owner-id|Строго частен факт|confirmation-secret/u,
   );
 });
 

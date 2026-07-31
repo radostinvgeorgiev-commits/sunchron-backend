@@ -52,7 +52,10 @@ import {
   formatCopilotTaskResult,
   isCopilotBridgeStatusRequest,
 } from "../services/copilotTaskService.js";
-import { recordAuditEvent } from "../services/permissionService.js";
+import {
+  isAuditSafetyError,
+  recordAuditEvent,
+} from "../services/permissionService.js";
 import {
   isWebSearchRequest,
   WebSearchError,
@@ -843,7 +846,10 @@ router.post("/chat", async (req, res) => {
       `[Memory] Failure for ${cleanSessionId}:`,
       error?.code || error?.message || "unknown",
     );
-    if (error instanceof MemoryDeleteConfirmationError) {
+    if (
+      error instanceof MemoryDeleteConfirmationError ||
+      isAuditSafetyError(error)
+    ) {
       return res.status(error.status).json({
         error: error.message,
         code: error.code,
@@ -971,14 +977,6 @@ router.post("/chat", async (req, res) => {
         fullReply,
         ownerId,
       );
-      await auditAction({
-        action: "memory.write",
-        decision: "confirmed",
-        outcome: "succeeded",
-        resource: "profile-memory",
-        details: `chat:confirmed:${items.length}`,
-        sessionId: cleanSessionId,
-      });
       sendEvent("token", { token: fullReply });
       sendEvent("done", {
         ok: true,
@@ -992,21 +990,32 @@ router.post("/chat", async (req, res) => {
         "[Memory write confirmation]",
         error?.code || error?.message || "unknown",
       );
-      await auditAction({
-        action: "memory.write",
-        decision: "confirmed",
-        outcome: "failed",
-        resource: "profile-memory",
-        details: `chat:failed:${error?.code || "unknown"}`,
-        sessionId: cleanSessionId,
-      });
+      if (!isAuditSafetyError(error)) {
+        await auditAction({
+          action: "memory.write",
+          decision: "confirmed",
+          outcome: "failed",
+          resource: "profile-memory",
+          details: `chat:failed:${error?.code || "unknown"}`,
+          sessionId: cleanSessionId,
+        });
+      }
       sendEvent("error", {
         status:
-          error instanceof MemoryWriteConfirmationError ? error.status : 500,
+          error instanceof MemoryWriteConfirmationError ||
+          isAuditSafetyError(error)
+            ? error.status
+            : 500,
         message:
-          error instanceof MemoryWriteConfirmationError
+          error instanceof MemoryWriteConfirmationError ||
+          isAuditSafetyError(error)
             ? error.message
             : "Постоянният запис не можа да бъде потвърден.",
+        code:
+          error instanceof MemoryWriteConfirmationError ||
+          isAuditSafetyError(error)
+            ? error.code
+            : "MEMORY_WRITE_FAILED",
       });
     }
     res.end();
@@ -1116,7 +1125,11 @@ router.post("/chat", async (req, res) => {
   }
 
   const memoryReply = buildMemoryReply(memoryAction);
-  if (memoryAction) {
+  if (
+    memoryAction &&
+    memoryAction.type !== "cleared" &&
+    memoryAction.type !== "forgot"
+  ) {
     const isDeleteAction =
       memoryAction.type === "cleared" ||
       memoryAction.type === "forgot" ||

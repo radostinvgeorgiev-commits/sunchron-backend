@@ -17,10 +17,16 @@ test("production smoke publishes a readable commit status without a custom secre
   assert.match(workflow, /consecutive_matches=\$\(\(consecutive_matches \+ 1\)\)/u);
   assert.match(workflow, /deployment-check=\$\{GITHUB_RUN_ID\}-\$\{attempt\}/u);
   assert.match(workflow, /Cache-Control: no-cache/u);
+  assert.match(workflow, /Check AI CORE public shell/u);
+  assert.match(workflow, /<title>AI CORE/u);
+  assert.match(workflow, /ai-core-mark\.png/u);
   assert.match(workflow, /Check MCP tool catalog and OAuth challenge/u);
   assert.match(workflow, /get_github_copilot_task_status/u);
   assert.match(workflow, /names\.length === expected\.length/u);
   assert.match(workflow, /mcp\/www_authenticate/u);
   assert.match(workflow, /synchron:read/u);
+  assert.match(workflow, /Check workspace authentication boundary/u);
+  assert.match(workflow, /\/api\/workspaces/u);
+  assert.match(workflow, /AUTH_REQUIRED/u);
   assert.doesNotMatch(workflow, /secrets\./u);
 });

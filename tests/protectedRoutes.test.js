@@ -27,6 +27,7 @@ test("blocks personal data and paid AI routes without owner sign-in", async () =
     ["get", "/memory/conversations"],
     ["get", "/calendar/events"],
     ["get", "/api/tester-auth/status"],
+    ["get", "/api/system/configuration"],
     ["get", "/permissions/audit"],
     ["post", "/search/ai"],
     ["post", "/chat/chat"],

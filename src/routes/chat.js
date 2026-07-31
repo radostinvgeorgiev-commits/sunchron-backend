@@ -290,6 +290,10 @@ export function detectCapabilityRequests(message) {
     /намери\s*:\s*1[\).:-]\s*/iu.test(message) && subtasks.length > 1;
   for (const [index, subtask] of subtasks.entries()) {
     const copilotBridgeStatusRequest = isCopilotBridgeStatusRequest(subtask);
+    const systemConfigurationRequest =
+      /(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите)).{0,60}(?:сървър|ядро|агент|digitalocean|дигитал\s*океан|дижитал\s*окен|система)|(?:сървър|ядро|агент|digitalocean|дигитал\s*океан|дижитал\s*окен|система).{0,60}(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите))/iu.test(
+        subtask,
+      );
     if (
       hasExplicitNumberedChecks &&
       index === 0 &&
@@ -313,6 +317,13 @@ export function detectCapabilityRequests(message) {
     ) {
       requests.push({
         capability: "system.integrations.status",
+        action: "infrastructure.read",
+        message: subtask,
+      });
+    }
+    if (systemConfigurationRequest) {
+      requests.push({
+        capability: "system.configuration.read",
         action: "infrastructure.read",
         message: subtask,
       });
@@ -395,6 +406,7 @@ export function detectCapabilityRequests(message) {
       });
     }
     if (
+      !systemConfigurationRequest &&
       DIGITALOCEAN_NAME_PATTERN.test(subtask) &&
       /(?:провери|покажи|статус|работи|деплой|deployment|публикуван|последн|направи|одит|акаунт|ресурс|droplet|сървър|баз|мреж|firewall|защит|разход|billing|storage|volume|snapshot|kubernetes)/iu.test(
         subtask,
@@ -551,6 +563,8 @@ export async function executeDetectedCapabilities(
 function capabilityLabel(capability) {
   if (capability === "system.integrations.status")
     return "статус на инструментите";
+  if (capability === "system.configuration.read")
+    return "системна конфигурация";
   if (capability === "calendar.read") return "календар";
   if (capability === "code.read") return "GitHub";
   if (capability === "code.write") return "GitHub запис";

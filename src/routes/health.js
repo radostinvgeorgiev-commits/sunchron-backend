@@ -194,6 +194,10 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
       configured: true,
       authenticated: true,
     },
+    "synchron-system-inspector": {
+      configured: true,
+      authenticated: true,
+    },
     "github-read": {
       configured: true,
       authenticated: true,

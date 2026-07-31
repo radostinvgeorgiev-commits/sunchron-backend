@@ -621,6 +621,17 @@ input {
     width: 100%;
 }
 
+.conversation-persistence-warning {
+    margin-top: 8px;
+    padding: 10px 12px;
+    border: 1px solid #d9902f;
+    border-radius: 12px;
+    color: #6f4308;
+    background: #fff4df;
+    font-size: var(--synchron-readable-text, 16px);
+    line-height: 1.4;
+}
+
 .user-turn {
     max-width: 82%;
     align-self: flex-end;

@@ -84,3 +84,16 @@ test("the chat shows live autonomous task progress", async () => {
   assert.match(script, /Задачата е изпълнена и проверена/u);
   assert.match(css, /data-task-status="waiting_confirmation"/u);
 });
+
+test("the chat keeps a successful answer visible when conversation persistence fails", async () => {
+  const [script, css] = await Promise.all([
+    readFile(new URL("../public/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(script, /conversationPersisted === false/u);
+  assert.match(script, /warningCode === "CONVERSATION_NOT_SAVED"/u);
+  assert.match(script, /Отговорът е получен, но разговорът не е запазен/u);
+  assert.match(script, /showConversationPersistenceWarning\(responseBubble\)/u);
+  assert.match(css, /\.conversation-persistence-warning/u);
+});

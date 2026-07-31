@@ -48,6 +48,8 @@ test("normal AI chat continues when persistent memory is unavailable", async () 
 
     assert.match(response.text, /Работя нормално\./u);
     assert.match(response.text, /"memoryAvailable":false/u);
+    assert.match(response.text, /"conversationPersisted":false/u);
+    assert.match(response.text, /"warningCode":"CONVERSATION_NOT_SAVED"/u);
     assert.match(response.text, /event: done/u);
   } finally {
     globalThis.fetch = originalFetch;

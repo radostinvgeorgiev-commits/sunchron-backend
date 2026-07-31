@@ -1234,6 +1234,20 @@ function createAssistantTurn(text = "", showActions = true) {
   return { turn, message, actions };
 }
 
+function showConversationPersistenceWarning(message) {
+  const turn = message?.closest(".assistant-turn");
+  if (!turn || turn.querySelector(".conversation-persistence-warning")) return;
+
+  const warning = document.createElement("div");
+  warning.className = "conversation-persistence-warning";
+  warning.setAttribute("role", "status");
+  warning.textContent =
+    "Отговорът е получен, но разговорът не е запазен. Копирай важната информация преди да затвориш чата.";
+
+  const actions = turn.querySelector(".message-actions");
+  turn.insertBefore(warning, actions || null);
+}
+
 async function handleMessageAction(event) {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
@@ -1428,6 +1442,13 @@ async function sendMessage() {
           logAction(parsed.data.message);
         } else if (parsed.event === "done") {
           completed = true;
+          if (
+            parsed.data?.conversationPersisted === false &&
+            parsed.data?.warningCode === "CONVERSATION_NOT_SAVED"
+          ) {
+            showConversationPersistenceWarning(responseBubble);
+            logAction("Разговорът не е запазен");
+          }
           if (parsed.data?.task?.status === "completed") {
             logAction(
               parsed.data.task.verified

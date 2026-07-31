@@ -132,7 +132,7 @@ test("chat never persists an ordinary fact and writes an explicit fact only afte
     );
 
   try {
-    await request(app)
+    const ordinaryResponse = await request(app)
       .post("/chat/chat")
       .set("Cookie", ownerCookie)
       .send({
@@ -140,6 +140,8 @@ test("chat never persists an ordinary fact and writes an explicit fact only afte
         message: "Казвам се Иван и живея във Варна.",
       })
       .expect(200);
+    assert.match(ordinaryResponse.text, /"conversationPersisted":true/u);
+    assert.doesNotMatch(ordinaryResponse.text, /CONVERSATION_NOT_SAVED/u);
     assert.deepEqual(client.profileFor("primary-user"), []);
 
     const prepared = await request(app)

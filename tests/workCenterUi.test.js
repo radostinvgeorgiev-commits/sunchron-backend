@@ -340,13 +340,37 @@ test("missing owner session opens the protected GitHub login", async () => {
   card.click();
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  assert.equal(
-    document.body.dataset.redirectedTo,
-    "/api/github/connect",
-  );
+  assert.equal(document.body.dataset.redirectedTo, "/api/github/connect");
   assert.match(
     card.nextElementSibling.textContent,
     /Необходим е вход на собственика/u,
+  );
+});
+
+test("DigitalOcean token rejection stays visible and does not open GitHub", async () => {
+  const harness = createHarness({
+    testerPrepareResponse: {
+      ok: false,
+      status: 401,
+      json: async () => ({
+        error: "DigitalOcean токенът е невалиден, изтекъл или е отнет.",
+        code: "DIGITALOCEAN_TOKEN_INVALID",
+      }),
+    },
+  });
+  await openCenter(harness);
+  const { document } = harness.dom.window;
+  const card = document.querySelector(
+    '[data-work-center-action="activate-tester-auth"]',
+  );
+
+  card.click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(document.body.dataset.redirectedTo, undefined);
+  assert.match(
+    card.nextElementSibling.textContent,
+    /DigitalOcean токенът е невалиден/u,
   );
 });
 

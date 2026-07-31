@@ -5,7 +5,7 @@ import express from "express";
 import request from "supertest";
 
 import { createMcpOAuthRouter } from "../src/routes/mcpOAuthRouter.js";
-import mcpRouter from "../src/routes/mcpRouter.js";
+import mcpRouter, { requireMcpAuthorization } from "../src/routes/mcpRouter.js";
 
 const SECRET = "router-test-secret-with-more-than-thirty-two-characters";
 
@@ -91,6 +91,33 @@ test("an invalid bearer token is rejected with HTTP 401", async () => {
   assert.match(response.headers["www-authenticate"], /invalid_token/u);
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
   else process.env.MCP_ACCESS_TOKEN = previous;
+});
+
+test("the dedicated OAuth secret is never accepted as a static bearer", async () => {
+  const env = {
+    MCP_ACCESS_TOKEN: SECRET,
+    MCP_OAUTH_SECRET: "separate-router-oauth-secret-with-enough-characters",
+    MCP_RESOURCE_URL: "https://synchron.foundation/mcp",
+  };
+  const app = express();
+  app.use(express.json());
+  app.post(
+    "/mcp",
+    (req, res, next) => requireMcpAuthorization(req, res, next, { env }),
+    (_req, res) => res.json({ authenticated: true }),
+  );
+
+  const response = await request(app)
+    .post("/mcp")
+    .set("Authorization", `Bearer ${env.MCP_OAUTH_SECRET}`)
+    .send({
+      jsonrpc: "2.0",
+      id: 5,
+      method: "tools/call",
+      params: { name: "get_personal_context", arguments: {} },
+    })
+    .expect(401);
+  assert.equal(response.body.error.code, -32001);
 });
 
 test("authorization consent issues a code bound to the browser profile", async () => {

@@ -133,22 +133,27 @@ Library или други вътрешни ChatGPT данни в SYNCHRON-X.
 ### SX-03 — Legacy MCP Bearer token заобикаля OAuth scopes
 
 - **Критичност:** P1 висока.
+- **Състояние:** фаза 1 е реализирана в кода: незадължителният
+  `MCP_OAUTH_SECRET` отделя новите OAuth артефакти, а legacy-derived ключът се
+  пази само като migration verification fallback. Production rollout-ът и
+  последващото премахване на статичния owner bearer остават отделни стъпки.
 - **Доказателство:** `src/routes/mcpRouter.js`, `requireMcpAuthorization`, първо
   сравнява `MCP_ACCESS_TOKEN` и при съвпадение задава
   `mode=legacy-static-bearer`, `role=owner` и основния `MEMORY_OWNER_ID`.
-  `requiredScopesForMcpTool` се прилага само в OAuth пътя. Същата environment
-  стойност е root материал за OAuth ключовете в
-  `src/services/mcpOAuthService.js` (`oauthSecret`/`grantSecret`).
+  `requiredScopesForMcpTool` се прилага само в OAuth пътя. При липсващ
+  `MCP_OAUTH_SECRET` същата environment стойност остава legacy root материал;
+  при зададен отделен ключ тя се използва само за проверка на старите OAuth
+  артефакти по време на миграцията.
 - **Реален проблем:** изтичане на един дългоживеещ token дава директен read
-  достъп до личната памет и owner tool surface, а също компрометира текущото
-  OAuth cryptographic root. Няма individual client revocation или scope
-  ограничение за legacy клиента.
+  достъп до личната памет и owner tool surface. Преди production rollout на
+  отделния ключ това компрометира и OAuth cryptographic root. Няма individual
+  client revocation или scope ограничение за legacy клиента.
 - **Проверка:** в изолирана test среда извикай read tool със static bearer и
   потвърди, че не е нужен OAuth access token със `synchron:read`.
-- **Поправка:** отдели OAuth signing/grant secret от bridge credential;
-  мигрирай вътрешния smoke/bridge към scoped OAuth client credential или
-  ограничен service token; след доказана миграция ротирай и премахни legacy
-  owner fallback.
+- **Поправка:** deploy-ни отделния OAuth secret по
+  `MCP_OAUTH_SECRET_MIGRATION.md`; мигрирай вътрешния smoke/bridge към scoped
+  OAuth client credential или ограничен service token; след доказана миграция
+  ротирай и премахни legacy owner fallback.
 - **Риск от поправката:** висок — преждевременно премахване може да прекъсне
   production bridge и да обезсили всички съществуващи OAuth tokens.
 - **Трудност:** средна.
@@ -378,8 +383,8 @@ Library или други вътрешни ChatGPT данни в SYNCHRON-X.
 
 1. **SX-01:** доказан OpenSearch restore — след изрично разрешение за временния
    платен клъстер и точен cost ceiling.
-2. **SX-03:** план за миграция и ротация на legacy MCP static bearer, без да се
-   прекъсне текущата ChatGPT/OAuth връзка.
+2. **SX-03:** production rollout на отделния OAuth secret и после миграция на
+   legacy MCP static bearer, без да се прекъсне текущата ChatGPT/OAuth връзка.
 3. **SX-04:** реален owner acceptance на ChatGPT MCP, GitHub и Google — всяко
    write действие само с точно потвърждение.
 4. **SX-06:** устойчив audit за реалните write действия преди разширяване на

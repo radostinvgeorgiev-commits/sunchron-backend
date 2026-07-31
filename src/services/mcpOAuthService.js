@@ -65,32 +65,75 @@ export function resolveMcpIssuerUrl(env = process.env) {
   return new URL(resolveMcpResourceUrl(env)).origin;
 }
 
-function oauthSecret(env = process.env) {
-  const source =
-    typeof env.MCP_ACCESS_TOKEN === "string" ? env.MCP_ACCESS_TOKEN.trim() : "";
+function normalizedSecret(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function deriveSecret(label, source) {
+  return createHash("sha256").update(label).update(source).digest();
+}
+
+function legacyOAuthSecret(env = process.env, { required = true } = {}) {
+  const source = normalizedSecret(env.MCP_ACCESS_TOKEN);
   if (source.length < 32) {
+    if (!required) return null;
     throw new McpOAuthError(
       "MCP OAuth защитата не е конфигурирана.",
       503,
       "temporarily_unavailable",
     );
   }
-  return createHash("sha256")
-    .update("synchron-mcp-oauth-v1\0")
-    .update(source)
-    .digest();
+  return deriveSecret("synchron-mcp-oauth-v1\0", source);
 }
 
-function grantSecret(env = process.env) {
+function dedicatedOAuthSecret(env = process.env) {
+  const source = normalizedSecret(env.MCP_OAUTH_SECRET);
+  if (!source) return null;
+  if (source.length < 32) {
+    throw new McpOAuthError(
+      "Отделната MCP OAuth тайна трябва да бъде поне 32 знака.",
+      503,
+      "temporarily_unavailable",
+    );
+  }
+  return deriveSecret("synchron-mcp-oauth-dedicated-v1\0", source);
+}
+
+function oauthSecrets(env = process.env) {
+  const dedicated = dedicatedOAuthSecret(env);
+  const legacy = legacyOAuthSecret(env, { required: !dedicated });
+  return dedicated && legacy ? [dedicated, legacy] : [dedicated || legacy];
+}
+
+function grantSecretFromOAuthSecret(secretValue) {
   return createHash("sha256")
-    .update(oauthSecret(env))
+    .update(secretValue)
     .update("synchron-mcp-oauth-grants-v2\0")
     .digest();
 }
 
+function primaryOAuthSecret(env = process.env) {
+  return oauthSecrets(env)[0];
+}
+
+function grantSecrets(env = process.env) {
+  return oauthSecrets(env).map(grantSecretFromOAuthSecret);
+}
+
+function primaryGrantSecret(env = process.env) {
+  return grantSecrets(env)[0];
+}
+
+export function getMcpOAuthSecretMode(env = process.env) {
+  dedicatedOAuthSecret(env);
+  return normalizedSecret(env.MCP_OAUTH_SECRET)
+    ? "dedicated"
+    : "legacy_fallback";
+}
+
 export function isMcpOAuthConfigured(env = process.env) {
   try {
-    return Boolean(resolveMcpResourceUrl(env) && oauthSecret(env));
+    return Boolean(resolveMcpResourceUrl(env) && primaryOAuthSecret(env));
   } catch {
     return false;
   }
@@ -184,6 +227,14 @@ function decryptPayload(value, prefix, key) {
   } catch {
     return null;
   }
+}
+
+function decryptPayloadWithSecrets(value, prefix, secrets) {
+  for (const secretValue of secrets) {
+    const payload = decryptPayload(value, prefix, secretValue);
+    if (payload) return payload;
+  }
+  return null;
 }
 
 function parseScopes(value) {
@@ -330,7 +381,7 @@ export function createMcpAuthorizationCode(
       iat: now,
       exp: now + AUTHORIZATION_CODE_TTL_SECONDS,
     },
-    grantSecret(env),
+    primaryGrantSecret(env),
   );
 }
 
@@ -482,7 +533,7 @@ function createAccessAndRefreshTokens(payload, env, now) {
       nbf: now - 5,
       exp: now + ACCESS_TOKEN_TTL_SECONDS,
     },
-    oauthSecret(env),
+    primaryOAuthSecret(env),
   );
   const refreshToken = encryptPayload(
     "sx-refresh",
@@ -499,7 +550,7 @@ function createAccessAndRefreshTokens(payload, env, now) {
       iat: now,
       exp: now + REFRESH_TOKEN_TTL_SECONDS,
     },
-    grantSecret(env),
+    primaryGrantSecret(env),
   );
   return {
     access_token: accessToken,
@@ -516,7 +567,7 @@ export async function exchangeMcpAuthorizationCode(
   { consumeGrant = consumeMcpGrantOnce } = {},
 ) {
   const code = String(input?.code || "");
-  const payload = decryptPayload(code, "sx-code", grantSecret(env));
+  const payload = decryptPayloadWithSecrets(code, "sx-code", grantSecrets(env));
   const now = Math.floor(Date.now() / 1_000);
   if (
     !payload ||
@@ -577,10 +628,10 @@ export async function exchangeMcpRefreshToken(
   env = process.env,
   { consumeGrant = consumeMcpGrantOnce } = {},
 ) {
-  const payload = decryptPayload(
+  const payload = decryptPayloadWithSecrets(
     String(input?.refresh_token || ""),
     "sx-refresh",
-    grantSecret(env),
+    grantSecrets(env),
   );
   const now = Math.floor(Date.now() / 1_000);
   if (
@@ -639,10 +690,10 @@ export function verifyMcpAccessToken(
   ) {
     return null;
   }
-  const payload = decryptPayload(
+  const payload = decryptPayloadWithSecrets(
     authorizationHeader.slice(7),
     "sx-token",
-    oauthSecret(env),
+    oauthSecrets(env),
   );
   const now = Math.floor(Date.now() / 1_000);
   if (

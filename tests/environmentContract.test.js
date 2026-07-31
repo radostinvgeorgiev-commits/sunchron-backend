@@ -58,6 +58,7 @@ test("bridge variables stay documented without real secret values", () => {
   const keys = exampleEnvironmentKeys(envExample);
   const documentedKeys = [
     "MCP_ACCESS_TOKEN",
+    "MCP_OAUTH_SECRET",
     "MCP_RESOURCE_URL",
     "MEMORY_OWNER_ID",
     "DIGITALOCEAN_API_TOKEN",
@@ -74,6 +75,7 @@ test("bridge variables stay documented without real secret values", () => {
   }
 
   for (const key of [
+    "MCP_OAUTH_SECRET",
     "DIGITALOCEAN_API_TOKEN",
     "DIGITALOCEAN_TOKEN",
     "CLOUDFLARE_API_TOKEN",

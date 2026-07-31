@@ -10,8 +10,10 @@ SYNCHRON-X има MCP Streamable HTTP адрес `/mcp` и четири инст
 - `list_synchron_conversations`;
 - `get_synchron_conversation`.
 
-Достъпът е ограничен с `MCP_ACCESS_TOKEN`. Токенът не се показва в
-диагностиката, логовете или отговорите.
+Достъпът до инструментите се дава чрез scoped OAuth access token или чрез
+legacy `MCP_ACCESS_TOKEN`. Тайните не се показват в диагностиката, логовете или
+отговорите. Когато е зададен `MCP_OAUTH_SECRET`, новите OAuth артефакти се
+криптират отделно от legacy bearer credential.
 
 ## Диагностика
 
@@ -26,8 +28,9 @@ SYNCHRON-X има MCP Streamable HTTP адрес `/mcp` и четири инст
 
 ## Важна граница
 
-Статичният bearer токен позволява защитен технически MCP достъп, но не е
-завършен поддържан OAuth поток за лични данни в ChatGPT.
+Статичният bearer токен остава временен compatibility път и заобикаля OAuth
+scopes. Планът за безопасното му отделяне и последващо премахване е в
+`MCP_OAUTH_SECRET_MIGRATION.md`.
 
 За `chatgptOAuthReady: true` са нужни отделно:
 

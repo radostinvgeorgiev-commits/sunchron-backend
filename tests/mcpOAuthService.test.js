@@ -9,7 +9,9 @@ import {
   exchangeMcpAuthorizationCode,
   exchangeMcpRefreshToken,
   getMcpAuthorizationServerMetadata,
+  getMcpOAuthSecretMode,
   getMcpProtectedResourceMetadata,
+  isMcpOAuthConfigured,
   MCP_GITHUB_WRITE_SCOPE,
   MCP_READ_SCOPE,
   requiresPersistentMcpReplayGuard,
@@ -21,6 +23,10 @@ import {
 const ENV = {
   MCP_ACCESS_TOKEN: "mcp-oauth-test-secret-with-more-than-32-characters",
   MCP_RESOURCE_URL: "https://synchron.foundation/mcp",
+};
+const DEDICATED_ENV = {
+  ...ENV,
+  MCP_OAUTH_SECRET: "dedicated-oauth-secret-with-more-than-32-characters",
 };
 const CLIENT_ID = "https://chatgpt.com/oauth/synchron/client.json";
 const REDIRECT_URI = "https://chatgpt.com/connector/oauth/test-callback";
@@ -55,6 +61,110 @@ function clientMetadataFetch(url) {
 }
 
 test.beforeEach(() => resetMcpOAuthStateForTests());
+
+async function issueMcpTokens(env) {
+  const request = {
+    clientId: CLIENT_ID,
+    redirectUri: REDIRECT_URI,
+    codeChallenge: createHash("sha256").update(VERIFIER).digest("base64url"),
+    resource: ENV.MCP_RESOURCE_URL,
+    scopes: [MCP_READ_SCOPE],
+  };
+  const code = createMcpAuthorizationCode(
+    request,
+    { id: "owner-id", memoryOwnerId: "primary-user", role: "owner" },
+    env,
+  );
+  return exchangeMcpAuthorizationCode(
+    {
+      grant_type: "authorization_code",
+      code,
+      client_id: CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: VERIFIER,
+      resource: ENV.MCP_RESOURCE_URL,
+    },
+    env,
+    { consumeGrant: async () => true },
+  );
+}
+
+test("selects the dedicated OAuth secret without breaking legacy fallback", () => {
+  assert.equal(getMcpOAuthSecretMode(ENV), "legacy_fallback");
+  assert.equal(getMcpOAuthSecretMode(DEDICATED_ENV), "dedicated");
+  assert.equal(isMcpOAuthConfigured(ENV), true);
+  assert.equal(isMcpOAuthConfigured(DEDICATED_ENV), true);
+});
+
+test("fails closed when a non-empty dedicated OAuth secret is too short", () => {
+  const invalid = { ...ENV, MCP_OAUTH_SECRET: "too-short" };
+  assert.equal(isMcpOAuthConfigured(invalid), false);
+  assert.throws(
+    () => getMcpOAuthSecretMode(invalid),
+    (error) => error.code === "temporarily_unavailable" && error.status === 503,
+  );
+});
+
+test("dedicated OAuth tokens cannot be decrypted by the legacy-only key", async () => {
+  const token = await issueMcpTokens(DEDICATED_ENV);
+  assert.deepEqual(
+    verifyMcpAccessToken(
+      `Bearer ${token.access_token}`,
+      [MCP_READ_SCOPE],
+      DEDICATED_ENV,
+    ).id,
+    "owner-id",
+  );
+  assert.throws(
+    () =>
+      verifyMcpAccessToken(
+        `Bearer ${token.access_token}`,
+        [MCP_READ_SCOPE],
+        ENV,
+      ),
+    (error) => error.code === "invalid_token",
+  );
+});
+
+test("migration accepts legacy tokens and rotates refreshes onto the dedicated key", async () => {
+  const legacyToken = await issueMcpTokens(ENV);
+  assert.equal(
+    verifyMcpAccessToken(
+      `Bearer ${legacyToken.access_token}`,
+      [MCP_READ_SCOPE],
+      DEDICATED_ENV,
+    ).id,
+    "owner-id",
+  );
+
+  const rotated = await exchangeMcpRefreshToken(
+    {
+      grant_type: "refresh_token",
+      refresh_token: legacyToken.refresh_token,
+      client_id: CLIENT_ID,
+      resource: ENV.MCP_RESOURCE_URL,
+    },
+    DEDICATED_ENV,
+    { consumeGrant: async () => true },
+  );
+  assert.equal(
+    verifyMcpAccessToken(
+      `Bearer ${rotated.access_token}`,
+      [MCP_READ_SCOPE],
+      DEDICATED_ENV,
+    ).id,
+    "owner-id",
+  );
+  assert.throws(
+    () =>
+      verifyMcpAccessToken(
+        `Bearer ${rotated.access_token}`,
+        [MCP_READ_SCOPE],
+        ENV,
+      ),
+    (error) => error.code === "invalid_token",
+  );
+});
 
 test("publishes OAuth 2.1 protected-resource and authorization metadata", () => {
   assert.deepEqual(getMcpProtectedResourceMetadata(ENV), {

@@ -179,7 +179,7 @@ export function buildAuthorizationUrl(state) {
       "email",
       "https://www.googleapis.com/auth/drive.readonly",
       "https://www.googleapis.com/auth/gmail.readonly",
-      "https://www.googleapis.com/auth/calendar.readonly",
+      "https://www.googleapis.com/auth/calendar.events",
     ].join(" "),
     access_type: "offline",
     prompt: "consent",
@@ -649,4 +649,44 @@ export async function listGoogleCalendarEvents(
     location: event.location || "",
     url: event.htmlLink || "",
   }));
+}
+
+export async function createGoogleCalendarEvent(
+  id,
+  event,
+  fetchImpl = fetch,
+) {
+  const response = await googleFetch(
+    id,
+    `${CALENDAR_API_URL}/calendars/primary/events?sendUpdates=none`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        summary: event.title,
+        start: { dateTime: event.start, timeZone: event.timeZone },
+        end: { dateTime: event.end, timeZone: event.timeZone },
+        ...(event.location ? { location: event.location } : {}),
+        ...(event.description ? { description: event.description } : {}),
+      }),
+    },
+    fetchImpl,
+    "Google Calendar",
+  );
+  const created = await response.json();
+  if (!created?.id) {
+    throw new GoogleDriveError(
+      "Google Calendar не върна потвърждение за записано събитие.",
+      502,
+      "CALENDAR_EVENT_EMPTY_RESULT",
+    );
+  }
+  return {
+    id: created.id,
+    title: created.summary || event.title,
+    start: created.start?.dateTime || created.start?.date || event.start,
+    end: created.end?.dateTime || created.end?.date || event.end,
+    location: created.location || event.location || "",
+    url: created.htmlLink || "",
+  };
 }

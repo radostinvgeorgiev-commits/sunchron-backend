@@ -42,6 +42,16 @@ test("detects multiple capability subtasks in one message", () => {
   );
 });
 
+test("routes a new calendar event only to confirmed Calendar Write", () => {
+  const message = "Създай събитие: Среща | 2026-08-05 14:30 | 60";
+  const requests = detectCapabilityRequests(message);
+  assert.deepEqual(
+    requests.map(({ capability, action }) => ({ capability, action })),
+    [{ capability: "calendar.write", action: "calendar.write" }],
+  );
+  assert.equal(requests[0].message, message);
+});
+
 test("detects an explicit autonomous permanent-memory test", () => {
   const requests = detectCapabilityRequests(
     "Тествай сам и реално постоянната памет.",

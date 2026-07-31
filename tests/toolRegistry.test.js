@@ -13,7 +13,7 @@ test.beforeEach(() => resetToolRegistryForTests());
 
 test("регистрира съществуващите интеграции с пълни метаданни", () => {
   registerCoreTools();
-  assert.equal(listTools().length, 12);
+  assert.equal(listTools().length, 13);
   assert.deepEqual(getTool("synchron-integrations-status").capabilities, [
     "system.integrations.status",
   ]);
@@ -29,6 +29,10 @@ test("регистрира съществуващите интеграции с 
   assert.equal(getTool("github-write").enabled, true);
   assert.equal(getTool("github-write").requiresConfirmation, true);
   assert.equal(getTool("github-write").healthStatus, "unavailable");
+  assert.equal(getTool("google-calendar-write").requiresConfirmation, true);
+  assert.deepEqual(getTool("google-calendar-write").capabilities, [
+    "calendar.write",
+  ]);
   assert.deepEqual(getTool("supabase-status").capabilities, [
     "database.status",
   ]);

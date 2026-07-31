@@ -38,7 +38,7 @@ test("integration status reports configuration without exposing secret values", 
     assert.equal(status.core.chatAgent.primaryProvider, "openai");
     assert.equal(status.core.chatAgent.removedProvider, "digitalocean-agent");
     assert.equal(status.core.openai.configured, true);
-    assert.equal(status.tools.length, 12);
+    assert.equal(status.tools.length, 13);
     assert.equal(
       status.tools
         .filter((tool) => tool.id !== "github-write")

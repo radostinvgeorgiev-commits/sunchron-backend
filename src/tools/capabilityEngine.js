@@ -7,6 +7,7 @@ import {
   listGmailMessages,
   listGoogleCalendarEvents,
 } from "../services/googleDriveService.js";
+import { prepareCalendarEvent } from "../services/calendarService.js";
 import {
   deleteProfileMemoryByFact,
   listProfileMemories,
@@ -93,6 +94,7 @@ export function getToolRuntimeAvailability(
       );
     case "google-drive-read":
     case "google-calendar-read":
+    case "google-calendar-write":
     case "gmail-read":
       if (
         !hasEnvironment(
@@ -344,6 +346,14 @@ const executors = Object.freeze({
       ),
     ].join("\n");
   },
+  "google-calendar-write": async ({ input }) => {
+    const prepared = await prepareCalendarEvent({
+      sessionId: input.sessionId,
+      googleSessionId: input.googleSessionId,
+      message: input.message,
+    });
+    return prepared.output;
+  },
   "google-drive-read": async ({ input }) => {
     const files = await listDriveFiles(input.googleSessionId);
     if (!files.length) return "Няма намерени файлове в Google Drive.";
@@ -467,10 +477,10 @@ const executors = Object.freeze({
 export async function executeCapability(capability, input = {}, options = {}) {
   const resolved = resolveCapability(capability, options);
   if (resolved.requiresConfirmation && options.confirmed !== true) {
-    const canPrepareGitHubConfirmation =
+    const canPrepareConfirmation =
       options.prepareConfirmation === true &&
-      resolved.tool.id === "github-write";
-    if (!canPrepareGitHubConfirmation) {
+      ["github-write", "google-calendar-write"].includes(resolved.tool.id);
+    if (!canPrepareConfirmation) {
       throw new CapabilityError(
         `Способността "${capability}" изисква потвърждение.`,
         "CAPABILITY_CONFIRMATION_REQUIRED",

@@ -209,6 +209,30 @@ test("planner accepts the read-only Copilot task status capability", () => {
   );
 });
 
+test("planner accepts Calendar Write only as a confirmed write action", () => {
+  assert.deepEqual(
+    sanitizeCapabilityPlan(
+      {
+        calls: [
+          {
+            capability: "calendar.write",
+            request:
+              "Създай събитие: Среща | 2026-08-05 14:30 | 60",
+          },
+        ],
+      },
+      "Създай събитие: Среща | 2026-08-05 14:30 | 60",
+    ),
+    [
+      {
+        capability: "calendar.write",
+        action: "calendar.write",
+        message: "Създай събитие: Среща | 2026-08-05 14:30 | 60",
+      },
+    ],
+  );
+});
+
 test("planner is used for likely tool requests but not ordinary conversation", () => {
   assert.equal(
     shouldUseAgentPlanner("Покажи календара ми за утре.", [

@@ -1036,7 +1036,7 @@ function showGitHubSetup() {
 function showPermissionInfo(action) {
   const messages = {
     "calendar.write":
-      "Разрешението е подготвено, но записът в календара още не е реализиран. Свързването на Google активира четенето.",
+      "Записът в Google Calendar е активен след свързване на Google. SYNCHRON-X първо показва точните данни и записва събитието само след еднократно потвърждение.",
     "memory.write":
       "Записът в паметта е активен. Преди постоянен запис SYNCHRON-X трябва да покаже точния текст и да поиска твоето потвърждение.",
     "memory.delete":

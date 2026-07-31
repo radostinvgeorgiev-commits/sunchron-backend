@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { getOpenSearchClient } from "../config/opensearch.js";
+import { logSafeError } from "../utils/safeLogging.js";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -120,7 +121,7 @@ async function loadSession(id) {
   } catch (error) {
     const status = error?.statusCode || error?.meta?.statusCode;
     if (status !== 404) {
-      console.error("[Google session] Restore failure:", error);
+      logSafeError("[Google session] Restore failure", error);
     }
     return null;
   }
@@ -227,10 +228,7 @@ export async function createSession(tokens) {
   try {
     persisted = await persistSession(id, session);
   } catch (error) {
-    console.error(
-      "[Google session] Persistence failure:",
-      error?.message || "unknown",
-    );
+    logSafeError("[Google session] Persistence failure", error);
   }
 
   if (!persisted && requiresPersistentGoogleSessions()) {
@@ -258,7 +256,7 @@ export async function disconnectSession(id) {
   } catch (error) {
     const status = error?.statusCode || error?.meta?.statusCode;
     if (status !== 404) {
-      console.error("[Google session] Delete failure:", error);
+      logSafeError("[Google session] Delete failure", error);
     }
   }
 }
@@ -307,7 +305,7 @@ async function refreshSession(id, fetchImpl = fetch) {
   try {
     await persistSession(id, session);
   } catch (error) {
-    console.error("[Google session] Refresh persistence failure:", error);
+    logSafeError("[Google session] Refresh persistence failure", error);
   }
   return session.access_token;
 }
@@ -533,9 +531,7 @@ export async function analyzeDriveFile({
   const data = await response.json();
   if (!response.ok) {
     console.error(
-      "[Google Drive file]",
-      response.status,
-      data?.error?.message || "unknown error",
+      `[Google Drive file] Upstream request failed: ${response.status}`,
     );
     throw new GoogleDriveError(
       "Анализът на файла не успя.",

@@ -14,6 +14,7 @@ import {
   listDriveFiles,
   parseCookies,
 } from "../services/googleDriveService.js";
+import { logSafeError } from "../utils/safeLogging.js";
 
 const router = express.Router();
 const COOKIE_OPTIONS =
@@ -68,7 +69,7 @@ router.get("/callback", async (req, res) => {
     ]);
     res.redirect("/?google=connected");
   } catch (error) {
-    console.error("[Google OAuth callback]", error);
+    logSafeError("[Google OAuth callback]", error);
     res.redirect("/?google=error");
   }
 });

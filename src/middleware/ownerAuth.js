@@ -8,6 +8,7 @@ import {
   resolveUserSession,
   userSessionCookie,
 } from "../services/userAuthService.js";
+import { logSafeError } from "../utils/safeLogging.js";
 
 export function resolveMemoryOwnerId(login, env = process.env) {
   const normalizedLogin =
@@ -92,7 +93,7 @@ export function createRequireOwnerSession({
       req.owner = identity;
       return next();
     } catch (error) {
-      console.error("[Owner auth]", error);
+      logSafeError("[Owner auth]", error);
       return res.status(503).json({
         error: "Проверката на собственика временно не е достъпна.",
         code: "OWNER_AUTH_UNAVAILABLE",

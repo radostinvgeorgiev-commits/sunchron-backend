@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { getOpenSearchClient } from "../config/opensearch.js";
+import { logSafeError } from "../utils/safeLogging.js";
 
 const GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
@@ -249,7 +250,7 @@ async function loadSession(id) {
   } catch (error) {
     const status = error?.statusCode || error?.meta?.statusCode;
     if (status !== 404) {
-      console.error("[GitHub session] Restore failure:", error);
+      logSafeError("[GitHub session] Restore failure", error);
     }
     return null;
   }
@@ -274,7 +275,7 @@ export async function createGitHubSession(tokens, fetchImpl = fetch) {
     await persistSession(id, session);
   } catch (error) {
     sessions.delete(id);
-    console.error("[GitHub session] Persistence failure:", error);
+    logSafeError("[GitHub session] Persistence failure", error);
     throw new GitHubOAuthError(
       "GitHub връзката не можа да бъде запазена защитено.",
       503,

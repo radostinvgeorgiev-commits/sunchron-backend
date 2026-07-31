@@ -15,6 +15,7 @@ import {
   parseGitHubCookies,
 } from "../services/githubOAuthService.js";
 import { resolveRequestIdentity } from "../middleware/ownerAuth.js";
+import { logSafeError } from "../utils/safeLogging.js";
 
 const router = express.Router();
 
@@ -92,7 +93,7 @@ router.post("/logout", async (req, res) => {
     const githubCookies = parseGitHubCookies(req.headers.cookie);
     await disconnectGitHubSession(githubCookies.synchron_github_session);
   } catch (error) {
-    console.error("[User logout]", error);
+    logSafeError("[User logout]", error);
   }
   res.setHeader("Set-Cookie", [
     clearUserSessionCookie(),

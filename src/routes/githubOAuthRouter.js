@@ -11,6 +11,7 @@ import {
   isGitHubOAuthConfigured,
   parseGitHubCookies,
 } from "../services/githubOAuthService.js";
+import { logSafeError } from "../utils/safeLogging.js";
 
 const router = express.Router();
 const COOKIE_OPTIONS =
@@ -74,7 +75,7 @@ router.get("/callback", async (req, res) => {
     ]);
     res.redirect("/?github=connected");
   } catch (error) {
-    console.error("[GitHub OAuth callback]", error);
+    logSafeError("[GitHub OAuth callback]", error);
     res.redirect("/?github=error");
   }
 });

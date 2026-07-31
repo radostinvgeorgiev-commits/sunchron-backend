@@ -132,6 +132,20 @@ test("authorization consent issues a code bound to the browser profile", async (
   assert.equal(callback.origin, "https://chatgpt.com");
   assert.equal(callback.searchParams.get("state"), "state-123");
   assert.match(callback.searchParams.get("code"), /^sx-code\./u);
+  const token = await request(app)
+    .post("/oauth/token")
+    .type("form")
+    .send({
+      grant_type: "authorization_code",
+      code: callback.searchParams.get("code"),
+      client_id: oauthRequest.clientId,
+      redirect_uri: oauthRequest.redirectUri,
+      code_verifier: verifier,
+      resource: oauthRequest.resource,
+    })
+    .expect(200);
+  assert.equal(token.body.token_type, "Bearer");
+  assert.ok(token.body.refresh_token);
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
   else process.env.MCP_ACCESS_TOKEN = previous;
 });

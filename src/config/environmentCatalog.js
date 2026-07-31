@@ -134,6 +134,12 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "Каноничен HTTPS адрес на MCP ресурса.",
       { hasDefault: true },
     ),
+    general(
+      "MCP_OAUTH_REPLAY_INDEX",
+      "ChatGPT / MCP",
+      "Индекс за устойчивата еднократна OAuth защита.",
+      { hasDefault: true },
+    ),
 
     general(
       "SUPABASE_URL",

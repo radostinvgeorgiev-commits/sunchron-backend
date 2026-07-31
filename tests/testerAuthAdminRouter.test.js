@@ -58,6 +58,7 @@ test("prepares an exact owner confirmation without returning the publishable key
   );
   assert.equal(created.action, ACTION);
   assert.equal(created.sessionId, "owner");
+  assert.equal(created.resource.appId, "app-1");
   assert.equal(created.params.publishableKey, BOOTSTRAP.publishableKey);
   assert.equal(response.body.readAccessVerified, true);
   assert.equal(response.body.requiredWriteScope, "app:update");
@@ -181,4 +182,28 @@ test("reveals the invite code only from the owner-protected admin router", async
     .expect(200);
   assert.equal(invite.body.inviteCode, "private-invite");
   assert.match(invite.headers["cache-control"], /no-store/u);
+});
+
+test("uses a stable derived invite when dedicated tester secrets are absent", async () => {
+  const env = {
+    SUPABASE_URL: BOOTSTRAP.projectUrl,
+    SUPABASE_PUBLISHABLE_KEY: BOOTSTRAP.publishableKey,
+    GITHUB_SESSION_ENCRYPTION_KEY:
+      "owner-session-encryption-key-with-enough-entropy",
+  };
+  const app = testApp({ env });
+
+  const status = await request(app).get("/api/tester-auth/status").expect(200);
+  assert.equal(status.body.configured, true);
+  assert.equal(status.body.registrationEnabled, true);
+
+  const first = await request(app)
+    .get("/api/tester-auth/invite-code")
+    .expect(200);
+  const second = await request(app)
+    .get("/api/tester-auth/invite-code")
+    .expect(200);
+  assert.equal(first.body.inviteCode, second.body.inviteCode);
+  assert.equal(first.body.inviteCode.length, 16);
+  assert.doesNotMatch(first.body.inviteCode, /owner-session-encryption-key/u);
 });

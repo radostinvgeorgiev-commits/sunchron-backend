@@ -11,6 +11,7 @@ import {
 } from "../services/confirmationService.js";
 import { recordAuditEvent } from "../services/permissionService.js";
 import {
+  getTesterInviteCode,
   isTesterRegistrationEnabled,
   isUserAuthConfigured,
 } from "../services/userAuthService.js";
@@ -76,7 +77,7 @@ export function createTesterAuthAdminRouter({
   );
 
   router.get("/invite-code", (req, res) => {
-    const inviteCode = String(env.SYNCHRON_TEST_INVITE_CODE || "").trim();
+    const inviteCode = getTesterInviteCode(env);
     if (!isTesterRegistrationEnabled(env) || !inviteCode) {
       return res.status(404).json({
         error: "Кодът за тестов достъп още не е активен.",
@@ -107,7 +108,7 @@ export function createTesterAuthAdminRouter({
         sessionId: req.owner.id,
         action: ACTION,
         resource: {
-          appId: status.id,
+          appId: status.appId,
           environmentKeys: missingKeys.join(","),
         },
         params: {
@@ -120,7 +121,7 @@ export function createTesterAuthAdminRouter({
         action: ACTION,
         decision: "confirm",
         outcome: "requested",
-        resource: status.id,
+        resource: status.appId,
         details: `keys:${missingKeys.join(",")}`,
       });
       return res.status(201).json({

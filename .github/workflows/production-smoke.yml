@@ -66,7 +66,7 @@ jobs:
           echo "Production did not stably deploy commit ${EXPECTED_COMMIT} within the verification window." >&2
           exit 1
 
-      - name: Check public site
+      - name: Check AI CORE public shell
         shell: bash
         run: |
           set -euo pipefail
@@ -74,7 +74,9 @@ jobs:
             --retry 3 --retry-delay 10 --retry-all-errors \
             --max-time 30 \
             https://synchron.foundation/)"
-          grep -qi "Synchron" <<< "${page}"
+          grep -q '<title>AI CORE' <<< "${page}"
+          grep -q 'href="/ai-core-mark.png"' <<< "${page}"
+          grep -q 'src="/work-mode.js?' <<< "${page}"
 
       - name: Check application health
         shell: bash
@@ -260,6 +262,30 @@ jobs:
               }
             });
           '
+
+      - name: Check workspace authentication boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          trap 'rm -f "${response_file}"' EXIT
+          status_code="$(curl --silent --show-error \
+            --retry 3 --retry-delay 10 --retry-all-errors \
+            --max-time 30 \
+            --output "${response_file}" \
+            --write-out '%{http_code}' \
+            https://synchron.foundation/api/workspaces)"
+
+          if [ "${status_code}" != "401" ]; then
+            echo "Workspace API returned ${status_code}; expected the unauthenticated boundary." >&2
+            exit 1
+          fi
+
+          node -e '
+            const fs = require("node:fs");
+            const response = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            if (response.code !== "AUTH_REQUIRED") process.exit(1);
+          ' "${response_file}"
 
       - name: Publish production verification status
         if: always()

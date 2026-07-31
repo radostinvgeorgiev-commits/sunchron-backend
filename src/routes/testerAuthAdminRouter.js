@@ -9,7 +9,10 @@ import {
   markDurableConfirmationUsed,
   validateDurableConfirmation,
 } from "../services/confirmationService.js";
-import { recordAuditEvent } from "../services/permissionService.js";
+import {
+  executeAuditedWriteAction,
+  recordAuditEvent,
+} from "../services/permissionService.js";
 import {
   getTesterInviteCode,
   isTesterRegistrationEnabled,
@@ -36,6 +39,8 @@ function safeError(error) {
     CONFIRMATION_EXPIRED: 410,
     SESSION_MISMATCH: 403,
     CONFIRMATION_PERSISTENCE_FAILED: 503,
+    AUDIT_UNAVAILABLE: 503,
+    AUDIT_OUTCOME_UNCERTAIN: 502,
   };
   const resolvedStatus =
     status >= 400 && status < 600 ? status : statusByCode[error?.code] || 500;
@@ -44,6 +49,9 @@ function safeError(error) {
     body: {
       error:
         error?.name === "DigitalOceanError" ||
+        ["AUDIT_UNAVAILABLE", "AUDIT_OUTCOME_UNCERTAIN"].includes(
+          error?.code,
+        ) ||
         (resolvedStatus >= 400 && resolvedStatus < 500)
           ? error.message
           : "Активирането на тестовите профили не успя.",
@@ -59,6 +67,7 @@ export function createTesterAuthAdminRouter({
   validateConfirmation = validateDurableConfirmation,
   consumeConfirmation = markDurableConfirmationUsed,
   audit = recordAuditEvent,
+  executeWrite = executeAuditedWriteAction,
   bootstrap = TESTER_AUTH_BOOTSTRAP,
   env = process.env,
 } = {}) {
@@ -163,18 +172,20 @@ export function createTesterAuthAdminRouter({
         });
       }
       await consumeConfirmation(confirmationId);
-      const result = await activate({
-        projectUrl: confirmation.params.projectUrl,
-        publishableKey: confirmation.params.publishableKey,
-        expectedAppId: confirmation.resource.appId,
-      });
-      await safeAudit(audit, {
-        actor: req.owner.id,
+      const result = await executeWrite({
         action: ACTION,
-        decision: "confirmed",
-        outcome: "succeeded",
-        resource: result.appId,
-        details: `keys:${result.changedKeys.join(",")}`,
+        capability: "infrastructure.write",
+        actor: req.owner.id,
+        sessionId: req.owner.id,
+        confirmationId,
+        resource: confirmation.resource.appId,
+        details: "activate_tester_auth",
+        execute: () =>
+          activate({
+            projectUrl: confirmation.params.projectUrl,
+            publishableKey: confirmation.params.publishableKey,
+            expectedAppId: confirmation.resource.appId,
+          }),
       });
       return res.json({
         status: "ok",

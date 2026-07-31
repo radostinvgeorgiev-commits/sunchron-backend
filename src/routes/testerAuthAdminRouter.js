@@ -2,8 +2,7 @@ import express from "express";
 import { TESTER_AUTH_BOOTSTRAP } from "../config/testerAuthBootstrap.js";
 import {
   activateTesterAuthConfiguration,
-  getDigitalOceanAppStatus,
-  TESTER_AUTH_ENV_KEYS,
+  inspectTesterAuthActivation,
 } from "../services/digitalOceanService.js";
 import {
   createDurableConfirmation,
@@ -43,7 +42,8 @@ function safeError(error) {
     status: resolvedStatus,
     body: {
       error:
-        resolvedStatus >= 400 && resolvedStatus < 500
+        error?.name === "DigitalOceanError" ||
+        (resolvedStatus >= 400 && resolvedStatus < 500)
           ? error.message
           : "Активирането на тестовите профили не успя.",
       code: error?.code || "TESTER_AUTH_ACTIVATION_FAILED",
@@ -52,7 +52,7 @@ function safeError(error) {
 }
 
 export function createTesterAuthAdminRouter({
-  getDigitalOceanStatus = getDigitalOceanAppStatus,
+  inspectDigitalOcean = inspectTesterAuthActivation,
   activate = activateTesterAuthConfiguration,
   createConfirmation = createDurableConfirmation,
   validateConfirmation = validateDurableConfirmation,
@@ -88,18 +88,19 @@ export function createTesterAuthAdminRouter({
 
   router.post("/prepare", async (req, res) => {
     try {
-      const status = await getDigitalOceanStatus();
-      const existing = new Set(
-        (status.environmentVariables || []).map(({ key }) => key),
-      );
-      const missingKeys = TESTER_AUTH_ENV_KEYS.filter(
-        (key) => !existing.has(key),
-      );
+      const status = await inspectDigitalOcean({
+        projectUrl: bootstrap.projectUrl,
+        publishableKey: bootstrap.publishableKey,
+      });
+      const missingKeys = status.missingKeys;
       if (!missingKeys.length) {
         return res.json({
           configured: true,
           registrationEnabled: isTesterRegistrationEnabled(env),
           missingKeys: [],
+          readAccessVerified: status.readAccessVerified,
+          requiredWriteScope: status.requiredWriteScope,
+          writeAccess: status.writeAccess,
         });
       }
       const confirmation = await createConfirmation({
@@ -126,8 +127,11 @@ export function createTesterAuthAdminRouter({
         confirmationId: confirmation.id,
         expiresAt: new Date(confirmation.expiresAt).toISOString(),
         missingKeys,
+        readAccessVerified: status.readAccessVerified,
+        requiredWriteScope: status.requiredWriteScope,
+        writeAccess: status.writeAccess,
         message:
-          "Ще добавя само настройките за Supabase тестови профили и ще започне нов DigitalOcean deployment.",
+          "Предварителната проверка на токена, приложението и app spec-а е успешна. За записа DigitalOcean изисква app:update. Ще добавя само настройките за Supabase тестови профили и ще започне нов deployment.",
       });
     } catch (error) {
       const response = safeError(error);

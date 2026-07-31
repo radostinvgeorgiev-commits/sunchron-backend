@@ -26,6 +26,7 @@ import publicConfigRouter from "./src/routes/publicConfigRouter.js";
 import userAuthRouter from "./src/routes/userAuthRouter.js";
 import testerAuthAdminRouter from "./src/routes/testerAuthAdminRouter.js";
 import systemRouter from "./src/routes/systemRouter.js";
+import workspacesRouter from "./src/routes/workspacesRouter.js";
 import mcpRouter from "./src/routes/mcpRouter.js";
 import { createMcpOAuthRouter } from "./src/routes/mcpOAuthRouter.js";
 
@@ -133,6 +134,12 @@ app.use("/mcp", privateApiRateLimiter, mcpRouter);
 
 app.use("/chat", requireOwnerSession, paidAiRateLimiter, chatRouter);
 app.use("/memory", requireOwnerSession, privateApiRateLimiter, memoryRouter);
+app.use(
+  "/api/workspaces",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  workspacesRouter,
+);
 app.use(
   "/api/tester-auth",
   requireOwnerSession,

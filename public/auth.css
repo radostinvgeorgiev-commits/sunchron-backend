@@ -44,10 +44,14 @@
   display: grid;
   place-items: center;
   border-radius: 18px;
-  color: #fff;
-  background: #12201d;
-  font-size: 27px;
+  background: #fff;
   box-shadow: 0 12px 30px rgba(18, 32, 29, 0.2);
+}
+
+.auth-brand img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
 }
 
 .auth-kicker {

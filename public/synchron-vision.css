@@ -84,9 +84,14 @@ input:focus-visible {
   display: grid;
   place-items: center;
   border-radius: 14px;
-  color: #fff;
-  background: var(--sx-ink);
+  background: #fff;
   box-shadow: 0 10px 26px rgba(18, 32, 29, 0.22);
+}
+
+.brand-icon img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
 }
 
 .sidebar-brand strong {

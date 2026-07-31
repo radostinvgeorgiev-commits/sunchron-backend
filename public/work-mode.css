@@ -240,6 +240,44 @@ body[data-interaction-mode="chat"] .work-pet {
   cursor: pointer;
 }
 
+.work-activity-list {
+  display: grid;
+  gap: 10px;
+}
+
+.work-activity-item {
+  padding: 13px 14px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  border: 1px solid rgba(18, 32, 29, 0.1);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.work-activity-item strong {
+  color: #1b6f57;
+  font-size: 13px;
+}
+
+.work-activity-item[data-status="needs-input"] strong,
+.work-activity-item[data-status="blocked"] strong {
+  color: #b24827;
+}
+
+.work-activity-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.work-activity-item small {
+  grid-column: 2;
+  color: #1b6f57;
+  font-weight: 800;
+}
+
 .pet-choice-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

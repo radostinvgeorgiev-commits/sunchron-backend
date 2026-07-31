@@ -85,7 +85,7 @@ export function createRequireOwnerSession({
       if (!identity) {
         return res.status(401).json({
           error:
-            "Трябва да влезеш в потребителския си профил, за да използваш SYNCHRON-X.",
+            "Трябва да влезеш в потребителския си профил, за да използваш СЪЗВУК.",
           code: "AUTH_REQUIRED",
         });
       }

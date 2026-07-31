@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 
 import {
+  cleanupExpiredMcpReplayRecords,
   consumeMcpGrantOnce,
   createMcpAuthorizationCode,
   exchangeMcpAuthorizationCode,
@@ -335,4 +336,43 @@ test("production OAuth fails closed without the durable replay store", async () 
     }),
     (error) => error.code === "temporarily_unavailable" && error.status === 503,
   );
+});
+
+test("expired durable replay records are cleaned on a bounded schedule", async () => {
+  const calls = [];
+  const client = {
+    async deleteByQuery(input) {
+      calls.push(input);
+      return { deleted: 2 };
+    },
+  };
+  const env = {
+    ...ENV,
+    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-test",
+  };
+
+  assert.equal(
+    await cleanupExpiredMcpReplayRecords({ client, env, now: 1_000 }),
+    true,
+  );
+  assert.equal(
+    await cleanupExpiredMcpReplayRecords({ client, env, now: 1_001 }),
+    false,
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].index, "oauth-replay-test");
+  assert.deepEqual(calls[0].body.query, {
+    range: { expiresAt: { lte: new Date(1_000_000).toISOString() } },
+  });
+
+  assert.equal(
+    await cleanupExpiredMcpReplayRecords({
+      client,
+      env,
+      now: 1_001,
+      force: true,
+    }),
+    true,
+  );
+  assert.equal(calls.length, 2);
 });

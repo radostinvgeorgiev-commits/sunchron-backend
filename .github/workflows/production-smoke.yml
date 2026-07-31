@@ -14,6 +14,7 @@ on:
 permissions:
   contents: read
 
+# Keep tester sign-in part of the same production acceptance boundary.
 concurrency:
   group: production-smoke-check
   cancel-in-progress: true

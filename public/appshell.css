@@ -49,10 +49,6 @@
 .permission-default{margin-bottom:18px;padding:13px 14px;border-radius:12px;background:#f3f6f8;line-height:1.45}.permission-list{display:grid;gap:2px}
 .permission-card{align-items:center}.permission-card strong{font-size:13px}.permission-card p{margin-top:4px;color:#666;font-size:12px}.permission-badge{padding:5px 8px;flex:0 0 auto;border-radius:999px;font-size:11px;font-weight:700}
 .permission-badge.allow{color:#137333;background:#e6f4ea}.permission-badge.confirm{color:#8a4b00;background:#fff4df}.permission-badge.deny{color:#b42318;background:#feeceb}
-.focus-card{margin-bottom:12px;padding:18px;border:1px solid #e3e5e8;border-radius:16px;background:#fff}.focus-card.focus-primary{color:#fff;border-color:#111;background:#111}
-.focus-card h3{margin:6px 0 8px;font-size:18px;line-height:1.25}.focus-card p{margin:0;color:#666;line-height:1.5}.focus-card.focus-primary p{color:#d5d5d5}
-.focus-kicker{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#777}.focus-primary .focus-kicker{color:#a8c7fa}
-.focus-next{padding:15px;border-radius:14px;background:#eef5ff}.focus-next span,.focus-next strong{display:block}.focus-next span{margin-bottom:5px;color:#2765a5;font-size:11px;font-weight:800;text-transform:uppercase}.focus-next strong{line-height:1.45}
 .tool-status-card>div{min-width:0}.tool-status-card .permission-badge{max-width:132px;text-align:center}
 .work-center-intro{margin-bottom:16px;padding:14px 16px;border-radius:14px;color:#475569;background:#f3f6f8;line-height:1.5}
 .work-center-intro p{margin:0}

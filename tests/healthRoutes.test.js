@@ -62,6 +62,58 @@ test("readiness accepts OpenAI as the primary chat provider", async () => {
   assert.equal(result.checks.chatAgent.removedProvider, "digitalocean-agent");
 });
 
+test("production readiness requires the isolated memory acceptance proof", async () => {
+  const baseOptions = {
+    env: {
+      NODE_ENV: "production",
+      OPENAI_API_KEY: "secret",
+      MCP_ACCESS_TOKEN: "m".repeat(48),
+    },
+    loadOpenSearchClient: () => ({
+      cluster: {
+        health: async () => ({ body: { status: "green" } }),
+      },
+    }),
+  };
+
+  const pending = await getReadinessStatus({
+    ...baseOptions,
+    loadMemoryVerificationStatus: () => ({
+      status: "running",
+      attempts: 1,
+      startedAt: "2026-07-31T10:00:00.000Z",
+      finishedAt: null,
+      isolated: true,
+      realMemoryUnchanged: null,
+      cleanupCompleted: null,
+      passedSteps: 0,
+      errorCode: null,
+    }),
+  });
+  assert.equal(pending.status, "not-ready");
+  assert.equal(pending.checks.memoryAcceptance.required, true);
+  assert.equal(pending.checks.memoryAcceptance.ready, false);
+
+  const proven = await getReadinessStatus({
+    ...baseOptions,
+    loadMemoryVerificationStatus: () => ({
+      status: "works",
+      attempts: 1,
+      startedAt: "2026-07-31T10:00:00.000Z",
+      finishedAt: "2026-07-31T10:00:01.000Z",
+      isolated: true,
+      realMemoryUnchanged: true,
+      cleanupCompleted: true,
+      passedSteps: 9,
+      errorCode: null,
+    }),
+  });
+  assert.equal(proven.status, "ready");
+  assert.equal(proven.checks.memoryAcceptance.ready, true);
+  assert.equal(proven.checks.memoryAcceptance.realMemoryUnchanged, true);
+  assert.equal(proven.checks.memoryAcceptance.cleanupCompleted, true);
+});
+
 test("readiness returns 503 when a required dependency is unavailable", async () => {
   const app = express();
   app.get(

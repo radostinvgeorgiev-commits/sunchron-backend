@@ -63,11 +63,12 @@
 .work-center-icon{width:44px;height:44px;display:grid;place-items:center;border-radius:13px;color:#111;background:#eef2f6;font-size:20px}
 .featured .work-center-icon{color:#111;background:#fff}
 .work-center-card-content{min-width:0;display:block}
-.work-center-card strong,.work-center-description,.work-center-status{display:block;overflow-wrap:anywhere}
+.work-center-card strong,.work-center-description,.work-center-status,.work-center-action-label{display:block;overflow-wrap:anywhere}
 .work-center-card strong{font-size:15px;line-height:1.3}
 .work-center-description{margin-top:4px;color:#64748b;font-size:12px;line-height:1.45}
 .featured .work-center-description{color:#d6d9de}
 .work-center-status{width:fit-content;max-width:100%;margin-top:8px;padding:4px 8px;border-radius:999px;font-size:10px;font-weight:750;line-height:1.25}
+.work-center-action-label{margin-top:9px;color:#1d4ed8;font-size:12px;font-weight:800;line-height:1.3}
 .work-center-status.external{color:#7c4a03;background:#fff4d7}.work-center-status.internal{color:#137333;background:#e6f4ea}
 .work-center-arrow{color:#94a3b8}.featured .work-center-arrow{color:#fff}
 .work-center-close{width:100%;min-height:48px;margin-top:8px;border:1px solid #cbd5e1;border-radius:14px;color:#17212b;background:#fff;font:inherit;font-weight:750;cursor:pointer}

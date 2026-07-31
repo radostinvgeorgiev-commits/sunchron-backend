@@ -6,7 +6,6 @@ import {
   buildMemoryReply,
   detectCapabilityRequests,
   executeDetectedCapabilities,
-  extractConfirmedMemoryDeleteCommand,
   mergeMemoryTaskStatus,
   mergeCapabilityRequests,
   shouldReplyWithVerifiedToolOutput,
@@ -387,42 +386,6 @@ test("accepts only the exact one-time memory-write confirmation", () => {
       "Потвърждавам запис в постоянната памет: проектът е SYNCHRON-X",
     ),
     null,
-  );
-});
-
-test("requires an explicit confirmation before deleting one memory", () => {
-  assert.equal(
-    extractConfirmedMemoryDeleteCommand(
-      "Изтрий от паметта: любимият ми цвят е син.",
-    ),
-    null,
-  );
-  assert.deepEqual(
-    extractConfirmedMemoryDeleteCommand(
-      "Потвърждавам изтриване от постоянната памет: любимият ми цвят е син.",
-    ),
-    {
-      fact: "любимият ми цвят е син",
-      scope: "personal",
-    },
-  );
-  assert.deepEqual(
-    extractConfirmedMemoryDeleteCommand(
-      "Потвърждавам изтриването от постоянната памет само на факта: Тестова дума — МОРСКИ ФАР 728",
-    ),
-    {
-      fact: "Тестова дума — МОРСКИ ФАР 728",
-      scope: "personal",
-    },
-  );
-  assert.deepEqual(
-    extractConfirmedMemoryDeleteCommand(
-      "Потвърждавам изтриването от постоянната ми памет само: Тестова дума — МОРСКИ ФАР 728",
-    ),
-    {
-      fact: "Тестова дума — МОРСКИ ФАР 728",
-      scope: "personal",
-    },
   );
 });
 

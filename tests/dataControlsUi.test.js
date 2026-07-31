@@ -22,6 +22,8 @@ test("application exposes working memory and permission controls", async () => {
   assert.match(script, /fetch\(["']\/memory\/profile["']/u);
   assert.match(script, /fetch\(["']\/permissions["']/u);
   assert.match(script, /x-confirm-memory-delete/u);
+  assert.match(script, /MEMORY_DELETE_CONFIRMATION_REQUIRED/u);
+  assert.doesNotMatch(script, /confirm-delete-profile-memory/u);
   assert.match(script, /elements\.imageInput\.click\(\)/u);
   assert.match(script, /function closeSidebar\(\)/u);
   assert.match(script, /function openModulesDrawer\(\)/u);

@@ -1100,23 +1100,50 @@ async function handleDataDrawerAction(event) {
   );
   if (!item) return;
 
-  const confirmed = window.confirm(`Да изтрия ли този спомен?\n\n${item.fact}`);
-  if (!confirmed) return;
-
   button.disabled = true;
   try {
+    const prepareResponse = await fetch(
+      "/memory/profile/" + encodeURIComponent(item.id),
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ sessionId: state.sessionId }),
+      },
+    );
+    const prepared = await prepareResponse.json().catch(() => null);
+    if (
+      prepareResponse.status !== 409 ||
+      prepared?.code !== "MEMORY_DELETE_CONFIRMATION_REQUIRED" ||
+      !prepared?.confirmationId ||
+      prepared?.target?.kind !== "id" ||
+      prepared?.target?.id !== item.id
+    ) {
+      throw new Error(
+        prepared?.error || "Изтриването не можа да бъде подготвено безопасно.",
+      );
+    }
+
+    const confirmed = window.confirm(
+      `Да изтрия ли точно този спомен?\n\n${item.fact}`,
+    );
+    if (!confirmed) return;
+
     const response = await fetch(
       "/memory/profile/" + encodeURIComponent(item.id),
       {
         method: "DELETE",
         headers: {
-          "x-confirm-memory-delete": "confirm-delete-profile-memory",
+          "Content-Type": "application/json",
+          "x-confirm-memory-delete": prepared.confirmationId,
         },
+        body: JSON.stringify({ sessionId: state.sessionId }),
       },
     );
+    const result = await response.json().catch(() => null);
     if (!response.ok) {
-      const data = await response.json().catch(() => null);
-      throw new Error(data?.error || "Споменът не можа да бъде изтрит.");
+      throw new Error(result?.error || "Споменът не можа да бъде изтрит.");
     }
     state.memoryItems = state.memoryItems.filter(
       (candidate) => candidate.id !== item.id,
@@ -1125,6 +1152,8 @@ async function handleDataDrawerAction(event) {
     logAction("Изтрит е потвърден спомен");
   } catch (error) {
     renderDrawerError(error.message);
+  } finally {
+    button.disabled = false;
   }
 }
 

@@ -6,11 +6,9 @@ import {
   saveProfileMemory,
 } from "./memoryService.js";
 import {
-  clearPendingDelete,
-  getPendingDelete,
-  isSimpleDeleteConfirmation,
-  storePendingDelete,
-} from "./pendingDeleteService.js";
+  confirmMemoryDelete,
+  prepareMemoryDelete,
+} from "./memoryDeleteConfirmationService.js";
 
 function memoryFingerprint(memories) {
   const stableView = memories
@@ -162,26 +160,37 @@ export async function runMemoryAcceptanceTest({
       completedStep("delete-without-confirmation", { rejected: true }),
     );
 
-    storePendingDelete(testSessionId, updatedFact, "personal");
-    const pendingDelete = getPendingDelete(testSessionId);
-    if (
-      !pendingDelete ||
-      pendingDelete.fact !== updatedFact ||
-      !isSimpleDeleteConfirmation("Да")
-    ) {
+    const preparedDelete = await prepareMemoryDelete({
+      sessionId: testSessionId,
+      ownerId: testOwnerId,
+      target: { kind: "fact", fact: updatedFact, scope: "personal" },
+    });
+    if (!preparedDelete.confirmationId) {
       throw new Error("Еднократното потвърждение не беше подготвено.");
     }
 
-    const deleted = await remove(
-      pendingDelete.fact,
-      pendingDelete.scope,
-      testOwnerId,
-    );
+    const deleteResult = await confirmMemoryDelete({
+      confirmationId: preparedDelete.confirmationId,
+      sessionId: testSessionId,
+      ownerId: testOwnerId,
+      deleteByFact: remove,
+    });
+    const deleted = deleteResult.deleted;
     if (deleted < 1) {
       throw new Error("Потвърденото почистване не изтри тестовия запис.");
     }
-    clearPendingDelete(testSessionId);
-    if (getPendingDelete(testSessionId) !== null) {
+    let replayBlocked = false;
+    try {
+      await confirmMemoryDelete({
+        confirmationId: preparedDelete.confirmationId,
+        sessionId: testSessionId,
+        ownerId: testOwnerId,
+        deleteByFact: remove,
+      });
+    } catch (error) {
+      replayBlocked = error?.code === "CONFIRMATION_NOT_FOUND";
+    }
+    if (!replayBlocked) {
       throw new Error("Използваното потвърждение остана активно.");
     }
     steps.push(
@@ -207,7 +216,6 @@ export async function runMemoryAcceptanceTest({
   } catch (error) {
     primaryError = error;
   } finally {
-    clearPendingDelete(testSessionId);
     try {
       await remove(activeFact, "personal", testOwnerId);
       if (activeFact !== initialFact) {

@@ -7,7 +7,6 @@ import {
   deriveMemoryMetadata,
   extractForgetMemoryCommand,
   extractPersistentMemoryCommands,
-  isConfirmedForgetAllCommand,
   isForgetAllCommand,
   extractPersistentMemoryCommand,
 } from "../src/services/memoryService.js";
@@ -236,15 +235,15 @@ test("splits and deduplicates legacy profile lists without deleting history", ()
   );
 });
 
-test("full memory deletion requires a separate explicit confirmation phrase", () => {
+test("full memory deletion recognizes only the request, not a legacy confirmation", () => {
   assert.equal(isForgetAllCommand("Изтрий цялата постоянна памет."), true);
   assert.equal(
-    isConfirmedForgetAllCommand(
+    isForgetAllCommand(
       "Потвърждавам изтриването на цялата постоянна памет.",
     ),
-    true,
+    false,
   );
-  assert.equal(isConfirmedForgetAllCommand("Да, изтрий я."), false);
+  assert.equal(isForgetAllCommand("Да, изтрий я."), false);
 });
 
 // ── New tests covering fix for issue #81 ────────────────────────────────────

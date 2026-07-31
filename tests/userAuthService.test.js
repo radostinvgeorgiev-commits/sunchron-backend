@@ -5,6 +5,7 @@ import {
   decryptUserSession,
   encryptUserSession,
   getTesterInviteCode,
+  getUserAuthConfigurationStatus,
   isTesterRegistrationEnabled,
   isUserAuthConfigured,
   registerTester,
@@ -106,6 +107,10 @@ test("uses the operational MCP secret when the invite code is short", () => {
   };
   assert.equal(isUserAuthConfigured(productionLikeEnv), true);
   assert.equal(isTesterRegistrationEnabled(productionLikeEnv), true);
+  assert.deepEqual(getUserAuthConfigurationStatus(productionLikeEnv), {
+    projectConnection: true,
+    sessionProtection: true,
+  });
 });
 
 test("encrypts the Supabase session and never leaves tokens in the cookie", () => {

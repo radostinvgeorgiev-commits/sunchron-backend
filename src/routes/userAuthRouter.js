@@ -1,6 +1,7 @@
 import express from "express";
 import {
   clearUserSessionCookie,
+  getUserAuthConfigurationStatus,
   isTesterRegistrationEnabled,
   isUserAuthConfigured,
   registerTester,
@@ -32,6 +33,7 @@ router.get("/session", async (req, res) => {
     const identity = await resolveRequestIdentity(req, res);
     return res.json({
       configured: isUserAuthConfigured(),
+      configuration: getUserAuthConfigurationStatus(),
       registrationEnabled: isTesterRegistrationEnabled(),
       authenticated: Boolean(identity),
       user: identity

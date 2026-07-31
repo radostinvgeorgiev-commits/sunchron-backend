@@ -14,7 +14,10 @@ import {
 } from "../src/routes/chat.js";
 import { extractMemoryWriteConfirmationId } from "../src/services/memoryWriteConfirmationService.js";
 import { DigitalOceanError } from "../src/services/digitalOceanService.js";
-import { isDigitalOceanBackupInventoryRequest } from "../src/tools/capabilityEngine.js";
+import {
+  CapabilityError,
+  isDigitalOceanBackupInventoryRequest,
+} from "../src/tools/capabilityEngine.js";
 
 test("memory confirmation keeps the overall task waiting", () => {
   const task = {
@@ -231,7 +234,7 @@ test("DigitalOcean failures keep a safe actionable reason in chat", () => {
   assert.doesNotMatch(replies[0], /upstream payload/u);
 });
 
-test("infrastructure results bypass AI rewriting and stay verified", () => {
+test("verified tool results bypass AI rewriting", () => {
   assert.equal(
     shouldReplyWithVerifiedToolOutput([
       {
@@ -260,7 +263,33 @@ test("infrastructure results bypass AI rewriting and stay verified", () => {
         result: { output: "GitHub result" },
       },
     ]),
-    false,
+    true,
+  );
+  const githubStatusResults = [
+    {
+      status: "fulfilled",
+      request: { capability: "code.read" },
+      result: { output: "GitHub Read работи." },
+    },
+    {
+      status: "rejected",
+      request: { capability: "code.write" },
+      error: new CapabilityError(
+        "GitHub Write е изключен — режим без Copilot.",
+        "CAPABILITY_UNAVAILABLE",
+      ),
+    },
+  ];
+  assert.equal(shouldReplyWithVerifiedToolOutput(githubStatusResults), true);
+
+  const githubStatusReply =
+    buildCapabilityReplies(githubStatusResults).join("\n");
+  assert.match(githubStatusReply, /GitHub Read работи/u);
+  assert.match(githubStatusReply, /GitHub Write е изключен/u);
+  assert.match(githubStatusReply, /режим без Copilot/u);
+  assert.doesNotMatch(
+    githubStatusReply,
+    /App ID|Installation ID|private key|installation token/u,
   );
 });
 

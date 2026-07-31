@@ -385,13 +385,21 @@ test("requires an exact one-time confirmation before starting Copilot", async ()
     prepared.confirmationId,
   );
 
+  let auditedWrites = 0;
   const result = await confirmCopilotTask({
     confirmationId: prepared.confirmationId,
     sessionId: "chat-session",
     githubSessionId: session.id,
     fetchImpl: copilotGraphqlFetch(),
+    executeWrite: async ({ execute, action, confirmationId }) => {
+      auditedWrites += 1;
+      assert.equal(action, "github.write");
+      assert.equal(confirmationId, prepared.confirmationId);
+      return execute();
+    },
   });
   assert.equal(result.issueNumber, 81);
+  assert.equal(auditedWrites, 1);
 
   await assert.rejects(
     () =>
@@ -403,4 +411,35 @@ test("requires an exact one-time confirmation before starting Copilot", async ()
       }),
     (error) => error.code === "CONFIRMATION_NOT_FOUND",
   );
+});
+
+
+test("Copilot adapter is not called when the audited write guard blocks", async () => {
+  const session = await connectedSession();
+  const prepared = await prepareCopilotTask({
+    sessionId: "chat-session",
+    githubSessionId: session.id,
+    prompt: "Промени цвета на бутона Памет.",
+  });
+  let githubCalls = 0;
+
+  await assert.rejects(
+    () =>
+      confirmCopilotTask({
+        confirmationId: prepared.confirmationId,
+        sessionId: "chat-session",
+        githubSessionId: session.id,
+        fetchImpl: async () => {
+          githubCalls += 1;
+          throw new Error("must not call GitHub");
+        },
+        executeWrite: async () => {
+          const error = new Error("audit unavailable");
+          error.code = "AUDIT_UNAVAILABLE";
+          throw error;
+        },
+      }),
+    (error) => error.code === "AUDIT_UNAVAILABLE",
+  );
+  assert.equal(githubCalls, 0);
 });

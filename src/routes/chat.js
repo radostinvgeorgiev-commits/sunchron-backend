@@ -137,7 +137,7 @@ export function getConversationPersistenceMetadata(conversationPersisted) {
 
 const ASSISTANT_CONTEXT = [
   "[КОНТЕКСТ И ПРАВИЛА ЗА ТОЗИ РАЗГОВОР]",
-  "Ти си СЪЗВУК — личната AI операционна система на Радко.",
+  "Ти си AI CORE — личната AI операционна система на Радко.",
   `[КАНОНИЧНА ФОРМУЛИРОВКА] ${PROJECT_DEFINITION}`,
   AVATAR_DEFINITION,
   "[ПОСТОЯНЕН ОСНОВЕН КОНТЕКСТ НА ПРОЕКТА]",
@@ -179,7 +179,7 @@ const ASSISTANT_CONTEXT = [
 function testerAssistantContext(personName) {
   return [
     "[КОНТЕКСТ И ПРАВИЛА ЗА ТОЗИ РАЗГОВОР]",
-    `Ти си СЪЗВУК — личен AI асистент на ${personName}.`,
+    `Ти си AI CORE — личен AI асистент на ${personName}.`,
     AVATAR_DEFINITION,
     "Този профил участва в ограничен тест на разговор и постоянна памет.",
     "Не твърди, че външни инструменти или услуги са достъпни. В тестовия профил те са изключени.",
@@ -212,7 +212,7 @@ export function buildAvatarMessages(
         "[ПРЕДИШЕН РАЗГОВОР]",
         ...history.map(
           ({ role, content }) =>
-            `${role === "assistant" ? "СЪЗВУК" : personName}: ${content}`,
+            `${role === "assistant" ? "AI CORE" : personName}: ${content}`,
         ),
         "[КРАЙ НА ПРЕДИШНИЯ РАЗГОВОР]",
       ].join("\n")

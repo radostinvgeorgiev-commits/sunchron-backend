@@ -67,7 +67,7 @@
       agents: [
         {
           id: "synchron-builder",
-          name: "СЪЗВУК",
+          name: "AI CORE",
           role: "builder",
           purpose: "Подготвя реален резултат и показва какво е проверено.",
         },
@@ -251,13 +251,13 @@
     elements.workModeToolbarBtn?.setAttribute("aria-pressed", String(isWork));
     elements.chatInput.placeholder = isWork
       ? "Какъв резултат да изработим?"
-      : "Пиши на СЪЗВУК";
+      : "Пиши на AI CORE";
     const project = activeProject();
     const agent = activeAgent();
     elements.projectLabel.textContent = isWork
       ? project?.name || "Без активен проект"
       : "Разговор";
-    elements.agentLabel.textContent = agent?.name || "СЪЗВУК";
+    elements.agentLabel.textContent = agent?.name || "AI CORE";
     renderPet();
     activateMobileCommand(isWork ? "work" : "chat");
   }
@@ -547,7 +547,7 @@
     addText(
       elements.drawerBody,
       "p",
-      "Избери проект и личен агент. В режим Работа СЪЗВУК използва този контекст, показва напредъка и спира преди рискови действия.",
+      "Избери проект и личен агент. В режим Работа AI CORE използва този контекст, показва напредъка и спира преди рискови действия.",
       "work-manager-intro",
     );
     addText(
@@ -589,7 +589,7 @@
           objective: project?.objective || "",
         },
         agent: {
-          name: agent?.name || "СЪЗВУК",
+          name: agent?.name || "AI CORE",
           role: agent?.role || "general",
           purpose: agent?.purpose || "",
         },

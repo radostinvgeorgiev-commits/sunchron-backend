@@ -50,7 +50,7 @@ export function sanitizeWorkContext(value) {
     ? requestedRole
     : "general";
   const agent = {
-    name: cleanText(value.agent?.name, 50) || "СЪЗВУК",
+    name: cleanText(value.agent?.name, 50) || "AI CORE",
     role,
     purpose: cleanText(value.agent?.purpose, 400),
   };

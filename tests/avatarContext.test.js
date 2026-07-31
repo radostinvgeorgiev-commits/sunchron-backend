@@ -64,7 +64,7 @@ test("avatar preserves conversation order without repeating its instructions", (
     1,
   );
   assert.match(messages[0].content, /Радко: Първи въпрос/u);
-  assert.match(messages[0].content, /СЪЗВУК: Първи отговор/u);
+  assert.match(messages[0].content, /AI CORE: Първи отговор/u);
   assert.match(messages[0].content, /Следващ въпрос/u);
 });
 

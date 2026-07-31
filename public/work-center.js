@@ -75,7 +75,7 @@
     targetId,
     icon,
     featured = false,
-    status = "Вградено и работи в СЪЗВУК",
+    status = "Вградено и работи в AI CORE",
     statusClass = "internal",
   }) {
     const card = document.createElement("button");
@@ -386,7 +386,7 @@
     addText(
       intro,
       "p",
-      "Свързаният разговор е вътре в СЪЗВУК. Външните услуги не получават автоматично достъп до паметта и не дават нови права на агента.",
+      "Свързаният разговор е вътре в AI CORE. Външните услуги не получават автоматично достъп до паметта и не дават нови права на агента.",
     );
     body.appendChild(intro);
     body.appendChild(
@@ -425,7 +425,7 @@
     );
     const chatGptAppStatus = resolveChatGptAppStatus(readiness);
     const chatGptAppCard = createActionCard({
-      title: "ChatGPT приложение — СЪЗВУК",
+      title: "ChatGPT приложение — AI CORE",
       description:
         "Свързва ChatGPT с разрешените инструменти чрез защитен OAuth вход.",
       action: "show-chatgpt-app-setup",
@@ -437,7 +437,7 @@
     chatGptAppCard.dataset.chatgptUrl = chatgptUrl;
     const cards = [
       createInternalCard({
-        title: "СЪЗВУК — свързан разговор",
+        title: "AI CORE — свързан разговор",
         description:
           "Този чат използва AI ядрото и разрешената постоянна памет.",
         targetId: "chat",
@@ -449,7 +449,7 @@
       chatGptAppCard,
       createExternalCard({
         title: "GitHub — хранилище",
-        description: "Кодът и историята на СЪЗВУК.",
+        description: "Кодът и историята на AI CORE.",
         url: REPOSITORY_URL,
         icon: "fa-brands fa-github",
         status: githubReadStatus.label,
@@ -598,7 +598,7 @@
     const panel = document.createElement("section");
     panel.className = "work-center-intro chatgpt-app-setup";
     panel.dataset.chatgptAppSetup = "";
-    addText(panel, "strong", "Свържи СЪЗВУК с ChatGPT");
+    addText(panel, "strong", "Свържи AI CORE с ChatGPT");
     addText(
       panel,
       "p",
@@ -610,8 +610,8 @@
     [
       "Отвори chatgpt.com на компютър и влез в своя профил.",
       "В Settings отвори Apps / Connectors и включи Developer mode. За служебен workspace отвори Workspace settings → Apps.",
-      "Избери Create app, напиши име СЪЗВУК и постави MCP адреса отдолу.",
-      "Завърши OAuth входа в СЪЗВУК. Не изпращай парола или код в чата.",
+      "Избери Create app, напиши име AI CORE и постави MCP адреса отдолу.",
+      "Завърши OAuth входа в AI CORE. Не изпращай парола или код в чата.",
     ].forEach((step) => addText(steps, "li", step));
     panel.appendChild(steps);
 

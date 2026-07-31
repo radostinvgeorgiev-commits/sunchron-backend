@@ -1,4 +1,5 @@
 import { Client } from "@opensearch-project/opensearch";
+import { logSafeError } from "../utils/safeLogging.js";
 
 let opensearchClient = null;
 
@@ -57,7 +58,7 @@ export function createOpenSearchClient() {
     console.log("✅ OpenSearch client initialized");
     return opensearchClient;
   } catch (error) {
-    console.error("❌ Failed to initialize OpenSearch client:", error.message);
+    logSafeError("[OpenSearch] Client initialization failed", error);
     return null;
   }
 }

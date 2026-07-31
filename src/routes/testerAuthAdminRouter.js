@@ -18,6 +18,7 @@ import {
   isTesterRegistrationEnabled,
   isUserAuthConfigured,
 } from "../services/userAuthService.js";
+import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 
 const ACTION = "infrastructure.digitalocean:activate_tester_auth";
 
@@ -25,10 +26,7 @@ async function safeAudit(audit, event) {
   try {
     await audit(event);
   } catch (error) {
-    console.error(
-      "[Tester auth audit]",
-      error?.message || "Audit storage unavailable.",
-    );
+    logSafeError("[Tester auth audit] Write failure", error);
   }
 }
 
@@ -201,7 +199,7 @@ export function createTesterAuthAdminRouter({
         decision: "confirmed",
         outcome: "failed",
         resource: "tester-auth",
-        details: error?.code || "TESTER_AUTH_ACTIVATION_FAILED",
+        details: safeErrorCode(error, "TESTER_AUTH_ACTIVATION_FAILED"),
       });
       const response = safeError(error);
       return res.status(response.status).json(response.body);

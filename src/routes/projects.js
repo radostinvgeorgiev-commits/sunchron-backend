@@ -1,5 +1,6 @@
 import express from "express";
 import { getOpenSearchClient } from "../config/opensearch.js";
+import { logSafeError } from "../utils/safeLogging.js";
 
 const router = express.Router();
 const INDEX_NAME = "projects";
@@ -29,7 +30,7 @@ router.get("/", async (req, res) => {
     if (error.meta && error.meta.statusCode === 404) {
         return res.json([]);
     }
-    console.error("OpenSearch Search Error:", error);
+    logSafeError("[Projects] OpenSearch search failed", error);
     res.status(500).json({ error: "Failed to fetch projects" });
   }
 });
@@ -57,7 +58,7 @@ router.post("/", async (req, res) => {
 
     res.status(201).json({ id: response.body._id, ...project });
   } catch (error) {
-    console.error("OpenSearch Index Error:", error);
+    logSafeError("[Projects] OpenSearch index failed", error);
     res.status(500).json({ error: "Failed to create project" });
   }
 });
@@ -80,7 +81,7 @@ router.get("/:id", async (req, res) => {
     if (error.meta && error.meta.statusCode === 404) {
       return res.status(404).json({ error: "Project not found" });
     }
-    console.error("OpenSearch Get Error:", error);
+    logSafeError("[Projects] OpenSearch get failed", error);
     res.status(500).json({ error: "Failed to fetch project" });
   }
 });
@@ -104,7 +105,7 @@ router.delete("/:id", async (req, res) => {
     if (error.meta && error.meta.statusCode === 404) {
       return res.status(404).json({ error: "Project not found" });
     }
-    console.error("OpenSearch Delete Error:", error);
+    logSafeError("[Projects] OpenSearch delete failed", error);
     res.status(500).json({ error: "Failed to delete project" });
   }
 });

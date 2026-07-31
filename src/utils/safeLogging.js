@@ -28,6 +28,13 @@ export function safeErrorMetadata(error) {
   return Object.freeze(metadata);
 }
 
+export function safeErrorCode(error, fallback = "UNCLASSIFIED_ERROR") {
+  return (
+    safeIdentifier(error?.code, SAFE_ERROR_CODE) ||
+    safeIdentifier(fallback, SAFE_ERROR_CODE, "UNCLASSIFIED_ERROR")
+  );
+}
+
 export function logSafeError(context, error) {
   console.error(context, safeErrorMetadata(error));
 }

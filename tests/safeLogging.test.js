@@ -1,9 +1,28 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { logSafeError, safeErrorMetadata } from "../src/utils/safeLogging.js";
+import {
+  logSafeError,
+  safeErrorCode,
+  safeErrorMetadata,
+} from "../src/utils/safeLogging.js";
 
 const SENTINEL = "Bearer private-token personal@example.com private-prompt";
+const SAFE_LOGGING_CALLERS = [
+  "../src/config/opensearch.js",
+  "../src/routes/calendarRouter.js",
+  "../src/routes/chat.js",
+  "../src/routes/confirmedActionsRouter.js",
+  "../src/routes/githubRouter.js",
+  "../src/routes/memoryRouter.js",
+  "../src/routes/permissionsRouter.js",
+  "../src/routes/projects.js",
+  "../src/routes/testerAuthAdminRouter.js",
+  "../src/routes/webSearchRouter.js",
+  "../src/services/confirmationService.js",
+  "../src/services/taskExecutionService.js",
+];
 
 function sensitiveError() {
   const error = new Error(SENTINEL, {
@@ -37,6 +56,18 @@ test("unsafe error codes cannot inject arbitrary text into logs", () => {
   });
 });
 
+test("safe error codes use only validated codes or fixed fallbacks", () => {
+  assert.equal(safeErrorCode(sensitiveError()), "SESSION_PERSISTENCE_FAILED");
+
+  const error = sensitiveError();
+  error.code = SENTINEL;
+  assert.equal(
+    safeErrorCode(error, "PROVIDER_REQUEST_FAILED"),
+    "PROVIDER_REQUEST_FAILED",
+  );
+  assert.equal(safeErrorCode(error, SENTINEL), "UNCLASSIFIED_ERROR");
+});
+
 test("safe logger emits only the fixed context and safe metadata", () => {
   const originalConsoleError = console.error;
   const calls = [];
@@ -54,4 +85,21 @@ test("safe logger emits only the fixed context and safe metadata", () => {
     status: 503,
   });
   assert.doesNotMatch(JSON.stringify(calls), new RegExp(SENTINEL, "u"));
+});
+
+test("server failure paths keep direct errors out of logs and audit details", () => {
+  for (const relativePath of SAFE_LOGGING_CALLERS) {
+    const source = readFileSync(new URL(relativePath, import.meta.url), "utf8");
+    assert.doesNotMatch(source, /console\.error\s*\(/u, relativePath);
+    assert.doesNotMatch(
+      source,
+      /details\s*:\s*error(?:\?\.|\.)/u,
+      relativePath,
+    );
+    assert.doesNotMatch(
+      source,
+      /details\s*:[^\n]*error\.message/u,
+      relativePath,
+    );
+  }
 });

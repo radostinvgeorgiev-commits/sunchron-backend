@@ -5,12 +5,16 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   schedule:
     - cron: "17 */6 * * *"
 
 permissions:
   contents: read
 
+# Keep tester sign-in part of the same production acceptance boundary.
 concurrency:
   group: production-smoke-check
   cancel-in-progress: true
@@ -24,7 +28,7 @@ jobs:
       - name: Wait for exact production commit
         shell: bash
         env:
-          EXPECTED_COMMIT: ${{ github.sha }}
+          EXPECTED_COMMIT: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
         run: |
           set -euo pipefail
           for attempt in $(seq 1 24); do
@@ -101,5 +105,29 @@ jobs:
                 `MCP configured=${Boolean(bridge?.configured)} responding=${Boolean(bridge?.responding)}`,
               );
               if (!bridge?.configured || !bridge?.responding) process.exit(1);
+            });
+          '
+
+      - name: Check tester auth readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail --silent --show-error \
+            --retry 3 --retry-delay 10 --retry-all-errors \
+            --max-time 30 \
+            https://synchron.foundation/api/auth/session)"
+          printf '%s' "${response}" | node -e '
+            let input = "";
+            process.stdin.on("data", (chunk) => { input += chunk; });
+            process.stdin.on("end", () => {
+              const status = JSON.parse(input);
+              console.log(JSON.stringify({
+                configured: Boolean(status.configured),
+                registrationEnabled: Boolean(status.registrationEnabled),
+                configuration: status.configuration || null,
+              }));
+              if (!status.configured || !status.registrationEnabled) {
+                process.exit(1);
+              }
             });
           '

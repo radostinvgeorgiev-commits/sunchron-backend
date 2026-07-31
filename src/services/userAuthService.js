@@ -40,6 +40,7 @@ function sessionSecret(env = process.env) {
   const fallbackSecret = (
     env.GITHUB_SESSION_ENCRYPTION_KEY ||
     env.GITHUB_CLIENT_SECRET ||
+    env.MCP_ACCESS_TOKEN ||
     env.SYNCHRON_TEST_INVITE_CODE ||
     ""
   ).trim();

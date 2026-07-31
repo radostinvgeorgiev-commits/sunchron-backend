@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { getOpenSearchClient } from "../config/opensearch.js";
 
 const AUDIT_INDEX = process.env.AUDIT_INDEX || "synchron-action-audit";
@@ -114,33 +114,178 @@ export function listPermissions() {
   }));
 }
 
-export async function recordAuditEvent(event) {
+function referenceFingerprint(value) {
+  const text = cleanText(value);
+  return text
+    ? createHash("sha256").update(text).digest("hex")
+    : null;
+}
+
+function buildAuditEntry(event) {
   const permission = evaluatePermission(event.action);
-  const entry = {
+  return {
     id: randomUUID(),
+    auditId: cleanText(event.auditId),
     timestamp: new Date().toISOString(),
     actor: cleanText(event.actor, "synchron-x"),
     action: permission.action,
+    capability: cleanText(event.capability),
     decision: cleanText(event.decision, permission.decision),
+    phase: cleanText(event.phase),
     outcome: cleanText(event.outcome, "attempted"),
     resource: cleanText(event.resource),
     details: cleanText(event.details),
     sessionId: cleanText(event.sessionId),
+    confirmationRef: referenceFingerprint(event.confirmationId),
   };
+}
 
+async function persistAuditEntry(client, entry) {
+  await client.index({
+    index: AUDIT_INDEX,
+    id: entry.id,
+    body: entry,
+    refresh: true,
+  });
+}
+
+export class AuditSafetyError extends Error {
+  constructor(message, code, status = 503, options = {}) {
+    super(message, options.cause ? { cause: options.cause } : undefined);
+    this.name = "AuditSafetyError";
+    this.code = code;
+    this.status = status;
+    this.auditId = options.auditId || null;
+    this.result = options.result;
+  }
+}
+
+export function isAuditSafetyError(error) {
+  return error instanceof AuditSafetyError;
+}
+
+export async function recordAuditEvent(event) {
+  const entry = buildAuditEntry(event);
   const client = getOpenSearchClient();
   if (client) {
-    await client.index({
-      index: AUDIT_INDEX,
-      id: entry.id,
-      body: entry,
-      refresh: true,
-    });
+    await persistAuditEntry(client, entry);
   } else {
     fallbackEvents.unshift(entry);
     if (fallbackEvents.length > MAX_FALLBACK_EVENTS) fallbackEvents.pop();
   }
   return entry;
+}
+
+export async function recordDurableAuditEvent(event) {
+  const entry = buildAuditEntry(event);
+  const client = getOpenSearchClient();
+  if (!client) {
+    throw new AuditSafetyError(
+      "Устойчивият журнал не е достъпен.",
+      "AUDIT_UNAVAILABLE",
+      503,
+    );
+  }
+  try {
+    await persistAuditEntry(client, entry);
+  } catch (error) {
+    throw new AuditSafetyError(
+      "Устойчивият журнал не е достъпен.",
+      "AUDIT_UNAVAILABLE",
+      503,
+      { cause: error },
+    );
+  }
+  return entry;
+}
+
+export async function executeAuditedWriteAction({
+  action,
+  capability,
+  actor,
+  sessionId,
+  confirmationId,
+  resource,
+  details,
+  execute,
+  writeAudit,
+}) {
+  if (typeof execute !== "function") {
+    throw new TypeError("Audit write action: липсва изпълнима функция.");
+  }
+
+  const auditId = randomUUID();
+  const audit =
+    typeof writeAudit === "function"
+      ? writeAudit
+      : process.env.NODE_ENV === "production"
+        ? recordDurableAuditEvent
+        : recordAuditEvent;
+  const baseEvent = {
+    auditId,
+    actor,
+    action,
+    capability,
+    decision: "confirmed",
+    resource,
+    details,
+    sessionId,
+    confirmationId,
+  };
+
+  try {
+    await audit({
+      ...baseEvent,
+      phase: "intent",
+      outcome: "intent",
+    });
+  } catch (error) {
+    throw new AuditSafetyError(
+      "Журналът не е достъпен. Действието не беше стартирано.",
+      "AUDIT_UNAVAILABLE",
+      503,
+      { auditId, cause: error },
+    );
+  }
+
+  let result;
+  try {
+    result = await execute();
+  } catch (executionError) {
+    try {
+      await audit({
+        ...baseEvent,
+        phase: "outcome",
+        outcome: "failed",
+        details: cleanText(executionError?.code, "WRITE_ACTION_FAILED"),
+      });
+    } catch (auditError) {
+      throw new AuditSafetyError(
+        "Действието върна грешка, но крайният журнал не можа да бъде записан. Провери състоянието преди повторение.",
+        "AUDIT_OUTCOME_UNCERTAIN",
+        502,
+        { auditId, cause: auditError },
+      );
+    }
+    throw executionError;
+  }
+
+  try {
+    await audit({
+      ...baseEvent,
+      phase: "outcome",
+      outcome: "succeeded",
+    });
+  } catch (error) {
+    throw new AuditSafetyError(
+      "Действието може да е извършено, но крайният журнал не можа да бъде записан. Не го повтаряй автоматично.",
+      "AUDIT_OUTCOME_UNCERTAIN",
+      502,
+      { auditId, result, cause: error },
+    );
+  }
+
+  return result;
 }
 
 export async function listAuditEvents(limit = 50) {

@@ -1,34 +1,825 @@
-Y™Áäx-ÆÈ‹j◊ù¢Îi∫⁄+äßj[hëÈ‹¢ÈÌ€Mw—:-jZ.∂õ≠ñ)ﬁ≥V6ˆÁ7B7FFR“∞¢6W76ñˆ‰ñC¢vWD˜$7&VFU6W76ñˆ‰ñBÇí¿¢6W'fW$ˆÊ∆ñÊS¢f«6R¿¢˜VÁ6V&6Ö7FGW3¢'VÊ∂Ê˜v‚"¿¢˜VÁ6V&6Ñfñ«W&W3¢¿¢∆7D÷V÷˜'ï7V66W74C¢¿¢∆7D7FñˆÁ3¢µ“¿¢6ÜD'W7ì¢f«6R¿¢7V∂ñÊt'WGFˆ„¢ÁV∆¬¿¢VÊFñÊtñ÷vS¢ÁV∆¬¿¢6ˆÁfW'6FñˆÁ3¢µ“¿¢6ˆÁfW'6Fñˆ‰∆ˆDW'&˜#¢""¿¢÷V÷˜'îóFV◊3¢µ“¿¢&V6ˆvÊóFñˆ„¢ÁV∆¬¿¢∆ó7FVÊñÊs¢f«6R¿¢WFÜVÁFñ6FVEW6W#¢ÁV∆¬¿¢&Vvó7G&Fñˆ‰VÊ&∆VC¢f«6R¿¢∆ñ6FñˆÂ7F'FVC¢f«6R¿ß”∞†¶6ˆÁ7BV∆V÷VÁG2“∞¢WFÑvFS¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&WFÑvFR"í¿¢6ÜV∆√¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&6ÜV∆¬"í¿¢∆ˆvñ‰f˜&”¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&∆ˆvñ‰f˜&“"í¿¢∆ˆvñ‰V÷ñ√¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&∆ˆvñ‰V÷ñ¬"í¿¢∆ˆvñÂ77v˜&C¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&∆ˆvñÂ77v˜&B"í¿¢∆ˆvñ‰'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&∆ˆvñ‰'F‚"í¿¢6Ü˜u&Vvó7FW$'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'6Ü˜u&Vvó7FW$'F‚"í¿¢&Vvó7FW$f˜&”¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'&Vvó7FW$f˜&“"í¿¢&Vvó7FW$Ê÷S¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'&Vvó7FW$Ê÷R"í¿¢&Vvó7FW$V÷ñ√¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'&Vvó7FW$V÷ñ¬"í¿¢&Vvó7FW%77v˜&C¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'&Vvó7FW%77v˜&B"í¿¢&Vvó7FW$ñÁfóFT6ˆFS¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'&Vvó7FW$ñÁfóFT6ˆFR"í¿¢&Vvó7FW$'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'&Vvó7FW$'F‚"í¿¢&6µFÙ∆ˆvñ‰'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&&6µFÙ∆ˆvñ‰'F‚"í¿¢WFÑ÷W76vS¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&WFÑ÷W76vR"í¿¢6ÜD÷W76vW3¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&6ÜD÷W76vW2"í¿¢6ÜDñÁWC¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&6ÜDñÁWB"í¿¢6VÊD'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'6VÊD'F‚"í¿¢GF6Ñ'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&GF6Ñ'F‚"í¿¢ñ÷vTñÁWC¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&ñ÷vTñÁWB"í¿¢GF6Ü÷VÁE&WfñWs¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&GF6Ü÷VÁE&WfñWr"í¿¢GF6Ü÷VÁDñ÷vS¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&GF6Ü÷VÁDñ÷vR"í¿¢GF6Ü÷VÁDÊ÷S¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&GF6Ü÷VÁDÊ÷R"í¿¢&V÷˜fTGF6Ü÷VÁD'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'&V÷˜fTGF6Ü÷VÁD'F‚"í¿¢ÊWt6ÜD'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&ÊWt6ÜD'F‚"í¿¢Fˆvv∆U7FGW4'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'Fˆvv∆U7FGW4'F‚"í¿¢6∆˜6T6ˆÁFWáD'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&6∆˜6T6ˆÁFWáD'F‚"í¿¢7FGW5ÊV√¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'7FGW5ÊV¬"í¿¢vVÁE7FGW4F˜C¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&vVÁE7FGW4F˜B"í¿¢vVÁE7FGW5FWáC¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&vVÁE7FGW5FWáB"í¿¢6W76ñˆ‰ñDFó7∆ì¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'6W76ñˆ‰ñDFó7∆í"í¿¢6W'fW%7FGW4Fó7∆ì¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'6W'fW%7FGW4Fó7∆í"í¿¢˜VÁ6V&6Ö7FGW4Fó7∆ì¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&˜VÁ6V&6Ö7FGW4Fó7∆í"í¿¢7FñˆÁ4∆ˆs¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&7FñˆÁ4∆ˆr"í¿¢6ˆÁfW'6Fñˆ‰∆ó7C¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&6ˆÁfW'6Fñˆ‰∆ó7B"í¿¢6ˆÁfW'6FñˆÂ6V&6É¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&6ˆÁfW'6FñˆÂ6V&6Ç"í¿¢6V&6Ñ6ÜG4'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'6V&6Ñ6ÜG4'F‚"í¿¢÷ˆ&ñ∆T÷VÁT'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&÷ˆ&ñ∆T÷VÁT'F‚"í¿¢6ñFV&#¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'6ñFV&""í¿¢6ñFV&$&6∂G&˜¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'6ñFV&$&6∂G&˜"í¿¢ñ÷vW4'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&ñ÷vW4'F‚"í¿¢÷ˆGV∆W4'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&÷ˆGV∆W4'F‚"í¿¢7ó7FV‘6ˆÊfñwW&Fñˆ‰'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'7ó7FV‘6ˆÊfñwW&Fñˆ‰'F‚"í¿¢fˆ7W4'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&fˆ7W4'F‚"í¿¢Fˆˆ«4'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'Fˆˆ«4'F‚"í¿¢÷V÷˜'î'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&÷V÷˜'î'F‚"í¿¢W&÷ó76ñˆÁ4'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'W&÷ó76ñˆÁ4'F‚"í¿¢FFG&vW#¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&FFG&vW""í¿¢FFG&vW%FóF∆S¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&FFG&vW%FóF∆R"í¿¢FFG&vW$&ˆGì¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&FFG&vW$&ˆGí"í¿¢G&vW$&6∂G&˜¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&G&vW$&6∂G&˜"í¿¢6∆˜6TFFG&vW$'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&6∆˜6TFFG&vW$'F‚"í¿¢fˆñ6T'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'fˆñ6T'F‚"í¿¢&ˆfñ∆TfF#¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'&ˆfñ∆TfF""í¿¢&ˆfñ∆TÊ÷S¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'&ˆfñ∆TÊ÷R"í¿¢&ˆfñ∆U&ˆ∆S¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ'&ˆfñ∆U&ˆ∆R"í¿¢∆ˆv˜WD'F„¢Fˆ7V÷VÁBÊvWDV∆V÷VÁD'îñBÇ&∆ˆv˜WD'F‚"í¿ß”∞†¶gVÊ7Fñˆ‚7&VFU6W76ñˆ‰ñBÇí∞¢ñbÜv∆ˆ&≈FÜó2Ê7'óFÛÚÁ&ÊFˆ’UTîBí∞¢&WGW&‚'6W72“"≤v∆ˆ&≈FÜó2Ê7'óFÚÁ&ÊFˆ’UTîBÇì∞¢–¢&WGW&‚Ä¢'6W72“"≤÷FÇÁ&ÊFˆ“ÇíÁFı7G&ñÊrÉ3bíÁ6∆ñ6RÉ"í≤FFRÊÊ˜rÇíÁFı7G&ñÊrÉ3bê¢ì∞ß–†¶gVÊ7Fñˆ‚vWD˜$7&VFU6W76ñˆ‰ñBÇí∞¢6ˆÁ7B7F˜&VB“∆ˆ6≈7F˜&vRÊvWDóFV“Ç'7ñÊ6á&ˆÂ6W76ñˆ‰ñB"ì∞¢ñbá7F˜&VCÚÁ7F'G5vóFÇÇ'6W72“"íí&WGW&‚7F˜&VC∞¢6ˆÁ7B6W76ñˆ‰ñB“7&VFU6W76ñˆ‰ñBÇì∞¢∆ˆ6≈7F˜&vRÁ6WDóFV“Ç'7ñÊ6á&ˆÂ6W76ñˆ‰ñB"¬6W76ñˆ‰ñBì∞¢&WGW&‚6W76ñˆ‰ñC∞ß–†¶gVÊ7Fñˆ‚6WDWFÑ÷W76vRÜ÷W76vR“""¬7V66W72“f«6Rí∞¢V∆V÷VÁG2ÊWFÑ÷W76vRÁFWáD6ˆÁFVÁB“÷W76vS∞¢V∆V÷VÁG2ÊWFÑ÷W76vRÊ6∆74∆ó7BÁFˆvv∆RÇ'7V66W72"¬7V66W72ì∞ß–†¶gVÊ7Fñˆ‚6WDWFÑ'W7íÜó4'W7íí∞¢V∆V÷VÁG2Ê∆ˆvñ‰'F‚ÊFó6&∆VB“ó4'W7ì∞¢V∆V÷VÁG2Á&Vvó7FW$'F‚ÊFó6&∆VB“ó4'W7ì∞ß–†¶gVÊ7Fñˆ‚6Ü˜t∆ˆvñ‰f˜&“Çí∞¢V∆V÷VÁG2Ê∆ˆvñ‰f˜&“ÊÜñFFV‚“f«6S∞¢V∆V÷VÁG2Á&Vvó7FW$f˜&“ÊÜñFFV‚“G'VS∞¢V∆V÷VÁG2Á6Ü˜u&Vvó7FW$'F‚ÊÜñFFV‚“7FFRÁ&Vvó7G&Fñˆ‰VÊ&∆VC∞¢6WDWFÑ÷W76vRÇì∞¢V∆V÷VÁG2Ê∆ˆvñ‰V÷ñ¬Êfˆ7W2Çì∞ß–†¶gVÊ7Fñˆ‚6Ü˜u&Vvó7FW$f˜&“Çí∞¢V∆V÷VÁG2Ê∆ˆvñ‰f˜&“ÊÜñFFV‚“G'VS∞¢V∆V÷VÁG2Á&Vvó7FW$f˜&“ÊÜñFFV‚“f«6S∞¢V∆V÷VÁG2Á6Ü˜u&Vvó7FW$'F‚ÊÜñFFV‚“G'VS∞¢6WDWFÑ÷W76vRÇì∞¢V∆V÷VÁG2Á&Vvó7FW$Ê÷RÊfˆ7W2Çì∞ß–†¶7ñÊ2gVÊ7Fñˆ‚&VDWFÖ6W76ñˆ‚Çí∞¢6ˆÁ7B&W7ˆÁ6R“vóBfWF6ÇÇ"ˆíˆWFÇ˜6W76ñˆ‚"¬≤66ÜS¢&ÊÚ◊7F˜&R"“ì∞¢ñbÇ&W7ˆÁ6RÊˆ≤í∞¢Fá&˜rÊWrW'&˜"Ç-	-]ÌM≠"-]Õ]››‚›RRMÌ-≠˝]“‚"ì∞¢–¢&WGW&‚&W7ˆÁ6RÊß6ˆ‚Çì∞ß–†¶7ñÊ2gVÊ7Fñˆ‚7V&÷óDWFÇáFÇ¬&ˆGíí∞¢6ˆÁ7B&W7ˆÁ6R“vóBfWF6ÇáFÇ¬∞¢÷WFÜˆC¢%ı5B"¿¢ÜVFW'3¢≤$6ˆÁFVÁB’GóR#¢&∆ñ6Fñˆ‚ˆß6ˆ‚"“¿¢&ˆGì¢•4Ù‚Á7G&ñÊvñgíÜ&ˆGíí¿¢“ì∞¢6ˆÁ7BFF“vóB&W7ˆÁ6RÊß6ˆ‚ÇíÊ6F6ÇÇÇí”‚ÁV∆¬ì∞¢ñbÇ&W7ˆÁ6RÊˆ≤í∞¢Fá&˜rÊWrW'&˜"ÜFFÚÊW'&˜"«¬-	-]ÌM≠"›R]çR=˝]ç]“‚"ì∞¢–¢&WGW&‚FF∞ß–†¶7ñÊ2gVÊ7Fñˆ‚ÜÊF∆T∆ˆvñ‚ÜWfVÁBí∞¢WfVÁBÁ&WfVÁDFVfV«BÇì∞¢6WDWFÑ'W7íáG'VRì∞¢6WDWFÑ÷W76vRÇì∞¢G'í∞¢vóB7V&÷óDWFÇÇ"ˆíˆWFÇˆ∆ˆvñ‚"¬∞¢V÷ñ√¢V∆V÷VÁG2Ê∆ˆvñ‰V÷ñ¬Áf«VR¿¢77v˜&C¢V∆V÷VÁG2Ê∆ˆvñÂ77v˜&BÁf«VR¿¢“ì∞¢V∆V÷VÁG2Ê∆ˆvñÂ77v˜&BÁf«VR“"#∞¢6ˆÁ7B6W76ñˆ‚“vóB&VDWFÖ6W76ñˆ‚Çì∞¢ñbÇ6W76ñˆ‚ÊWFÜVÁFñ6FVBíFá&˜rÊWrW'&˜"Ç-
-]ç˝-›R]çR≠}MM]›‚"ì∞¢vóB7F'D∆ñ6Fñˆ‚á6W76ñˆ‚ÁW6W"ì∞¢“6F6ÇÜW'&˜"í∞¢6WDWFÑ÷W76vRÜW'&˜"Ê÷W76vRì∞¢“fñÊ∆«í∞¢6WDWFÑ'W7íÜf«6Rì∞¢–ß–†¶7ñÊ2gVÊ7Fñˆ‚ÜÊF∆U&Vvó7G&Fñˆ‚ÜWfVÁBí∞¢WfVÁBÁ&WfVÁDFVfV«BÇì∞¢6WDWFÑ'W7íáG'VRì∞¢6WDWFÑ÷W76vRÇì∞¢G'í∞¢6ˆÁ7B&W7V«B“vóB7V&÷óDWFÇÇ"ˆíˆWFÇ˜&Vvó7FW""¬∞¢Fó7∆îÊ÷S¢V∆V÷VÁG2Á&Vvó7FW$Ê÷RÁf«VR¿¢V÷ñ√¢V∆V÷VÁG2Á&Vvó7FW$V÷ñ¬Áf«VR¿¢77v˜&C¢V∆V÷VÁG2Á&Vvó7FW%77v˜&BÁf«VR¿¢ñÁfóFT6ˆFS¢V∆V÷VÁG2Á&Vvó7FW$ñÁfóFT6ˆFRÁf«VR¿¢“ì∞¢V∆V÷VÁG2Á&Vvó7FW%77v˜&BÁf«VR“"#∞¢V∆V÷VÁG2Á&Vvó7FW$ñÁfóFT6ˆFRÁf«VR“"#∞¢ñbá&W7V«BÊ6ˆÊfó&÷FñˆÂ&WVó&VBí∞¢6Ü˜t∆ˆvñ‰f˜&“Çì∞¢V∆V÷VÁG2Ê∆ˆvñ‰V÷ñ¬Áf«VR“&W7V«BÁW6W#ÚÊV÷ñ¬«¬"#∞¢6WDWFÑ÷W76vRÄ¢-	˝ÌMçΩ≠"R≠}MM]“‚	˝Ì--≠MÇçÕ]ùΩÇÇ˝ÌΩR-Ω]r‚"¿¢G'VR¿¢ì∞¢&WGW&„∞¢–¢6ˆÁ7B6W76ñˆ‚“vóB&VDWFÖ6W76ñˆ‚Çì∞¢ñbÇ6W76ñˆ‚ÊWFÜVÁFñ6FVBíFá&˜rÊWrW'&˜"Ç-
-]ç˝-›R]çR≠}MM]›‚"ì∞¢vóB7F'D∆ñ6Fñˆ‚á6W76ñˆ‚ÁW6W"ì∞¢“6F6ÇÜW'&˜"í∞¢6WDWFÑ÷W76vRÜW'&˜"Ê÷W76vRì∞¢“fñÊ∆«í∞¢6WDWFÑ'W7íÜf«6Rì∞¢–ß–†¶7ñÊ2gVÊ7Fñˆ‚ÜÊF∆T∆ˆv˜WBÇí∞¢V∆V÷VÁG2Ê∆ˆv˜WD'F‚ÊFó6&∆VB“G'VS∞¢G'í∞¢vóBfWF6ÇÇ"ˆíˆWFÇˆ∆ˆv˜WB"¬≤÷WFÜˆC¢%ı5B"“ì∞¢“fñÊ∆«í∞¢v∆ˆ&≈FÜó2Ê∆ˆ6Fñˆ‚Êá&Vb“"Ú#∞¢–ß–†¶gVÊ7Fñˆ‚«îWFÜVÁFñ6FVEW6W"áW6W"í∞¢7FFRÊWFÜVÁFñ6FVEW6W"“W6W#∞¢6ˆÁ7BFó7∆îÊ÷R“W6W#ÚÊFó7∆îÊ÷R«¬-	˝Ì-]ç-]≤#∞¢6ˆÁ7Bó4˜vÊW"“W6W#ÚÁ&ˆ∆R””“&˜vÊW"#∞¢V∆V÷VÁG2Á&ˆfñ∆TÊ÷RÁFWáD6ˆÁFVÁB“Fó7∆îÊ÷S∞¢V∆V÷VÁG2Á&ˆfñ∆TfF"ÁFWáD6ˆÁFVÁB–¢Fó7∆îÊ÷RÁG&ñ“ÇíÊ6Ü$BÉíÁFÙ∆ˆ6∆UWW$66RÇ&&r‘$r"í«¬-	Ú#∞¢V∆V÷VÁG2Á&ˆfñ∆U&ˆ∆RÁFWáD6ˆÁFVÁB“ó4˜vÊW ¢Ú-
-Ì--]›ç¢+r›-Ìù≠Ç ¢¢-
--]-Ì"˝ÌMç≤#∞¢Fˆ7V÷VÁBÊ&ˆGíÊFF6WBÁW6W%&ˆ∆R“ó4˜vÊW"Ú&˜vÊW""¢'FW7FW"#∞¢f˜"Ü6ˆÁ7BóFV“ˆbFˆ7V÷VÁBÁVW'ï6V∆V7F˜$∆¬Ç%∂FF÷˜vÊW"÷ˆÊ«ï“"íí∞¢óFV“ÊÜñFFV‚“ó4˜vÊW#∞¢–ß–†¶7ñÊ2gVÊ7Fñˆ‚ñÊóBÇí∞¢V∆V÷VÁG2Ê∆ˆvñ‰f˜&“ÊFDWfVÁD∆ó7FVÊW"Ç'7V&÷óB"¬ÜÊF∆T∆ˆvñ‚ì∞¢V∆V÷VÁG2Á&Vvó7FW$f˜&“ÊFDWfVÁD∆ó7FVÊW"Ç'7V&÷óB"¬ÜÊF∆U&Vvó7G&Fñˆ‚ì∞¢V∆V÷VÁG2Á6Ü˜u&Vvó7FW$'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬6Ü˜u&Vvó7FW$f˜&“ì∞¢V∆V÷VÁG2Ê&6µFÙ∆ˆvñ‰'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬6Ü˜t∆ˆvñ‰f˜&“ì∞†¢G'í∞¢6ˆÁ7B6W76ñˆ‚“vóB&VDWFÖ6W76ñˆ‚Çì∞¢7FFRÁ&Vvó7G&Fñˆ‰VÊ&∆VB“&ˆˆ∆V‚á6W76ñˆ‚Á&Vvó7G&Fñˆ‰VÊ&∆VBì∞¢V∆V÷VÁG2Á6Ü˜u&Vvó7FW$'F‚ÊÜñFFV‚“7FFRÁ&Vvó7G&Fñˆ‰VÊ&∆VC∞¢ñbá6W76ñˆ‚ÊWFÜVÁFñ6FVBí∞¢vóB7F'D∆ñ6Fñˆ‚á6W76ñˆ‚ÁW6W"ì∞¢&WGW&„∞¢–¢V∆V÷VÁG2ÊWFÑvFRÊÜñFFV‚“f«6S∞¢V∆V÷VÁG2Ê6ÜV∆¬ÊÜñFFV‚“G'VS∞¢ñbÇ6W76ñˆ‚Ê6ˆÊfñwW&VBí∞¢6WDWFÑ÷W76vRÄ¢-	-]ÌM≠"}-]-Ì-Ç˝ÌMçΩÇÌùR›RR≠-ç-ç“‚
-Ì--]›ç≠≠"ÕÌmRM-Ω]}RvóDáV"‚"¿¢ì∞¢–¢“6F6ÇÜW'&˜"í∞¢6WDWFÑ÷W76vRÜW'&˜"Ê÷W76vRì∞¢–ß–†¶7ñÊ2gVÊ7Fñˆ‚7F'D∆ñ6Fñˆ‚áW6W"í∞¢ñbá7FFRÊ∆ñ6FñˆÂ7F'FVBí&WGW&„∞¢7FFRÊ∆ñ6FñˆÂ7F'FVB“G'VS∞¢«îWFÜVÁFñ6FVEW6W"áW6W"ì∞¢V∆V÷VÁG2ÊWFÑvFRÊÜñFFV‚“G'VS∞¢V∆V÷VÁG2Ê6ÜV∆¬ÊÜñFFV‚“f«6S∞¢WFFU6W76ñˆ‰Fó7∆íÇì∞†¢V∆V÷VÁG2Á6VÊD'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬6VÊD÷W76vRì∞¢V∆V÷VÁG2ÊGF6Ñ'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬Çí”‡¢V∆V÷VÁG2Êñ÷vTñÁWBÊ6∆ñ6≤Çí¿¢ì∞¢V∆V÷VÁG2Êñ÷vTñÁWBÊFDWfVÁD∆ó7FVÊW"Ç&6ÜÊvR"¬ÜÊF∆Tñ÷vU6V∆V7Fñˆ‚ì∞¢V∆V÷VÁG2Á&V÷˜fTGF6Ü÷VÁD'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬6∆V%VÊFñÊtñ÷vRì∞¢V∆V÷VÁG2Ê6ÜDñÁWBÊFDWfVÁD∆ó7FVÊW"Ç&∂WñF˜v‚"¬ÜWfVÁBí”‚∞¢ñbÜWfVÁBÊ∂Wí””“$VÁFW""bbWfVÁBÁ6ÜñgD∂Wíí∞¢WfVÁBÁ&WfVÁDFVfV«BÇì∞¢6VÊD÷W76vRÇì∞¢–¢“ì∞¢V∆V÷VÁG2ÊÊWt6ÜD'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬7F'DÊWt6ÜBì∞¢V∆V÷VÁG2ÁFˆvv∆U7FGW4'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬˜VÂ7FGW2ì∞¢V∆V÷VÁG2Ê6∆˜6T6ˆÁFWáD'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬6∆˜6U7FGW2ì∞¢V∆V÷VÁG2Ê6ÜD÷W76vW2ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬ÜÊF∆T÷W76vT7Fñˆ‚ì∞¢V∆V÷VÁG2Ê6ˆÁfW'6Fñˆ‰∆ó7BÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬ÜÊF∆T6ˆÁfW'6Fñˆ‰6∆ñ6≤ì∞¢V∆V÷VÁG2Ê6ˆÁfW'6FñˆÂ6V&6ÇÊFDWfVÁD∆ó7FVÊW"Ç&ñÁWB"¬&VÊFW$6ˆÁfW'6Fñˆ‰∆ó7Bì∞¢V∆V÷VÁG2Á6V&6Ñ6ÜG4'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬Fˆvv∆T6ˆÁfW'6FñˆÂ6V&6Çì∞¢V∆V÷VÁG2Ê÷ˆ&ñ∆T÷VÁT'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬Fˆvv∆U6ñFV&"ì∞¢V∆V÷VÁG2Á6ñFV&$&6∂G&˜ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬6∆˜6U6ñFV&"ì∞¢V∆V÷VÁG2Êñ÷vW4'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬˜V‰ñ÷vUñ6∂W"ì∞¢V∆V÷VÁG2Ê÷ˆGV∆W4'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬˜V‰÷ˆGV∆W4G&vW"ì∞¢V∆V÷VÁG2ÁFˆˆ«4'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬˜VÂFˆˆ«4G&vW"ì∞¢V∆V÷VÁG2Á7ó7FV‘6ˆÊfñwW&Fñˆ‰'F‚ÊFDWfVÁD∆ó7FVÊW"Ä¢&6∆ñ6≤"¿¢˜VÂ7ó7FV‘6ˆÊfñwW&Fñˆ‰G&vW"¿¢ì∞¢V∆V÷VÁG2Ê÷V÷˜'î'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬˜V‰÷V÷˜'îG&vW"ì∞¢V∆V÷VÁG2ÁW&÷ó76ñˆÁ4'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬˜VÂW&÷ó76ñˆÁ4G&vW"ì∞¢V∆V÷VÁG2Ê6∆˜6TFFG&vW$'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬6∆˜6TFFG&vW"ì∞¢V∆V÷VÁG2ÊG&vW$&6∂G&˜ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬6∆˜6TFFG&vW"ì∞¢V∆V÷VÁG2ÊFFG&vW$&ˆGíÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬ÜÊF∆TFFG&vW$7Fñˆ‚ì∞¢V∆V÷VÁG2Áfˆñ6T'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬Fˆvv∆Ufˆñ6TñÁWBì∞¢V∆V÷VÁG2Ê∆ˆv˜WD'F‚ÊFDWfVÁD∆ó7FVÊW"Ç&6∆ñ6≤"¬ÜÊF∆T∆ˆv˜WBì∞¢Fˆ7V÷VÁBÊFDWfVÁD∆ó7FVÊW"Ç&∂WñF˜v‚"¬ÜÊF∆Tv∆ˆ&ƒ∂WñF˜v‚ì∞¢&W&Ufˆñ6TñÁWBÇì∞†¢6ÜV6¥ÜV«FÇÇì∞¢6ÜV6¥˜VÂ6V&6ÇÇì∞¢6WDñÁFW'f¬Ü6ÜV6¥ÜV«FÇ¬ì∞¢6WDñÁFW'f¬Ü6ÜV6¥˜VÂ6V&6Ç¬#ì∞†¢vóB&W7F˜&T6ˆÁfW'6Fñˆ‚Çì∞¢vóB∆ˆD6ˆÁfW'6FñˆÁ2Çì∞ß–†¶gVÊ7Fñˆ‚WFFU6W76ñˆ‰Fó7∆íÇí∞¢V∆V÷VÁG2Á6W76ñˆ‰ñDFó7∆íÁFWáD6ˆÁFVÁB“7FFRÁ6W76ñˆ‰ñC∞ß–†¶7ñÊ2gVÊ7Fñˆ‚6Ü˜uvV∆6ˆ÷T÷W76vRÇí∞¢VÊD÷W76vRÄ¢&vVÁB"¿¢∞¢"225î‰4Ö$Ù‚’Ç"¿¢"¢≠
---Ì˝-Ωç}›íÌ˝]mçÌ››ç-]Õ‚¢¢"¿¢""¿¢-	]M›‚í˝M‚¬˝Ì-Ì˝››≠Ì›-ÌΩç›˝Õ]"Ç}]ç]›Çç›-=Õ]›-Ç}]Ω›Ç}M}Ç‚"¿¢""¿¢$í--≠"RÕÌ˝"›}ç“›Ìù=-›R‚
--Ç≠Ì›-ÌΩçÇM››ç-R¬˝Õ]--Çç≠Ì-ç-RM]ù--çÚ‚"¿¢“Ê¶ˆñ‚Ç%∆‚"í¿¢ì∞ß–†¶7ñÊ2gVÊ7Fñˆ‚&W7F˜&T6ˆÁfW'6Fñˆ‚Çí∞¢G'í∞¢6ˆÁ7B&W7ˆÁ6R“vóBfWF6ÇÄ¢"ˆ÷V÷˜'íˆ6ˆÁfW'6Fñˆ‚Ú"≤VÊ6ˆFUU$î6ˆ◊ˆÊVÁBá7FFRÁ6W76ñˆ‰ñBí¿¢≤66ÜS¢&ÊÚ◊7F˜&R"“¿¢ì∞¢ñbÇ&W7ˆÁ6RÊˆ≤íFá&˜rÊWrW'&˜"Ç-	ç-Ìç˝-›RRMÌ-≠˝›‚"ì∞¢6ˆÁ7BFF“vóB&W7ˆÁ6RÊß6ˆ‚Çì∞¢÷&¥÷V÷˜'î˜W&FñˆÊ¬Çì∞¢6ˆÁ7BóFV◊2“'&íÊó4'&íÜFFÊóFV◊2íÚFFÊóFV◊2¢µ”∞¢ñbÜóFV◊2Ê∆VÊwFÇ””“í∞¢vóB6Ü˜uvV∆6ˆ÷T÷W76vRÇì∞¢&WGW&„∞¢–¢f˜"Ü6ˆÁ7BóFV“ˆbóFV◊2í∞¢ñbÄ¢ÜóFV“Á&ˆ∆R””“'W6W""«¬óFV“Á&ˆ∆R””“&76ó7FÁB"íb`¢GóVˆbóFV“Ê6ˆÁFVÁB””“'7G&ñÊr ¢í∞¢VÊD÷W76vRÄ¢óFV“Á&ˆ∆R””“&76ó7FÁB"Ú&vVÁB"¢'W6W""¿¢óFV“Ê6ˆÁFVÁB¿¢ì∞¢–¢–¢∆ˆt7Fñˆ‚Ç-	-≠}-›Ì-]›Rç-Ìç˝-›}=Ì-Ì"ì∞¢“6F6ÇÜW'&˜"í∞¢6ˆÁ6ˆ∆RÊW'&˜"ÜW'&˜"ì∞¢vóB6Ü˜uvV∆6ˆ÷T÷W76vRÇì∞¢∆ˆt7Fñˆ‚Ç-	ç-Ìç˝-›RÕÌmM≠MR-≠}-›Ì-]›"ì∞¢–ß–†¶7ñÊ2gVÊ7Fñˆ‚7F'DÊWt6ÜBÇí∞¢ñbá7FFRÊ6ÜD'W7íí&WGW&„∞¢6∆˜6U6ñFV&"Çì∞¢6∆V%VÊFñÊtñ÷vRÇì∞¢7FFRÁ6W76ñˆ‰ñB“7&VFU6W76ñˆ‰ñBÇì∞¢∆ˆ6≈7F˜&vRÁ6WDóFV“Ç'7ñÊ6á&ˆÂ6W76ñˆ‰ñB"¬7FFRÁ6W76ñˆ‰ñBì∞¢7FFRÊ∆7D7FñˆÁ2“µ”∞¢V∆V÷VÁG2Ê6ÜD÷W76vW2Á&W∆6T6Üñ∆G&V‚Çì∞¢WFFU6W76ñˆ‰Fó7∆íÇì∞¢&VÊFW$7FñˆÁ4∆ˆrÇì∞¢vóB6Ü˜uvV∆6ˆ÷T÷W76vRÇì∞¢∆ˆt7Fñˆ‚Ç-	}˝Ì}›"R›Ì"}=Ì-Ì"ì∞¢&VÊFW$6ˆÁfW'6Fñˆ‰∆ó7BÇì∞¢V∆V÷VÁG2Ê6ÜDñÁWBÊfˆ7W2Çì∞ß–†¶7ñÊ2gVÊ7Fñˆ‚∆ˆD6ˆÁfW'6FñˆÁ2Çí∞¢G'í∞¢6ˆÁ7B&W7ˆÁ6R“vóBfWF6ÇÇ"ˆ÷V÷˜'íˆ6ˆÁfW'6FñˆÁ2"¬∞¢66ÜS¢&ÊÚ◊7F˜&R"¿¢“ì∞¢ñbÇ&W7ˆÁ6RÊˆ≤íFá&˜rÊWrW'&˜"Ç-
-˝ç≠≠≠"›RRMÌ-≠˝]“‚"ì∞¢6ˆÁ7BFF“vóB&W7ˆÁ6RÊß6ˆ‚Çì∞¢7FFRÊ6ˆÁfW'6FñˆÁ2“'&íÊó4'&íÜFFÊóFV◊2íÚFFÊóFV◊2¢µ”∞¢7FFRÊ6ˆÁfW'6Fñˆ‰∆ˆDW'&˜"“"#∞¢&VÊFW$6ˆÁfW'6Fñˆ‰∆ó7BÇì∞¢“6F6ÇÜW'&˜"í∞¢6ˆÁ6ˆ∆RÊW'&˜"ÜW'&˜"ì∞¢7FFRÊ6ˆÁfW'6FñˆÁ2“µ”∞¢7FFRÊ6ˆÁfW'6Fñˆ‰∆ˆDW'&˜"–¢-	ç-Ìç˝--]Õ]››‚›RRMÌ-≠˝›‚	Ì˝ç-íÌ-›Ì-‚‚#∞¢&VÊFW$6ˆÁfW'6Fñˆ‰∆ó7BÇì∞¢–ß–†¶gVÊ7Fñˆ‚&VÊFW$6ˆÁfW'6Fñˆ‰∆ó7BÇí∞¢6ˆÁ7BVW'í“V∆V÷VÁG2Ê6ˆÁfW'6FñˆÂ6V&6ÇÁf«VP¢ÁG&ñ“Çê¢ÁFÙ∆ˆ6∆T∆˜vW$66RÇ&&r‘$r"ì∞¢6ˆÁ7B6ˆÁfW'6FñˆÁ2“7FFRÊ6ˆÁfW'6FñˆÁ2Êfñ«FW"Ä¢ÜóFV“í”‚VW'í«¬óFV“ÁFóF∆RÁFÙ∆ˆ6∆T∆˜vW$66RÇ&&r‘$r"íÊñÊ6«VFW2áVW'íí¿¢ì∞¢V∆V÷VÁG2Ê6ˆÁfW'6Fñˆ‰∆ó7BÁ&W∆6T6Üñ∆G&V‚Çì∞†¢ñbá7FFRÊ6ˆÁfW'6Fñˆ‰∆ˆDW'&˜"í∞¢6ˆÁ7BW'&˜"“Fˆ7V÷VÁBÊ7&VFTV∆V÷VÁBÇ'"ì∞¢W'&˜"Ê6∆74Ê÷R“&6ˆÁfW'6Fñˆ‚◊7FFR6ˆÁfW'6Fñˆ‚◊7FFR÷W'&˜"#∞¢W'&˜"ÁFWáD6ˆÁFVÁB“7FFRÊ6ˆÁfW'6Fñˆ‰∆ˆDW'&˜#∞¢V∆V÷VÁG2Ê6ˆÁfW'6Fñˆ‰∆ó7BÊVÊD6Üñ∆BÜW'&˜"ì∞¢&WGW&„∞¢–†¢ñbÜ6ˆÁfW'6FñˆÁ2Ê∆VÊwFÇ””“í∞¢6ˆÁ7BV◊Gí“Fˆ7V÷VÁBÊ7&VFTV∆V÷VÁBÇ'"ì∞¢V◊GíÊ6∆74Ê÷R“&6ˆÁfW'6Fñˆ‚◊7FFR#∞¢V◊GíÁFWáD6ˆÁFVÁB“VW'ê¢Ú-	›˝Õ›Õ]]›Ç}=Ì-ÌÇ‚ ¢¢-	-RÌùR›˝Õ}˝}]›Ç}=Ì-ÌÇ‚#∞¢V∆V÷VÁG2Ê6ˆÁfW'6Fñˆ‰∆ó7BÊVÊD6Üñ∆BÜV◊Gíì∞¢&WGW&„∞¢–†¢f˜"Ü6ˆÁ7BóFV“ˆb6ˆÁfW'6FñˆÁ2í∞¢6ˆÁ7B'WGFˆ‚“Fˆ7V÷VÁBÊ7&VFTV∆V÷VÁBÇ&'WGFˆ‚"ì∞¢'WGFˆ‚ÁGóR“&'WGFˆ‚#∞¢'WGFˆ‚Ê6∆74Ê÷R“&6ˆÁfW'6Fñˆ‚#∞¢ñbÜóFV“Á6W76ñˆ‰ñB””“7FFRÁ6W76ñˆ‰ñBí'WGFˆ‚Ê6∆74∆ó7BÊFBÇ&7FófR"ì∞¢'WGFˆ‚ÊFF6WBÁ6W76ñˆ‰ñB“óFV“Á6W76ñˆ‰ñC∞¢'WGFˆ‚ÁFWáD6ˆÁFVÁB“óFV“ÁFóF∆S∞¢V∆V÷VÁG2Ê6ˆÁfW'6Fñˆ‰∆ó7BÊVÊD6Üñ∆BÜ'WGFˆ‚ì∞¢–ß–†¶7ñÊ2gVÊ7Fñˆ‚ÜÊF∆T6ˆÁfW'6Fñˆ‰6∆ñ6≤ÜWfVÁBí∞¢6ˆÁ7B'WGFˆ‚“WfVÁBÁF&vWBÊ6∆˜6W7BÇ&'WGFˆÂ∂FF◊6W76ñˆ‚÷ñE“"ì∞¢ñbÇ'WGFˆ‚«¬7FFRÊ6ÜD'W7í«¬'WGFˆ‚ÊFF6WBÁ6W76ñˆ‰ñB””“7FFRÁ6W76ñˆ‰ñBê¢&WGW&„∞¢7FFRÁ6W76ñˆ‰ñB“'WGFˆ‚ÊFF6WBÁ6W76ñˆ‰ñC∞¢∆ˆ6≈7F˜&vRÁ6WDóFV“Ç'7ñÊ6á&ˆÂ6W76ñˆ‰ñB"¬7FFRÁ6W76ñˆ‰ñBì∞¢V∆V÷VÁG2Ê6ÜD÷W76vW2Á&W∆6T6Üñ∆G&V‚Çì∞¢WFFU6W76ñˆ‰Fó7∆íÇì∞¢&VÊFW$6ˆÁfW'6Fñˆ‰∆ó7BÇì∞¢vóB&W7F˜&T6ˆÁfW'6Fñˆ‚Çì∞¢6∆˜6U6ñFV&"Çì∞ß–†¶gVÊ7Fñˆ‚Fˆvv∆U6ñFV&"Çí∞¢6ˆÁ7Bó4˜V‚“V∆V÷VÁG2Á6ñFV&"Ê6∆74∆ó7BÁFˆvv∆RÇ&÷ˆ&ñ∆R◊fó6ñ&∆R"ì∞¢V∆V÷VÁG2Á6ñFV&$&6∂G&˜ÊÜñFFV‚“ó4˜V„∞¢V∆V÷VÁG2Ê÷ˆ&ñ∆T÷VÁT'F‚Á6WDGG&ñ'WFRÇ&&ñ÷WáÊFVB"¬7G&ñÊrÜó4˜V‚íì∞ß–†¶gVÊ7Fñˆ‚6∆˜6U6ñFV&"Çí∞¢V∆V÷VÁG2Á6ñFV&"Ê6∆74∆ó7BÁ&V÷˜fRÇ&÷ˆ&ñ∆R◊fó6ñ&∆R"ì∞¢V∆V÷VÁG2Á6ñFV&$&6∂G&˜ÊÜñFFV‚“G'VS∞¢V∆V÷VÁG2Ê÷ˆ&ñ∆T÷VÁT'F‚Á6WDGG&ñ'WFRÇ&&ñ÷WáÊFVB"¬&f«6R"ì∞ß–†¶gVÊ7Fñˆ‚˜V‰ñ÷vUñ6∂W"Çí∞¢6∆˜6U6ñFV&"Çì∞¢V∆V÷VÁG2Êñ÷vTñÁWBÊ6∆ñ6≤Çì∞ß–†¶gVÊ7Fñˆ‚ÜÊF∆Tv∆ˆ&ƒ∂WñF˜v‚ÜWfVÁBí∞¢ñbÜWfVÁBÊ∂Wí”“$W66R"í&WGW&„∞¢6∆˜6U6ñFV&"Çì∞¢6∆˜6U7FGW2Çì∞¢6∆˜6TFFG&vW"Çì∞ß–†¶gVÊ7Fñˆ‚Fˆvv∆T6ˆÁfW'6FñˆÂ6V&6ÇÇí∞¢V∆V÷VÁG2Ê6ˆÁfW'6FñˆÂ6V&6ÇÊÜñFFV‚“f«6S∞¢V∆V÷VÁG2Ê6ˆÁfW'6Fñˆ‰∆ó7@¢Ê6∆˜6W7BÇ"Á6ñFV&"◊6V7Fñˆ‚"ê¢ÚÁ67&ˆ∆ƒñÁFıfñWrá≤&∆ˆ6≥¢'7F'B"¬&VÜfñ˜#¢'6÷ˆ˜FÇ"“ì∞¢V∆V÷VÁG2Ê6ˆÁfW'6FñˆÂ6V&6ÇÊfˆ7W2á≤&WfVÁE67&ˆ∆√¢G'VR“ì∞ß–†¶gVÊ7Fñˆ‚ÜÊF∆Tñ÷vU6V∆V7Fñˆ‚ÜWfVÁBí∞¢6ˆÁ7Bfñ∆R“WfVÁBÁF&vWBÊfñ∆W3ÚÂ≥”∞¢ñbÇfñ∆Rí&WGW&„∞†¢6ˆÁ7B∆∆˜vVEGóW2“≤&ñ÷vRˆßVr"¬&ñ÷vR˜Êr"¬&ñ÷vR˜vV'%”∞¢ñbÇ∆∆˜vVEGóW2ÊñÊ6«VFW2Üfñ∆RÁGóRíí∞¢VÊD÷W76vRÇ&vVÁB"¬.)ÿ¬	˝ÌMM≠m"RÕ‚•Tr¬‰rÇvV%›çÕ≠Ç‚"ì∞¢6∆V%VÊFñÊtñ÷vRÇì∞¢&WGW&„∞¢–†¢ñbÜfñ∆RÁ6ó¶R‚R¢#B¢#Bí∞¢VÊD÷W76vRÇ&vVÁB"¬.)ÿ¬
-›çÕ≠--˝-M≠MRM‚R‘"‚"ì∞¢6∆V%VÊFñÊtñ÷vRÇì∞¢&WGW&„∞¢–†¢6ˆÁ7B&VFW"“ÊWrfñ∆U&VFW"Çì∞¢&VFW"ÊˆÊ∆ˆB“Çí”‚∞¢7FFRÁVÊFñÊtñ÷vR“∞¢FFW&√¢&VFW"Á&W7V«B¿¢÷ñ÷UGóS¢fñ∆RÁGóR¿¢Ê÷S¢fñ∆RÊÊ÷R¿¢”∞¢V∆V÷VÁG2ÊGF6Ü÷VÁDñ÷vRÁ7&2“&VFW"Á&W7V«C∞¢V∆V÷VÁG2ÊGF6Ü÷VÁDÊ÷RÁFWáD6ˆÁFVÁB“fñ∆RÊÊ÷S∞¢V∆V÷VÁG2ÊGF6Ü÷VÁE&WfñWrÊÜñFFV‚“f«6S∞¢V∆V÷VÁG2Ê6ÜDñÁWBÊfˆ7W2Çì∞¢”∞¢&VFW"ÊˆÊW'&˜"“Çí”‚∞¢VÊD÷W76vRÇ&vVÁB"¬.)ÿ¬
-›çÕ≠-›RÕÌmM≠MR˝Ì}]-]›‚"ì∞¢6∆V%VÊFñÊtñ÷vRÇì∞¢”∞¢&VFW"Á&VD4FFU$¬Üfñ∆Rì∞ß–†¶gVÊ7Fñˆ‚6∆V%VÊFñÊtñ÷vRÇí∞¢7FFRÁVÊFñÊtñ÷vR“ÁV∆√∞¢V∆V÷VÁG2Êñ÷vTñÁWBÁf«VR“"#∞¢V∆V÷VÁG2ÊGF6Ü÷VÁDñ÷vRÁ&V÷˜fTGG&ñ'WFRÇ'7&2"ì∞¢V∆V÷VÁG2ÊGF6Ü÷VÁDÊ÷RÁFWáD6ˆÁFVÁB“"#∞¢V∆V÷VÁG2ÊGF6Ü÷VÁE&WfñWrÊÜñFFV‚“G'VS∞ß–†¶gVÊ7Fñˆ‚˜VÂ7FGW2Çí∞¢6∆˜6U6ñFV&"Çì∞¢V∆V÷VÁG2Á7FGW5ÊV¬Ê6∆74∆ó7BÊFBÇ&÷ˆ&ñ∆R◊fó6ñ&∆R"ì∞ß–†¶gVÊ7Fñˆ‚6∆˜6U7FGW2Çí∞¢V∆V÷VÁG2Á7FGW5ÊV¬Ê6∆74∆ó7BÁ&V÷˜fRÇ&÷ˆ&ñ∆R◊fó6ñ&∆R"ì∞ß–†¶gVÊ7Fñˆ‚&W&Ufˆñ6TñÁWBÇí∞¢6ˆÁ7B7VV6Ö&V6ˆvÊóFñˆ‚–¢vñÊF˜rÂ7VV6Ö&V6ˆvÊóFñˆ‚«¬vñÊF˜rÁvV&∂óE7VV6Ö&V6ˆvÊóFñˆ„∞¢ñbÇ7VV6Ö&V6ˆvÊóFñˆ‚í∞¢V∆V÷VÁG2Áfˆñ6T'F‚ÊÜñFFV‚“G'VS∞¢&WGW&„∞¢–†¢6ˆÁ7B&V6ˆvÊóFñˆ‚“ÊWr7VV6Ö&V6ˆvÊóFñˆ‚Çì∞¢&V6ˆvÊóFñˆ‚Ê∆Êr“&&r‘$r#∞¢&V6ˆvÊóFñˆ‚Ê6ˆÁFñÁV˜W2“f«6S∞¢&V6ˆvÊóFñˆ‚ÊñÁFW&ñ’&W7V«G2“G'VS∞†¢&V6ˆvÊóFñˆ‚ÊˆÁ7F'B“Çí”‚6WD∆ó7FVÊñÊráG'VRì∞¢&V6ˆvÊóFñˆ‚ÊˆÊVÊB“Çí”‚6WD∆ó7FVÊñÊrÜf«6Rì∞¢&V6ˆvÊóFñˆ‚ÊˆÊW'&˜"“ÜWfVÁBí”‚∞¢6WD∆ó7FVÊñÊrÜf«6Rì∞¢ñbÜWfVÁBÊW'&˜"”“&&˜'FVB"bbWfVÁBÊW'&˜"”“&ÊÚ◊7VV6Ç"í∞¢VÊD÷W76vRÄ¢&vVÁB"¿¢-	=ΩÌ-Ì-‚-≠-]mM›R›RÕÌmM--ç‚	˝Ì-]ÇMÌ-≠˝M‚Õç≠ÌMÌ›‚"¿¢ì∞¢–¢”∞¢&V6ˆvÊóFñˆ‚ÊˆÁ&W7V«B“ÜWfVÁBí”‚∞¢∆WBG&Á67&óB“"#∞¢f˜"Ä¢∆WBñÊFWÇ“WfVÁBÁ&W7V«DñÊFWÉ∞¢ñÊFWÇ¬WfVÁBÁ&W7V«G2Ê∆VÊwFÉ∞¢ñÊFWÇ≥“¢í∞¢G&Á67&óB≥“WfVÁBÁ&W7V«G5∂ñÊFWÖ’≥“ÁG&Á67&óC∞¢–¢V∆V÷VÁG2Ê6ÜDñÁWBÁf«VR“G&Á67&óBÁG&ñ“Çì∞¢6ˆÁ7B∆7E&W7V«B“WfVÁBÁ&W7V«G5∂WfVÁBÁ&W7V«G2Ê∆VÊwFÇ“”∞¢ñbÜ∆7E&W7V«CÚÊó4fñÊ¬íV∆V÷VÁG2Ê6ÜDñÁWBÊfˆ7W2Çì∞¢”∞¢7FFRÁ&V6ˆvÊóFñˆ‚“&V6ˆvÊóFñˆ„∞ß–†¶gVÊ7Fñˆ‚6WD∆ó7FVÊñÊrÜó4∆ó7FVÊñÊrí∞¢7FFRÊ∆ó7FVÊñÊr“ó4∆ó7FVÊñÊs∞¢V∆V÷VÁG2Áfˆñ6T'F‚Ê6∆74∆ó7BÁFˆvv∆RÇ&∆ó7FVÊñÊr"¬ó4∆ó7FVÊñÊrì∞¢V∆V÷VÁG2Áfˆñ6T'F‚Á6WDGG&ñ'WFRÇ&&ñ◊&W76VB"¬7G&ñÊrÜó4∆ó7FVÊñÊríì∞¢V∆V÷VÁG2Áfˆñ6T'F‚ÁFóF∆R“ó4∆ó7FVÊñÊp¢Ú-
-˝ÇΩ=ç›]-‚ ¢¢-	=ΩÌ-‚-≠-]mM›R#∞ß–†¶gVÊ7Fñˆ‚Fˆvv∆Ufˆñ6TñÁWBÇí∞¢ñbÇ7FFRÁ&V6ˆvÊóFñˆ‚«¬7FFRÊ6ÜD'W7íí&WGW&„∞¢ñbá7FFRÊ∆ó7FVÊñÊrí∞¢7FFRÁ&V6ˆvÊóFñˆ‚Á7F˜Çì∞¢“V«6R∞¢7FFRÁ&V6ˆvÊóFñˆ‚Á7F'BÇì∞¢–ß–†¶gVÊ7Fñˆ‚˜V‰÷ˆGV∆W4G&vW"Çí∞¢˜V‰FFG&vW"Ç-
-Ì-›ÇÌΩ-Ç"ì∞¢V∆V÷VÁG2ÊFFG&vW$&ˆGíÊñÊÊW$ÖD‘¬“ ¢∆Fób6∆73“&÷ˆGV∆R◊7V÷÷'í#‡¢
--Ì-ÌΩ-Ç¬"≠Ìç-‚Ωç}›-íÌ˝]mçÌ››ç-]Õç}˝ÌΩ}-}=Ì-Ì¿¢˝Õ]--Ç}]ç]›ç-Rç›-=Õ]›-Ç‚	ÌΩ--Õ˝‚]RÇ›P¢Ì}›}-¬}R-≠›ç›=Ω==R-≠}›‡¢¬ˆFóc‡¢«6V7Fñˆ‚6∆73“&G&vW"◊6V7Fñˆ‚W&÷ó76ñˆ‚÷∆ó7B÷ˆGV∆R÷∆ó7B"FF÷÷ˆGV∆R÷∆ó7C„¬˜6V7Fñˆ„Ê∞¢Fˆ7V÷VÁBÊFó7F6ÑWfVÁBÜÊWr7W7Fˆ‘WfVÁBÇ'7ñÊ6á&ˆ„¶÷ˆGV∆W2÷˜VÊVB"íì∞ß–†¶gVÊ7Fñˆ‚ó4vˆˆv∆UFˆˆ¬áFˆˆ¬í∞¢&WGW&‚Ä¢Fˆˆ√ÚÁ&˜fñFW"””“&vˆˆv∆R"«¿¢Fˆˆ√ÚÊñCÚÁ7F'G5vóFÇÇ&vˆˆv∆R“"í«¿¢Fˆˆ√ÚÊñB””“&v÷ñ¬◊&VB ¢ì∞ß–†¶gVÊ7Fñˆ‚Fˆˆ≈7FFRáFˆˆ¬¬vˆˆv∆T6ˆÊÊV7FVB¬vóFáV$6ˆÊÊV7FVBí∞¢ñbáFˆˆ¬Êfñ∆&ñ∆óGî6ˆFR””“$4ıîƒıEÙUDÙ‘DîÙÂÙDï4$ƒTB"í∞¢&WGW&‚≤∆&V√¢-	ç}≠ΩÌ}]›‚+r]mç¬]r6˜ñ∆˜B"¬6∆74Ê÷S¢&6ˆÊfó&“"”∞¢–¢ñbÇFˆˆ¬ÊVÊ&∆VB«¬Fˆˆ¬ÊWÜV7WF&∆Rí∞¢&WGW&‚≤∆&V√¢-	›RR-≠}“"¬6∆74Ê÷S¢&FVÁí"”∞¢–¢ñbÇFˆˆ¬Ê6ˆÊfñwW&VBí∞¢&WGW&‚≤∆&V√¢-	›RR≠Ì›Mç==ç“"¬6∆74Ê÷S¢&FVÁí"”∞¢–¢ñbÜó4vˆˆv∆UFˆˆ¬áFˆˆ¬íbbvˆˆv∆T6ˆÊÊV7FVBí∞¢&WGW&‚≤∆&V√¢-	ç≠-≠}-›R"¬6∆74Ê÷S¢&6ˆÊfó&“"”∞¢–¢ñbáFˆˆ¬ÊñB””“&vóFáV"◊w&óFR"bbvóFáV$6ˆÊÊV7FVBí∞¢&WGW&‚≤∆&V√¢-	ç≠-≠}-›R"¬6∆74Ê÷S¢&6ˆÊfó&“"”∞¢–¢&WGW&‚≤∆&V√¢-
-Ì-Ç"¬6∆74Ê÷S¢&∆∆˜r"”∞ß–†¶gVÊ7Fñˆ‚Fˆˆ≈7FGW47FñˆÁ2áFˆˆ¬¬7FGW2¬vˆˆv∆T6ˆÊÊV7FVB¬vóFáV$6ˆÊÊV7FVBí∞¢∆WB7Fñˆ‚“"#∞¢ñbáFˆˆ¬Êfñ∆&ñ∆óGî6ˆFR””“$4ıîƒıEÙUDÙ‘DîÙÂÙDï4$ƒTB"í∞¢7Fñˆ‚“"#∞¢“V«6RñbÜó4vˆˆv∆UFˆˆ¬áFˆˆ¬íbbvˆˆv∆T6ˆÊÊV7FVBbbFˆˆ¬Ê6ˆÊfñwW&VBí∞¢7Fñˆ‚–¢s∆'WGFˆ‚GóS“&'WGFˆ‚"6∆73“'Fˆˆ¬÷6ˆÊÊV7B÷'F‚"FF÷6ˆÊÊV7B◊6W'fñ6S“&vˆˆv∆R#Ì
--≠mÇvˆˆv∆S¬ˆ'WGFˆ„‚s∞¢“V«6RñbÄ¢Fˆˆ¬ÊñB””“&vóFáV"◊w&óFR"b`¢Fˆˆ¬Ê6ˆÊfñwW&VBb`¢vóFáV$6ˆÊÊV7FV@¢í∞¢7Fñˆ‚–¢s∆'WGFˆ‚GóS“&'WGFˆ‚"6∆73“'Fˆˆ¬÷6ˆÊÊV7B÷'F‚"FF÷6ˆÊÊV7B◊6W'fñ6S“&vóFáV"#Ì
--≠mÇvóDáV#¬ˆ'WGFˆ„‚s∞¢“V«6RñbáFˆˆ¬ÊñB””“&vóFáV"◊w&óFR"bbFˆˆ¬Ê6ˆÊfñwW&VBí∞¢7Fñˆ‚–¢s∆'WGFˆ‚GóS“&'WGFˆ‚"6∆73“'Fˆˆ¬÷6ˆÊÊV7B÷'F‚"FF÷vóFáV"◊6WGWÌ	›-ÌívóDáV#¬ˆ'WGFˆ„‚s∞¢–†¢&WGW&‚ ¢∆Fób6∆73“'Fˆˆ¬◊7FGW2÷7FñˆÁ2#‡¢«7‚6∆73“'W&÷ó76ñˆ‚÷&FvRG∑7FGW2Ê6∆74Ê÷W“#‚G∑7FGW2Ê∆&V«”¬˜7„‡¢G∂7FñˆÁ–¢¬ˆFócÊ∞ß–†¶gVÊ7Fñˆ‚W&÷ó76ñˆ‰7Fñˆ‚ÜóFV“¬Fˆˆƒ÷¬vˆˆv∆T6ˆÊÊV7FVB¬vóFáV$6ˆÊÊV7FVBí∞¢6ˆÁ7Bvˆˆv∆UW&÷ó76ñˆÁ2“ÊWr6WBÖ∞¢&6∆VÊF"Á&VB"¿¢&6∆VÊF"Áw&óFR"¿¢&G&ófRÁ&VB"¿¢&÷ñ¬Á&VB"¿¢“ì∞¢ñbÜvˆˆv∆UW&÷ó76ñˆÁ2ÊÜ2ÜóFV“Ê7Fñˆ‚íbbvˆˆv∆T6ˆÊÊV7FVBí∞¢&WGW&‚s∆'WGFˆ‚GóS“&'WGFˆ‚"6∆73“'Fˆˆ¬÷6ˆÊÊV7B÷'F‚"FF÷6ˆÊÊV7B◊6W'fñ6S“&vˆˆv∆R#Ì
--≠mÇvˆˆv∆S¬ˆ'WGFˆ„‚s∞¢–†¢6ˆÁ7BvóFáV%w&óFR“Fˆˆƒ÷ÊvWBÇ&vóFáV"◊w&óFR"ì∞¢ñbÄ¢óFV“Ê7Fñˆ‚””“&vóFáV"Áw&óFR"b`¢vóFáV%w&óFSÚÊfñ∆&ñ∆óGî6ˆFR””“$4ıîƒıEÙUDÙ‘DîÙÂÙDï4$ƒTB ¢í∞¢&WGW&‚"#∞¢–¢ñbÄ¢óFV“Ê7Fñˆ‚””“&vóFáV"Áw&óFR"b`¢vóFáV%w&óFSÚÊ6ˆÊfñwW&VBb`¢vóFáV%w&óFSÚÊWÜV7WF&∆Rb`¢vóFáV$6ˆÊÊV7FV@¢í∞¢&WGW&‚s∆'WGFˆ‚GóS“&'WGFˆ‚"6∆73“'Fˆˆ¬÷6ˆÊÊV7B÷'F‚"FF÷6ˆÊÊV7B◊6W'fñ6S“&vóFáV"#Ì
--≠mÇvóDáV#¬ˆ'WGFˆ„‚s∞¢–¢ñbÄ¢óFV“Ê7Fñˆ‚””“&vóFáV"Áw&óFR"b`¢ÇvóFáV%w&óFSÚÊ6ˆÊfñwW&VB«¬vóFáV%w&óFSÚÊWÜV7WF&∆Rê¢í∞¢&WGW&‚s∆'WGFˆ‚GóS“&'WGFˆ‚"6∆73“'Fˆˆ¬÷6ˆÊÊV7B÷'F‚"FF÷vóFáV"◊6WGWÌ	›-ÌívóDáV#¬ˆ'WGFˆ„‚s∞¢–†¢ñbÜóFV“ÊFV6ó6ñˆ‚””“&6ˆÊfó&“"í∞¢&WGW&‚∆'WGFˆ‚GóS“&'WGFˆ‚"6∆73“'W&÷ó76ñˆ‚÷ñÊfÚ÷'F‚"FF◊W&÷ó76ñˆ‚÷ñÊfÛ“"G∂W66TáF÷¬ÜóFV“Ê7Fñˆ‚ó“#Ì	≠¢Ì-É¬ˆ'WGFˆ„Ê∞¢–¢&WGW&‚"#∞ß–†¶7ñÊ2gVÊ7Fñˆ‚˜VÂFˆˆ«4G&vW"Çí∞¢˜V‰FFG&vW"Ç-	ç›-=Õ]›-Ç"ì∞¢&VÊFW$G&vW$∆ˆFñÊrÇì∞¢G'í∞¢6ˆÁ7B∂ÜV«FÖ&W7ˆÁ6R¬vˆˆv∆U&W7ˆÁ6R¬vóFáV%&W7ˆÁ6U““vóB&ˆ÷ó6RÊ∆¬Ö∞¢fWF6ÇÇ"ˆÜV«FÇˆñÁFVw&FñˆÁ2"¬≤66ÜS¢&ÊÚ◊7F˜&R"“í¿¢fWF6ÇÇ"ˆíˆvˆˆv∆R˜7FGW2"¬≤66ÜS¢&ÊÚ◊7F˜&R"“íÊ6F6ÇÇÇí”‚ÁV∆¬í¿¢fWF6ÇÇ"ˆíˆvóFáV"˜7FGW2"¬≤66ÜS¢&ÊÚ◊7F˜&R"“íÊ6F6ÇÇÇí”‚ÁV∆¬í¿¢“ì∞¢ñbÇÜV«FÖ&W7ˆÁ6RÊˆ≤í∞¢Fá&˜rÊWrW'&˜"Ç-
-≠-Ì˝›ç]-‚›ç›-=Õ]›-ç-R›RRMÌ-≠˝›‚‚"ì∞¢–¢6ˆÁ7BFF“vóBÜV«FÖ&W7ˆÁ6RÊß6ˆ‚Çì∞¢6ˆÁ7Bvˆˆv∆TFF“vˆˆv∆U&W7ˆÁ6SÚÊˆ∞¢ÚvóBvˆˆv∆U&W7ˆÁ6RÊß6ˆ‚ÇíÊ6F6ÇÇÇí”‚á∑“íê¢¢∑”∞¢6ˆÁ7BvóFáV$FF“vóFáV%&W7ˆÁ6SÚÊˆ∞¢ÚvóBvóFáV%&W7ˆÁ6RÊß6ˆ‚ÇíÊ6F6ÇÇÇí”‚á∑“íê¢¢∑”∞¢6ˆÁ7BFˆˆ«2“'&íÊó4'&íÜFFÁFˆˆ«2íÚFFÁFˆˆ«2¢µ”∞¢6ˆÁ7BFW67&óFñˆÁ2“∞¢&vóFáV"◊&VB#¢-	˝Ì-]˝-6ˆ÷÷óB›ÇÇMùΩÌ-R‚
-Õ‚}}]-]›R‚"¿¢&vóFáV"◊w&óFR#†¢$6˜ñ∆˜BÕÌ#¢Ì-M]Ω]“≠ΩÌ“¬6ˆ÷÷óB›ÇÇV∆¬&WVW7BΩ]B-Ì}›‚˝Ì--≠mM]›çR‚	]r--ÌÕ-ç}›‚Ωç-›R‚"¿¢&vˆˆv∆R÷G&ófR◊&VB#¢-
-}]-R}]ç]›ÇMùΩÌ-RÌ"vˆˆv∆RG&ófR‚"¿¢&vˆˆv∆R÷6∆VÊF"◊&VB#¢-	˝Ì≠}-≠ç-çÚÌ"vˆˆv∆R6∆VÊF"‚"¿¢&v÷ñ¬◊&VB#¢-	˝Ì≠}-}]ç]›ÇçÕ]ùΩÇ‚	›Rç}˝ù‚"¿¢&˜VÊí◊vV"◊6V&6Ç#¢-
--≠Ç≠-=Ω›ç›MÌÕmçÚ"ç›-]›]"‚"¿¢&˜VÁ6V&6Ç÷÷V÷˜'í#¢-	˝}ÇΩç}›Ç˝Ì]≠-›˝Õ]"˝ÌB--Ìí≠Ì›-Ì≤‚"¿¢'7ñÊ6á&ˆ‚◊7ó7FV“÷ñÁ7V7F˜"#†¢-	˝Ì-]˝-˝MÌ-‚Ç-ç}≠Ç'VÁFñ÷RÙFñvóFƒˆ6V‚›-Ìù≠Ç]r-]]›ç-R-Ìù›Ì-Ç‚"¿¢”∞¢V∆V÷VÁG2ÊFFG&vW$&ˆGíÊñÊÊW$ÖD‘¬“ ¢∆Fób6∆73“'W&÷ó76ñˆ‚÷FVfV«B#‡¢	˝Ì≠}›‚R]Ω›Ì-‚≠-Ì˝›çR‚(	Ì
-]=ç-çﬁ(	¬›RÌ}›}---ÌÕ-ç}›‚(	ÌÌ-é(	¬‡¢¬ˆFóc‡¢«6V7Fñˆ‚6∆73“&G&vW"◊6V7Fñˆ‚W&÷ó76ñˆ‚÷∆ó7B#‡¢∆'WGFˆ‚GóS“&'WGFˆ‚"6∆73“'W&÷ó76ñˆ‚÷6&BFˆˆ¬◊7FGW2÷6&B7ó7FV“÷6ˆÁG&ˆ¬÷∆ñÊ≤"FF◊7ó7FV“÷6ˆÊfñwW&Fñˆ„‡¢∆Fóc‡¢«7G&ˆÊsÌ
-ç-]Õ]“≠Ì›-Ì≥¬˜7G&ˆÊs‡¢«Ì
-˝M‚¬ç›-=Õ]›-ÇÇ-ç}≠Ç˝ÌÕ]›Ωç-Ç]r˝Ì≠}-›R›-ù›ç-Rç¬-Ìù›Ì-Ç„¬˜‡¢¬ˆFóc‡¢«7‚6∆73“'W&÷ó76ñˆ‚÷&FvR∆∆˜r#Ì	Ì--ÌÉ¬˜7„‡¢¬ˆ'WGFˆ„‡¢∆'Fñ6∆R6∆73“'W&÷ó76ñˆ‚÷6&BFˆˆ¬◊7FGW2÷6&B#‡¢∆Fóc„«7G&ˆÊsÌ
-›çÕ≠É¬˜7G&ˆÊs„«‰•Tr¬‰rÇvV%M‚R‘"„¬˜„¬ˆFóc‡¢«7‚6∆73“'W&÷ó76ñˆ‚÷&FvR∆∆˜r#Ì
-Ì-É¬˜7„‡¢¬ˆ'Fñ6∆S‡¢G∑Fˆˆ«0¢Ê÷ÇáFˆˆ¬í”‚∞¢6ˆÁ7B7FGW2“Fˆˆ≈7FFRÄ¢Fˆˆ¬¿¢&ˆˆ∆V‚Üvˆˆv∆TFFÊ6ˆÊÊV7FVBí¿¢&ˆˆ∆V‚ÜvóFáV$FFÊ6ˆÊÊV7FVBí¿¢ì∞¢6ˆÁ7BFW67&óFñˆ‚–¢Fˆˆ¬ÊñB””“&vóFáV"◊w&óFR"b`¢Fˆˆ¬Êfñ∆&ñ∆óGî6ˆFR””“$4ıîƒıEÙUDÙ‘DîÙÂÙDï4$ƒTB ¢Ú-	≠ÌMÌ-ç˝"ÕÌ"R}˝}]“¬›‚Rç}≠ΩÌ}]“"-]≠=ùçÚ]mç¬]r6˜ñ∆˜B‚ ¢¢FW67&óFñˆÁ5∑Fˆˆ¬ÊñE“«¬-	ç›-=Õ]›"›5î‰4Ö$Ù‚’Ç‚#∞¢&WGW&‚ ¢∆'Fñ6∆R6∆73“'W&÷ó76ñˆ‚÷6&BFˆˆ¬◊7FGW2÷6&B#‡¢∆Fóc‡¢«7G&ˆÊs‚G∂W66TáF÷¬áFˆˆ¬ÊÊ÷Ró”¬˜7G&ˆÊs‡¢«‚G∂W66TáF÷¬ÜFW67&óFñˆ‚ó”¬˜‡¢¬ˆFóc‡¢G∑Fˆˆ≈7FGW47FñˆÁ2Ä¢Fˆˆ¬¿¢7FGW2¿¢&ˆˆ∆V‚Üvˆˆv∆TFFÊ6ˆÊÊV7FVBí¿¢&ˆˆ∆V‚ÜvóFáV$FFÊ6ˆÊÊV7FVBí¿¢ó–¢¬ˆ'Fñ6∆SÊ∞¢“ê¢Ê¶ˆñ‚Ç""ó–¢¬˜6V7Fñˆ„Ê∞¢“6F6ÇÜW'&˜"í∞¢&VÊFW$G&vW$W'&˜"ÜW'&˜"Ê÷W76vRì∞¢–ß–†¶gVÊ7Fñˆ‚6ˆÊfñwW&FñˆÂ7FGW2ÜóFV“í∞¢6ˆÁ7B∆&V«2“∞¢6ˆÊfñwW&VC¢≤-	›-Ì]›"¬&∆∆˜r%“¿¢FVfV«FVC¢≤-	˝‚˝ÌM}ç›R"¬&∆∆˜r%“¿¢&÷ó76ñÊr◊&WVó&VB#¢≤-	Ωç˝-"¬&FVÁí%“¿¢&˜FñˆÊ¬÷÷ó76ñÊr#¢≤-	›]}M≠Ωmç-]Ω›"¬&6ˆÊfó&“%“¿¢6ˆ◊Fñ&ñ∆óGì¢≤-
--]}]-]“˝≠""¬&6ˆÊfó&“%“¿¢&Ê˜B÷ÊVVFVB#¢≤-	›RR›=m›"¬&∆∆˜r%“¿¢VÁW6VC¢≤-	›RRç}˝ÌΩ}-"¬&FVÁí%“¿¢”∞¢6ˆÁ7B∂∆&V¬¬6∆74Ê÷U““∆&V«5∂óFV“Á7FGW5“«¬∂óFV“Á7FGW2¬&6ˆÊfó&“%”∞¢&WGW&‚≤∆&V¬¬6∆74Ê÷R”∞ß–†¶gVÊ7Fñˆ‚&VÊFW$VÁfó&ˆÊ÷VÁDw&˜WÜ&V¬óFV◊2í∞¢&WGW&‚ ¢∆FWFñ«26∆73“&6ˆÊfñwW&Fñˆ‚÷w&˜W"G∂óFV◊2Á6ˆ÷RÇÜóFV“í”‚óFV“Á7FGW2””“&÷ó76ñÊr◊&WVó&VB"íÚ&˜V‚"¢"'”‡¢«7V÷÷'ì‚G∂W66TáF÷¬Ü&Vó“«7„‚G∂óFV◊2Ê∆VÊwFá”¬˜7„„¬˜7V÷÷'ì‡¢∆Fób6∆73“&6ˆÊfñwW&Fñˆ‚÷∆ó7B#‡¢G∂óFV◊0¢Ê÷ÇÜóFV“í”‚∞¢6ˆÁ7B7FGW2“6ˆÊfñwW&FñˆÂ7FGW2ÜóFV“ì∞¢&WGW&‚ ¢∆'Fñ6∆R6∆73“&6ˆÊfñwW&Fñˆ‚÷óFV“#‡¢∆Fóc‡¢∆6ˆFS‚G∂W66TáF÷¬ÜóFV“Ê∂Wíó”¬ˆ6ˆFS‡¢«‚G∂W66TáF÷¬ÜóFV“ÁW'˜6Ró”¬˜‡¢«6÷∆√‡¢G∂óFV“Á6VÁ6óFófóGí””“'6V7&WB"Ú-
--ù›-Ìù›Ì"+r›ç≠Ì=›RR˝Ì≠}-"¢-	Ìù›-Ìù≠'–¢+rFñvóFƒˆ6V„¢G∂óFV“ÊFñvóFƒˆ6V‰FV6∆&VBÚ-M]≠Ωç›"¢-›RRM]≠Ωç›'–¢¬˜6÷∆√‡¢¬ˆFóc‡¢«7‚6∆73“'W&÷ó76ñˆ‚÷&FvRG∑7FGW2Ê6∆74Ê÷W“#‚G∑7FGW2Ê∆&V«”¬˜7„‡¢¬ˆ'Fñ6∆SÊ∞¢“ê¢Ê¶ˆñ‚Ç""ó–¢¬ˆFóc‡¢¬ˆFWFñ«3Ê∞ß–†¶7ñÊ2gVÊ7Fñˆ‚˜VÂ7ó7FV‘6ˆÊfñwW&Fñˆ‰G&vW"Çí∞¢˜V‰FFG&vW"Ç-
-ç-]Õ]“≠Ì›-Ì≤"ì∞¢&VÊFW$G&vW$∆ˆFñÊrÇì∞¢G'í∞¢6ˆÁ7B∂6ˆÊfñwW&FñˆÂ&W7ˆÁ6R¬ñÁFVw&FñˆÁ5&W7ˆÁ6R¬&VFñÊW75&W7ˆÁ6U“–¢vóB&ˆ÷ó6RÊ∆¬Ö∞¢fWF6ÇÇ"ˆí˜7ó7FV“ˆ6ˆÊfñwW&Fñˆ‚"¬≤66ÜS≠w“⁄$z{-ÆÈ‹j◊ùst integrations = await integrationsResponse.json();
+const state = {
+  sessionId: getOrCreateSessionId(),
+  serverOnline: false,
+  opensearchStatus: "unknown",
+  opensearchFailures: 0,
+  lastMemorySuccessAt: 0,
+  lastActions: [],
+  chatBusy: false,
+  speakingButton: null,
+  pendingImage: null,
+  conversations: [],
+  conversationLoadError: "",
+  memoryItems: [],
+  recognition: null,
+  listening: false,
+  authenticatedUser: null,
+  registrationEnabled: false,
+  applicationStarted: false,
+};
+
+const elements = {
+  authGate: document.getElementById("authGate"),
+  appShell: document.getElementById("appShell"),
+  loginForm: document.getElementById("loginForm"),
+  loginEmail: document.getElementById("loginEmail"),
+  loginPassword: document.getElementById("loginPassword"),
+  loginBtn: document.getElementById("loginBtn"),
+  showRegisterBtn: document.getElementById("showRegisterBtn"),
+  registerForm: document.getElementById("registerForm"),
+  registerName: document.getElementById("registerName"),
+  registerEmail: document.getElementById("registerEmail"),
+  registerPassword: document.getElementById("registerPassword"),
+  registerInviteCode: document.getElementById("registerInviteCode"),
+  registerBtn: document.getElementById("registerBtn"),
+  backToLoginBtn: document.getElementById("backToLoginBtn"),
+  authMessage: document.getElementById("authMessage"),
+  chatMessages: document.getElementById("chatMessages"),
+  chatInput: document.getElementById("chatInput"),
+  sendBtn: document.getElementById("sendBtn"),
+  attachBtn: document.getElementById("attachBtn"),
+  imageInput: document.getElementById("imageInput"),
+  attachmentPreview: document.getElementById("attachmentPreview"),
+  attachmentImage: document.getElementById("attachmentImage"),
+  attachmentName: document.getElementById("attachmentName"),
+  removeAttachmentBtn: document.getElementById("removeAttachmentBtn"),
+  newChatBtn: document.getElementById("newChatBtn"),
+  toggleStatusBtn: document.getElementById("toggleStatusBtn"),
+  closeContextBtn: document.getElementById("closeContextBtn"),
+  statusPanel: document.getElementById("statusPanel"),
+  agentStatusDot: document.getElementById("agentStatusDot"),
+  agentStatusText: document.getElementById("agentStatusText"),
+  sessionIdDisplay: document.getElementById("sessionIdDisplay"),
+  serverStatusDisplay: document.getElementById("serverStatusDisplay"),
+  opensearchStatusDisplay: document.getElementById("opensearchStatusDisplay"),
+  actionsLog: document.getElementById("actionsLog"),
+  conversationList: document.getElementById("conversationList"),
+  conversationSearch: document.getElementById("conversationSearch"),
+  searchChatsBtn: document.getElementById("searchChatsBtn"),
+  mobileMenuBtn: document.getElementById("mobileMenuBtn"),
+  sidebar: document.getElementById("sidebar"),
+  sidebarBackdrop: document.getElementById("sidebarBackdrop"),
+  imagesBtn: document.getElementById("imagesBtn"),
+  modulesBtn: document.getElementById("modulesBtn"),
+  systemConfigurationBtn: document.getElementById("systemConfigurationBtn"),
+  focusBtn: document.getElementById("focusBtn"),
+  toolsBtn: document.getElementById("toolsBtn"),
+  memoryBtn: document.getElementById("memoryBtn"),
+  permissionsBtn: document.getElementById("permissionsBtn"),
+  dataDrawer: document.getElementById("dataDrawer"),
+  dataDrawerTitle: document.getElementById("dataDrawerTitle"),
+  dataDrawerBody: document.getElementById("dataDrawerBody"),
+  drawerBackdrop: document.getElementById("drawerBackdrop"),
+  closeDataDrawerBtn: document.getElementById("closeDataDrawerBtn"),
+  voiceBtn: document.getElementById("voiceBtn"),
+  profileAvatar: document.getElementById("profileAvatar"),
+  profileName: document.getElementById("profileName"),
+  profileRole: document.getElementById("profileRole"),
+  logoutBtn: document.getElementById("logoutBtn"),
+};
+
+function createSessionId() {
+  if (globalThis.crypto?.randomUUID) {
+    return "sess-" + globalThis.crypto.randomUUID();
+  }
+  return (
+    "sess-" + Math.random().toString(36).slice(2) + Date.now().toString(36)
+  );
+}
+
+function getOrCreateSessionId() {
+  const stored = localStorage.getItem("synchronSessionId");
+  if (stored?.startsWith("sess-")) return stored;
+  const sessionId = createSessionId();
+  localStorage.setItem("synchronSessionId", sessionId);
+  return sessionId;
+}
+
+function setAuthMessage(message = "", success = false) {
+  elements.authMessage.textContent = message;
+  elements.authMessage.classList.toggle("success", success);
+}
+
+function setAuthBusy(isBusy) {
+  elements.loginBtn.disabled = isBusy;
+  elements.registerBtn.disabled = isBusy;
+}
+
+function showLoginForm() {
+  elements.loginForm.hidden = false;
+  elements.registerForm.hidden = true;
+  elements.showRegisterBtn.hidden = !state.registrationEnabled;
+  setAuthMessage();
+  elements.loginEmail.focus();
+}
+
+function showRegisterForm() {
+  elements.loginForm.hidden = true;
+  elements.registerForm.hidden = false;
+  elements.showRegisterBtn.hidden = true;
+  setAuthMessage();
+  elements.registerName.focus();
+}
+
+async function readAuthSession() {
+  const response = await fetch("/api/auth/session", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("–í—Ö–æ–¥—ä—Ç –≤—Ä–µ–º–µ–Ω–Ω–æ –Ω–µ –µ –¥–æ—Å—Ç—ä–ø–µ–Ω.");
+  }
+  return response.json();
+}
+
+async function submitAuth(path, body) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(data?.error || "–í—Ö–æ–¥—ä—Ç –Ω–µ –±–µ—à–µ —É—Å–ø–µ—à–µ–Ω.");
+  }
+  return data;
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  setAuthBusy(true);
+  setAuthMessage();
+  try {
+    await submitAuth("/api/auth/login", {
+      email: elements.loginEmail.value,
+      password: elements.loginPassword.value,
+    });
+    elements.loginPassword.value = "";
+    const session = await readAuthSession();
+    if (!session.authenticated) throw new Error("–°–µ—Å–∏—è—Ç–∞ –Ω–µ –±–µ—à–µ —Å—ä–∑–¥–∞–¥–µ–Ω–∞.");
+    await startApplication(session.user);
+  } catch (error) {
+    setAuthMessage(error.message);
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
+async function handleRegistration(event) {
+  event.preventDefault();
+  setAuthBusy(true);
+  setAuthMessage();
+  try {
+    const result = await submitAuth("/api/auth/register", {
+      displayName: elements.registerName.value,
+      email: elements.registerEmail.value,
+      password: elements.registerPassword.value,
+      inviteCode: elements.registerInviteCode.value,
+    });
+    elements.registerPassword.value = "";
+    elements.registerInviteCode.value = "";
+    if (result.confirmationRequired) {
+      showLoginForm();
+      elements.loginEmail.value = result.user?.email || "";
+      setAuthMessage(
+        "–ü—Ä–æ—Ñ–∏–ª—ä—Ç –µ —Å—ä–∑–¥–∞–¥–µ–Ω. –ü–æ—Ç–≤—ä—Ä–¥–∏ –∏–º–µ–π–ª–∞ —Å–∏ –∏ –ø–æ—Å–ª–µ –≤–ª–µ–∑.",
+        true,
+      );
+      return;
+    }
+    const session = await readAuthSession();
+    if (!session.authenticated) throw new Error("–°–µ—Å–∏—è—Ç–∞ –Ω–µ –±–µ—à–µ —Å—ä–∑–¥–∞–¥–µ–Ω–∞.");
+    await startApplication(session.user);
+  } catch (error) {
+    setAuthMessage(error.message);
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
+async function handleLogout() {
+  elements.logoutBtn.disabled = true;
+  try {
+    await fetch("/api/auth/logout", { method: "POST" });
+  } finally {
+    globalThis.location.href = "/";
+  }
+}
+
+function applyAuthenticatedUser(user) {
+  state.authenticatedUser = user;
+  const displayName = user?.displayName || "–ü–æ—Ç—Ä–µ–±–∏—Ç–µ–ª";
+  const isOwner = user?.role === "owner";
+  elements.profileName.textContent = displayName;
+  elements.profileAvatar.textContent =
+    displayName.trim().charAt(0).toLocaleUpperCase("bg-BG") || "–ü";
+  elements.profileRole.textContent = isOwner
+    ? "–°–æ–±—Å—Ç–≤–µ–Ω–∏–∫ ¬∑ –Ω–∞—Å—Ç—Ä–æ–π–∫–∏"
+    : "–¢–µ—Å—Ç–æ–≤ –ø—Ä–æ—Ñ–∏–ª";
+  document.body.dataset.userRole = isOwner ? "owner" : "tester";
+  for (const item of document.querySelectorAll("[data-owner-only]")) {
+    item.hidden = !isOwner;
+  }
+}
+
+async function init() {
+  elements.loginForm.addEventListener("submit", handleLogin);
+  elements.registerForm.addEventListener("submit", handleRegistration);
+  elements.showRegisterBtn.addEventListener("click", showRegisterForm);
+  elements.backToLoginBtn.addEventListener("click", showLoginForm);
+
+  try {
+    const session = await readAuthSession();
+    state.registrationEnabled = Boolean(session.registrationEnabled);
+    elements.showRegisterBtn.hidden = !state.registrationEnabled;
+    if (session.authenticated) {
+      await startApplication(session.user);
+      return;
+    }
+    elements.authGate.hidden = false;
+    elements.appShell.hidden = true;
+    if (!session.configured) {
+      setAuthMessage(
+        "–í—Ö–æ–¥—ä—Ç –∑–∞ —Ç–µ—Å—Ç–æ–≤–∏ –ø—Ä–æ—Ñ–∏–ª–∏ –æ—â–µ –Ω–µ –µ –∞–∫—Ç–∏–≤–∏—Ä–∞–Ω. –°–æ–±—Å—Ç–≤–µ–Ω–∏–∫—ä—Ç –º–æ–∂–µ –¥–∞ –≤–ª–µ–∑–µ —Å GitHub.",
+      );
+    }
+  } catch (error) {
+    setAuthMessage(error.message);
+  }
+}
+
+async function startApplication(user) {
+  if (state.applicationStarted) return;
+  state.applicationStarted = true;
+  applyAuthenticatedUser(user);
+  elements.authGate.hidden = true;
+  elements.appShell.hidden = false;
+  updateSessionDisplay();
+
+  elements.sendBtn.addEventListener("click", sendMessage);
+  elements.attachBtn.addEventListener("click", () =>
+    elements.imageInput.click(),
+  );
+  elements.imageInput.addEventListener("change", handleImageSelection);
+  elements.removeAttachmentBtn.addEventListener("click", clearPendingImage);
+  elements.chatInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  });
+  elements.newChatBtn.addEventListener("click", startNewChat);
+  elements.toggleStatusBtn.addEventListener("click", openStatus);
+  elements.closeContextBtn.addEventListener("click", closeStatus);
+  elements.chatMessages.addEventListener("click", handleMessageAction);
+  elements.conversationList.addEventListener("click", handleConversationClick);
+  elements.conversationSearch.addEventListener("input", renderConversationList);
+  elements.searchChatsBtn.addEventListener("click", toggleConversationSearch);
+  elements.mobileMenuBtn.addEventListener("click", toggleSidebar);
+  elements.sidebarBackdrop.addEventListener("click", closeSidebar);
+  elements.imagesBtn.addEventListener("click", openImagePicker);
+  elements.modulesBtn.addEventListener("click", openModulesDrawer);
+  elements.toolsBtn.addEventListener("click", openToolsDrawer);
+  elements.systemConfigurationBtn.addEventListener(
+    "click",
+    openSystemConfigurationDrawer,
+  );
+  elements.memoryBtn.addEventListener("click", openMemoryDrawer);
+  elements.permissionsBtn.addEventListener("click", openPermissionsDrawer);
+  elements.closeDataDrawerBtn.addEventListener("click", closeDataDrawer);
+  elements.drawerBackdrop.addEventListener("click", closeDataDrawer);
+  elements.dataDrawerBody.addEventListener("click", handleDataDrawerAction);
+  elements.voiceBtn.addEventListener("click", toggleVoiceInput);
+  elements.logoutBtn.addEventListener("click", handleLogout);
+  document.addEventListener("keydown", handleGlobalKeydown);
+  prepareVoiceInput();
+
+  checkHealth();
+  checkOpenSearch();
+  setInterval(checkHealth, 10000);
+  setInterval(checkOpenSearch, 20000);
+
+  await restoreConversation();
+  await loadConversations();
+}
+
+function updateSessionDisplay() {
+  elements.sessionIdDisplay.textContent = state.sessionId;
+}
+
+async function showWelcomeMessage() {
+  appendMessage(
+    "agent",
+    [
+      "## SYNCHRON-X",
+      "**–¢–≤–æ—è—Ç–∞ –ª–∏—á–Ω–∞ AI –æ–ø–µ—Ä–∞—Ü–∏–æ–Ω–Ω–∞ —Å–∏—Å—Ç–µ–º–∞.**",
+      "",
+      "–ï–¥–Ω–æ AI —è–¥—Ä–æ, –ø–æ—Å—Ç–æ—è–Ω–Ω–∞ –∫–æ–Ω—Ç—Ä–æ–ª–∏—Ä–∞–Ω–∞ –ø–∞–º–µ—Ç –∏ —Ä–∞–∑—Ä–µ—à–µ–Ω–∏ –∏–Ω—Å—Ç—Ä—É–º–µ–Ω—Ç–∏ –∑–∞ —Ä–µ–∞–ª–Ω–∏ –∑–∞–¥–∞—á–∏.",
+      "",
+      "AI –∞–≤–∞—Ç–∞—Ä—ä—Ç –µ –º–æ—è—Ç –Ω–∞—á–∏–Ω –Ω–∞ –æ–±—â—É–≤–∞–Ω–µ. –¢–∏ –∫–æ–Ω—Ç—Ä–æ–ª–∏—Ä–∞—à –¥–∞–Ω–Ω–∏—Ç–µ, –ø–∞–º–µ—Ç—Ç–∞ –∏ —Ä–∏—Å–∫–æ–≤–∏—Ç–µ –¥–µ–π—Å—Ç–≤–∏—è.",
+    ].join("\n"),
+  );
+}
+
+async function restoreConversation() {
+  try {
+    const response = await fetch(
+      "/memory/conversation/" + encodeURIComponent(state.sessionId),
+      { cache: "no-store" },
+    );
+    if (!response.ok) throw new Error("–ò—Å—Ç–æ—Ä–∏—è—Ç–∞ –Ω–µ –µ –¥–æ—Å—Ç—ä–ø–Ω–∞.");
+    const data = await response.json();
+    markMemoryOperational();
+    const items = Array.isArray(data.items) ? data.items : [];
+    if (items.length === 0) {
+      await showWelcomeMessage();
+      return;
+    }
+    for (const item of items) {
+      if (
+        (item.role === "user" || item.role === "assistant") &&
+        typeof item.content === "string"
+      ) {
+        appendMessage(
+          item.role === "assistant" ? "agent" : "user",
+          item.content,
+        );
+      }
+    }
+    logAction("–í—ä–∑—Å—Ç–∞–Ω–æ–≤–µ–Ω–∞ –µ –∏—Å—Ç–æ—Ä–∏—è—Ç–∞ –Ω–∞ —Ä–∞–∑–≥–æ–≤–æ—Ä–∞");
+  } catch (error) {
+    console.error(error);
+    await showWelcomeMessage();
+    logAction("–ò—Å—Ç–æ—Ä–∏—è—Ç–∞ –Ω–µ –º–æ–∂–∞ –¥–∞ –±—ä–¥–µ –≤—ä–∑—Å—Ç–∞–Ω–æ–≤–µ–Ω–∞");
+  }
+}
+
+async function startNewChat() {
+  if (state.chatBusy) return;
+  closeSidebar();
+  clearPendingImage();
+  state.sessionId = createSessionId();
+  localStorage.setItem("synchronSessionId", state.sessionId);
+  state.lastActions = [];
+  elements.chatMessages.replaceChildren();
+  updateSessionDisplay();
+  renderActionsLog();
+  await showWelcomeMessage();
+  logAction("–ó–∞–ø–æ—á–Ω–∞—Ç –µ –Ω–æ–≤ —Ä–∞–∑–≥–æ–≤–æ—Ä");
+  renderConversationList();
+  elements.chatInput.focus();
+}
+
+async function loadConversations() {
+  try {
+    const response = await fetch("/memory/conversations", {
+      cache: "no-store",
+    });
+    if (!response.ok) throw new Error("–°–ø–∏—Å—ä–∫—ä—Ç –Ω–µ –µ –¥–æ—Å—Ç—ä–ø–µ–Ω.");
+    const data = await response.json();
+    state.conversations = Array.isArray(data.items) ? data.items : [];
+    state.conversationLoadError = "";
+    renderConversationList();
+  } catch (error) {
+    console.error(error);
+    state.conversations = [];
+    state.conversationLoadError =
+      "–ò—Å—Ç–æ—Ä–∏—è—Ç–∞ –≤—Ä–µ–º–µ–Ω–Ω–æ –Ω–µ –µ –¥–æ—Å—Ç—ä–ø–Ω–∞. –û–ø–∏—Ç–∞–π –æ—Ç–Ω–æ–≤–æ.";
+    renderConversationList();
+  }
+}
+
+function renderConversationList() {
+  const query = elements.conversationSearch.value
+    .trim()
+    .toLocaleLowerCase("bg-BG");
+  const conversations = state.conversations.filter(
+    (item) => !query || item.title.toLocaleLowerCase("bg-BG").includes(query),
+  );
+  elements.conversationList.replaceChildren();
+
+  if (state.conversationLoadError) {
+    const error = document.createElement("p");
+    error.className = "conversation-state conversation-state-error";
+    error.textContent = state.conversationLoadError;
+    elements.conversationList.appendChild(error);
+    return;
+  }
+
+  if (conversations.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "conversation-state";
+    empty.textContent = query
+      ? "–ù—è–º–∞ –Ω–∞–º–µ—Ä–µ–Ω–∏ —Ä–∞–∑–≥–æ–≤–æ—Ä–∏."
+      : "–í—Å–µ –æ—â–µ –Ω—è–º–∞ –∑–∞–ø–∞–∑–µ–Ω–∏ —Ä–∞–∑–≥–æ–≤–æ—Ä–∏.";
+    elements.conversationList.appendChild(empty);
+    return;
+  }
+
+  for (const item of conversations) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "conversation";
+    if (item.sessionId === state.sessionId) button.classList.add("active");
+    button.dataset.sessionId = item.sessionId;
+    button.textContent = item.title;
+    elements.conversationList.appendChild(button);
+  }
+}
+
+async function handleConversationClick(event) {
+  const button = event.target.closest("button[data-session-id]");
+  if (!button || state.chatBusy || button.dataset.sessionId === state.sessionId)
+    return;
+  state.sessionId = button.dataset.sessionId;
+  localStorage.setItem("synchronSessionId", state.sessionId);
+  elements.chatMessages.replaceChildren();
+  updateSessionDisplay();
+  renderConversationList();
+  await restoreConversation();
+  closeSidebar();
+}
+
+function toggleSidebar() {
+  const isOpen = elements.sidebar.classList.toggle("mobile-visible");
+  elements.sidebarBackdrop.hidden = !isOpen;
+  elements.mobileMenuBtn.setAttribute("aria-expanded", String(isOpen));
+}
+
+function closeSidebar() {
+  elements.sidebar.classList.remove("mobile-visible");
+  elements.sidebarBackdrop.hidden = true;
+  elements.mobileMenuBtn.setAttribute("aria-expanded", "false");
+}
+
+function openImagePicker() {
+  closeSidebar();
+  elements.imageInput.click();
+}
+
+function handleGlobalKeydown(event) {
+  if (event.key !== "Escape") return;
+  closeSidebar();
+  closeStatus();
+  closeDataDrawer();
+}
+
+function toggleConversationSearch() {
+  elements.conversationSearch.hidden = false;
+  elements.conversationList
+    .closest(".sidebar-section")
+    ?.scrollIntoView({ block: "start", behavior: "smooth" });
+  elements.conversationSearch.focus({ preventScroll: true });
+}
+
+function handleImageSelection(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+  if (!allowedTypes.includes(file.type)) {
+    appendMessage("agent", "‚ùå –ü–æ–¥–¥—ä—Ä–∂–∞—Ç —Å–µ —Å–∞–º–æ JPEG, PNG –∏ WebP —Å–Ω–∏–º–∫–∏.");
+    clearPendingImage();
+    return;
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    appendMessage("agent", "‚ùå –°–Ω–∏–º–∫–∞—Ç–∞ —Ç—Ä—è–±–≤–∞ –¥–∞ –±—ä–¥–µ –¥–æ 5 MB.");
+    clearPendingImage();
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    state.pendingImage = {
+      dataUrl: reader.result,
+      mimeType: file.type,
+      name: file.name,
+    };
+    elements.attachmentImage.src = reader.result;
+    elements.attachmentName.textContent = file.name;
+    elements.attachmentPreview.hidden = false;
+    elements.chatInput.focus();
+  };
+  reader.onerror = () => {
+    appendMessage("agent", "‚ùå –°–Ω–∏–º–∫–∞—Ç–∞ –Ω–µ –º–æ–∂–∞ –¥–∞ –±—ä–¥–µ –ø—Ä–æ—á–µ—Ç–µ–Ω–∞.");
+    clearPendingImage();
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearPendingImage() {
+  state.pendingImage = null;
+  elements.imageInput.value = "";
+  elements.attachmentImage.removeAttribute("src");
+  elements.attachmentName.textContent = "";
+  elements.attachmentPreview.hidden = true;
+}
+
+function openStatus() {
+  closeSidebar();
+  elements.statusPanel.classList.add("mobile-visible");
+}
+
+function closeStatus() {
+  elements.statusPanel.classList.remove("mobile-visible");
+}
+
+function prepareVoiceInput() {
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    elements.voiceBtn.hidden = true;
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = "bg-BG";
+  recognition.continuous = false;
+  recognition.interimResults = true;
+
+  recognition.onstart = () => setListening(true);
+  recognition.onend = () => setListening(false);
+  recognition.onerror = (event) => {
+    setListening(false);
+    if (event.error !== "aborted" && event.error !== "no-speech") {
+      appendMessage(
+        "agent",
+        "–ì–ª–∞—Å–æ–≤–æ—Ç–æ –≤—ä–≤–µ–∂–¥–∞–Ω–µ –Ω–µ –º–æ–∂–∞ –¥–∞ —Å—Ç–∞—Ä—Ç–∏—Ä–∞. –ü—Ä–æ–≤–µ—Ä–∏ –¥–æ—Å—Ç—ä–ø–∞ –¥–æ –º–∏–∫—Ä–æ—Ñ–æ–Ω–∞.",
+      );
+    }
+  };
+  recognition.onresult = (event) => {
+    let transcript = "";
+    for (
+      let index = event.resultIndex;
+      index < event.results.length;
+      index += 1
+    ) {
+      transcript += event.results[index][0].transcript;
+    }
+    elements.chatInput.value = transcript.trim();
+    const lastResult = event.results[event.results.length - 1];
+    if (lastResult?.isFinal) elements.chatInput.focus();
+  };
+  state.recognition = recognition;
+}
+
+function setListening(isListening) {
+  state.listening = isListening;
+  elements.voiceBtn.classList.toggle("listening", isListening);
+  elements.voiceBtn.setAttribute("aria-pressed", String(isListening));
+  elements.voiceBtn.title = isListening
+    ? "–°–ø—Ä–∏ —Å–ª—É—à–∞–Ω–µ—Ç–æ"
+    : "–ì–ª–∞—Å–æ–≤–æ –≤—ä–≤–µ–∂–¥–∞–Ω–µ";
+}
+
+function toggleVoiceInput() {
+  if (!state.recognition || state.chatBusy) return;
+  if (state.listening) {
+    state.recognition.stop();
+  } else {
+    state.recognition.start();
+  }
+}
+
+function openModulesDrawer() {
+  openDataDrawer("–†–∞–±–æ—Ç–Ω–∏ –æ–±–ª–∞—Å—Ç–∏");
+  elements.dataDrawerBody.innerHTML = `
+        <div class="module-summary">
+            –¢–æ–≤–∞ —Å–∞ –æ–±–ª–∞—Å—Ç–∏, –≤ –∫–æ–∏—Ç–æ –ª–∏—á–Ω–∞—Ç–∞ AI –æ–ø–µ—Ä–∞—Ü–∏–æ–Ω–Ω–∞ —Å–∏—Å—Ç–µ–º–∞ –∏–∑–ø–æ–ª–∑–≤–∞ —Ä–∞–∑–≥–æ–≤–æ—Ä–∞,
+            –ø–∞–º–µ—Ç—Ç–∞ –∏ —Ä–∞–∑—Ä–µ—à–µ–Ω–∏—Ç–µ –∏–Ω—Å—Ç—Ä—É–º–µ–Ω—Ç–∏. –û–±–ª–∞—Å—Ç—Ç–∞ —Å–∞–º–∞ –ø–æ —Å–µ–±–µ —Å–∏ –Ω–µ
+            –æ–∑–Ω–∞—á–∞–≤–∞, —á–µ –≤—ä–Ω—à–Ω–∞ —É—Å–ª—É–≥–∞ –µ —Å–≤—ä—Ä–∑–∞–Ω–∞.
+        </div>
+        <section class="drawer-section permission-list module-list" data-module-list></section>`;
+  document.dispatchEvent(new CustomEvent("synchron:modules-opened"));
+}
+
+function isGoogleTool(tool) {
+  return (
+    tool?.provider === "google" ||
+    tool?.id?.startsWith("google-") ||
+    tool?.id === "gmail-read"
+  );
+}
+
+function toolState(tool, googleConnected, githubConnected) {
+  if (tool.availabilityCode === "COPILOT_AUTOMATION_DISABLED") {
+    return { label: "–ò–∑–∫–ª—é—á–µ–Ω–æ ¬∑ —Ä–µ–∂–∏–º –±–µ–∑ Copilot", className: "confirm" };
+  }
+  if (!tool.enabled || !tool.executable) {
+    return { label: "–ù–µ –µ —Å–≤—ä—Ä–∑–∞–Ω", className: "deny" };
+  }
+  if (!tool.configured) {
+    return { label: "–ù–µ –µ –∫–æ–Ω—Ñ–∏–≥—É—Ä–∏—Ä–∞–Ω", className: "deny" };
+  }
+  if (isGoogleTool(tool) && !googleConnected) {
+    return { label: "–ò—Å–∫–∞ —Å–≤—ä—Ä–∑–≤–∞–Ω–µ", className: "confirm" };
+  }
+  if (tool.id === "github-write" && !githubConnected) {
+    return { label: "–ò—Å–∫–∞ —Å–≤—ä—Ä–∑–≤–∞–Ω–µ", className: "confirm" };
+  }
+  return { label: "–†–∞–±–æ—Ç–∏", className: "allow" };
+}
+
+function toolStatusActions(tool, status, googleConnected, githubConnected) {
+  let action = "";
+  if (tool.availabilityCode === "COPILOT_AUTOMATION_DISABLED") {
+    action = "";
+  } else if (isGoogleTool(tool) && !googleConnected && tool.configured) {
+    action =
+      '<button type="button" class="tool-connect-btn" data-connect-service="google">–°–≤—ä—Ä–∂–∏ Google</button>';
+  } else if (
+    tool.id === "github-write" &&
+    tool.configured &&
+    !githubConnected
+  ) {
+    action =
+      '<button type="button" class="tool-connect-btn" data-connect-service="github">–°–≤—ä—Ä–∂–∏ GitHub</button>';
+  } else if (tool.id === "github-write" && !tool.configured) {
+    action =
+      '<button type="button" class="tool-connect-btn" data-github-setup>–ù–∞—Å—Ç—Ä–æ–π GitHub</button>';
+  }
+
+  return `
+    <div class="tool-status-actions">
+      <span class="permission-badge ${status.className}">${status.label}</span>
+      ${action}
+    </div>`;
+}
+
+function permissionAction(item, toolMap, googleConnected, githubConnected) {
+  const googlePermissions = new Set([
+    "calendar.read",
+    "calendar.write",
+    "drive.read",
+    "mail.read",
+  ]);
+  if (googlePermissions.has(item.action) && !googleConnected) {
+    return '<button type="button" class="tool-connect-btn" data-connect-service="google">–°–≤—ä—Ä–∂–∏ Google</button>';
+  }
+
+  const githubWrite = toolMap.get("github-write");
+  if (
+    item.action === "github.write" &&
+    githubWrite?.availabilityCode === "COPILOT_AUTOMATION_DISABLED"
+  ) {
+    return "";
+  }
+  if (
+    item.action === "github.write" &&
+    githubWrite?.configured &&
+    githubWrite?.executable &&
+    !githubConnected
+  ) {
+    return '<button type="button" class="tool-connect-btn" data-connect-service="github">–°–≤—ä—Ä–∂–∏ GitHub</button>';
+  }
+  if (
+    item.action === "github.write" &&
+    (!githubWrite?.configured || !githubWrite?.executable)
+  ) {
+    return '<button type="button" class="tool-connect-btn" data-github-setup>–ù–∞—Å—Ç—Ä–æ–π GitHub</button>';
+  }
+
+  if (item.decision === "confirm") {
+    return `<button type="button" class="permission-info-btn" data-permission-info="${escapeHtml(item.action)}">–ö–∞–∫ —Ä–∞–±–æ—Ç–∏</button>`;
+  }
+  return "";
+}
+
+async function openToolsDrawer() {
+  openDataDrawer("–ò–Ω—Å—Ç—Ä—É–º–µ–Ω—Ç–∏");
+  renderDrawerLoading();
+  try {
+    const [healthResponse, googleResponse, githubResponse] = await Promise.all([
+      fetch("/health/integrations", { cache: "no-store" }),
+      fetch("/api/google/status", { cache: "no-store" }).catch(() => null),
+      fetch("/api/github/status", { cache: "no-store" }).catch(() => null),
+    ]);
+    if (!healthResponse.ok) {
+      throw new Error("–°—ä—Å—Ç–æ—è–Ω–∏–µ—Ç–æ –Ω–∞ –∏–Ω—Å—Ç—Ä—É–º–µ–Ω—Ç–∏—Ç–µ –Ω–µ –µ –¥–æ—Å—Ç—ä–ø–Ω–æ.");
+    }
+    const data = await healthResponse.json();
+    const googleData = googleResponse?.ok
+      ? await googleResponse.json().catch(() => ({}))
+      : {};
+    const githubData = githubResponse?.ok
+      ? await githubResponse.json().catch(() => ({}))
+      : {};
+    const tools = Array.isArray(data.tools) ? data.tools : [];
+    const descriptions = {
+      "github-read": "–ü—Ä–æ–≤–µ—Ä—è–≤–∞ commit-–∏ –∏ —Ñ–∞–π–ª–æ–≤–µ. –°–∞–º–æ –∑–∞ —á–µ—Ç–µ–Ω–µ.",
+      "github-write":
+        "Copilot –º–æ—Å—Ç: –æ—Ç–¥–µ–ª–µ–Ω –∫–ª–æ–Ω, commit-–∏ –∏ Pull Request —Å–ª–µ–¥ —Ç–æ—á–Ω–æ –ø–æ—Ç–≤—ä—Ä–∂–¥–µ–Ω–∏–µ. –ë–µ–∑ –∞–≤—Ç–æ–º–∞—Ç–∏—á–Ω–æ —Å–ª–∏–≤–∞–Ω–µ.",
+      "google-drive-read": "–ß–µ—Ç–µ —Ä–∞–∑—Ä–µ—à–µ–Ω–∏ —Ñ–∞–π–ª–æ–≤–µ –æ—Ç Google Drive.",
+      "google-calendar-read": "–ü–æ–∫–∞–∑–≤–∞ —Å—ä–±–∏—Ç–∏—è –æ—Ç Google Calendar.",
+      "gmail-read": "–ü–æ–∫–∞–∑–≤–∞ —Ä–∞–∑—Ä–µ—à–µ–Ω–∏ –∏–º–µ–π–ª–∏. –ù–µ –∏–∑–ø—Ä–∞—â–∞.",
+      "openai-web-search": "–¢—ä—Ä—Å–∏ –∞–∫—Ç—É–∞–ª–Ω–∞ –∏–Ω—Ñ–æ—Ä–º–∞—Ü–∏—è –≤ –∏–Ω—Ç–µ—Ä–Ω–µ—Ç.",
+      "opensearch-memory": "–ü–∞–∑–∏ –ª–∏—á–Ω–∞ –∏ –ø—Ä–æ–µ–∫—Ç–Ω–∞ –ø–∞–º–µ—Ç –ø–æ–¥ —Ç–≤–æ–π –∫–æ–Ω—Ç—Ä–æ–ª.",
+      "synchron-system-inspector":
+        "–ü—Ä–æ–≤–µ—Ä—è–≤–∞ —è–¥—Ä–æ—Ç–æ –∏ –≤—Å–∏—á–∫–∏ runtime/DigitalOcean –Ω–∞—Å—Ç—Ä–æ–π–∫–∏ –±–µ–∑ —Ç–µ—Ö–Ω–∏—Ç–µ —Å—Ç–æ–π–Ω–æ—Å—Ç–∏.",
+    };
+    elements.dataDrawerBody.innerHTML = `
+      <div class="permission-default">
+        –ü–æ–∫–∞–∑–∞–Ω–æ –µ —Ä–µ–∞–ª–Ω–æ—Ç–æ —Å—ä—Å—Ç–æ—è–Ω–∏–µ. ‚Äû–†–µ–≥–∏—Å—Ç—Ä–∏—Ä–∞–Ω‚Äú –Ω–µ –æ–∑–Ω–∞—á–∞–≤–∞ –∞–≤—Ç–æ–º–∞—Ç–∏—á–Ω–æ ‚Äû—Ä–∞–±–æ—Ç–∏‚Äú.
+      </div>
+      <section class="drawer-section permission-list">
+        <button type="button" class="permission-card tool-status-card system-control-link" data-system-configuration>
+          <div>
+            <strong>–°–∏—Å—Ç–µ–º–µ–Ω –∫–æ–Ω—Ç—Ä–æ–ª</strong>
+            <p>–Ø–¥—Ä–æ, –∏–Ω—Å—Ç—Ä—É–º–µ–Ω—Ç–∏ –∏ –≤—Å–∏—á–∫–∏ –ø—Ä–æ–º–µ–Ω–ª–∏–≤–∏ –±–µ–∑ –ø–æ–∫–∞–∑–≤–∞–Ω–µ –Ω–∞ —Ç–∞–π–Ω–∏—Ç–µ –∏–º —Å—Ç–æ–π–Ω–æ—Å—Ç–∏.</p>
+          </div>
+          <span class="permission-badge allow">–û—Ç–≤–æ—Ä–∏</span>
+        </button>
+        <article class="permission-card tool-status-card">
+          <div><strong>–°–Ω–∏–º–∫–∏</strong><p>JPEG, PNG –∏ WebP –¥–æ 5 MB.</p></div>
+          <span class="permission-badge allow">–†–∞–±–æ—Ç–∏</span>
+        </article>
+        ${tools
+          .map((tool) => {
+            const status = toolState(
+              tool,
+              Boolean(googleData.connected),
+              Boolean(githubData.connected),
+            );
+            const description =
+              tool.id === "github-write" &&
+              tool.availabilityCode === "COPILOT_AUTOMATION_DISABLED"
+                ? "–ö–æ–¥–æ–≤–∏—è—Ç –º–æ—Å—Ç –µ –∑–∞–ø–∞–∑–µ–Ω, –Ω–æ –µ –∏–∑–∫–ª—é—á–µ–Ω –≤ —Ç–µ–∫—É—â–∏—è —Ä–µ–∂–∏–º –±–µ–∑ Copilot."
+                : descriptions[tool.id] || "–ò–Ω—Å—Ç—Ä—É–º–µ–Ω—Ç –Ω–∞ SYNCHRON-X.";
+            return `
+              <article class="permission-card tool-status-card">
+                <div>
+                  <strong>${escapeHtml(tool.name)}</strong>
+                  <p>${escapeHtml(description)}</p>
+                </div>
+                ${toolStatusActions(
+                  tool,
+                  status,
+                  Boolean(googleData.connected),
+                  Boolean(githubData.connected),
+                )}
+              </article>`;
+          })
+          .join("")}
+      </section>`;
+  } catch (error) {
+    renderDrawerError(error.message);
+  }
+}
+
+function configurationStatus(item) {
+  const labels = {
+    configured: ["–ù–∞—Å—Ç—Ä–æ–µ–Ω–∞", "allow"],
+    defaulted: ["–ü–æ –ø–æ–¥—Ä–∞–∑–±–∏—Ä–∞–Ω–µ", "allow"],
+    "missing-required": ["–õ–∏–ø—Å–≤–∞", "deny"],
+    "optional-missing": ["–ù–µ–∑–∞–¥—ä–ª–∂–∏—Ç–µ–ª–Ω–∞", "confirm"],
+    compatibility: ["–°—Ç–∞—Ä —Ä–µ–∑–µ—Ä–≤–µ–Ω –ø—ä—Ç", "confirm"],
+    "not-needed": ["–ù–µ –µ –Ω—É–∂–Ω–∞", "allow"],
+    unused: ["–ù–µ —Å–µ –∏–∑–ø–æ–ª–∑–≤–∞", "deny"],
+  };
+  const [label, className] = labels[item.status] || [item.status, "confirm"];
+  return { label, className };
+}
+
+function renderEnvironmentGroup(area, items) {
+  return `
+    <details class="configuration-group" ${items.some((item) => item.status === "missing-required") ? "open" : ""}>
+      <summary>${escapeHtml(area)} <span>${items.length}</span></summary>
+      <div class="configuration-list">
+        ${items
+          .map((item) => {
+            const status = configurationStatus(item);
+            return `
+              <article class="configuration-item">
+                <div>
+                  <code>${escapeHtml(item.key)}</code>
+                  <p>${escapeHtml(item.purpose)}</p>
+                  <small>
+                    ${item.sensitivity === "secret" ? "–¢–∞–π–Ω–∞ —Å—Ç–æ–π–Ω–æ—Å—Ç ¬∑ –Ω–∏–∫–æ–≥–∞ –Ω–µ —Å–µ –ø–æ–∫–∞–∑–≤–∞" : "–û–±—â–∞ –Ω–∞—Å—Ç—Ä–æ–π–∫–∞"}
+                    ¬∑ DigitalOcean: ${item.digitalOceanDeclared ? "–¥–µ–∫–ª–∞—Ä–∏—Ä–∞–Ω–∞" : "–Ω–µ –µ –¥–µ–∫–ª–∞—Ä–∏—Ä–∞–Ω–∞"}
+                  </small>
+                </div>
+                <span class="permission-badge ${status.className}">${status.label}</span>
+              </article>`;
+          })
+          .join("")}
+      </div>
+    </details>`;
+}
+
+async function openSystemConfigurationDrawer() {
+  openDataDrawer("–°–∏—Å—Ç–µ–º–µ–Ω –∫–æ–Ω—Ç—Ä–æ–ª");
+  renderDrawerLoading();
+  try {
+    const [configurationResponse, integrationsResponse, readinessResponse] =
+      await Promise.all([
+        fetch("/api/system/configuration", { cache: "no-store" }),
+        fetch("/health/integrations", { cache: "no-store" }),
+        fetch("/health/ready", { cache: "no-store" }),
+      ]);
+    if (!configurationResponse.ok || !integrationsResponse.ok) {
+      throw new Error("–°–∏—Å—Ç–µ–º–Ω–∞—Ç–∞ –ø—Ä–æ–≤–µ—Ä–∫–∞ –≤—Ä–µ–º–µ–Ω–Ω–æ –Ω–µ –µ –¥–æ—Å—Ç—ä–ø–Ω–∞.");
+    }
+    const configuration = await configurationResponse.json();
+    const integrations = await integrationsResponse.json();
     const readiness = readinessResponse.ok
       ? await readinessResponse.json()
       : null;

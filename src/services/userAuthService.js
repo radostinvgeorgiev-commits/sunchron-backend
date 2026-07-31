@@ -488,7 +488,7 @@ export async function registerTester(
     },
   });
 
-  if (error || !data?.user) {
+  if (error || !data?.user || !data?.session) {
     const recovered =
       await authClient.auth.signInWithPassword(cleanCredentials);
     if (!recovered.error && recovered.data?.user && recovered.data?.session) {

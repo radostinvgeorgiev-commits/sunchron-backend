@@ -89,6 +89,9 @@ commandBar?.addEventListener("click", (event) => {
     document.getElementById("closeContextBtn")?.click();
     document.getElementById("chatInput")?.focus();
     activateCommand("chat");
+  } else if (command === "work") {
+    document.getElementById("workModeToolbarBtn")?.click();
+    activateCommand("work");
   } else if (command === "memory") {
     forwardClick("memoryBtn", "memory");
   } else if (command === "tasks") {
@@ -99,7 +102,9 @@ commandBar?.addEventListener("click", (event) => {
 });
 
 document.getElementById("closeDataDrawerBtn")?.addEventListener("click", () => {
-  activateCommand("chat");
+  activateCommand(
+    document.body.dataset.interactionMode === "work" ? "work" : "chat",
+  );
 });
 
 activateCommand("chat");

@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="/accessibility.css?v=20260728-font-stepper" />
     <link rel="stylesheet" href="/task-journal.css?v=20260728-task-journal" />
     <link rel="stylesheet" href="/auth.css?v=20260730-test-users-v1" />
+    <link rel="stylesheet" href="/work-mode.css?v=20260801-work-mode-v1" />
     <link rel="stylesheet" href="/assets/20260730-v2/synchron-vision.css" />
     <link
       rel="stylesheet"
@@ -151,6 +152,9 @@
           <button id="searchChatsBtn" type="button">
             <i class="fa-solid fa-clock-rotate-left"></i><span>Разговори</span>
           </button>
+          <button id="workModeBtn" type="button">
+            <i class="fa-solid fa-briefcase"></i><span>Работа</span>
+          </button>
           <button id="focusBtn" type="button" data-owner-only>
             <i class="fa-solid fa-bullseye"></i><span>Дневник на задачите</span>
           </button>
@@ -243,6 +247,48 @@
             <span id="agentStatusText">Свързване…</span>
           </div>
         </header>
+
+        <div class="interaction-mode-bar" id="interactionModeBar">
+          <div class="interaction-mode-switch" role="group" aria-label="Режим">
+            <button
+              id="chatModeBtn"
+              type="button"
+              data-interaction-mode="chat"
+              aria-pressed="true"
+            >
+              <i class="fa-regular fa-message"></i>
+              <span>Чат</span>
+            </button>
+            <button
+              id="workModeToolbarBtn"
+              type="button"
+              data-interaction-mode="work"
+              aria-pressed="false"
+            >
+              <i class="fa-solid fa-briefcase"></i>
+              <span>Работа</span>
+            </button>
+          </div>
+          <button
+            id="workContextBtn"
+            class="work-context-button"
+            type="button"
+            aria-label="Проекти, лични агенти и любимец"
+          >
+            <span class="work-context-copy">
+              <strong id="workProjectLabel">Без активен проект</strong>
+              <small id="workAgentLabel">SYNCHRON-X</small>
+            </span>
+            <span
+              id="workPet"
+              class="work-pet"
+              data-pet-state="ready"
+              aria-hidden="true"
+              >🤖</span
+            >
+            <i class="fa-solid fa-sliders"></i>
+          </button>
+        </div>
 
         <div id="chatMessages" aria-live="polite"></div>
 
@@ -377,6 +423,10 @@
           <i class="fa-regular fa-message"></i>
           <span>Чат</span>
         </button>
+        <button type="button" data-command="work">
+          <i class="fa-solid fa-briefcase"></i>
+          <span>Работа</span>
+        </button>
         <button type="button" data-command="memory">
           <i class="fa-solid fa-brain"></i>
           <span>Памет</span>
@@ -393,6 +443,7 @@
     </main>
 
     <script src="/markdown-renderer.js?v=20260728-xss"></script>
+    <script src="/work-mode.js?v=20260801-work-mode-v1"></script>
     <script src="/assets/20260730-opensearch-status-v1/app.js"></script>
     <script src="/accessibility.js?v=20260728-font-stepper"></script>
     <script src="/assets/20260730-connections-v1/work-center.js"></script>

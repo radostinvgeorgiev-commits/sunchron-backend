@@ -39,7 +39,11 @@ function appSpecKeyBlock(source, key) {
 test("required MCP and memory variables stay declared in DigitalOcean", () => {
   const keys = appSpecEnvironmentKeys(appSpec);
 
-  for (const key of ["MCP_ACCESS_TOKEN", "MEMORY_OWNER_ID"]) {
+  for (const key of [
+    "MCP_ACCESS_TOKEN",
+    "MCP_OAUTH_SECRET",
+    "MEMORY_OWNER_ID",
+  ]) {
     assert.equal(keys.has(key), true, `${key} is missing from .do/app.yaml`);
 
     const block = appSpecKeyBlock(appSpec, key);
@@ -58,6 +62,7 @@ test("bridge variables stay documented without real secret values", () => {
   const keys = exampleEnvironmentKeys(envExample);
   const documentedKeys = [
     "MCP_ACCESS_TOKEN",
+    "MCP_OAUTH_SECRET",
     "MCP_RESOURCE_URL",
     "MEMORY_OWNER_ID",
     "DIGITALOCEAN_API_TOKEN",

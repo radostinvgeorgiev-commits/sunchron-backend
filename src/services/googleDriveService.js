@@ -10,6 +10,7 @@ const CALENDAR_API_URL = "https://www.googleapis.com/calendar/v3";
 const GOOGLE_SESSION_INDEX =
   process.env.GOOGLE_SESSION_INDEX || "synchron-google-sessions-v1";
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const MAX_CALENDAR_REMINDER_MINUTES = 28 * 24 * 60;
 const GOOGLE_DOC = "application/vnd.google-apps.document";
 const GOOGLE_SHEET = "application/vnd.google-apps.spreadsheet";
 const SUPPORTED_MIME_TYPES = new Set([
@@ -330,14 +331,10 @@ function googleConnectLink(label = "Свържи Google") {
 async function googleErrorDetails(response) {
   try {
     const data = await response.json();
-    const errors = Array.isArray(data?.error?.errors)
-      ? data.error.errors
-      : [];
+    const errors = Array.isArray(data?.error?.errors) ? data.error.errors : [];
     return {
       message: String(data?.error?.message || ""),
-      reasons: errors
-        .map((item) => String(item?.reason || ""))
-        .filter(Boolean),
+      reasons: errors.map((item) => String(item?.reason || "")).filter(Boolean),
     };
   } catch {
     return { message: "", reasons: [] };
@@ -647,11 +644,20 @@ export async function listGoogleCalendarEvents(
   }));
 }
 
-export async function createGoogleCalendarEvent(
-  id,
-  event,
-  fetchImpl = fetch,
-) {
+export async function createGoogleCalendarEvent(id, event, fetchImpl = fetch) {
+  const hasReminder = event.reminderMinutes !== undefined;
+  if (
+    hasReminder &&
+    (!Number.isInteger(event.reminderMinutes) ||
+      event.reminderMinutes < 0 ||
+      event.reminderMinutes > MAX_CALENDAR_REMINDER_MINUTES)
+  ) {
+    throw new GoogleDriveError(
+      "Календарното напомняне е извън разрешения период.",
+      400,
+      "CALENDAR_REMINDER_OFFSET_INVALID",
+    );
+  }
   const response = await googleFetch(
     id,
     `${CALENDAR_API_URL}/calendars/primary/events?sendUpdates=none`,
@@ -664,6 +670,16 @@ export async function createGoogleCalendarEvent(
         end: { dateTime: event.end, timeZone: event.timeZone },
         ...(event.location ? { location: event.location } : {}),
         ...(event.description ? { description: event.description } : {}),
+        ...(hasReminder
+          ? {
+              reminders: {
+                useDefault: false,
+                overrides: [
+                  { method: "popup", minutes: event.reminderMinutes },
+                ],
+              },
+            }
+          : {}),
       }),
     },
     fetchImpl,
@@ -684,5 +700,6 @@ export async function createGoogleCalendarEvent(
     end: created.end?.dateTime || created.end?.date || event.end,
     location: created.location || event.location || "",
     url: created.htmlLink || "",
+    ...(hasReminder ? { reminderMinutes: event.reminderMinutes } : {}),
   };
 }

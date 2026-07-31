@@ -52,6 +52,17 @@ test("routes a new calendar event only to confirmed Calendar Write", () => {
   assert.equal(requests[0].message, message);
 });
 
+test("routes a reminder only to the protected Calendar Write capability", () => {
+  const message =
+    "Напомни ми: Плащане на ток | 2026-08-05 14:30 | 30 минути преди";
+  const requests = detectCapabilityRequests(message);
+  assert.deepEqual(
+    requests.map(({ capability, action }) => ({ capability, action })),
+    [{ capability: "calendar.write", action: "calendar.write" }],
+  );
+  assert.equal(requests[0].message, message);
+});
+
 test("detects an explicit autonomous permanent-memory test", () => {
   const requests = detectCapabilityRequests(
     "Тествай сам и реално постоянната памет.",

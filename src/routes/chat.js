@@ -1036,7 +1036,9 @@ router.post("/chat", async (req, res) => {
         decision: "confirmed",
         outcome: "succeeded",
         resource: result.id,
-        details: "created:primary-calendar-event",
+        details: Number.isInteger(result.reminderMinutes)
+          ? "created:primary-calendar-reminder"
+          : "created:primary-calendar-event",
         sessionId: cleanSessionId,
       });
       sendEvent("token", { token: fullReply });

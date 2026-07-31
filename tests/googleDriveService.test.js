@@ -220,6 +220,67 @@ test("creates exactly one validated Google Calendar event", async () => {
   assert.equal(created.id, "event-1");
 });
 
+test("creates a confirmed popup reminder without email or attendees", async () => {
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
+  let body;
+  const created = await createGoogleCalendarEvent(
+    sessionId,
+    {
+      title: "Плащане на ток",
+      start: "2026-08-05T14:30:00",
+      end: "2026-08-05T14:35:00",
+      timeZone: "Europe/Sofia",
+      reminderMinutes: 30,
+    },
+    async (_url, options) => {
+      body = JSON.parse(options.body);
+      return jsonResponse({
+        id: "reminder-1",
+        summary: "Плащане на ток",
+        start: { dateTime: "2026-08-05T14:30:00+03:00" },
+        end: { dateTime: "2026-08-05T14:35:00+03:00" },
+      });
+    },
+  );
+
+  assert.deepEqual(body.reminders, {
+    useDefault: false,
+    overrides: [{ method: "popup", minutes: 30 }],
+  });
+  assert.equal(body.attendees, undefined);
+  assert.equal(created.reminderMinutes, 30);
+});
+
+test("blocks an invalid reminder before calling Google Calendar", async () => {
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
+  let called = false;
+  await assert.rejects(
+    () =>
+      createGoogleCalendarEvent(
+        sessionId,
+        {
+          title: "Невалидно",
+          start: "2026-08-05T14:30:00",
+          end: "2026-08-05T14:35:00",
+          timeZone: "Europe/Sofia",
+          reminderMinutes: 40321,
+        },
+        async () => {
+          called = true;
+          return jsonResponse({});
+        },
+      ),
+    (error) => error.code === "CALENDAR_REMINDER_OFFSET_INVALID",
+  );
+  assert.equal(called, false);
+});
+
 test("encrypts persisted Google sessions without exposing OAuth tokens", () => {
   const originalKey = process.env.GOOGLE_SESSION_ENCRYPTION_KEY;
   process.env.GOOGLE_SESSION_ENCRYPTION_KEY =
@@ -244,7 +305,6 @@ test("encrypts persisted Google sessions without exposing OAuth tokens", () => {
   }
 });
 
-
 test("calendar permission error includes a direct reconnect link", async () => {
   const sessionId = await createSession({
     access_token: "token",
@@ -253,20 +313,24 @@ test("calendar permission error includes a direct reconnect link", async () => {
 
   await assert.rejects(
     () =>
-      listGoogleCalendarEvents(sessionId, 7, 10, async () =>
-        new Response(
-          JSON.stringify({
-            error: {
-              code: 403,
-              message: "Request had insufficient authentication scopes.",
-              errors: [{ reason: "forbidden" }],
+      listGoogleCalendarEvents(
+        sessionId,
+        7,
+        10,
+        async () =>
+          new Response(
+            JSON.stringify({
+              error: {
+                code: 403,
+                message: "Request had insufficient authentication scopes.",
+                errors: [{ reason: "forbidden" }],
+              },
+            }),
+            {
+              status: 403,
+              headers: { "Content-Type": "application/json" },
             },
-          }),
-          {
-            status: 403,
-            headers: { "Content-Type": "application/json" },
-          },
-        ),
+          ),
       ),
     (error) => {
       assert.equal(error.code, "GOOGLE_SCOPE_REQUIRED");
@@ -285,21 +349,25 @@ test("calendar disabled API is not reported as an expired connection", async () 
 
   await assert.rejects(
     () =>
-      listGoogleCalendarEvents(sessionId, 7, 10, async () =>
-        new Response(
-          JSON.stringify({
-            error: {
-              code: 403,
-              message:
-                "Google Calendar API has not been used in project or it is disabled.",
-              errors: [{ reason: "accessNotConfigured" }],
+      listGoogleCalendarEvents(
+        sessionId,
+        7,
+        10,
+        async () =>
+          new Response(
+            JSON.stringify({
+              error: {
+                code: 403,
+                message:
+                  "Google Calendar API has not been used in project or it is disabled.",
+                errors: [{ reason: "accessNotConfigured" }],
+              },
+            }),
+            {
+              status: 403,
+              headers: { "Content-Type": "application/json" },
             },
-          }),
-          {
-            status: 403,
-            headers: { "Content-Type": "application/json" },
-          },
-        ),
+          ),
       ),
     (error) => {
       assert.equal(error.code, "GOOGLE_API_DISABLED");
@@ -310,8 +378,10 @@ test("calendar disabled API is not reported as an expired connection", async () 
   );
 });
 
-
 test("requires persistent Google sessions in production", () => {
-  assert.equal(requiresPersistentGoogleSessions({ NODE_ENV: "production" }), true);
+  assert.equal(
+    requiresPersistentGoogleSessions({ NODE_ENV: "production" }),
+    true,
+  );
   assert.equal(requiresPersistentGoogleSessions({ NODE_ENV: "test" }), false);
 });

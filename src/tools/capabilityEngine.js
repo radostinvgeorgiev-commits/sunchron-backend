@@ -38,9 +38,11 @@ import {
 import { checkSupabaseStatus } from "../services/supabaseService.js";
 import {
   formatDigitalOceanAudit,
+  formatDigitalOceanOpenSearchBackupAudit,
   formatDigitalOceanStatus,
   getDigitalOceanAccountAudit,
   getDigitalOceanAppStatus,
+  getDigitalOceanOpenSearchBackupAudit,
 } from "../services/digitalOceanService.js";
 import {
   formatCloudflareStatus,
@@ -59,6 +61,12 @@ export class CapabilityError extends Error {
     this.code = code;
     this.status = status;
   }
+}
+
+export function isDigitalOceanBackupInventoryRequest(message = "") {
+  return /(?:opensearch|open\s*search|опен\s*сърч|backup|backups|архив|restore\s*точ)/iu.test(
+    message,
+  );
 }
 
 function hasEnvironment(env, ...names) {
@@ -407,6 +415,11 @@ const executors = Object.freeze({
     ].join("\n");
   },
   "digitalocean-read": async ({ input }) => {
+    if (isDigitalOceanBackupInventoryRequest(input.message)) {
+      return formatDigitalOceanOpenSearchBackupAudit(
+        await getDigitalOceanOpenSearchBackupAudit(),
+      );
+    }
     const wantsFullAudit =
       /(?:пълен|цял|одит|акаунт|ресурс|droplet|сървър|баз|мреж|firewall|защит|разход|billing|storage|volume|snapshot|kubernetes)/iu.test(
         input.message || "",

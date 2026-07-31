@@ -31,6 +31,7 @@ import {
   confirmCopilotTask,
   CopilotTaskError,
   extractCopilotConfirmationId,
+  isCopilotTaskStatusRequest,
   formatCopilotTaskResult,
   isCopilotBridgeStatusRequest,
 } from "../services/copilotTaskService.js";
@@ -77,6 +78,7 @@ const DIGITALOCEAN_NAME_PATTERN =
   /(?:digital\s*ocean|ди[гж]итал\s*о(?:кеа|ка|ке)н|ди[гж]итъл\s*о(?:кеа|ка|ке)н)/iu;
 const DIRECT_CAPABILITY_REPLIES = new Set([
   "system.integrations.status",
+  "code.task-status",
   "infrastructure.digitalocean.read",
   "infrastructure.cloudflare.read",
 ]);
@@ -290,6 +292,7 @@ export function detectCapabilityRequests(message) {
     /намери\s*:\s*1[\).:-]\s*/iu.test(message) && subtasks.length > 1;
   for (const [index, subtask] of subtasks.entries()) {
     const copilotBridgeStatusRequest = isCopilotBridgeStatusRequest(subtask);
+    const copilotTaskStatusRequest = isCopilotTaskStatusRequest(subtask);
     const systemConfigurationRequest =
       /(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите)).{0,60}(?:сървър|ядро|агент|digitalocean|дигитал\s*океан|дижитал\s*окен|система)|(?:сървър|ядро|агент|digitalocean|дигитал\s*океан|дижитал\s*окен|система).{0,60}(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите))/iu.test(
         subtask,
@@ -332,6 +335,13 @@ export function detectCapabilityRequests(message) {
       requests.push({
         capability: "system.integrations.status",
         action: "infrastructure.read",
+        message: subtask,
+      });
+    }
+    if (copilotTaskStatusRequest) {
+      requests.push({
+        capability: "code.task-status",
+        action: "github.read",
         message: subtask,
       });
     }
@@ -443,6 +453,7 @@ export function detectCapabilityRequests(message) {
         ));
     const wantsGitHubRead =
       !copilotBridgeStatusRequest &&
+      !copilotTaskStatusRequest &&
       !/(?:използва\s+успешно|кои\s+са\s+достъпни)/iu.test(subtask) &&
       (mergedBranchCleanupPlan ||
         isGitHubReadRequest(subtask) ||
@@ -567,6 +578,7 @@ function capabilityLabel(capability) {
     return "системна конфигурация";
   if (capability === "calendar.read") return "календар";
   if (capability === "code.read") return "GitHub";
+  if (capability === "code.task-status") return "GitHub задача";
   if (capability === "code.write") return "GitHub запис";
   if (capability === "files.read") return "Google Drive";
   if (capability === "mail.read") return "Gmail";

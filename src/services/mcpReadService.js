@@ -28,6 +28,11 @@ import {
   formatSystemConfigurationReport,
   getSystemConfigurationReport,
 } from "./systemConfigurationService.js";
+import {
+  formatCopilotTaskStatus,
+  getCopilotTaskStatus,
+} from "./copilotTaskService.js";
+import { getLatestAuthorizedGitHubSession } from "./githubOAuthService.js";
 import { mcpToolSecuritySchemes } from "./mcpOAuthService.js";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
@@ -156,6 +161,22 @@ export const MCP_TOOLS = Object.freeze([
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
+    name: "get_github_copilot_task_status",
+    title: "Проследи GitHub Copilot задача",
+    description:
+      "Проверява реалното състояние на конкретна GitHub задача, свързания Pull Request, CI проверките и production smoke статуса. Не променя нищо.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        issueNumber: { type: "integer", minimum: 1 },
+      },
+      required: ["issueNumber"],
+      additionalProperties: false,
+    },
+    securitySchemes: mcpToolSecuritySchemes("get_github_copilot_task_status"),
+    annotations: READ_ONLY_ANNOTATIONS,
+  },
+  {
     name: "prepare_github_merged_branch_cleanup",
     title: "Подготви почистване на слети GitHub клонове",
     description:
@@ -229,6 +250,8 @@ export function createMcpRequestHandler({
   getDigitalOceanAudit = getDigitalOceanAccountAudit,
   getCloudflareStatus = getCloudflareZoneStatus,
   getSystemConfiguration = getSystemConfigurationReport,
+  getLatestGitHubSession = getLatestAuthorizedGitHubSession,
+  getGitHubTaskStatus = getCopilotTaskStatus,
 } = {}) {
   async function callTool(name, args, ownerId) {
     let result;
@@ -278,6 +301,19 @@ export function createMcpRequestHandler({
     } else if (name === "get_cloudflare_zone_status") {
       const status = await getCloudflareStatus();
       result = textResult(status, formatCloudflareStatus(status));
+    } else if (name === "get_github_copilot_task_status") {
+      const issueNumber = Number(args?.issueNumber);
+      if (!Number.isSafeInteger(issueNumber) || issueNumber <= 0) {
+        throw Object.assign(new Error("Невалиден номер на GitHub задача."), {
+          code: -32602,
+        });
+      }
+      const githubSession = await getLatestGitHubSession();
+      const status = await getGitHubTaskStatus({
+        githubSession,
+        issueNumber,
+      });
+      result = textResult(status, formatCopilotTaskStatus(status));
     } else if (name === "prepare_github_merged_branch_cleanup") {
       const plan = await buildCleanupPlan();
       const confirmation = await createConfirmation({
@@ -332,13 +368,16 @@ export function createMcpRequestHandler({
 
     await audit({
       actor: "chatgpt-mcp",
-      action: name.includes("github")
-        ? "github.write"
-        : name.includes("digitalocean") ||
-            name.includes("cloudflare") ||
-            name.includes("system_configuration")
-          ? "infrastructure.read"
-          : "memory.read",
+      action:
+        name === "get_github_copilot_task_status"
+          ? "github.read"
+          : name.includes("github")
+            ? "github.write"
+            : name.includes("digitalocean") ||
+                name.includes("cloudflare") ||
+                name.includes("system_configuration")
+              ? "infrastructure.read"
+              : "memory.read",
       decision: "allow",
       outcome: "succeeded",
       resource: name,

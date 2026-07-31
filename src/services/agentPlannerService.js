@@ -11,6 +11,7 @@ const CAPABILITY_ACTIONS = Object.freeze({
   "system.configuration.read": "infrastructure.read",
   "calendar.read": "calendar.read",
   "code.read": "github.read",
+  "code.task-status": "github.read",
   "code.write": "github.write",
   "database.status": "database.read",
   "infrastructure.digitalocean.read": "infrastructure.read",
@@ -32,6 +33,7 @@ const PLANNER_INSTRUCTIONS = [
   "- system.integrations.status: обща реална проверка кои инструменти работят и кои връзки липсват",
   "- system.configuration.read: защитена проверка на ядрото, runtime и DigitalOcean променливите без техните стойности",
   "- code.read: четене и проверка на разрешеното GitHub хранилище",
+  "- code.task-status: реално проследяване на конкретна GitHub/Copilot задача по номер, нейния PR, проверките и production статуса",
   "- code.write: промяна в GitHub; може да е недостъпна и винаги изисква потвърждение",
   "- database.status: проверка дали Supabase е свързан и отговаря",
   "- infrastructure.digitalocean.read: статус, деплои и пълен одит само за четене на DigitalOcean ресурсите, сигурността и разходите",
@@ -49,6 +51,7 @@ const PLANNER_INSTRUCTIONS = [
   "- Записът и изтриването на памет се обработват отделно от сървъра; не планирай memory.save или memory.delete.",
   "- Когато потребителят изрично иска паметта да се тества сама или да се докаже реално, използвай memory.verify, а не memory.read.",
   "- За проектна промяна планирай най-много една code.read проверка и една code.write стъпка.",
+  "- За въпрос какво става с конкретна GitHub/Copilot задача по номер използвай code.task-status, а не code.read.",
   "- Не дублирай една и съща способност за една и съща подзадача.",
   '- Ако не е нужен инструмент, върни {"calls":[]}.',
 ].join("\n");

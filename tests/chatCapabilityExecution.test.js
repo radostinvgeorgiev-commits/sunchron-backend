@@ -114,6 +114,22 @@ test("въпрос дали GitHub може да пише минава през 
   }
 });
 
+test("конкретна Copilot задача се проследява през отделна read-only способност", () => {
+  for (const message of [
+    "Провери статуса на GitHub задача #83.",
+    "Докъде е Copilot issue 83?",
+    "Какво става с PR #146?",
+  ]) {
+    assert.deepEqual(
+      detectCapabilityRequests(message).map(({ capability, action }) => ({
+        capability,
+        action,
+      })),
+      [{ capability: "code.task-status", action: "github.read" }],
+    );
+  }
+});
+
 test("въпрос за Tool Registry остава GitHub проверка, а не системен статус", () => {
   assert.deepEqual(
     detectCapabilityRequests(
@@ -158,6 +174,16 @@ test("recognizes common Bulgarian DigitalOcean spellings as real tool requests",
 });
 
 test("infrastructure results bypass AI rewriting and stay verified", () => {
+  assert.equal(
+    shouldReplyWithVerifiedToolOutput([
+      {
+        status: "fulfilled",
+        request: { capability: "code.task-status" },
+        result: { output: "Проверен GitHub статус." },
+      },
+    ]),
+    true,
+  );
   assert.equal(
     shouldReplyWithVerifiedToolOutput([
       {

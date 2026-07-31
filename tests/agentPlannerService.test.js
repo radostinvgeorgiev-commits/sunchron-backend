@@ -186,6 +186,29 @@ test("planner accepts the read-only Supabase status capability", () => {
   );
 });
 
+test("planner accepts the read-only Copilot task status capability", () => {
+  assert.deepEqual(
+    sanitizeCapabilityPlan(
+      {
+        calls: [
+          {
+            capability: "code.task-status",
+            request: "Провери GitHub задача #83.",
+          },
+        ],
+      },
+      "Провери GitHub задача #83.",
+    ),
+    [
+      {
+        capability: "code.task-status",
+        action: "github.read",
+        message: "Провери GitHub задача #83.",
+      },
+    ],
+  );
+});
+
 test("planner is used for likely tool requests but not ordinary conversation", () => {
   assert.equal(
     shouldUseAgentPlanner("Покажи календара ми за утре.", [

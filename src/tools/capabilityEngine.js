@@ -21,7 +21,10 @@ import {
   searchWeb,
 } from "../services/webSearchService.js";
 import {
+  extractCopilotTaskNumber,
+  formatCopilotTaskStatus,
   formatCopilotBridgeStatus,
+  getCopilotTaskStatus,
   getCopilotBridgeStatus,
   isCopilotBridgeStatusRequest,
   prepareCopilotTask,
@@ -294,7 +297,22 @@ const executors = Object.freeze({
     buildIntegrationStatusReport(input),
   "synchron-system-inspector": async () =>
     formatSystemConfigurationReport(await getSystemConfigurationReport()),
-  "github-read": async ({ input }) => {
+  "github-read": async ({ capability, input }) => {
+    if (capability === "code.task-status") {
+      const issueNumber = extractCopilotTaskNumber(input.message);
+      if (!issueNumber) {
+        throw new CapabilityError(
+          "Липсва номер на GitHub задача за проследяване.",
+          "MISSING_ISSUE_NUMBER",
+        );
+      }
+      return formatCopilotTaskStatus(
+        await getCopilotTaskStatus({
+          githubSessionId: input.githubSessionId,
+          issueNumber,
+        }),
+      );
+    }
     if (isMergedBranchCleanupPlanRequest(input.message)) {
       return prepareMergedBranchCleanup({ ownerId: input.ownerId });
     }

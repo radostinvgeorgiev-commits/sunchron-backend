@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   createDurableConfirmation,
   markDurableConfirmationUsed,
@@ -16,6 +18,7 @@ const GITHUB_FEATURES =
   "issues_copilot_assignment_api_support,coding_agent_model_selection";
 const DEFAULT_TIMEOUT_MS = 15000;
 const CONFIRM_PREFIX = "Потвърждавам GitHub задача:";
+const COPILOT_LOGIN = "copilot-swe-agent";
 
 export class CopilotTaskError extends Error {
   constructor(message, status = 502, code = "COPILOT_TASK_ERROR") {
@@ -56,6 +59,58 @@ function taskTitle(prompt) {
   if (!clean) return "SYNCHRON-X кодова задача";
   const firstSentence = clean.split(/(?<=[.!?])\s/u)[0];
   return firstSentence.slice(0, 80);
+}
+
+function assertBaseRef(baseRef) {
+  if (baseRef !== "main") {
+    throw new CopilotTaskError(
+      "Copilot задачите могат да започват само от защитения main клон.",
+      403,
+      "BASE_REF_NOT_ALLOWED",
+    );
+  }
+}
+
+function taskFingerprint(prompt, repository, baseRef) {
+  return createHash("sha256")
+    .update(
+      `${repository}\u0000${baseRef}\u0000${prompt.replace(/\s+/gu, " ").trim()}`,
+    )
+    .digest("hex")
+    .slice(0, 24);
+}
+
+function taskMarker(fingerprint) {
+  return `<!-- synchron-copilot-task:${fingerprint} -->`;
+}
+
+function hasConfirmedCopilotAssignee(issue) {
+  return Boolean(
+    issue?.assignees?.nodes?.some((actor) => actor?.login === COPILOT_LOGIN),
+  );
+}
+
+export function extractCopilotTaskNumber(message) {
+  const text = typeof message === "string" ? message.trim() : "";
+  if (!text) return null;
+  const mentionsStatus =
+    /(?:статус|състояние|какво\s+става|докъде|прослед|провери|готов|работи|ci|checks?|проверки|deployment|деплой|публикуван)/iu.test(
+      text,
+    );
+  const mentionsTask =
+    /(?:copilot|копилот|github|ги[тд][\s-]*хъб|задач|issue|pull\s*request|\bpr\b)/iu.test(
+      text,
+    );
+  if (!mentionsStatus || !mentionsTask) return null;
+  const match = text.match(
+    /#\s*(\d{1,10})|(?:задач|issue|\bpr\b)[^\d]{0,20}(\d{1,10})/iu,
+  );
+  const value = Number(match?.[1] || match?.[2]);
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+export function isCopilotTaskStatusRequest(message) {
+  return extractCopilotTaskNumber(message) !== null;
 }
 
 export function isCopilotBridgeStatusRequest(message) {
@@ -109,8 +164,16 @@ async function githubGraphql(accessToken, query, variables, fetchImpl = fetch) {
     });
     const data = await response.json();
     if (!response.ok || data.errors?.length) {
-      const reason = data.errors?.[0]?.message || `HTTP ${response.status}`;
-      console.error("[Copilot task] GitHub GraphQL failure:", reason);
+      const reasonCode =
+        data.errors
+          ?.map((error) => error?.type)
+          .filter(Boolean)
+          .join(",") || "GRAPHQL_ERROR";
+      console.error(
+        "[Copilot task] GitHub GraphQL failure:",
+        response.status,
+        reasonCode,
+      );
       throw new CopilotTaskError(
         "GitHub Copilot не прие задачата.",
         response.status || 502,
@@ -177,6 +240,305 @@ async function resolveCopilotContext(accessToken, repository, fetchImpl) {
     );
   }
   return { repositoryId: repositoryData.id, copilotId: copilot.id };
+}
+
+async function findExistingCopilotTask(
+  accessToken,
+  repository,
+  fingerprint,
+  fetchImpl,
+) {
+  const { owner, name } = splitRepository(repository);
+  const data = await githubGraphql(
+    accessToken,
+    `
+      query ExistingCopilotTasks($owner: String!, $name: String!) {
+        repository(owner: $owner, name: $name) {
+          issues(
+            first: 100
+            states: [OPEN]
+            orderBy: { field: UPDATED_AT, direction: DESC }
+          ) {
+            nodes {
+              number
+              title
+              url
+              body
+              assignees(first: 10) { nodes { login } }
+            }
+          }
+        }
+      }
+    `,
+    { owner, name },
+    fetchImpl,
+  );
+  const marker = taskMarker(fingerprint);
+  return (
+    data?.repository?.issues?.nodes?.find((issue) =>
+      String(issue?.body || "").includes(marker),
+    ) || null
+  );
+}
+
+function normalizeCheckContext(context) {
+  if (context?.__typename === "CheckRun") {
+    return {
+      name: context.name || "GitHub check",
+      state: context.conclusion || context.status || "UNKNOWN",
+      url: context.detailsUrl || null,
+    };
+  }
+  return {
+    name: context?.context || "GitHub status",
+    state: context?.state || "UNKNOWN",
+    url: context?.targetUrl || null,
+  };
+}
+
+function taskStatusRollup(pullRequest) {
+  if (pullRequest?.merged) {
+    return pullRequest.mergeCommit?.statusCheckRollup || null;
+  }
+  return pullRequest?.statusCheckRollup || null;
+}
+
+function classifyCopilotTask(issue, pullRequest) {
+  if (!pullRequest) {
+    if (issue?.state === "CLOSED") return "needs-attention";
+    return hasConfirmedCopilotAssignee(issue) ? "copilot-working" : "waiting";
+  }
+  if (
+    pullRequest.baseRefName !== "main" ||
+    pullRequest.headRefName === "main"
+  ) {
+    return "unsafe-branch";
+  }
+  const rollup = taskStatusRollup(pullRequest);
+  const checks = (rollup?.contexts?.nodes || []).map(normalizeCheckContext);
+  const production = checks.find(
+    (check) => check.name === "synchron/production-smoke",
+  );
+  if (pullRequest.merged) {
+    if (production?.state === "SUCCESS") return "real-tested";
+    if (["ERROR", "FAILURE"].includes(production?.state)) {
+      return "deployment-failed";
+    }
+    return "merged";
+  }
+  if (pullRequest.state === "CLOSED") return "needs-attention";
+  if (pullRequest.isDraft) return "draft-pr";
+  const rollupState = rollup?.state || "EXPECTED";
+  if (["ERROR", "FAILURE"].includes(rollupState)) return "checks-needed";
+  if (["PENDING", "EXPECTED"].includes(rollupState)) return "checks-running";
+  if (rollupState === "SUCCESS") return "ready-for-review";
+  return "checks-running";
+}
+
+export async function getCopilotTaskStatus({
+  githubSessionId,
+  githubSession,
+  issueNumber,
+  repository = configuredRepository(),
+  fetchImpl = fetch,
+}) {
+  const session = githubSession || (await getGitHubSession(githubSessionId));
+  if (!session || !isAuthorizedGitHubLogin(session.login)) {
+    throw new GitHubOAuthError(
+      "Първо свържи разрешения GitHub профил от „Инструменти“.",
+      401,
+      "GITHUB_SESSION_REQUIRED",
+    );
+  }
+  const cleanIssueNumber = Number(issueNumber);
+  if (!Number.isSafeInteger(cleanIssueNumber) || cleanIssueNumber <= 0) {
+    throw new CopilotTaskError(
+      "Невалиден номер на GitHub задача.",
+      400,
+      "INVALID_ISSUE_NUMBER",
+    );
+  }
+  const { owner, name } = splitRepository(repository);
+  const data = await githubGraphql(
+    session.accessToken,
+    `
+      query CopilotTaskStatus(
+        $owner: String!
+        $name: String!
+        $issueNumber: Int!
+      ) {
+        repository(owner: $owner, name: $name) {
+          issue(number: $issueNumber) {
+            number
+            title
+            url
+            state
+            assignees(first: 10) { nodes { login } }
+            closedByPullRequestsReferences(first: 20) {
+              nodes {
+                ...CopilotPullRequestStatus
+              }
+            }
+            timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT]) {
+              nodes {
+                ... on CrossReferencedEvent {
+                  source {
+                    ... on PullRequest {
+                      ...CopilotPullRequestStatus
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      fragment CopilotPullRequestStatus on PullRequest {
+        number
+        title
+        url
+        state
+        isDraft
+        merged
+        mergedAt
+        baseRefName
+        headRefName
+        headRefOid
+        statusCheckRollup {
+          state
+          contexts(first: 100) {
+            nodes {
+              __typename
+              ... on CheckRun {
+                name
+                status
+                conclusion
+                detailsUrl
+              }
+              ... on StatusContext {
+                context
+                state
+                targetUrl
+              }
+            }
+          }
+        }
+        mergeCommit {
+          oid
+          statusCheckRollup {
+            state
+            contexts(first: 100) {
+              nodes {
+                __typename
+                ... on CheckRun {
+                  name
+                  status
+                  conclusion
+                  detailsUrl
+                }
+                ... on StatusContext {
+                  context
+                  state
+                  targetUrl
+                }
+              }
+            }
+          }
+        }
+      }
+    `,
+    { owner, name, issueNumber: cleanIssueNumber },
+    fetchImpl,
+  );
+  const issue = data?.repository?.issue;
+  if (!issue?.number || !issue?.url) {
+    throw new CopilotTaskError(
+      "GitHub задачата не е намерена в разрешеното хранилище.",
+      404,
+      "COPILOT_TASK_NOT_FOUND",
+    );
+  }
+  const pullRequests = [
+    ...(issue.closedByPullRequestsReferences?.nodes || []),
+    ...(issue.timelineItems?.nodes || [])
+      .map((event) => event?.source)
+      .filter(Boolean),
+  ].filter(
+    (candidate, index, items) =>
+      candidate?.number &&
+      items.findIndex((item) => item?.number === candidate.number) === index,
+  );
+  const pullRequest =
+    pullRequests.find((candidate) => candidate?.state === "OPEN") ||
+    pullRequests.find((candidate) => candidate?.merged) ||
+    pullRequests[0] ||
+    null;
+  const checks = (taskStatusRollup(pullRequest)?.contexts?.nodes || []).map(
+    normalizeCheckContext,
+  );
+  return Object.freeze({
+    repository,
+    issue: {
+      number: issue.number,
+      title: issue.title,
+      url: issue.url,
+      state: issue.state,
+      copilotAssigned: hasConfirmedCopilotAssignee(issue),
+    },
+    pullRequest: pullRequest
+      ? {
+          number: pullRequest.number,
+          title: pullRequest.title,
+          url: pullRequest.url,
+          state: pullRequest.state,
+          draft: Boolean(pullRequest.isDraft),
+          merged: Boolean(pullRequest.merged),
+          mergedAt: pullRequest.mergedAt || null,
+          baseRef: pullRequest.baseRefName,
+          headRef: pullRequest.headRefName,
+          headSha: pullRequest.headRefOid,
+          mergeSha: pullRequest.mergeCommit?.oid || null,
+        }
+      : null,
+    checks,
+    status: classifyCopilotTask(issue, pullRequest),
+  });
+}
+
+export function formatCopilotTaskStatus(result) {
+  const labels = {
+    waiting: "чака назначаване на Copilot",
+    "copilot-working": "Copilot работи; Pull Request още няма",
+    "draft-pr": "има Draft Pull Request",
+    "checks-running": "проверките работят",
+    "checks-needed": "има неуспешни проверки и са нужни поправки",
+    "ready-for-review": "проверките са зелени и PR е готов за преглед",
+    merged: "PR е слят; production проверката още не е завършила",
+    "deployment-failed": "PR е слят, но production проверката е неуспешна",
+    "real-tested": "публикувано и реално проверено в production",
+    "needs-attention": "PR е затворен без сливане",
+    "unsafe-branch": "PR нарушава защитения клонов процес",
+  };
+  const failedChecks = result.checks.filter((check) =>
+    ["ERROR", "FAILURE", "CANCELLED", "TIMED_OUT"].includes(check.state),
+  );
+  return [
+    `GitHub задача #${result.issue.number}: ${result.issue.title}`,
+    `Състояние: ${labels[result.status] || result.status}.`,
+    `Задача: ${result.issue.url}`,
+    ...(result.pullRequest
+      ? [
+          `Pull Request: #${result.pullRequest.number} — ${result.pullRequest.url}`,
+          `Клон: ${result.pullRequest.headRef} → ${result.pullRequest.baseRef}`,
+        ]
+      : []),
+    ...(failedChecks.length
+      ? [
+          `Неуспешни проверки: ${failedChecks.map((check) => check.name).join(", ")}.`,
+        ]
+      : []),
+  ].join("\n");
 }
 
 export async function getCopilotBridgeStatus({
@@ -275,7 +637,7 @@ export async function startCopilotTask({
   fetchImpl = fetch,
 }) {
   const session = await getGitHubSession(githubSessionId);
-  if (!session) {
+  if (!session || !isAuthorizedGitHubLogin(session.login)) {
     throw new GitHubOAuthError(
       "Първо свържи GitHub от „Инструменти“.",
       401,
@@ -291,11 +653,36 @@ export async function startCopilotTask({
     );
   }
   splitRepository(repository);
+  assertBaseRef(baseRef);
+  const fingerprint = taskFingerprint(cleanPrompt, repository, baseRef);
   const { repositoryId, copilotId } = await resolveCopilotContext(
     session.accessToken,
     repository,
     fetchImpl,
   );
+  const existingIssue = await findExistingCopilotTask(
+    session.accessToken,
+    repository,
+    fingerprint,
+    fetchImpl,
+  );
+  if (existingIssue) {
+    if (!hasConfirmedCopilotAssignee(existingIssue)) {
+      throw new CopilotTaskError(
+        "Съществуващата GitHub задача не е потвърдено назначена на Copilot.",
+        409,
+        "COPILOT_ASSIGNMENT_UNCONFIRMED",
+      );
+    }
+    return {
+      issueNumber: existingIssue.number,
+      title: existingIssue.title,
+      url: existingIssue.url,
+      repository,
+      assignee: COPILOT_LOGIN,
+      deduplicated: true,
+    };
+  }
   const data = await githubGraphql(
     session.accessToken,
     `
@@ -335,6 +722,8 @@ export async function startCopilotTask({
         "Задача, потвърдена от потребителя в SYNCHRON-X:",
         "",
         cleanPrompt,
+        "",
+        taskMarker(fingerprint),
       ].join("\n"),
       baseRef,
       instructions: [
@@ -354,12 +743,20 @@ export async function startCopilotTask({
       "COPILOT_EMPTY_RESULT",
     );
   }
+  if (!hasConfirmedCopilotAssignee(issue)) {
+    throw new CopilotTaskError(
+      "GitHub създаде задачата, но не потвърди назначаването на Copilot.",
+      502,
+      "COPILOT_ASSIGNMENT_UNCONFIRMED",
+    );
+  }
   return {
     issueNumber: issue.number,
     title: issue.title,
     url: issue.url,
     repository,
-    assignee: issue.assignees?.nodes?.[0]?.login || "copilot-swe-agent",
+    assignee: COPILOT_LOGIN,
+    deduplicated: false,
   };
 }
 
@@ -371,13 +768,15 @@ export async function prepareCopilotTask({
   baseRef = "main",
 }) {
   const githubSession = await getGitHubSession(githubSessionId);
-  if (!githubSession) {
+  if (!githubSession || !isAuthorizedGitHubLogin(githubSession.login)) {
     throw new GitHubOAuthError(
       "Първо свържи GitHub от „Инструменти“.",
       401,
       "GITHUB_SESSION_REQUIRED",
     );
   }
+  splitRepository(repository);
+  assertBaseRef(baseRef);
   const confirmation = await createDurableConfirmation({
     sessionId,
     action: "github.copilot:start_task",
@@ -435,7 +834,9 @@ export async function confirmCopilotTask({
 
 export function formatCopilotTaskResult(result) {
   return [
-    "GitHub Copilot прие задачата.",
+    result.deduplicated
+      ? "Същата GitHub задача вече съществува; не създадох дубликат."
+      : "GitHub Copilot прие задачата.",
     `Задача: #${result.issueNumber} — ${result.title}`,
     `Проследяване: ${result.url}`,
     "Copilot работи в GitHub. Когато създаде Pull Request, той трябва да бъде прегледан преди сливане.",

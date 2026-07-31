@@ -262,16 +262,13 @@
 :root[data-font-scale="max"] .drawer-state,
 :root[data-font-scale="max"] .memory-card,
 :root[data-font-scale="max"] .permission-card,
-:root[data-font-scale="max"] .focus-card,
-:root[data-font-scale="max"] .focus-next,
 :root[data-font-scale="max"] .work-center-intro {
   font-size: var(--synchron-readable-text);
   line-height: 1.5;
 }
 
 :root[data-font-scale="max"] .memory-card p,
-:root[data-font-scale="max"] .permission-card p,
-:root[data-font-scale="max"] .focus-card p {
+:root[data-font-scale="max"] .permission-card p {
   font-size: inherit;
   line-height: inherit;
 }

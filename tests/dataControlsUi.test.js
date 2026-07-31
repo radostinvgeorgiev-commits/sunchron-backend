@@ -26,8 +26,12 @@ test("application exposes working memory and permission controls", async () => {
   assert.match(script, /elements\.imageInput\.click\(\)/u);
   assert.match(script, /function closeSidebar\(\)/u);
   assert.match(script, /function openModulesDrawer\(\)/u);
-  assert.match(script, /function openFocusDrawer\(\)/u);
+  assert.match(html, /task-journal\.js/u);
+  assert.doesNotMatch(script, /function openFocusDrawer\(\)/u);
+  assert.doesNotMatch(script, /Свързване на GitHub Copilot/u);
   assert.match(script, /function openToolsDrawer\(\)/u);
+  assert.match(script, /<strong>Снимки<\/strong><p>JPEG, PNG и WebP до 5 MB\.<\/p>/u);
+  assert.doesNotMatch(script, /Снимки и файлове/u);
   assert.match(script, /fetch\(["']\/health\/integrations["']/u);
   assert.match(script, /Твоята лична AI операционна система/u);
   assert.match(script, /item\.readOnly/u);

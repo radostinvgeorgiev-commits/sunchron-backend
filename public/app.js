@@ -276,7 +276,6 @@ async function startApplication(user) {
   elements.sidebarBackdrop.addEventListener("click", closeSidebar);
   elements.imagesBtn.addEventListener("click", openImagePicker);
   elements.modulesBtn.addEventListener("click", openModulesDrawer);
-  elements.focusBtn.addEventListener("click", openFocusDrawer);
   elements.toolsBtn.addEventListener("click", openToolsDrawer);
   elements.systemConfigurationBtn.addEventListener(
     "click",
@@ -593,25 +592,6 @@ function openModulesDrawer() {
   document.dispatchEvent(new CustomEvent("synchron:modules-opened"));
 }
 
-function openFocusDrawer() {
-  openDataDrawer("Днешен фокус");
-  elements.dataDrawerBody.innerHTML = `
-    <section class="focus-card focus-primary">
-      <span class="focus-kicker">Текущ етап</span>
-      <h3>Стабилен разговор и постоянна памет</h3>
-      <p>Една задача трябва да се изпълнява веднъж, с ясен резултат и без повторения.</p>
-    </section>
-    <section class="focus-card">
-      <span class="focus-kicker">Текуща задача</span>
-      <h3>Свързване на GitHub Copilot</h3>
-      <p>AI Core води разговора, а потвърдените кодови задачи се предават на Copilot в отделен клон и Pull Request.</p>
-    </section>
-    <section class="focus-next">
-      <span>Следваща проверка</span>
-      <strong>Свържи GitHub еднократно, после изпълни една малка кодова задача с точно потвърждение.</strong>
-    </section>`;
-}
-
 function isGoogleTool(tool) {
   return (
     tool?.provider === "google" ||
@@ -738,7 +718,7 @@ async function openToolsDrawer() {
           <span class="permission-badge allow">Отвори</span>
         </button>
         <article class="permission-card tool-status-card">
-          <div><strong>Снимки и файлове</strong><p>Качване и анализ на изображение.</p></div>
+          <div><strong>Снимки</strong><p>JPEG, PNG и WebP до 5 MB.</p></div>
           <span class="permission-badge allow">Работи</span>
         </article>
         ${tools

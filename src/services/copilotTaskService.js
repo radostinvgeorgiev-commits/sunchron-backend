@@ -11,6 +11,10 @@ import {
   isAuthorizedGitHubLogin,
   isGitHubOAuthConfigured,
 } from "./githubOAuthService.js";
+import {
+  executeAuditedWriteAction,
+  isAuditSafetyError,
+} from "./permissionService.js";
 
 const DEFAULT_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 const GITHUB_GRAPHQL_URL = "https://api.github.com/graphql";
@@ -810,6 +814,7 @@ export async function confirmCopilotTask({
   sessionId,
   githubSessionId,
   fetchImpl = fetch,
+  executeWrite = executeAuditedWriteAction,
 }) {
   const confirmation = await validateDurableConfirmation(
     confirmationId,
@@ -823,13 +828,29 @@ export async function confirmCopilotTask({
     );
   }
   await markDurableConfirmationUsed(confirmationId);
-  return startCopilotTask({
-    githubSessionId,
-    prompt: confirmation.params.prompt,
-    repository: confirmation.resource.repository,
-    baseRef: confirmation.resource.baseRef,
-    fetchImpl,
-  });
+  try {
+    return await executeWrite({
+      action: "github.write",
+      capability: "code.write",
+      sessionId,
+      confirmationId,
+      resource: confirmation.resource.repository,
+      details: "github.copilot:start_task",
+      execute: () =>
+        startCopilotTask({
+          githubSessionId,
+          prompt: confirmation.params.prompt,
+          repository: confirmation.resource.repository,
+          baseRef: confirmation.resource.baseRef,
+          fetchImpl,
+        }),
+    });
+  } catch (error) {
+    if (isAuditSafetyError(error)) {
+      throw new CopilotTaskError(error.message, error.status, error.code);
+    }
+    throw error;
+  }
 }
 
 export function formatCopilotTaskResult(result) {

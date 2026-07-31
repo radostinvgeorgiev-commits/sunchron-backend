@@ -17,6 +17,10 @@ const accessibilityCss = await readFile(
   new URL("../public/accessibility.css", import.meta.url),
   "utf8",
 );
+const mobileCommandSource = await readFile(
+  new URL("../public/synchron-vision.js", import.meta.url),
+  "utf8",
+);
 
 function createHarness({
   config,
@@ -76,6 +80,7 @@ function createHarness({
   const dom = new JSDOM(`<!doctype html><body>
     <aside id="sidebar"></aside>
     <button id="workCenterBtn">Работен център</button>
+    <button id="toolsBtn">Инструменти</button>
     <button id="googleDriveBtn">Drive</button>
     <button id="gmailBtn">Gmail</button>
     <button id="googleCalendarBtn">Calendar</button>
@@ -311,6 +316,34 @@ test("Google cards reuse the existing hidden integration actions", async () => {
     .click();
 
   assert.deepEqual(clicks, ["googleDriveBtn", "gmailBtn", "googleCalendarBtn"]);
+});
+
+test("Tools card reuses the existing live tools drawer action", async () => {
+  const harness = createHarness();
+  const { document } = harness.dom.window;
+  let clicks = 0;
+  document.getElementById("toolsBtn").addEventListener("click", () => {
+    clicks += 1;
+  });
+  await openCenter(harness);
+
+  const toolsCard = document.querySelector(
+    '[data-work-center-target="toolsBtn"]',
+  );
+  assert.match(toolsCard.textContent, /Инструменти/u);
+  toolsCard.click();
+  assert.equal(clicks, 1);
+});
+
+test("mobile Connections command opens the Work Center", () => {
+  assert.match(
+    mobileCommandSource,
+    /command === "connections"[\s\S]{0,120}forwardClick\("workCenterBtn", "connections"\)/u,
+  );
+  assert.doesNotMatch(
+    mobileCommandSource,
+    /command === "connections"[\s\S]{0,120}forwardClick\("toolsBtn", "connections"\)/u,
+  );
 });
 
 test("work center shows real connection state instead of claiming everything works", async () => {

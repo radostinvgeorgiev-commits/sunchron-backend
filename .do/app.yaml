@@ -54,11 +54,13 @@ services:
         scope: RUN_TIME
         type: SECRET
       - key: SUPABASE_URL
+        value: https://ahrimuhroxjmtojmhrfl.supabase.co
         scope: RUN_TIME
-        type: SECRET
+        type: GENERAL
       - key: SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_loKxmAIkhJiNiGB4HLKX1A_u2WtD44N
         scope: RUN_TIME
-        type: SECRET
+        type: GENERAL
       - key: SUPABASE_SESSION_ENCRYPTION_KEY
         scope: RUN_TIME
         type: SECRET

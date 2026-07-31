@@ -453,6 +453,64 @@ function safeArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function validIsoDate(value) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const stamp = Date.parse(value);
+  return Number.isFinite(stamp) ? new Date(stamp).toISOString() : null;
+}
+
+export async function getDigitalOceanDatabaseBackupInventory(
+  databases,
+  options = {},
+) {
+  return Promise.all(
+    safeArray(databases).map(async (database) => {
+      const engine =
+        typeof database?.engine === "string" ? database.engine : "unknown";
+      if (typeof database?.id !== "string" || !database.id.trim()) {
+        return {
+          engine,
+          status: "unverified",
+          backupCount: null,
+          oldestCreatedAt: null,
+          newestCreatedAt: null,
+          errorCode: "DATABASE_ID_MISSING",
+          errorStatus: null,
+        };
+      }
+      try {
+        const data = await request(
+          `/databases/${encodeURIComponent(database.id)}/backups?per_page=200`,
+          options,
+        );
+        const dates = safeArray(data?.backups)
+          .map((backup) => validIsoDate(backup?.created_at))
+          .filter(Boolean)
+          .sort();
+        return {
+          engine,
+          status: "verified",
+          backupCount: safeArray(data?.backups).length,
+          oldestCreatedAt: dates[0] || null,
+          newestCreatedAt: dates.at(-1) || null,
+          errorCode: null,
+          errorStatus: null,
+        };
+      } catch (error) {
+        return {
+          engine,
+          status: "unverified",
+          backupCount: null,
+          oldestCreatedAt: null,
+          newestCreatedAt: null,
+          errorCode: error?.code || "DIGITALOCEAN_UPSTREAM_ERROR",
+          errorStatus: error?.status || null,
+        };
+      }
+    }),
+  );
+}
+
 function regionSlug(resource) {
   return resource?.region?.slug || resource?.region || null;
 }
@@ -738,6 +796,31 @@ function buildFindings(audit) {
       message: `${unhealthyDatabases.length} управлявана база не е със статус online.`,
     });
   }
+  const opensearchBackups = safeArray(audit.databaseBackups).filter(
+    ({ engine }) => engine === "opensearch",
+  );
+  if (
+    audit.databases.some(({ engine }) => engine === "opensearch") &&
+    !opensearchBackups.some(({ status }) => status === "verified")
+  ) {
+    findings.push({
+      severity: "warning",
+      code: "OPENSEARCH_BACKUPS_UNVERIFIED",
+      message:
+        "Backup точките на управлявания OpenSearch не можаха да бъдат проверени.",
+    });
+  } else if (
+    opensearchBackups.some(
+      ({ status, backupCount }) => status === "verified" && backupCount === 0,
+    )
+  ) {
+    findings.push({
+      severity: "warning",
+      code: "OPENSEARCH_BACKUPS_EMPTY",
+      message:
+        "DigitalOcean backup API не върна restore точки за управлявания OpenSearch.",
+    });
+  }
   const unassignedReservedIps = audit.reservedIps.filter(
     (reservedIp) => !reservedIp.assigned,
   );
@@ -827,6 +910,11 @@ export async function getDigitalOceanAccountAudit(options = {}) {
     ? results.account.data?.account || {}
     : {};
   const balance = results.balance?.ok ? results.balance.data || {} : {};
+  const rawDatabases = read("databases", "databases");
+  const databaseBackups = await getDigitalOceanDatabaseBackupInventory(
+    rawDatabases,
+    options,
+  );
   const audit = {
     checkedAt: new Date().toISOString(),
     account: {
@@ -847,7 +935,8 @@ export async function getDigitalOceanAccountAudit(options = {}) {
     },
     apps: read("apps", "apps").map(mapApp),
     droplets: read("droplets", "droplets").map(mapDroplet),
-    databases: read("databases", "databases").map(mapDatabase),
+    databases: rawDatabases.map(mapDatabase),
+    databaseBackups,
     volumes: read("volumes", "volumes").map(mapVolume),
     snapshots: read("snapshots", "snapshots").map(mapSnapshot),
     vpcs: read("vpcs", "vpcs").map(mapVpc),
@@ -912,12 +1001,26 @@ export function formatDigitalOceanAudit(audit) {
     audit.billing.monthToDateUsage || audit.billing.accountBalance
       ? `Разход този месец: ${audit.billing.monthToDateUsage || "няма данни"} ${audit.billing.currency || ""}; баланс: ${audit.billing.accountBalance || "няма данни"} ${audit.billing.currency || ""}.`
       : "Разходи: няма достъпни данни.";
+  const databaseBackups = safeArray(audit.databaseBackups);
+  const backupLines = databaseBackups.length
+    ? databaseBackups.map((backup, index) => {
+        if (backup.status !== "verified") {
+          return `• ${backup.engine} база #${index + 1}: backup точките не са проверени (${backup.errorCode || "неизвестна причина"}).`;
+        }
+        const range = backup.backupCount
+          ? `; период ${backup.oldestCreatedAt || "неизвестен"} – ${backup.newestCreatedAt || "неизвестен"}`
+          : "";
+        return `• ${backup.engine} база #${index + 1}: ${backup.backupCount} налични backup точки${range}.`;
+      })
+    : ["• Няма открити управлявани бази за backup проверка."];
   return [
     "DigitalOcean — преглед на ресурсите само за четене.",
     `Акаунт: ${audit.account.status || "неизвестен статус"}.`,
     `Покритие: проверени ${checkedSections} от ${AUDIT_RESOURCES.length} заявени секции.`,
     `Ресурси: ${counts}.`,
     billing,
+    "Backup точки на управляваните бази:",
+    ...backupLines,
     "Находки:",
     ...audit.findings.map((finding) => `• ${finding.message}`),
     audit.unavailable.length

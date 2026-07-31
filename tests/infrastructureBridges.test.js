@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   getDigitalOceanAccountAudit,
+  getDigitalOceanDatabaseBackupInventory,
   getDigitalOceanAppStatus,
   formatDigitalOceanAudit,
   formatDigitalOceanStatus,
@@ -99,6 +100,14 @@ test("DigitalOcean full audit reads account resources without writes or secrets"
         ],
       });
     }
+    if (path === "/v2/databases/db-1/backups") {
+      return Response.json({
+        backups: [
+          { created_at: "2026-07-31T02:00:00Z" },
+          { created_at: "2026-07-30T02:00:00Z" },
+        ],
+      });
+    }
     if (path === "/v2/volumes") {
       return Response.json({
         volumes: [
@@ -156,6 +165,17 @@ test("DigitalOcean full audit reads account resources without writes or secrets"
   assert.equal(audit.apps.length, 1);
   assert.equal(audit.droplets.length, 1);
   assert.equal(audit.databases[0].engine, "opensearch");
+  assert.deepEqual(audit.databaseBackups, [
+    {
+      engine: "opensearch",
+      status: "verified",
+      backupCount: 2,
+      oldestCreatedAt: "2026-07-30T02:00:00.000Z",
+      newestCreatedAt: "2026-07-31T02:00:00.000Z",
+      errorCode: null,
+      errorStatus: null,
+    },
+  ]);
   assert.match(formatDigitalOceanAudit(audit), /преглед на ресурсите/u);
   assert.match(formatDigitalOceanAudit(audit), /проверени 23 от 23/u);
   assert.match(
@@ -163,10 +183,53 @@ test("DigitalOcean full audit reads account resources without writes or secrets"
     /без включени автоматични backups/u,
   );
   assert.match(formatDigitalOceanAudit(audit), /Не са направени промени/u);
+  assert.match(formatDigitalOceanAudit(audit), /2 налични backup точки/u);
   assert.equal(audit.unavailable.length, 0);
-  assert.equal(calls.length, 23);
+  assert.equal(calls.length, 24);
   assert.ok(calls.every((call) => call.options.method === "GET"));
   assert.doesNotMatch(JSON.stringify(audit), /secret/u);
+});
+
+test("database backup inventory reports denied access as unverified without leaking the token", async () => {
+  const inventory = await getDigitalOceanDatabaseBackupInventory(
+    [{ id: "db-private", engine: "opensearch" }],
+    {
+      env: { DIGITALOCEAN_API_TOKEN: "secret-backup-token" },
+      fetchImpl: async () =>
+        Response.json(
+          { message: "Bearer secret-backup-token is not allowed" },
+          { status: 403 },
+        ),
+    },
+  );
+
+  assert.deepEqual(inventory, [
+    {
+      engine: "opensearch",
+      status: "unverified",
+      backupCount: null,
+      oldestCreatedAt: null,
+      newestCreatedAt: null,
+      errorCode: "DIGITALOCEAN_FORBIDDEN",
+      errorStatus: 403,
+    },
+  ]);
+  assert.doesNotMatch(JSON.stringify(inventory), /secret-backup-token/u);
+});
+
+test("database backup inventory distinguishes a verified empty backup list", async () => {
+  const inventory = await getDigitalOceanDatabaseBackupInventory(
+    [{ id: "db-empty", engine: "opensearch" }],
+    {
+      env: { DIGITALOCEAN_API_TOKEN: "test-token" },
+      fetchImpl: async () => Response.json({ backups: [] }),
+    },
+  );
+
+  assert.equal(inventory[0].status, "verified");
+  assert.equal(inventory[0].backupCount, 0);
+  assert.equal(inventory[0].oldestCreatedAt, null);
+  assert.equal(inventory[0].newestCreatedAt, null);
 });
 
 test("Cloudflare bridge reads zone and DNS without writes", async () => {

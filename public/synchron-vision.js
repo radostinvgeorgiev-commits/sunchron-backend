@@ -94,7 +94,7 @@ commandBar?.addEventListener("click", (event) => {
   } else if (command === "tasks") {
     forwardClick("focusBtn", "tasks");
   } else if (command === "connections") {
-    forwardClick("toolsBtn", "connections");
+    forwardClick("workCenterBtn", "connections");
   }
 });
 

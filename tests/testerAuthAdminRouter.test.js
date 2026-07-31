@@ -133,7 +133,7 @@ test("consumes the exact confirmation before activating DigitalOcean", async () 
   assert.equal(response.body.inviteCode, "private-invite");
 });
 
-test("audit storage failure cannot turn a successful activation into a failure", async () => {
+test("successful activation with failed final audit is reported as uncertain", async () => {
   const app = testApp({
     validateConfirmation: async () => ({
       action: ACTION,
@@ -148,18 +148,57 @@ test("audit storage failure cannot turn a successful activation into a failure",
       deploymentId: "deploy-1",
       inviteCode: "private-invite",
     }),
-    audit: async () => {
-      throw new Error("audit unavailable");
+    executeWrite: async ({ execute }) => {
+      await execute();
+      const error = new Error(
+        "Действието може да е извършено, но крайният журнал не можа да бъде записан. Не го повтаряй автоматично.",
+      );
+      error.code = "AUDIT_OUTCOME_UNCERTAIN";
+      error.status = 502;
+      throw error;
     },
+    audit: async () => {},
   });
 
   const response = await request(app)
     .post("/api/tester-auth/confirm")
     .send({ confirmationId: "confirmation-1" })
-    .expect(200);
+    .expect(502);
 
-  assert.equal(response.body.status, "ok");
-  assert.equal(response.body.deploymentId, "deploy-1");
+  assert.equal(response.body.code, "AUDIT_OUTCOME_UNCERTAIN");
+  assert.match(response.body.error, /Не го повтаряй автоматично/u);
+});
+
+test("missing audit intent blocks DigitalOcean before activation", async () => {
+  let activated = false;
+  const app = testApp({
+    validateConfirmation: async () => ({
+      action: ACTION,
+      resource: { appId: "app-1" },
+      params: BOOTSTRAP,
+    }),
+    consumeConfirmation: async () => {},
+    executeWrite: async () => {
+      const error = new Error(
+        "Журналът не е достъпен. Действието не беше стартирано.",
+      );
+      error.code = "AUDIT_UNAVAILABLE";
+      error.status = 503;
+      throw error;
+    },
+    activate: async () => {
+      activated = true;
+    },
+    audit: async () => {},
+  });
+
+  const response = await request(app)
+    .post("/api/tester-auth/confirm")
+    .send({ confirmationId: "confirmation-1" })
+    .expect(503);
+
+  assert.equal(response.body.code, "AUDIT_UNAVAILABLE");
+  assert.equal(activated, false);
 });
 
 test("reveals the invite code only from the owner-protected admin router", async () => {

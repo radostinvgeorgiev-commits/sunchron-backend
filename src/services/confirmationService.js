@@ -16,6 +16,7 @@ const ALLOWED_ACTIONS = new Set([
   "github.write:delete_merged_branches",
   "infrastructure.digitalocean:activate_tester_auth",
   "calendar.write:create_event",
+  "memory.write:save_profile",
 ]);
 
 // Fields that must never be stored in a confirmation (audit safety)

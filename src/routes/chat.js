@@ -999,7 +999,10 @@ router.post("/chat", async (req, res) => {
         count: items.length,
       });
     } catch (error) {
-      console.error("[Memory write confirmation]", error);
+      console.error(
+        "[Memory write confirmation]",
+        error?.code || error?.message || "unknown",
+      );
       await auditAction({
         action: "memory.write",
         decision: "confirmed",

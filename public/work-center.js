@@ -101,6 +101,7 @@
     icon,
     status,
     statusClass = "warning",
+    actionLabel = "Натисни за активиране",
   }) {
     const card = document.createElement("button");
     card.type = "button";
@@ -117,7 +118,13 @@
     addText(content, "strong", cardTitle);
     addText(content, "span", description, "work-center-description");
     addText(content, "span", status, `work-center-status ${statusClass}`);
+    addText(content, "span", actionLabel, "work-center-action-label");
     card.appendChild(content);
+
+    const arrow = document.createElement("i");
+    arrow.className = "fa-solid fa-chevron-right work-center-arrow";
+    arrow.setAttribute("aria-hidden", "true");
+    card.appendChild(arrow);
     return card;
   }
 
@@ -308,6 +315,10 @@
           testerAuth?.configured && testerAuth?.registrationEnabled
             ? "internal"
             : "warning",
+        actionLabel:
+          testerAuth?.configured && testerAuth?.registrationEnabled
+            ? "Натисни, за да покажеш кода"
+            : "Натисни за активиране",
       }),
       createExternalCard({
         title: "Cloudflare",
@@ -352,9 +363,15 @@
     body.appendChild(closeButton);
   }
 
-  function showTesterAuthResult({ title: resultTitle, message, inviteCode }) {
+  function showTesterAuthResult({
+    title: resultTitle,
+    message,
+    inviteCode,
+    anchor,
+  }) {
     const panel = document.createElement("section");
     panel.className = "work-center-intro";
+    panel.dataset.testerAuthResult = "";
     addText(panel, "strong", resultTitle);
     addText(panel, "p", message);
     if (inviteCode) {
@@ -364,13 +381,22 @@
       copyButton.type = "button";
       copyButton.dataset.copyTesterInvite = "";
     }
-    body.prepend(panel);
+    body.querySelector("[data-tester-auth-result]")?.remove();
+    if (anchor?.parentNode) {
+      anchor.insertAdjacentElement("afterend", panel);
+    } else {
+      body.prepend(panel);
+    }
+    panel.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
   }
 
   async function readJson(response) {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(payload.error || "Действието не успя.");
+      const error = new Error(payload.error || "Действието не успя.");
+      error.code = payload.code;
+      error.status = response.status;
+      throw error;
     }
     return payload;
   }
@@ -419,11 +445,23 @@
         message:
           "DigitalOcean започва нов deployment. След публикуването бутонът „Създай тестов профил“ ще се появи.",
         inviteCode: result.inviteCode,
+        anchor: card,
       });
     } catch (error) {
+      if (error.code === "AUTH_REQUIRED" || error.status === 401) {
+        showTesterAuthResult({
+          title: "Необходим е вход на собственика",
+          message:
+            "Отварям защитения GitHub вход. След връщането натисни картата отново.",
+          anchor: card,
+        });
+        globalThis.location?.assign?.("/api/github/connect");
+        return;
+      }
       showTesterAuthResult({
         title: "Активирането не успя",
         message: error.message,
+        anchor: card,
       });
     } finally {
       card.disabled = false;

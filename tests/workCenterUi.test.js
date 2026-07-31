@@ -67,6 +67,7 @@ function createHarness({
   githubConnected = false,
   testerAuth = { configured: false, registrationEnabled: false },
   fetchFails = false,
+  testerPrepareResponse = null,
 } = {}) {
   const dom = new JSDOM(`<!doctype html><body>
     <aside id="sidebar"></aside>
@@ -86,9 +87,17 @@ function createHarness({
     console,
     document: dom.window.document,
     Event: dom.window.Event,
+    location: {
+      assign: (url) => {
+        dom.window.document.body.dataset.redirectedTo = url;
+      },
+    },
     fetch: async (url) => {
       if (fetchFails) throw new Error("offline");
       const path = String(url);
+      if (path.includes("/api/tester-auth/prepare") && testerPrepareResponse) {
+        return testerPrepareResponse;
+      }
       const result = path.includes("/health/ready")
         ? readiness
         : path.includes("/health/integrations")
@@ -273,6 +282,72 @@ test("work center shows the invite action only after tester auth is active", asy
 
   assert.match(card.textContent, /Тестови профили/u);
   assert.match(card.textContent, /Работи · Само за собственика/u);
+});
+
+test("tester auth action is visibly actionable on mobile", async () => {
+  const harness = createHarness();
+  await openCenter(harness);
+  const card = harness.dom.window.document.querySelector(
+    '[data-work-center-action="activate-tester-auth"]',
+  );
+
+  assert.match(card.textContent, /Натисни за активиране/u);
+  assert.ok(card.querySelector(".fa-chevron-right"));
+});
+
+test("tester auth error is shown next to the action card", async () => {
+  const harness = createHarness({
+    testerPrepareResponse: {
+      ok: false,
+      status: 503,
+      json: async () => ({
+        error: "DigitalOcean мостът не е достъпен.",
+        code: "DIGITALOCEAN_UNAVAILABLE",
+      }),
+    },
+  });
+  await openCenter(harness);
+  const { document } = harness.dom.window;
+  const card = document.querySelector(
+    '[data-work-center-action="activate-tester-auth"]',
+  );
+
+  card.click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const result = card.nextElementSibling;
+  assert.equal(result?.dataset.testerAuthResult, "");
+  assert.match(result.textContent, /DigitalOcean мостът не е достъпен/u);
+});
+
+test("missing owner session opens the protected GitHub login", async () => {
+  const harness = createHarness({
+    testerPrepareResponse: {
+      ok: false,
+      status: 401,
+      json: async () => ({
+        error: "Трябва да влезеш.",
+        code: "AUTH_REQUIRED",
+      }),
+    },
+  });
+  await openCenter(harness);
+  const { document } = harness.dom.window;
+  const card = document.querySelector(
+    '[data-work-center-action="activate-tester-auth"]',
+  );
+
+  card.click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(
+    document.body.dataset.redirectedTo,
+    "/api/github/connect",
+  );
+  assert.match(
+    card.nextElementSibling.textContent,
+    /Необходим е вход на собственика/u,
+  );
 });
 
 test("one Google login marks Drive, Gmail, and Calendar as connected", async () => {

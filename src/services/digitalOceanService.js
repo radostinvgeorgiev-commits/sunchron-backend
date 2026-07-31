@@ -511,6 +511,20 @@ export async function getDigitalOceanDatabaseBackupInventory(
   );
 }
 
+export async function getDigitalOceanOpenSearchBackupAudit(options = {}) {
+  const data = await request("/databases?per_page=200", options);
+  const databases = safeArray(data?.databases).filter(
+    (database) => database?.engine === "opensearch",
+  );
+  return {
+    checkedAt: new Date().toISOString(),
+    databaseBackups: await getDigitalOceanDatabaseBackupInventory(
+      databases,
+      options,
+    ),
+  };
+}
+
 function regionSlug(resource) {
   return resource?.region?.slug || resource?.region || null;
 }
@@ -1028,6 +1042,33 @@ export function formatDigitalOceanAudit(audit) {
       : "Всички заявени секции са проверени.",
     "Ограничение: това е автоматичен преглед на данните от DigitalOcean API, а не доказателство, че приложението, архивите, тайните и всички настройки за сигурност са правилни.",
     "Не са направени промени.",
+  ].join("\n");
+}
+
+export function formatDigitalOceanOpenSearchBackupAudit(audit) {
+  const backups = safeArray(audit?.databaseBackups);
+  const backupLines = backups.length
+    ? backups.map((backup, index) => {
+        if (backup.status !== "verified") {
+          const reason =
+            backup.errorCode === "DIGITALOCEAN_FORBIDDEN"
+              ? "DigitalOcean token-ът няма право да прочете backup точките"
+              : backup.errorCode === "DIGITALOCEAN_TOKEN_INVALID"
+                ? "DigitalOcean token-ът е невалиден, изтекъл или отнет"
+                : "DigitalOcean API не върна проверими backup данни";
+          return `• OpenSearch база #${index + 1}: не е проверена — ${reason}.`;
+        }
+        const range = backup.backupCount
+          ? `; най-стара ${backup.oldestCreatedAt || "неизвестна"}; най-нова ${backup.newestCreatedAt || "неизвестна"}`
+          : "";
+        return `• OpenSearch база #${index + 1}: ${backup.backupCount} налични restore точки${range}.`;
+      })
+    : ["• Не е открита управлявана OpenSearch база в достъпния акаунт."];
+
+  return [
+    "OpenSearch backup инвентар — проверка само за четене.",
+    ...backupLines,
+    "Не е създаван restore или fork и не са променяни данни.",
   ].join("\n");
 }
 

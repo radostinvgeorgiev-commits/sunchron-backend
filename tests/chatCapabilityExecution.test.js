@@ -13,6 +13,8 @@ import {
   splitCapabilitySubtasks,
 } from "../src/routes/chat.js";
 import { extractMemoryWriteConfirmationId } from "../src/services/memoryWriteConfirmationService.js";
+import { DigitalOceanError } from "../src/services/digitalOceanService.js";
+import { isDigitalOceanBackupInventoryRequest } from "../src/tools/capabilityEngine.js";
 
 test("memory confirmation keeps the overall task waiting", () => {
   const task = {
@@ -201,6 +203,32 @@ test("recognizes common Bulgarian DigitalOcean spellings as real tool requests",
       ["infrastructure.digitalocean.read"],
     );
   }
+});
+
+test("routes the exact OpenSearch backup request to the focused read-only audit", () => {
+  const message =
+    "Направи само read-only проверка на DigitalOcean и покажи OpenSearch backup инвентара: брой restore точки, най-стара и най-нова дата. Не създавай restore или fork и не променяй данни.";
+  assert.deepEqual(
+    detectCapabilityRequests(message).map(({ capability }) => capability),
+    ["infrastructure.digitalocean.read"],
+  );
+  assert.equal(isDigitalOceanBackupInventoryRequest(message), true);
+});
+
+test("DigitalOcean failures keep a safe actionable reason in chat", () => {
+  const replies = buildCapabilityReplies([
+    {
+      status: "rejected",
+      request: { capability: "infrastructure.digitalocean.read" },
+      error: new DigitalOceanError(
+        "upstream payload must stay hidden",
+        403,
+        "DIGITALOCEAN_FORBIDDEN",
+      ),
+    },
+  ]);
+  assert.match(replies[0], /няма право да прочете тези данни/u);
+  assert.doesNotMatch(replies[0], /upstream payload/u);
 });
 
 test("infrastructure results bypass AI rewriting and stay verified", () => {

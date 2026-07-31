@@ -65,6 +65,7 @@ import {
   ImageServiceError,
   validateImageInput,
 } from "../services/imageService.js";
+import { DigitalOceanError } from "../services/digitalOceanService.js";
 import {
   CapabilityError,
   executeCapability,
@@ -593,6 +594,18 @@ function capabilityLabel(capability) {
 }
 
 function formatCapabilityFailureMessage(error) {
+  if (error instanceof DigitalOceanError) {
+    const messages = {
+      DIGITALOCEAN_TOKEN_INVALID:
+        "DigitalOcean token-ът е невалиден, изтекъл или отнет.",
+      DIGITALOCEAN_FORBIDDEN:
+        "DigitalOcean връзката няма право да прочете тези данни.",
+      DIGITALOCEAN_NOT_CONFIGURED: "DigitalOcean Read не е конфигуриран.",
+      DIGITALOCEAN_APP_NOT_CONFIGURED: "DigitalOcean App ID не е конфигуриран.",
+      DIGITALOCEAN_UPSTREAM_ERROR: "DigitalOcean API временно не отговаря.",
+    };
+    return messages[error.code] || "DigitalOcean временно не е достъпен.";
+  }
   if (
     error instanceof GitHubServiceError ||
     error instanceof GitHubOAuthError ||

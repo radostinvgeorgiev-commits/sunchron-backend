@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   approveTesterAccess,
+  approveTesterEmail,
   assertTesterAccess,
   TesterAccessError,
 } from "../src/services/testerAccessService.js";
@@ -55,6 +56,25 @@ test("a direct Supabase signup cannot pass the application access boundary", asy
       error.code === "TESTER_ACCESS_NOT_APPROVED" &&
       error.status === 403,
   );
+});
+
+test("an invite-approved email can recover access without storing the raw email", async () => {
+  const client = createClient();
+  const approved = await approveTesterEmail(" Friend@Example.com ", { client });
+
+  assert.equal(approved.emailHash.length, 64);
+  assert.equal(
+    await assertTesterAccess(
+      { id: "recovered-user", email: "friend@example.com" },
+      { client },
+    ),
+    true,
+  );
+  const stored = [...client.records.values()].find(
+    (record) => record.emailHash === approved.emailHash,
+  );
+  assert.ok(stored);
+  assert.doesNotMatch(JSON.stringify(stored), /friend@example\.com/iu);
 });
 
 test("the configured primary Supabase owner does not need a tester record", async () => {

@@ -4,7 +4,10 @@ import {
   listConversationSummaries,
   listProfileMemories,
 } from "../services/memoryService.js";
-import { recordAuditEvent } from "../services/permissionService.js";
+import {
+  isAuditSafetyError,
+  recordAuditEvent,
+} from "../services/permissionService.js";
 import { CANONICAL_PROJECT_MEMORY_ID } from "../config/projectIdentity.js";
 import {
   confirmMemoryWrite,
@@ -34,7 +37,8 @@ function sendMemoryError(res, error) {
   console.error("[Memory]", error?.message || error);
   if (
     error instanceof MemoryWriteConfirmationError ||
-    error instanceof MemoryDeleteConfirmationError
+    error instanceof MemoryDeleteConfirmationError ||
+    isAuditSafetyError(error)
   ) {
     return res.status(status).json({
       error: error.message,
@@ -105,24 +109,18 @@ async function runProtectedMemoryDelete({
       ownerId: req.owner.memoryOwnerId,
       expectedTarget: target,
     });
-    await audit({
-      action: "memory.delete",
-      decision: "confirmed",
-      outcome: result.deleted ? "succeeded" : "not-found",
-      resource: "profile-memory",
-      details: `api:${target.kind}:${result.deleted ? "deleted" : "not-found"}`,
-      sessionId,
-    });
     return res.json({ status: "ok", deleted: result.deleted });
   } catch (error) {
-    await audit({
-      action: "memory.delete",
-      decision: confirmationId ? "confirmed" : "confirm",
-      outcome: "failed",
-      resource: "profile-memory",
-      details: `api:${target.kind}:failed:${error?.code || "unknown"}`,
-      sessionId,
-    });
+    if (!isAuditSafetyError(error)) {
+      await audit({
+        action: "memory.delete",
+        decision: confirmationId ? "confirmed" : "confirm",
+        outcome: "failed",
+        resource: "profile-memory",
+        details: `api:${target.kind}:failed:${error?.code || "unknown"}`,
+        sessionId,
+      });
+    }
     return sendMemoryError(res, error);
   }
 }
@@ -195,16 +193,6 @@ export function createProfileMemoryWriteHandler({
           ownerId: req.owner.memoryOwnerId,
           source: "confirmed-memory-api",
         });
-        await audit({
-          action: "memory.write",
-          decision: "confirmed",
-          outcome: "succeeded",
-          resource: "profile-memory",
-          details: `api:confirmed:${items.length}:${[
-            ...new Set(items.map(({ scope }) => scope)),
-          ].join(",")}`,
-          sessionId,
-        });
         return res.status(201).json({ status: "ok", items });
       }
 
@@ -238,7 +226,7 @@ export function createProfileMemoryWriteHandler({
           .at(-1),
       });
     } catch (error) {
-      if (confirmationId) {
+      if (confirmationId && !isAuditSafetyError(error)) {
         await audit({
           action: "memory.write",
           decision: "confirmed",

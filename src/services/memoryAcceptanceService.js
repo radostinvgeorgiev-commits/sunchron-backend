@@ -66,6 +66,7 @@ export async function runMemoryAcceptanceTest({
     dependencies.deleteProfileMemoryByFact || deleteProfileMemoryByFact;
   const prepareDelete = dependencies.prepareMemoryDelete || prepareMemoryDelete;
   const confirmDelete = dependencies.confirmMemoryDelete || confirmMemoryDelete;
+  const executeWrite = dependencies.executeAuditedWriteAction;
   const runId = randomUUID();
   const testOwnerId = `memory-self-test:${ownerId}:${runId}`;
   const testSessionId = `memory-self-test-session:${runId}`;
@@ -177,6 +178,7 @@ export async function runMemoryAcceptanceTest({
       ownerId: testOwnerId,
       expectedTarget: preparedDelete.target,
       deleteByFact: remove,
+      ...(executeWrite ? { executeWrite } : {}),
     });
     if (confirmedDelete.deleted < 1) {
       throw new Error("Потвърденото почистване не изтри тестовия запис.");
@@ -189,6 +191,7 @@ export async function runMemoryAcceptanceTest({
         ownerId: testOwnerId,
         expectedTarget: preparedDelete.target,
         deleteByFact: remove,
+        ...(executeWrite ? { executeWrite } : {}),
       });
     } catch {
       reusable = false;

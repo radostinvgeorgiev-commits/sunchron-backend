@@ -11,6 +11,7 @@ import {
   deleteProfileMemoryByFact,
   normalizeProfileMemoryDraft,
 } from "./memoryService.js";
+import { executeAuditedWriteAction } from "./permissionService.js";
 
 export const MEMORY_DELETE_ACTION = "memory.delete:profile";
 export const MEMORY_DELETE_CONFIRM_PREFIX =
@@ -175,6 +176,7 @@ export async function confirmMemoryDelete({
   deleteByFact = deleteProfileMemoryByFact,
   deleteById = deleteProfileMemory,
   deleteAll = clearProfileMemories,
+  executeWrite = executeAuditedWriteAction,
 }) {
   let confirmation;
   try {
@@ -216,13 +218,24 @@ export async function confirmMemoryDelete({
   }
 
   await consumeConfirmation(confirmationId);
-  let deleted;
-  if (target.kind === "fact") {
-    deleted = await deleteByFact(target.fact, target.scope, ownerId);
-  } else if (target.kind === "id") {
-    deleted = await deleteById(target.id, ownerId);
-  } else {
-    deleted = await deleteAll(target.scope || undefined, ownerId);
-  }
-  return Object.freeze({ target, deleted });
+  return executeWrite({
+    action: "memory.delete",
+    capability: MEMORY_DELETE_ACTION,
+    actor: "synchron-x-memory",
+    sessionId,
+    confirmationId,
+    resource: "profile-memory",
+    details: `confirmed-target:${target.kind}`,
+    execute: async () => {
+      let deleted;
+      if (target.kind === "fact") {
+        deleted = await deleteByFact(target.fact, target.scope, ownerId);
+      } else if (target.kind === "id") {
+        deleted = await deleteById(target.id, ownerId);
+      } else {
+        deleted = await deleteAll(target.scope || undefined, ownerId);
+      }
+      return Object.freeze({ target, deleted });
+    },
+  });
 }

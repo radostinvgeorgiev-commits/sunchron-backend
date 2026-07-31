@@ -448,7 +448,7 @@
         anchor: card,
       });
     } catch (error) {
-      if (error.code === "AUTH_REQUIRED" || error.status === 401) {
+      if (error.code === "AUTH_REQUIRED") {
         showTesterAuthResult({
           title: "Необходим е вход на собственика",
           message:

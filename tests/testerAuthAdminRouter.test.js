@@ -26,9 +26,17 @@ test("prepares an exact owner confirmation without returning the publishable key
   let created;
   const app = testApp({
     bootstrap: BOOTSTRAP,
-    getDigitalOceanStatus: async () => ({
-      id: "app-1",
-      environmentVariables: [],
+    inspectDigitalOcean: async () => ({
+      appId: "app-1",
+      missingKeys: [
+        "SUPABASE_URL",
+        "SUPABASE_PUBLISHABLE_KEY",
+        "SUPABASE_SESSION_ENCRYPTION_KEY",
+        "SYNCHRON_TEST_INVITE_CODE",
+      ],
+      readAccessVerified: true,
+      requiredWriteScope: "app:update",
+      writeAccess: "verified-on-update",
     }),
     createConfirmation: async (input) => {
       created = input;
@@ -51,6 +59,40 @@ test("prepares an exact owner confirmation without returning the publishable key
   assert.equal(created.action, ACTION);
   assert.equal(created.sessionId, "owner");
   assert.equal(created.params.publishableKey, BOOTSTRAP.publishableKey);
+  assert.equal(response.body.readAccessVerified, true);
+  assert.equal(response.body.requiredWriteScope, "app:update");
+  assert.equal(response.body.writeAccess, "verified-on-update");
+  assert.match(response.body.message, /Предварителната проверка/u);
+});
+
+test("returns the exact safe DigitalOcean permission error", async () => {
+  const error = new Error(
+    "DigitalOcean токенът няма право да променя App Platform. Нужно е разрешение app:update заедно с app:read.",
+  );
+  error.name = "DigitalOceanError";
+  error.status = 403;
+  error.code = "DIGITALOCEAN_APP_UPDATE_FORBIDDEN";
+  const app = testApp({
+    validateConfirmation: async () => ({
+      action: ACTION,
+      resource: { appId: "app-1" },
+      params: BOOTSTRAP,
+    }),
+    consumeConfirmation: async () => {},
+    activate: async () => {
+      throw error;
+    },
+    audit: async () => {},
+  });
+
+  const response = await request(app)
+    .post("/api/tester-auth/confirm")
+    .send({ confirmationId: "confirmation-1" })
+    .expect(403);
+
+  assert.equal(response.body.code, "DIGITALOCEAN_APP_UPDATE_FORBIDDEN");
+  assert.match(response.body.error, /app:update/u);
+  assert.doesNotMatch(response.body.error, /не успя$/u);
 });
 
 test("consumes the exact confirmation before activating DigitalOcean", async () => {

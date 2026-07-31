@@ -2,9 +2,9 @@
 
 Дата: 31 юли 2026 г.
 
-Проверен commit: `d1b671d8acddb929489f949a7642f920e7854537`
+Проверен commit: `15efb63539194ae488fa3c1019b37ca85d6f701d`
 
-Production доказателство: GitHub Actions run `30648538512`
+Production доказателство: GitHub Actions run `30649095272`
 
 Обхват: актуалният `main`, наличната DigitalOcean App Platform конфигурация,
 GitHub Actions, приложният код и автоматичните тестове.
@@ -17,7 +17,7 @@ GitHub Actions, приложният код и автоматичните тес
   доказва стабилен commit, публичен сайт, liveness, readiness, реален изолиран
   OpenSearch запис/прочит/промяна/изтриване, непроменена лична памет, MCP
   каталог и OAuth challenge, както и готовност на тестовите профили.
-- Локалният пакет има 396 теста: 395 успешни, 0 неуспешни и 1 пропуснат
+- Локалният пакет има 398 теста: 397 успешни, 0 неуспешни и 1 пропуснат
   production OpenSearch тест. Production зависимостите имат 0 известни high
   уязвимости.
 - Собственикът и тестовите потребители получават отделни `memoryOwnerId`.
@@ -93,15 +93,17 @@ Library или други вътрешни ChatGPT данни в SYNCHRON-X.
 ### SX-01 — Backup и restore на OpenSearch не са доказани
 
 - **Критичност:** P1 висока.
-- **Доказателство:** няма backup/restore workflow или runbook в `.github/`,
-  `docs/` или `.do/`. Production smoke проверява текущ запис/прочит/изтриване,
-  но не възстановяване от архив. Старият и настоящият проектен контекст също
-  маркират restore като незавършен.
+- **Доказателство:** PR №162 добави read-only backup инвентар към съществуващия
+  DigitalOcean audit и production smoke е зелен на exact merge commit. Наличната
+  защитена браузърна сесия обаче няма owner вход, затова реалният API резултат
+  още не е наблюдаван. Няма restore workflow/runbook или доказано
+  възстановяване от архив; задача №161 остава отворена.
 - **Реален проблем:** повреда, погрешно изтриване или загуба на клъстера може да
   унищожи личната памет, OAuth сесиите, потвържденията и audit/replay индексите.
-- **Проверка:** създай временен restore/fork от конкретен архив, провери броя и
-  mappings на всички SYNCHRON-X индекси, прочети само изолиран тестов owner и
-  унищожи временния клъстер след доказано почистване.
+- **Проверка:** първо изпълни owner-защитения read-only DigitalOcean audit и
+  потвърди брой/период на restore точките без идентификатори или съдържание.
+  После, само след цена и изрично разрешение, създай временен restore/fork,
+  провери mappings и изолиран test owner и унищожи временния клъстер.
 - **Поправка:** документиран restore runbook, периодична проверка на наличните
   архиви и контролиран restore drill поне след промяна на storage схемата.
 - **Риск от поправката:** среден — restore създава платен ресурс и грешен endpoint
@@ -278,7 +280,7 @@ Library или други вътрешни ChatGPT данни в SYNCHRON-X.
 ### SX-11 — Автоматичните тестове не покриват всички production граници
 
 - **Критичност:** P2 средна.
-- **Доказателство:** 395/396 локални теста минават; един E2E тест в
+- **Доказателство:** 397/398 локални теста минават; един E2E тест в
   `tests/pendingDeleteService.test.js` се skip-ва без реален OpenSearch. Има
   mock integration тестове за isolation/exact delete и реален production
   startup acceptance, но няма паралелен memory write test, restore test,
@@ -297,8 +299,8 @@ Library или други вътрешни ChatGPT данни в SYNCHRON-X.
 
 - **Критичност:** P3 ниска.
 - **Доказателство:** `public/app.js` е около 1620 реда,
-  `src/routes/chat.js` около 1449, `src/services/digitalOceanService.js` около
-  945, `memoryService.js` около 856 и `copilotTaskService.js` около 844.
+  `src/routes/chat.js` около 1438, `src/services/digitalOceanService.js` около
+  1048, `memoryService.js` около 829 и `copilotTaskService.js` около 844.
 - **Реален проблем:** review-ът е по-труден, границите се смесват и малка
   промяна по-често засяга несвързан поток.
 - **Проверка:** измери function/module size и dependency fan-in; провери кои

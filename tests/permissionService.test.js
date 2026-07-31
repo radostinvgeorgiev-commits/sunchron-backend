@@ -154,6 +154,7 @@ test("stored audit fingerprints the confirmation instead of storing it raw", asy
     sessionId: "session-1",
     confirmationId,
     resource: "allowed-repository",
+    writeAudit: recordAuditEvent,
     execute: async () => ({ ok: true }),
   });
 

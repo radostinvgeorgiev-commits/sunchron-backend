@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { getOpenSearchClient } from "../config/opensearch.js";
 import {
   CANONICAL_PROJECT_MEMORY_ID,
@@ -15,6 +15,20 @@ const MAX_CONVERSATION_MESSAGES = 20;
 const MAX_CONVERSATIONS = 50;
 const VALID_SCOPES = new Set(["personal", "project"]);
 const indexPromises = new Map();
+
+export function profileMemoryDocumentId(ownerId, memoryKey) {
+  const owner = String(ownerId || "").trim();
+  const key = String(memoryKey || "").trim();
+  if (!owner || !key) {
+    throw new TypeError("Profile memory document ID requires owner and key.");
+  }
+
+  return `profile-${createHash("sha256")
+    .update(owner)
+    .update("\0")
+    .update(key)
+    .digest("hex")}`;
+}
 
 function getClientOrThrow() {
   const client = getOpenSearchClient();
@@ -559,20 +573,12 @@ export async function saveProfileMemory(
       (memory.normalizedFact || normalizeFact(memory.fact)) === normalizedFact,
   );
   const existing = exact || sameTopic[0];
-  const id = existing?.id || randomUUID();
+  const id = profileMemoryDocumentId(ownerId, metadata.memoryKey);
   const now = new Date().toISOString();
 
   const duplicateIds = sameTopic
     .filter((memory) => memory.id !== id)
     .map((memory) => memory.id);
-  if (duplicateIds.length) {
-    await client.bulk({
-      refresh: true,
-      body: duplicateIds.map((duplicateId) => ({
-        delete: { _index: PROFILE_INDEX, _id: duplicateId },
-      })),
-    });
-  }
 
   await client.index({
     index: PROFILE_INDEX,
@@ -588,6 +594,26 @@ export async function saveProfileMemory(
       source,
     },
   });
+
+  let cleanupCompleted = true;
+  if (duplicateIds.length) {
+    try {
+      const cleanupResponse = await client.bulk({
+        refresh: true,
+        body: duplicateIds.map((duplicateId) => ({
+          delete: { _index: PROFILE_INDEX, _id: duplicateId },
+        })),
+      });
+      const cleanupResult = cleanupResponse?.body || cleanupResponse;
+      if (cleanupResult?.errors) {
+        throw new Error("Legacy duplicate cleanup was only partially applied.");
+      }
+    } catch {
+      cleanupCompleted = false;
+      console.error("[Memory] Legacy duplicate cleanup failed after save.");
+    }
+  }
+
   return {
     id,
     fact: cleanFact,
@@ -595,6 +621,7 @@ export async function saveProfileMemory(
     ...metadata,
     updatedAt: now,
     source,
+    cleanupCompleted,
     replaced: Boolean(
       existing &&
       (existing.normalizedFact || normalizeFact(existing.fact)) !==

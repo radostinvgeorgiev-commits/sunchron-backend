@@ -7,6 +7,7 @@ import {
   deleteProfileMemoryByFact,
   listConversationMessages,
   listProfileMemories,
+  profileMemoryDocumentId,
   saveConversationTurn,
   saveProfileMemory,
 } from "../src/services/memoryService.js";
@@ -14,6 +15,7 @@ import {
 function createMemoryClient() {
   const profile = new Map();
   const conversations = new Map();
+  const operations = [];
 
   function documents(index) {
     return index.includes("conversation") ? conversations : profile;
@@ -57,10 +59,12 @@ function createMemoryClient() {
       return { body: { hits: { hits: filtered.slice(0, body.size || 200) } } };
     },
     async index({ index, id, body }) {
+      operations.push({ type: "index", id });
       documents(index).set(id, structuredClone(body));
       return { body: { result: "created" } };
     },
     async bulk({ body }) {
+      operations.push({ type: "bulk" });
       for (let index = 0; index < body.length; index += 1) {
         const operation = body[index];
         if (operation.delete) {
@@ -93,12 +97,33 @@ function createMemoryClient() {
       profile.set(id, structuredClone(source));
     },
     profileFor(ownerId) {
-      return [...profile.values()].filter(
-        (memory) => memory.ownerId === ownerId,
-      );
+      return [...profile.entries()]
+        .filter(([, memory]) => memory.ownerId === ownerId)
+        .map(([id, memory]) => ({ id, ...memory }));
     },
+    operations,
   };
 }
+
+test("profile memory IDs are deterministic without exposing owner or topic", () => {
+  const first = profileMemoryDocumentId(
+    "owner-a",
+    "personal:preference:favorite-color",
+  );
+  const repeated = profileMemoryDocumentId(
+    "owner-a",
+    "personal:preference:favorite-color",
+  );
+  const otherOwner = profileMemoryDocumentId(
+    "owner-b",
+    "personal:preference:favorite-color",
+  );
+
+  assert.equal(first, repeated);
+  assert.notEqual(first, otherOwner);
+  assert.match(first, /^profile-[a-f0-9]{64}$/u);
+  assert.doesNotMatch(first, /owner-a|favorite-color/u);
+});
 
 test("old topic key is replaced and a new conversation receives only KAMCHIA-7429", async () => {
   const client = createMemoryClient();
@@ -124,6 +149,10 @@ test("old topic key is replaced and a new conversation receives only KAMCHIA-742
     ownerId,
   );
   assert.equal(saved.replaced, true);
+  assert.deepEqual(
+    client.operations.map(({ type }) => type),
+    ["index", "bulk"],
+  );
 
   const memories = await listProfileMemories({
     scope: "personal",
@@ -141,6 +170,144 @@ test("old topic key is replaced and a new conversation receives only KAMCHIA-742
     ownerId,
   );
   assert.deepEqual(freshSession, []);
+});
+
+test("concurrent writes for one owner and topic leave one raw document", async () => {
+  const client = createMemoryClient();
+  const originalSearch = client.search.bind(client);
+  let waitingSearches = 0;
+  let releaseSearches;
+  const bothSearchesStarted = new Promise((resolve) => {
+    releaseSearches = resolve;
+  });
+  client.search = async (input) => {
+    const result = await originalSearch(input);
+    if (input.index.includes("profile")) {
+      waitingSearches += 1;
+      if (waitingSearches === 2) releaseSearches();
+      await bothSearchesStarted;
+    }
+    return result;
+  };
+  setOpenSearchClientForTests(client);
+  const ownerId = "owner-concurrent";
+
+  const results = await Promise.all([
+    saveProfileMemory(
+      "Любимият ми цвят е син",
+      "concurrency-test",
+      "personal",
+      ownerId,
+    ),
+    saveProfileMemory(
+      "Любимият ми цвят е зелен",
+      "concurrency-test",
+      "personal",
+      ownerId,
+    ),
+  ]);
+
+  assert.equal(results[0].id, results[1].id);
+  assert.equal(client.profileFor(ownerId).length, 1);
+  assert.match(client.profileFor(ownerId)[0].fact, /син|зелен/u);
+});
+
+test("failed stable index never deletes the legacy document", async () => {
+  const client = createMemoryClient();
+  const ownerId = "owner-index-failure";
+  client.seedProfile("legacy-color", {
+    ownerId,
+    fact: "Любимият ми цвят е син",
+    normalizedFact: "любимият ми цвят е син",
+    memoryKey: "personal:preference:favorite-color",
+    category: "preference",
+    scope: "personal",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    source: "legacy",
+  });
+  client.index = async () => {
+    throw new Error("index unavailable");
+  };
+  setOpenSearchClientForTests(client);
+
+  await assert.rejects(
+    () =>
+      saveProfileMemory(
+        "Любимият ми цвят е зелен",
+        "failure-test",
+        "personal",
+        ownerId,
+      ),
+    /index unavailable/u,
+  );
+
+  assert.equal(client.profileFor(ownerId).length, 1);
+  assert.equal(client.profileFor(ownerId)[0].id, "legacy-color");
+  assert.deepEqual(client.operations, []);
+});
+
+test("cleanup failure keeps the new stable document available", async () => {
+  const client = createMemoryClient();
+  const ownerId = "owner-cleanup-failure";
+  client.seedProfile("legacy-color", {
+    ownerId,
+    fact: "Любимият ми цвят е син",
+    normalizedFact: "любимият ми цвят е син",
+    memoryKey: "personal:preference:favorite-color",
+    category: "preference",
+    scope: "personal",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    source: "legacy",
+  });
+  client.bulk = async () => {
+    throw new Error("cleanup unavailable");
+  };
+  setOpenSearchClientForTests(client);
+
+  const saved = await saveProfileMemory(
+    "Любимият ми цвят е зелен",
+    "failure-test",
+    "personal",
+    ownerId,
+  );
+  const visible = await listProfileMemories({ scope: "personal", ownerId });
+
+  assert.equal(saved.cleanupCompleted, false);
+  assert.equal(client.profileFor(ownerId).length, 2);
+  assert.equal(visible.length, 1);
+  assert.equal(visible[0].fact, "Любимият ми цвят е зелен");
+});
+
+test("partial bulk cleanup is reported without hiding the new document", async () => {
+  const client = createMemoryClient();
+  const ownerId = "owner-partial-cleanup";
+  client.seedProfile("legacy-color", {
+    ownerId,
+    fact: "Любимият ми цвят е син",
+    normalizedFact: "любимият ми цвят е син",
+    memoryKey: "personal:preference:favorite-color",
+    category: "preference",
+    scope: "personal",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    source: "legacy",
+  });
+  client.bulk = async () => ({ body: { errors: true } });
+  setOpenSearchClientForTests(client);
+
+  const saved = await saveProfileMemory(
+    "Любимият ми цвят е зелен",
+    "failure-test",
+    "personal",
+    ownerId,
+  );
+  const visible = await listProfileMemories({ scope: "personal", ownerId });
+
+  assert.equal(saved.cleanupCompleted, false);
+  assert.equal(visible.length, 1);
+  assert.equal(visible[0].fact, "Любимият ми цвят е зелен");
 });
 
 test("user A never reads user B profile or conversation memory", async () => {

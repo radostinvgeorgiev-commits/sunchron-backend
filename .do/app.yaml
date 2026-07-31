@@ -35,6 +35,12 @@ services:
       - key: APP_COMMIT_SHA
         value: ${_self.COMMIT_HASH}
         scope: RUN_TIME
+      - key: MCP_ACCESS_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+      - key: MEMORY_OWNER_ID
+        scope: RUN_TIME
+        type: SECRET
       - key: OPENSEARCH_HOST
         scope: RUN_TIME
         type: SECRET

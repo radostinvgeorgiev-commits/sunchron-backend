@@ -82,19 +82,22 @@ app.use((_req, res, next) => {
 app.use(express.json({ limit: "8mb" }));
 
 const mobileLayoutAssetVersion = "20260730-v2";
-const openSearchStatusAssetVersion = "20260730-opensearch-status-v1";
-const connectionStatusAssetVersion = "20260730-connections-v1";
-app.get(`/assets/${openSearchStatusAssetVersion}/app.js`, (_req, res) => {
-  res.setHeader("Cache-Control", "no-store, max-age=0");
-  res.sendFile(`${process.cwd()}/public/app.js`);
+const versionedApplicationAssets = Object.freeze({
+  "app.js": "public/app.js",
+  "work-center.js": "public/work-center.js",
 });
-app.get(
-  `/assets/${connectionStatusAssetVersion}/work-center.js`,
-  (_req, res) => {
-    res.setHeader("Cache-Control", "no-store, max-age=0");
-    res.sendFile(`${process.cwd()}/public/work-center.js`);
-  },
-);
+const safeAssetVersionPattern = /^[a-z0-9][a-z0-9._-]{0,79}$/iu;
+
+app.get("/assets/:version/:asset", (req, res, next) => {
+  const assetPath = versionedApplicationAssets[req.params.asset];
+  if (!safeAssetVersionPattern.test(req.params.version) || !assetPath) {
+    next();
+    return;
+  }
+
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.sendFile(`${process.cwd()}/${assetPath}`);
+});
 app.get(
   `/assets/${mobileLayoutAssetVersion}/synchron-vision.css`,
   (_req, res) => {

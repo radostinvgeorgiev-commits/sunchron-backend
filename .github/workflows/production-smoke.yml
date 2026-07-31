@@ -132,6 +132,93 @@ jobs:
             });
           '
 
+      - name: Check MCP tool catalog and OAuth challenge
+        shell: bash
+        run: |
+          set -euo pipefail
+          catalog_ready=false
+          for attempt in $(seq 1 12); do
+            response="$(curl --fail --silent --show-error \
+              --max-time 30 \
+              --header 'Cache-Control: no-cache' \
+              --header 'Content-Type: application/json' \
+              --header 'Accept: application/json, text/event-stream' \
+              --data '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
+              "https://synchron.foundation/mcp?catalog-check=${attempt}" 2>/dev/null || true)"
+
+            if printf '%s' "${response}" | node -e '
+              let input = "";
+              process.stdin.on("data", (chunk) => { input += chunk; });
+              process.stdin.on("end", () => {
+                try {
+                  const tools = JSON.parse(input).result?.tools;
+                  const expected = [
+                    "get_personal_context",
+                    "get_project_context",
+                    "list_synchron_conversations",
+                    "get_synchron_conversation",
+                    "get_digitalocean_app_status",
+                    "get_system_configuration",
+                    "get_digitalocean_account_audit",
+                    "get_cloudflare_zone_status",
+                    "get_github_copilot_task_status",
+                    "prepare_github_merged_branch_cleanup",
+                    "confirm_github_merged_branch_cleanup",
+                  ];
+                  const names = Array.isArray(tools) ? tools.map((tool) => tool.name) : [];
+                  const tracker = tools?.find(
+                    (tool) => tool.name === "get_github_copilot_task_status",
+                  );
+                  const trackerScopes = tracker?.securitySchemes?.flatMap(
+                    (scheme) => scheme.scopes || [],
+                  ) || [];
+                  const valid =
+                    names.length === expected.length &&
+                    new Set(names).size === names.length &&
+                    expected.every((name) => names.includes(name)) &&
+                    tracker?.annotations?.readOnlyHint === true &&
+                    trackerScopes.includes("synchron:read");
+                  console.log(JSON.stringify({ names, trackerReadOnly: tracker?.annotations?.readOnlyHint }));
+                  process.exit(valid ? 0 : 1);
+                } catch {
+                  process.exit(1);
+                }
+              });
+            '; then
+              catalog_ready=true
+              break
+            fi
+
+            echo "Attempt ${attempt}/12: MCP tool catalog is not on the expected version yet."
+            sleep 10
+          done
+
+          if [ "${catalog_ready}" != "true" ]; then
+            echo "Production MCP tool catalog did not reach the expected version." >&2
+            exit 1
+          fi
+
+          challenge="$(curl --fail --silent --show-error \
+            --max-time 30 \
+            --header 'Content-Type: application/json' \
+            --header 'Accept: application/json, text/event-stream' \
+            --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_github_copilot_task_status","arguments":{"issueNumber":83}}}' \
+            https://synchron.foundation/mcp)"
+          printf '%s' "${challenge}" | node -e '
+            let input = "";
+            process.stdin.on("data", (chunk) => { input += chunk; });
+            process.stdin.on("end", () => {
+              const result = JSON.parse(input).result;
+              const challenges = result?._meta?.["mcp/www_authenticate"] || [];
+              const valid =
+                result?.isError === true &&
+                challenges.some(
+                  (value) => value.includes("Bearer") && value.includes("synchron:read"),
+                );
+              if (!valid) process.exit(1);
+            });
+          '
+
       - name: Check tester auth readiness
         shell: bash
         run: |

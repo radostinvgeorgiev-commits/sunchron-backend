@@ -1100,18 +1100,42 @@ async function handleDataDrawerAction(event) {
   );
   if (!item) return;
 
-  const confirmed = window.confirm(`Да изтрия ли този спомен?\n\n${item.fact}`);
-  if (!confirmed) return;
-
   button.disabled = true;
   try {
+    const preparedResponse = await fetch(
+      "/memory/profile/" + encodeURIComponent(item.id),
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: state.sessionId }),
+      },
+    );
+    const prepared = await preparedResponse.json().catch(() => null);
+    if (
+      preparedResponse.status !== 409 ||
+      prepared?.code !== "MEMORY_DELETE_CONFIRMATION_REQUIRED" ||
+      !prepared?.confirmationId
+    ) {
+      throw new Error(prepared?.error || "Споменът не можа да бъде подготвен.");
+    }
+
+    const confirmed = window.confirm(
+      `Да изтрия ли този спомен?\n\n${item.fact}`,
+    );
+    if (!confirmed) {
+      button.disabled = false;
+      return;
+    }
+
     const response = await fetch(
       "/memory/profile/" + encodeURIComponent(item.id),
       {
         method: "DELETE",
-        headers: {
-          "x-confirm-memory-delete": "confirm-delete-profile-memory",
-        },
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: state.sessionId,
+          confirmationId: prepared.confirmationId,
+        }),
       },
     );
     if (!response.ok) {

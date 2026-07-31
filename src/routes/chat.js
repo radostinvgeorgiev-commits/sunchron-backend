@@ -1,8 +1,6 @@
 import express from "express";
 import {
   buildMemoryContext,
-  clearProfileMemories,
-  deleteProfileMemoryByFact,
   extractForgetMemoryCommand,
   extractPersistentMemoryCommands,
   isConfirmedForgetAllCommand,
@@ -19,6 +17,13 @@ import {
   MemoryWriteConfirmationError,
   prepareMemoryWrite,
 } from "../services/memoryWriteConfirmationService.js";
+import {
+  confirmMemoryDelete,
+  extractMemoryDeleteConfirmationId,
+  formatMemoryDeletePreparation,
+  MemoryDeleteConfirmationError,
+  prepareMemoryDelete,
+} from "../services/memoryDeleteConfirmationService.js";
 import {
   GitHubServiceError,
   isGitHubReadRequest,
@@ -72,19 +77,10 @@ import {
   PROJECT_BASE_CONTEXT,
   PROJECT_DEFINITION,
 } from "../config/projectIdentity.js";
-import {
-  clearPendingDelete,
-  getPendingDelete,
-  isSimpleDeleteConfirmation,
-  isSimpleDenial,
-  storePendingDelete,
-} from "../services/pendingDeleteService.js";
 
 const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
 const DEFAULT_AI_TIMEOUT_MS = 120000;
-const MEMORY_DELETE_CONFIRM_PREFIX =
-  "Потвърждавам изтриването от постоянната памет само на факта:";
 const DIGITALOCEAN_NAME_PATTERN =
   /(?:digital\s*ocean|ди[гж]итал\s*о(?:кеа|ка|ке)н|ди[гж]итъл\s*о(?:кеа|ка|ке)н)/iu;
 const DIRECT_CAPABILITY_REPLIES = new Set([
@@ -612,17 +608,8 @@ export function buildMemoryReply(memoryAction) {
   if (memoryAction.type === "write-confirmation-required") {
     return formatMemoryWritePreparation(memoryAction);
   }
-  if (memoryAction.type === "clear-confirmation-required") {
-    return "Това ще изтрие цялата постоянна памет. За да потвърдиш, напиши точно: „Потвърждавам изтриването на цялата постоянна памет“.";
-  }
   if (memoryAction.type === "delete-confirmation-required") {
-    return [
-      `Искаш да изтрия от постоянната памет: ${memoryAction.fact}.`,
-      `За потвърждение изпрати точно: ${MEMORY_DELETE_CONFIRM_PREFIX} ${memoryAction.fact}`,
-    ].join("\n");
-  }
-  if (memoryAction.type === "denied") {
-    return "Отмених заявката за изтриване от постоянната памет.";
+    return formatMemoryDeletePreparation(memoryAction);
   }
   if (memoryAction.type === "cleared") {
     return "Изчистих постоянната памет.";
@@ -654,8 +641,7 @@ export function mergeMemoryTaskStatus(task, memoryAction) {
   if (!memoryAction) return task;
   const waitsForConfirmation =
     memoryAction.type === "write-confirmation-required" ||
-    memoryAction.type === "delete-confirmation-required" ||
-    memoryAction.type === "clear-confirmation-required";
+    memoryAction.type === "delete-confirmation-required";
   if (!waitsForConfirmation) {
     return Object.freeze({ ...task, status: "completed", verified: true });
   }
@@ -763,21 +749,11 @@ router.post("/chat", async (req, res) => {
   let memoryAvailable = true;
   const memoryWriteConfirmationId =
     extractMemoryWriteConfirmationId(cleanMessage);
-  const pendingDelete = getPendingDelete(cleanSessionId);
-  // isSimpleConfirmation is only true when BOTH the message is a short "Да"/
-  // "Потвърждавам" AND there is an active pending delete for this session.
-  // This ensures a plain "Да" in normal conversation never triggers deletion.
-  const isSimpleConfirmation =
-    isSimpleDeleteConfirmation(cleanMessage) && Boolean(pendingDelete);
-  // isSimpleDenialAction is only true when BOTH the message is a short "Не"/
-  // "Отказвам" AND there is an active pending delete for this session.
-  // This prevents the pending entry from surviving a user denial.
-  const isSimpleDenialAction =
-    isSimpleDenial(cleanMessage) && Boolean(pendingDelete);
+  const memoryDeleteConfirmationId =
+    extractMemoryDeleteConfirmationId(cleanMessage);
   const explicitMemoryIntent =
-    isSimpleConfirmation ||
-    isSimpleDenialAction ||
     Boolean(memoryWriteConfirmationId) ||
+    Boolean(memoryDeleteConfirmationId) ||
     extractPersistentMemoryCommands(cleanMessage).length > 0 ||
     isConfirmedForgetAllCommand(cleanMessage) ||
     isForgetAllCommand(cleanMessage) ||
@@ -787,20 +763,21 @@ router.post("/chat", async (req, res) => {
     if (memoryWriteConfirmationId) {
       // The exact one-time confirmation is executed after the SSE channel is
       // established. No content from the confirmation message is re-parsed.
-    } else if (isSimpleDenialAction) {
-      // The user denied a previously requested delete ("Не", "Отказвам").
-      // Clear the pending entry so it cannot be accidentally triggered later.
-      clearPendingDelete(cleanSessionId);
-      memoryAction = { type: "denied" };
-    } else if (isSimpleConfirmation) {
-      // The user confirmed a previously requested delete with a short phrase
-      // ("Да", "Потвърждавам"). Execute the stored pending delete.
-      const { fact, scope } = pendingDelete;
-      const deleted = await deleteProfileMemoryByFact(fact, scope, ownerId);
-      // Clear only after a successful (or idempotent not-found) delete so
-      // the user can retry if OpenSearch was temporarily unavailable.
-      clearPendingDelete(cleanSessionId);
-      memoryAction = { type: "forgot", fact, scope, deleted };
+    } else if (memoryDeleteConfirmationId) {
+      const result = await confirmMemoryDelete({
+        confirmationId: memoryDeleteConfirmationId,
+        sessionId: cleanSessionId,
+        ownerId,
+      });
+      memoryAction =
+        result.target.kind === "all"
+          ? { type: "cleared", deleted: result.deleted }
+          : {
+              type: "forgot",
+              fact: result.target.fact,
+              scope: result.target.scope,
+              deleted: result.deleted,
+            };
     } else {
       const memoryCommands = extractPersistentMemoryCommands(cleanMessage);
       if (memoryCommands.length) {
@@ -813,45 +790,38 @@ router.post("/chat", async (req, res) => {
           type: "write-confirmation-required",
           ...prepared,
         };
-      } else if (isConfirmedForgetAllCommand(cleanMessage)) {
-        const deleted = await clearProfileMemories(undefined, ownerId);
-        memoryAction = { type: "cleared", deleted };
-      } else if (isForgetAllCommand(cleanMessage)) {
-        memoryAction = { type: "clear-confirmation-required" };
+      } else if (
+        isConfirmedForgetAllCommand(cleanMessage) ||
+        isForgetAllCommand(cleanMessage)
+      ) {
+        const prepared = await prepareMemoryDelete({
+          sessionId: cleanSessionId,
+          ownerId,
+          target: { kind: "all" },
+        });
+        memoryAction = {
+          type: "delete-confirmation-required",
+          ...prepared,
+        };
       } else {
         const confirmedDelete =
           extractConfirmedMemoryDeleteCommand(cleanMessage);
         const forgetCommand =
           confirmedDelete || extractForgetMemoryCommand(cleanMessage);
         if (forgetCommand) {
-          if (!confirmedDelete) {
-            storePendingDelete(
-              cleanSessionId,
-              forgetCommand.fact,
-              forgetCommand.scope,
-            );
-            memoryAction = {
-              type: "delete-confirmation-required",
+          const prepared = await prepareMemoryDelete({
+            sessionId: cleanSessionId,
+            ownerId,
+            target: {
+              kind: "fact",
               fact: forgetCommand.fact,
               scope: forgetCommand.scope,
-            };
-          } else {
-            // Exact-phrase confirmation — clear any pending entry AFTER
-            // a successful (or idempotent not-found) delete so the user
-            // can retry if OpenSearch was temporarily unavailable.
-            const deleted = await deleteProfileMemoryByFact(
-              forgetCommand.fact,
-              forgetCommand.scope,
-              ownerId,
-            );
-            clearPendingDelete(cleanSessionId);
-            memoryAction = {
-              type: "forgot",
-              fact: forgetCommand.fact,
-              scope: forgetCommand.scope,
-              deleted,
-            };
-          }
+            },
+          });
+          memoryAction = {
+            type: "delete-confirmation-required",
+            ...prepared,
+          };
         }
       }
     }
@@ -860,12 +830,17 @@ router.post("/chat", async (req, res) => {
       listConversationMessages(cleanSessionId, undefined, ownerId),
     ]);
   } catch (error) {
-    console.error(`[Memory] Failure for ${cleanSessionId}:`, error);
-    // A denial action (memoryAction.type === "denied") means the pending entry
-    // was already cleared before the catch was reached; the failure is in the
-    // subsequent memory-context refresh, not in the denial itself.  Return the
-    // denial reply in degraded mode instead of a misleading 503.
-    if (explicitMemoryIntent && memoryAction?.type !== "denied") {
+    console.error(
+      `[Memory] Failure for ${cleanSessionId}:`,
+      error?.code || error?.message || "unknown",
+    );
+    if (error instanceof MemoryDeleteConfirmationError) {
+      return res.status(error.status).json({
+        error: error.message,
+        code: error.code,
+      });
+    }
+    if (explicitMemoryIntent) {
       return res.status(503).json({
         error:
           "Постоянната памет временно не е достъпна. Нищо не беше записано или изтрито.",
@@ -1129,32 +1104,24 @@ router.post("/chat", async (req, res) => {
     const isDeleteAction =
       memoryAction.type === "cleared" ||
       memoryAction.type === "forgot" ||
-      memoryAction.type === "denied" ||
-      memoryAction.type === "delete-confirmation-required" ||
-      memoryAction.type === "clear-confirmation-required";
+      memoryAction.type === "delete-confirmation-required";
     const isWriteConfirmationRequest =
       memoryAction.type === "write-confirmation-required";
     const memoryAuditAction = isDeleteAction ? "memory.delete" : "memory.write";
     await auditAction({
       action: memoryAuditAction,
       decision:
-        memoryAction.type === "clear-confirmation-required" ||
         memoryAction.type === "delete-confirmation-required" ||
         isWriteConfirmationRequest
           ? "confirm"
-          : memoryAction.type === "denied"
-            ? "denied"
-            : isDeleteAction
-              ? "confirmed"
-              : "allow",
+          : isDeleteAction
+            ? "confirmed"
+            : "allow",
       outcome:
-        memoryAction.type === "clear-confirmation-required" ||
         memoryAction.type === "delete-confirmation-required" ||
         isWriteConfirmationRequest
           ? "requested"
-          : memoryAction.type === "denied"
-            ? "cancelled"
-            : "succeeded",
+          : "succeeded",
       resource: "profile-memory",
       details: memoryAction.type,
       sessionId: cleanSessionId,
@@ -1196,9 +1163,10 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
-  const fallbackCapabilityRequests = ownerToolsAllowed
-    ? detectCapabilityRequests(cleanMessage)
-    : [];
+  const fallbackCapabilityRequests =
+    ownerToolsAllowed && !memoryAction
+      ? detectCapabilityRequests(cleanMessage)
+      : [];
   let detectedCapabilityRequests = fallbackCapabilityRequests;
   sendEvent("task", {
     status: "planning",
@@ -1206,6 +1174,7 @@ router.post("/chat", async (req, res) => {
   });
   if (
     ownerToolsAllowed &&
+    !memoryAction &&
     openAiApiKey &&
     shouldUseAgentPlanner(cleanMessage, fallbackCapabilityRequests)
   ) {

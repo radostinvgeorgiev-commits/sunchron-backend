@@ -1,7 +1,5 @@
 import express from "express";
 import {
-  clearProfileMemories,
-  deleteProfileMemory,
   listConversationMessages,
   listConversationSummaries,
   listProfileMemories,
@@ -14,14 +12,14 @@ import {
   MemoryWriteConfirmationError,
   prepareMemoryWrite,
 } from "../services/memoryWriteConfirmationService.js";
+import {
+  confirmMemoryDelete,
+  formatMemoryDeletePreparation,
+  MemoryDeleteConfirmationError,
+  prepareMemoryDelete,
+} from "../services/memoryDeleteConfirmationService.js";
 
 const router = express.Router();
-
-export const CLEAR_MEMORY_CONFIRMATION = "confirm-delete-profile-memory";
-
-export function hasClearMemoryConfirmation(req) {
-  return req.get("x-confirm-memory-delete") === CLEAR_MEMORY_CONFIRMATION;
-}
 
 async function auditMemoryAction(event) {
   try {
@@ -34,7 +32,10 @@ async function auditMemoryAction(event) {
 function sendMemoryError(res, error) {
   const status = error?.code === "INVALID_MEMORY" ? 400 : error?.status || 503;
   console.error("[Memory]", error?.message || error);
-  if (error instanceof MemoryWriteConfirmationError) {
+  if (
+    error instanceof MemoryWriteConfirmationError ||
+    error instanceof MemoryDeleteConfirmationError
+  ) {
     return res.status(status).json({
       error: error.message,
       code: error.code,
@@ -46,6 +47,126 @@ function sendMemoryError(res, error) {
         ? error.message
         : "Постоянната памет временно не е достъпна.",
   });
+}
+
+function deleteRequestFields(req) {
+  const body = req.body || {};
+  return {
+    sessionId: typeof body.sessionId === "string" ? body.sessionId.trim() : "",
+    confirmationId:
+      typeof body.confirmationId === "string" ? body.confirmationId.trim() : "",
+  };
+}
+
+async function runProtectedMemoryDelete({
+  req,
+  res,
+  target,
+  prepare,
+  confirm,
+  audit,
+}) {
+  const { sessionId, confirmationId } = deleteRequestFields(req);
+  if (!sessionId) {
+    return res.status(400).json({
+      error: "Полето sessionId е задължително за защитено изтриване.",
+      code: "MISSING_SESSION",
+    });
+  }
+  try {
+    if (!confirmationId) {
+      const prepared = await prepare({
+        sessionId,
+        ownerId: req.owner.memoryOwnerId,
+        target,
+      });
+      await audit({
+        action: "memory.delete",
+        decision: "confirm",
+        outcome: "requested",
+        resource: "profile-memory",
+        details: `api:${target.kind}:prepared`,
+        sessionId,
+      });
+      return res.status(409).json({
+        error: "Изтриването изисква еднократно точно потвърждение.",
+        code: "MEMORY_DELETE_CONFIRMATION_REQUIRED",
+        confirmationId: prepared.confirmationId,
+        expiresAt: prepared.expiresAt,
+        confirmationPhrase: formatMemoryDeletePreparation(prepared)
+          .split("\n")
+          .at(-1),
+      });
+    }
+
+    const result = await confirm({
+      confirmationId,
+      sessionId,
+      ownerId: req.owner.memoryOwnerId,
+      expectedTarget: target,
+    });
+    await audit({
+      action: "memory.delete",
+      decision: "confirmed",
+      outcome: result.deleted ? "succeeded" : "not-found",
+      resource: "profile-memory",
+      details: `api:${target.kind}:${result.deleted ? "deleted" : "not-found"}`,
+      sessionId,
+    });
+    return res.json({ status: "ok", deleted: result.deleted });
+  } catch (error) {
+    await audit({
+      action: "memory.delete",
+      decision: confirmationId ? "confirmed" : "confirm",
+      outcome: "failed",
+      resource: "profile-memory",
+      details: `api:${target.kind}:failed:${error?.code || "unknown"}`,
+      sessionId,
+    });
+    return sendMemoryError(res, error);
+  }
+}
+
+export function createProfileMemoryDeleteHandler({
+  prepare = prepareMemoryDelete,
+  confirm = confirmMemoryDelete,
+  audit = auditMemoryAction,
+} = {}) {
+  return async function profileMemoryDeleteHandler(req, res) {
+    if (req.params.id === CANONICAL_PROJECT_MEMORY_ID) {
+      return res.status(409).json({
+        error:
+          "Текущата основна формулировка се управлява от проекта и не е обикновен спомен.",
+      });
+    }
+    return runProtectedMemoryDelete({
+      req,
+      res,
+      target: { kind: "id", id: req.params.id },
+      prepare,
+      confirm,
+      audit,
+    });
+  };
+}
+
+export function createProfileMemoryClearHandler({
+  prepare = prepareMemoryDelete,
+  confirm = confirmMemoryDelete,
+  audit = auditMemoryAction,
+} = {}) {
+  return async function profileMemoryClearHandler(req, res) {
+    const scope =
+      typeof req.query.scope === "string" ? req.query.scope : undefined;
+    return runProtectedMemoryDelete({
+      req,
+      res,
+      target: { kind: "all", scope },
+      prepare,
+      confirm,
+      audit,
+    });
+  };
 }
 
 export function createProfileMemoryWriteHandler({
@@ -173,78 +294,8 @@ router.get("/profile", async (req, res) => {
 
 router.post("/profile", createProfileMemoryWriteHandler());
 
-router.delete("/profile/:id", async (req, res) => {
-  try {
-    if (req.params.id === CANONICAL_PROJECT_MEMORY_ID) {
-      return res.status(409).json({
-        error:
-          "Текущата основна формулировка се управлява от проекта и не е обикновен спомен.",
-      });
-    }
-    if (!hasClearMemoryConfirmation(req)) {
-      await auditMemoryAction({
-        action: "memory.delete",
-        decision: "confirm",
-        outcome: "requested",
-        resource: "profile-memory",
-        details: `api:item:${req.params.id}`,
-      });
-      return res.status(409).json({
-        error: "Изтриването изисква отделно точно потвърждение.",
-        confirmationHeader: "x-confirm-memory-delete",
-        confirmationValue: CLEAR_MEMORY_CONFIRMATION,
-      });
-    }
-    const deleted = await deleteProfileMemory(
-      req.params.id,
-      req.owner.memoryOwnerId,
-    );
-    await auditMemoryAction({
-      action: "memory.delete",
-      decision: "confirmed",
-      outcome: deleted ? "succeeded" : "not-found",
-      resource: "profile-memory",
-      details: `api:item:${req.params.id}`,
-    });
-    return res.json({ status: "ok", deleted });
-  } catch (error) {
-    if (error?.meta?.statusCode === 404) {
-      return res.status(404).json({ error: "Записът не е намерен." });
-    }
-    return sendMemoryError(res, error);
-  }
-});
+router.delete("/profile/:id", createProfileMemoryDeleteHandler());
 
-router.delete("/profile", async (req, res) => {
-  try {
-    if (!hasClearMemoryConfirmation(req)) {
-      await auditMemoryAction({
-        action: "memory.delete",
-        decision: "confirm",
-        outcome: "requested",
-        resource: "profile-memory",
-        details: "api:bulk",
-      });
-      return res.status(409).json({
-        error: "Изтриването изисква отделно точно потвърждение.",
-        confirmationHeader: "x-confirm-memory-delete",
-        confirmationValue: CLEAR_MEMORY_CONFIRMATION,
-      });
-    }
-    const scope =
-      typeof req.query.scope === "string" ? req.query.scope : undefined;
-    const deleted = await clearProfileMemories(scope, req.owner.memoryOwnerId);
-    await auditMemoryAction({
-      action: "memory.delete",
-      decision: "confirmed",
-      outcome: "succeeded",
-      resource: "profile-memory",
-      details: `api:bulk:${scope || "all"}:${deleted}`,
-    });
-    return res.json({ status: "ok", deleted });
-  } catch (error) {
-    return sendMemoryError(res, error);
-  }
-});
+router.delete("/profile", createProfileMemoryClearHandler());
 
 export default router;

@@ -6,11 +6,9 @@ import {
   saveProfileMemory,
 } from "./memoryService.js";
 import {
-  clearPendingDelete,
-  getPendingDelete,
-  isSimpleDeleteConfirmation,
-  storePendingDelete,
-} from "./pendingDeleteService.js";
+  confirmMemoryDelete,
+  prepareMemoryDelete,
+} from "./memoryDeleteConfirmationService.js";
 
 function memoryFingerprint(memories) {
   const stableView = memories
@@ -23,9 +21,7 @@ function memoryFingerprint(memories) {
     .sort((left, right) =>
       JSON.stringify(left).localeCompare(JSON.stringify(right)),
     );
-  return createHash("sha256")
-    .update(JSON.stringify(stableView))
-    .digest("hex");
+  return createHash("sha256").update(JSON.stringify(stableView)).digest("hex");
 }
 
 function completedStep(id, evidence = {}) {
@@ -68,6 +64,8 @@ export async function runMemoryAcceptanceTest({
   const list = dependencies.listProfileMemories || listProfileMemories;
   const remove =
     dependencies.deleteProfileMemoryByFact || deleteProfileMemoryByFact;
+  const prepareDelete = dependencies.prepareMemoryDelete || prepareMemoryDelete;
+  const confirmDelete = dependencies.confirmMemoryDelete || confirmMemoryDelete;
   const runId = randomUUID();
   const testOwnerId = `memory-self-test:${ownerId}:${runId}`;
   const testSessionId = `memory-self-test-session:${runId}`;
@@ -141,7 +139,9 @@ export async function runMemoryAcceptanceTest({
       (memory) => memory.fact === updatedFact,
     );
     if (oldValuePresent || !newValuePresent) {
-      throw new Error("След промяната се връща стара или липсва новата стойност.");
+      throw new Error(
+        "След промяната се връща стара или липсва новата стойност.",
+      );
     }
     steps.push(
       completedStep("verify-replacement", {
@@ -162,32 +162,44 @@ export async function runMemoryAcceptanceTest({
       completedStep("delete-without-confirmation", { rejected: true }),
     );
 
-    storePendingDelete(testSessionId, updatedFact, "personal");
-    const pendingDelete = getPendingDelete(testSessionId);
-    if (
-      !pendingDelete ||
-      pendingDelete.fact !== updatedFact ||
-      !isSimpleDeleteConfirmation("Да")
-    ) {
+    const preparedDelete = await prepareDelete({
+      sessionId: testSessionId,
+      ownerId: testOwnerId,
+      target: { kind: "fact", fact: updatedFact, scope: "personal" },
+    });
+    if (!preparedDelete.confirmationId) {
       throw new Error("Еднократното потвърждение не беше подготвено.");
     }
 
-    const deleted = await remove(
-      pendingDelete.fact,
-      pendingDelete.scope,
-      testOwnerId,
-    );
-    if (deleted < 1) {
+    const confirmedDelete = await confirmDelete({
+      confirmationId: preparedDelete.confirmationId,
+      sessionId: testSessionId,
+      ownerId: testOwnerId,
+      expectedTarget: preparedDelete.target,
+      deleteByFact: remove,
+    });
+    if (confirmedDelete.deleted < 1) {
       throw new Error("Потвърденото почистване не изтри тестовия запис.");
     }
-    clearPendingDelete(testSessionId);
-    if (getPendingDelete(testSessionId) !== null) {
+    let reusable = true;
+    try {
+      await confirmDelete({
+        confirmationId: preparedDelete.confirmationId,
+        sessionId: testSessionId,
+        ownerId: testOwnerId,
+        expectedTarget: preparedDelete.target,
+        deleteByFact: remove,
+      });
+    } catch {
+      reusable = false;
+    }
+    if (reusable) {
       throw new Error("Използваното потвърждение остана активно.");
     }
     steps.push(
       completedStep("one-time-confirmed-cleanup", {
-        deleted,
-        reusable: false,
+        deleted: confirmedDelete.deleted,
+        reusable,
       }),
     );
 
@@ -197,8 +209,7 @@ export async function runMemoryAcceptanceTest({
     });
     if (
       finalTestView.some(
-        (memory) =>
-          memory.fact === initialFact || memory.fact === updatedFact,
+        (memory) => memory.fact === initialFact || memory.fact === updatedFact,
       )
     ) {
       throw new Error("Тестовият запис се връща след почистването.");
@@ -207,7 +218,6 @@ export async function runMemoryAcceptanceTest({
   } catch (error) {
     primaryError = error;
   } finally {
-    clearPendingDelete(testSessionId);
     try {
       await remove(activeFact, "personal", testOwnerId);
       if (activeFact !== initialFact) {

@@ -17,6 +17,7 @@ const ALLOWED_ACTIONS = new Set([
   "infrastructure.digitalocean:activate_tester_auth",
   "calendar.write:create_event",
   "memory.write:save_profile",
+  "memory.delete:profile",
 ]);
 
 // Fields that must never be stored in a confirmation (audit safety)

@@ -8,6 +8,8 @@ import { createMcpOAuthRouter } from "../src/routes/mcpOAuthRouter.js";
 import mcpRouter from "../src/routes/mcpRouter.js";
 
 const SECRET = "router-test-secret-with-more-than-thirty-two-characters";
+const DEDICATED_SECRET =
+  "router-dedicated-oauth-secret-with-more-than-thirty-two-characters";
 
 test("OAuth discovery is public and describes the exact MCP resource", async () => {
   const previous = process.env.MCP_ACCESS_TOKEN;
@@ -91,6 +93,34 @@ test("an invalid bearer token is rejected with HTTP 401", async () => {
   assert.match(response.headers["www-authenticate"], /invalid_token/u);
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
   else process.env.MCP_ACCESS_TOKEN = previous;
+});
+
+test("the dedicated OAuth secret is never accepted as a legacy static bearer", async () => {
+  const previousAccess = process.env.MCP_ACCESS_TOKEN;
+  const previousOAuth = process.env.MCP_OAUTH_SECRET;
+  process.env.MCP_ACCESS_TOKEN = SECRET;
+  process.env.MCP_OAUTH_SECRET = DEDICATED_SECRET;
+  try {
+    const app = express();
+    app.use(express.json());
+    app.use("/mcp", mcpRouter);
+    const response = await request(app)
+      .post("/mcp")
+      .set("Authorization", `Bearer ${DEDICATED_SECRET}`)
+      .send({
+        jsonrpc: "2.0",
+        id: 5,
+        method: "tools/call",
+        params: { name: "get_personal_context", arguments: {} },
+      })
+      .expect(401);
+    assert.equal(response.body.error.code, -32001);
+  } finally {
+    if (previousAccess === undefined) delete process.env.MCP_ACCESS_TOKEN;
+    else process.env.MCP_ACCESS_TOKEN = previousAccess;
+    if (previousOAuth === undefined) delete process.env.MCP_OAUTH_SECRET;
+    else process.env.MCP_OAUTH_SECRET = previousOAuth;
+  }
 });
 
 test("authorization consent issues a code bound to the browser profile", async () => {

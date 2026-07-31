@@ -8,8 +8,10 @@ import {
   createMcpAuthorizationCode,
   exchangeMcpAuthorizationCode,
   exchangeMcpRefreshToken,
+  getMcpOAuthSecretMode,
   getMcpAuthorizationServerMetadata,
   getMcpProtectedResourceMetadata,
+  isMcpOAuthConfigured,
   MCP_GITHUB_WRITE_SCOPE,
   MCP_READ_SCOPE,
   requiresPersistentMcpReplayGuard,
@@ -21,6 +23,10 @@ import {
 const ENV = {
   MCP_ACCESS_TOKEN: "mcp-oauth-test-secret-with-more-than-32-characters",
   MCP_RESOURCE_URL: "https://synchron.foundation/mcp",
+};
+const DEDICATED_ENV = {
+  ...ENV,
+  MCP_OAUTH_SECRET: "dedicated-oauth-test-secret-with-more-than-32-characters",
 };
 const CLIENT_ID = "https://chatgpt.com/oauth/synchron/client.json";
 const REDIRECT_URI = "https://chatgpt.com/connector/oauth/test-callback";
@@ -54,6 +60,29 @@ function clientMetadataFetch(url) {
   );
 }
 
+async function issueTokens(env = ENV) {
+  const request = await validateMcpAuthorizationRequest(authorizationInput(), {
+    env,
+    fetchImpl: clientMetadataFetch,
+  });
+  const code = createMcpAuthorizationCode(
+    request,
+    { id: "owner-id", memoryOwnerId: "primary-user", role: "owner" },
+    env,
+  );
+  return exchangeMcpAuthorizationCode(
+    {
+      grant_type: "authorization_code",
+      code,
+      client_id: CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: VERIFIER,
+      resource: ENV.MCP_RESOURCE_URL,
+    },
+    env,
+  );
+}
+
 test.beforeEach(() => resetMcpOAuthStateForTests());
 
 test("publishes OAuth 2.1 protected-resource and authorization metadata", () => {
@@ -73,6 +102,156 @@ test("publishes OAuth 2.1 protected-resource and authorization metadata", () => 
     "refresh_token",
   ]);
   assert.deepEqual(authorization.code_challenge_methods_supported, ["S256"]);
+});
+
+test("uses an explicit dedicated or legacy fallback OAuth key mode", () => {
+  assert.equal(getMcpOAuthSecretMode(ENV), "legacy_fallback");
+  assert.equal(getMcpOAuthSecretMode(DEDICATED_ENV), "dedicated");
+  assert.equal(isMcpOAuthConfigured(DEDICATED_ENV), true);
+  assert.equal(
+    isMcpOAuthConfigured({
+      MCP_OAUTH_SECRET: DEDICATED_ENV.MCP_OAUTH_SECRET,
+      MCP_RESOURCE_URL: ENV.MCP_RESOURCE_URL,
+    }),
+    true,
+  );
+  assert.equal(
+    isMcpOAuthConfigured({ ...ENV, MCP_OAUTH_SECRET: "too-short" }),
+    false,
+  );
+  assert.throws(
+    () =>
+      createMcpAuthorizationCode(
+        {
+          clientId: CLIENT_ID,
+          redirectUri: REDIRECT_URI,
+          codeChallenge: createHash("sha256")
+            .update(VERIFIER)
+            .digest("base64url"),
+          resource: ENV.MCP_RESOURCE_URL,
+          scopes: [MCP_READ_SCOPE],
+        },
+        { id: "owner-id", memoryOwnerId: "primary-user", role: "owner" },
+        { ...ENV, MCP_OAUTH_SECRET: "too-short" },
+      ),
+    (error) =>
+      error.code === "temporarily_unavailable" && error.status === 503,
+  );
+});
+
+test("dedicated mode accepts a legacy authorization code and issues dedicated tokens", async () => {
+  const request = await validateMcpAuthorizationRequest(authorizationInput(), {
+    env: ENV,
+    fetchImpl: clientMetadataFetch,
+  });
+  const legacyCode = createMcpAuthorizationCode(
+    request,
+    { id: "owner-id", memoryOwnerId: "primary-user", role: "owner" },
+    ENV,
+  );
+
+  const token = await exchangeMcpAuthorizationCode(
+    {
+      grant_type: "authorization_code",
+      code: legacyCode,
+      client_id: CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: VERIFIER,
+      resource: ENV.MCP_RESOURCE_URL,
+    },
+    DEDICATED_ENV,
+  );
+
+  assert.equal(
+    verifyMcpAccessToken(
+      `Bearer ${token.access_token}`,
+      [MCP_READ_SCOPE],
+      DEDICATED_ENV,
+    ).memoryOwnerId,
+    "primary-user",
+  );
+  assert.throws(
+    () =>
+      verifyMcpAccessToken(
+        `Bearer ${token.access_token}`,
+        [MCP_READ_SCOPE],
+        ENV,
+      ),
+    (error) => error.code === "invalid_token",
+  );
+});
+
+test("dedicated tokens cannot be verified or refreshed with only the legacy key", async () => {
+  const token = await issueTokens(DEDICATED_ENV);
+  assert.equal(
+    verifyMcpAccessToken(
+      `Bearer ${token.access_token}`,
+      [MCP_READ_SCOPE],
+      DEDICATED_ENV,
+    ).memoryOwnerId,
+    "primary-user",
+  );
+  assert.throws(
+    () =>
+      verifyMcpAccessToken(
+        `Bearer ${token.access_token}`,
+        [MCP_READ_SCOPE],
+        ENV,
+      ),
+    (error) => error.code === "invalid_token",
+  );
+  await assert.rejects(
+    () =>
+      exchangeMcpRefreshToken(
+        {
+          grant_type: "refresh_token",
+          refresh_token: token.refresh_token,
+          client_id: CLIENT_ID,
+          resource: ENV.MCP_RESOURCE_URL,
+        },
+        ENV,
+      ),
+    (error) => error.code === "invalid_grant",
+  );
+});
+
+test("dedicated mode accepts legacy access and rotates legacy refresh tokens", async () => {
+  const legacyToken = await issueTokens(ENV);
+  assert.equal(
+    verifyMcpAccessToken(
+      `Bearer ${legacyToken.access_token}`,
+      [MCP_READ_SCOPE],
+      DEDICATED_ENV,
+    ).memoryOwnerId,
+    "primary-user",
+  );
+
+  const rotated = await exchangeMcpRefreshToken(
+    {
+      grant_type: "refresh_token",
+      refresh_token: legacyToken.refresh_token,
+      client_id: CLIENT_ID,
+      resource: ENV.MCP_RESOURCE_URL,
+    },
+    DEDICATED_ENV,
+  );
+  assert.equal(
+    verifyMcpAccessToken(
+      `Bearer ${rotated.access_token}`,
+      [MCP_READ_SCOPE],
+      DEDICATED_ENV,
+    ).memoryOwnerId,
+    "primary-user",
+  );
+  assert.throws(
+    () =>
+      verifyMcpAccessToken(
+        `Bearer ${rotated.access_token}`,
+        [MCP_READ_SCOPE],
+        ENV,
+      ),
+    (error) => error.code === "invalid_token",
+  );
 });
 
 test("validates OpenAI CIMD metadata and exact callback and resource", async () => {

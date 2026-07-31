@@ -65,7 +65,11 @@ export function resolveMcpIssuerUrl(env = process.env) {
   return new URL(resolveMcpResourceUrl(env)).origin;
 }
 
-function oauthSecret(env = process.env) {
+function deriveOAuthSecret(label, source) {
+  return createHash("sha256").update(`${label}\0`).update(source).digest();
+}
+
+function legacyOAuthSecret(env = process.env) {
   const source =
     typeof env.MCP_ACCESS_TOKEN === "string" ? env.MCP_ACCESS_TOKEN.trim() : "";
   if (source.length < 32) {
@@ -75,17 +79,61 @@ function oauthSecret(env = process.env) {
       "temporarily_unavailable",
     );
   }
+  return deriveOAuthSecret("synchron-mcp-oauth-v1", source);
+}
+
+function dedicatedOAuthSecret(env = process.env) {
+  const source =
+    typeof env.MCP_OAUTH_SECRET === "string"
+      ? env.MCP_OAUTH_SECRET.trim()
+      : "";
+  if (!source) return null;
+  if (source.length < 32) {
+    throw new McpOAuthError(
+      "Отделният MCP OAuth ключ е невалиден.",
+      503,
+      "temporarily_unavailable",
+    );
+  }
+  return deriveOAuthSecret("synchron-mcp-oauth-dedicated-v1", source);
+}
+
+function oauthSecret(env = process.env) {
+  return dedicatedOAuthSecret(env) || legacyOAuthSecret(env);
+}
+
+function oauthVerificationSecrets(env = process.env) {
+  const dedicated = dedicatedOAuthSecret(env);
+  if (!dedicated) return [legacyOAuthSecret(env)];
+  const secrets = [dedicated];
+  try {
+    const legacy = legacyOAuthSecret(env);
+    if (!legacy.equals(dedicated)) secrets.push(legacy);
+  } catch {
+    // A dedicated key can run OAuth without enabling the legacy bearer.
+  }
+  return secrets;
+}
+
+function deriveGrantSecret(secret) {
   return createHash("sha256")
-    .update("synchron-mcp-oauth-v1\0")
-    .update(source)
+    .update(secret)
+    .update("synchron-mcp-oauth-grants-v2\0")
     .digest();
 }
 
 function grantSecret(env = process.env) {
-  return createHash("sha256")
-    .update(oauthSecret(env))
-    .update("synchron-mcp-oauth-grants-v2\0")
-    .digest();
+  return deriveGrantSecret(oauthSecret(env));
+}
+
+function grantVerificationSecrets(env = process.env) {
+  return oauthVerificationSecrets(env).map(deriveGrantSecret);
+}
+
+export function getMcpOAuthSecretMode(env = process.env) {
+  if (dedicatedOAuthSecret(env)) return "dedicated";
+  legacyOAuthSecret(env);
+  return "legacy_fallback";
 }
 
 export function isMcpOAuthConfigured(env = process.env) {
@@ -184,6 +232,14 @@ function decryptPayload(value, prefix, key) {
   } catch {
     return null;
   }
+}
+
+function decryptPayloadWithFallback(value, prefix, keys) {
+  for (const key of keys) {
+    const payload = decryptPayload(value, prefix, key);
+    if (payload) return payload;
+  }
+  return null;
 }
 
 function parseScopes(value) {
@@ -516,7 +572,11 @@ export async function exchangeMcpAuthorizationCode(
   { consumeGrant = consumeMcpGrantOnce } = {},
 ) {
   const code = String(input?.code || "");
-  const payload = decryptPayload(code, "sx-code", grantSecret(env));
+  const payload = decryptPayloadWithFallback(
+    code,
+    "sx-code",
+    grantVerificationSecrets(env),
+  );
   const now = Math.floor(Date.now() / 1_000);
   if (
     !payload ||
@@ -577,10 +637,10 @@ export async function exchangeMcpRefreshToken(
   env = process.env,
   { consumeGrant = consumeMcpGrantOnce } = {},
 ) {
-  const payload = decryptPayload(
+  const payload = decryptPayloadWithFallback(
     String(input?.refresh_token || ""),
     "sx-refresh",
-    grantSecret(env),
+    grantVerificationSecrets(env),
   );
   const now = Math.floor(Date.now() / 1_000);
   if (
@@ -639,10 +699,10 @@ export function verifyMcpAccessToken(
   ) {
     return null;
   }
-  const payload = decryptPayload(
+  const payload = decryptPayloadWithFallback(
     authorizationHeader.slice(7),
     "sx-token",
-    oauthSecret(env),
+    oauthVerificationSecrets(env),
   );
   const now = Math.floor(Date.now() / 1_000);
   if (

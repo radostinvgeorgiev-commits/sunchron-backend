@@ -125,8 +125,13 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     secret(
       "MCP_ACCESS_TOKEN",
       "ChatGPT / MCP",
-      "Защита на MCP и основа за отделните OAuth ключове.",
+      "Legacy защита на MCP; не се използва за нови OAuth артефакти след миграцията.",
       { requiredNow: true },
+    ),
+    secret(
+      "MCP_OAUTH_SECRET",
+      "ChatGPT / MCP",
+      "Отделен криптографски ключ за нови OAuth code/access/refresh артефакти.",
     ),
     general(
       "MCP_RESOURCE_URL",

@@ -34,6 +34,13 @@ function normalizeProjectUrl(value) {
   }
 }
 
+function normalizePublishableKey(value) {
+  const key = typeof value === "string" ? value.trim() : "";
+  return key.startsWith("sb_publishable_") || key.split(".").length === 3
+    ? key
+    : "";
+}
+
 function sessionSecret(env = process.env) {
   const dedicated = (env.SUPABASE_SESSION_ENCRYPTION_KEY || "").trim();
   if (dedicated) return dedicated;
@@ -67,15 +74,15 @@ export function getTesterInviteCode(env = process.env) {
 }
 
 function authConfig(env = process.env) {
+  const projectUrl =
+    normalizeProjectUrl(env.SUPABASE_URL) ||
+    normalizeProjectUrl(TESTER_AUTH_BOOTSTRAP.projectUrl);
+  const publishableKey =
+    normalizePublishableKey(env.SUPABASE_PUBLISHABLE_KEY) ||
+    normalizePublishableKey(TESTER_AUTH_BOOTSTRAP.publishableKey);
   return {
-    projectUrl: normalizeProjectUrl(
-      env.SUPABASE_URL || TESTER_AUTH_BOOTSTRAP.projectUrl,
-    ),
-    publishableKey:
-      typeof env.SUPABASE_PUBLISHABLE_KEY === "string" &&
-      env.SUPABASE_PUBLISHABLE_KEY.trim()
-        ? env.SUPABASE_PUBLISHABLE_KEY.trim()
-        : TESTER_AUTH_BOOTSTRAP.publishableKey,
+    projectUrl,
+    publishableKey,
     encryptionSecret: sessionSecret(env),
   };
 }

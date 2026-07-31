@@ -7,6 +7,7 @@ import {
   scryptSync,
   timingSafeEqual,
 } from "node:crypto";
+import { TESTER_AUTH_BOOTSTRAP } from "../config/testerAuthBootstrap.js";
 
 export const USER_SESSION_COOKIE = "synchron_user_session";
 const SESSION_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
@@ -65,11 +66,14 @@ export function getTesterInviteCode(env = process.env) {
 
 function authConfig(env = process.env) {
   return {
-    projectUrl: normalizeProjectUrl(env.SUPABASE_URL),
+    projectUrl: normalizeProjectUrl(
+      env.SUPABASE_URL || TESTER_AUTH_BOOTSTRAP.projectUrl,
+    ),
     publishableKey:
-      typeof env.SUPABASE_PUBLISHABLE_KEY === "string"
+      typeof env.SUPABASE_PUBLISHABLE_KEY === "string" &&
+      env.SUPABASE_PUBLISHABLE_KEY.trim()
         ? env.SUPABASE_PUBLISHABLE_KEY.trim()
-        : "",
+        : TESTER_AUTH_BOOTSTRAP.publishableKey,
     encryptionSecret: sessionSecret(env),
   };
 }

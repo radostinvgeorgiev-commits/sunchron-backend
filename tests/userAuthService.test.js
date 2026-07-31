@@ -50,6 +50,7 @@ test("derives isolated tester secrets from the existing owner session secret", (
     SUPABASE_PUBLISHABLE_KEY: ENV.SUPABASE_PUBLISHABLE_KEY,
     GITHUB_SESSION_ENCRYPTION_KEY: "github-only-key-with-enough-entropy",
   };
+  const expectedSession = session("derived");
   assert.equal(isUserAuthConfigured(fallbackEnv), true);
   assert.equal(isTesterRegistrationEnabled(fallbackEnv), true);
   assert.equal(getTesterInviteCode(fallbackEnv).length, 16);
@@ -59,10 +60,10 @@ test("derives isolated tester secrets from the existing owner session secret", (
   );
   assert.deepEqual(
     decryptUserSession(
-      encryptUserSession(session("derived"), fallbackEnv),
+      encryptUserSession(expectedSession, fallbackEnv),
       fallbackEnv,
     ),
-    session("derived"),
+    expectedSession,
   );
 });
 
@@ -80,6 +81,14 @@ test("the configured GitHub client secret is a safe final fallback", () => {
   assert.equal(isUserAuthConfigured(fallbackEnv), true);
   assert.equal(isTesterRegistrationEnabled(fallbackEnv), true);
   assert.equal(getTesterInviteCode(fallbackEnv).length, 16);
+});
+
+test("uses the public production Supabase connection when App Platform omits it", () => {
+  const fallbackEnv = {
+    GITHUB_SESSION_ENCRYPTION_KEY: "github-only-key-with-enough-entropy",
+  };
+  assert.equal(isUserAuthConfigured(fallbackEnv), true);
+  assert.equal(isTesterRegistrationEnabled(fallbackEnv), true);
 });
 
 test("encrypts the Supabase session and never leaves tokens in the cookie", () => {

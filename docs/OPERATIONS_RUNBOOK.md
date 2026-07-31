@@ -130,6 +130,23 @@ write adapter, спри и поискай изрично разрешение.
 - При MCP OAuth миграция запази `MCP_ACCESS_TOKEN`, докато dedicated flow и
   refresh периодът не са доказани. Следвай `BRIDGE_AND_DIAGNOSTICS.md`.
 
+## Режим без Copilot
+
+Production работи безопасно с `COPILOT_AUTOMATION_ENABLED=false`. В този режим
+GitHub Read остава активен, а `code.write`, `code.branch` и
+`code.pull-request` спират преди потвърждение, OAuth или външно Copilot
+извикване. `/health/integrations` трябва да връща за `github-write`:
+
+- `enabled=false`;
+- `executable=false`;
+- `healthStatus=unavailable`;
+- `availabilityCode=COPILOT_AUTOMATION_DISABLED`.
+
+Не променяй настройката само защото GitHub OAuth работи. Стойност `true` се
+добавя едва след потвърдени Copilot кредити и отделно разрешение за production
+конфигурацията; защитите за собственическа сесия и точно потвърждение остават
+задължителни.
+
 ## Кога инцидентът е затворен
 
 Инцидентът е приключил само когато:

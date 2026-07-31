@@ -103,6 +103,7 @@ test.beforeEach(() => {
   resetGitHubSessionsForTests();
   resetConfirmationsForTests();
   resetToolRegistryForTests();
+  process.env.COPILOT_AUTOMATION_ENABLED = "true";
   process.env.GITHUB_CLIENT_ID = "test-client";
   process.env.GITHUB_CLIENT_SECRET = "test-secret";
 });
@@ -111,6 +112,7 @@ test.afterEach(() => {
   resetGitHubSessionsForTests();
   resetConfirmationsForTests();
   resetToolRegistryForTests();
+  delete process.env.COPILOT_AUTOMATION_ENABLED;
   delete process.env.GITHUB_CLIENT_ID;
   delete process.env.GITHUB_CLIENT_SECRET;
 });
@@ -129,6 +131,51 @@ test("code.write prepares a Copilot confirmation through Capability Engine", asy
   assert.equal(result.tool.id, "github-write");
   assert.match(result.output, /Подготвих кодовата задача/u);
   assert.match(result.output, /Потвърждавам GitHub задача:/u);
+});
+
+test("service blocks a direct Copilot start when automation is disabled", async () => {
+  const session = await connectedSession();
+  let externalCallStarted = false;
+  delete process.env.COPILOT_AUTOMATION_ENABLED;
+
+  try {
+    await assert.rejects(
+      () =>
+        startCopilotTask({
+          githubSessionId: session.id,
+          prompt: "Промени бутона.",
+          fetchImpl: async () => {
+            externalCallStarted = true;
+            throw new Error("не трябва да се извиква");
+          },
+        }),
+      (error) => error.code === "COPILOT_AUTOMATION_DISABLED",
+    );
+    assert.equal(externalCallStarted, false);
+  } finally {
+    process.env.COPILOT_AUTOMATION_ENABLED = "true";
+  }
+});
+
+test("bridge status reports disabled mode without a GitHub call", async () => {
+  let externalCallStarted = false;
+  delete process.env.COPILOT_AUTOMATION_ENABLED;
+
+  try {
+    const status = await getCopilotBridgeStatus({
+      githubSessionId: "unused",
+      fetchImpl: async () => {
+        externalCallStarted = true;
+        throw new Error("не трябва да се извиква");
+      },
+    });
+    assert.equal(status.status, "disabled");
+    assert.equal(status.reasonCode, "COPILOT_AUTOMATION_DISABLED");
+    assert.equal(externalCallStarted, false);
+    assert.match(formatCopilotBridgeStatus(status), /работим без Copilot/u);
+  } finally {
+    process.env.COPILOT_AUTOMATION_ENABLED = "true";
+  }
 });
 
 test("recognizes a GitHub Write availability question without starting a task", () => {
@@ -412,7 +459,6 @@ test("requires an exact one-time confirmation before starting Copilot", async ()
     (error) => error.code === "CONFIRMATION_NOT_FOUND",
   );
 });
-
 
 test("Copilot adapter is not called when the audited write guard blocks", async () => {
   const session = await connectedSession();

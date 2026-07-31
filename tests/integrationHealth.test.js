@@ -14,6 +14,7 @@ const ENV_NAMES = [
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
   "GOOGLE_REDIRECT_URI",
+  "COPILOT_AUTOMATION_ENABLED",
   "GITHUB_CLIENT_ID",
   "GITHUB_CLIENT_SECRET",
   "GITHUB_REDIRECT_URI",
@@ -30,6 +31,7 @@ test("integration status reports configuration without exposing secret values", 
     ENV_NAMES.map((name) => [name, process.env[name]]),
   );
   for (const name of ENV_NAMES) process.env[name] = `secret-${name}`;
+  process.env.COPILOT_AUTOMATION_ENABLED = "true";
   resetToolRegistryForTests();
 
   try {
@@ -69,6 +71,7 @@ test("GitHub Write reports the authenticated owner session", () => {
   );
   process.env.GITHUB_CLIENT_ID = "client-id";
   process.env.GITHUB_CLIENT_SECRET = "client-secret";
+  process.env.COPILOT_AUTOMATION_ENABLED = "true";
   resetToolRegistryForTests();
 
   try {
@@ -92,6 +95,7 @@ test("GitHub Write is configured with client id and secret only", () => {
   );
   process.env.GITHUB_CLIENT_ID = "client-id";
   process.env.GITHUB_CLIENT_SECRET = "client-secret";
+  process.env.COPILOT_AUTOMATION_ENABLED = "true";
   delete process.env.GITHUB_REDIRECT_URI;
   resetToolRegistryForTests();
 
@@ -99,6 +103,33 @@ test("GitHub Write is configured with client id and secret only", () => {
     const status = getIntegrationStatus();
     const githubWrite = status.tools.find((tool) => tool.id === "github-write");
     assert.equal(githubWrite.configured, true);
+  } finally {
+    for (const [name, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    resetToolRegistryForTests();
+  }
+});
+
+test("GitHub Write reports the explicit mode without Copilot", () => {
+  const original = Object.fromEntries(
+    ENV_NAMES.map((name) => [name, process.env[name]]),
+  );
+  process.env.GITHUB_CLIENT_ID = "client-id";
+  process.env.GITHUB_CLIENT_SECRET = "client-secret";
+  delete process.env.COPILOT_AUTOMATION_ENABLED;
+  resetToolRegistryForTests();
+
+  try {
+    const status = getIntegrationStatus({ githubAuthenticated: true });
+    const githubWrite = status.tools.find((tool) => tool.id === "github-write");
+    assert.equal(githubWrite.enabled, false);
+    assert.equal(githubWrite.executable, false);
+    assert.equal(githubWrite.configured, true);
+    assert.equal(githubWrite.healthStatus, "unavailable");
+    assert.equal(githubWrite.availabilityCode, "COPILOT_AUTOMATION_DISABLED");
+    assert.match(githubWrite.availabilityReason, /режим без Copilot/u);
   } finally {
     for (const [name, value] of Object.entries(original)) {
       if (value === undefined) delete process.env[name];

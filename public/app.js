@@ -1,809 +1,34 @@
-const state = {
-  sessionId: getOrCreateSessionId(),
-  serverOnline: false,
-  opensearchStatus: "unknown",
-  opensearchFailures: 0,
-  lastMemorySuccessAt: 0,
-  lastActions: [],
-  chatBusy: false,
-  speakingButton: null,
-  pendingImage: null,
-  conversations: [],
-  conversationLoadError: "",
-  memoryItems: [],
-  recognition: null,
-  listening: false,
-  authenticatedUser: null,
-  registrationEnabled: false,
-  applicationStarted: false,
-};
-
-const elements = {
-  authGate: document.getElementById("authGate"),
-  appShell: document.getElementById("appShell"),
-  loginForm: document.getElementById("loginForm"),
-  loginEmail: document.getElementById("loginEmail"),
-  loginPassword: document.getElementById("loginPassword"),
-  loginBtn: document.getElementById("loginBtn"),
-  showRegisterBtn: document.getElementById("showRegisterBtn"),
-  registerForm: document.getElementById("registerForm"),
-  registerName: document.getElementById("registerName"),
-  registerEmail: document.getElementById("registerEmail"),
-  registerPassword: document.getElementById("registerPassword"),
-  registerInviteCode: document.getElementById("registerInviteCode"),
-  registerBtn: document.getElementById("registerBtn"),
-  backToLoginBtn: document.getElementById("backToLoginBtn"),
-  authMessage: document.getElementById("authMessage"),
-  chatMessages: document.getElementById("chatMessages"),
-  chatInput: document.getElementById("chatInput"),
-  sendBtn: document.getElementById("sendBtn"),
-  attachBtn: document.getElementById("attachBtn"),
-  imageInput: document.getElementById("imageInput"),
-  attachmentPreview: document.getElementById("attachmentPreview"),
-  attachmentImage: document.getElementById("attachmentImage"),
-  attachmentName: document.getElementById("attachmentName"),
-  removeAttachmentBtn: document.getElementById("removeAttachmentBtn"),
-  newChatBtn: document.getElementById("newChatBtn"),
-  toggleStatusBtn: document.getElementById("toggleStatusBtn"),
-  closeContextBtn: document.getElementById("closeContextBtn"),
-  statusPanel: document.getElementById("statusPanel"),
-  agentStatusDot: document.getElementById("agentStatusDot"),
-  agentStatusText: document.getElementById("agentStatusText"),
-  sessionIdDisplay: document.getElementById("sessionIdDisplay"),
-  serverStatusDisplay: document.getElementById("serverStatusDisplay"),
-  opensearchStatusDisplay: document.getElementById("opensearchStatusDisplay"),
-  actionsLog: document.getElementById("actionsLog"),
-  conversationList: document.getElementById("conversationList"),
-  conversationSearch: document.getElementById("conversationSearch"),
-  searchChatsBtn: document.getElementById("searchChatsBtn"),
-  mobileMenuBtn: document.getElementById("mobileMenuBtn"),
-  sidebar: document.getElementById("sidebar"),
-  sidebarBackdrop: document.getElementById("sidebarBackdrop"),
-  imagesBtn: document.getElementById("imagesBtn"),
-  modulesBtn: document.getElementById("modulesBtn"),
-  systemConfigurationBtn: document.getElementById("systemConfigurationBtn"),
-  focusBtn: document.getElementById("focusBtn"),
-  toolsBtn: document.getElementById("toolsBtn"),
-  memoryBtn: document.getElementById("memoryBtn"),
-  permissionsBtn: document.getElementById("permissionsBtn"),
-  dataDrawer: document.getElementById("dataDrawer"),
-  dataDrawerTitle: document.getElementById("dataDrawerTitle"),
-  dataDrawerBody: document.getElementById("dataDrawerBody"),
-  drawerBackdrop: document.getElementById("drawerBackdrop"),
-  closeDataDrawerBtn: document.getElementById("closeDataDrawerBtn"),
-  voiceBtn: document.getElementById("voiceBtn"),
-  profileAvatar: document.getElementById("profileAvatar"),
-  profileName: document.getElementById("profileName"),
-  profileRole: document.getElementById("profileRole"),
-  logoutBtn: document.getElementById("logoutBtn"),
-};
-
-function createSessionId() {
-  if (globalThis.crypto?.randomUUID) {
-    return "sess-" + globalThis.crypto.randomUUID();
-  }
-  return (
-    "sess-" + Math.random().toString(36).slice(2) + Date.now().toString(36)
-  );
-}
-
-function getOrCreateSessionId() {
-  const stored = localStorage.getItem("synchronSessionId");
-  if (stored?.startsWith("sess-")) return stored;
-  const sessionId = createSessionId();
-  localStorage.setItem("synchronSessionId", sessionId);
-  return sessionId;
-}
-
-function setAuthMessage(message = "", success = false) {
-  elements.authMessage.textContent = message;
-  elements.authMessage.classList.toggle("success", success);
-}
-
-function setAuthBusy(isBusy) {
-  elements.loginBtn.disabled = isBusy;
-  elements.registerBtn.disabled = isBusy;
-}
-
-function showLoginForm() {
-  elements.loginForm.hidden = false;
-  elements.registerForm.hidden = true;
-  elements.showRegisterBtn.hidden = !state.registrationEnabled;
-  setAuthMessage();
-  elements.loginEmail.focus();
-}
-
-function showRegisterForm() {
-  elements.loginForm.hidden = true;
-  elements.registerForm.hidden = false;
-  elements.showRegisterBtn.hidden = true;
-  setAuthMessage();
-  elements.registerName.focus();
-}
-
-async function readAuthSession() {
-  const response = await fetch("/api/auth/session", { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error("Ð’Ñ…Ð¾Ð´ÑŠÑ‚ Ð²Ñ€ÐµÐ¼ÐµÐ½Ð½Ð¾ Ð½Ðµ Ðµ Ð´Ð¾ÑÑ‚ÑŠÐ¿ÐµÐ½.");
-  }
-  return response.json();
-}
-
-async function submitAuth(path, body) {
-  const response = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(data?.error || "Ð’Ñ…Ð¾Ð´ÑŠÑ‚ Ð½Ðµ Ð±ÐµÑˆÐµ ÑƒÑÐ¿ÐµÑˆÐµÐ½.");
-  }
-  return data;
-}
-
-async function handleLogin(event) {
-  event.preventDefault();
-  setAuthBusy(true);
-  setAuthMessage();
-  try {
-    await submitAuth("/api/auth/login", {
-      email: elements.loginEmail.value,
-      password: elements.loginPassword.value,
-    });
-    elements.loginPassword.value = "";
-    const session = await readAuthSession();
-    if (!session.authenticated) throw new Error("Ð¡ÐµÑÐ¸ÑÑ‚Ð° Ð½Ðµ Ð±ÐµÑˆÐµ ÑÑŠÐ·Ð´Ð°Ð´ÐµÐ½Ð°.");
-    await startApplication(session.user);
-  } catch (error) {
-    setAuthMessage(error.message);
-  } finally {
-    setAuthBusy(false);
-  }
-}
-
-async function handleRegistration(event) {
-  event.preventDefault();
-  setAuthBusy(true);
-  setAuthMessage();
-  try {
-    const result = await submitAuth("/api/auth/register", {
-      displayName: elements.registerName.value,
-      email: elements.registerEmail.value,
-      password: elements.registerPassword.value,
-      inviteCode: elements.registerInviteCode.value,
-    });
-    elements.registerPassword.value = "";
-    elements.registerInviteCode.value = "";
-    if (result.confirmationRequired) {
-      showLoginForm();
-      elements.loginEmail.value = result.user?.email || "";
-      setAuthMessage(
-        "ÐŸÑ€Ð¾Ñ„Ð¸Ð»ÑŠÑ‚ Ðµ ÑÑŠÐ·Ð´Ð°Ð´ÐµÐ½. ÐŸÐ¾Ñ‚Ð²ÑŠÑ€Ð´Ð¸ Ð¸Ð¼ÐµÐ¹Ð»Ð° ÑÐ¸ Ð¸ Ð¿Ð¾ÑÐ»Ðµ Ð²Ð»ÐµÐ·.",
-        true,
-      );
-      return;
-    }
-    const session = await readAuthSession();
-    if (!session.authenticated) throw new Error("Ð¡ÐµÑÐ¸ÑÑ‚Ð° Ð½Ðµ Ð±ÐµÑˆÐµ ÑÑŠÐ·Ð´Ð°Ð´ÐµÐ½Ð°.");
-    await startApplication(session.user);
-  } catch (error) {
-    setAuthMessage(error.message);
-  } finally {
-    setAuthBusy(false);
-  }
-}
-
-async function handleLogout() {
-  elements.logoutBtn.disabled = true;
-  try {
-    await fetch("/api/auth/logout", { method: "POST" });
-  } finally {
-    globalThis.location.href = "/";
-  }
-}
-
-function applyAuthenticatedUser(user) {
-  state.authenticatedUser = user;
-  const displayName = user?.displayName || "ÐŸÐ¾Ñ‚Ñ€ÐµÐ±Ð¸Ñ‚ÐµÐ»";
-  const isOwner = user?.role === "owner";
-  elements.profileName.textContent = displayName;
-  elements.profileAvatar.textContent =
-    displayName.trim().charAt(0).toLocaleUpperCase("bg-BG") || "ÐŸ";
-  elements.profileRole.textContent = isOwner
-    ? "Ð¡Ð¾Ð±ÑÑ‚Ð²ÐµÐ½Ð¸Ðº Â· Ð½Ð°ÑÑ‚Ñ€Ð¾Ð¹ÐºÐ¸"
-    : "Ð¢ÐµÑÑ‚Ð¾Ð² Ð¿Ñ€Ð¾Ñ„Ð¸Ð»";
-  document.body.dataset.userRole = isOwner ? "owner" : "tester";
-  for (const item of document.querySelectorAll("[data-owner-only]")) {
-    item.hidden = !isOwner;
-  }
-}
-
-async function init() {
-  elements.loginForm.addEventListener("submit", handleLogin);
-  elements.registerForm.addEventListener("submit", handleRegistration);
-  elements.showRegisterBtn.addEventListener("click", showRegisterForm);
-  elements.backToLoginBtn.addEventListener("click", showLoginForm);
-
-  try {
-    const session = await readAuthSession();
-    state.registrationEnabled = Boolean(session.registrationEnabled);
-    elements.showRegisterBtn.hidden = !state.registrationEnabled;
-    if (session.authenticated) {
-      await startApplication(session.user);
-      return;
-    }
-    elements.authGate.hidden = false;
-    elements.appShell.hidden = true;
-    if (!session.configured) {
-      setAuthMessage(
-        "Ð’Ñ…Ð¾Ð´ÑŠÑ‚ Ð·Ð° Ñ‚ÐµÑÑ‚Ð¾Ð²Ð¸ Ð¿Ñ€Ð¾Ñ„Ð¸Ð»Ð¸ Ð¾Ñ‰Ðµ Ð½Ðµ Ðµ Ð°ÐºÑ‚Ð¸Ð²Ð¸Ñ€Ð°Ð½. Ð¡Ð¾Ð±ÑÑ‚Ð²ÐµÐ½Ð¸ÐºÑŠÑ‚ Ð¼Ð¾Ð¶Ðµ Ð´Ð° Ð²Ð»ÐµÐ·Ðµ Ñ GitHub.",
-      );
-    }
-  } catch (error) {
-    setAuthMessage(error.message);
-  }
-}
-
-async function startApplication(user) {
-  if (state.applicationStarted) return;
-  state.applicationStarted = true;
-  applyAuthenticatedUser(user);
-  elements.authGate.hidden = true;
-  elements.appShell.hidden = false;
-  updateSessionDisplay();
-
-  elements.sendBtn.addEventListener("click", sendMessage);
-  elements.attachBtn.addEventListener("click", () =>
-    elements.imageInput.click(),
-  );
-  elements.imageInput.addEventListener("change", handleImageSelection);
-  elements.removeAttachmentBtn.addEventListener("click", clearPendingImage);
-  elements.chatInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      sendMessage();
-    }
-  });
-  elements.newChatBtn.addEventListener("click", startNewChat);
-  elements.toggleStatusBtn.addEventListener("click", openStatus);
-  elements.closeContextBtn.addEventListener("click", closeStatus);
-  elements.chatMessages.addEventListener("click", handleMessageAction);
-  elements.conversationList.addEventListener("click", handleConversationClick);
-  elements.conversationSearch.addEventListener("input", renderConversationList);
-  elements.searchChatsBtn.addEventListener("click", toggleConversationSearch);
-  elements.mobileMenuBtn.addEventListener("click", toggleSidebar);
-  elements.sidebarBackdrop.addEventListener("click", closeSidebar);
-  elements.imagesBtn.addEventListener("click", openImagePicker);
-  elements.modulesBtn.addEventListener("click", openModulesDrawer);
-  elements.toolsBtn.addEventListener("click", openToolsDrawer);
-  elements.systemConfigurationBtn.addEventListener(
-    "click",
-    openSystemConfigurationDrawer,
-  );
-  elements.memoryBtn.addEventListener("click", openMemoryDrawer);
-  elements.permissionsBtn.addEventListener("click", openPermissionsDrawer);
-  elements.closeDataDrawerBtn.addEventListener("click", closeDataDrawer);
-  elements.drawerBackdrop.addEventListener("click", closeDataDrawer);
-  elements.dataDrawerBody.addEventListener("click", handleDataDrawerAction);
-  elements.voiceBtn.addEventListener("click", toggleVoiceInput);
-  elements.logoutBtn.addEventListener("click", handleLogout);
-  document.addEventListener("keydown", handleGlobalKeydown);
-  prepareVoiceInput();
-
-  checkHealth();
-  checkOpenSearch();
-  setInterval(checkHealth, 10000);
-  setInterval(checkOpenSearch, 20000);
-
-  await restoreConversation();
-  await loadConversations();
-}
-
-function updateSessionDisplay() {
-  elements.sessionIdDisplay.textContent = state.sessionId;
-}
-
-async function showWelcomeMessage() {
-  appendMessage(
-    "agent",
-    [
-      "## SYNCHRON-X",
-      "**Ð¢Ð²Ð¾ÑÑ‚Ð° Ð»Ð¸Ñ‡Ð½Ð° AI Ð¾Ð¿ÐµÑ€Ð°Ñ†Ð¸Ð¾Ð½Ð½Ð° ÑÐ¸ÑÑ‚ÐµÐ¼Ð°.**",
-      "",
-      "Ð•Ð´Ð½Ð¾ AI ÑÐ´Ñ€Ð¾, Ð¿Ð¾ÑÑ‚Ð¾ÑÐ½Ð½Ð° ÐºÐ¾Ð½Ñ‚Ñ€Ð¾Ð»Ð¸Ñ€Ð°Ð½Ð° Ð¿Ð°Ð¼ÐµÑ‚ Ð¸ Ñ€Ð°Ð·Ñ€ÐµÑˆÐµÐ½Ð¸ Ð¸Ð½ÑÑ‚Ñ€ÑƒÐ¼ÐµÐ½Ñ‚Ð¸ Ð·Ð° Ñ€ÐµÐ°Ð»Ð½Ð¸ Ð·Ð°Ð´Ð°Ñ‡Ð¸.",
-      "",
-      "AI Ð°Ð²Ð°Ñ‚Ð°Ñ€ÑŠÑ‚ Ðµ Ð¼Ð¾ÑÑ‚ Ð½Ð°Ñ‡Ð¸Ð½ Ð½Ð° Ð¾Ð±Ñ‰ÑƒÐ²Ð°Ð½Ðµ. Ð¢Ð¸ ÐºÐ¾Ð½Ñ‚Ñ€Ð¾Ð»Ð¸Ñ€Ð°Ñˆ Ð´Ð°Ð½Ð½Ð¸Ñ‚Ðµ, Ð¿Ð°Ð¼ÐµÑ‚Ñ‚Ð° Ð¸ Ñ€Ð¸ÑÐºÐ¾Ð²Ð¸Ñ‚Ðµ Ð´ÐµÐ¹ÑÑ‚Ð²Ð¸Ñ.",
-    ].join("\n"),
-  );
-}
-
-async function restoreConversation() {
-  try {
-    const response = await fetch(
-      "/memory/conversation/" + encodeURIComponent(state.sessionId),
-      { cache: "no-store" },
-    );
-    if (!response.ok) throw new Error("Ð˜ÑÑ‚Ð¾Ñ€Ð¸ÑÑ‚Ð° Ð½Ðµ Ðµ Ð´Ð¾ÑÑ‚ÑŠÐ¿Ð½Ð°.");
-    const data = await response.json();
-    markMemoryOperational();
-    const items = Array.isArray(data.items) ? data.items : [];
-    if (items.length === 0) {
-      await showWelcomeMessage();
-      return;
-    }
-    for (const item of items) {
-      if (
-        (item.role === "user" || item.role === "assistant") &&
-        typeof item.content === "string"
-      ) {
-        appendMessage(
-          item.role === "assistant" ? "agent" : "user",
-          item.content,
-        );
-      }
-    }
-    logAction("Ð’ÑŠÐ·ÑÑ‚Ð°Ð½Ð¾Ð²ÐµÐ½Ð° Ðµ Ð¸ÑÑ‚Ð¾Ñ€Ð¸ÑÑ‚Ð° Ð½Ð° Ñ€Ð°Ð·Ð³Ð¾Ð²Ð¾Ñ€Ð°");
-  } catch (error) {
-    console.error(error);
-    await showWelcomeMessage();
-    logAction("Ð˜ÑÑ‚Ð¾Ñ€Ð¸ÑÑ‚Ð° Ð½Ðµ Ð¼Ð¾Ð¶Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ð²ÑŠÐ·ÑÑ‚Ð°Ð½Ð¾Ð²ÐµÐ½Ð°");
-  }
-}
-
-async function startNewChat() {
-  if (state.chatBusy) return;
-  closeSidebar();
-  clearPendingImage();
-  state.sessionId = createSessionId();
-  localStorage.setItem("synchronSessionId", state.sessionId);
-  state.lastActions = [];
-  elements.chatMessages.replaceChildren();
-  updateSessionDisplay();
-  renderActionsLog();
-  await showWelcomeMessage();
-  logAction("Ð—Ð°Ð¿Ð¾Ñ‡Ð½Ð°Ñ‚ Ðµ Ð½Ð¾Ð² Ñ€Ð°Ð·Ð³Ð¾Ð²Ð¾Ñ€");
-  renderConversationList();
-  elements.chatInput.focus();
-}
-
-async function loadConversations() {
-  try {
-    const response = await fetch("/memory/conversations", {
-      cache: "no-store",
-    });
-    if (!response.ok) throw new Error("Ð¡Ð¿Ð¸ÑÑŠÐºÑŠÑ‚ Ð½Ðµ Ðµ Ð´Ð¾ÑÑ‚ÑŠÐ¿ÐµÐ½.");
-    const data = await response.json();
-    state.conversations = Array.isArray(data.items) ? data.items : [];
-    state.conversationLoadError = "";
-    renderConversationList();
-  } catch (error) {
-    console.error(error);
-    state.conversations = [];
-    state.conversationLoadError =
-      "Ð˜ÑÑ‚Ð¾Ñ€Ð¸ÑÑ‚Ð° Ð²Ñ€ÐµÐ¼ÐµÐ½Ð½Ð¾ Ð½Ðµ Ðµ Ð´Ð¾ÑÑ‚ÑŠÐ¿Ð½Ð°. ÐžÐ¿Ð¸Ñ‚Ð°Ð¹ Ð¾Ñ‚Ð½Ð¾Ð²Ð¾.";
-    renderConversationList();
-  }
-}
-
-function renderConversationList() {
-  const query = elements.conversationSearch.value
-    .trim()
-    .toLocaleLowerCase("bg-BG");
-  const conversations = state.conversations.filter(
-    (item) => !query || item.title.toLocaleLowerCase("bg-BG").includes(query),
-  );
-  elements.conversationList.replaceChildren();
-
-  if (state.conversationLoadError) {
-    const error = document.createElement("p");
-    error.className = "conversation-state conversation-state-error";
-    error.textContent = state.conversationLoadError;
-    elements.conversationList.appendChild(error);
-    return;
-  }
-
-  if (conversations.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "conversation-state";
-    empty.textContent = query
-      ? "ÐÑÐ¼Ð° Ð½Ð°Ð¼ÐµÑ€ÐµÐ½Ð¸ Ñ€Ð°Ð·Ð³Ð¾Ð²Ð¾Ñ€Ð¸."
-      : "Ð’ÑÐµ Ð¾Ñ‰Ðµ Ð½ÑÐ¼Ð° Ð·Ð°Ð¿Ð°Ð·ÐµÐ½Ð¸ Ñ€Ð°Ð·Ð³Ð¾Ð²Ð¾Ñ€Ð¸.";
-    elements.conversationList.appendChild(empty);
-    return;
-  }
-
-  for (const item of conversations) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "conversation";
-    if (item.sessionId === state.sessionId) button.classList.add("active");
-    button.dataset.sessionId = item.sessionId;
-    button.textContent = item.title;
-    elements.conversationList.appendChild(button);
-  }
-}
-
-async function handleConversationClick(event) {
-  const button = event.target.closest("button[data-session-id]");
-  if (!button || state.chatBusy || button.dataset.sessionId === state.sessionId)
-    return;
-  state.sessionId = button.dataset.sessionId;
-  localStorage.setItem("synchronSessionId", state.sessionId);
-  elements.chatMessages.replaceChildren();
-  updateSessionDisplay();
-  renderConversationList();
-  await restoreConversation();
-  closeSidebar();
-}
-
-function toggleSidebar() {
-  const isOpen = elements.sidebar.classList.toggle("mobile-visible");
-  elements.sidebarBackdrop.hidden = !isOpen;
-  elements.mobileMenuBtn.setAttribute("aria-expanded", String(isOpen));
-}
-
-function closeSidebar() {
-  elements.sidebar.classList.remove("mobile-visible");
-  elements.sidebarBackdrop.hidden = true;
-  elements.mobileMenuBtn.setAttribute("aria-expanded", "false");
-}
-
-function openImagePicker() {
-  closeSidebar();
-  elements.imageInput.click();
-}
-
-function handleGlobalKeydown(event) {
-  if (event.key !== "Escape") return;
-  closeSidebar();
-  closeStatus();
-  closeDataDrawer();
-}
-
-function toggleConversationSearch() {
-  elements.conversationSearch.hidden = false;
-  elements.conversationList
-    .closest(".sidebar-section")
-    ?.scrollIntoView({ block: "start", behavior: "smooth" });
-  elements.conversationSearch.focus({ preventScroll: true });
-}
-
-function handleImageSelection(event) {
-  const file = event.target.files?.[0];
-  if (!file) return;
-
-  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-  if (!allowedTypes.includes(file.type)) {
-    appendMessage("agent", "âŒ ÐŸÐ¾Ð´Ð´ÑŠÑ€Ð¶Ð°Ñ‚ ÑÐµ ÑÐ°Ð¼Ð¾ JPEG, PNG Ð¸ WebP ÑÐ½Ð¸Ð¼ÐºÐ¸.");
-    clearPendingImage();
-    return;
-  }
-
-  if (file.size > 5 * 1024 * 1024) {
-    appendMessage("agent", "âŒ Ð¡Ð½Ð¸Ð¼ÐºÐ°Ñ‚Ð° Ñ‚Ñ€ÑÐ±Ð²Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ð´Ð¾ 5 MB.");
-    clearPendingImage();
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = () => {
-    state.pendingImage = {
-      dataUrl: reader.result,
-      mimeType: file.type,
-      name: file.name,
-    };
-    elements.attachmentImage.src = reader.result;
-    elements.attachmentName.textContent = file.name;
-    elements.attachmentPreview.hidden = false;
-    elements.chatInput.focus();
-  };
-  reader.onerror = () => {
-    appendMessage("agent", "âŒ Ð¡Ð½Ð¸Ð¼ÐºÐ°Ñ‚Ð° Ð½Ðµ Ð¼Ð¾Ð¶Ð° Ð´Ð° Ð±ÑŠÐ´Ðµ Ð¿Ñ€Ð¾Ñ‡ÐµÑ‚ÐµÐ½Ð°.");
-    clearPendingImage();
-  };
-  reader.readAsDataURL(file);
-}
-
-function clearPendingImage() {
-  state.pendingImage = null;
-  elements.imageInput.value = "";
-  elements.attachmentImage.removeAttribute("src");
-  elements.attachmentName.textContent = "";
-  elements.attachmentPreview.hidden = true;
-}
-
-function openStatus() {
-  closeSidebar();
-  elements.statusPanel.classList.add("mobile-visible");
-}
-
-function closeStatus() {
-  elements.statusPanel.classList.remove("mobile-visible");
-}
-
-function prepareVoiceInput() {
-  const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    elements.voiceBtn.hidden = true;
-    return;
-  }
-
-  const recognition = new SpeechRecognition();
-  recognition.lang = "bg-BG";
-  recognition.continuous = false;
-  recognition.interimResults = true;
-
-  recognition.onstart = () => setListening(true);
-  recognition.onend = () => setListening(false);
-  recognition.onerror = (event) => {
-    setListening(false);
-    if (event.error !== "aborted" && event.error !== "no-speech") {
-      appendMessage(
-        "agent",
-        "Ð“Ð»Ð°ÑÐ¾Ð²Ð¾Ñ‚Ð¾ Ð²ÑŠÐ²ÐµÐ¶Ð´Ð°Ð½Ðµ Ð½Ðµ Ð¼Ð¾Ð¶Ð° Ð´Ð° ÑÑ‚Ð°Ñ€Ñ‚Ð¸Ñ€Ð°. ÐŸÑ€Ð¾Ð²ÐµÑ€Ð¸ Ð´Ð¾ÑÑ‚ÑŠÐ¿Ð° Ð´Ð¾ Ð¼Ð¸ÐºÑ€Ð¾Ñ„Ð¾Ð½Ð°.",
-      );
-    }
-  };
-  recognition.onresult = (event) => {
-    let transcript = "";
-    for (
-      let index = event.resultIndex;
-      index < event.results.length;
-      index += 1
-    ) {
-      transcript += event.results[index][0].transcript;
-    }
-    elements.chatInput.value = transcript.trim();
-    const lastResult = event.results[event.results.length - 1];
-    if (lastResult?.isFinal) elements.chatInput.focus();
-  };
-  state.recognition = recognition;
-}
-
-function setListening(isListening) {
-  state.listening = isListening;
-  elements.voiceBtn.classList.toggle("listening", isListening);
-  elements.voiceBtn.setAttribute("aria-pressed", String(isListening));
-  elements.voiceBtn.title = isListening
-    ? "Ð¡Ð¿Ñ€Ð¸ ÑÐ»ÑƒÑˆÐ°Ð½ÐµÑ‚Ð¾"
-    : "Ð“Ð»Ð°ÑÐ¾Ð²Ð¾ Ð²ÑŠÐ²ÐµÐ¶Ð´Ð°Ð½Ðµ";
-}
-
-function toggleVoiceInput() {
-  if (!state.recognition || state.chatBusy) return;
-  if (state.listening) {
-    state.recognition.stop();
-  } else {
-    state.recognition.start();
-  }
-}
-
-function openModulesDrawer() {
-  openDataDrawer("Ð Ð°Ð±Ð¾Ñ‚Ð½Ð¸ Ð¾Ð±Ð»Ð°ÑÑ‚Ð¸");
-  elements.dataDrawerBody.innerHTML = `
-        <div class="module-summary">
-            Ð¢Ð¾Ð²Ð° ÑÐ° Ð¾Ð±Ð»Ð°ÑÑ‚Ð¸, Ð² ÐºÐ¾Ð¸Ñ‚Ð¾ Ð»Ð¸Ñ‡Ð½Ð°Ñ‚Ð° AI Ð¾Ð¿ÐµÑ€Ð°Ñ†Ð¸Ð¾Ð½Ð½Ð° ÑÐ¸ÑÑ‚ÐµÐ¼Ð° Ð¸Ð·Ð¿Ð¾Ð»Ð·Ð²Ð° Ñ€Ð°Ð·Ð³Ð¾Ð²Ð¾Ñ€Ð°,
-            Ð¿Ð°Ð¼ÐµÑ‚Ñ‚Ð° Ð¸ Ñ€Ð°Ð·Ñ€ÐµÑˆÐµÐ½Ð¸Ñ‚Ðµ Ð¸Ð½ÑÑ‚Ñ€ÑƒÐ¼ÐµÐ½Ñ‚Ð¸. ÐžÐ±Ð»Ð°ÑÑ‚Ñ‚Ð° ÑÐ°Ð¼Ð° Ð¿Ð¾ ÑÐµÐ±Ðµ ÑÐ¸ Ð½Ðµ
-            Ð¾Ð·Ð½Ð°Ñ‡Ð°Ð²Ð°, Ñ‡Ðµ Ð²ÑŠÐ½ÑˆÐ½Ð° ÑƒÑÐ»ÑƒÐ³Ð° Ðµ ÑÐ²ÑŠÑ€Ð·Ð°Ð½Ð°.
-        </div>
-        <section class="drawer-section permission-list module-list" data-module-list></section>`;
-  document.dispatchEvent(new CustomEvent("synchron:modules-opened"));
-}
-
-function isGoogleTool(tool) {
-  return (
-    tool?.provider === "google" ||
-    tool?.id?.startsWith("google-") ||
-    tool?.id === "gmail-read"
-  );
-}
-
-function toolState(tool, googleConnected, githubConnected) {
-  if (!tool.enabled || !tool.executable) {
-    return { label: "ÐÐµ Ðµ ÑÐ²ÑŠÑ€Ð·Ð°Ð½", className: "deny" };
-  }
-  if (!tool.configured) {
-    return { label: "ÐÐµ Ðµ ÐºÐ¾Ð½Ñ„Ð¸Ð³ÑƒÑ€Ð¸Ñ€Ð°Ð½", className: "deny" };
-  }
-  if (isGoogleTool(tool) && !googleConnected) {
-    return { label: "Ð˜ÑÐºÐ° ÑÐ²ÑŠÑ€Ð·Ð²Ð°Ð½Ðµ", className: "confirm" };
-  }
-  if (tool.id === "github-write" && !githubConnected) {
-    return { label: "Ð˜ÑÐºÐ° ÑÐ²ÑŠÑ€Ð·Ð²Ð°Ð½Ðµ", className: "confirm" };
-  }
-  return { label: "Ð Ð°Ð±Ð¾Ñ‚Ð¸", className: "allow" };
-}
-
-function toolStatusActions(tool, status, googleConnected, githubConnected) {
-  let action = "";
-  if (isGoogleTool(tool) && !googleConnected && tool.configured) {
-    action =
-      '<button type="button" class="tool-connect-btn" data-connect-service="google">Ð¡Ð²ÑŠÑ€Ð¶Ð¸ Google</button>';
-  } else if (
-    tool.id === "github-write" &&
-    tool.configured &&
-    !githubConnected
-  ) {
-    action =
-      '<button type="button" class="tool-connect-btn" data-connect-service="github">Ð¡Ð²ÑŠÑ€Ð¶Ð¸ GitHub</button>';
-  } else if (tool.id === "github-write" && !tool.configured) {
-    action =
-      '<button type="button" class="tool-connect-btn" data-github-setup>ÐÐ°ÑÑ‚Ñ€Ð¾Ð¹ GitHub</button>';
-  }
-
-  return `
-    <div class="tool-status-actions">
-      <span class="permission-badge ${status.className}">${status.label}</span>
-      ${action}
-    </div>`;
-}
-
-function permissionAction(item, toolMap, googleConnected, githubConnected) {
-  const googlePermissions = new Set([
-    "calendar.read",
-    "calendar.write",
-    "drive.read",
-    "mail.read",
-  ]);
-  if (googlePermissions.has(item.action) && !googleConnected) {
-    return '<button type="button" class="tool-connect-btn" data-connect-service="google">Ð¡Ð²ÑŠÑ€Ð¶Ð¸ Google</button>';
-  }
-
-  const githubWrite = toolMap.get("github-write");
-  if (
-    item.action === "github.write" &&
-    githubWrite?.configured &&
-    githubWrite?.executable &&
-    !githubConnected
-  ) {
-    return '<button type="button" class="tool-connect-btn" data-connect-service="github">Ð¡Ð²ÑŠÑ€Ð¶Ð¸ GitHub</button>';
-  }
-  if (
-    item.action === "github.write" &&
-    (!githubWrite?.configured || !githubWrite?.executable)
-  ) {
-    return '<button type="button" class="tool-connect-btn" data-github-setup>ÐÐ°ÑÑ‚Ñ€Ð¾Ð¹ GitHub</button>';
-  }
-
-  if (item.decision === "confirm") {
-    return `<button type="button" class="permission-info-btn" data-permission-info="${escapeHtml(item.action)}">ÐšÐ°Ðº Ñ€Ð°Ð±Ð¾Ñ‚Ð¸</button>`;
-  }
-  return "";
-}
-
-async function openToolsDrawer() {
-  openDataDrawer("Ð˜Ð½ÑÑ‚Ñ€ÑƒÐ¼ÐµÐ½Ñ‚Ð¸");
-  renderDrawerLoading();
-  try {
-    const [healthResponse, googleResponse, githubResponse] = await Promise.all([
-      fetch("/health/integrations", { cache: "no-store" }),
-      fetch("/api/google/status", { cache: "no-store" }).catch(() => null),
-      fetch("/api/github/status", { cache: "no-store" }).catch(() => null),
-    ]);
-    if (!healthResponse.ok) {
-      throw new Error("Ð¡ÑŠÑÑ‚Ð¾ÑÐ½Ð¸ÐµÑ‚Ð¾ Ð½Ð° Ð¸Ð½ÑÑ‚Ñ€ÑƒÐ¼ÐµÐ½Ñ‚Ð¸Ñ‚Ðµ Ð½Ðµ Ðµ Ð´Ð¾ÑÑ‚ÑŠÐ¿Ð½Ð¾.");
-    }
-    const data = await healthResponse.json();
-    const googleData = googleResponse?.ok
-      ? await googleResponse.json().catch(() => ({}))
-      : {};
-    const githubData = githubResponse?.ok
-      ? await githubResponse.json().catch(() => ({}))
-      : {};
-    const tools = Array.isArray(data.tools) ? data.tools : [];
-    const descriptions = {
-      "github-read": "ÐŸÑ€Ð¾Ð²ÐµÑ€ÑÐ²Ð° commit-Ð¸ Ð¸ Ñ„Ð°Ð¹Ð»Ð¾Ð²Ðµ. Ð¡Ð°Ð¼Ð¾ Ð·Ð° Ñ‡ÐµÑ‚ÐµÐ½Ðµ.",
-      "github-write":
-        "Copilot Ð¼Ð¾ÑÑ‚: Ð¾Ñ‚Ð´ÐµÐ»ÐµÐ½ ÐºÐ»Ð¾Ð½, commit-Ð¸ Ð¸ Pull Request ÑÐ»ÐµÐ´ Ñ‚Ð¾Ñ‡Ð½Ð¾ Ð¿Ð¾Ñ‚Ð²ÑŠÑ€Ð¶Ð´ÐµÐ½Ð¸Ðµ. Ð‘ÐµÐ· Ð°Ð²Ñ‚Ð¾Ð¼Ð°Ñ‚Ð¸Ñ‡Ð½Ð¾ ÑÐ»Ð¸Ð²Ð°Ð½Ðµ.",
-      "google-drive-read": "Ð§ÐµÑ‚Ðµ Ñ€Ð°Ð·Ñ€ÐµÑˆÐµÐ½Ð¸ Ñ„Ð°Ð¹Ð»Ð¾Ð²Ðµ Ð¾Ñ‚ Google Drive.",
-      "google-calendar-read": "ÐŸÐ¾ÐºÐ°Ð·Ð²Ð° ÑÑŠÐ±Ð¸Ñ‚Ð¸Ñ Ð¾Ñ‚ Google Calendar.",
-      "gmail-read": "ÐŸÐ¾ÐºÐ°Ð·Ð²Ð° Ñ€Ð°Ð·Ñ€ÐµÑˆÐµÐ½Ð¸ Ð¸Ð¼ÐµÐ¹Ð»Ð¸. ÐÐµ Ð¸Ð·Ð¿Ñ€Ð°Ñ‰Ð°.",
-      "openai-web-search": "Ð¢ÑŠÑ€ÑÐ¸ Ð°ÐºÑ‚ÑƒÐ°Ð»Ð½Ð° Ð¸Ð½Ñ„Ð¾Ñ€Ð¼Ð°Ñ†Ð¸Ñ Ð² Ð¸Ð½Ñ‚ÐµÑ€Ð½ÐµÑ‚.",
-      "opensearch-memory": "ÐŸÐ°Ð·Ð¸ Ð»Ð¸Ñ‡Ð½Ð° Ð¸ Ð¿Ñ€Ð¾ÐµÐºÑ‚Ð½Ð° Ð¿Ð°Ð¼ÐµÑ‚ Ð¿Ð¾Ð´ Ñ‚Ð²Ð¾Ð¹ ÐºÐ¾Ð½Ñ‚Ñ€Ð¾Ð».",
-      "synchron-system-inspector":
-        "ÐŸÑ€Ð¾Ð²ÐµÑ€ÑÐ²Ð° ÑÐ´Ñ€Ð¾Ñ‚Ð¾ Ð¸ Ð²ÑÐ¸Ñ‡ÐºÐ¸ runtime/DigitalOcean Ð½Ð°ÑÑ‚Ñ€Ð¾Ð¹ÐºÐ¸ Ð±ÐµÐ· Ñ‚ÐµÑ…Ð½Ð¸Ñ‚Ðµ ÑÑ‚Ð¾Ð¹Ð½Ð¾ÑÑ‚Ð¸.",
-    };
-    elements.dataDrawerBody.innerHTML = `
-      <div class="permission-default">
-        ÐŸÐ¾ÐºÐ°Ð·Ð°Ð½Ð¾ Ðµ Ñ€ÐµÐ°Ð»Ð½Ð¾Ñ‚Ð¾ ÑÑŠÑÑ‚Ð¾ÑÐ½Ð¸Ðµ. â€žÐ ÐµÐ³Ð¸ÑÑ‚Ñ€Ð¸Ñ€Ð°Ð½â€œ Ð½Ðµ Ð¾Ð·Ð½Ð°Ñ‡Ð°Ð²Ð° Ð°Ð²Ñ‚Ð¾Ð¼Ð°Ñ‚Ð¸Ñ‡Ð½Ð¾ â€žÑ€Ð°Ð±Ð¾Ñ‚Ð¸â€œ.
-      </div>
-      <section class="drawer-section permission-list">
-        <button type="button" class="permission-card tool-status-card system-control-link" data-system-configuration>
-          <div>
-            <strong>Ð¡Ð¸ÑÑ‚ÐµÐ¼ÐµÐ½ ÐºÐ¾Ð½Ñ‚Ñ€Ð¾Ð»</strong>
-            <p>Ð¯Ð´Ñ€Ð¾, Ð¸Ð½ÑÑ‚Ñ€ÑƒÐ¼ÐµÐ½Ñ‚Ð¸ Ð¸ Ð²ÑÐ¸Ñ‡ÐºÐ¸ Ð¿Ñ€Ð¾Ð¼ÐµÐ½Ð»Ð¸Ð²Ð¸ Ð±ÐµÐ· Ð¿Ð¾ÐºÐ°Ð·Ð²Ð°Ð½Ðµ Ð½Ð° Ñ‚Ð°Ð¹Ð½Ð¸Ñ‚Ðµ Ð¸Ð¼ ÑÑ‚Ð¾Ð¹Ð½Ð¾ÑÑ‚Ð¸.</p>
-          </div>
-          <span class="permission-badge allow">ÐžÑ‚Ð²Ð¾Ñ€Ð¸</span>
-        </button>
-        <article class="permission-card tool-status-card">
-          <div><strong>Ð¡Ð½Ð¸Ð¼ÐºÐ¸</strong><p>JPEG, PNG Ð¸ WebP Ð´Ð¾ 5 MB.</p></div>
-          <span class="permission-badge allow">Ð Ð°Ð±Ð¾Ñ‚Ð¸</span>
-        </article>
-        ${tools
-          .map((tool) => {
-            const status = toolState(
-              tool,
-              Boolean(googleData.connected),
-              Boolean(githubData.connected),
-            );
-            return `
-              <article class="permission-card tool-status-card">
-                <div>
-                  <strong>${escapeHtml(tool.name)}</strong>
-                  <p>${escapeHtml(descriptions[tool.id] || "Ð˜Ð½ÑÑ‚Ñ€ÑƒÐ¼ÐµÐ½Ñ‚ Ð½Ð° SYNCHRON-X.")}</p>
-                </div>
-                ${toolStatusActions(
-                  tool,
-                  status,
-                  Boolean(googleData.connected),
-                  Boolean(githubData.connected),
-                )}
-              </article>`;
-          })
-          .join("")}
-      </section>`;
-  } catch (error) {
-    renderDrawerError(error.message);
-  }
-}
-
-function configurationStatus(item) {
-  const labels = {
-    configured: ["ÐÐ°ÑÑ‚Ñ€Ð¾ÐµÐ½Ð°", "allow"],
-    defaulted: ["ÐŸÐ¾ Ð¿Ð¾Ð´Ñ€Ð°Ð·Ð±Ð¸Ñ€Ð°Ð½Ðµ", "allow"],
-    "missing-required": ["Ð›Ð¸Ð¿ÑÐ²Ð°", "deny"],
-    "optional-missing": ["ÐÐµÐ·Ð°Ð´ÑŠÐ»Ð¶Ð¸Ñ‚ÐµÐ»Ð½Ð°", "confirm"],
-    compatibility: ["Ð¡Ñ‚Ð°Ñ€ Ñ€ÐµÐ·ÐµÑ€Ð²ÐµÐ½ Ð¿ÑŠÑ‚", "confirm"],
-    "not-needed": ["ÐÐµ Ðµ Ð½ÑƒÐ¶Ð½Ð°", "allow"],
-    unused: ["ÐÐµ ÑÐµ Ð¸Ð·Ð¿Ð¾Ð»Ð·Ð²Ð°", "deny"],
-  };
-  const [label, className] = labels[item.status] || [item.status, "confirm"];
-  return { label, className };
-}
-
-function renderEnvironmentGroup(area, items) {
-  return `
-    <details class="configuration-group" ${items.some((item) => item.status === "missing-required") ? "open" : ""}>
-      <summary>${escapeHtml(area)} <span>${items.length}</span></summary>
-      <div class="configuration-list">
-        ${items
-          .map((item) => {
-            const status = configurationStatus(item);
-            return `
-              <article class="configuration-item">
-                <div>
-                  <code>${escapeHtml(item.key)}</code>
-                  <p>${escapeHtml(item.purpose)}</p>
-                  <small>
-                    ${item.sensitivity === "secret" ? "Ð¢Ð°Ð¹Ð½Ð° ÑÑ‚Ð¾Ð¹Ð½Ð¾ÑÑ‚ Â· Ð½Ð¸ÐºÐ¾Ð³Ð° Ð½Ðµ ÑÐµ Ð¿Ð¾ÐºÐ°Ð·Ð²Ð°" : "ÐžÐ±Ñ‰Ð° Ð½Ð°ÑÑ‚Ñ€Ð¾Ð¹ÐºÐ°"}
-                    Â· DigitalOcean: ${item.digitalOceanDeclared ? "Ð´ÐµÐºÐ»Ð°Ñ€Ð¸Ñ€Ð°Ð½Ð°" : "Ð½Ðµ Ðµ Ð´ÐµÐºÐ»Ð°Ñ€Ð¸Ñ€Ð°Ð½Ð°"}
-                  </small>
-                </div>
-                <span class="permission-badge ${status.className}">${status.label}</span>
-              </article>`;
-          })
-          .join("")}
-      </div>
-    </details>`;
-}
-
-async function openSystemConfigurationDrawer() {
-  openDataDrawer("Ð¡Ð¸ÑÑ‚ÐµÐ¼ÐµÐ½ ÐºÐ¾Ð½Ñ‚Ñ€Ð¾Ð»");
-  renderDrawerLoading();
-  try {
-    const [configurationResponse, integrationsResponse, readinessResponse] =
-      await Promise.all([
-        fetch("/api/system/configuration", { cache: "no-store" }),
-        fetch("/health/integrations", { cache: "no-store" }),
-        fetch("/health/ready", { cache: "no-store" }),
-      ]);
-    if (!configurationResponse.ok || !integrationsResponse.ok) {
-      throw new Error("Ð¡Ð¸ÑÑ‚ÐµÐ¼Ð½Ð°Ñ‚Ð° Ð¿Ñ€Ð¾Ð²ÐµÑ€ÐºÐ° Ð²Ñ€ÐµÐ¼ÐµÐ½Ð½Ð¾ Ð½Ðµ Ðµ Ð´Ð¾ÑÑ‚ÑŠÐ¿Ð½Ð°.");
-    }
-    const configuration = await configurationResponse.json();
-    const integrations = await integrationsResponse.json();
+YªçŠx-®éÜj×¢ëiºÚ+Š§j[h‘éÜ¢éíÛMwÑ:-jZ.¶›­–)Þ³V6öç7B7FFRÒ°¢6W76–öä–C¢vWD÷$7&VFU6W76–öä–B‚’À¢6W'fW$öæÆ–æS¢fÇ6RÀ¢÷Vç6V&6…7FGW3¢'Væ¶æ÷vâ"À¢÷Vç6V&6„f–ÇW&W3¢À¢Æ7DÖVÖ÷'•7V66W74C¢À¢Æ7D7F–öç3¢µÒÀ¢6†D'W7“¢fÇ6RÀ¢7V¶–æt'WGFöã¢çVÆÂÀ¢VæF–æt–ÖvS¢çVÆÂÀ¢6öçfW'6F–öç3¢µÒÀ¢6öçfW'6F–öäÆöDW'&÷#¢""À¢ÖVÖ÷'”—FV×3¢µÒÀ¢&V6övæ—F–öã¢çVÆÂÀ¢Æ—7FVæ–æs¢fÇ6RÀ¢WF†VçF–6FVEW6W#¢çVÆÂÀ¢&Vv—7G&F–öäVæ&ÆVC¢fÇ6RÀ¢Æ–6F–öå7F'FVC¢fÇ6RÀ§Ó° ¦6öç7BVÆVÖVçG2Ò°¢WF„vFS¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&WF„vFR"’À¢6†VÆÃ¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&6†VÆÂ"’À¢Æöv–äf÷&Ó¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&Æöv–äf÷&Ò"’À¢Æöv–äVÖ–Ã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&Æöv–äVÖ–Â"’À¢Æöv–å77v÷&C¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&Æöv–å77v÷&B"’À¢Æöv–ä'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&Æöv–ä'Fâ"’À¢6†÷u&Vv—7FW$'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'6†÷u&Vv—7FW$'Fâ"’À¢&Vv—7FW$f÷&Ó¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'&Vv—7FW$f÷&Ò"’À¢&Vv—7FW$æÖS¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'&Vv—7FW$æÖR"’À¢&Vv—7FW$VÖ–Ã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'&Vv—7FW$VÖ–Â"’À¢&Vv—7FW%77v÷&C¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'&Vv—7FW%77v÷&B"’À¢&Vv—7FW$–çf—FT6öFS¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'&Vv—7FW$–çf—FT6öFR"’À¢&Vv—7FW$'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'&Vv—7FW$'Fâ"’À¢&6µFôÆöv–ä'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&&6µFôÆöv–ä'Fâ"’À¢WF„ÖW76vS¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&WF„ÖW76vR"’À¢6†DÖW76vW3¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&6†DÖW76vW2"’À¢6†D–çWC¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&6†D–çWB"’À¢6VæD'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'6VæD'Fâ"’À¢GF6„'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&GF6„'Fâ"’À¢–ÖvT–çWC¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&–ÖvT–çWB"’À¢GF6†ÖVçE&Wf–Ws¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&GF6†ÖVçE&Wf–Wr"’À¢GF6†ÖVçD–ÖvS¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&GF6†ÖVçD–ÖvR"’À¢GF6†ÖVçDæÖS¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&GF6†ÖVçDæÖR"’À¢&VÖ÷fTGF6†ÖVçD'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'&VÖ÷fTGF6†ÖVçD'Fâ"’À¢æWt6†D'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&æWt6†D'Fâ"’À¢FövvÆU7FGW4'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'FövvÆU7FGW4'Fâ"’À¢6Æ÷6T6öçFW‡D'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&6Æ÷6T6öçFW‡D'Fâ"’À¢7FGW5æVÃ¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'7FGW5æVÂ"’À¢vVçE7FGW4F÷C¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&vVçE7FGW4F÷B"’À¢vVçE7FGW5FW‡C¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&vVçE7FGW5FW‡B"’À¢6W76–öä–DF—7Æ“¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'6W76–öä–DF—7Æ’"’À¢6W'fW%7FGW4F—7Æ“¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'6W'fW%7FGW4F—7Æ’"’À¢÷Vç6V&6…7FGW4F—7Æ“¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&÷Vç6V&6…7FGW4F—7Æ’"’À¢7F–öç4Æös¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&7F–öç4Æör"’À¢6öçfW'6F–öäÆ—7C¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&6öçfW'6F–öäÆ—7B"’À¢6öçfW'6F–öå6V&6ƒ¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&6öçfW'6F–öå6V&6‚"’À¢6V&6„6†G4'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'6V&6„6†G4'Fâ"’À¢Öö&–ÆTÖVçT'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&Öö&–ÆTÖVçT'Fâ"’À¢6–FV&#¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'6–FV&""’À¢6–FV&$&6¶G&÷¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'6–FV&$&6¶G&÷"’À¢–ÖvW4'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&–ÖvW4'Fâ"’À¢ÖöGVÆW4'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&ÖöGVÆW4'Fâ"’À¢7—7FVÔ6öæf–wW&F–öä'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'7—7FVÔ6öæf–wW&F–öä'Fâ"’À¢fö7W4'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&fö7W4'Fâ"’À¢FööÇ4'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'FööÇ4'Fâ"’À¢ÖVÖ÷'”'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&ÖVÖ÷'”'Fâ"’À¢W&Ö—76–öç4'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'W&Ö—76–öç4'Fâ"’À¢FFG&vW#¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&FFG&vW""’À¢FFG&vW%F—FÆS¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&FFG&vW%F—FÆR"’À¢FFG&vW$&öG“¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&FFG&vW$&öG’"’À¢G&vW$&6¶G&÷¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&G&vW$&6¶G&÷"’À¢6Æ÷6TFFG&vW$'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&6Æ÷6TFFG&vW$'Fâ"’À¢fö–6T'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'fö–6T'Fâ"’À¢&öf–ÆTfF#¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'&öf–ÆTfF""’À¢&öf–ÆTæÖS¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'&öf–ÆTæÖR"’À¢&öf–ÆU&öÆS¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚'&öf–ÆU&öÆR"’À¢Æöv÷WD'Fã¢Fö7VÖVçBævWDVÆVÖVçD'”–B‚&Æöv÷WD'Fâ"’À§Ó° ¦gVæ7F–öâ7&VFU6W76–öä–B‚’°¢–b†vÆö&ÅF†—2æ7'—Fóòç&æFöÕUT”B’°¢&WGW&â'6W72Ò"²vÆö&ÅF†—2æ7'—Fòç&æFöÕUT”B‚“°¢Ð¢&WGW&â€¢'6W72Ò"²ÖF‚ç&æFöÒ‚’çFõ7G&–ærƒ3b’ç6Æ–6Rƒ"’²FFRææ÷r‚’çFõ7G&–ærƒ3b¢“°§Ð ¦gVæ7F–öâvWD÷$7&VFU6W76–öä–B‚’°¢6öç7B7F÷&VBÒÆö6Å7F÷&vRævWD—FVÒ‚'7–æ6‡&öå6W76–öä–B"“°¢–b‡7F÷&VCòç7F'G5v—F‚‚'6W72Ò"’’&WGW&â7F÷&VC°¢6öç7B6W76–öä–BÒ7&VFU6W76–öä–B‚“°¢Æö6Å7F÷&vRç6WD—FVÒ‚'7–æ6‡&öå6W76–öä–B"Â6W76–öä–B“°¢&WGW&â6W76–öä–C°§Ð ¦gVæ7F–öâ6WDWF„ÖW76vR†ÖW76vRÒ""Â7V66W72ÒfÇ6R’°¢VÆVÖVçG2æWF„ÖW76vRçFW‡D6öçFVçBÒÖW76vS°¢VÆVÖVçG2æWF„ÖW76vRæ6Æ74Æ—7BçFövvÆR‚'7V66W72"Â7V66W72“°§Ð ¦gVæ7F–öâ6WDWF„'W7’†—4'W7’’°¢VÆVÖVçG2æÆöv–ä'FâæF—6&ÆVBÒ—4'W7“°¢VÆVÖVçG2ç&Vv—7FW$'FâæF—6&ÆVBÒ—4'W7“°§Ð ¦gVæ7F–öâ6†÷tÆöv–äf÷&Ò‚’°¢VÆVÖVçG2æÆöv–äf÷&Òæ†–FFVâÒfÇ6S°¢VÆVÖVçG2ç&Vv—7FW$f÷&Òæ†–FFVâÒG'VS°¢VÆVÖVçG2ç6†÷u&Vv—7FW$'Fâæ†–FFVâÒ7FFRç&Vv—7G&F–öäVæ&ÆVC°¢6WDWF„ÖW76vR‚“°¢VÆVÖVçG2æÆöv–äVÖ–Âæfö7W2‚“°§Ð ¦gVæ7F–öâ6†÷u&Vv—7FW$f÷&Ò‚’°¢VÆVÖVçG2æÆöv–äf÷&Òæ†–FFVâÒG'VS°¢VÆVÖVçG2ç&Vv—7FW$f÷&Òæ†–FFVâÒfÇ6S°¢VÆVÖVçG2ç6†÷u&Vv—7FW$'Fâæ†–FFVâÒG'VS°¢6WDWF„ÖW76vR‚“°¢VÆVÖVçG2ç&Vv—7FW$æÖRæfö7W2‚“°§Ð ¦7–æ2gVæ7F–öâ&VDWF…6W76–öâ‚’°¢6öç7B&W7öç6RÒv—BfWF6‚‚"ö’öWF‚÷6W76–öâ"Â²66†S¢&æò×7F÷&R"Ò“°¢–b‚&W7öç6Ræö²’°¢F‡&÷ræWrW'&÷"‚-	-]íM­"-]Í]ÝÝâÝRRMí-­ý]Òâ"“°¢Ð¢&WGW&â&W7öç6Ræ§6öâ‚“°§Ð ¦7–æ2gVæ7F–öâ7V&Ö—DWF‚‡F‚Â&öG’’°¢6öç7B&W7öç6RÒv—BfWF6‚‡F‚Â°¢ÖWF†öC¢%õ5B"À¢†VFW'3¢²$6öçFVçBÕG—R#¢&Æ–6F–öâö§6öâ"ÒÀ¢&öG“¢¥4ôâç7G&–æv–g’†&öG’’À¢Ò“°¢6öç7BFFÒv—B&W7öç6Ræ§6öâ‚’æ6F6‚‚‚’ÓâçVÆÂ“°¢–b‚&W7öç6Ræö²’°¢F‡&÷ræWrW'&÷"†FFòæW'&÷"ÇÂ-	-]íM­"ÝR]R=ý]]Òâ"“°¢Ð¢&WGW&âFF°§Ð ¦7–æ2gVæ7F–öâ†æFÆTÆöv–â†WfVçB’°¢WfVçBç&WfVçDFVfVÇB‚“°¢6WDWF„'W7’‡G'VR“°¢6WDWF„ÖW76vR‚“°¢G'’°¢v—B7V&Ö—DWF‚‚"ö’öWF‚öÆöv–â"Â°¢VÖ–Ã¢VÆVÖVçG2æÆöv–äVÖ–ÂçfÇVRÀ¢77v÷&C¢VÆVÖVçG2æÆöv–å77v÷&BçfÇVRÀ¢Ò“°¢VÆVÖVçG2æÆöv–å77v÷&BçfÇVRÒ"#°¢6öç7B6W76–öâÒv—B&VDWF…6W76–öâ‚“°¢–b‚6W76–öâæWF†VçF–6FVB’F‡&÷ræWrW'&÷"‚-
+]ý-ÝR]R­}MM]Ýâ"“°¢v—B7F'DÆ–6F–öâ‡6W76–öâçW6W"“°¢Ò6F6‚†W'&÷"’°¢6WDWF„ÖW76vR†W'&÷"æÖW76vR“°¢Òf–æÆÇ’°¢6WDWF„'W7’†fÇ6R“°¢Ð§Ð ¦7–æ2gVæ7F–öâ†æFÆU&Vv—7G&F–öâ†WfVçB’°¢WfVçBç&WfVçDFVfVÇB‚“°¢6WDWF„'W7’‡G'VR“°¢6WDWF„ÖW76vR‚“°¢G'’°¢6öç7B&W7VÇBÒv—B7V&Ö—DWF‚‚"ö’öWF‚÷&Vv—7FW""Â°¢F—7Æ”æÖS¢VÆVÖVçG2ç&Vv—7FW$æÖRçfÇVRÀ¢VÖ–Ã¢VÆVÖVçG2ç&Vv—7FW$VÖ–ÂçfÇVRÀ¢77v÷&C¢VÆVÖVçG2ç&Vv—7FW%77v÷&BçfÇVRÀ¢–çf—FT6öFS¢VÆVÖVçG2ç&Vv—7FW$–çf—FT6öFRçfÇVRÀ¢Ò“°¢VÆVÖVçG2ç&Vv—7FW%77v÷&BçfÇVRÒ"#°¢VÆVÖVçG2ç&Vv—7FW$–çf—FT6öFRçfÇVRÒ"#°¢–b‡&W7VÇBæ6öæf—&ÖF–öå&WV—&VB’°¢6†÷tÆöv–äf÷&Ò‚“°¢VÆVÖVçG2æÆöv–äVÖ–ÂçfÇVRÒ&W7VÇBçW6W#òæVÖ–ÂÇÂ"#°¢6WDWF„ÖW76vR€¢-	ýíM½­"R­}MM]Òâ	ýí--­M‚Í]½‚‚ýí½R-½]râ"À¢G'VRÀ¢“°¢&WGW&ã°¢Ð¢6öç7B6W76–öâÒv—B&VDWF…6W76–öâ‚“°¢–b‚6W76–öâæWF†VçF–6FVB’F‡&÷ræWrW'&÷"‚-
+]ý-ÝR]R­}MM]Ýâ"“°¢v—B7F'DÆ–6F–öâ‡6W76–öâçW6W"“°¢Ò6F6‚†W'&÷"’°¢6WDWF„ÖW76vR†W'&÷"æÖW76vR“°¢Òf–æÆÇ’°¢6WDWF„'W7’†fÇ6R“°¢Ð§Ð ¦7–æ2gVæ7F–öâ†æFÆTÆöv÷WB‚’°¢VÆVÖVçG2æÆöv÷WD'FâæF—6&ÆVBÒG'VS°¢G'’°¢v—BfWF6‚‚"ö’öWF‚öÆöv÷WB"Â²ÖWF†öC¢%õ5B"Ò“°¢Òf–æÆÇ’°¢vÆö&ÅF†—2æÆö6F–öâæ‡&VbÒ"ò#°¢Ð§Ð ¦gVæ7F–öâÇ”WF†VçF–6FVEW6W"‡W6W"’°¢7FFRæWF†VçF–6FVEW6W"ÒW6W#°¢6öç7BF—7Æ”æÖRÒW6W#òæF—7Æ”æÖRÇÂ-	ýí-]-]²#°¢6öç7B—4÷væW"ÒW6W#òç&öÆRÓÓÒ&÷væW"#°¢VÆVÖVçG2ç&öf–ÆTæÖRçFW‡D6öçFVçBÒF—7Æ”æÖS°¢VÆVÖVçG2ç&öf–ÆTfF"çFW‡D6öçFVçBÐ¢F—7Æ”æÖRçG&–Ò‚’æ6†$Bƒ’çFôÆö6ÆUWW$66R‚&&rÔ$r"’ÇÂ-	ò#°¢VÆVÖVçG2ç&öf–ÆU&öÆRçFW‡D6öçFVçBÒ—4÷væW ¢ò-
+í--]Ý¢+rÝ-í­‚ ¢¢-
+-]-í"ýíM²#°¢Fö7VÖVçBæ&öG’æFF6WBçW6W%&öÆRÒ—4÷væW"ò&÷væW""¢'FW7FW"#°¢f÷"†6öç7B—FVÒöbFö7VÖVçBçVW'•6VÆV7F÷$ÆÂ‚%¶FFÖ÷væW"ÖöæÇ•Ò"’’°¢—FVÒæ†–FFVâÒ—4÷væW#°¢Ð§Ð ¦7–æ2gVæ7F–öâ–æ—B‚’°¢VÆVÖVçG2æÆöv–äf÷&ÒæFDWfVçDÆ—7FVæW"‚'7V&Ö—B"Â†æFÆTÆöv–â“°¢VÆVÖVçG2ç&Vv—7FW$f÷&ÒæFDWfVçDÆ—7FVæW"‚'7V&Ö—B"Â†æFÆU&Vv—7G&F–öâ“°¢VÆVÖVçG2ç6†÷u&Vv—7FW$'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â6†÷u&Vv—7FW$f÷&Ò“°¢VÆVÖVçG2æ&6µFôÆöv–ä'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â6†÷tÆöv–äf÷&Ò“° ¢G'’°¢6öç7B6W76–öâÒv—B&VDWF…6W76–öâ‚“°¢7FFRç&Vv—7G&F–öäVæ&ÆVBÒ&ööÆVâ‡6W76–öâç&Vv—7G&F–öäVæ&ÆVB“°¢VÆVÖVçG2ç6†÷u&Vv—7FW$'Fâæ†–FFVâÒ7FFRç&Vv—7G&F–öäVæ&ÆVC°¢–b‡6W76–öâæWF†VçF–6FVB’°¢v—B7F'DÆ–6F–öâ‡6W76–öâçW6W"“°¢&WGW&ã°¢Ð¢VÆVÖVçG2æWF„vFRæ†–FFVâÒfÇ6S°¢VÆVÖVçG2æ6†VÆÂæ†–FFVâÒG'VS°¢–b‚6W76–öâæ6öæf–wW&VB’°¢6WDWF„ÖW76vR€¢-	-]íM­"}-]-í-‚ýíM½‚íRÝRR­--Òâ
+í--]Ý­­"ÍímRM-½]}Rv—D‡V"â"À¢“°¢Ð¢Ò6F6‚†W'&÷"’°¢6WDWF„ÖW76vR†W'&÷"æÖW76vR“°¢Ð§Ð ¦7–æ2gVæ7F–öâ7F'DÆ–6F–öâ‡W6W"’°¢–b‡7FFRæÆ–6F–öå7F'FVB’&WGW&ã°¢7FFRæÆ–6F–öå7F'FVBÒG'VS°¢Ç”WF†VçF–6FVEW6W"‡W6W"“°¢VÆVÖVçG2æWF„vFRæ†–FFVâÒG'VS°¢VÆVÖVçG2æ6†VÆÂæ†–FFVâÒfÇ6S°¢WFFU6W76–öäF—7Æ’‚“° ¢VÆVÖVçG2ç6VæD'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â6VæDÖW76vR“°¢VÆVÖVçG2æGF6„'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â‚’Óà¢VÆVÖVçG2æ–ÖvT–çWBæ6Æ–6²‚’À¢“°¢VÆVÖVçG2æ–ÖvT–çWBæFDWfVçDÆ—7FVæW"‚&6†ævR"Â†æFÆT–ÖvU6VÆV7F–öâ“°¢VÆVÖVçG2ç&VÖ÷fTGF6†ÖVçD'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â6ÆV%VæF–æt–ÖvR“°¢VÆVÖVçG2æ6†D–çWBæFDWfVçDÆ—7FVæW"‚&¶W–F÷vâ"Â†WfVçB’Óâ°¢–b†WfVçBæ¶W’ÓÓÒ$VçFW""bbWfVçBç6†–gD¶W’’°¢WfVçBç&WfVçDFVfVÇB‚“°¢6VæDÖW76vR‚“°¢Ð¢Ò“°¢VÆVÖVçG2ææWt6†D'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â7F'DæWt6†B“°¢VÆVÖVçG2çFövvÆU7FGW4'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â÷Vå7FGW2“°¢VÆVÖVçG2æ6Æ÷6T6öçFW‡D'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â6Æ÷6U7FGW2“°¢VÆVÖVçG2æ6†DÖW76vW2æFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â†æFÆTÖW76vT7F–öâ“°¢VÆVÖVçG2æ6öçfW'6F–öäÆ—7BæFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â†æFÆT6öçfW'6F–öä6Æ–6²“°¢VÆVÖVçG2æ6öçfW'6F–öå6V&6‚æFDWfVçDÆ—7FVæW"‚&–çWB"Â&VæFW$6öçfW'6F–öäÆ—7B“°¢VÆVÖVçG2ç6V&6„6†G4'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"ÂFövvÆT6öçfW'6F–öå6V&6‚“°¢VÆVÖVçG2æÖö&–ÆTÖVçT'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"ÂFövvÆU6–FV&"“°¢VÆVÖVçG2ç6–FV&$&6¶G&÷æFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â6Æ÷6U6–FV&"“°¢VÆVÖVçG2æ–ÖvW4'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â÷Vä–ÖvU–6¶W"“°¢VÆVÖVçG2æÖöGVÆW4'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â÷VäÖöGVÆW4G&vW"“°¢VÆVÖVçG2çFööÇ4'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â÷VåFööÇ4G&vW"“°¢VÆVÖVçG2ç7—7FVÔ6öæf–wW&F–öä'FâæFDWfVçDÆ—7FVæW"€¢&6Æ–6²"À¢÷Vå7—7FVÔ6öæf–wW&F–öäG&vW"À¢“°¢VÆVÖVçG2æÖVÖ÷'”'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â÷VäÖVÖ÷'”G&vW"“°¢VÆVÖVçG2çW&Ö—76–öç4'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â÷VåW&Ö—76–öç4G&vW"“°¢VÆVÖVçG2æ6Æ÷6TFFG&vW$'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â6Æ÷6TFFG&vW"“°¢VÆVÖVçG2æG&vW$&6¶G&÷æFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â6Æ÷6TFFG&vW"“°¢VÆVÖVçG2æFFG&vW$&öG’æFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â†æFÆTFFG&vW$7F–öâ“°¢VÆVÖVçG2çfö–6T'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"ÂFövvÆUfö–6T–çWB“°¢VÆVÖVçG2æÆöv÷WD'FâæFDWfVçDÆ—7FVæW"‚&6Æ–6²"Â†æFÆTÆöv÷WB“°¢Fö7VÖVçBæFDWfVçDÆ—7FVæW"‚&¶W–F÷vâ"Â†æFÆTvÆö&Ä¶W–F÷vâ“°¢&W&Ufö–6T–çWB‚“° ¢6†V6´†VÇF‚‚“°¢6†V6´÷Vå6V&6‚‚“°¢6WD–çFW'fÂ†6†V6´†VÇF‚Â“°¢6WD–çFW'fÂ†6†V6´÷Vå6V&6‚Â#“° ¢v—B&W7F÷&T6öçfW'6F–öâ‚“°¢v—BÆöD6öçfW'6F–öç2‚“°§Ð ¦gVæ7F–öâWFFU6W76–öäF—7Æ’‚’°¢VÆVÖVçG2ç6W76–öä–DF—7Æ’çFW‡D6öçFVçBÒ7FFRç6W76–öä–C°§Ð ¦7–æ2gVæ7F–öâ6†÷uvVÆ6öÖTÖW76vR‚’°¢VæDÖW76vR€¢&vVçB"À¢°¢"225”ä4…$ôâÕ‚"À¢"¢­
+--íý-½}Ý’íý]míÝÝ-]Íâ¢¢"À¢""À¢-	]MÝâ’ýMâÂýí-íýÝÝ­íÝ-í½ÝýÍ]"‚}]]Ý‚Ý-=Í]Ý-‚}]½Ý‚}M}‚â"À¢""À¢$’--­"RÍíý"Ý}ÒÝí=-ÝRâ
+-‚­íÝ-í½‚MÝÝ-RÂýÍ]--‚­í--RM]--òâ"À¢Òæ¦ö–â‚%Æâ"’À¢“°§Ð ¦7–æ2gVæ7F–öâ&W7F÷&T6öçfW'6F–öâ‚’°¢G'’°¢6öç7B&W7öç6RÒv—BfWF6‚€¢"öÖVÖ÷'’ö6öçfW'6F–öâò"²Væ6öFUU$”6ö×öæVçB‡7FFRç6W76–öä–B’À¢²66†S¢&æò×7F÷&R"ÒÀ¢“°¢–b‚&W7öç6Ræö²’F‡&÷ræWrW'&÷"‚-	-íý-ÝRRMí-­ýÝâ"“°¢6öç7BFFÒv—B&W7öç6Ræ§6öâ‚“°¢Ö&´ÖVÖ÷'”÷W&F–öæÂ‚“°¢6öç7B—FV×2Ò'&’æ—4'&’†FFæ—FV×2’òFFæ—FV×2¢µÓ°¢–b†—FV×2æÆVæwF‚ÓÓÒ’°¢v—B6†÷uvVÆ6öÖTÖW76vR‚“°¢&WGW&ã°¢Ð¢f÷"†6öç7B—FVÒöb—FV×2’°¢–b€¢†—FVÒç&öÆRÓÓÒ'W6W""ÇÂ—FVÒç&öÆRÓÓÒ&76—7FçB"’b`¢G—Vöb—FVÒæ6öçFVçBÓÓÒ'7G&–ær ¢’°¢VæDÖW76vR€¢—FVÒç&öÆRÓÓÒ&76—7FçB"ò&vVçB"¢'W6W""À¢—FVÒæ6öçFVçBÀ¢“°¢Ð¢Ð¢Æöt7F–öâ‚-	-­}-Ýí-]ÝR-íý-Ý}=í-í"“°¢Ò6F6‚†W'&÷"’°¢6öç6öÆRæW'&÷"†W'&÷"“°¢v—B6†÷uvVÆ6öÖTÖW76vR‚“°¢Æöt7F–öâ‚-	-íý-ÝRÍímM­MR-­}-Ýí-]Ý"“°¢Ð§Ð ¦7–æ2gVæ7F–öâ7F'DæWt6†B‚’°¢–b‡7FFRæ6†D'W7’’&WGW&ã°¢6Æ÷6U6–FV&"‚“°¢6ÆV%VæF–æt–ÖvR‚“°¢7FFRç6W76–öä–BÒ7&VFU6W76–öä–B‚“°¢Æö6Å7F÷&vRç6WD—FVÒ‚'7–æ6‡&öå6W76–öä–B"Â7FFRç6W76–öä–B“°¢7FFRæÆ7D7F–öç2ÒµÓ°¢VÆVÖVçG2æ6†DÖW76vW2ç&WÆ6T6†–ÆG&Vâ‚“°¢WFFU6W76–öäF—7Æ’‚“°¢&VæFW$7F–öç4Æör‚“°¢v—B6†÷uvVÆ6öÖTÖW76vR‚“°¢Æöt7F–öâ‚-	}ýí}Ý"RÝí"}=í-í"“°¢&VæFW$6öçfW'6F–öäÆ—7B‚“°¢VÆVÖVçG2æ6†D–çWBæfö7W2‚“°§Ð ¦7–æ2gVæ7F–öâÆöD6öçfW'6F–öç2‚’°¢G'’°¢6öç7B&W7öç6RÒv—BfWF6‚‚"öÖVÖ÷'’ö6öçfW'6F–öç2"Â°¢66†S¢&æò×7F÷&R"À¢Ò“°¢–b‚&W7öç6Ræö²’F‡&÷ræWrW'&÷"‚-
+ý­­­"ÝRRMí-­ý]Òâ"“°¢6öç7BFFÒv—B&W7öç6Ræ§6öâ‚“°¢7FFRæ6öçfW'6F–öç2Ò'&’æ—4'&’†FFæ—FV×2’òFFæ—FV×2¢µÓ°¢7FFRæ6öçfW'6F–öäÆöDW'&÷"Ò"#°¢&VæFW$6öçfW'6F–öäÆ—7B‚“°¢Ò6F6‚†W'&÷"’°¢6öç6öÆRæW'&÷"†W'&÷"“°¢7FFRæ6öçfW'6F–öç2ÒµÓ°¢7FFRæ6öçfW'6F–öäÆöDW'&÷"Ð¢-	-íý--]Í]ÝÝâÝRRMí-­ýÝâ	íý-’í-Ýí-ââ#°¢&VæFW$6öçfW'6F–öäÆ—7B‚“°¢Ð§Ð ¦gVæ7F–öâ&VæFW$6öçfW'6F–öäÆ—7B‚’°¢6öç7BVW'’ÒVÆVÖVçG2æ6öçfW'6F–öå6V&6‚çfÇVP¢çG&–Ò‚¢çFôÆö6ÆTÆ÷vW$66R‚&&rÔ$r"“°¢6öç7B6öçfW'6F–öç2Ò7FFRæ6öçfW'6F–öç2æf–ÇFW"€¢†—FVÒ’ÓâVW'’ÇÂ—FVÒçF—FÆRçFôÆö6ÆTÆ÷vW$66R‚&&rÔ$r"’æ–æ6ÇVFW2‡VW'’’À¢“°¢VÆVÖVçG2æ6öçfW'6F–öäÆ—7Bç&WÆ6T6†–ÆG&Vâ‚“° ¢–b‡7FFRæ6öçfW'6F–öäÆöDW'&÷"’°¢6öç7BW'&÷"ÒFö7VÖVçBæ7&VFTVÆVÖVçB‚'"“°¢W'&÷"æ6Æ74æÖRÒ&6öçfW'6F–öâ×7FFR6öçfW'6F–öâ×7FFRÖW'&÷"#°¢W'&÷"çFW‡D6öçFVçBÒ7FFRæ6öçfW'6F–öäÆöDW'&÷#°¢VÆVÖVçG2æ6öçfW'6F–öäÆ—7BæVæD6†–ÆB†W'&÷"“°¢&WGW&ã°¢Ð ¢–b†6öçfW'6F–öç2æÆVæwF‚ÓÓÒ’°¢6öç7BV×G’ÒFö7VÖVçBæ7&VFTVÆVÖVçB‚'"“°¢V×G’æ6Æ74æÖRÒ&6öçfW'6F–öâ×7FFR#°¢V×G’çFW‡D6öçFVçBÒVW'¢ò-	ÝýÍÝÍ]]Ý‚}=í-í‚â ¢¢-	-RíRÝýÍ}ý}]Ý‚}=í-í‚â#°¢VÆVÖVçG2æ6öçfW'6F–öäÆ—7BæVæD6†–ÆB†V×G’“°¢&WGW&ã°¢Ð ¢f÷"†6öç7B—FVÒöb6öçfW'6F–öç2’°¢6öç7B'WGFöâÒFö7VÖVçBæ7&VFTVÆVÖVçB‚&'WGFöâ"“°¢'WGFöâçG—RÒ&'WGFöâ#°¢'WGFöâæ6Æ74æÖRÒ&6öçfW'6F–öâ#°¢–b†—FVÒç6W76–öä–BÓÓÒ7FFRç6W76–öä–B’'WGFöâæ6Æ74Æ—7BæFB‚&7F—fR"“°¢'WGFöâæFF6WBç6W76–öä–BÒ—FVÒç6W76–öä–C°¢'WGFöâçFW‡D6öçFVçBÒ—FVÒçF—FÆS°¢VÆVÖVçG2æ6öçfW'6F–öäÆ—7BæVæD6†–ÆB†'WGFöâ“°¢Ð§Ð ¦7–æ2gVæ7F–öâ†æFÆT6öçfW'6F–öä6Æ–6²†WfVçB’°¢6öç7B'WGFöâÒWfVçBçF&vWBæ6Æ÷6W7B‚&'WGFöå¶FF×6W76–öâÖ–EÒ"“°¢–b‚'WGFöâÇÂ7FFRæ6†D'W7’ÇÂ'WGFöâæFF6WBç6W76–öä–BÓÓÒ7FFRç6W76–öä–B¢&WGW&ã°¢7FFRç6W76–öä–BÒ'WGFöâæFF6WBç6W76–öä–C°¢Æö6Å7F÷&vRç6WD—FVÒ‚'7–æ6‡&öå6W76–öä–B"Â7FFRç6W76–öä–B“°¢VÆVÖVçG2æ6†DÖW76vW2ç&WÆ6T6†–ÆG&Vâ‚“°¢WFFU6W76–öäF—7Æ’‚“°¢&VæFW$6öçfW'6F–öäÆ—7B‚“°¢v—B&W7F÷&T6öçfW'6F–öâ‚“°¢6Æ÷6U6–FV&"‚“°§Ð ¦gVæ7F–öâFövvÆU6–FV&"‚’°¢6öç7B—4÷VâÒVÆVÖVçG2ç6–FV&"æ6Æ74Æ—7BçFövvÆR‚&Öö&–ÆR×f—6–&ÆR"“°¢VÆVÖVçG2ç6–FV&$&6¶G&÷æ†–FFVâÒ—4÷Vã°¢VÆVÖVçG2æÖö&–ÆTÖVçT'Fâç6WDGG&–'WFR‚&&–ÖW‡æFVB"Â7G&–ær†—4÷Vâ’“°§Ð ¦gVæ7F–öâ6Æ÷6U6–FV&"‚’°¢VÆVÖVçG2ç6–FV&"æ6Æ74Æ—7Bç&VÖ÷fR‚&Öö&–ÆR×f—6–&ÆR"“°¢VÆVÖVçG2ç6–FV&$&6¶G&÷æ†–FFVâÒG'VS°¢VÆVÖVçG2æÖö&–ÆTÖVçT'Fâç6WDGG&–'WFR‚&&–ÖW‡æFVB"Â&fÇ6R"“°§Ð ¦gVæ7F–öâ÷Vä–ÖvU–6¶W"‚’°¢6Æ÷6U6–FV&"‚“°¢VÆVÖVçG2æ–ÖvT–çWBæ6Æ–6²‚“°§Ð ¦gVæ7F–öâ†æFÆTvÆö&Ä¶W–F÷vâ†WfVçB’°¢–b†WfVçBæ¶W’ÓÒ$W66R"’&WGW&ã°¢6Æ÷6U6–FV&"‚“°¢6Æ÷6U7FGW2‚“°¢6Æ÷6TFFG&vW"‚“°§Ð ¦gVæ7F–öâFövvÆT6öçfW'6F–öå6V&6‚‚’°¢VÆVÖVçG2æ6öçfW'6F–öå6V&6‚æ†–FFVâÒfÇ6S°¢VÆVÖVçG2æ6öçfW'6F–öäÆ—7@¢æ6Æ÷6W7B‚"ç6–FV&"×6V7F–öâ"¢òç67&öÆÄ–çFõf–Wr‡²&Æö6³¢'7F'B"Â&V†f–÷#¢'6Öö÷F‚"Ò“°¢VÆVÖVçG2æ6öçfW'6F–öå6V&6‚æfö7W2‡²&WfVçE67&öÆÃ¢G'VRÒ“°§Ð ¦gVæ7F–öâ†æFÆT–ÖvU6VÆV7F–öâ†WfVçB’°¢6öç7Bf–ÆRÒWfVçBçF&vWBæf–ÆW3òå³Ó°¢–b‚f–ÆR’&WGW&ã° ¢6öç7BÆÆ÷vVEG—W2Ò²&–ÖvRö§Vr"Â&–ÖvR÷ær"Â&–ÖvR÷vV'%Ó°¢–b‚ÆÆ÷vVEG—W2æ–æ6ÇVFW2†f–ÆRçG—R’’°¢VæDÖW76vR‚&vVçB"Â.)ØÂ	ýíMM­m"RÍâ¥TrÂär‚vV%ÝÍ­‚â"“°¢6ÆV%VæF–æt–ÖvR‚“°¢&WGW&ã°¢Ð ¢–b†f–ÆRç6—¦RâR¢#B¢#B’°¢VæDÖW76vR‚&vVçB"Â.)ØÂ
+ÝÍ­--ý-M­MRMâRÔ"â"“°¢6ÆV%VæF–æt–ÖvR‚“°¢&WGW&ã°¢Ð ¢6öç7B&VFW"ÒæWrf–ÆU&VFW"‚“°¢&VFW"æöæÆöBÒ‚’Óâ°¢7FFRçVæF–æt–ÖvRÒ°¢FFW&Ã¢&VFW"ç&W7VÇBÀ¢Ö–ÖUG—S¢f–ÆRçG—RÀ¢æÖS¢f–ÆRææÖRÀ¢Ó°¢VÆVÖVçG2æGF6†ÖVçD–ÖvRç7&2Ò&VFW"ç&W7VÇC°¢VÆVÖVçG2æGF6†ÖVçDæÖRçFW‡D6öçFVçBÒf–ÆRææÖS°¢VÆVÖVçG2æGF6†ÖVçE&Wf–Wræ†–FFVâÒfÇ6S°¢VÆVÖVçG2æ6†D–çWBæfö7W2‚“°¢Ó°¢&VFW"æöæW'&÷"Ò‚’Óâ°¢VæDÖW76vR‚&vVçB"Â.)ØÂ
+ÝÍ­-ÝRÍímM­MRýí}]-]Ýâ"“°¢6ÆV%VæF–æt–ÖvR‚“°¢Ó°¢&VFW"ç&VD4FFU$Â†f–ÆR“°§Ð ¦gVæ7F–öâ6ÆV%VæF–æt–ÖvR‚’°¢7FFRçVæF–æt–ÖvRÒçVÆÃ°¢VÆVÖVçG2æ–ÖvT–çWBçfÇVRÒ"#°¢VÆVÖVçG2æGF6†ÖVçD–ÖvRç&VÖ÷fTGG&–'WFR‚'7&2"“°¢VÆVÖVçG2æGF6†ÖVçDæÖRçFW‡D6öçFVçBÒ"#°¢VÆVÖVçG2æGF6†ÖVçE&Wf–Wræ†–FFVâÒG'VS°§Ð ¦gVæ7F–öâ÷Vå7FGW2‚’°¢6Æ÷6U6–FV&"‚“°¢VÆVÖVçG2ç7FGW5æVÂæ6Æ74Æ—7BæFB‚&Öö&–ÆR×f—6–&ÆR"“°§Ð ¦gVæ7F–öâ6Æ÷6U7FGW2‚’°¢VÆVÖVçG2ç7FGW5æVÂæ6Æ74Æ—7Bç&VÖ÷fR‚&Öö&–ÆR×f—6–&ÆR"“°§Ð ¦gVæ7F–öâ&W&Ufö–6T–çWB‚’°¢6öç7B7VV6…&V6övæ—F–öâÐ¢v–æF÷rå7VV6…&V6övæ—F–öâÇÂv–æF÷rçvV&¶—E7VV6…&V6övæ—F–öã°¢–b‚7VV6…&V6övæ—F–öâ’°¢VÆVÖVçG2çfö–6T'Fâæ†–FFVâÒG'VS°¢&WGW&ã°¢Ð ¢6öç7B&V6övæ—F–öâÒæWr7VV6…&V6övæ—F–öâ‚“°¢&V6övæ—F–öâæÆærÒ&&rÔ$r#°¢&V6övæ—F–öâæ6öçF–çV÷W2ÒfÇ6S°¢&V6övæ—F–öâæ–çFW&–Õ&W7VÇG2ÒG'VS° ¢&V6övæ—F–öâæöç7F'BÒ‚’Óâ6WDÆ—7FVæ–ær‡G'VR“°¢&V6övæ—F–öâæöæVæBÒ‚’Óâ6WDÆ—7FVæ–ær†fÇ6R“°¢&V6övæ—F–öâæöæW'&÷"Ò†WfVçB’Óâ°¢6WDÆ—7FVæ–ær†fÇ6R“°¢–b†WfVçBæW'&÷"ÓÒ&&÷'FVB"bbWfVçBæW'&÷"ÓÒ&æò×7VV6‚"’°¢VæDÖW76vR€¢&vVçB"À¢-	=½í-í-â-­-]mMÝRÝRÍímM--â	ýí-]‚Mí-­ýMâÍ­íMíÝâ"À¢“°¢Ð¢Ó°¢&V6övæ—F–öâæöç&W7VÇBÒ†WfVçB’Óâ°¢ÆWBG&ç67&—BÒ"#°¢f÷"€¢ÆWB–æFW‚ÒWfVçBç&W7VÇD–æFWƒ°¢–æFW‚ÂWfVçBç&W7VÇG2æÆVæwFƒ°¢–æFW‚³Ò¢’°¢G&ç67&—B³ÒWfVçBç&W7VÇG5¶–æFW…Õ³ÒçG&ç67&—C°¢Ð¢VÆVÖVçG2æ6†D–çWBçfÇVRÒG&ç67&—BçG&–Ò‚“°¢6öç7BÆ7E&W7VÇBÒWfVçBç&W7VÇG5¶WfVçBç&W7VÇG2æÆVæwF‚ÒÓ°¢–b†Æ7E&W7VÇCòæ—4f–æÂ’VÆVÖVçG2æ6†D–çWBæfö7W2‚“°¢Ó°¢7FFRç&V6övæ—F–öâÒ&V6övæ—F–öã°§Ð ¦gVæ7F–öâ6WDÆ—7FVæ–ær†—4Æ—7FVæ–ær’°¢7FFRæÆ—7FVæ–ærÒ—4Æ—7FVæ–æs°¢VÆVÖVçG2çfö–6T'Fâæ6Æ74Æ—7BçFövvÆR‚&Æ—7FVæ–ær"Â—4Æ—7FVæ–ær“°¢VÆVÖVçG2çfö–6T'Fâç6WDGG&–'WFR‚&&–×&W76VB"Â7G&–ær†—4Æ—7FVæ–ær’“°¢VÆVÖVçG2çfö–6T'FâçF—FÆRÒ—4Æ—7FVæ–æp¢ò-
+ý‚½=Ý]-â ¢¢-	=½í-â-­-]mMÝR#°§Ð ¦gVæ7F–öâFövvÆUfö–6T–çWB‚’°¢–b‚7FFRç&V6övæ—F–öâÇÂ7FFRæ6†D'W7’’&WGW&ã°¢–b‡7FFRæÆ—7FVæ–ær’°¢7FFRç&V6övæ—F–öâç7F÷‚“°¢ÒVÇ6R°¢7FFRç&V6övæ—F–öâç7F'B‚“°¢Ð§Ð ¦gVæ7F–öâ÷VäÖöGVÆW4G&vW"‚’°¢÷VäFFG&vW"‚-
+í-Ý‚í½-‚"“°¢VÆVÖVçG2æFFG&vW$&öG’æ–ææW$…DÔÂÒ ¢ÆF—b6Æ73Ò&ÖöGVÆR×7VÖÖ'’#à¢
+-í-í½-‚Â"­í-â½}Ý-’íý]míÝÝ-]Í}ýí½}-}=í-íÀ¢ýÍ]--‚}]]Ý-RÝ-=Í]Ý-‚â	í½--Íýâ]R‚ÝP¢í}Ý}-Â}R-­ÝÝ=½==R-­}Ýà¢ÂöF—cà¢Ç6V7F–öâ6Æ73Ò&G&vW"×6V7F–öâW&Ö—76–öâÖÆ—7BÖöGVÆRÖÆ—7B"FFÖÖöGVÆRÖÆ—7CãÂ÷6V7F–öãæ°¢Fö7VÖVçBæF—7F6„WfVçB†æWr7W7FöÔWfVçB‚'7–æ6‡&öã¦ÖöGVÆW2Ö÷VæVB"’“°§Ð ¦gVæ7F–öâ—4vöövÆUFööÂ‡FööÂ’°¢&WGW&â€¢FööÃòç&÷f–FW"ÓÓÒ&vöövÆR"ÇÀ¢FööÃòæ–Còç7F'G5v—F‚‚&vöövÆRÒ"’ÇÀ¢FööÃòæ–BÓÓÒ&vÖ–Â×&VB ¢“°§Ð ¦gVæ7F–öâFööÅ7FFR‡FööÂÂvöövÆT6öææV7FVBÂv—F‡V$6öææV7FVB’°¢–b‡FööÂæf–Æ&–Æ—G”6öFRÓÓÒ$4õ”ÄõEôUDôÔD”ôåôD•4$ÄTB"’°¢&WGW&â²Æ&VÃ¢-	}­½í}]Ýâ+r]mÂ]r6÷–Æ÷B"Â6Æ74æÖS¢&6öæf—&Ò"Ó°¢Ð¢–b‚FööÂæVæ&ÆVBÇÂFööÂæW†V7WF&ÆR’°¢&WGW&â²Æ&VÃ¢-	ÝRR-­}Ò"Â6Æ74æÖS¢&FVç’"Ó°¢Ð¢–b‚FööÂæ6öæf–wW&VB’°¢&WGW&â²Æ&VÃ¢-	ÝRR­íÝM==Ò"Â6Æ74æÖS¢&FVç’"Ó°¢Ð¢–b†—4vöövÆUFööÂ‡FööÂ’bbvöövÆT6öææV7FVB’°¢&WGW&â²Æ&VÃ¢-	­-­}-ÝR"Â6Æ74æÖS¢&6öæf—&Ò"Ó°¢Ð¢–b‡FööÂæ–BÓÓÒ&v—F‡V"×w&—FR"bbv—F‡V$6öææV7FVB’°¢&WGW&â²Æ&VÃ¢-	­-­}-ÝR"Â6Æ74æÖS¢&6öæf—&Ò"Ó°¢Ð¢&WGW&â²Æ&VÃ¢-
+í-‚"Â6Æ74æÖS¢&ÆÆ÷r"Ó°§Ð ¦gVæ7F–öâFööÅ7FGW47F–öç2‡FööÂÂ7FGW2ÂvöövÆT6öææV7FVBÂv—F‡V$6öææV7FVB’°¢ÆWB7F–öâÒ"#°¢–b‡FööÂæf–Æ&–Æ—G”6öFRÓÓÒ$4õ”ÄõEôUDôÔD”ôåôD•4$ÄTB"’°¢7F–öâÒ"#°¢ÒVÇ6R–b†—4vöövÆUFööÂ‡FööÂ’bbvöövÆT6öææV7FVBbbFööÂæ6öæf–wW&VB’°¢7F–öâÐ¢sÆ'WGFöâG—SÒ&'WGFöâ"6Æ73Ò'FööÂÖ6öææV7BÖ'Fâ"FFÖ6öææV7B×6W'f–6SÒ&vöövÆR#í
+-­m‚vöövÆSÂö'WGFöãâs°¢ÒVÇ6R–b€¢FööÂæ–BÓÓÒ&v—F‡V"×w&—FR"b`¢FööÂæ6öæf–wW&VBb`¢v—F‡V$6öææV7FV@¢’°¢7F–öâÐ¢sÆ'WGFöâG—SÒ&'WGFöâ"6Æ73Ò'FööÂÖ6öææV7BÖ'Fâ"FFÖ6öææV7B×6W'f–6SÒ&v—F‡V"#í
+-­m‚v—D‡V#Âö'WGFöãâs°¢ÒVÇ6R–b‡FööÂæ–BÓÓÒ&v—F‡V"×w&—FR"bbFööÂæ6öæf–wW&VB’°¢7F–öâÐ¢sÆ'WGFöâG—SÒ&'WGFöâ"6Æ73Ò'FööÂÖ6öææV7BÖ'Fâ"FFÖv—F‡V"×6WGWí	Ý-í’v—D‡V#Âö'WGFöãâs°¢Ð ¢&WGW&â ¢ÆF—b6Æ73Ò'FööÂ×7FGW2Ö7F–öç2#à¢Ç7â6Æ73Ò'W&Ö—76–öâÖ&FvRG·7FGW2æ6Æ74æÖWÒ#âG·7FGW2æÆ&VÇÓÂ÷7ãà¢G¶7F–öçÐ¢ÂöF—cæ°§Ð ¦gVæ7F–öâW&Ö—76–öä7F–öâ†—FVÒÂFööÄÖÂvöövÆT6öææV7FVBÂv—F‡V$6öææV7FVB’°¢6öç7BvöövÆUW&Ö—76–öç2ÒæWr6WB…°¢&6ÆVæF"ç&VB"À¢&6ÆVæF"çw&—FR"À¢&G&—fRç&VB"À¢&Ö–Âç&VB"À¢Ò“°¢–b†vöövÆUW&Ö—76–öç2æ†2†—FVÒæ7F–öâ’bbvöövÆT6öææV7FVB’°¢&WGW&âsÆ'WGFöâG—SÒ&'WGFöâ"6Æ73Ò'FööÂÖ6öææV7BÖ'Fâ"FFÖ6öææV7B×6W'f–6SÒ&vöövÆR#í
+-­m‚vöövÆSÂö'WGFöãâs°¢Ð ¢6öç7Bv—F‡V%w&—FRÒFööÄÖævWB‚&v—F‡V"×w&—FR"“°¢–b€¢—FVÒæ7F–öâÓÓÒ&v—F‡V"çw&—FR"b`¢v—F‡V%w&—FSòæf–Æ&–Æ—G”6öFRÓÓÒ$4õ”ÄõEôUDôÔD”ôåôD•4$ÄTB ¢’°¢&WGW&â"#°¢Ð¢–b€¢—FVÒæ7F–öâÓÓÒ&v—F‡V"çw&—FR"b`¢v—F‡V%w&—FSòæ6öæf–wW&VBb`¢v—F‡V%w&—FSòæW†V7WF&ÆRb`¢v—F‡V$6öææV7FV@¢’°¢&WGW&âsÆ'WGFöâG—SÒ&'WGFöâ"6Æ73Ò'FööÂÖ6öææV7BÖ'Fâ"FFÖ6öææV7B×6W'f–6SÒ&v—F‡V"#í
+-­m‚v—D‡V#Âö'WGFöãâs°¢Ð¢–b€¢—FVÒæ7F–öâÓÓÒ&v—F‡V"çw&—FR"b`¢‚v—F‡V%w&—FSòæ6öæf–wW&VBÇÂv—F‡V%w&—FSòæW†V7WF&ÆR¢’°¢&WGW&âsÆ'WGFöâG—SÒ&'WGFöâ"6Æ73Ò'FööÂÖ6öææV7BÖ'Fâ"FFÖv—F‡V"×6WGWí	Ý-í’v—D‡V#Âö'WGFöãâs°¢Ð ¢–b†—FVÒæFV6—6–öâÓÓÒ&6öæf—&Ò"’°¢&WGW&âÆ'WGFöâG—SÒ&'WGFöâ"6Æ73Ò'W&Ö—76–öâÖ–æfòÖ'Fâ"FF×W&Ö—76–öâÖ–æfóÒ"G¶W66T‡FÖÂ†—FVÒæ7F–öâ—Ò#í	­¢í-ƒÂö'WGFöãæ°¢Ð¢&WGW&â"#°§Ð ¦7–æ2gVæ7F–öâ÷VåFööÇ4G&vW"‚’°¢÷VäFFG&vW"‚-	Ý-=Í]Ý-‚"“°¢&VæFW$G&vW$ÆöF–ær‚“°¢G'’°¢6öç7B¶†VÇF…&W7öç6RÂvöövÆU&W7öç6RÂv—F‡V%&W7öç6UÒÒv—B&öÖ—6RæÆÂ…°¢fWF6‚‚"ö†VÇF‚ö–çFVw&F–öç2"Â²66†S¢&æò×7F÷&R"Ò’À¢fWF6‚‚"ö’övöövÆR÷7FGW2"Â²66†S¢&æò×7F÷&R"Ò’æ6F6‚‚‚’ÓâçVÆÂ’À¢fWF6‚‚"ö’öv—F‡V"÷7FGW2"Â²66†S¢&æò×7F÷&R"Ò’æ6F6‚‚‚’ÓâçVÆÂ’À¢Ò“°¢–b‚†VÇF…&W7öç6Ræö²’°¢F‡&÷ræWrW'&÷"‚-
+­-íýÝ]-âÝÝ-=Í]Ý--RÝRRMí-­ýÝââ"“°¢Ð¢6öç7BFFÒv—B†VÇF…&W7öç6Ræ§6öâ‚“°¢6öç7BvöövÆTFFÒvöövÆU&W7öç6Sòæö°¢òv—BvöövÆU&W7öç6Ræ§6öâ‚’æ6F6‚‚‚’Óâ‡·Ò’¢¢·Ó°¢6öç7Bv—F‡V$FFÒv—F‡V%&W7öç6Sòæö°¢òv—Bv—F‡V%&W7öç6Ræ§6öâ‚’æ6F6‚‚‚’Óâ‡·Ò’¢¢·Ó°¢6öç7BFööÇ2Ò'&’æ—4'&’†FFçFööÇ2’òFFçFööÇ2¢µÓ°¢6öç7BFW67&—F–öç2Ò°¢&v—F‡V"×&VB#¢-	ýí-]ý-6öÖÖ—BÝ‚‚M½í-Râ
+Íâ}}]-]ÝRâ"À¢&v—F‡V"×w&—FR# ¢$6÷–Æ÷BÍí#¢í-M]½]Ò­½íÒÂ6öÖÖ—BÝ‚‚VÆÂ&WVW7B½]B-í}Ýâýí--­mM]ÝRâ	]r--íÍ-}Ýâ½-ÝRâ"À¢&vöövÆRÖG&—fR×&VB#¢-
+}]-R}]]Ý‚M½í-Rí"vöövÆRG&—fRâ"À¢&vöövÆRÖ6ÆVæF"×&VB#¢-	ýí­}-­-òí"vöövÆR6ÆVæF"â"À¢&vÖ–Â×&VB#¢-	ýí­}-}]]Ý‚Í]½‚â	ÝR}ýâ"À¢&÷Væ’×vV"×6V&6‚#¢-
+-­‚­-=½ÝÝMíÍmò"Ý-]Ý]"â"À¢&÷Vç6V&6‚ÖÖVÖ÷'’#¢-	ý}‚½}Ý‚ýí]­-ÝýÍ]"ýíB--í’­íÝ-í²â"À¢'7–æ6‡&öâ×7—7FVÒÖ–ç7V7F÷"# ¢-	ýí-]ý-ýMí-â‚-}­‚'VçF–ÖRôF–v—FÄö6VâÝ-í­‚]r-]]Ý-R-íÝí-‚â"À¢Ó°¢VÆVÖVçG2æFFG&vW$&öG’æ–ææW$…DÔÂÒ ¢ÆF—b6Æ73Ò'W&Ö—76–öâÖFVfVÇB#à¢	ýí­}ÝâR]½Ýí-â­-íýÝRâ(	í
+]=-Þ(	ÂÝRí}Ý}---íÍ-}Ýâ(	íí-Ž(	Âà¢ÂöF—cà¢Ç6V7F–öâ6Æ73Ò&G&vW"×6V7F–öâW&Ö—76–öâÖÆ—7B#à¢Æ'WGFöâG—SÒ&'WGFöâ"6Æ73Ò'W&Ö—76–öâÖ6&BFööÂ×7FGW2Ö6&B7—7FVÒÖ6öçG&öÂÖÆ–æ²"FF×7—7FVÒÖ6öæf–wW&F–öãà¢ÆF—cà¢Ç7G&öæsí
+-]Í]Ò­íÝ-í³Â÷7G&öæsà¢Çí
+ýMâÂÝ-=Í]Ý-‚‚-}­‚ýíÍ]Ý½-‚]rýí­}-ÝRÝ-Ý-RÂ-íÝí-‚ãÂ÷à¢ÂöF—cà¢Ç7â6Æ73Ò'W&Ö—76–öâÖ&FvRÆÆ÷r#í	í--íƒÂ÷7ãà¢Âö'WGFöãà¢Æ'F–6ÆR6Æ73Ò'W&Ö—76–öâÖ6&BFööÂ×7FGW2Ö6&B#à¢ÆF—cãÇ7G&öæsí
+ÝÍ­ƒÂ÷7G&öæsãÇä¥TrÂär‚vV%MâRÔ"ãÂ÷ãÂöF—cà¢Ç7â6Æ73Ò'W&Ö—76–öâÖ&FvRÆÆ÷r#í
+í-ƒÂ÷7ãà¢Âö'F–6ÆSà¢G·FööÇ0¢æÖ‚‡FööÂ’Óâ°¢6öç7B7FGW2ÒFööÅ7FFR€¢FööÂÀ¢&ööÆVâ†vöövÆTFFæ6öææV7FVB’À¢&ööÆVâ†v—F‡V$FFæ6öææV7FVB’À¢“°¢6öç7BFW67&—F–öâÐ¢FööÂæ–BÓÓÒ&v—F‡V"×w&—FR"b`¢FööÂæf–Æ&–Æ—G”6öFRÓÓÒ$4õ”ÄõEôUDôÔD”ôåôD•4$ÄTB ¢ò-	­íMí-ý"Íí"R}ý}]ÒÂÝâR}­½í}]Ò"-]­=ò]mÂ]r6÷–Æ÷Bâ ¢¢FW67&—F–öç5·FööÂæ–EÒÇÂ-	Ý-=Í]Ý"Ý5”ä4…$ôâÕ‚â#°¢&WGW&â ¢Æ'F–6ÆR6Æ73Ò'W&Ö—76–öâÖ6&BFööÂ×7FGW2Ö6&B#à¢ÆF—cà¢Ç7G&öæsâG¶W66T‡FÖÂ‡FööÂææÖR—ÓÂ÷7G&öæsà¢ÇâG¶W66T‡FÖÂ†FW67&—F–öâ—ÓÂ÷à¢ÂöF—cà¢G·FööÅ7FGW47F–öç2€¢FööÂÀ¢7FGW2À¢&ööÆVâ†vöövÆTFFæ6öææV7FVB’À¢&ööÆVâ†v—F‡V$FFæ6öææV7FVB’À¢—Ð¢Âö'F–6ÆSæ°¢Ò¢æ¦ö–â‚""—Ð¢Â÷6V7F–öãæ°¢Ò6F6‚†W'&÷"’°¢&VæFW$G&vW$W'&÷"†W'&÷"æÖW76vR“°¢Ð§Ð ¦gVæ7F–öâ6öæf–wW&F–öå7FGW2†—FVÒ’°¢6öç7BÆ&VÇ2Ò°¢6öæf–wW&VC¢²-	Ý-í]Ý"Â&ÆÆ÷r%ÒÀ¢FVfVÇFVC¢²-	ýâýíM}ÝR"Â&ÆÆ÷r%ÒÀ¢&Ö—76–ær×&WV—&VB#¢²-	½ý-"Â&FVç’%ÒÀ¢&÷F–öæÂÖÖ—76–ær#¢²-	Ý]}M­½m-]½Ý"Â&6öæf—&Ò%ÒÀ¢6ö×F–&–Æ—G“¢²-
+-]}]-]Òý­""Â&6öæf—&Ò%ÒÀ¢&æ÷BÖæVVFVB#¢²-	ÝRRÝ=mÝ"Â&ÆÆ÷r%ÒÀ¢VçW6VC¢²-	ÝRR}ýí½}-"Â&FVç’%ÒÀ¢Ó°¢6öç7B¶Æ&VÂÂ6Æ74æÖUÒÒÆ&VÇ5¶—FVÒç7FGW5ÒÇÂ¶—FVÒç7FGW2Â&6öæf—&Ò%Ó°¢&WGW&â²Æ&VÂÂ6Æ74æÖRÓ°§Ð ¦gVæ7F–öâ&VæFW$Vçf—&öæÖVçDw&÷W†&VÂ—FV×2’°¢&WGW&â ¢ÆFWF–Ç26Æ73Ò&6öæf–wW&F–öâÖw&÷W"G¶—FV×2ç6öÖR‚†—FVÒ’Óâ—FVÒç7FGW2ÓÓÒ&Ö—76–ær×&WV—&VB"’ò&÷Vâ"¢"'Óà¢Ç7VÖÖ'“âG¶W66T‡FÖÂ†&V—ÒÇ7ãâG¶—FV×2æÆVæwF‡ÓÂ÷7ããÂ÷7VÖÖ'“à¢ÆF—b6Æ73Ò&6öæf–wW&F–öâÖÆ—7B#à¢G¶—FV×0¢æÖ‚†—FVÒ’Óâ°¢6öç7B7FGW2Ò6öæf–wW&F–öå7FGW2†—FVÒ“°¢&WGW&â ¢Æ'F–6ÆR6Æ73Ò&6öæf–wW&F–öâÖ—FVÒ#à¢ÆF—cà¢Æ6öFSâG¶W66T‡FÖÂ†—FVÒæ¶W’—ÓÂö6öFSà¢ÇâG¶W66T‡FÖÂ†—FVÒçW'÷6R—ÓÂ÷à¢Ç6ÖÆÃà¢G¶—FVÒç6Vç6—F—f—G’ÓÓÒ'6V7&WB"ò-
+-Ý-íÝí"+rÝ­í=ÝRRýí­}-"¢-	íÝ-í­'Ð¢+rF–v—FÄö6Vã¢G¶—FVÒæF–v—FÄö6VäFV6Æ&VBò-M]­½Ý"¢-ÝRRM]­½Ý'Ð¢Â÷6ÖÆÃà¢ÂöF—cà¢Ç7â6Æ73Ò'W&Ö—76–öâÖ&FvRG·7FGW2æ6Æ74æÖWÒ#âG·7FGW2æÆ&VÇÓÂ÷7ãà¢Âö'F–6ÆSæ°¢Ò¢æ¦ö–â‚""—Ð¢ÂöF—cà¢ÂöFWF–Ç3æ°§Ð ¦7–æ2gVæ7F–öâ÷Vå7—7FVÔ6öæf–wW&F–öäG&vW"‚’°¢÷VäFFG&vW"‚-
+-]Í]Ò­íÝ-í²"“°¢&VæFW$G&vW$ÆöF–ær‚“°¢G'’°¢6öç7B¶6öæf–wW&F–öå&W7öç6RÂ–çFVw&F–öç5&W7öç6RÂ&VF–æW75&W7öç6UÒÐ¢v—B&öÖ—6RæÆÂ…°¢fWF6‚‚"ö’÷7—7FVÒö6öæf–wW&F–öâ"Â²66†S­wÒÚ$z{-®éÜj×st integrations = await integrationsResponse.json();
     const readiness = readinessResponse.ok
       ? await readinessResponse.json()
       : null;

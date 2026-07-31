@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { isCopilotAutomationEnabled } from "../config/featureFlags.js";
 import {
   createDurableConfirmation,
   markDurableConfirmationUsed,
@@ -551,6 +552,17 @@ export async function getCopilotBridgeStatus({
   fetchImpl = fetch,
 } = {}) {
   splitRepository(repository);
+  if (!isCopilotAutomationEnabled()) {
+    return Object.freeze({
+      status: "disabled",
+      configured: isGitHubOAuthConfigured(),
+      connected: false,
+      copilotEnabled: false,
+      repository,
+      mode: "disabled-without-copilot",
+      reasonCode: "COPILOT_AUTOMATION_DISABLED",
+    });
+  }
   if (!isGitHubOAuthConfigured()) {
     return Object.freeze({
       status: "not-configured",
@@ -603,6 +615,13 @@ export async function getCopilotBridgeStatus({
 }
 
 export function formatCopilotBridgeStatus(status) {
+  if (status.reasonCode === "COPILOT_AUTOMATION_DISABLED") {
+    return [
+      "Проверих текущия режим за GitHub Write.",
+      "Резултат: изключен е — работим без Copilot.",
+      "GitHub Read остава активен; кодовият мост не прави assignment, branch, commit или Pull Request.",
+    ].join("\n");
+  }
   if (!status.configured) {
     return [
       "Проверих GitHub Write моста реално.",
@@ -640,6 +659,13 @@ export async function startCopilotTask({
   baseRef = "main",
   fetchImpl = fetch,
 }) {
+  if (!isCopilotAutomationEnabled()) {
+    throw new CopilotTaskError(
+      "GitHub Write е изключен — режим без Copilot.",
+      503,
+      "COPILOT_AUTOMATION_DISABLED",
+    );
+  }
   const session = await getGitHubSession(githubSessionId);
   if (!session || !isAuthorizedGitHubLogin(session.login)) {
     throw new GitHubOAuthError(

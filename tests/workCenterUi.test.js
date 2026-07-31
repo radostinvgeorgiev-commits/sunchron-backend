@@ -529,6 +529,44 @@ test("current capabilities summary uses only live verified status", async () => 
   assert.match(working.textContent, /Тестови профили/u);
 });
 
+test("current capabilities reports GitHub Write as disabled without Copilot", async () => {
+  const harness = createHarness({
+    integrations: {
+      tools: [
+        {
+          id: "github-read",
+          enabled: true,
+          executable: true,
+          configured: true,
+        },
+        {
+          id: "github-write",
+          enabled: false,
+          executable: false,
+          configured: true,
+          availabilityCode: "COPILOT_AUTOMATION_DISABLED",
+        },
+      ],
+    },
+    githubConnected: true,
+  });
+  await openCenter(harness);
+  const unavailable = harness.dom.window.document.querySelector(
+    '[data-capability-group="unavailable"]',
+  );
+
+  assert.match(
+    unavailable.textContent,
+    /GitHub запис · изключен в режим без Copilot/u,
+  );
+  assert.doesNotMatch(
+    harness.dom.window.document.querySelector(
+      '[data-capability-group="working"]',
+    ).textContent,
+    /GitHub запис/u,
+  );
+});
+
 test("missing Google session is an action and never a working capability", async () => {
   const harness = createHarness({ googleConnected: false });
   await openCenter(harness);
@@ -536,7 +574,10 @@ test("missing Google session is an action and never a working capability", async
   const working = document.querySelector('[data-capability-group="working"]');
   const action = document.querySelector('[data-capability-group="action"]');
 
-  assert.doesNotMatch(working.textContent, /Google Drive|Gmail|Google Calendar/u);
+  assert.doesNotMatch(
+    working.textContent,
+    /Google Drive|Gmail|Google Calendar/u,
+  );
   assert.match(action.textContent, /Google Drive/u);
   assert.match(action.textContent, /Gmail/u);
   assert.match(action.textContent, /Google Calendar/u);

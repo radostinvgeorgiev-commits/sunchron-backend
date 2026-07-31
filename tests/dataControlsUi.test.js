@@ -30,7 +30,10 @@ test("application exposes working memory and permission controls", async () => {
   assert.doesNotMatch(script, /function openFocusDrawer\(\)/u);
   assert.doesNotMatch(script, /Свързване на GitHub Copilot/u);
   assert.match(script, /function openToolsDrawer\(\)/u);
-  assert.match(script, /<strong>Снимки<\/strong><p>JPEG, PNG и WebP до 5 MB\.<\/p>/u);
+  assert.match(
+    script,
+    /<strong>Снимки<\/strong><p>JPEG, PNG и WebP до 5 MB\.<\/p>/u,
+  );
   assert.doesNotMatch(script, /Снимки и файлове/u);
   assert.match(script, /fetch\(["']\/health\/integrations["']/u);
   assert.match(script, /Твоята лична AI операционна система/u);
@@ -39,6 +42,12 @@ test("application exposes working memory and permission controls", async () => {
   assert.match(script, /markMemoryOperational\(\)/u);
   assert.match(script, /state\.opensearchFailures >= 3/u);
   assert.match(script, /Свързан · работи/u);
+  assert.match(script, /Изключено · режим без Copilot/u);
+  assert.match(script, /COPILOT_AUTOMATION_DISABLED/u);
+  assert.match(
+    script,
+    /Кодовият мост е запазен, но е изключен в текущия режим без Copilot/u,
+  );
   assert.doesNotMatch(script, /fetch\(["']\/opensearch-status["']/u);
-  assert.match(html, /\/assets\/20260730-opensearch-status-v1\/app\.js/u);
+  assert.match(html, /\/assets\/20260731-no-copilot-v1\/app\.js/u);
 });

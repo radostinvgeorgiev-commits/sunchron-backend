@@ -54,8 +54,7 @@ async function githubRequest(path, options = {}) {
       ...options,
     });
     if (!response.ok) {
-      const details = await response.text();
-      console.error(`[GitHub] ${response.status}:`, details || "<empty>");
+      console.error(`[GitHub] Upstream request failed: ${response.status}`);
       throw new GitHubServiceError(
         response.status === 404
           ? "GitHub ресурсът не е намерен."

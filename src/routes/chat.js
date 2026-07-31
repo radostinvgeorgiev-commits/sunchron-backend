@@ -114,6 +114,15 @@ async function saveConversationTurnBestEffort(
   }
 }
 
+export function getConversationPersistenceMetadata(conversationPersisted) {
+  return conversationPersisted
+    ? { conversationPersisted: true }
+    : {
+        conversationPersisted: false,
+        warningCode: "CONVERSATION_NOT_SAVED",
+      };
+}
+
 const ASSISTANT_CONTEXT = [
   "[КОНТЕКСТ И ПРАВИЛА ЗА ТОЗИ РАЗГОВОР]",
   "Ти си Synchron-X — личната AI операционна система на Радко.",
@@ -914,7 +923,7 @@ router.post("/chat", async (req, res) => {
         prompt: cleanMessage,
         context: messages[0].content,
       });
-      await saveConversationTurnBestEffort(
+      const conversationPersisted = await saveConversationTurnBestEffort(
         cleanSessionId,
         cleanMessage,
         fullReply,
@@ -928,7 +937,11 @@ router.post("/chat", async (req, res) => {
         sessionId: cleanSessionId,
       });
       sendEvent("token", { token: fullReply });
-      sendEvent("done", { ok: true, tool: "vision" });
+      sendEvent("done", {
+        ok: true,
+        tool: "vision",
+        ...getConversationPersistenceMetadata(conversationPersisted),
+      });
     } catch (error) {
       console.error(`[Vision] Failure for ${cleanSessionId}:`, error);
       sendEvent("error", {
@@ -952,7 +965,7 @@ router.post("/chat", async (req, res) => {
         source: "confirmed-chat-command",
       });
       const fullReply = formatMemoryWriteResult(items);
-      await saveConversationTurnBestEffort(
+      const conversationPersisted = await saveConversationTurnBestEffort(
         cleanSessionId,
         cleanMessage,
         fullReply,
@@ -972,6 +985,7 @@ router.post("/chat", async (req, res) => {
         mode: "confirmed-memory-write",
         memoryUpdated: true,
         count: items.length,
+        ...getConversationPersistenceMetadata(conversationPersisted),
       });
     } catch (error) {
       console.error(
@@ -1007,7 +1021,7 @@ router.post("/chat", async (req, res) => {
         googleSessionId,
       });
       const fullReply = formatCalendarEventResult(result);
-      await saveConversationTurnBestEffort(
+      const conversationPersisted = await saveConversationTurnBestEffort(
         cleanSessionId,
         cleanMessage,
         fullReply,
@@ -1026,6 +1040,7 @@ router.post("/chat", async (req, res) => {
         ok: true,
         mode: "calendar-event",
         eventId: result.id,
+        ...getConversationPersistenceMetadata(conversationPersisted),
       });
     } catch (error) {
       console.error("[Calendar confirmation]", error);
@@ -1057,7 +1072,7 @@ router.post("/chat", async (req, res) => {
         githubSessionId,
       });
       const fullReply = formatCopilotTaskResult(result);
-      await saveConversationTurnBestEffort(
+      const conversationPersisted = await saveConversationTurnBestEffort(
         cleanSessionId,
         cleanMessage,
         fullReply,
@@ -1076,6 +1091,7 @@ router.post("/chat", async (req, res) => {
         ok: true,
         mode: "copilot-task",
         issueNumber: result.issueNumber,
+        ...getConversationPersistenceMetadata(conversationPersisted),
       });
     } catch (error) {
       console.error("[Copilot confirmation]", error);
@@ -1148,14 +1164,18 @@ router.post("/chat", async (req, res) => {
       ? [heading, ...scopedMemories.map(({ fact }) => `• ${fact}`)].join("\n")
       : emptyReply;
 
-    await saveConversationTurnBestEffort(
+    const conversationPersisted = await saveConversationTurnBestEffort(
       cleanSessionId,
       cleanMessage,
       fullReply,
       ownerId,
     );
     sendEvent("token", { token: fullReply });
-    sendEvent("done", { ok: true, memoryCount: scopedMemories.length });
+    sendEvent("done", {
+      ok: true,
+      memoryCount: scopedMemories.length,
+      ...getConversationPersistenceMetadata(conversationPersisted),
+    });
     console.info(
       `[Chat] Response completed (memory overview) for ${cleanSessionId}`,
     );
@@ -1234,7 +1254,7 @@ router.post("/chat", async (req, res) => {
     shouldReplyWithVerifiedToolOutput(capabilityResults)
   ) {
     const fullReply = capabilityReplies.join("\n\n");
-    await saveConversationTurnBestEffort(
+    const conversationPersisted = await saveConversationTurnBestEffort(
       cleanSessionId,
       cleanMessage,
       fullReply,
@@ -1247,6 +1267,7 @@ router.post("/chat", async (req, res) => {
       task: taskResult,
       mode: "verified-tool-output",
       memoryAvailable,
+      ...getConversationPersistenceMetadata(conversationPersisted),
     });
     console.info(
       `[Chat] Response completed with verified infrastructure output for ${cleanSessionId}`,
@@ -1259,7 +1280,7 @@ router.post("/chat", async (req, res) => {
     const fullReply = [...capabilityReplies, memoryReply]
       .filter(Boolean)
       .join("\n\n");
-    await saveConversationTurnBestEffort(
+    const conversationPersisted = await saveConversationTurnBestEffort(
       cleanSessionId,
       cleanMessage,
       fullReply,
@@ -1273,6 +1294,7 @@ router.post("/chat", async (req, res) => {
       task: taskResult,
       mode: capabilityResults.length ? "deterministic" : undefined,
       memoryAvailable,
+      ...getConversationPersistenceMetadata(conversationPersisted),
     });
     console.info(
       `[Chat] Response completed (memory shortcut) for ${cleanSessionId}`,
@@ -1286,7 +1308,7 @@ router.post("/chat", async (req, res) => {
       const fullReply = [...capabilityReplies, memoryReply]
         .filter(Boolean)
         .join("\n\n");
-      await saveConversationTurnBestEffort(
+      const conversationPersisted = await saveConversationTurnBestEffort(
         cleanSessionId,
         cleanMessage,
         fullReply,
@@ -1301,6 +1323,7 @@ router.post("/chat", async (req, res) => {
         task: taskResult,
         mode: "deterministic-fallback",
         memoryAvailable,
+        ...getConversationPersistenceMetadata(conversationPersisted),
       });
       res.end();
       return;
@@ -1369,7 +1392,7 @@ router.post("/chat", async (req, res) => {
       throw new Error("AI ядрото приключи без текстов отговор.");
     }
 
-    await saveConversationTurnBestEffort(
+    const conversationPersisted = await saveConversationTurnBestEffort(
       cleanSessionId,
       cleanMessage,
       fullReply,
@@ -1384,6 +1407,7 @@ router.post("/chat", async (req, res) => {
       task: taskResult,
       mode: capabilityResults.length ? "agentic" : "conversation",
       provider: "openai",
+      ...getConversationPersistenceMetadata(conversationPersisted),
     });
     console.log(`[AI Core] openai success for ${cleanSessionId}`);
     console.info(

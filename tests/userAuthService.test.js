@@ -161,7 +161,7 @@ test("signs in with email and password through an isolated Supabase client", asy
 
   const result = await signInUser(
     { email: " Friend@Example.com ", password: "strong-pass-123" },
-    { env: ENV, client },
+    { env: ENV, client, requireTesterAccess: async () => true },
   );
   assert.equal(result.user.id, "user-login");
   assert.deepEqual(result.session, fakeSession);
@@ -204,7 +204,7 @@ test("uses the Supabase Auth password endpoint without exposing a service key", 
 
   const result = await signInUser(
     { email: "friend@example.com", password: "strong-pass-123" },
-    { env: ENV },
+    { env: ENV, requireTesterAccess: async () => true },
   );
 
   assert.equal(result.user.id, "rest-user");
@@ -226,6 +226,83 @@ test("tester registration requires the private invite code", async () => {
     (error) =>
       error instanceof UserAuthError &&
       error.code === "AUTH_INVALID_INVITE_CODE" &&
+      error.status === 403,
+  );
+});
+
+test("successful tester registration creates the application approval", async () => {
+  const fakeSession = session("register");
+  let approvedUser = null;
+  const client = {
+    auth: {
+      async signUp({ email, password, options }) {
+        assert.equal(email, "friend@example.com");
+        assert.equal(password, "strong-pass-123");
+        assert.equal(options.data.display_name, "Приятел");
+        return {
+          data: {
+            user: { id: "registered-user", email },
+            session: fakeSession,
+          },
+          error: null,
+        };
+      },
+    },
+  };
+
+  const result = await registerTester(
+    {
+      email: "friend@example.com",
+      password: "strong-pass-123",
+      displayName: "Приятел",
+      inviteCode: ENV.SYNCHRON_TEST_INVITE_CODE,
+    },
+    {
+      env: ENV,
+      client,
+      approveAccess: async (user) => {
+        approvedUser = user;
+      },
+    },
+  );
+
+  assert.equal(approvedUser.id, "registered-user");
+  assert.equal(result.user.id, "registered-user");
+  assert.deepEqual(result.session, fakeSession);
+});
+
+test("sign in refuses a valid Supabase user without application approval", async () => {
+  const client = {
+    auth: {
+      async signInWithPassword({ email }) {
+        return {
+          data: {
+            user: { id: "direct-signup", email },
+            session: session("direct"),
+          },
+          error: null,
+        };
+      },
+    },
+  };
+
+  await assert.rejects(
+    signInUser(
+      { email: "direct@example.com", password: "strong-pass-123" },
+      {
+        env: ENV,
+        client,
+        requireTesterAccess: async () => {
+          const error = new Error("not approved");
+          error.code = "TESTER_ACCESS_NOT_APPROVED";
+          error.status = 403;
+          throw error;
+        },
+      },
+    ),
+    (error) =>
+      error instanceof UserAuthError &&
+      error.code === "TESTER_ACCESS_NOT_APPROVED" &&
       error.status === 403,
   );
 });
@@ -259,6 +336,7 @@ test("two authenticated users receive different stable memory owners", async () 
       await resolveUserSession(cookie, {
         env: ENV,
         client,
+        requireTesterAccess: async () => true,
       }),
     );
   }

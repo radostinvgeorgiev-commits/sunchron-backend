@@ -1,7 +1,7 @@
 (() => {
   const STORAGE_KEY = "synchronTaskJournalV1";
   const ROADMAP_VERSION_KEY = "synchronTaskJournalRoadmapVersion";
-  const ROADMAP_VERSION = 2;
+  const ROADMAP_VERSION = 3;
   const STATUS_ORDER = ["now", "waiting", "done"];
   const STATUS_META = Object.freeze({
     now: {
@@ -40,11 +40,11 @@
     },
     {
       id: "opensearch-backup",
-      title: "Докажи OpenSearch backup инвентара",
+      title: "OpenSearch backup инвентар",
       detail:
-        "Read-only диагностиката е готова; реалните restore точки чакат owner сесия. Restore не се стартира без цена и разрешение.",
-      status: "waiting",
-      priority: "Изисква owner вход",
+        "На 1 август 2026 owner проверката потвърди 3 restore точки. Не е създаван restore или fork и не са променяни данни.",
+      status: "done",
+      priority: "Проверено",
     },
     {
       id: "memory-real-data",
@@ -53,6 +53,14 @@
         "Production проверката минава 9 от 9 стъпки, пази изолацията и оставя реалната памет непроменена.",
       status: "done",
       priority: "Проверено",
+    },
+    {
+      id: "tester-registration",
+      title: "Регистрация и вход с изолиран тестов профил",
+      detail:
+        "Следващата безопасна проверка е реална регистрация, вход и отделно потребителско пространство без достъп до owner данните.",
+      status: "now",
+      priority: "Следваща проверка",
     },
     {
       id: "avatar-profile",

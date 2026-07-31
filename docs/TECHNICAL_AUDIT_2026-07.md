@@ -2,9 +2,9 @@
 
 Дата: 31 юли 2026 г.
 
-Проверен commit: `15efb63539194ae488fa3c1019b37ca85d6f701d`
+Проверен commit: `d5300c52fa91cf5c70e2dd744c4f2d77d617861e`
 
-Production доказателство: GitHub Actions run `30649095272`
+Production доказателство: GitHub Actions run `30650175520`
 
 Обхват: актуалният `main`, наличната DigitalOcean App Platform конфигурация,
 GitHub Actions, приложният код и автоматичните тестове.
@@ -17,8 +17,8 @@ GitHub Actions, приложният код и автоматичните тес
   доказва стабилен commit, публичен сайт, liveness, readiness, реален изолиран
   OpenSearch запис/прочит/промяна/изтриване, непроменена лична памет, MCP
   каталог и OAuth challenge, както и готовност на тестовите профили.
-- Локалният пакет има 398 теста: 397 успешни, 0 неуспешни и 1 пропуснат
-  production OpenSearch тест. Production зависимостите имат 0 известни high
+- Локалният пакет има 382 теста: 382 успешни, 0 неуспешни и 0 пропуснати.
+  Production startup acceptance изпълнява реалния изолиран OpenSearch поток. Production зависимостите имат 0 известни high
   уязвимости.
 - Собственикът и тестовите потребители получават отделни `memoryOwnerId`.
   Всички основни заявки към паметта филтрират по собственик.
@@ -175,21 +175,17 @@ Library или други вътрешни ChatGPT данни в SYNCHRON-X.
   използвай ясни test ресурси и cleanup.
 - **Трудност:** средна.
 
-### SX-05 — Pending delete в чата се губи при restart
+### SX-05 — Устойчивото потвърждение за memory delete е отстранено
 
-- **Критичност:** P2 средна.
-- **Доказателство:** `src/services/pendingDeleteService.js` пази
-  `pendingDeletes` само в process `Map` с 10-минутен TTL. За разлика от него
-  `src/services/confirmationService.js` използва OpenSearch в production.
-- **Реален проблем:** deployment/restart между „изтрий“ и „Да“ забравя точния
-  pending факт. Това fail-ва безопасно — няма погрешно изтриване — но човекът
-  трябва да повтори заявката и може да получи неясен разговорен резултат.
-- **Проверка:** започни delete confirmation, рестартирай процеса и изпрати „Да“.
-- **Поправка:** премести memory delete върху същия durable confirmation service
-  с owner/session/fact/scope binding и consume-before-delete.
-- **Риск от поправката:** нисък до среден — миграцията засяга стария кратък
-  разговорен поток.
-- **Трудност:** малка до средна.
+- **Състояние:** затворена констатация, не активен риск. Поправена с PR №165.
+- **Доказателство:** `memoryDeleteConfirmationService.js` използва криптираната
+  durable confirmation услуга, owner/session/target binding, кратък TTL и
+  consume-before-delete. Старият process `Map` и повторяемият HTTP header са
+  премахнати. Route тест симулира restart и replay, а production startup
+  acceptance run `30650175520` доказва реален изолиран OpenSearch delete и
+  непроменена лична памет.
+- **Повторна проверка:** пази restart/replay, owner/target mismatch, API/UI и
+  production acceptance тестовете като задължителна регресионна граница.
 
 ### SX-06 — Audit записът е best-effort и може да липсва след успешно действие
 
@@ -379,14 +375,11 @@ Library или други вътрешни ChatGPT данни в SYNCHRON-X.
 
 1. **SX-01:** доказан OpenSearch restore — след изрично разрешение за временния
    платен клъстер и точен cost ceiling.
-2. **Memory delete:** замени повторяемия delete header и process-local pending
-   state с durable еднократно потвърждение, без да променяш поправения write
-   поток.
-3. **SX-03:** план за миграция и ротация на legacy MCP static bearer, без да се
+2. **SX-03:** план за миграция и ротация на legacy MCP static bearer, без да се
    прекъсне текущата ChatGPT/OAuth връзка.
-4. **SX-04:** реален owner acceptance на ChatGPT MCP, GitHub и Google — всяко
+3. **SX-04:** реален owner acceptance на ChatGPT MCP, GitHub и Google — всяко
    write действие само с точно потвърждение.
-5. **SX-06:** устойчив audit за реалните write действия преди разширяване на
+4. **SX-06:** устойчив audit за реалните write действия преди разширяване на
    автономността.
 
 ## Какво да се оправи по-късно
@@ -434,7 +427,7 @@ Library или други вътрешни ChatGPT данни в SYNCHRON-X.
 1. Прегледай този audit; не сливай автоматично.
 2. Пази поправката на SX-02 чрез route/replay regression tests и production
    smoke; не прави нови записи в реалната памет при проверката.
-3. Отделна задача за durable memory delete confirmation и SX-06, защото повече
+3. След затворения durable memory delete продължи със SX-06, защото повече
    write възможности изискват надежден журнал.
 4. Owner read-only ChatGPT MCP acceptance; после refresh-after-deploy test.
 5. Owner GitHub/Google write acceptance само с точни тестови ресурси и cleanup.

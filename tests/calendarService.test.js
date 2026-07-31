@@ -99,6 +99,12 @@ test("consumes the exact confirmation before one external calendar write", async
       };
     },
     consumeConfirmation: async (id) => order.push(`consume:${id}`),
+    executeWrite: async ({ execute, action, confirmationId }) => {
+      order.push(`audit-intent:${action}:${confirmationId}`);
+      const value = await execute();
+      order.push("audit-outcome:succeeded");
+      return value;
+    },
     createEvent: async (googleSessionId, event) => {
       order.push(`create:${googleSessionId}:${event.title}`);
       return {
@@ -113,7 +119,9 @@ test("consumes the exact confirmation before one external calendar write", async
   assert.deepEqual(order, [
     "validate:confirmation-calendar:chat-session",
     "consume:confirmation-calendar",
+    "audit-intent:calendar.write:confirmation-calendar",
     "create:google-session:Среща",
+    "audit-outcome:succeeded",
   ]);
   assert.match(formatCalendarEventResult(result), /event\?eid=safe/u);
 });
@@ -155,4 +163,40 @@ test("extracts only the dedicated calendar confirmation phrase", () => {
     id,
   );
   assert.equal(extractCalendarConfirmationId(`Да ${id}`), null);
+});
+
+
+test("calendar adapter is not called when the audited write guard blocks", async () => {
+  let created = false;
+  await assert.rejects(
+    () =>
+      confirmCalendarEvent({
+        confirmationId: "confirmation-calendar",
+        sessionId: "chat-session",
+        googleSessionId: "google-session",
+        validateConfirmation: async () => ({
+          action: "calendar.write:create_event",
+          resource: {
+            title: "Среща",
+            start: "2026-08-05T14:30:00",
+            end: "2026-08-05T15:15:00",
+            timeZone: "Europe/Sofia",
+            googleSessionFingerprint:
+              "1a92e8a09da51712cb71a8aadd4eed42670e26db5c6ae6ced63bce130d6a307f",
+          },
+          params: {},
+        }),
+        consumeConfirmation: async () => {},
+        executeWrite: async () => {
+          const error = new Error("audit blocked");
+          error.code = "AUDIT_UNAVAILABLE";
+          throw error;
+        },
+        createEvent: async () => {
+          created = true;
+        },
+      }),
+    (error) => error.code === "AUDIT_UNAVAILABLE",
+  );
+  assert.equal(created, false);
 });

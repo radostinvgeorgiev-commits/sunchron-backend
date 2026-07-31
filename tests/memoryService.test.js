@@ -6,7 +6,7 @@ import {
   consolidateMemoryView,
   deriveMemoryMetadata,
   extractForgetMemoryCommand,
-  extractImplicitMemoryCandidates,
+  extractPersistentMemoryCommands,
   isConfirmedForgetAllCommand,
   isForgetAllCommand,
   extractPersistentMemoryCommand,
@@ -128,42 +128,26 @@ test("canonical project definition replaces an obsolete avatar-only goal in cont
   );
 });
 
-test("extracts clear personal facts from a normal conversation message", () => {
+test("normal personal statements are never permanent-memory write commands", () => {
   assert.deepEqual(
-    extractImplicitMemoryCandidates(
+    extractPersistentMemoryCommands(
       "Имам бунгала в Камчия и се интересувам от къмпинги, каравани и туризъм.",
     ),
-    [
-      {
-        fact: "Имам бунгала в Камчия",
-        scope: "personal",
-        confidence: "high",
-      },
-      {
-        fact: "се интересувам от къмпинги, каравани и туризъм",
-        scope: "personal",
-        confidence: "high",
-      },
-    ],
-  );
-});
-
-test("does not turn questions or casual topics into permanent memories", () => {
-  assert.deepEqual(
-    extractImplicitMemoryCandidates("Как се прави къмпинг край морето?"),
     [],
   );
   assert.deepEqual(
-    extractImplicitMemoryCandidates("Разкажи ми за каравани."),
+    extractPersistentMemoryCommands("Казвам се Иван и живея във Варна."),
     [],
   );
 });
 
-test("explicit memory commands are not duplicated as automatic memories", () => {
+test("questions and casual topics are not permanent-memory write commands", () => {
   assert.deepEqual(
-    extractImplicitMemoryCandidates(
-      "Запомни: интересувам се от къмпинги и каравани.",
-    ),
+    extractPersistentMemoryCommands("Как се прави къмпинг край морето?"),
+    [],
+  );
+  assert.deepEqual(
+    extractPersistentMemoryCommands("Разкажи ми за каравани."),
     [],
   );
 });

@@ -7,12 +7,12 @@ import {
   detectCapabilityRequests,
   executeDetectedCapabilities,
   extractConfirmedMemoryDeleteCommand,
-  extractConfirmedMemoryWriteCommands,
   mergeMemoryTaskStatus,
   mergeCapabilityRequests,
   shouldReplyWithVerifiedToolOutput,
   splitCapabilitySubtasks,
 } from "../src/routes/chat.js";
+import { extractMemoryWriteConfirmationId } from "../src/services/memoryWriteConfirmationService.js";
 
 test("memory confirmation keeps the overall task waiting", () => {
   const task = {
@@ -323,12 +323,13 @@ test("complex 5-check command runs all checks, merges results, and asks memory-w
 
   const memoryReply = buildMemoryReply({
     type: "write-confirmation-required",
+    confirmationId: "123e4567-e89b-12d3-a456-426614174000",
     items: [{ fact: "трябва да пуснем деплой след merge" }],
   });
-  assert.match(memoryReply, /Потвърждение за запис в постоянната памет/u);
+  assert.match(memoryReply, /още не съм записал нищо/u);
   assert.match(
     memoryReply,
-    /Потвърждавам запис в постоянната памет: трябва да пуснем деплой/u,
+    /Потвърждавам постоянен запис: 123e4567-e89b-12d3-a456-426614174000/u,
   );
 
   const fullReply = [memoryReply, ...capabilityReplies].join("\n\n");
@@ -336,11 +337,11 @@ test("complex 5-check command runs all checks, merges results, and asks memory-w
   assert.match(fullReply, /Result 5/u);
   assert.match(fullReply, /потвърждение/iu);
 
-  assert.deepEqual(
-    extractConfirmedMemoryWriteCommands(
+  assert.equal(
+    extractMemoryWriteConfirmationId(
       "Запомни, че трябва да пуснем деплой след merge.",
     ),
-    [],
+    null,
   );
 });
 
@@ -375,16 +376,17 @@ test("collapses identical tool outputs into one visible reply", () => {
   );
 });
 
-test("requires explicit memory-write confirmation prefix", () => {
-  const commands = extractConfirmedMemoryWriteCommands(
-    "Потвърждавам запис в постоянната памет: Запомни, че проектът е SYNCHRON-X.",
+test("accepts only the exact one-time memory-write confirmation", () => {
+  const id = "123e4567-e89b-12d3-a456-426614174000";
+  assert.equal(
+    extractMemoryWriteConfirmationId(`Потвърждавам постоянен запис: ${id}`),
+    id,
   );
-  assert.deepEqual(commands, [
-    { fact: "проектът е SYNCHRON-X", scope: "personal" },
-  ]);
-  assert.deepEqual(
-    extractConfirmedMemoryWriteCommands("Запомни, че проектът е SYNCHRON-X."),
-    [],
+  assert.equal(
+    extractMemoryWriteConfirmationId(
+      "Потвърждавам запис в постоянната памет: проектът е SYNCHRON-X",
+    ),
+    null,
   );
 });
 
@@ -458,16 +460,11 @@ test("splits and detects the real one-line five-check GitHub command without tre
     requests.some(({ message: subtask }) => /запомни/iu.test(subtask)),
     false,
   );
-  assert.deepEqual(
-    extractConfirmedMemoryWriteCommands(
+  assert.equal(
+    extractMemoryWriteConfirmationId(
       "Потвърждавам запис в постоянната памет: На 27 юли 2026 г. проверихме връзката между чата, GitHub и Capability Engine.",
     ),
-    [
-      {
-        fact: "На 27 юли 2026 г. проверихме връзката между чата, GitHub и Capability Engine",
-        scope: "personal",
-      },
-    ],
+    null,
   );
 });
 

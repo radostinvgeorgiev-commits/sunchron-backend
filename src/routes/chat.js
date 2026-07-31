@@ -4,15 +4,21 @@ import {
   clearProfileMemories,
   deleteProfileMemoryByFact,
   extractForgetMemoryCommand,
-  extractImplicitMemoryCandidates,
   extractPersistentMemoryCommands,
   isConfirmedForgetAllCommand,
   isForgetAllCommand,
   listConversationMessages,
   listProfileMemories,
   saveConversationTurn,
-  saveProfileMemory,
 } from "../services/memoryService.js";
+import {
+  confirmMemoryWrite,
+  extractMemoryWriteConfirmationId,
+  formatMemoryWritePreparation,
+  formatMemoryWriteResult,
+  MemoryWriteConfirmationError,
+  prepareMemoryWrite,
+} from "../services/memoryWriteConfirmationService.js";
 import {
   GitHubServiceError,
   isGitHubReadRequest,
@@ -77,7 +83,6 @@ import {
 const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
 const DEFAULT_AI_TIMEOUT_MS = 120000;
-const MEMORY_WRITE_CONFIRM_PREFIX = "Потвърждавам запис в постоянната памет:";
 const MEMORY_DELETE_CONFIRM_PREFIX =
   "Потвърждавам изтриването от постоянната памет само на факта:";
 const DIGITALOCEAN_NAME_PATTERN =
@@ -525,33 +530,6 @@ export function mergeCapabilityRequests(
   return merged;
 }
 
-function hasConfirmedMemoryWritePrefix(message) {
-  if (typeof message !== "string") return false;
-  const separatorIndex = message.indexOf(":");
-  if (separatorIndex < 0) return false;
-  const prefix = message.slice(0, separatorIndex).trim().toLowerCase();
-  const expectedPrefix = MEMORY_WRITE_CONFIRM_PREFIX.toLowerCase().replace(
-    /:$/u,
-    "",
-  );
-  return prefix === expectedPrefix;
-}
-
-export function extractConfirmedMemoryWriteCommands(message) {
-  if (!hasConfirmedMemoryWritePrefix(message)) return [];
-  const separatorIndex = message.indexOf(":");
-
-  const payload = message.slice(separatorIndex + 1).trim();
-  const commands = extractPersistentMemoryCommands(payload);
-  if (commands.length) return commands;
-
-  const fact = payload
-    .replace(/^[„“"'’]+|[„“"'’]+$/gu, "")
-    .replace(/[.!?]+$/u, "")
-    .trim();
-  return fact ? [{ fact, scope: "personal" }] : [];
-}
-
 function hasConfirmedMemoryDeletePrefix(message) {
   if (typeof message !== "string") return false;
   const separatorIndex = message.indexOf(":");
@@ -632,17 +610,7 @@ function formatCapabilityFailureMessage(error) {
 export function buildMemoryReply(memoryAction) {
   if (!memoryAction) return null;
   if (memoryAction.type === "write-confirmation-required") {
-    const facts = Array.isArray(memoryAction.items)
-      ? memoryAction.items.map(({ fact }) => fact).filter(Boolean)
-      : [];
-    const content =
-      facts.length === 1
-        ? facts[0]
-        : facts.map((fact) => `- ${fact}`).join("\n");
-    return [
-      "Потвърждение за запис в постоянната памет:",
-      `${MEMORY_WRITE_CONFIRM_PREFIX} ${content || "<съдържание>"}`,
-    ].join("\n");
+    return formatMemoryWritePreparation(memoryAction);
   }
   if (memoryAction.type === "clear-confirmation-required") {
     return "Това ще изтрие цялата постоянна памет. За да потвърдиш, напиши точно: „Потвърждавам изтриването на цялата постоянна памет“.";
@@ -791,8 +759,10 @@ router.post("/chat", async (req, res) => {
   let memories;
   let history;
   let memoryAction = null;
-  let autoMemoryCount = 0;
+  const autoMemoryCount = 0;
   let memoryAvailable = true;
+  const memoryWriteConfirmationId =
+    extractMemoryWriteConfirmationId(cleanMessage);
   const pendingDelete = getPendingDelete(cleanSessionId);
   // isSimpleConfirmation is only true when BOTH the message is a short "Да"/
   // "Потвърждавам" AND there is an active pending delete for this session.
@@ -807,14 +777,17 @@ router.post("/chat", async (req, res) => {
   const explicitMemoryIntent =
     isSimpleConfirmation ||
     isSimpleDenialAction ||
-    hasConfirmedMemoryWritePrefix(cleanMessage) ||
+    Boolean(memoryWriteConfirmationId) ||
     extractPersistentMemoryCommands(cleanMessage).length > 0 ||
     isConfirmedForgetAllCommand(cleanMessage) ||
     isForgetAllCommand(cleanMessage) ||
     hasConfirmedMemoryDeletePrefix(cleanMessage) ||
     Boolean(extractForgetMemoryCommand(cleanMessage));
   try {
-    if (isSimpleDenialAction) {
+    if (memoryWriteConfirmationId) {
+      // The exact one-time confirmation is executed after the SSE channel is
+      // established. No content from the confirmation message is re-parsed.
+    } else if (isSimpleDenialAction) {
       // The user denied a previously requested delete ("Не", "Отказвам").
       // Clear the pending entry so it cannot be accidentally triggered later.
       clearPendingDelete(cleanSessionId);
@@ -829,45 +802,17 @@ router.post("/chat", async (req, res) => {
       clearPendingDelete(cleanSessionId);
       memoryAction = { type: "forgot", fact, scope, deleted };
     } else {
-      const confirmedMemoryWrite = hasConfirmedMemoryWritePrefix(cleanMessage);
-      const confirmedMemoryCommands = confirmedMemoryWrite
-        ? extractConfirmedMemoryWriteCommands(cleanMessage)
-        : [];
-      const memoryCommands = confirmedMemoryWrite
-        ? confirmedMemoryCommands
-        : extractPersistentMemoryCommands(cleanMessage);
+      const memoryCommands = extractPersistentMemoryCommands(cleanMessage);
       if (memoryCommands.length) {
-        if (!confirmedMemoryWrite) {
-          // Explicit memory writes are gated until the user confirms with the
-          // dedicated confirmation prefix.
-          memoryAction = {
-            type: "write-confirmation-required",
-            items: memoryCommands,
-          };
-        } else {
-          const items = [];
-          for (const memoryCommand of memoryCommands) {
-            const saved = await saveProfileMemory(
-              memoryCommand.fact,
-              "explicit-chat-command",
-              memoryCommand.scope,
-              ownerId,
-            );
-            items.push({
-              fact: saved.fact,
-              scope: saved.scope,
-              replaced: saved.replaced,
-            });
-          }
-          memoryAction =
-            items.length === 1
-              ? {
-                  type: items[0].replaced ? "updated" : "saved",
-                  fact: items[0].fact,
-                  scope: items[0].scope,
-                }
-              : { type: "batch", items };
-        }
+        const prepared = await prepareMemoryWrite({
+          sessionId: cleanSessionId,
+          ownerId,
+          items: memoryCommands,
+        });
+        memoryAction = {
+          type: "write-confirmation-required",
+          ...prepared,
+        };
       } else if (isConfirmedForgetAllCommand(cleanMessage)) {
         const deleted = await clearProfileMemories(undefined, ownerId);
         memoryAction = { type: "cleared", deleted };
@@ -908,18 +853,6 @@ router.post("/chat", async (req, res) => {
             };
           }
         }
-      }
-    }
-    if (!memoryAction || memoryAction.type === "write-confirmation-required") {
-      const implicitMemories = extractImplicitMemoryCandidates(cleanMessage);
-      for (const memory of implicitMemories) {
-        await saveProfileMemory(
-          memory.fact,
-          "automatic-high-confidence",
-          memory.scope,
-          ownerId,
-        );
-        autoMemoryCount += 1;
       }
     }
     [memories, history] = await Promise.all([
@@ -1029,6 +962,59 @@ router.post("/chat", async (req, res) => {
           error instanceof ImageServiceError
             ? error.message
             : "Снимката не можа да бъде разпозната. Опитай отново.",
+      });
+    }
+    res.end();
+    return;
+  }
+
+  if (memoryWriteConfirmationId) {
+    try {
+      const items = await confirmMemoryWrite({
+        confirmationId: memoryWriteConfirmationId,
+        sessionId: cleanSessionId,
+        ownerId,
+        source: "confirmed-chat-command",
+      });
+      const fullReply = formatMemoryWriteResult(items);
+      await saveConversationTurnBestEffort(
+        cleanSessionId,
+        cleanMessage,
+        fullReply,
+        ownerId,
+      );
+      await auditAction({
+        action: "memory.write",
+        decision: "confirmed",
+        outcome: "succeeded",
+        resource: "profile-memory",
+        details: `chat:confirmed:${items.length}`,
+        sessionId: cleanSessionId,
+      });
+      sendEvent("token", { token: fullReply });
+      sendEvent("done", {
+        ok: true,
+        mode: "confirmed-memory-write",
+        memoryUpdated: true,
+        count: items.length,
+      });
+    } catch (error) {
+      console.error("[Memory write confirmation]", error);
+      await auditAction({
+        action: "memory.write",
+        decision: "confirmed",
+        outcome: "failed",
+        resource: "profile-memory",
+        details: `chat:failed:${error?.code || "unknown"}`,
+        sessionId: cleanSessionId,
+      });
+      sendEvent("error", {
+        status:
+          error instanceof MemoryWriteConfirmationError ? error.status : 500,
+        message:
+          error instanceof MemoryWriteConfirmationError
+            ? error.message
+            : "Постоянният запис не можа да бъде потвърден.",
       });
     }
     res.end();

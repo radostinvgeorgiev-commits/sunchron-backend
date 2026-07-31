@@ -113,6 +113,20 @@ test("uses the operational MCP secret when the invite code is short", () => {
   });
 });
 
+test("rejects encrypted App Platform placeholders before using public bootstrap", () => {
+  const productionLikeEnv = {
+    SUPABASE_URL: "EV[1:encrypted-placeholder]",
+    SUPABASE_PUBLISHABLE_KEY: "EV[1:encrypted-placeholder]",
+    MCP_ACCESS_TOKEN: "mcp-access-token-with-at-least-32-characters",
+    SYNCHRON_TEST_INVITE_CODE: "short-code",
+  };
+  assert.deepEqual(getUserAuthConfigurationStatus(productionLikeEnv), {
+    projectConnection: true,
+    sessionProtection: true,
+  });
+  assert.equal(isUserAuthConfigured(productionLikeEnv), true);
+});
+
 test("encrypts the Supabase session and never leaves tokens in the cookie", () => {
   const original = session("secret");
   const encrypted = encryptUserSession(original, ENV);

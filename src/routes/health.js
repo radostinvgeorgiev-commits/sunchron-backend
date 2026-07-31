@@ -1,6 +1,7 @@
 import express from "express";
 import { getOpenSearchClient } from "../config/opensearch.js";
 import { resolveRuntimeVersion } from "../config/runtimeVersion.js";
+import { getMemoryStartupVerificationStatus } from "../services/memoryStartupVerificationService.js";
 import {
   getGitHubSession,
   isAuthorizedGitHubLogin,
@@ -49,6 +50,7 @@ async function withTimeout(promise, timeoutMs) {
 export async function getReadinessStatus({
   env = process.env,
   loadOpenSearchClient = getOpenSearchClient,
+  loadMemoryVerificationStatus = getMemoryStartupVerificationStatus,
   timeoutMs = DEFAULT_READINESS_TIMEOUT_MS,
 } = {}) {
   const openAiReady = Boolean(env.OPENAI_API_KEY);
@@ -70,7 +72,11 @@ export async function getReadinessStatus({
   }
 
   const bridge = (await getBridgeDiagnosticsStatus({ env, timeoutMs })).bridge;
-  const ready = chatAgentReady && memory.ready;
+  const memoryVerification = loadMemoryVerificationStatus();
+  const memoryVerificationRequired = env.NODE_ENV === "production";
+  const memoryVerificationReady =
+    !memoryVerificationRequired || memoryVerification.status === "works";
+  const ready = chatAgentReady && memory.ready && memoryVerificationReady;
   return {
     status: ready ? "ready" : "not-ready",
     ...getRuntimeVersion(env),
@@ -82,6 +88,19 @@ export async function getReadinessStatus({
         removedProvider: "digitalocean-agent",
       },
       memory,
+      memoryAcceptance: {
+        required: memoryVerificationRequired,
+        ready: memoryVerificationReady,
+        status: memoryVerification.status,
+        attempts: memoryVerification.attempts,
+        startedAt: memoryVerification.startedAt,
+        finishedAt: memoryVerification.finishedAt,
+        isolated: memoryVerification.isolated,
+        realMemoryUnchanged: memoryVerification.realMemoryUnchanged,
+        cleanupCompleted: memoryVerification.cleanupCompleted,
+        passedSteps: memoryVerification.passedSteps,
+        errorCode: memoryVerification.errorCode,
+      },
       bridge,
     },
   };

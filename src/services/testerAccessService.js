@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { getOpenSearchClient } from "../config/opensearch.js";
 
 const DEFAULT_INDEX = "synchron-tester-access-v1";
@@ -21,6 +23,16 @@ function cleanUserId(user) {
     );
   }
   return userId;
+}
+
+function cleanEmailHash(value) {
+  const email = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!email) return "";
+  return createHash("sha256").update(email).digest("hex");
+}
+
+function emailApprovalId(emailHash) {
+  return `email:${emailHash}`;
 }
 
 function accessIndex(env = process.env) {
@@ -74,6 +86,41 @@ export async function approveTesterAccess(
   return { userId, approvedAt };
 }
 
+export async function approveTesterEmail(
+  email,
+  { client, env = process.env } = {},
+) {
+  const emailHash = cleanEmailHash(email);
+  if (!emailHash) {
+    throw new TesterAccessError(
+      "Липсва валиден имейл за тестовия достъп.",
+      400,
+      "TESTER_ACCESS_INVALID_EMAIL",
+    );
+  }
+  const approvedAt = new Date().toISOString();
+  try {
+    await requireClient(client).index({
+      index: accessIndex(env),
+      id: emailApprovalId(emailHash),
+      body: {
+        emailHash,
+        status: "approved",
+        approvedAt,
+      },
+      refresh: true,
+    });
+  } catch (error) {
+    if (error instanceof TesterAccessError) throw error;
+    throw new TesterAccessError(
+      "Предварителното одобрение на тестовия профил не можа да бъде запазено.",
+      503,
+      "TESTER_ACCESS_PERSISTENCE_FAILED",
+    );
+  }
+  return { emailHash, approvedAt };
+}
+
 export async function assertTesterAccess(
   user,
   { client, env = process.env } = {},
@@ -85,8 +132,9 @@ export async function assertTesterAccess(
       : "";
   if (primaryUserId && userId === primaryUserId) return true;
 
+  const accessClient = requireClient(client);
   try {
-    const response = await requireClient(client).get({
+    const response = await accessClient.get({
       index: accessIndex(env),
       id: userId,
     });
@@ -102,6 +150,28 @@ export async function assertTesterAccess(
         503,
         "TESTER_ACCESS_UNAVAILABLE",
       );
+    }
+  }
+
+  const emailHash = cleanEmailHash(user?.email);
+  if (emailHash) {
+    try {
+      const response = await accessClient.get({
+        index: accessIndex(env),
+        id: emailApprovalId(emailHash),
+      });
+      const source = response.body?._source ?? response._source;
+      if (source?.emailHash === emailHash && source?.status === "approved") {
+        return true;
+      }
+    } catch (error) {
+      if (Number(statusCode(error)) !== 404) {
+        throw new TesterAccessError(
+          "Проверката на одобрения тестов профил временно не е достъпна.",
+          503,
+          "TESTER_ACCESS_UNAVAILABLE",
+        );
+      }
     }
   }
 

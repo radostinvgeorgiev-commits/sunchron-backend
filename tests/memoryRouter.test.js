@@ -4,38 +4,11 @@ import express from "express";
 import request from "supertest";
 
 import {
-  CLEAR_MEMORY_CONFIRMATION,
+  createProfileMemoryClearHandler,
+  createProfileMemoryDeleteHandler,
   createProfileMemoryWriteHandler,
-  hasClearMemoryConfirmation,
 } from "../src/routes/memoryRouter.js";
 import { MemoryWriteConfirmationError } from "../src/services/memoryWriteConfirmationService.js";
-
-function requestWithConfirmation(value) {
-  return {
-    get(name) {
-      assert.equal(name, "x-confirm-memory-delete");
-      return value;
-    },
-  };
-}
-
-test("memory API deletion requires exact explicit confirmation", () => {
-  assert.equal(hasClearMemoryConfirmation(requestWithConfirmation()), false);
-  assert.equal(
-    hasClearMemoryConfirmation(requestWithConfirmation("да, изтрий")),
-    false,
-  );
-  assert.equal(
-    hasClearMemoryConfirmation(
-      requestWithConfirmation(CLEAR_MEMORY_CONFIRMATION),
-    ),
-    true,
-  );
-});
-
-test("memory deletion confirmation is safe for an HTTP header", () => {
-  assert.match(CLEAR_MEMORY_CONFIRMATION, /^[\x20-\x7E]+$/u);
-});
 
 function writeTestApp(options) {
   const app = express();
@@ -47,6 +20,112 @@ function writeTestApp(options) {
   app.post("/memory/profile", createProfileMemoryWriteHandler(options));
   return app;
 }
+
+function deleteTestApp({ item = {}, bulk = {} } = {}) {
+  const app = express();
+  app.use(express.json());
+  app.use((req, _res, next) => {
+    req.owner = { memoryOwnerId: "owner-a" };
+    next();
+  });
+  app.delete("/memory/profile/:id", createProfileMemoryDeleteHandler(item));
+  app.delete("/memory/profile", createProfileMemoryClearHandler(bulk));
+  return app;
+}
+
+test("memory API rejects the legacy reusable header and prepares a one-time item delete", async () => {
+  const auditEvents = [];
+  let preparedInput;
+  const app = deleteTestApp({
+    item: {
+      prepare: async (input) => {
+        preparedInput = input;
+        return {
+          confirmationId: "123e4567-e89b-12d3-a456-426614174000",
+          expiresAt: Date.now() + 60_000,
+          target: input.target,
+        };
+      },
+      confirm: async () => assert.fail("must not delete during preparation"),
+      audit: async (event) => auditEvents.push(event),
+    },
+  });
+
+  await request(app)
+    .delete("/memory/profile/memory-private-id")
+    .set("x-confirm-memory-delete", "confirm-delete-profile-memory")
+    .send({})
+    .expect(400);
+
+  const response = await request(app)
+    .delete("/memory/profile/memory-private-id")
+    .set("x-confirm-memory-delete", "confirm-delete-profile-memory")
+    .send({ sessionId: "session-a" })
+    .expect(409);
+
+  assert.equal(response.body.code, "MEMORY_DELETE_CONFIRMATION_REQUIRED");
+  assert.match(response.body.confirmationPhrase, /123e4567/u);
+  assert.deepEqual(preparedInput.target, {
+    kind: "id",
+    id: "memory-private-id",
+  });
+  assert.doesNotMatch(JSON.stringify(auditEvents), /memory-private-id/u);
+  assert.doesNotMatch(JSON.stringify(auditEvents), /123e4567/u);
+});
+
+test("memory API performs only the item stored in the exact one-time confirmation", async () => {
+  const auditEvents = [];
+  let confirmedInput;
+  const app = deleteTestApp({
+    item: {
+      confirm: async (input) => {
+        confirmedInput = input;
+        return { target: input.expectedTarget, deleted: 1 };
+      },
+      audit: async (event) => auditEvents.push(event),
+    },
+  });
+
+  const response = await request(app)
+    .delete("/memory/profile/memory-1")
+    .send({
+      sessionId: "session-a",
+      confirmationId: "123e4567-e89b-12d3-a456-426614174000",
+    })
+    .expect(200);
+
+  assert.equal(confirmedInput.ownerId, "owner-a");
+  assert.deepEqual(confirmedInput.expectedTarget, {
+    kind: "id",
+    id: "memory-1",
+  });
+  assert.equal(response.body.deleted, 1);
+  assert.doesNotMatch(JSON.stringify(auditEvents), /memory-1/u);
+  assert.doesNotMatch(JSON.stringify(auditEvents), /123e4567/u);
+});
+
+test("memory API protects a bulk delete with the exact scope", async () => {
+  let preparedInput;
+  const app = deleteTestApp({
+    bulk: {
+      prepare: async (input) => {
+        preparedInput = input;
+        return {
+          confirmationId: "123e4567-e89b-12d3-a456-426614174000",
+          expiresAt: Date.now() + 60_000,
+          target: input.target,
+        };
+      },
+      audit: async () => {},
+    },
+  });
+
+  await request(app)
+    .delete("/memory/profile?scope=project")
+    .send({ sessionId: "session-a" })
+    .expect(409);
+  assert.deepEqual(preparedInput.target, { kind: "all", scope: "project" });
+});
 
 test("memory API returns 409 and never writes before exact confirmation", async () => {
   const auditEvents = [];

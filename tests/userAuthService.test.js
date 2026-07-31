@@ -91,6 +91,14 @@ test("uses the public production Supabase connection when App Platform omits it"
   assert.equal(isTesterRegistrationEnabled(fallbackEnv), true);
 });
 
+test("derives session protection from the private production invite code", () => {
+  const productionLikeEnv = {
+    SYNCHRON_TEST_INVITE_CODE: "private-invite-code-with-enough-entropy",
+  };
+  assert.equal(isUserAuthConfigured(productionLikeEnv), true);
+  assert.equal(isTesterRegistrationEnabled(productionLikeEnv), true);
+});
+
 test("encrypts the Supabase session and never leaves tokens in the cookie", () => {
   const original = session("secret");
   const encrypted = encryptUserSession(original, ENV);

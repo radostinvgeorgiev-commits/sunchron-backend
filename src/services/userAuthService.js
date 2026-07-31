@@ -37,15 +37,16 @@ function normalizeProjectUrl(value) {
 function sessionSecret(env = process.env) {
   const dedicated = (env.SUPABASE_SESSION_ENCRYPTION_KEY || "").trim();
   if (dedicated) return dedicated;
-  const ownerSessionSecret = (
+  const fallbackSecret = (
     env.GITHUB_SESSION_ENCRYPTION_KEY ||
     env.GITHUB_CLIENT_SECRET ||
+    env.SYNCHRON_TEST_INVITE_CODE ||
     ""
   ).trim();
-  if (ownerSessionSecret.length < 16) return "";
+  if (fallbackSecret.length < 16) return "";
   return createHash("sha256")
     .update("synchron-supabase-session-v1\0")
-    .update(ownerSessionSecret)
+    .update(fallbackSecret)
     .digest("base64url");
 }
 

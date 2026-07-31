@@ -103,3 +103,34 @@ jobs:
               if (!bridge?.configured || !bridge?.responding) process.exit(1);
             });
           '
+
+      - name: Check tester auth readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail --silent --show-error \
+            --retry 3 --retry-delay 10 --retry-all-errors \
+            --max-time 30 \
+            https://synchron.foundation/api/auth/session)"
+          printf '%s' "${response}" | node -e '
+            let input = "";
+            process.stdin.on("data", (chunk) => { input += chunk; });
+            process.stdin.on("end", () => {
+              const status = JSON.parse(input);
+              const configuration = status.configuration || {};
+              console.log(JSON.stringify({
+                configured: Boolean(status.configured),
+                registrationEnabled: Boolean(status.registrationEnabled),
+                projectConnection: Boolean(configuration.projectConnection),
+                sessionProtection: Boolean(configuration.sessionProtection),
+              }));
+              if (
+                !status.configured ||
+                !status.registrationEnabled ||
+                !configuration.projectConnection ||
+                !configuration.sessionProtection
+              ) {
+                process.exit(1);
+              }
+            });
+          '

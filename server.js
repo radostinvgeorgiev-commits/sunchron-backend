@@ -9,6 +9,8 @@ import {
   requirePrimaryOwner,
 } from "./src/middleware/ownerAuth.js";
 import { createRateLimiters } from "./src/middleware/rateLimits.js";
+import { startMemoryStartupVerification } from "./src/services/memoryStartupVerificationService.js";
+import { executeCapability } from "./src/tools/capabilityEngine.js";
 
 import chatRouter from "./src/routes/chat.js";
 import healthRouter from "./src/routes/health.js";
@@ -205,6 +207,27 @@ function startServer() {
   const PORT = process.env.PORT || 8080;
   app.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
+    void startMemoryStartupVerification({
+      ownerId: process.env.MEMORY_OWNER_ID || "primary-user",
+      verifyDeleteGuard: async ({ fact, scope, ownerId }) => {
+        try {
+          await executeCapability(
+            "memory.delete",
+            { fact, scope, ownerId },
+            { confirmed: false },
+          );
+        } catch (error) {
+          if (error?.code === "CAPABILITY_CONFIRMATION_REQUIRED") return true;
+          throw error;
+        }
+        return false;
+      },
+    }).then((status) => {
+      const log = status.ready ? console.log : console.error;
+      log(
+        `[Memory acceptance] status=${status.status} attempts=${status.attempts} cleanup=${status.cleanupCompleted}`,
+      );
+    });
   });
 }
 

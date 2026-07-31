@@ -2,6 +2,7 @@ import {
   createCipheriv,
   createDecipheriv,
   createHash,
+  createHmac,
   randomBytes,
   scryptSync,
   timingSafeEqual,
@@ -33,7 +34,33 @@ function normalizeProjectUrl(value) {
 }
 
 function sessionSecret(env = process.env) {
-  return (env.SUPABASE_SESSION_ENCRYPTION_KEY || "").trim();
+  const dedicated = (env.SUPABASE_SESSION_ENCRYPTION_KEY || "").trim();
+  if (dedicated) return dedicated;
+  const ownerSessionSecret = (
+    env.GITHUB_SESSION_ENCRYPTION_KEY ||
+    env.GITHUB_CLIENT_SECRET ||
+    ""
+  ).trim();
+  if (ownerSessionSecret.length < 16) return "";
+  return createHash("sha256")
+    .update("synchron-supabase-session-v1\0")
+    .update(ownerSessionSecret)
+    .digest("base64url");
+}
+
+export function getTesterInviteCode(env = process.env) {
+  const dedicated = (env.SYNCHRON_TEST_INVITE_CODE || "").trim();
+  if (dedicated) return dedicated;
+  const ownerSessionSecret = (
+    env.GITHUB_SESSION_ENCRYPTION_KEY ||
+    env.GITHUB_CLIENT_SECRET ||
+    ""
+  ).trim();
+  if (ownerSessionSecret.length < 16) return "";
+  return createHmac("sha256", ownerSessionSecret)
+    .update("synchron-tester-invite-v1")
+    .digest("base64url")
+    .slice(0, 16);
 }
 
 function authConfig(env = process.env) {
@@ -57,10 +84,7 @@ export function isUserAuthConfigured(env = process.env) {
 }
 
 export function isTesterRegistrationEnabled(env = process.env) {
-  return (
-    typeof env.SYNCHRON_TEST_INVITE_CODE === "string" &&
-    env.SYNCHRON_TEST_INVITE_CODE.trim().length >= 8
-  );
+  return getTesterInviteCode(env).length >= 8;
 }
 
 function requireAuthConfig(env = process.env) {
@@ -339,7 +363,7 @@ function cleanDisplayName(value, email) {
 function inviteCodeMatches(value, env = process.env) {
   if (!isTesterRegistrationEnabled(env)) return false;
   const expected = createHash("sha256")
-    .update(env.SYNCHRON_TEST_INVITE_CODE.trim())
+    .update(getTesterInviteCode(env))
     .digest();
   const received = createHash("sha256")
     .update(typeof value === "string" ? value.trim() : "")

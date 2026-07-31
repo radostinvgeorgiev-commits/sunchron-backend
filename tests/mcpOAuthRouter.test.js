@@ -149,7 +149,7 @@ test("authorization consent issues a code bound to the browser profile", async (
     }),
   );
   const consent = await request(app).get("/oauth/authorize").expect(200);
-  assert.match(consent.text, /Свързване на ChatGPT със СЪЗВУК/u);
+  assert.match(consent.text, /Свързване на ChatGPT със AI CORE/u);
   const csrf = consent.text.match(/name="csrf_token" value="([^"]+)"/u)?.[1];
   assert.ok(csrf);
   const approved = await request(app)

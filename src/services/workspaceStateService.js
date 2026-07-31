@@ -60,7 +60,7 @@ function defaultWorkspaceState(now = new Date().toISOString()) {
     agents: [
       {
         id: "synchron-builder",
-        name: "СЪЗВУК",
+        name: "AI CORE",
         role: "builder",
         purpose: "Подготвя реален резултат и показва какво е проверено.",
       },

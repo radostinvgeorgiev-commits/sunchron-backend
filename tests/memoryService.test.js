@@ -109,7 +109,7 @@ test("empty permanent memory is described as additional to the base context", ()
   const context = buildMemoryContext([]);
 
   assert.match(context, /Няма допълнително записани лични факти/u);
-  assert.match(context, /СЪЗВУК е лична AI операционна система/u);
+  assert.match(context, /AI CORE е лична AI операционна система/u);
   assert.doesNotMatch(context, /Няма записани лични факти/u);
 });
 
@@ -121,7 +121,7 @@ test("canonical project definition replaces an obsolete avatar-only goal in cont
     },
   ]);
 
-  assert.match(context, /СЪЗВУК е лична AI операционна система/u);
+  assert.match(context, /AI CORE е лична AI операционна система/u);
   assert.doesNotMatch(
     context,
     /\[КОНТЕКСТ НА ПРОЕКТА\][\s\S]*Текущата цел е работещ личен AI аватар/u,

@@ -99,5 +99,5 @@ test("missing workspace returns a safe starter state", async () => {
 
   assert.equal(result.persisted, false);
   assert.equal(result.state.projects[0].id, "starter-project");
-  assert.equal(result.state.agents[0].name, "СЪЗВУК");
+  assert.equal(result.state.agents[0].name, "AI CORE");
 });

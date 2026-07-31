@@ -309,7 +309,7 @@ async function showWelcomeMessage() {
   appendMessage(
     "agent",
     [
-      "## СЪЗВУК",
+      "## AI CORE",
       "**Твоята лична AI операционна система.**",
       "",
       "Едно AI ядро, постоянна контролирана памет и разрешени инструменти за реални задачи.",
@@ -744,7 +744,7 @@ async function openToolsDrawer() {
               tool.id === "github-write" &&
               tool.availabilityCode === "COPILOT_AUTOMATION_DISABLED"
                 ? "Кодовият мост е запазен, но е изключен в текущия режим без Copilot."
-                : descriptions[tool.id] || "Инструмент на СЪЗВУК.";
+                : descriptions[tool.id] || "Инструмент на AI CORE.";
             return `
               <article class="permission-card tool-status-card">
                 <div>
@@ -1012,7 +1012,7 @@ function showGitHubSetup() {
         <span><i class="fa-solid fa-check"></i></span>
         <div>
           <strong>Четенето е активно</strong>
-          <p>СЪЗВУК може да проверява разрешеното хранилище, commit-и и Pull Request-и.</p>
+          <p>AI CORE може да проверява разрешеното хранилище, commit-и и Pull Request-и.</p>
         </div>
       </article>
       <article class="setup-step">
@@ -1032,9 +1032,9 @@ function showGitHubSetup() {
 function showPermissionInfo(action) {
   const messages = {
     "calendar.write":
-      "Записът в Google Calendar е активен след свързване на Google. СЪЗВУК първо показва точните данни и записва събитието само след еднократно потвърждение.",
+      "Записът в Google Calendar е активен след свързване на Google. AI CORE първо показва точните данни и записва събитието само след еднократно потвърждение.",
     "memory.write":
-      "Записът в паметта е активен. Преди постоянен запис СЪЗВУК трябва да покаже точния текст и да поиска твоето потвърждение.",
+      "Записът в паметта е активен. Преди постоянен запис AI CORE трябва да покаже точния текст и да поиска твоето потвърждение.",
     "memory.delete":
       "Изтриването е активно, но се изпълнява само след точно потвърждение за конкретния спомен.",
     "external.send":

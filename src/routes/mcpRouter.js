@@ -78,7 +78,7 @@ export function requireMcpAuthorization(
       content: [
         {
           type: "text",
-          text: "Нужно е OAuth свързване със СЪЗВУК.",
+          text: "Нужно е OAuth свързване със AI CORE.",
         },
       ],
       isError: true,

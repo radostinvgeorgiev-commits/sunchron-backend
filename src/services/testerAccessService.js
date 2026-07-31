@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 
 import { getOpenSearchClient } from "../config/opensearch.js";
 
@@ -25,10 +25,33 @@ function cleanUserId(user) {
   return userId;
 }
 
-function cleanEmailHash(value) {
+function emailApprovalKey(env = process.env) {
+  const secret = (
+    env.SUPABASE_SESSION_ENCRYPTION_KEY ||
+    env.GITHUB_SESSION_ENCRYPTION_KEY ||
+    env.MCP_ACCESS_TOKEN ||
+    env.SYNCHRON_TEST_INVITE_CODE ||
+    ""
+  ).trim();
+  if (secret.length < 16) {
+    throw new TesterAccessError(
+      "Защитата на одобренията по имейл не е конфигурирана.",
+      503,
+      "TESTER_ACCESS_UNAVAILABLE",
+    );
+  }
+  return createHash("sha256")
+    .update("synchron-tester-email-approval-v1\0")
+    .update(secret)
+    .digest();
+}
+
+function cleanEmailHash(value, env = process.env) {
   const email = typeof value === "string" ? value.trim().toLowerCase() : "";
   if (!email) return "";
-  return createHash("sha256").update(email).digest("hex");
+  return createHmac("sha256", emailApprovalKey(env))
+    .update(email)
+    .digest("hex");
 }
 
 function emailApprovalId(emailHash) {
@@ -90,7 +113,7 @@ export async function approveTesterEmail(
   email,
   { client, env = process.env } = {},
 ) {
-  const emailHash = cleanEmailHash(email);
+  const emailHash = cleanEmailHash(email, env);
   if (!emailHash) {
     throw new TesterAccessError(
       "Липсва валиден имейл за тестовия достъп.",
@@ -153,7 +176,7 @@ export async function assertTesterAccess(
     }
   }
 
-  const emailHash = cleanEmailHash(user?.email);
+  const emailHash = cleanEmailHash(user?.email, env);
   if (emailHash) {
     try {
       const response = await accessClient.get({

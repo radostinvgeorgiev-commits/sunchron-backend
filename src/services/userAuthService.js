@@ -8,6 +8,11 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { TESTER_AUTH_BOOTSTRAP } from "../config/testerAuthBootstrap.js";
+import {
+  approveTesterAccess,
+  assertTesterAccess,
+  TesterAccessError,
+} from "./testerAccessService.js";
 
 export const USER_SESSION_COOKIE = "synchron_user_session";
 const SESSION_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
@@ -407,9 +412,27 @@ function mapAuthError(error, fallbackMessage) {
   );
 }
 
+function mapTesterAccessError(error) {
+  if (
+    error instanceof TesterAccessError ||
+    (typeof error?.code === "string" && error.code.startsWith("TESTER_ACCESS_"))
+  ) {
+    return new UserAuthError(
+      error.message || "Тестовият достъп беше отказан.",
+      Number(error.status) || 503,
+      error.code,
+    );
+  }
+  return new UserAuthError(
+    "Проверката на тестовия достъп временно не е достъпна.",
+    503,
+    "TESTER_ACCESS_UNAVAILABLE",
+  );
+}
+
 export async function signInUser(
   { email, password },
-  { env = process.env, client } = {},
+  { env = process.env, client, requireTesterAccess = assertTesterAccess } = {},
 ) {
   const authClient = client || createAuthClient(env);
   const credentials = {
@@ -420,12 +443,17 @@ export async function signInUser(
   if (error || !data?.user || !data?.session) {
     throw mapAuthError(error, "Имейлът или паролата са неправилни.");
   }
+  try {
+    await requireTesterAccess(data.user, { env });
+  } catch (error) {
+    throw mapTesterAccessError(error);
+  }
   return { user: data.user, session: sessionPayload(data.session) };
 }
 
 export async function registerTester(
   { email, password, displayName, inviteCode },
-  { env = process.env, client } = {},
+  { env = process.env, client, approveAccess = approveTesterAccess } = {},
 ) {
   if (!inviteCodeMatches(inviteCode, env)) {
     throw new UserAuthError(
@@ -452,6 +480,11 @@ export async function registerTester(
       error,
       "Потребителският профил не можа да бъде създаден.",
     );
+  }
+  try {
+    await approveAccess(data.user, { env });
+  } catch (error) {
+    throw mapTesterAccessError(error);
   }
   return {
     user: data.user,
@@ -485,7 +518,7 @@ function publicUser(user, env = process.env) {
 
 export async function resolveUserSession(
   cookieHeader,
-  { env = process.env, client } = {},
+  { env = process.env, client, requireTesterAccess = assertTesterAccess } = {},
 ) {
   const encrypted = parseCookies(cookieHeader)[USER_SESSION_COOKIE];
   const storedSession = decryptUserSession(encrypted, env);
@@ -513,6 +546,13 @@ export async function resolveUserSession(
     currentSession = sessionPayload(result.data.session);
     user = result.data.user;
     refreshed = true;
+  }
+
+  try {
+    await requireTesterAccess(user, { env });
+  } catch (error) {
+    if (error?.code === "TESTER_ACCESS_NOT_APPROVED") return null;
+    throw error;
   }
 
   return {

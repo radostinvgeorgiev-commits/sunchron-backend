@@ -80,6 +80,7 @@ test("returns the exact safe DigitalOcean permission error", async () => {
       params: BOOTSTRAP,
     }),
     consumeConfirmation: async () => {},
+    executeWrite: async ({ execute }) => execute(),
     activate: async () => {
       throw error;
     },
@@ -109,6 +110,7 @@ test("consumes the exact confirmation before activating DigitalOcean", async () 
       };
     },
     consumeConfirmation: async (id) => events.push(`consume:${id}`),
+    executeWrite: async ({ execute }) => execute(),
     activate: async (input) => {
       events.push("activate");
       assert.equal(input.expectedAppId, "app-1");

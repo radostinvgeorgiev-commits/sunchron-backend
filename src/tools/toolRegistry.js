@@ -112,6 +112,21 @@ export function registerCoreTools() {
       healthStatus: "unavailable",
     },
     {
+      id: "synchron-system-inspector",
+      provider: "synchron",
+      name: "Системен контрол",
+      version: "1.0.0",
+      category: "system",
+      capabilities: ["system.configuration.read"],
+      permissions: ["infrastructure.read"],
+      capabilityPermissions: {
+        "system.configuration.read": "infrastructure.read",
+      },
+      enabled: true,
+      requiresConfirmation: false,
+      healthStatus: "unavailable",
+    },
+    {
       id: "github-read",
       provider: "github",
       name: "GitHub Read",

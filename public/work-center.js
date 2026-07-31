@@ -293,6 +293,14 @@
         icon: "fa-brands fa-digital-ocean",
         status: `DigitalOcean Read: ${digitalOceanStatus.label.toLocaleLowerCase("bg-BG")}`,
       }),
+      createInternalCard({
+        title: "Системен контрол",
+        description:
+          "Ядро, инструменти и DigitalOcean променливи без показване на тайни.",
+        targetId: "systemConfigurationBtn",
+        icon: "fa-solid fa-sliders",
+        status: "Защитено · Само за собственика",
+      }),
       createActionCard({
         title:
           testerAuth?.configured && testerAuth?.registrationEnabled

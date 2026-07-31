@@ -61,6 +61,7 @@ const elements = {
   sidebarBackdrop: document.getElementById("sidebarBackdrop"),
   imagesBtn: document.getElementById("imagesBtn"),
   modulesBtn: document.getElementById("modulesBtn"),
+  systemConfigurationBtn: document.getElementById("systemConfigurationBtn"),
   focusBtn: document.getElementById("focusBtn"),
   toolsBtn: document.getElementById("toolsBtn"),
   memoryBtn: document.getElementById("memoryBtn"),
@@ -277,6 +278,10 @@ async function startApplication(user) {
   elements.modulesBtn.addEventListener("click", openModulesDrawer);
   elements.focusBtn.addEventListener("click", openFocusDrawer);
   elements.toolsBtn.addEventListener("click", openToolsDrawer);
+  elements.systemConfigurationBtn.addEventListener(
+    "click",
+    openSystemConfigurationDrawer,
+  );
   elements.memoryBtn.addEventListener("click", openMemoryDrawer);
   elements.permissionsBtn.addEventListener("click", openPermissionsDrawer);
   elements.closeDataDrawerBtn.addEventListener("click", closeDataDrawer);
@@ -717,12 +722,21 @@ async function openToolsDrawer() {
       "gmail-read": "Показва разрешени имейли. Не изпраща.",
       "openai-web-search": "Търси актуална информация в интернет.",
       "opensearch-memory": "Пази лична и проектна памет под твой контрол.",
+      "synchron-system-inspector":
+        "Проверява ядрото и всички runtime/DigitalOcean настройки без техните стойности.",
     };
     elements.dataDrawerBody.innerHTML = `
       <div class="permission-default">
         Показано е реалното състояние. „Регистриран“ не означава автоматично „работи“.
       </div>
       <section class="drawer-section permission-list">
+        <button type="button" class="permission-card tool-status-card system-control-link" data-system-configuration>
+          <div>
+            <strong>Системен контрол</strong>
+            <p>Ядро, инструменти и всички променливи без показване на тайните им стойности.</p>
+          </div>
+          <span class="permission-badge allow">Отвори</span>
+        </button>
         <article class="permission-card tool-status-card">
           <div><strong>Снимки и файлове</strong><p>Качване и анализ на изображение.</p></div>
           <span class="permission-badge allow">Работи</span>
@@ -750,6 +764,93 @@ async function openToolsDrawer() {
           })
           .join("")}
       </section>`;
+  } catch (error) {
+    renderDrawerError(error.message);
+  }
+}
+
+function configurationStatus(item) {
+  const labels = {
+    configured: ["Настроена", "allow"],
+    defaulted: ["По подразбиране", "allow"],
+    "missing-required": ["Липсва", "deny"],
+    "optional-missing": ["Незадължителна", "confirm"],
+    compatibility: ["Стар резервен път", "confirm"],
+    "not-needed": ["Не е нужна", "allow"],
+    unused: ["Не се използва", "deny"],
+  };
+  const [label, className] = labels[item.status] || [item.status, "confirm"];
+  return { label, className };
+}
+
+function renderEnvironmentGroup(area, items) {
+  return `
+    <details class="configuration-group" ${items.some((item) => item.status === "missing-required") ? "open" : ""}>
+      <summary>${escapeHtml(area)} <span>${items.length}</span></summary>
+      <div class="configuration-list">
+        ${items
+          .map((item) => {
+            const status = configurationStatus(item);
+            return `
+              <article class="configuration-item">
+                <div>
+                  <code>${escapeHtml(item.key)}</code>
+                  <p>${escapeHtml(item.purpose)}</p>
+                  <small>
+                    ${item.sensitivity === "secret" ? "Тайна стойност · никога не се показва" : "Обща настройка"}
+                    · DigitalOcean: ${item.digitalOceanDeclared ? "декларирана" : "не е декларирана"}
+                  </small>
+                </div>
+                <span class="permission-badge ${status.className}">${status.label}</span>
+              </article>`;
+          })
+          .join("")}
+      </div>
+    </details>`;
+}
+
+async function openSystemConfigurationDrawer() {
+  openDataDrawer("Системен контрол");
+  renderDrawerLoading();
+  try {
+    const [configurationResponse, integrationsResponse, readinessResponse] =
+      await Promise.all([
+        fetch("/api/system/configuration", { cache: "no-store" }),
+        fetch("/health/integrations", { cache: "no-store" }),
+        fetch("/health/ready", { cache: "no-store" }),
+      ]);
+    if (!configurationResponse.ok || !integrationsResponse.ok) {
+      throw new Error("Системната проверка временно не е достъпна.");
+    }
+    const configuration = await configurationResponse.json();
+    const integrations = await integrationsResponse.json();
+    const readiness = readinessResponse.ok
+      ? await readinessResponse.json()
+      : null;
+    const groups = new Map();
+    for (const item of configuration.environment || []) {
+      if (!groups.has(item.area)) groups.set(item.area, []);
+      groups.get(item.area).push(item);
+    }
+    const tools = Array.isArray(integrations.tools) ? integrations.tools : [];
+    const workingTools = tools.filter(
+      (tool) => tool.enabled && tool.executable && tool.configured,
+    ).length;
+    elements.dataDrawerBody.innerHTML = `
+      <div class="permission-default system-summary">
+        <strong>${readiness?.status === "ready" ? "Ядрото е готово" : "Ядрото изисква внимание"}</strong>
+        <p>${workingTools} от ${tools.length} инструмента са конфигурирани и изпълними.</p>
+        <p>${configuration.summary.configured} настройки са налични; ${configuration.summary.missingRequired} задължителни липсват.</p>
+        <p>DigitalOcean самопроверка: ${configuration.digitalOcean.connected ? "работи" : "не е достъпна"}.</p>
+        <small>Тук няма стойности на ключове, пароли или token-и.</small>
+      </div>
+      <section class="drawer-section">
+        <h3>Променливи <span>${configuration.summary.total}</span></h3>
+        ${[...groups.entries()]
+          .map(([area, items]) => renderEnvironmentGroup(area, items))
+          .join("")}
+      </section>
+      <button type="button" class="permission-info-btn" data-back-tools>Назад към инструментите</button>`;
   } catch (error) {
     renderDrawerError(error.message);
   }
@@ -957,6 +1058,10 @@ function showPermissionInfo(action) {
 }
 
 async function handleDataDrawerAction(event) {
+  if (event.target.closest("[data-system-configuration]")) {
+    await openSystemConfigurationDrawer();
+    return;
+  }
   const connectionButton = event.target.closest("[data-connect-service]");
   if (connectionButton) {
     if (connectionButton.dataset.connectService === "google") {

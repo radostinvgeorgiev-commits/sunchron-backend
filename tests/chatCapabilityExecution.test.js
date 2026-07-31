@@ -88,6 +88,19 @@ test("общ въпрос за инструментите задейства р�
   }
 });
 
+test("проверка на сървърните променливи използва защитения системен контрол", () => {
+  for (const message of [
+    "Провери всички променливи на сървъра.",
+    "Покажи конфигурацията на ядрото и DigitalOcean.",
+    "Виж environment настройките на системата.",
+  ]) {
+    assert.deepEqual(
+      detectCapabilityRequests(message).map(({ capability }) => capability),
+      ["system.configuration.read"],
+    );
+  }
+});
+
 test("въпрос дали GitHub може да пише минава през реалния статус на Copilot моста", () => {
   for (const message of [
     "Демек вече може да пише в хъба и да комитва?",

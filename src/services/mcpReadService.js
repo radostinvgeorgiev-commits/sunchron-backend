@@ -24,6 +24,10 @@ import {
   formatCloudflareStatus,
   getCloudflareZoneStatus,
 } from "./cloudflareService.js";
+import {
+  formatSystemConfigurationReport,
+  getSystemConfigurationReport,
+} from "./systemConfigurationService.js";
 import { mcpToolSecuritySchemes } from "./mcpOAuthService.js";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
@@ -110,6 +114,19 @@ export const MCP_TOOLS = Object.freeze([
       additionalProperties: false,
     },
     securitySchemes: mcpToolSecuritySchemes("get_digitalocean_app_status"),
+    annotations: READ_ONLY_ANNOTATIONS,
+  },
+  {
+    name: "get_system_configuration",
+    title: "Провери системната конфигурация",
+    description:
+      "Показва предназначението и състоянието на runtime и DigitalOcean променливите, ядрото и връзките, без стойности на ключове, пароли или token-и. Не променя нищо.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    securitySchemes: mcpToolSecuritySchemes("get_system_configuration"),
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
@@ -211,6 +228,7 @@ export function createMcpRequestHandler({
   getDigitalOceanStatus = getDigitalOceanAppStatus,
   getDigitalOceanAudit = getDigitalOceanAccountAudit,
   getCloudflareStatus = getCloudflareZoneStatus,
+  getSystemConfiguration = getSystemConfigurationReport,
 } = {}) {
   async function callTool(name, args, ownerId) {
     let result;
@@ -251,6 +269,12 @@ export function createMcpRequestHandler({
     } else if (name === "get_digitalocean_account_audit") {
       const auditReport = await getDigitalOceanAudit();
       result = textResult(auditReport, formatDigitalOceanAudit(auditReport));
+    } else if (name === "get_system_configuration") {
+      const configuration = await getSystemConfiguration();
+      result = textResult(
+        configuration,
+        formatSystemConfigurationReport(configuration),
+      );
     } else if (name === "get_cloudflare_zone_status") {
       const status = await getCloudflareStatus();
       result = textResult(status, formatCloudflareStatus(status));
@@ -310,7 +334,9 @@ export function createMcpRequestHandler({
       actor: "chatgpt-mcp",
       action: name.includes("github")
         ? "github.write"
-        : name.includes("digitalocean") || name.includes("cloudflare")
+        : name.includes("digitalocean") ||
+            name.includes("cloudflare") ||
+            name.includes("system_configuration")
           ? "infrastructure.read"
           : "memory.read",
       decision: "allow",

@@ -13,9 +13,12 @@ test.beforeEach(() => resetToolRegistryForTests());
 
 test("регистрира съществуващите интеграции с пълни метаданни", () => {
   registerCoreTools();
-  assert.equal(listTools().length, 11);
+  assert.equal(listTools().length, 12);
   assert.deepEqual(getTool("synchron-integrations-status").capabilities, [
     "system.integrations.status",
+  ]);
+  assert.deepEqual(getTool("synchron-system-inspector").capabilities, [
+    "system.configuration.read",
   ]);
   assert.deepEqual(getTool("github-read").capabilities, [
     "code.read",

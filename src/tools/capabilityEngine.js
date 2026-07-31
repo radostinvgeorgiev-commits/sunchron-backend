@@ -41,6 +41,10 @@ import {
   formatCloudflareStatus,
   getCloudflareZoneStatus,
 } from "../services/cloudflareService.js";
+import {
+  formatSystemConfigurationReport,
+  getSystemConfigurationReport,
+} from "../services/systemConfigurationService.js";
 import { findToolsByCapability, registerCoreTools } from "./toolRegistry.js";
 
 export class CapabilityError extends Error {
@@ -68,6 +72,7 @@ export function getToolRuntimeAvailability(
 
   switch (toolId) {
     case "synchron-integrations-status":
+    case "synchron-system-inspector":
     case "github-read":
       return configured(true, null);
     case "github-write":
@@ -287,6 +292,8 @@ export function resolveCapability(capability, options = {}) {
 const executors = Object.freeze({
   "synchron-integrations-status": async ({ input }) =>
     buildIntegrationStatusReport(input),
+  "synchron-system-inspector": async () =>
+    formatSystemConfigurationReport(await getSystemConfigurationReport()),
   "github-read": async ({ input }) => {
     if (isMergedBranchCleanupPlanRequest(input.message)) {
       return prepareMergedBranchCleanup({ ownerId: input.ownerId });

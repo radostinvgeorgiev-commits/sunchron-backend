@@ -23,6 +23,7 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
       "list_synchron_conversations",
       "get_synchron_conversation",
       "get_digitalocean_app_status",
+      "get_system_configuration",
       "get_digitalocean_account_audit",
       "get_cloudflare_zone_status",
       "prepare_github_merged_branch_cleanup",
@@ -45,6 +46,52 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
   assert.deepEqual(digitalOceanAudit.securitySchemes, [
     { type: "oauth2", scopes: ["synchron:read"] },
   ]);
+  const systemConfiguration = MCP_TOOLS.find(
+    (tool) => tool.name === "get_system_configuration",
+  );
+  assert.equal(systemConfiguration.annotations.readOnlyHint, true);
+  assert.deepEqual(systemConfiguration.securitySchemes, [
+    { type: "oauth2", scopes: ["synchron:read"] },
+  ]);
+});
+
+test("MCP returns the safe system configuration without secret values", async () => {
+  const events = [];
+  const handle = createMcpRequestHandler({
+    getSystemConfiguration: async () => ({
+      status: "ready",
+      secretsExposed: false,
+      summary: {
+        configured: 1,
+        defaulted: 0,
+        missingRequired: 0,
+      },
+      environment: [
+        {
+          key: "OPENAI_API_KEY",
+          purpose: "AI ядро",
+          status: "configured",
+        },
+      ],
+      digitalOcean: { connected: true },
+    }),
+    audit: async (event) => events.push(event),
+  });
+  const response = await handle(
+    {
+      jsonrpc: "2.0",
+      id: 11,
+      method: "tools/call",
+      params: { name: "get_system_configuration", arguments: {} },
+    },
+    "primary-user",
+  );
+  assert.equal(response.result.structuredContent.secretsExposed, false);
+  assert.equal(
+    response.result.structuredContent.environment[0].key,
+    "OPENAI_API_KEY",
+  );
+  assert.equal(events[0].action, "infrastructure.read");
 });
 
 test("MCP describes the confirmed destructive boundary honestly", async () => {

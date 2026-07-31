@@ -72,6 +72,12 @@
 .work-center-status.external{color:#7c4a03;background:#fff4d7}.work-center-status.internal{color:#137333;background:#e6f4ea}
 .work-center-arrow{color:#94a3b8}.featured .work-center-arrow{color:#fff}
 .work-center-close{width:100%;min-height:48px;margin-top:8px;border:1px solid #cbd5e1;border-radius:14px;color:#17212b;background:#fff;font:inherit;font-weight:750;cursor:pointer}
+.system-control-link{width:100%;font:inherit;text-align:left;background:#fff;cursor:pointer}
+.system-summary p{margin:5px 0}.system-summary small{display:block;margin-top:8px}
+.configuration-group{margin-bottom:10px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}
+.configuration-group summary{padding:13px 14px;cursor:pointer;font-weight:750}.configuration-group summary span{color:#64748b;font-weight:600}
+.configuration-list{padding:0 10px 8px}.configuration-item{padding:12px 4px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-top:1px solid #edf0f2}
+.configuration-item code{font-size:12px;font-weight:800;overflow-wrap:anywhere}.configuration-item p{margin:5px 0;color:#475569;font-size:12px;line-height:1.4}.configuration-item small{color:#7a8794;font-size:10px;line-height:1.4}
 @media(max-width:760px){
   .app-shell{display:block}.sidebar{display:none}.sidebar.mobile-visible{width:min(86vw,320px);position:fixed;inset:0 auto 0 0;z-index:60;display:flex;box-shadow:16px 0 50px rgba(0,0,0,.18)}.sidebar-backdrop{position:fixed;inset:0;z-index:59;display:block;background:rgba(0,0,0,.28)}.sidebar-backdrop[hidden]{display:none}.chatPanel{height:100dvh}.mobile-menu{display:block}
   .chat-toolbar{min-height:56px;padding:7px 12px}.status-indicator{padding:6px}#agentStatusText{display:none}
@@ -82,6 +88,7 @@
 @media(max-width:520px){
   .data-drawer-header{min-height:68px;padding:14px 16px}.data-drawer-body{padding:14px}
   .permission-card,.tool-status-card{width:100%;min-width:0;flex-direction:column;align-items:stretch}
+  .configuration-item{flex-direction:column}.configuration-item .permission-badge{align-self:flex-start}
   .permission-card>div,.tool-status-card>div{width:100%;min-width:0}
   .permission-card-actions,.tool-status-actions{width:100%;align-items:stretch}
   .tool-status-card .permission-badge{max-width:100%;align-self:flex-start}

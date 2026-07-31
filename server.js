@@ -25,6 +25,7 @@ import webSearchRouter from "./src/routes/webSearchRouter.js";
 import publicConfigRouter from "./src/routes/publicConfigRouter.js";
 import userAuthRouter from "./src/routes/userAuthRouter.js";
 import testerAuthAdminRouter from "./src/routes/testerAuthAdminRouter.js";
+import systemRouter from "./src/routes/systemRouter.js";
 import mcpRouter from "./src/routes/mcpRouter.js";
 import { createMcpOAuthRouter } from "./src/routes/mcpOAuthRouter.js";
 
@@ -135,6 +136,13 @@ app.use(
   requirePrimaryOwner,
   privateApiRateLimiter,
   testerAuthAdminRouter,
+);
+app.use(
+  "/api/system",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  privateApiRateLimiter,
+  systemRouter,
 );
 app.use(
   "/cloud",

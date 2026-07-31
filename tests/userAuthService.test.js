@@ -260,6 +260,7 @@ test("successful tester registration creates the application approval", async ()
     {
       env: ENV,
       client,
+      approveEmail: async () => {},
       approveAccess: async (user) => {
         approvedUser = user;
       },
@@ -269,6 +270,92 @@ test("successful tester registration creates the application approval", async ()
   assert.equal(approvedUser.id, "registered-user");
   assert.equal(result.user.id, "registered-user");
   assert.deepEqual(result.session, fakeSession);
+});
+
+test("registration pre-approves the email before creating the Supabase user", async () => {
+  const calls = [];
+  const client = {
+    auth: {
+      async signUp({ email }) {
+        calls.push(`signup:${email}`);
+        return {
+          data: {
+            user: { id: "preapproved-user", email },
+            session: session("preapproved"),
+          },
+          error: null,
+        };
+      },
+    },
+  };
+
+  await registerTester(
+    {
+      email: "friend@example.com",
+      password: "strong-pass-123",
+      displayName: "Приятел",
+      inviteCode: ENV.SYNCHRON_TEST_INVITE_CODE,
+    },
+    {
+      env: ENV,
+      client,
+      approveEmail: async (email) => calls.push(`approve-email:${email}`),
+      approveAccess: async (user) => calls.push(`approve-user:${user.id}`),
+    },
+  );
+
+  assert.deepEqual(calls, [
+    "approve-email:friend@example.com",
+    "signup:friend@example.com",
+    "approve-user:preapproved-user",
+  ]);
+});
+
+test("registration recovers an existing invited user with the same password", async () => {
+  const fakeSession = session("recovered");
+  let approvedUser = null;
+  const client = {
+    auth: {
+      async signUp() {
+        return { data: null, error: { status: 422 } };
+      },
+      async signInWithPassword(credentials) {
+        assert.deepEqual(credentials, {
+          email: "friend@example.com",
+          password: "strong-pass-123",
+        });
+        return {
+          data: {
+            user: { id: "existing-user", email: credentials.email },
+            session: fakeSession,
+          },
+          error: null,
+        };
+      },
+    },
+  };
+
+  const result = await registerTester(
+    {
+      email: "friend@example.com",
+      password: "strong-pass-123",
+      displayName: "Приятел",
+      inviteCode: ENV.SYNCHRON_TEST_INVITE_CODE,
+    },
+    {
+      env: ENV,
+      client,
+      approveEmail: async () => {},
+      approveAccess: async (user) => {
+        approvedUser = user;
+      },
+    },
+  );
+
+  assert.equal(approvedUser.id, "existing-user");
+  assert.equal(result.user.id, "existing-user");
+  assert.deepEqual(result.session, fakeSession);
+  assert.equal(result.confirmationRequired, false);
 });
 
 test("sign in refuses a valid Supabase user without application approval", async () => {

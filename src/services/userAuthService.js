@@ -10,6 +10,7 @@ import {
 import { TESTER_AUTH_BOOTSTRAP } from "../config/testerAuthBootstrap.js";
 import {
   approveTesterAccess,
+  approveTesterEmail,
   assertTesterAccess,
   TesterAccessError,
 } from "./testerAccessService.js";
@@ -453,7 +454,12 @@ export async function signInUser(
 
 export async function registerTester(
   { email, password, displayName, inviteCode },
-  { env = process.env, client, approveAccess = approveTesterAccess } = {},
+  {
+    env = process.env,
+    client,
+    approveAccess = approveTesterAccess,
+    approveEmail = approveTesterEmail,
+  } = {},
 ) {
   if (!inviteCodeMatches(inviteCode, env)) {
     throw new UserAuthError(
@@ -467,7 +473,13 @@ export async function registerTester(
     password: cleanPassword(password),
   };
   const authClient = client || createAuthClient(env);
-  const { data, error } = await authClient.auth.signUp({
+  try {
+    await approveEmail(cleanCredentials.email, { env });
+  } catch (error) {
+    throw mapTesterAccessError(error);
+  }
+
+  let { data, error } = await authClient.auth.signUp({
     ...cleanCredentials,
     options: {
       data: {
@@ -475,6 +487,16 @@ export async function registerTester(
       },
     },
   });
+
+  if (error || !data?.user) {
+    const recovered =
+      await authClient.auth.signInWithPassword(cleanCredentials);
+    if (!recovered.error && recovered.data?.user && recovered.data?.session) {
+      data = recovered.data;
+      error = null;
+    }
+  }
+
   if (error || !data?.user) {
     throw mapAuthError(
       error,

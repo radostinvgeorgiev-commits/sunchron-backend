@@ -305,6 +305,17 @@
   white-space: normal;
 }
 
+:root[data-font-scale="max"] .work-center-capabilities-title {
+  font-size: var(--synchron-card-title);
+}
+
+:root[data-font-scale="max"] .work-center-capabilities-note,
+:root[data-font-scale="max"] .work-center-capability-heading,
+:root[data-font-scale="max"] .work-center-capability-group li {
+  font-size: var(--synchron-card-description);
+  line-height: 1.4;
+}
+
 :root[data-font-scale="max"] .work-center-close {
   min-height: 70px;
   font-size: var(--synchron-readable-text);

@@ -222,6 +222,14 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
       ),
       authenticated: false,
     },
+    "google-calendar-write": {
+      configured: hasAllProcessEnvironmentVariables(
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "GOOGLE_REDIRECT_URI",
+      ),
+      authenticated: false,
+    },
     "gmail-read": {
       configured: hasAllProcessEnvironmentVariables(
         "GOOGLE_CLIENT_ID",

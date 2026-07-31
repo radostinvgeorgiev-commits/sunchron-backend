@@ -198,6 +198,21 @@ export function registerCoreTools() {
       healthStatus: "unavailable",
     },
     {
+      id: "google-calendar-write",
+      provider: "google",
+      name: "Google Calendar Write",
+      version: "1.0.0",
+      category: "calendar",
+      capabilities: ["calendar.write"],
+      permissions: ["calendar.write"],
+      capabilityPermissions: {
+        "calendar.write": "calendar.write",
+      },
+      enabled: true,
+      requiresConfirmation: true,
+      healthStatus: "unavailable",
+    },
+    {
       id: "gmail-read",
       provider: "google",
       name: "Gmail Read",

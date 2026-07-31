@@ -17,7 +17,13 @@ import {
   GitHubServiceError,
   isGitHubReadRequest,
 } from "../services/githubService.js";
-import { isCalendarReadRequest } from "../services/calendarService.js";
+import {
+  confirmCalendarEvent,
+  extractCalendarConfirmationId,
+  formatCalendarEventResult,
+  isCalendarReadRequest,
+  isCalendarWriteRequest,
+} from "../services/calendarService.js";
 import {
   GoogleDriveError,
   parseCookies,
@@ -78,6 +84,7 @@ const DIGITALOCEAN_NAME_PATTERN =
   /(?:digital\s*ocean|ди[гж]итал\s*о(?:кеа|ка|ке)н|ди[гж]итъл\s*о(?:кеа|ка|ке)н)/iu;
 const DIRECT_CAPABILITY_REPLIES = new Set([
   "system.integrations.status",
+  "calendar.write",
   "code.task-status",
   "infrastructure.digitalocean.read",
   "infrastructure.cloudflare.read",
@@ -345,7 +352,13 @@ export function detectCapabilityRequests(message) {
         message: subtask,
       });
     }
-    if (isCalendarReadRequest(subtask)) {
+    if (isCalendarWriteRequest(subtask)) {
+      requests.push({
+        capability: "calendar.write",
+        action: "calendar.write",
+        message,
+      });
+    } else if (isCalendarReadRequest(subtask)) {
       requests.push({
         capability: "calendar.read",
         action: "calendar.read",
@@ -577,6 +590,7 @@ function capabilityLabel(capability) {
   if (capability === "system.configuration.read")
     return "системна конфигурация";
   if (capability === "calendar.read") return "календар";
+  if (capability === "calendar.write") return "запис в календара";
   if (capability === "code.read") return "GitHub";
   if (capability === "code.task-status") return "GitHub задача";
   if (capability === "code.write") return "GitHub запис";
@@ -953,9 +967,16 @@ router.post("/chat", async (req, res) => {
   }
 
   const copilotConfirmationId = extractCopilotConfirmationId(cleanMessage);
+  const calendarConfirmationId = extractCalendarConfirmationId(cleanMessage);
   if (copilotConfirmationId && !ownerToolsAllowed) {
     return res.status(403).json({
       error: "GitHub действията са достъпни само за собственика.",
+      code: "OWNER_ONLY",
+    });
+  }
+  if (calendarConfirmationId && !ownerToolsAllowed) {
+    return res.status(403).json({
+      error: "Календарните действия са достъпни само за собственика.",
       code: "OWNER_ONLY",
     });
   }
@@ -1008,6 +1029,56 @@ router.post("/chat", async (req, res) => {
           error instanceof ImageServiceError
             ? error.message
             : "Снимката не можа да бъде разпозната. Опитай отново.",
+      });
+    }
+    res.end();
+    return;
+  }
+
+  if (calendarConfirmationId) {
+    try {
+      const result = await confirmCalendarEvent({
+        confirmationId: calendarConfirmationId,
+        sessionId: cleanSessionId,
+        googleSessionId,
+      });
+      const fullReply = formatCalendarEventResult(result);
+      await saveConversationTurnBestEffort(
+        cleanSessionId,
+        cleanMessage,
+        fullReply,
+        ownerId,
+      );
+      await auditAction({
+        action: "calendar.write",
+        decision: "confirmed",
+        outcome: "succeeded",
+        resource: result.id,
+        details: "created:primary-calendar-event",
+        sessionId: cleanSessionId,
+      });
+      sendEvent("token", { token: fullReply });
+      sendEvent("done", {
+        ok: true,
+        mode: "calendar-event",
+        eventId: result.id,
+      });
+    } catch (error) {
+      console.error("[Calendar confirmation]", error);
+      await auditAction({
+        action: "calendar.write",
+        decision: "confirmed",
+        outcome: "failed",
+        resource: "primary-calendar",
+        details: error?.code || error?.message,
+        sessionId: cleanSessionId,
+      });
+      sendEvent("error", {
+        status: error instanceof GoogleDriveError ? error.status : 500,
+        message:
+          error instanceof GoogleDriveError
+            ? error.message
+            : "Календарното събитие не можа да бъде записано.",
       });
     }
     res.end();

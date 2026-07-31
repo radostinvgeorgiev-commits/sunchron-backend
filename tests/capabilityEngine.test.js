@@ -83,6 +83,14 @@ test("маркира GitHub Copilot адаптера като изпълним �
   assert.equal(isToolExecutable("github-write"), true);
 });
 
+test("Calendar Write има изпълним адаптер и изисква потвърждение", () => {
+  const result = resolveCapability("calendar.write");
+  assert.equal(result.tool.id, "google-calendar-write");
+  assert.equal(result.permission.action, "calendar.write");
+  assert.equal(result.requiresConfirmation, true);
+  assert.equal(isToolExecutable("google-calendar-write"), true);
+});
+
 test("регистрира Supabase като изпълним инструмент само за статус", () => {
   const result = resolveCapability("database.status");
   assert.equal(result.tool.id, "supabase-status");
@@ -238,6 +246,7 @@ test("всеки регистриран основен инструмент им
     "github-write",
     "google-drive-read",
     "google-calendar-read",
+    "google-calendar-write",
     "gmail-read",
     "openai-web-search",
     "supabase-status",

@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   analyzeDriveFile,
+  buildAuthorizationUrl,
+  createGoogleCalendarEvent,
   createSession,
   decryptGoogleSession,
   downloadDriveFile,
@@ -152,6 +154,70 @@ test("requests upcoming Google Calendar events", async () => {
   );
   assert.equal(events[0].title, "Среща");
   assert.equal(events[0].allDay, false);
+});
+
+test("requests the minimum Calendar event scope for read and write", () => {
+  const original = {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    redirectUri: process.env.GOOGLE_REDIRECT_URI,
+  };
+  process.env.GOOGLE_CLIENT_ID = "client";
+  process.env.GOOGLE_CLIENT_SECRET = "secret";
+  process.env.GOOGLE_REDIRECT_URI = "https://example.test/callback";
+  try {
+    const scope = new URL(buildAuthorizationUrl("state")).searchParams.get(
+      "scope",
+    );
+    assert.match(scope, /calendar\.events/u);
+    assert.doesNotMatch(scope, /calendar\.readonly/u);
+  } finally {
+    if (original.clientId === undefined) delete process.env.GOOGLE_CLIENT_ID;
+    else process.env.GOOGLE_CLIENT_ID = original.clientId;
+    if (original.clientSecret === undefined)
+      delete process.env.GOOGLE_CLIENT_SECRET;
+    else process.env.GOOGLE_CLIENT_SECRET = original.clientSecret;
+    if (original.redirectUri === undefined)
+      delete process.env.GOOGLE_REDIRECT_URI;
+    else process.env.GOOGLE_REDIRECT_URI = original.redirectUri;
+  }
+});
+
+test("creates exactly one validated Google Calendar event", async () => {
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
+  let call;
+  const created = await createGoogleCalendarEvent(
+    sessionId,
+    {
+      title: "Среща",
+      start: "2026-08-05T14:30:00",
+      end: "2026-08-05T15:30:00",
+      timeZone: "Europe/Sofia",
+      location: "Варна",
+      description: "Подготовка",
+    },
+    async (url, options) => {
+      call = { url: String(url), options };
+      return jsonResponse({
+        id: "event-1",
+        summary: "Среща",
+        start: { dateTime: "2026-08-05T14:30:00+03:00" },
+        end: { dateTime: "2026-08-05T15:30:00+03:00" },
+        htmlLink: "https://calendar.google.com/event?eid=safe",
+      });
+    },
+  );
+
+  assert.match(call.url, /calendars\/primary\/events\?sendUpdates=none/u);
+  assert.equal(call.options.method, "POST");
+  const body = JSON.parse(call.options.body);
+  assert.equal(body.summary, "Среща");
+  assert.equal(body.start.timeZone, "Europe/Sofia");
+  assert.equal(body.attendees, undefined);
+  assert.equal(created.id, "event-1");
 });
 
 test("encrypts persisted Google sessions without exposing OAuth tokens", () => {

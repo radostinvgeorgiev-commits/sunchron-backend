@@ -5,12 +5,23 @@ import {
   activateTesterAuthConfiguration,
   addTesterAuthEnvironmentVariables,
   DigitalOceanError,
+  inspectTesterAuthActivation,
   missingTesterAuthEnvironmentKeys,
   TESTER_AUTH_ENV_KEYS,
 } from "../src/services/digitalOceanService.js";
 
 const PROJECT_URL = "https://projectref.supabase.co";
 const PUBLISHABLE_KEY = "sb_publishable_abcdefghijklmnopqrstuvwxyz";
+
+function jsonResponse(status, payload) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    async json() {
+      return payload;
+    },
+  };
+}
 
 test("adds only the missing tester-auth variables at app level", () => {
   const current = {
@@ -160,4 +171,64 @@ test("refuses to round-trip a redacted existing DigitalOcean secret", async () =
       error.code === "DIGITALOCEAN_SECRET_ROUND_TRIP_UNSAFE",
   );
   assert.equal(putCalled, false);
+});
+
+test("inspects tester auth safely before any write", async () => {
+  const methods = [];
+  const result = await inspectTesterAuthActivation({
+    projectUrl: PROJECT_URL,
+    publishableKey: PUBLISHABLE_KEY,
+    env: {
+      DIGITALOCEAN_API_TOKEN: "do-token",
+      DIGITALOCEAN_APP_ID: "app-1",
+    },
+    fetchImpl: async (_url, options) => {
+      methods.push(options.method);
+      return jsonResponse(200, {
+        app: { id: "app-1", spec: { name: "synchron", envs: [] } },
+      });
+    },
+  });
+
+  assert.deepEqual(methods, ["GET"]);
+  assert.equal(result.readAccessVerified, true);
+  assert.equal(result.requiredWriteScope, "app:update");
+  assert.equal(result.writeAccess, "verified-on-update");
+  assert.deepEqual(result.missingKeys, TESTER_AUTH_ENV_KEYS);
+});
+
+test("reports an actionable app:update error without leaking tokens", async () => {
+  let call = 0;
+  await assert.rejects(
+    activateTesterAuthConfiguration({
+      projectUrl: PROJECT_URL,
+      publishableKey: PUBLISHABLE_KEY,
+      env: {
+        DIGITALOCEAN_API_TOKEN: "do-token",
+        DIGITALOCEAN_APP_ID: "app-1",
+      },
+      fetchImpl: async (_url, options) => {
+        call += 1;
+        if (options.method === "GET") {
+          return jsonResponse(200, {
+            app: { id: "app-1", spec: { name: "synchron", envs: [] } },
+          });
+        }
+        return jsonResponse(403, {
+          id: "forbidden",
+          message:
+            "Token dop_v1_secretvalue has no access for the attempted action.",
+        });
+      },
+    }),
+    (error) => {
+      assert.equal(error.code, "DIGITALOCEAN_APP_UPDATE_FORBIDDEN");
+      assert.equal(error.status, 403);
+      assert.match(error.message, /app:update/u);
+      assert.doesNotMatch(error.message, /dop_v1_secretvalue/u);
+      assert.match(error.message, /\[скрит токен\]/u);
+      return true;
+    },
+  );
+  assert.equal(call, 2);
 });

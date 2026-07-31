@@ -93,7 +93,9 @@ export function extractMemoryWriteConfirmationId(message) {
   if (typeof message !== "string") return null;
   const match = message
     .trim()
-    .match(/^Потвърждавам постоянен запис:\s*([0-9a-f]{8}-[0-9a-f-]{27,})$/iu);
+    .match(
+      /^Потвърждавам постоянен запис:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/iu,
+    );
   return match?.[1] || null;
 }
 

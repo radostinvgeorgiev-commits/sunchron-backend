@@ -1001,29 +1001,28 @@ async function openPermissionsDrawer() {
 }
 
 function showGitHubSetup() {
-  openDataDrawer("Свързване на GitHub");
+  openDataDrawer("GitHub статус");
   elements.dataDrawerBody.innerHTML = `
     <section class="setup-guide">
       <div class="permission-default">
-        GitHub Read работи. За кодови задачи SYNCHRON-X използва GitHub Copilot
-        чрез еднократен вход с GitHub. Не се използва личен постоянен token.
+        GitHub Read работи. GitHub Write е изключен в текущия режим без Copilot.
       </div>
       <article class="setup-step">
-        <span>1</span>
+        <span><i class="fa-solid fa-check"></i></span>
         <div>
-          <strong>Регистрирай GitHub App за SYNCHRON-X</strong>
-          <p>Приложението се ограничава до хранилището и получава потребителско разрешение за Copilot задачи.</p>
+          <strong>Четенето е активно</strong>
+          <p>SYNCHRON-X може да проверява разрешеното хранилище, commit-и и Pull Request-и.</p>
         </div>
       </article>
       <article class="setup-step">
-        <span>2</span>
+        <span><i class="fa-solid fa-lock"></i></span>
         <div>
-          <strong>Добави OAuth настройките</strong>
-          <p>В DigitalOcean са нужни GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET и GITHUB_REDIRECT_URI. Secret се пази криптирано.</p>
+          <strong>Писането е изключено</strong>
+          <p>От този екран не се създават branch, commit или Pull Request.</p>
         </div>
       </article>
       <div class="setup-note">
-        След конфигуриране бутонът ще стане „Свържи GitHub“. Всяка кодова задача ще изисква отделно потвърждение и няма да се слива автоматично в main.
+        Не са нужни нов GitHub App, App ID, Installation ID, private key, token или production secret.
       </div>
       <button type="button" class="permission-info-btn" data-back-tools>Назад към инструментите</button>
     </section>`;

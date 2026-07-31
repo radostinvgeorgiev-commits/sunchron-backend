@@ -76,11 +76,19 @@ test("блокира липсваща способност по подразби
   );
 });
 
-test("маркира GitHub Copilot адаптера като изпълним и изисква потвърждение", () => {
+test("пази GitHub Copilot адаптера, но го изключва по подразбиране", () => {
   const result = resolveCapability("code.write");
   assert.equal(result.tool.id, "github-write");
   assert.equal(result.requiresConfirmation, true);
-  assert.equal(isToolExecutable("github-write"), true);
+  assert.equal(isToolExecutable("github-write", {}), false);
+  assert.equal(
+    isToolExecutable("github-write", { COPILOT_AUTOMATION_ENABLED: "TRUE" }),
+    false,
+  );
+  assert.equal(
+    isToolExecutable("github-write", { COPILOT_AUTOMATION_ENABLED: "true" }),
+    true,
+  );
 });
 
 test("Calendar Write има изпълним адаптер и изисква потвърждение", () => {
@@ -117,6 +125,29 @@ test("runtime availability blocks configured-looking tools without credentials",
   );
   assert.equal(
     getToolRuntimeAvailability(
+      "github-write",
+      { githubSessionId: "owner-session" },
+      {
+        GITHUB_CLIENT_ID: "client",
+        GITHUB_CLIENT_SECRET: "secret",
+      },
+    ).code,
+    "COPILOT_AUTOMATION_DISABLED",
+  );
+  assert.equal(
+    getToolRuntimeAvailability(
+      "github-write",
+      { githubSessionId: "owner-session" },
+      {
+        COPILOT_AUTOMATION_ENABLED: "true",
+        GITHUB_CLIENT_ID: "client",
+        GITHUB_CLIENT_SECRET: "secret",
+      },
+    ).available,
+    true,
+  );
+  assert.equal(
+    getToolRuntimeAvailability(
       "google-calendar-read",
       {},
       {
@@ -126,6 +157,30 @@ test("runtime availability blocks configured-looking tools without credentials",
       },
     ).code,
     "CAPABILITY_AUTH_REQUIRED",
+  );
+});
+
+test("code.write спира преди Copilot flow в изключен режим", async () => {
+  await assert.rejects(
+    () =>
+      executeCapability(
+        "code.write",
+        {
+          githubSessionId: "owner-session",
+          message: "Създай Pull Request.",
+        },
+        {
+          env: {
+            GITHUB_CLIENT_ID: "client",
+            GITHUB_CLIENT_SECRET: "secret",
+          },
+          prepareConfirmation: true,
+        },
+      ),
+    (error) =>
+      error instanceof CapabilityError &&
+      error.code === "COPILOT_AUTOMATION_DISABLED" &&
+      /режим без Copilot/u.test(error.message),
   );
 });
 
@@ -189,7 +244,10 @@ test("връща общ статус само след реални провер
       checkMemory: async () => [],
       checkSupabase: async () => ({ status: "healthy" }),
       checkDigitalOcean: async () => ({ app: { id: "app-1" } }),
-      env: { OPENAI_API_KEY: "configured" },
+      env: {
+        OPENAI_API_KEY: "configured",
+        COPILOT_AUTOMATION_ENABLED: "true",
+      },
     },
   );
 
@@ -220,6 +278,7 @@ test("връща фокусиран проверен статус за GitHub Co
         createsPullRequest: true,
         mergesMainAutomatically: false,
       }),
+      env: { COPILOT_AUTOMATION_ENABLED: "true" },
     },
   );
 
@@ -227,6 +286,27 @@ test("връща фокусиран проверен статус за GitHub Co
   assert.match(report, /отделен клон/u);
   assert.match(report, /Pull Request/u);
   assert.match(report, /Не слива автоматично/u);
+});
+
+test("връща режим без Copilot без да проверява външния мост", async () => {
+  let bridgeChecked = false;
+  const report = await buildIntegrationStatusReport(
+    {
+      message: "Работи ли GitHub Write мостът?",
+      githubSessionId: "github-session",
+    },
+    {
+      checkGitHubWriteBridge: async () => {
+        bridgeChecked = true;
+        throw new Error("не трябва да се извиква");
+      },
+      env: {},
+    },
+  );
+
+  assert.equal(bridgeChecked, false);
+  assert.match(report, /изключен е — работим без Copilot/u);
+  assert.match(report, /GitHub Read остава активен/u);
 });
 
 test("не изпълнява способност за потвърждение без разрешение", async () => {
@@ -252,7 +332,11 @@ test("всеки регистриран основен инструмент им
     "supabase-status",
     "opensearch-memory",
   ]) {
-    assert.equal(isToolExecutable(id), true, id);
+    assert.equal(
+      isToolExecutable(id, { COPILOT_AUTOMATION_ENABLED: "true" }),
+      true,
+      id,
+    );
   }
 });
 

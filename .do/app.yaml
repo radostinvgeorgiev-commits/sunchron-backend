@@ -79,6 +79,9 @@ services:
       - key: SYNCHRON_TEST_INVITE_CODE
         scope: RUN_TIME
         type: SECRET
+      - key: COPILOT_AUTOMATION_ENABLED
+        value: "false"
+        scope: RUN_TIME
       - key: GITHUB_CLIENT_ID
         scope: RUN_TIME
         type: SECRET

@@ -601,6 +601,9 @@ function isGoogleTool(tool) {
 }
 
 function toolState(tool, googleConnected, githubConnected) {
+  if (tool.availabilityCode === "COPILOT_AUTOMATION_DISABLED") {
+    return { label: "Изключено · режим без Copilot", className: "confirm" };
+  }
   if (!tool.enabled || !tool.executable) {
     return { label: "Не е свързан", className: "deny" };
   }
@@ -618,7 +621,9 @@ function toolState(tool, googleConnected, githubConnected) {
 
 function toolStatusActions(tool, status, googleConnected, githubConnected) {
   let action = "";
-  if (isGoogleTool(tool) && !googleConnected && tool.configured) {
+  if (tool.availabilityCode === "COPILOT_AUTOMATION_DISABLED") {
+    action = "";
+  } else if (isGoogleTool(tool) && !googleConnected && tool.configured) {
     action =
       '<button type="button" class="tool-connect-btn" data-connect-service="google">Свържи Google</button>';
   } else if (
@@ -652,6 +657,12 @@ function permissionAction(item, toolMap, googleConnected, githubConnected) {
   }
 
   const githubWrite = toolMap.get("github-write");
+  if (
+    item.action === "github.write" &&
+    githubWrite?.availabilityCode === "COPILOT_AUTOMATION_DISABLED"
+  ) {
+    return "";
+  }
   if (
     item.action === "github.write" &&
     githubWrite?.configured &&
@@ -728,11 +739,16 @@ async function openToolsDrawer() {
               Boolean(googleData.connected),
               Boolean(githubData.connected),
             );
+            const description =
+              tool.id === "github-write" &&
+              tool.availabilityCode === "COPILOT_AUTOMATION_DISABLED"
+                ? "Кодовият мост е запазен, но е изключен в текущия режим без Copilot."
+                : descriptions[tool.id] || "Инструмент на SYNCHRON-X.";
             return `
               <article class="permission-card tool-status-card">
                 <div>
                   <strong>${escapeHtml(tool.name)}</strong>
-                  <p>${escapeHtml(descriptions[tool.id] || "Инструмент на SYNCHRON-X.")}</p>
+                  <p>${escapeHtml(description)}</p>
                 </div>
                 ${toolStatusActions(
                   tool,

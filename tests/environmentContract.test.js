@@ -86,3 +86,9 @@ test("bridge variables stay documented without real secret values", () => {
     assert.match(envExample, new RegExp(`^${key}=$`, "mu"));
   }
 });
+
+test("Copilot automation stays explicitly disabled by default", () => {
+  const appSpecBlock = appSpecKeyBlock(appSpec, "COPILOT_AUTOMATION_ENABLED");
+  assert.match(appSpecBlock, /^\s*value:\s*["']?false["']?\s*$/mu);
+  assert.match(envExample, /^COPILOT_AUTOMATION_ENABLED=false$/mu);
+});

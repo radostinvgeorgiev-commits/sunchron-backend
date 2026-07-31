@@ -1,4 +1,5 @@
 import { evaluatePermission } from "../services/permissionService.js";
+import { isCopilotAutomationEnabled } from "../config/featureFlags.js";
 import { answerGitHubReadRequest } from "../services/githubService.js";
 import {
   GoogleDriveError,
@@ -80,6 +81,13 @@ export function getToolRuntimeAvailability(
     case "github-read":
       return configured(true, null);
     case "github-write":
+      if (!isCopilotAutomationEnabled(env)) {
+        return configured(
+          false,
+          "GitHub Write е изключен — режим без Copilot.",
+          "COPILOT_AUTOMATION_DISABLED",
+        );
+      }
       if (!hasEnvironment(env, "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET")) {
         return configured(
           false,
@@ -181,7 +189,15 @@ export async function buildIntegrationStatusReport(
     env = process.env,
   } = {},
 ) {
+  const copilotAutomationEnabled = isCopilotAutomationEnabled(env);
   if (isCopilotBridgeStatusRequest(input.message)) {
+    if (!copilotAutomationEnabled) {
+      return [
+        "Проверих текущия режим за GitHub Write.",
+        "Резултат: изключен е — работим без Copilot.",
+        "GitHub Read остава активен; кодовият мост не прави assignment, branch, commit или Pull Request.",
+      ].join("\n");
+    }
     const bridge = await checkGitHubWriteBridge({
       githubSessionId: input.githubSessionId,
     });
@@ -208,7 +224,13 @@ export async function buildIntegrationStatusReport(
     ["OpenAI Web Search", Boolean(env.OPENAI_API_KEY)],
   ];
   const sessionTools = [
-    ["GitHub Write", Boolean(input.githubSessionId), "изисква потвърждение"],
+    [
+      "GitHub Write",
+      copilotAutomationEnabled && Boolean(input.githubSessionId),
+      copilotAutomationEnabled
+        ? "изисква потвърждение"
+        : "изключен — режим без Copilot",
+    ],
     ["Google Drive", googleConnected, "изисква Google вход"],
     ["Google Calendar", googleConnected, "изисква Google вход"],
     ["Gmail", googleConnected, "изисква Google вход"],
@@ -476,6 +498,19 @@ const executors = Object.freeze({
 
 export async function executeCapability(capability, input = {}, options = {}) {
   const resolved = resolveCapability(capability, options);
+  const runtimeEnvironment = options.env || process.env;
+  if (
+    resolved.tool.id === "github-write" &&
+    !isCopilotAutomationEnabled(runtimeEnvironment)
+  ) {
+    const runtime = getToolRuntimeAvailability(
+      resolved.tool.id,
+      input,
+      runtimeEnvironment,
+    );
+    throw new CapabilityError(runtime.reason, runtime.code, 503);
+  }
+
   if (resolved.requiresConfirmation && options.confirmed !== true) {
     const canPrepareConfirmation =
       options.prepareConfirmation === true &&
@@ -501,7 +536,7 @@ export async function executeCapability(capability, input = {}, options = {}) {
   const runtime = getToolRuntimeAvailability(
     resolved.tool.id,
     input,
-    options.env || process.env,
+    runtimeEnvironment,
   );
   if (!runtime.available) {
     throw new CapabilityError(runtime.reason, runtime.code, 503);
@@ -523,6 +558,9 @@ export async function executeCapability(capability, input = {}, options = {}) {
   return Object.freeze({ ...resolved, output });
 }
 
-export function isToolExecutable(toolId) {
+export function isToolExecutable(toolId, env = process.env) {
+  if (toolId === "github-write" && !isCopilotAutomationEnabled(env)) {
+    return false;
+  }
   return typeof executors[toolId] === "function";
 }

@@ -224,6 +224,11 @@
         ? "working"
         : "action"
       : "unavailable";
+    const githubWrite = integrations?.tools?.find(
+      (item) => item.id === "github-write",
+    );
+    const githubWriteDisabled =
+      githubWrite?.availabilityCode === "COPILOT_AUTOMATION_DISABLED";
 
     return [
       {
@@ -239,7 +244,9 @@
         state: resolveCapabilityState(integrations, "github-read"),
       },
       {
-        label: "GitHub запис с точно потвърждение",
+        label: githubWriteDisabled
+          ? "GitHub запис · изключен в режим без Copilot"
+          : "GitHub запис с точно потвърждение",
         state: resolveCapabilityState(integrations, "github-write", {
           connected: Boolean(sessions.githubConnected),
         }),
@@ -383,12 +390,7 @@
     );
     body.appendChild(intro);
     body.appendChild(
-      renderCurrentCapabilities(
-        readiness,
-        integrations,
-        sessions,
-        testerAuth,
-      ),
+      renderCurrentCapabilities(readiness, integrations, sessions, testerAuth),
     );
 
     const grid = document.createElement("section");

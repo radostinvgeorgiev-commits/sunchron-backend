@@ -192,6 +192,12 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       requiredNow: true,
     }),
     general(
+      "COPILOT_AUTOMATION_ENABLED",
+      "GitHub",
+      "Включва кодовото делегиране към Copilot само при точна стойност true.",
+      { hasDefault: true },
+    ),
+    general(
       "GITHUB_REDIRECT_URI",
       "GitHub",
       "Защитен обратен адрес след GitHub вход.",

@@ -13,6 +13,7 @@ import {
   createMcpRequestHandler,
 } from "../services/mcpReadService.js";
 import { isMcpOAuthConfigured } from "../services/mcpOAuthService.js";
+import { isCopilotAutomationEnabled } from "../config/featureFlags.js";
 import { isToolExecutable } from "../tools/capabilityEngine.js";
 import { listTools, registerCoreTools } from "../tools/toolRegistry.js";
 
@@ -182,13 +183,20 @@ function hasAllProcessEnvironmentVariables(...names) {
 }
 
 function resolveToolHealthStatus(tool, configuration = {}) {
-  if (!tool.enabled || !configuration.configured) return "unavailable";
+  if (
+    !tool.enabled ||
+    configuration.runtimeEnabled === false ||
+    !configuration.configured
+  ) {
+    return "unavailable";
+  }
   if (configuration.authenticated === false) return "degraded";
   return "healthy";
 }
 
 export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
   registerCoreTools();
+  const copilotAutomationEnabled = isCopilotAutomationEnabled();
   const configuration = {
     "synchron-integrations-status": {
       configured: true,
@@ -205,6 +213,13 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
     "github-write": {
       configured: isGitHubOAuthConfigured(),
       authenticated: githubAuthenticated,
+      runtimeEnabled: copilotAutomationEnabled,
+      availabilityCode: copilotAutomationEnabled
+        ? null
+        : "COPILOT_AUTOMATION_DISABLED",
+      availabilityReason: copilotAutomationEnabled
+        ? null
+        : "GitHub Write е изключен — режим без Copilot.",
     },
     "google-drive-read": {
       configured: hasAllProcessEnvironmentVariables(
@@ -282,15 +297,20 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
       },
       memory: configuration["opensearch-memory"],
     },
-    tools: listTools().map((tool) => ({
-      id: tool.id,
-      name: tool.name,
-      enabled: tool.enabled,
-      executable: isToolExecutable(tool.id),
-      configured: Boolean(configuration[tool.id]?.configured),
-      authenticated: configuration[tool.id]?.authenticated,
-      healthStatus: resolveToolHealthStatus(tool, configuration[tool.id]),
-    })),
+    tools: listTools().map((tool) => {
+      const toolConfiguration = configuration[tool.id] || {};
+      return {
+        id: tool.id,
+        name: tool.name,
+        enabled: tool.enabled && toolConfiguration.runtimeEnabled !== false,
+        executable: isToolExecutable(tool.id),
+        configured: Boolean(toolConfiguration.configured),
+        authenticated: toolConfiguration.authenticated,
+        healthStatus: resolveToolHealthStatus(tool, toolConfiguration),
+        availabilityCode: toolConfiguration.availabilityCode || null,
+        availabilityReason: toolConfiguration.availabilityReason || null,
+      };
+    }),
   };
 }
 

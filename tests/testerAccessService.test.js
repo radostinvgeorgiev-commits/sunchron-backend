@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 
 import {
@@ -26,6 +27,10 @@ function createClient() {
     },
   };
 }
+
+const ACCESS_ENV = {
+  MCP_ACCESS_TOKEN: "test-access-secret-with-enough-entropy",
+};
 
 test("invite-approved registration stores a server-side access record", async () => {
   const client = createClient();
@@ -58,15 +63,18 @@ test("a direct Supabase signup cannot pass the application access boundary", asy
   );
 });
 
-test("an invite-approved email can recover access without storing the raw email", async () => {
+test("an invite-approved email can recover access without storing a guessable email hash", async () => {
   const client = createClient();
-  const approved = await approveTesterEmail(" Friend@Example.com ", { client });
+  const approved = await approveTesterEmail(" Friend@Example.com ", {
+    client,
+    env: ACCESS_ENV,
+  });
 
   assert.equal(approved.emailHash.length, 64);
   assert.equal(
     await assertTesterAccess(
       { id: "recovered-user", email: "friend@example.com" },
-      { client },
+      { client, env: ACCESS_ENV },
     ),
     true,
   );
@@ -75,6 +83,10 @@ test("an invite-approved email can recover access without storing the raw email"
   );
   assert.ok(stored);
   assert.doesNotMatch(JSON.stringify(stored), /friend@example\.com/iu);
+  assert.notEqual(
+    approved.emailHash,
+    createHash("sha256").update("friend@example.com").digest("hex"),
+  );
 });
 
 test("the configured primary Supabase owner does not need a tester record", async () => {

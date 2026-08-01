@@ -84,7 +84,9 @@ import {
 } from "../config/projectIdentity.js";
 import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 import {
+  buildWorkContextStatusReply,
   buildWorkModeContext,
+  isWorkContextStatusRequest,
   normalizeInteractionMode,
   resolveWorkAgentModel,
   sanitizeWorkContext,
@@ -946,6 +948,30 @@ router.post("/chat", async (req, res) => {
       res.write(`: heartbeat ${Date.now()}\n\n`);
     }
   };
+
+  if (
+    !image &&
+    interactionMode === "work" &&
+    cleanWorkContext &&
+    isWorkContextStatusRequest(cleanMessage)
+  ) {
+    const fullReply = buildWorkContextStatusReply(cleanWorkContext);
+    const conversationPersisted = await saveConversationTurnBestEffort(
+      cleanSessionId,
+      cleanMessage,
+      fullReply,
+      ownerId,
+    );
+    sendEvent("token", { token: fullReply });
+    sendEvent("done", {
+      ok: true,
+      mode: "verified-work-context",
+      workContextVerified: true,
+      ...getConversationPersistenceMetadata(conversationPersisted),
+    });
+    res.end();
+    return;
+  }
 
   if (image) {
     try {

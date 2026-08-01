@@ -143,6 +143,22 @@ body[data-interaction-mode="chat"] .work-pet {
   line-height: 1.45;
 }
 
+.work-save-notice,
+.work-save-error {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 13px;
+  color: #166534;
+  background: #dcfce7;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.work-save-error {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
 .work-storage-note {
   color: #7c4a03;
   background: #fff4d7;

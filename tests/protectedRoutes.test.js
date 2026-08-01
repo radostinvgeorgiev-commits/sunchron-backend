@@ -14,6 +14,8 @@ const { createGitHubSession } =
 
 test("keeps liveness and sign-in routes public", async () => {
   await request(app).get("/health").expect(200);
+  const registration = await request(app).get("/register").expect(200);
+  assert.match(registration.text, /id="registerForm"/u);
   const config = await request(app).get("/api/public-config").expect(200);
   assert.equal(config.body.chatgptWorkUrl, "https://chatgpt.com/");
   const auth = await request(app).get("/api/auth/session").expect(200);

@@ -71,6 +71,7 @@ import {
   executeCapability,
 } from "../tools/capabilityEngine.js";
 import {
+  hasExplicitReadOnlyBoundary,
   planCapabilities,
   shouldUseAgentPlanner,
 } from "../services/agentPlannerService.js";
@@ -281,6 +282,7 @@ export function splitCapabilitySubtasks(message) {
 export function isGitHubWriteRequest(message) {
   const text = typeof message === "string" ? message.trim().toLowerCase() : "";
   if (!text) return false;
+  if (hasExplicitReadOnlyBoundary(text)) return false;
 
   const hasWriteOutcome =
     /(?:промени|обнови|редактирай|поправи|направи\s+промян|създай\s+(?:клон|branch|pull\s*request|pr)|слей)/iu.test(
@@ -290,12 +292,7 @@ export function isGitHubWriteRequest(message) {
     /(?:github|хранилищ|репозитор|код|интерфейс|файл|commit|комит|pull\s*request|\bpr\b|клон|branch|main|deployment|деплой)/iu.test(
       text,
     );
-  const onlyNegativeInstruction =
-    /^(?:не\s+променяй|не\s+редактирай|не\s+публикувай|не\s+създавай)/iu.test(
-      text,
-    ) && !hasWriteOutcome;
-
-  return hasWriteOutcome && hasCodeTarget && !onlyNegativeInstruction;
+  return hasWriteOutcome && hasCodeTarget;
 }
 
 function isExplicitGitHubReadSubtask(subtask, hasGitHubContext) {

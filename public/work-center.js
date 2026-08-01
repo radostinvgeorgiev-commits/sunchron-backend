@@ -2,6 +2,7 @@
   const REPOSITORY_URL =
     "https://github.com/radostinvgeorgiev-commits/sunchron-backend";
   const MCP_RESOURCE_URL = "https://synchron.foundation/mcp";
+  const PUBLIC_REGISTRATION_URL = "https://www.synchron.foundation";
   const CHATGPT_APP_GUIDE_URL =
     "https://developers.openai.com/apps-sdk/deploy/testing";
   const FALLBACK_CONFIG = Object.freeze({
@@ -807,10 +808,8 @@
       return;
     }
     if (actionCard?.dataset.workCenterAction === "copy-registration-link") {
-      const origin =
-        globalThis.location?.origin || "https://synchron.foundation";
       await globalThis.navigator?.clipboard?.writeText(
-        `${origin.replace(/\/$/u, "")}/register`,
+        PUBLIC_REGISTRATION_URL,
       );
       showTesterAuthResult({
         title: "Адресът за регистрация е копиран",

@@ -76,6 +76,7 @@ function createHarness({
   testerAuth = { configured: false, registrationEnabled: false },
   fetchFails = false,
   testerPrepareResponse = null,
+  testerInviteCode = "current-private-invite",
 } = {}) {
   const dom = new JSDOM(`<!doctype html><body>
     <aside id="sidebar"></aside>
@@ -104,6 +105,7 @@ function createHarness({
       },
     },
     location: {
+      origin: "https://synchron.foundation",
       assign: (url) => {
         dom.window.document.body.dataset.redirectedTo = url;
       },
@@ -124,7 +126,9 @@ function createHarness({
               ? { connected: githubConnected }
               : path.includes("/api/tester-auth/status")
                 ? testerAuth
-                : config || {};
+                : path.includes("/api/tester-auth/invite-code")
+                  ? { inviteCode: testerInviteCode }
+                  : config || {};
       return {
         ok: true,
         json: async () => result,
@@ -372,6 +376,29 @@ test("work center shows the invite action only after tester auth is active", asy
 
   assert.match(card.textContent, /Тестови профили/u);
   assert.match(card.textContent, /Работи · Само за собственика/u);
+});
+
+test("copies a current tester invitation link without manual code entry", async () => {
+  const harness = createHarness({
+    testerAuth: { configured: true, registrationEnabled: true },
+    testerInviteCode: "current/private invite",
+  });
+  await openCenter(harness);
+  const { document } = harness.dom.window;
+  document
+    .querySelector('[data-work-center-action="show-tester-invite"]')
+    .click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const copyLink = document.querySelector("[data-copy-tester-invite-link]");
+  copyLink.click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(
+    document.body.dataset.copiedText,
+    "https://synchron.foundation/#tester-invite=current%2Fprivate%20invite",
+  );
+  assert.equal(copyLink.textContent, "Линкът е копиран");
 });
 
 test("tester auth action is visibly actionable on mobile", async () => {

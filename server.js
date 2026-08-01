@@ -215,7 +215,7 @@ app.get("/opensearch-status", requireOwnerSession, async (req, res) => {
   }
 });
 
-app.get("/", (req, res) => {
+app.get(["/", "/register"], (req, res) => {
   res.sendFile(`${process.cwd()}/public/index.html`);
 });
 

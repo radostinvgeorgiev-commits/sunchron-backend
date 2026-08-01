@@ -38,6 +38,16 @@ test("registration does not send an invitation code", () => {
   assert.match(app, /password: elements\.registerPassword\.value/u);
 });
 
+test("direct registration address opens the registration form", () => {
+  assert.match(app, /const REGISTRATION_PATH = "\/register"/u);
+  assert.match(app, /isDirectRegistrationPage\(\)/u);
+  assert.match(
+    app,
+    /state\.registrationEnabled && isDirectRegistrationPage\(\)/u,
+  );
+  assert.match(app, /showRegisterForm\(\)/u);
+});
+
 test("hides owner tools for tester profiles and exposes logout", () => {
   assert.match(html, /id="toolsBtn"[^>]*data-owner-only/u);
   assert.match(html, /id="workCenterBtn"[^>]*data-owner-only/u);

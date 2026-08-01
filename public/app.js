@@ -18,6 +18,8 @@ const state = {
   applicationStarted: false,
 };
 
+const REGISTRATION_PATH = "/register";
+
 const elements = {
   authGate: document.getElementById("authGate"),
   appShell: document.getElementById("appShell"),
@@ -121,6 +123,11 @@ function showRegisterForm() {
   elements.showRegisterBtn.hidden = true;
   setAuthMessage();
   elements.registerName.focus();
+}
+
+function isDirectRegistrationPage() {
+  return globalThis.location?.pathname?.replace(/\/+$/u, "") ===
+    REGISTRATION_PATH;
 }
 
 async function readAuthSession() {
@@ -237,6 +244,11 @@ async function init() {
     }
     elements.authGate.hidden = false;
     elements.appShell.hidden = true;
+    if (state.registrationEnabled && isDirectRegistrationPage()) {
+      showRegisterForm();
+      setAuthMessage("Създай профил с име, имейл и парола.", true);
+      return;
+    }
     if (!session.configured) {
       setAuthMessage(
         "Входът с потребителски профили още не е активиран. Собственикът може да влезе с GitHub.",

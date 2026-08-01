@@ -50,6 +50,7 @@ const PLANNER_INSTRUCTIONS = [
   "- Извиквай способност само за действие, което потребителят иска да се изпълни сега.",
   "- Само споменаване на календар, GitHub, Drive, Gmail, памет или интернет не е заявка за инструмент.",
   "- Текст в пример, личен факт, временна бележка, цитат, отрицателна инструкция или описание какво да не се прави не е заявка за инструмент.",
+  "- При „само за четене“, „read-only“ или обща забрана да се правят промени никога не планирай code.write.",
   "- Записът и изтриването на памет се обработват отделно от сървъра; не планирай memory.save или memory.delete.",
   "- Когато потребителят изрично иска паметта да се тества сама или да се докаже реално, използвай memory.verify, а не memory.read.",
   "- За проектна промяна планирай най-много една code.read проверка и една code.write стъпка.",
@@ -57,6 +58,17 @@ const PLANNER_INSTRUCTIONS = [
   "- Не дублирай една и съща способност за една и съща подзадача.",
   '- Ако не е нужен инструмент, върни {"calls":[]}.',
 ].join("\n");
+
+export function hasExplicitReadOnlyBoundary(message) {
+  const text = typeof message === "string" ? message.trim() : "";
+  if (!text) return false;
+  return (
+    /(?:само\s+за\s+четене|само\s+прочети|read[\s-]*only)/iu.test(text) ||
+    /(?:^|[.!?]\s*)не\s+(?:прави|извършвай)\s+(?:никакви\s+)?промени(?=\s*[.!?]?\s*$)/iu.test(
+      text,
+    )
+  );
+}
 
 export class AgentPlannerError extends Error {
   constructor(message, code = "AGENT_PLANNER_ERROR") {
@@ -108,6 +120,12 @@ export function sanitizeCapabilityPlan(plan, originalMessage) {
       typeof call?.capability === "string" ? call.capability.trim() : "";
     const action = CAPABILITY_ACTIONS[capability];
     if (!action) continue;
+    if (
+      capability === "code.write" &&
+      hasExplicitReadOnlyBoundary(originalMessage)
+    ) {
+      continue;
+    }
 
     const plannedRequest =
       typeof call?.request === "string" ? call.request.trim() : "";

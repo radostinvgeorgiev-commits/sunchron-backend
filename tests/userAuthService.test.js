@@ -551,7 +551,7 @@ test("two authenticated users receive different stable memory owners", async () 
     );
   }
 
-  assert.equal(identities[0].user.role, "tester");
+  assert.equal(identities[0].user.role, "member");
   assert.notEqual(
     identities[0].user.memoryOwnerId,
     identities[1].user.memoryOwnerId,

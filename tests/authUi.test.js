@@ -48,12 +48,13 @@ test("direct registration address opens the registration form", () => {
   assert.match(app, /showRegisterForm\(\)/u);
 });
 
-test("hides owner tools for tester profiles and exposes logout", () => {
+test("hides owner-only tools for member profiles and exposes logout", () => {
   assert.match(html, /id="toolsBtn"[^>]*data-owner-only/u);
   assert.match(html, /id="workCenterBtn"[^>]*data-owner-only/u);
   assert.match(html, /id="logoutBtn"/u);
   assert.match(app, /querySelectorAll\("\[data-owner-only\]"\)/u);
   assert.match(app, /user\?\.role === "owner"/u);
+  assert.match(app, /isOwner \? "owner" : "member"/u);
   assert.match(app, /\/api\/auth\/logout/u);
 });
 

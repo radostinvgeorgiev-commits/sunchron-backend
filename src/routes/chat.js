@@ -78,6 +78,11 @@ import {
 import { requestOpenAIText } from "../services/aiCoreService.js";
 import { executeTaskPlan } from "../services/taskExecutionService.js";
 import {
+  canPlanCapabilities,
+  filterCapabilityRequestsForIdentity,
+  isMemberIdentity,
+} from "../services/memberCapabilityPolicy.js";
+import {
   AVATAR_DEFINITION,
   PROJECT_BASE_CONTEXT,
   PROJECT_DEFINITION,
@@ -180,13 +185,15 @@ const ASSISTANT_CONTEXT = [
   "[КРАЙ НА КОНТЕКСТА]",
 ].join("\n");
 
-function testerAssistantContext(personName) {
+function memberAssistantContext(personName) {
   return [
     "[КОНТЕКСТ И ПРАВИЛА ЗА ТОЗИ РАЗГОВОР]",
     `Ти си AI CORE — личен AI асистент на ${personName}.`,
     AVATAR_DEFINITION,
-    "Този профил участва в ограничен тест на разговор и постоянна памет.",
-    "Не твърди, че външни инструменти или услуги са достъпни. В тестовия профил те са изключени.",
+    "Този е личен потребителски профил с отделна постоянна памет.",
+    "Можеш да използваш актуално интернет търсене и постоянната памет само на този профил.",
+    "GitHub, Google и инфраструктурните инструменти не са достъпни, докато потребителят не свърже собствена услуга и не даде отделно разрешение.",
+    "Не твърди, че недостъпен инструмент е използван. Показвай само реално изпълнен и проверен резултат.",
     `Човекът, с когото разговаряш, е ${personName}. Никога не казвай, че ти си този човек.`,
     "Говори на български, освен ако човекът изрично поиска друг език.",
     `Обръщай се към ${personName} на „ти“. Говори естествено, спокойно, директно и човешки.`,
@@ -207,10 +214,9 @@ export function buildAvatarMessages(
   interaction = { mode: "chat", workContext: null },
 ) {
   const personName = identity?.displayName || "Потребител";
-  const assistantContext =
-    identity?.role === "tester"
-      ? testerAssistantContext(personName)
-      : ASSISTANT_CONTEXT;
+  const assistantContext = isMemberIdentity(identity)
+    ? memberAssistantContext(personName)
+    : ASSISTANT_CONTEXT;
   const conversationHistory = history.length
     ? [
         "[ПРЕДИШЕН РАЗГОВОР]",
@@ -769,6 +775,7 @@ router.post("/chat", async (req, res) => {
     parseGitHubCookies(req.headers.cookie).synchron_github_session || "";
   const ownerId = req.owner.memoryOwnerId;
   const ownerToolsAllowed = req.owner.role === "owner";
+  const capabilityPlanningAllowed = canPlanCapabilities(req.owner);
   const cleanSessionId = typeof sessionId === "string" ? sessionId.trim() : "";
   const cleanMessage = typeof message === "string" ? message.trim() : "";
   const interactionMode = normalizeInteractionMode(mode);
@@ -1246,26 +1253,31 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
-  const fallbackCapabilityRequests =
-    ownerToolsAllowed && !memoryAction
-      ? detectCapabilityRequests(cleanMessage)
-      : [];
+  const fallbackCapabilityRequests = !memoryAction
+    ? filterCapabilityRequestsForIdentity(
+        detectCapabilityRequests(cleanMessage),
+        req.owner,
+      )
+    : [];
   let detectedCapabilityRequests = fallbackCapabilityRequests;
   sendEvent("task", {
     status: "planning",
     message: "Проверявам задачата и избирам нужните инструменти…",
   });
   if (
-    ownerToolsAllowed &&
+    capabilityPlanningAllowed &&
     !memoryAction &&
     openAiApiKey &&
     shouldUseAgentPlanner(cleanMessage, fallbackCapabilityRequests)
   ) {
     try {
-      const plannedCapabilityRequests = await planCapabilities({
-        openAiApiKey,
-        message: cleanMessage,
-      });
+      const plannedCapabilityRequests = filterCapabilityRequestsForIdentity(
+        await planCapabilities({
+          openAiApiKey,
+          message: cleanMessage,
+        }),
+        req.owner,
+      );
       detectedCapabilityRequests = mergeCapabilityRequests(
         fallbackCapabilityRequests,
         plannedCapabilityRequests,

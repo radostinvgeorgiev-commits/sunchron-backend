@@ -68,12 +68,12 @@ test("avatar preserves conversation order without repeating its instructions", (
   assert.match(messages[0].content, /Следващ въпрос/u);
 });
 
-test("tester context uses the tester identity and does not expose Radko context", () => {
+test("member context uses the member identity and safe personal tools", () => {
   const messages = buildAvatarMessages(
     [{ fact: "Любимият ми цвят е зелен", scope: "personal" }],
     [{ role: "user", content: "Здравей" }],
     "Какъв е любимият ми цвят?",
-    { role: "tester", displayName: "Иван" },
+    { role: "member", displayName: "Иван" },
   );
 
   assert.match(messages[0].content, /личен AI асистент на Иван/u);
@@ -84,6 +84,12 @@ test("tester context uses the tester identity and does not expose Radko context"
     messages[0].content,
     /radostinvgeorgiev-commits|DigitalOcean/u,
   );
+  assert.match(messages[0].content, /интернет търсене/u);
+  assert.match(messages[0].content, /памет само на този профил/u);
+  assert.match(
+    messages[0].content,
+    /GitHub, Google и инфраструктурните инструменти не са достъпни/u,
+  );
 });
 
 test("work mode adds bounded project and personal-agent context", () => {
@@ -91,7 +97,7 @@ test("work mode adds bounded project and personal-agent context", () => {
     [],
     [],
     "Подготви първата версия",
-    { role: "tester", displayName: "Иван" },
+    { role: "member", displayName: "Иван" },
     {
       mode: "work",
       workContext: {
@@ -120,7 +126,7 @@ test("chat mode does not add work-project context", () => {
     [],
     [],
     "Здравей",
-    { role: "tester", displayName: "Иван" },
+    { role: "member", displayName: "Иван" },
     { mode: "chat", workContext: null },
   );
 

@@ -84,9 +84,7 @@ function legacyOAuthSecret(env = process.env) {
 
 function dedicatedOAuthSecret(env = process.env) {
   const source =
-    typeof env.MCP_OAUTH_SECRET === "string"
-      ? env.MCP_OAUTH_SECRET.trim()
-      : "";
+    typeof env.MCP_OAUTH_SECRET === "string" ? env.MCP_OAUTH_SECRET.trim() : "";
   if (!source) return null;
   if (source.length < 32) {
     throw new McpOAuthError(
@@ -715,7 +713,7 @@ export function verifyMcpAccessToken(
     !Array.isArray(payload.scopes) ||
     !payload.subject ||
     !payload.memoryOwnerId ||
-    !["owner", "tester"].includes(payload.role)
+    !["owner", "member", "tester"].includes(payload.role)
   ) {
     throw new McpOAuthError(
       "Невалиден или изтекъл MCP token.",

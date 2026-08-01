@@ -126,8 +126,9 @@ function showRegisterForm() {
 }
 
 function isDirectRegistrationPage() {
-  return globalThis.location?.pathname?.replace(/\/+$/u, "") ===
-    REGISTRATION_PATH;
+  return (
+    globalThis.location?.pathname?.replace(/\/+$/u, "") === REGISTRATION_PATH
+  );
 }
 
 async function readAuthSession() {
@@ -222,7 +223,7 @@ function applyAuthenticatedUser(user) {
   elements.profileRole.textContent = isOwner
     ? "Собственик · настройки"
     : "Личен профил";
-  document.body.dataset.userRole = isOwner ? "owner" : "tester";
+  document.body.dataset.userRole = isOwner ? "owner" : "member";
   for (const item of document.querySelectorAll("[data-owner-only]")) {
     item.hidden = !isOwner;
   }

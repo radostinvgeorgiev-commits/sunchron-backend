@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  hasExplicitReadOnlyBoundary,
   planCapabilities,
   sanitizeCapabilityPlan,
   shouldUseAgentPlanner,
@@ -206,6 +207,24 @@ test("planner accepts the read-only Copilot task status capability", () => {
         message: "Провери GitHub задача #83.",
       },
     ],
+  );
+});
+
+test("planner cannot add GitHub write across an explicit read-only boundary", () => {
+  const message =
+    "Провери само за четене кой е последният commit в main. Не прави промени.";
+  assert.equal(hasExplicitReadOnlyBoundary(message), true);
+  assert.deepEqual(
+    sanitizeCapabilityPlan(
+      {
+        calls: [
+          { capability: "code.read", request: message },
+          { capability: "code.write", request: "Промени проекта" },
+        ],
+      },
+      message,
+    ).map(({ capability }) => capability),
+    ["code.read"],
   );
 });
 

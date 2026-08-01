@@ -603,3 +603,14 @@ test("a GitHub implementation task creates one read check and one honest write a
     1,
   );
 });
+
+test("an explicit read-only GitHub check never attempts GitHub write", () => {
+  const message =
+    "Провери само за четене кой е последният commit в main на проекта. Не прави промени.";
+
+  const requests = detectCapabilityRequests(message);
+  assert.deepEqual(
+    requests.map(({ capability }) => capability),
+    ["code.read"],
+  );
+});

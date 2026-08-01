@@ -92,7 +92,7 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "MEMORY_OWNER_ID",
       "Памет",
       "Стабилен собственик на основната лична памет.",
-      { requiredNow: true },
+      { hasDefault: true },
     ),
     general(
       "MEMORY_INDEX",
@@ -162,13 +162,13 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "SUPABASE_SESSION_ENCRYPTION_KEY",
       "Тестови профили",
       "Криптира Supabase сесиите в браузъра.",
-      { requiredNow: true },
+      { requiredNow: true, hasProtectedFallback: true },
     ),
     secret(
       "SYNCHRON_TEST_INVITE_CODE",
       "Тестови профили",
       "Частен код за разрешена регистрация.",
-      { requiredNow: true },
+      { requiredNow: true, hasProtectedFallback: true },
     ),
     general(
       "SYNCHRON_PRIMARY_SUPABASE_USER_ID",

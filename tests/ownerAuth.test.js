@@ -130,20 +130,17 @@ test("verified GitHub owner takes priority over a stale tester session", async (
   assert.equal(request.owner.authProvider, "github");
   assert.equal(request.owner.memoryOwnerId, "primary-user");
   assert.equal(response.headers["Set-Cookie"].length, 1);
-  assert.match(
-    response.headers["Set-Cookie"][0],
-    /^synchron_user_session=;/u,
-  );
+  assert.match(response.headers["Set-Cookie"][0], /^synchron_user_session=;/u);
 });
 
-test("allows a Supabase tester with a separate memory namespace", async () => {
+test("allows a Supabase member with a separate memory namespace", async () => {
   const middleware = createRequireOwnerSession({
     getUserSession: async () => ({
       user: {
         id: "11111111-1111-4111-8111-111111111111",
         email: "friend@example.com",
         displayName: "Приятел",
-        role: "tester",
+        role: "member",
         memoryOwnerId: "supabase:11111111-1111-4111-8111-111111111111",
       },
       refreshed: false,
@@ -164,7 +161,7 @@ test("allows a Supabase tester with a separate memory namespace", async () => {
     id: "11111111-1111-4111-8111-111111111111",
     email: "friend@example.com",
     displayName: "Приятел",
-    role: "tester",
+    role: "member",
     authProvider: "supabase",
     memoryOwnerId: "supabase:11111111-1111-4111-8111-111111111111",
   });

@@ -517,7 +517,7 @@ function publicUser(user, env = process.env) {
     id: user.id,
     email,
     displayName: metadataName || email.split("@")[0] || "Потребител",
-    role: isPrimary ? "owner" : "tester",
+    role: isPrimary ? "owner" : "member",
     memoryOwnerId: isPrimary
       ? env.MEMORY_OWNER_ID || "primary-user"
       : `supabase:${user.id}`,

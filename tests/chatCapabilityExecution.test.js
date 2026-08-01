@@ -12,6 +12,7 @@ import {
   shouldReplyWithVerifiedToolOutput,
   splitCapabilitySubtasks,
 } from "../src/routes/chat.js";
+import { filterCapabilityRequestsForIdentity } from "../src/services/memberCapabilityPolicy.js";
 import { extractMemoryWriteConfirmationId } from "../src/services/memoryWriteConfirmationService.js";
 import { DigitalOceanError } from "../src/services/digitalOceanService.js";
 import {
@@ -44,6 +45,39 @@ test("detects multiple capability subtasks in one message", () => {
       { capability: "calendar.read", action: "calendar.read" },
       { capability: "code.read", action: "github.read" },
     ],
+  );
+});
+
+test("member profiles receive only web search and their own memory tools", () => {
+  const requests = detectCapabilityRequests(
+    "Потърси актуалната прогноза, провери паметта и провери GitHub.",
+  );
+  const allowed = filterCapabilityRequestsForIdentity(requests, {
+    role: "member",
+  });
+
+  assert.deepEqual(
+    allowed.map(({ capability }) => capability),
+    ["memory.read", "web.search"],
+  );
+});
+
+test("member capability filtering is deny-by-default", () => {
+  const requests = detectCapabilityRequests(
+    "Провери Gmail, Google Drive, календара, GitHub и Supabase.",
+  );
+
+  assert.deepEqual(
+    filterCapabilityRequestsForIdentity(requests, { role: "member" }),
+    [],
+  );
+  assert.deepEqual(
+    filterCapabilityRequestsForIdentity(requests, { role: "unknown" }),
+    [],
+  );
+  assert.deepEqual(
+    filterCapabilityRequestsForIdentity(requests, { role: "owner" }),
+    requests,
   );
 });
 

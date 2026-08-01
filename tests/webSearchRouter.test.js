@@ -88,6 +88,7 @@ test("extractSearchResult supports current nested url citations", () => {
 test("recognizes explicit and time-sensitive web searches", () => {
   assert.equal(isWebSearchRequest("Потърси това в интернет."), true);
   assert.equal(isWebSearchRequest("Провери актуалното време във Варна."), true);
+  assert.equal(isWebSearchRequest("Потърси актуалната прогноза."), true);
   assert.equal(isWebSearchRequest("Провери файловете ми в Drive."), false);
 });
 

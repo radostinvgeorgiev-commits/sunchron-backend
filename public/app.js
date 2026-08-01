@@ -787,6 +787,7 @@ function configurationStatus(item) {
   const labels = {
     configured: ["Настроена", "allow"],
     defaulted: ["По подразбиране", "allow"],
+    "protected-fallback": ["Защитен заместител", "allow"],
     "missing-required": ["Липсва", "deny"],
     "optional-missing": ["Незадължителна", "confirm"],
     compatibility: ["Стар резервен път", "confirm"],
@@ -854,8 +855,9 @@ async function openSystemConfigurationDrawer() {
       <div class="permission-default system-summary">
         <strong>${readiness?.status === "ready" ? "Ядрото е готово" : "Ядрото изисква внимание"}</strong>
         <p>${workingTools} от ${tools.length} инструмента са конфигурирани и изпълними.</p>
-        <p>${configuration.summary.configured} настройки са налични; ${configuration.summary.missingRequired} задължителни липсват.</p>
-        <p>DigitalOcean самопроверка: ${configuration.digitalOcean.connected ? "работи" : "не е достъпна"}.</p>
+        <p>${configuration.summary.configured} настройки са налични; ${configuration.summary.protectedFallback || 0} използват защитен заместител; ${configuration.summary.missingRequired} задължителни липсват.</p>
+        <p>Production: ${configuration.production?.status === "ready" ? `готово · commit ${escapeHtml(configuration.production.commit)}` : "не е потвърдено"}.</p>
+        <p>DigitalOcean самопроверка (API): ${configuration.digitalOcean.connected ? "работи" : "не е достъпна"}.</p>
         <small>Тук няма стойности на ключове, пароли или token-и.</small>
       </div>
       <section class="drawer-section">

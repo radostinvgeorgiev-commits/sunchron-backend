@@ -86,6 +86,7 @@ import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 import {
   buildWorkModeContext,
   normalizeInteractionMode,
+  resolveWorkAgentModel,
   sanitizeWorkContext,
 } from "../services/workModeService.js";
 
@@ -1419,6 +1420,7 @@ router.post("/chat", async (req, res) => {
     const fullReply = await requestOpenAIText({
       apiKey: openAiApiKey,
       input: messages,
+      model: resolveWorkAgentModel(cleanWorkContext?.agent?.model),
       signal: abortController.signal,
       reasoningEffort: "low",
       verbosity: "medium",

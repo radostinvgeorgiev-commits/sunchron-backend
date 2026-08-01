@@ -23,6 +23,13 @@ const AGENT_ROLES = Object.freeze({
   },
 });
 
+const AGENT_MODELS = Object.freeze({
+  auto: { label: "Автоматичен", apiModel: null },
+  "gpt-5.6-sol": { label: "GPT-5.6 Sol", apiModel: "gpt-5.6-sol" },
+  "gpt-5.6-terra": { label: "GPT-5.6 Terra", apiModel: "gpt-5.6-terra" },
+  "gpt-5.6-luna": { label: "GPT-5.6 Luna", apiModel: "gpt-5.6-luna" },
+});
+
 function cleanText(value, maxLength) {
   if (typeof value !== "string") return "";
   return value
@@ -49,9 +56,14 @@ export function sanitizeWorkContext(value) {
   const role = Object.hasOwn(AGENT_ROLES, requestedRole)
     ? requestedRole
     : "general";
+  const requestedModel = cleanText(value.agent?.model, 40);
+  const model = Object.hasOwn(AGENT_MODELS, requestedModel)
+    ? requestedModel
+    : "auto";
   const agent = {
     name: cleanText(value.agent?.name, 50) || "AI CORE",
     role,
+    model,
     purpose: cleanText(value.agent?.purpose, 400),
   };
 
@@ -82,6 +94,7 @@ export function buildWorkModeContext(value) {
       : "Цел на проекта: още не е описана.",
     `Избран личен агент: ${context.agent.name}`,
     `Роля: ${role.label}`,
+    `Модел: ${AGENT_MODELS[context.agent.model].label}`,
     `Начин на работа: ${role.guidance}`,
     context.agent.purpose
       ? `Допълнителен фокус от потребителя: ${context.agent.purpose}`
@@ -97,4 +110,18 @@ export function listWorkAgentRoles() {
     id,
     label: role.label,
   }));
+}
+
+export function listWorkAgentModels() {
+  return Object.entries(AGENT_MODELS).map(([id, model]) => ({
+    id,
+    label: model.label,
+  }));
+}
+
+export function resolveWorkAgentModel(value) {
+  const id = cleanText(value, 40);
+  return Object.hasOwn(AGENT_MODELS, id)
+    ? AGENT_MODELS[id].apiModel || undefined
+    : undefined;
 }

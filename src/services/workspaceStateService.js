@@ -4,17 +4,13 @@ import { getOpenSearchClient } from "../config/opensearch.js";
 
 const DEFAULT_INDEX = "synchron-workspaces-v1";
 const VALID_MODES = new Set(["chat", "work"]);
-const VALID_STATUSES = new Set([
-  "ready",
-  "running",
-  "needs-input",
-  "blocked",
-]);
-const VALID_ROLES = new Set([
-  "general",
-  "researcher",
-  "organizer",
-  "builder",
+const VALID_STATUSES = new Set(["ready", "running", "needs-input", "blocked"]);
+const VALID_ROLES = new Set(["general", "researcher", "organizer", "builder"]);
+const VALID_MODELS = new Set([
+  "auto",
+  "gpt-5.6-sol",
+  "gpt-5.6-terra",
+  "gpt-5.6-luna",
 ]);
 const VALID_PETS = new Set(["robot", "cat", "owl", "spark"]);
 
@@ -62,6 +58,7 @@ function defaultWorkspaceState(now = new Date().toISOString()) {
         id: "synchron-builder",
         name: "AI CORE",
         role: "builder",
+        model: "auto",
         purpose: "Подготвя реален резултат и показва какво е проверено.",
       },
     ],
@@ -81,9 +78,7 @@ export function normalizeWorkspaceState(value, { now } = {}) {
         id: cleanId(project?.id, `project-${index + 1}`),
         name: cleanText(project?.name, 80) || "Проект",
         objective: cleanText(project?.objective, 600),
-        status: VALID_STATUSES.has(project?.status)
-          ? project.status
-          : "ready",
+        status: VALID_STATUSES.has(project?.status) ? project.status : "ready",
         updatedAt: cleanText(project?.updatedAt, 40) || timestamp,
       }))
     : fallback.projects;
@@ -92,6 +87,7 @@ export function normalizeWorkspaceState(value, { now } = {}) {
         id: cleanId(agent?.id, `agent-${index + 1}`),
         name: cleanText(agent?.name, 50) || "Личен агент",
         role: VALID_ROLES.has(agent?.role) ? agent.role : "general",
+        model: VALID_MODELS.has(agent?.model) ? agent.model : "auto",
         purpose: cleanText(agent?.purpose, 400),
       }))
     : fallback.agents;
@@ -116,9 +112,7 @@ export function normalizeWorkspaceState(value, { now } = {}) {
   )
     ? value.activeProjectId
     : projects[0].id;
-  const activeAgentId = agents.some(
-    (agent) => agent.id === value.activeAgentId,
-  )
+  const activeAgentId = agents.some((agent) => agent.id === value.activeAgentId)
     ? value.activeAgentId
     : agents[0].id;
 
@@ -156,9 +150,7 @@ function indexName(env = process.env) {
 
 function requireClient(client = getOpenSearchClient()) {
   if (!client) {
-    throw new WorkspaceStateError(
-      "Работната област временно не е достъпна.",
-    );
+    throw new WorkspaceStateError("Работната област временно не е достъпна.");
   }
   return client;
 }

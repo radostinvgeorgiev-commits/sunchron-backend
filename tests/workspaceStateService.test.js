@@ -25,6 +25,7 @@ test("workspace state is bounded and strips untrusted values", () => {
           id: "agent one",
           name: "Моят агент",
           role: "system-admin",
+          model: "made-up-model",
           purpose: "Работи спокойно",
         },
       ],
@@ -45,6 +46,7 @@ test("workspace state is bounded and strips untrusted values", () => {
   assert.equal(state.projects[0].status, "ready");
   assert.doesNotMatch(state.projects[0].name, /\u0000/u);
   assert.equal(state.agents[0].role, "general");
+  assert.equal(state.agents[0].model, "auto");
   assert.equal(state.activities.length, 40);
 });
 
@@ -74,7 +76,14 @@ test("workspace state is saved in an isolated hashed document", async () => {
       activeProjectId: "p1",
       activeAgentId: "a1",
       projects: [{ id: "p1", name: "Сайт", status: "running" }],
-      agents: [{ id: "a1", name: "Строител", role: "builder" }],
+      agents: [
+        {
+          id: "a1",
+          name: "Строител",
+          role: "builder",
+          model: "gpt-5.6-terra",
+        },
+      ],
     },
     { client, now: "2026-08-01T11:00:00.000Z" },
   );
@@ -84,6 +93,7 @@ test("workspace state is saved in an isolated hashed document", async () => {
   assert.equal(indexed.body.ownerHash, indexed.id);
   assert.doesNotMatch(JSON.stringify(indexed.body), /primary-user/u);
   assert.equal(result.state.mode, "work");
+  assert.equal(result.state.agents[0].model, "gpt-5.6-terra");
   assert.equal(result.persisted, true);
 });
 

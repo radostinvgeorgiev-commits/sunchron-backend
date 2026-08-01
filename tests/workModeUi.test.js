@@ -79,6 +79,10 @@ test("work settings are scoped by authenticated user and payload is bounded", as
   assert.match(script, /\.slice\(0, 12\)/u);
   assert.match(script, /name: cleanText\(project\?\.name, 80\)/u);
   assert.match(script, /purpose: cleanText\(agent\?\.purpose, 400\)/u);
+  assert.match(
+    script,
+    /model: Object\.hasOwn\(MODEL_OPTIONS, agent\?\.model\)/u,
+  );
   assert.match(script, /if \(busy && workState\?\.mode === "work"\)/u);
 });
 
@@ -122,6 +126,20 @@ test("work mode runs in the browser and creates an isolated project payload", as
     dom.window.localStorage.getItem("synchronWorkMode:tester-one"),
     /Тестов проект/u,
   );
+
+  dom.window.SynchronWorkMode.openManager();
+  const agentForm = dom.window.document.querySelectorAll("form")[1];
+  agentForm.querySelector("input").value = "Тестов ръководител";
+  agentForm.querySelector("#newWorkAgentRole").value = "organizer";
+  agentForm.querySelector("#newWorkAgentModel").value = "gpt-5.6-sol";
+  agentForm.querySelector("textarea").value = "Води проверимите етапи";
+  agentForm.dispatchEvent(
+    new dom.window.Event("submit", { bubbles: true, cancelable: true }),
+  );
+
+  const agentPayload = dom.window.SynchronWorkMode.getRequestPayload();
+  assert.equal(agentPayload.workContext.agent.name, "Тестов ръководител");
+  assert.equal(agentPayload.workContext.agent.model, "gpt-5.6-sol");
 
   dom.window.SynchronWorkMode.setBusy(true);
   assert.equal(

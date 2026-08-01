@@ -18,8 +18,11 @@ test("renders a real login gate before the private application", () => {
   assert.match(css, /\.app-shell\[hidden\]/u);
 });
 
-test("offers invite-only registration without embedding a code", () => {
-  assert.match(html, /id="registerInviteCode"/u);
+test("offers normal registration with name, email, and password", () => {
+  assert.match(html, /id="registerName"/u);
+  assert.match(html, /id="registerEmail"/u);
+  assert.match(html, /id="registerPassword"/u);
+  assert.doesNotMatch(html, /registerInviteCode|Код за тестов достъп/u);
   assert.match(app, /registrationEnabled/u);
   assert.match(app, /\/api\/auth\/register/u);
   assert.doesNotMatch(
@@ -28,16 +31,11 @@ test("offers invite-only registration without embedding a code", () => {
   );
 });
 
-test("accepts a shared tester invite from the URL fragment and removes it", () => {
-  assert.match(app, /params\.get\("tester-invite"\)/u);
-  assert.match(app, /history\?\.replaceState/u);
-  assert.match(app, /elements\.registerInviteCode\.value = sharedInvite/u);
-  assert.match(app, /Поканата е приложена/u);
-});
-
-test("explains an expired or mismatched tester invitation", () => {
-  assert.match(app, /AUTH_INVALID_INVITE_CODE/u);
-  assert.match(app, /Отвори новия линк за покана/u);
+test("registration does not send an invitation code", () => {
+  assert.doesNotMatch(app, /tester-invite|registerInviteCode|inviteCode:/u);
+  assert.match(app, /displayName: elements\.registerName\.value/u);
+  assert.match(app, /email: elements\.registerEmail\.value/u);
+  assert.match(app, /password: elements\.registerPassword\.value/u);
 });
 
 test("hides owner tools for tester profiles and exposes logout", () => {

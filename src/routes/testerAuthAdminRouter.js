@@ -16,6 +16,7 @@ import {
 import {
   getTesterInviteCode,
   isTesterRegistrationEnabled,
+  isUserRegistrationEnabled,
   isUserAuthConfigured,
 } from "../services/userAuthService.js";
 import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
@@ -79,7 +80,7 @@ export function createTesterAuthAdminRouter({
   router.get("/status", (_req, res) =>
     res.json({
       configured: isUserAuthConfigured(env),
-      registrationEnabled: isTesterRegistrationEnabled(env),
+      registrationEnabled: isUserRegistrationEnabled(env),
     }),
   );
 
@@ -104,7 +105,7 @@ export function createTesterAuthAdminRouter({
       if (!missingKeys.length) {
         return res.json({
           configured: true,
-          registrationEnabled: isTesterRegistrationEnabled(env),
+          registrationEnabled: isUserRegistrationEnabled(env),
           missingKeys: [],
           readAccessVerified: status.readAccessVerified,
           requiredWriteScope: status.requiredWriteScope,

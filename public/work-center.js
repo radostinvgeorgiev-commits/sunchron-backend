@@ -269,7 +269,7 @@
           connected: Boolean(sessions.googleConnected),
         }),
       },
-      { label: "Тестови профили", state: testerStatus },
+      { label: "Потребителски профили", state: testerStatus },
     ];
   }
 
@@ -499,20 +499,20 @@
       createActionCard({
         title:
           testerAuth?.configured && testerAuth?.registrationEnabled
-            ? "Тестови профили"
-            : "Активирай тестови профили",
+            ? "Потребителски профили"
+            : "Активирай потребителски профили",
         description:
           testerAuth?.configured && testerAuth?.registrationEnabled
-            ? "Входът е свързан със Supabase. Покажи кода за покана."
+            ? "Нормална регистрация с име, имейл и парола."
             : "Добавя четирите защитени production настройки чрез DigitalOcean моста.",
         action:
           testerAuth?.configured && testerAuth?.registrationEnabled
-            ? "show-tester-invite"
+            ? "copy-registration-link"
             : "activate-tester-auth",
         icon: "fa-solid fa-user-plus",
         status:
           testerAuth?.configured && testerAuth?.registrationEnabled
-            ? "Работи · Само за собственика"
+            ? "Работи · Нормална регистрация"
             : "Изисква точно потвърждение",
         statusClass:
           testerAuth?.configured && testerAuth?.registrationEnabled
@@ -520,7 +520,7 @@
             : "warning",
         actionLabel:
           testerAuth?.configured && testerAuth?.registrationEnabled
-            ? "Натисни, за да покажеш кода"
+            ? "Натисни, за да копираш адреса"
             : "Натисни за активиране",
       }),
       createExternalCard({
@@ -566,27 +566,12 @@
     body.appendChild(closeButton);
   }
 
-  function showTesterAuthResult({
-    title: resultTitle,
-    message,
-    inviteCode,
-    anchor,
-  }) {
+  function showTesterAuthResult({ title: resultTitle, message, anchor }) {
     const panel = document.createElement("section");
     panel.className = "work-center-intro";
     panel.dataset.testerAuthResult = "";
     addText(panel, "strong", resultTitle);
     addText(panel, "p", message);
-    if (inviteCode) {
-      const code = addText(panel, "code", inviteCode);
-      code.dataset.testerInviteCode = "";
-      const copyButton = addText(panel, "button", "Копирай кода");
-      copyButton.type = "button";
-      copyButton.dataset.copyTesterInvite = "";
-      const copyLinkButton = addText(panel, "button", "Копирай линк за покана");
-      copyLinkButton.type = "button";
-      copyLinkButton.dataset.copyTesterInviteLink = "";
-    }
     body.querySelector("[data-tester-auth-result]")?.remove();
     if (anchor?.parentNode) {
       anchor.insertAdjacentElement("afterend", panel);
@@ -677,18 +662,6 @@
     return payload;
   }
 
-  async function showTesterInvite() {
-    const payload = await readJson(
-      await fetch("/api/tester-auth/invite-code", { cache: "no-store" }),
-    );
-    showTesterAuthResult({
-      title: "Код за тестов достъп",
-      message:
-        "Дай този код само на човека, на когото разрешаваш да създаде тестов профил.",
-      inviteCode: payload.inviteCode,
-    });
-  }
-
   async function activateTesterAuth(card) {
     card.disabled = true;
     try {
@@ -700,7 +673,11 @@
         }),
       );
       if (prepared.configured) {
-        await showTesterInvite();
+        showTesterAuthResult({
+          title: "Потребителските профили са активни",
+          message: "Регистрацията с име, имейл и парола работи.",
+          anchor: card,
+        });
         return;
       }
       const approved = globalThis.confirm(
@@ -717,9 +694,9 @@
         }),
       );
       showTesterAuthResult({
-        title: "Тестовите профили се активират",
+        title: "Потребителските профили се активират",
         message:
-          "DigitalOcean започва нов deployment. Изчакай публикуването, после отвори отново „Тестови профили“ и копирай актуалния линк за покана.",
+          "DigitalOcean започва нов deployment. След публикуването нормалната регистрация ще бъде достъпна.",
         anchor: card,
       });
     } catch (error) {
@@ -814,27 +791,6 @@
       closeWorkCenter();
       return;
     }
-    const copyInvite = event.target.closest("[data-copy-tester-invite]");
-    if (copyInvite) {
-      const inviteCode = body.querySelector("[data-tester-invite-code]");
-      await globalThis.navigator?.clipboard?.writeText(
-        inviteCode?.textContent || "",
-      );
-      copyInvite.textContent = "Копирано";
-      return;
-    }
-    const copyInviteLink = event.target.closest(
-      "[data-copy-tester-invite-link]",
-    );
-    if (copyInviteLink) {
-      const inviteCode = body.querySelector("[data-tester-invite-code]");
-      const origin =
-        globalThis.location?.origin || "https://synchron.foundation";
-      const inviteUrl = `${origin.replace(/\/$/u, "")}/#tester-invite=${encodeURIComponent(inviteCode?.textContent || "")}`;
-      await globalThis.navigator?.clipboard?.writeText(inviteUrl);
-      copyInviteLink.textContent = "Линкът е копиран";
-      return;
-    }
     const copyMcpUrl = event.target.closest("[data-copy-mcp-url]");
     if (copyMcpUrl) {
       await globalThis.navigator?.clipboard?.writeText(MCP_RESOURCE_URL);
@@ -850,15 +806,17 @@
       await activateTesterAuth(actionCard);
       return;
     }
-    if (actionCard?.dataset.workCenterAction === "show-tester-invite") {
-      try {
-        await showTesterInvite();
-      } catch (error) {
-        showTesterAuthResult({
-          title: "Кодът не е достъпен",
-          message: error.message,
-        });
-      }
+    if (actionCard?.dataset.workCenterAction === "copy-registration-link") {
+      const origin =
+        globalThis.location?.origin || "https://synchron.foundation";
+      await globalThis.navigator?.clipboard?.writeText(
+        `${origin.replace(/\/$/u, "")}/`,
+      );
+      showTesterAuthResult({
+        title: "Адресът за регистрация е копиран",
+        message: "Изпрати го на човека, който иска да създаде профил.",
+        anchor: actionCard,
+      });
       return;
     }
     const internalCard = event.target.closest("[data-work-center-target]");

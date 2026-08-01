@@ -30,7 +30,6 @@ const elements = {
   registerName: document.getElementById("registerName"),
   registerEmail: document.getElementById("registerEmail"),
   registerPassword: document.getElementById("registerPassword"),
-  registerInviteCode: document.getElementById("registerInviteCode"),
   registerBtn: document.getElementById("registerBtn"),
   backToLoginBtn: document.getElementById("backToLoginBtn"),
   authMessage: document.getElementById("authMessage"),
@@ -147,20 +146,6 @@ async function submitAuth(path, body) {
   return data;
 }
 
-function consumeSharedTesterInvite() {
-  const hash = globalThis.location?.hash || "";
-  if (!hash.startsWith("#")) return "";
-  const params = new URLSearchParams(hash.slice(1));
-  const inviteCode = (params.get("tester-invite") || "").trim();
-  if (!inviteCode) return "";
-  globalThis.history?.replaceState?.(
-    null,
-    "",
-    `${globalThis.location.pathname || "/"}${globalThis.location.search || ""}`,
-  );
-  return inviteCode;
-}
-
 async function handleLogin(event) {
   event.preventDefault();
   setAuthBusy(true);
@@ -190,10 +175,8 @@ async function handleRegistration(event) {
       displayName: elements.registerName.value,
       email: elements.registerEmail.value,
       password: elements.registerPassword.value,
-      inviteCode: elements.registerInviteCode.value,
     });
     elements.registerPassword.value = "";
-    elements.registerInviteCode.value = "";
     if (result.confirmationRequired) {
       showLoginForm();
       elements.loginEmail.value = result.user?.email || "";
@@ -207,11 +190,7 @@ async function handleRegistration(event) {
     if (!session.authenticated) throw new Error("Сесията не беше създадена.");
     await startApplication(session.user);
   } catch (error) {
-    setAuthMessage(
-      error.code === "AUTH_INVALID_INVITE_CODE"
-        ? "Поканата вече не е валидна. Отвори новия линк за покана, изпратен от собственика."
-        : error.message,
-    );
+    setAuthMessage(error.message);
   } finally {
     setAuthBusy(false);
   }
@@ -235,7 +214,7 @@ function applyAuthenticatedUser(user) {
     displayName.trim().charAt(0).toLocaleUpperCase("bg-BG") || "П";
   elements.profileRole.textContent = isOwner
     ? "Собственик · настройки"
-    : "Тестов профил";
+    : "Личен профил";
   document.body.dataset.userRole = isOwner ? "owner" : "tester";
   for (const item of document.querySelectorAll("[data-owner-only]")) {
     item.hidden = !isOwner;
@@ -258,19 +237,9 @@ async function init() {
     }
     elements.authGate.hidden = false;
     elements.appShell.hidden = true;
-    const sharedInvite = consumeSharedTesterInvite();
-    if (state.registrationEnabled && sharedInvite) {
-      elements.registerInviteCode.value = sharedInvite;
-      showRegisterForm();
-      setAuthMessage(
-        "Поканата е приложена. Попълни име, имейл и парола.",
-        true,
-      );
-      return;
-    }
     if (!session.configured) {
       setAuthMessage(
-        "Входът за тестови профили още не е активиран. Собственикът може да влезе с GitHub.",
+        "Входът с потребителски профили още не е активиран. Собственикът може да влезе с GitHub.",
       );
     }
   } catch (error) {

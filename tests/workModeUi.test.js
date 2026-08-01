@@ -57,6 +57,7 @@ test("Chat and Work are available with projects, agents, and pet state", async (
   assert.match(workMode, /function getRequestPayload/u);
   assert.match(workMode, /function createProjectForm/u);
   assert.match(workMode, /function createAgentForm/u);
+  assert.match(workMode, /function createEditAgentForm/u);
   assert.match(workMode, /Любимецът показва/u);
   assert.match(workMode, /\/api\/workspaces/u);
   assert.match(workMode, /защитения ти профил/u);
@@ -140,6 +141,35 @@ test("work mode runs in the browser and creates an isolated project payload", as
   const agentPayload = dom.window.SynchronWorkMode.getRequestPayload();
   assert.equal(agentPayload.workContext.agent.name, "Тестов ръководител");
   assert.equal(agentPayload.workContext.agent.model, "gpt-5.6-sol");
+
+  const editAgent = [...dom.window.document.querySelectorAll("button")].find(
+    (button) =>
+      button.getAttribute("aria-label") === "Редактирай Тестов ръководител",
+  );
+  assert.ok(editAgent);
+  editAgent.click();
+  const editForm = dom.window.document.querySelector(".work-agent-edit-form");
+  editForm.querySelector("#editWorkAgentName").value = "Обновен ръководител";
+  editForm.querySelector("#editWorkAgentRole").value = "builder";
+  editForm.querySelector("#editWorkAgentModel").value = "gpt-5.6-terra";
+  editForm.querySelector("#editWorkAgentPurpose").value =
+    "Строи и проверява резултата";
+  editForm.dispatchEvent(
+    new dom.window.Event("submit", { bubbles: true, cancelable: true }),
+  );
+
+  const editedPayload = dom.window.SynchronWorkMode.getRequestPayload();
+  assert.equal(editedPayload.workContext.agent.name, "Обновен ръководител");
+  assert.equal(editedPayload.workContext.agent.role, "builder");
+  assert.equal(editedPayload.workContext.agent.model, "gpt-5.6-terra");
+  assert.equal(
+    editedPayload.workContext.agent.purpose,
+    "Строи и проверява резултата",
+  );
+  assert.match(
+    dom.window.document.getElementById("dataDrawerBody").textContent,
+    /Агентът „Обновен ръководител“ е обновен и избран/u,
+  );
 
   dom.window.SynchronWorkMode.setBusy(true);
   assert.equal(

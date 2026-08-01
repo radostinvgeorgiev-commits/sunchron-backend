@@ -179,6 +179,26 @@ body[data-interaction-mode="chat"] .work-pet {
   gap: 8px;
 }
 
+.work-agent-choice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: stretch;
+}
+
+.work-agent-edit {
+  min-width: 92px;
+  padding: 9px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 13px;
+  color: #0f5132;
+  background: #f8faf9;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .work-choice-card,
 .pet-choice {
   width: 100%;
@@ -223,6 +243,27 @@ body[data-interaction-mode="chat"] .work-pet {
   background: #fafbfb;
 }
 
+.work-manager-form h4 {
+  margin: 0 0 3px;
+  font-size: 15px;
+}
+
+.work-agent-edit-form {
+  border-color: #86c89f;
+  background: #f3fbf6;
+}
+
+.work-form-actions {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 8px;
+}
+
+.work-manager-form .work-form-cancel {
+  color: #17212b;
+  background: #e8edf0;
+}
+
 .work-manager-form label {
   font-size: 12px;
   font-weight: 800;
@@ -238,6 +279,16 @@ body[data-interaction-mode="chat"] .work-pet {
   color: #17212b;
   background: #fff;
   font: inherit;
+}
+
+@media (max-width: 520px) {
+  .work-agent-choice {
+    grid-template-columns: 1fr;
+  }
+
+  .work-agent-edit {
+    width: 100%;
+  }
 }
 
 .work-manager-form textarea {

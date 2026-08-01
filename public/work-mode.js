@@ -28,6 +28,7 @@
   let localRevision = 0;
   let storageAvailable = true;
   let managerNotice = "";
+  let editingAgentId = null;
 
   const elements = {
     chatInput: document.getElementById("chatInput"),
@@ -392,6 +393,8 @@
     const list = document.createElement("div");
     list.className = "work-choice-list";
     for (const agent of workState.agents) {
+      const item = document.createElement("article");
+      item.className = "work-agent-choice";
       const button = document.createElement("button");
       button.type = "button";
       button.className = "work-choice-card";
@@ -408,7 +411,21 @@
         "small",
         `${ROLE_LABELS[agent.role]} · ${MODEL_OPTIONS[agent.model]}${agent.purpose ? ` · ${agent.purpose}` : ""}`,
       );
-      list.appendChild(button);
+      item.appendChild(button);
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "work-agent-edit";
+      edit.textContent = "Редактирай";
+      edit.setAttribute("aria-label", `Редактирай ${agent.name}`);
+      edit.addEventListener("click", () => {
+        editingAgentId = agent.id;
+        workState.activeAgentId = agent.id;
+        saveState();
+        renderMode();
+        openManager();
+      });
+      item.appendChild(edit);
+      list.appendChild(item);
     }
     parent.appendChild(list);
   }
@@ -620,6 +637,92 @@
     parent.appendChild(form);
   }
 
+  function createEditAgentForm(parent, agent) {
+    const form = document.createElement("form");
+    form.className = "work-manager-form work-agent-edit-form";
+    addText(form, "h4", `Редактиране: ${agent.name}`);
+    addText(form, "label", "Име на агента").htmlFor = "editWorkAgentName";
+    const name = document.createElement("input");
+    name.id = "editWorkAgentName";
+    name.maxLength = 50;
+    name.required = true;
+    name.value = agent.name;
+    form.appendChild(name);
+    addText(form, "label", "Роля").htmlFor = "editWorkAgentRole";
+    const role = document.createElement("select");
+    role.id = "editWorkAgentRole";
+    for (const [id, label] of Object.entries(ROLE_LABELS)) {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = label;
+      role.appendChild(option);
+    }
+    role.value = agent.role;
+    form.appendChild(role);
+    addText(form, "label", "Модел").htmlFor = "editWorkAgentModel";
+    const model = document.createElement("select");
+    model.id = "editWorkAgentModel";
+    for (const [id, label] of Object.entries(MODEL_OPTIONS)) {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = label;
+      model.appendChild(option);
+    }
+    model.value = agent.model;
+    form.appendChild(model);
+    addText(form, "label", "Допълнителен фокус").htmlFor =
+      "editWorkAgentPurpose";
+    const purpose = document.createElement("textarea");
+    purpose.id = "editWorkAgentPurpose";
+    purpose.maxLength = 400;
+    purpose.required = true;
+    purpose.value = agent.purpose;
+    form.appendChild(purpose);
+
+    const actions = document.createElement("div");
+    actions.className = "work-form-actions";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "work-form-cancel";
+    cancel.textContent = "Отказ";
+    cancel.addEventListener("click", () => {
+      editingAgentId = null;
+      openManager();
+    });
+    actions.appendChild(cancel);
+    const submit = document.createElement("button");
+    submit.type = "submit";
+    submit.textContent = "Запази агента";
+    actions.appendChild(submit);
+    form.appendChild(actions);
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const next = {
+        name: cleanText(name.value, 50),
+        role: Object.hasOwn(ROLE_LABELS, role.value) ? role.value : "general",
+        model: Object.hasOwn(MODEL_OPTIONS, model.value) ? model.value : "auto",
+        purpose: cleanText(purpose.value, 400),
+      };
+      if (!next.name || !next.purpose) return;
+      const previous = { ...agent };
+      Object.assign(agent, next);
+      workState.activeAgentId = agent.id;
+      if (!saveState()) {
+        Object.assign(agent, previous);
+        managerNotice =
+          "Промените по агента не са запазени. Провери дали браузърът позволява съхранение на данни и опитай отново.";
+        openManager();
+        return;
+      }
+      editingAgentId = null;
+      managerNotice = `Агентът „${agent.name}“ е обновен и избран.`;
+      renderMode();
+      openManager();
+    });
+    parent.appendChild(form);
+  }
+
   function section(parent, title) {
     const container = document.createElement("section");
     container.className = "work-manager-section";
@@ -663,7 +766,11 @@
 
     const agents = section(elements.drawerBody, "Лични агенти");
     renderAgentChoices(agents);
-    createAgentForm(agents);
+    const editingAgent = workState.agents.find(
+      (agent) => agent.id === editingAgentId,
+    );
+    if (editingAgent) createEditAgentForm(agents, editingAgent);
+    else createAgentForm(agents);
 
     const pets = section(elements.drawerBody, "Домашен любимец");
     renderPetChoices(pets);

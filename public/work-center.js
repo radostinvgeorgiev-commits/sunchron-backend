@@ -520,7 +520,7 @@
             : "warning",
         actionLabel:
           testerAuth?.configured && testerAuth?.registrationEnabled
-            ? "Натисни, за да копираш адреса"
+            ? "Копирай адреса за регистрация"
             : "Натисни за активиране",
       }),
       createExternalCard({
@@ -810,11 +810,12 @@
       const origin =
         globalThis.location?.origin || "https://synchron.foundation";
       await globalThis.navigator?.clipboard?.writeText(
-        `${origin.replace(/\/$/u, "")}/`,
+        `${origin.replace(/\/$/u, "")}/register`,
       );
       showTesterAuthResult({
         title: "Адресът за регистрация е копиран",
-        message: "Изпрати го на човека, който иска да създаде профил.",
+        message:
+          "Изпрати го на човека, който иска да създаде профил. Адресът отваря директно регистрацията.",
         anchor: actionCard,
       });
       return;

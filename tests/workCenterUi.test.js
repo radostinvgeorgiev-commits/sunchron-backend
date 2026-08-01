@@ -388,9 +388,10 @@ test("copies the normal registration address", async () => {
 
   assert.equal(
     document.body.dataset.copiedText,
-    "https://synchron.foundation/",
+    "https://synchron.foundation/register",
   );
   assert.match(document.body.textContent, /Адресът за регистрация е копиран/u);
+  assert.match(document.body.textContent, /отваря директно регистрацията/u);
 });
 
 test("tester auth action is visibly actionable on mobile", async () => {

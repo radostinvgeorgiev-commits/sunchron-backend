@@ -3,6 +3,30 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { JSDOM } from "jsdom";
 
+function createWorkModeDom(script, fetchImpl) {
+  const dom = new JSDOM(
+    `<!doctype html><body>
+      <input id="chatInput">
+      <button id="chatModeBtn"></button>
+      <button id="workModeToolbarBtn"></button>
+      <button id="workModeBtn"></button>
+      <button id="workContextBtn"><strong id="workProjectLabel"></strong><small id="workAgentLabel"></small><span id="workPet"></span></button>
+      <aside id="dataDrawer" hidden><h2 id="dataDrawerTitle"></h2><div id="dataDrawerBody"></div></aside>
+      <div id="drawerBackdrop" hidden></div>
+      <nav id="sidebar"></nav><div id="sidebarBackdrop" hidden></div>
+      <nav class="mobile-command-bar"><button data-command="chat"></button><button data-command="work"></button></nav>
+    </body>`,
+    { runScripts: "dangerously", url: "https://synchron.foundation/" },
+  );
+  if (fetchImpl) dom.window.fetch = fetchImpl;
+  dom.window.eval(script);
+  return dom;
+}
+
+function nextTurn() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 test("Chat and Work are available with projects, agents, and pet state", async () => {
   const [html, css, workMode, app] = await Promise.all([
     readFile(new URL("../public/index.html", import.meta.url), "utf8"),
@@ -110,4 +134,150 @@ test("work mode runs in the browser and creates an isolated project payload", as
     "needs-input",
   );
   dom.window.close();
+});
+
+test("a late workspace read cannot erase a project created during startup", async () => {
+  const script = await readFile(
+    new URL("../public/work-mode.js", import.meta.url),
+    "utf8",
+  );
+  let resolveWorkspaceRead;
+  const workspaceRead = new Promise((resolve) => {
+    resolveWorkspaceRead = resolve;
+  });
+  const savedStates = [];
+  const dom = createWorkModeDom(script, (url, options = {}) => {
+    if (options.method === "PUT") {
+      const state = JSON.parse(options.body).state;
+      savedStates.push(state);
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ state }),
+      });
+    }
+    return workspaceRead;
+  });
+
+  dom.window.SynchronWorkMode.init({ id: "race-tester", role: "tester" });
+  dom.window.document.getElementById("workModeToolbarBtn").click();
+  dom.window.SynchronWorkMode.openManager();
+  const projectForm = dom.window.document.querySelectorAll("form")[0];
+  projectForm.querySelector("input").value = "Неподлежащо на загуба";
+  projectForm.querySelector("textarea").value = "Запази локалната промяна";
+  projectForm.dispatchEvent(
+    new dom.window.Event("submit", { bubbles: true, cancelable: true }),
+  );
+
+  resolveWorkspaceRead({
+    ok: true,
+    json: async () => ({
+      persisted: true,
+      state: {
+        mode: "chat",
+        projects: [{ id: "old", name: "Стар сървърен проект" }],
+        agents: [{ id: "old-agent", name: "Стар агент" }],
+      },
+    }),
+  });
+  await nextTurn();
+  await nextTurn();
+
+  assert.equal(
+    dom.window.SynchronWorkMode.getRequestPayload().workContext.project.name,
+    "Неподлежащо на загуба",
+  );
+  assert.ok(
+    savedStates.some((state) =>
+      state.projects.some(
+        (project) => project.name === "Неподлежащо на загуба",
+      ),
+    ),
+  );
+  assert.match(
+    dom.window.document.getElementById("dataDrawerBody").textContent,
+    /Проектът „Неподлежащо на загуба“ е създаден и избран/u,
+  );
+  dom.window.close();
+});
+
+test("a pending local project survives reload and replaces stale remote state", async () => {
+  const script = await readFile(
+    new URL("../public/work-mode.js", import.meta.url),
+    "utf8",
+  );
+  const oldRemoteState = {
+    mode: "work",
+    activeProjectId: "old",
+    activeAgentId: "old-agent",
+    projects: [{ id: "old", name: "Стар сървърен проект" }],
+    agents: [{ id: "old-agent", name: "Стар агент" }],
+  };
+  const firstDom = createWorkModeDom(script, (url, options = {}) => {
+    if (options.method === "PUT") {
+      return Promise.resolve({
+        ok: false,
+        json: async () => ({ error: "Временно недостъпно" }),
+      });
+    }
+    return Promise.resolve({
+      ok: true,
+      json: async () => ({ persisted: true, state: oldRemoteState }),
+    });
+  });
+  firstDom.window.SynchronWorkMode.init({ id: "reload-tester" });
+  await nextTurn();
+  firstDom.window.document.getElementById("workModeToolbarBtn").click();
+  firstDom.window.SynchronWorkMode.openManager();
+  const projectForm = firstDom.window.document.querySelectorAll("form")[0];
+  projectForm.querySelector("input").value = "Локален проект";
+  projectForm.querySelector("textarea").value = "Чака синхронизация";
+  projectForm.dispatchEvent(
+    new firstDom.window.Event("submit", { bubbles: true, cancelable: true }),
+  );
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  const localState = firstDom.window.localStorage.getItem(
+    "synchronWorkMode:reload-tester",
+  );
+  const pending = firstDom.window.localStorage.getItem(
+    "synchronWorkMode:reload-tester:pending",
+  );
+  assert.equal(pending, "1");
+  firstDom.window.close();
+
+  const savedStates = [];
+  const secondDom = createWorkModeDom(script, (url, options = {}) => {
+    if (options.method === "PUT") {
+      const state = JSON.parse(options.body).state;
+      savedStates.push(state);
+      return Promise.resolve({ ok: true, json: async () => ({ state }) });
+    }
+    return Promise.resolve({
+      ok: true,
+      json: async () => ({ persisted: true, state: oldRemoteState }),
+    });
+  });
+  secondDom.window.localStorage.setItem(
+    "synchronWorkMode:reload-tester",
+    localState,
+  );
+  secondDom.window.localStorage.setItem(
+    "synchronWorkMode:reload-tester:pending",
+    pending,
+  );
+  secondDom.window.SynchronWorkMode.init({ id: "reload-tester" });
+  await nextTurn();
+  await nextTurn();
+
+  assert.ok(
+    savedStates.some((state) =>
+      state.projects.some((project) => project.name === "Локален проект"),
+    ),
+  );
+  assert.equal(
+    secondDom.window.localStorage.getItem(
+      "synchronWorkMode:reload-tester:pending",
+    ),
+    null,
+  );
+  secondDom.window.close();
 });

@@ -19,6 +19,9 @@
   let remoteReady = false;
   let saveTimer = null;
   let syncStatus = "local";
+  let localRevision = 0;
+  let storageAvailable = true;
+  let managerNotice = "";
 
   const elements = {
     chatInput: document.getElementById("chatInput"),
@@ -161,13 +164,41 @@
     }
   }
 
+  function pendingStorageKey() {
+    return `${storageKey}:pending`;
+  }
+
+  function hasPendingRemoteSave() {
+    try {
+      return localStorage.getItem(pendingStorageKey()) === "1";
+    } catch {
+      storageAvailable = false;
+      return false;
+    }
+  }
+
+  function clearPendingRemoteSave() {
+    try {
+      localStorage.removeItem(pendingStorageKey());
+    } catch {
+      storageAvailable = false;
+    }
+  }
+
   function saveState({ remote = true } = {}) {
     try {
       localStorage.setItem(storageKey, JSON.stringify(workState));
+      if (remote) {
+        localStorage.setItem(pendingStorageKey(), "1");
+        localRevision += 1;
+      }
     } catch {
-      // The UI remains usable even when private browsing blocks storage.
+      storageAvailable = false;
+      syncStatus = "error";
+      return false;
     }
     if (remote && remoteReady) queueRemoteSave();
+    return true;
   }
 
   function queueRemoteSave() {
@@ -186,6 +217,7 @@
 
   async function persistRemoteState() {
     const snapshot = normalizeState(workState);
+    const revision = localRevision;
     try {
       const payload = await readJson(
         await fetch(WORKSPACE_ENDPOINT, {
@@ -194,27 +226,38 @@
           body: JSON.stringify({ state: snapshot }),
         }),
       );
-      workState = normalizeState(payload.state);
-      syncStatus = "synced";
-      saveState({ remote: false });
+      if (revision === localRevision) {
+        workState = normalizeState(payload.state);
+        syncStatus = "synced";
+        clearPendingRemoteSave();
+        saveState({ remote: false });
+      } else {
+        queueRemoteSave();
+      }
     } catch {
       syncStatus = "local";
     }
   }
 
   async function syncRemoteState() {
+    const revision = localRevision;
+    const hadPendingSave = hasPendingRemoteSave();
     try {
       const payload = await readJson(
         await fetch(WORKSPACE_ENDPOINT, { cache: "no-store" }),
       );
-      if (payload.persisted) {
-        workState = normalizeState(payload.state);
-        saveState({ remote: false });
-      }
       remoteReady = true;
-      syncStatus = payload.persisted ? "synced" : "saving";
+      if (hadPendingSave || revision !== localRevision) {
+        syncStatus = "saving";
+        await persistRemoteState();
+      } else if (payload.persisted) {
+        workState = normalizeState(payload.state);
+        if (saveState({ remote: false })) syncStatus = "synced";
+      } else {
+        syncStatus = "saving";
+        await persistRemoteState();
+      }
       renderMode();
-      if (!payload.persisted) await persistRemoteState();
     } catch {
       remoteReady = true;
       syncStatus = "local";
@@ -461,6 +504,7 @@
     const objective = document.createElement("textarea");
     objective.id = "newWorkProjectObjective";
     objective.maxLength = 600;
+    objective.required = true;
     form.appendChild(objective);
     const submit = document.createElement("button");
     submit.type = "submit";
@@ -476,9 +520,20 @@
         updatedAt: new Date().toISOString(),
       };
       if (!project.name) return;
+      const previousActiveProjectId = workState.activeProjectId;
       workState.projects.unshift(project);
       workState.activeProjectId = project.id;
-      saveState();
+      if (!saveState()) {
+        workState.projects = workState.projects.filter(
+          (item) => item.id !== project.id,
+        );
+        workState.activeProjectId = previousActiveProjectId;
+        managerNotice =
+          "Проектът не е запазен. Провери дали браузърът позволява съхранение на данни и опитай отново.";
+        openManager();
+        return;
+      }
+      managerNotice = `Проектът „${project.name}“ е създаден и избран.`;
       renderMode();
       openManager();
     });
@@ -509,6 +564,7 @@
     const purpose = document.createElement("textarea");
     purpose.id = "newWorkAgentPurpose";
     purpose.maxLength = 400;
+    purpose.required = true;
     form.appendChild(purpose);
     const submit = document.createElement("button");
     submit.type = "submit";
@@ -523,9 +579,20 @@
         purpose: cleanText(purpose.value, 400),
       };
       if (!agent.name) return;
+      const previousActiveAgentId = workState.activeAgentId;
       workState.agents.unshift(agent);
       workState.activeAgentId = agent.id;
-      saveState();
+      if (!saveState()) {
+        workState.agents = workState.agents.filter(
+          (item) => item.id !== agent.id,
+        );
+        workState.activeAgentId = previousActiveAgentId;
+        managerNotice =
+          "Агентът не е запазен. Провери дали браузърът позволява съхранение на данни и опитай отново.";
+        openManager();
+        return;
+      }
+      managerNotice = `Агентът „${agent.name}“ е създаден и избран.`;
       renderMode();
       openManager();
     });
@@ -553,11 +620,21 @@
     addText(
       elements.drawerBody,
       "p",
-      syncStatus === "synced"
-        ? "Проектите, агентите и задачите са запазени в защитения ти профил."
-        : "Работиш в резервен режим на този браузър. Промените ще се синхронизират при възстановяване на връзката.",
+      !storageAvailable || syncStatus === "error"
+        ? "Браузърът блокира запазването. Данните не са изчистени нарочно — разреши съхранението и опитай отново."
+        : syncStatus === "synced"
+          ? "Проектите, агентите и задачите са запазени в защитения ти профил."
+          : "Работиш в резервен режим на този браузър. Промените ще се синхронизират при възстановяване на връзката.",
       "work-storage-note",
     );
+    if (managerNotice) {
+      addText(
+        elements.drawerBody,
+        "p",
+        managerNotice,
+        syncStatus === "error" ? "work-save-error" : "work-save-notice",
+      );
+    }
 
     const projects = section(elements.drawerBody, "Проекти");
     renderProjectChoices(projects);

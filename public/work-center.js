@@ -583,6 +583,9 @@
       const copyButton = addText(panel, "button", "Копирай кода");
       copyButton.type = "button";
       copyButton.dataset.copyTesterInvite = "";
+      const copyLinkButton = addText(panel, "button", "Копирай линк за покана");
+      copyLinkButton.type = "button";
+      copyLinkButton.dataset.copyTesterInviteLink = "";
     }
     body.querySelector("[data-tester-auth-result]")?.remove();
     if (anchor?.parentNode) {
@@ -716,8 +719,7 @@
       showTesterAuthResult({
         title: "Тестовите профили се активират",
         message:
-          "DigitalOcean започва нов deployment. След публикуването бутонът „Създай тестов профил“ ще се появи.",
-        inviteCode: result.inviteCode,
+          "DigitalOcean започва нов deployment. Изчакай публикуването, после отвори отново „Тестови профили“ и копирай актуалния линк за покана.",
         anchor: card,
       });
     } catch (error) {
@@ -819,6 +821,18 @@
         inviteCode?.textContent || "",
       );
       copyInvite.textContent = "Копирано";
+      return;
+    }
+    const copyInviteLink = event.target.closest(
+      "[data-copy-tester-invite-link]",
+    );
+    if (copyInviteLink) {
+      const inviteCode = body.querySelector("[data-tester-invite-code]");
+      const origin =
+        globalThis.location?.origin || "https://synchron.foundation";
+      const inviteUrl = `${origin.replace(/\/$/u, "")}/#tester-invite=${encodeURIComponent(inviteCode?.textContent || "")}`;
+      await globalThis.navigator?.clipboard?.writeText(inviteUrl);
+      copyInviteLink.textContent = "Линкът е копиран";
       return;
     }
     const copyMcpUrl = event.target.closest("[data-copy-mcp-url]");

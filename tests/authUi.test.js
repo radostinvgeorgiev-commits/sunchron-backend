@@ -28,6 +28,18 @@ test("offers invite-only registration without embedding a code", () => {
   );
 });
 
+test("accepts a shared tester invite from the URL fragment and removes it", () => {
+  assert.match(app, /params\.get\("tester-invite"\)/u);
+  assert.match(app, /history\?\.replaceState/u);
+  assert.match(app, /elements\.registerInviteCode\.value = sharedInvite/u);
+  assert.match(app, /Поканата е приложена/u);
+});
+
+test("explains an expired or mismatched tester invitation", () => {
+  assert.match(app, /AUTH_INVALID_INVITE_CODE/u);
+  assert.match(app, /Отвори новия линк за покана/u);
+});
+
 test("hides owner tools for tester profiles and exposes logout", () => {
   assert.match(html, /id="toolsBtn"[^>]*data-owner-only/u);
   assert.match(html, /id="workCenterBtn"[^>]*data-owner-only/u);

@@ -140,9 +140,25 @@ async function submitAuth(path, body) {
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(data?.error || "Входът не беше успешен.");
+    const error = new Error(data?.error || "Входът не беше успешен.");
+    error.code = data?.code || "AUTH_REQUEST_FAILED";
+    throw error;
   }
   return data;
+}
+
+function consumeSharedTesterInvite() {
+  const hash = globalThis.location?.hash || "";
+  if (!hash.startsWith("#")) return "";
+  const params = new URLSearchParams(hash.slice(1));
+  const inviteCode = (params.get("tester-invite") || "").trim();
+  if (!inviteCode) return "";
+  globalThis.history?.replaceState?.(
+    null,
+    "",
+    `${globalThis.location.pathname || "/"}${globalThis.location.search || ""}`,
+  );
+  return inviteCode;
 }
 
 async function handleLogin(event) {
@@ -191,7 +207,11 @@ async function handleRegistration(event) {
     if (!session.authenticated) throw new Error("Сесията не беше създадена.");
     await startApplication(session.user);
   } catch (error) {
-    setAuthMessage(error.message);
+    setAuthMessage(
+      error.code === "AUTH_INVALID_INVITE_CODE"
+        ? "Поканата вече не е валидна. Отвори новия линк за покана, изпратен от собственика."
+        : error.message,
+    );
   } finally {
     setAuthBusy(false);
   }
@@ -238,6 +258,16 @@ async function init() {
     }
     elements.authGate.hidden = false;
     elements.appShell.hidden = true;
+    const sharedInvite = consumeSharedTesterInvite();
+    if (state.registrationEnabled && sharedInvite) {
+      elements.registerInviteCode.value = sharedInvite;
+      showRegisterForm();
+      setAuthMessage(
+        "Поканата е приложена. Попълни име, имейл и парола.",
+        true,
+      );
+      return;
+    }
     if (!session.configured) {
       setAuthMessage(
         "Входът за тестови профили още не е активиран. Собственикът може да влезе с GitHub.",

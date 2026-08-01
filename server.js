@@ -115,6 +115,15 @@ app.get(
 );
 app.use("/", mcpOAuthRouter);
 
+app.get("/", (req, res, next) => {
+  if (req.hostname.toLowerCase() !== "www.synchron.foundation") {
+    next();
+    return;
+  }
+
+  res.redirect(302, "/register");
+});
+
 app.use(
   express.static("public", {
     maxAge: 0,
@@ -215,7 +224,11 @@ app.get("/opensearch-status", requireOwnerSession, async (req, res) => {
   }
 });
 
-app.get(["/", "/register"], (req, res) => {
+app.get("/", (_req, res) => {
+  res.sendFile(`${process.cwd()}/public/index.html`);
+});
+
+app.get("/register", (_req, res) => {
   res.sendFile(`${process.cwd()}/public/index.html`);
 });
 

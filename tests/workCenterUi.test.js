@@ -388,7 +388,7 @@ test("copies the normal registration address", async () => {
 
   assert.equal(
     document.body.dataset.copiedText,
-    "https://synchron.foundation/register",
+    "https://www.synchron.foundation",
   );
   assert.match(document.body.textContent, /Адресът за регистрация е копиран/u);
   assert.match(document.body.textContent, /отваря директно регистрацията/u);

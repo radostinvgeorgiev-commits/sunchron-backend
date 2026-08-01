@@ -2,9 +2,9 @@ import express from "express";
 import {
   clearUserSessionCookie,
   getUserAuthConfigurationStatus,
-  isTesterRegistrationEnabled,
+  isUserRegistrationEnabled,
   isUserAuthConfigured,
-  registerTester,
+  registerUser,
   signInUser,
   signOutUser,
   userSessionCookie,
@@ -35,7 +35,7 @@ router.get("/session", async (req, res) => {
     return res.json({
       configured: isUserAuthConfigured(),
       configuration: getUserAuthConfigurationStatus(),
-      registrationEnabled: isTesterRegistrationEnabled(),
+      registrationEnabled: isUserRegistrationEnabled(),
       authenticated: Boolean(identity),
       user: identity
         ? {
@@ -70,7 +70,7 @@ router.post("/login", async (req, res) => {
 
 router.post("/register", async (req, res) => {
   try {
-    const result = await registerTester(req.body || {});
+    const result = await registerUser(req.body || {});
     if (result.session) {
       res.setHeader("Set-Cookie", userSessionCookie(result.session));
     }

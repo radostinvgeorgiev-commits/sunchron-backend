@@ -39,7 +39,7 @@
         <p class="auth-kicker">ЛИЧНА AI СИСТЕМА</p>
         <h1 id="authTitle">Вход в AI CORE</h1>
         <p class="auth-intro">
-          Всеки тестов потребител има собствен профил, разговори и памет.
+          Всеки потребител има собствен профил, разговори и памет.
         </p>
 
         <form id="loginForm" class="auth-form">
@@ -66,7 +66,7 @@
         </form>
 
         <button id="showRegisterBtn" class="auth-link" type="button" hidden>
-          Създай тестов профил
+          Създай профил
         </button>
         <form id="registerForm" class="auth-form" hidden>
           <label for="registerName">Име</label>
@@ -95,15 +95,6 @@
             autocomplete="new-password"
             minlength="8"
             maxlength="128"
-            required
-          />
-          <label for="registerInviteCode">Код за тестов достъп</label>
-          <input
-            id="registerInviteCode"
-            name="inviteCode"
-            type="password"
-            autocomplete="one-time-code"
-            minlength="8"
             required
           />
           <button id="registerBtn" class="auth-primary" type="submit">

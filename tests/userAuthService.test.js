@@ -7,8 +7,9 @@ import {
   getTesterInviteCode,
   getUserAuthConfigurationStatus,
   isTesterRegistrationEnabled,
+  isUserRegistrationEnabled,
   isUserAuthConfigured,
-  registerTester,
+  registerUser,
   resolveUserSession,
   signInUser,
   userSessionCookie,
@@ -35,6 +36,7 @@ function session(suffix = "a") {
 
 test("detects complete auth and closed/open tester registration", () => {
   assert.equal(isUserAuthConfigured(ENV), true);
+  assert.equal(isUserRegistrationEnabled(ENV), true);
   assert.equal(isTesterRegistrationEnabled(ENV), true);
   assert.equal(
     isTesterRegistrationEnabled({
@@ -42,6 +44,13 @@ test("detects complete auth and closed/open tester registration", () => {
       SYNCHRON_TEST_INVITE_CODE: "",
     }),
     false,
+  );
+  assert.equal(
+    isUserRegistrationEnabled({
+      ...ENV,
+      SYNCHRON_TEST_INVITE_CODE: "",
+    }),
+    true,
   );
 });
 
@@ -212,25 +221,7 @@ test("uses the Supabase Auth password endpoint without exposing a service key", 
   assert.ok(result.session.expires_at > Math.floor(Date.now() / 1000));
 });
 
-test("tester registration requires the private invite code", async () => {
-  await assert.rejects(
-    registerTester(
-      {
-        email: "friend@example.com",
-        password: "strong-pass-123",
-        displayName: "Приятел",
-        inviteCode: "wrong-code",
-      },
-      { env: ENV, client: { auth: {} } },
-    ),
-    (error) =>
-      error instanceof UserAuthError &&
-      error.code === "AUTH_INVALID_INVITE_CODE" &&
-      error.status === 403,
-  );
-});
-
-test("successful tester registration creates the application approval", async () => {
+test("normal registration creates the application approval", async () => {
   const fakeSession = session("register");
   let approvedUser = null;
   const client = {
@@ -250,17 +241,15 @@ test("successful tester registration creates the application approval", async ()
     },
   };
 
-  const result = await registerTester(
+  const result = await registerUser(
     {
       email: "friend@example.com",
       password: "strong-pass-123",
       displayName: "Приятел",
-      inviteCode: ENV.SYNCHRON_TEST_INVITE_CODE,
     },
     {
       env: ENV,
       client,
-      approveEmail: async () => {},
       approveAccess: async (user) => {
         approvedUser = user;
       },
@@ -272,7 +261,7 @@ test("successful tester registration creates the application approval", async ()
   assert.deepEqual(result.session, fakeSession);
 });
 
-test("registration pre-approves the email before creating the Supabase user", async () => {
+test("registration approves access after Supabase creates the user", async () => {
   const calls = [];
   const client = {
     auth: {
@@ -289,23 +278,20 @@ test("registration pre-approves the email before creating the Supabase user", as
     },
   };
 
-  await registerTester(
+  await registerUser(
     {
       email: "friend@example.com",
       password: "strong-pass-123",
       displayName: "Приятел",
-      inviteCode: ENV.SYNCHRON_TEST_INVITE_CODE,
     },
     {
       env: ENV,
       client,
-      approveEmail: async (email) => calls.push(`approve-email:${email}`),
       approveAccess: async (user) => calls.push(`approve-user:${user.id}`),
     },
   );
 
   assert.deepEqual(calls, [
-    "approve-email:friend@example.com",
     "signup:friend@example.com",
     "approve-user:preapproved-user",
   ]);
@@ -335,17 +321,15 @@ test("registration recovers an existing invited user with the same password", as
     },
   };
 
-  const result = await registerTester(
+  const result = await registerUser(
     {
       email: "friend@example.com",
       password: "strong-pass-123",
       displayName: "Приятел",
-      inviteCode: ENV.SYNCHRON_TEST_INVITE_CODE,
     },
     {
       env: ENV,
       client,
-      approveEmail: async () => {},
       approveAccess: async (user) => {
         approvedUser = user;
       },
@@ -388,17 +372,15 @@ test("registration recovers an existing invited user from an obfuscated signup r
     },
   };
 
-  const result = await registerTester(
+  const result = await registerUser(
     {
       email: "friend@example.com",
       password: "strong-pass-123",
       displayName: "Приятел",
-      inviteCode: ENV.SYNCHRON_TEST_INVITE_CODE,
     },
     {
       env: ENV,
       client,
-      approveEmail: async () => {},
       approveAccess: async (user) => {
         approvedUser = user;
       },
@@ -409,6 +391,51 @@ test("registration recovers an existing invited user from an obfuscated signup r
   assert.equal(result.user.id, "existing-user");
   assert.deepEqual(result.session, fakeSession);
   assert.equal(result.confirmationRequired, false);
+});
+
+test("registration never approves an obfuscated existing user when recovery fails", async () => {
+  let approvedUser = null;
+  const client = {
+    auth: {
+      async signUp({ email }) {
+        return {
+          data: {
+            user: { id: "obfuscated-user", email, identities: [] },
+            session: null,
+          },
+          error: null,
+        };
+      },
+      async signInWithPassword() {
+        return {
+          data: { user: null, session: null },
+          error: { status: 400, message: "Invalid credentials" },
+        };
+      },
+    },
+  };
+
+  await assert.rejects(
+    registerUser(
+      {
+        email: "friend@example.com",
+        password: "wrong-pass-123",
+        displayName: "Приятел",
+      },
+      {
+        env: ENV,
+        client,
+        approveAccess: async (user) => {
+          approvedUser = user;
+        },
+      },
+    ),
+    (error) =>
+      error instanceof UserAuthError &&
+      error.code === "AUTH_SIGNUP_REJECTED" &&
+      error.status === 422,
+  );
+  assert.equal(approvedUser, null);
 });
 
 test("registration keeps a new unconfirmed user when immediate sign in is unavailable", async () => {
@@ -433,17 +460,15 @@ test("registration keeps a new unconfirmed user when immediate sign in is unavai
     },
   };
 
-  const result = await registerTester(
+  const result = await registerUser(
     {
       email: "new@example.com",
       password: "strong-pass-123",
       displayName: "Нов тестер",
-      inviteCode: ENV.SYNCHRON_TEST_INVITE_CODE,
     },
     {
       env: ENV,
       client,
-      approveEmail: async () => {},
       approveAccess: async (user) => {
         approvedUser = user;
       },

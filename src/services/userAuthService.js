@@ -5,12 +5,10 @@ import {
   createHmac,
   randomBytes,
   scryptSync,
-  timingSafeEqual,
 } from "node:crypto";
 import { TESTER_AUTH_BOOTSTRAP } from "../config/testerAuthBootstrap.js";
 import {
   approveTesterAccess,
-  approveTesterEmail,
   assertTesterAccess,
   TesterAccessError,
 } from "./testerAccessService.js";
@@ -108,6 +106,10 @@ export function isUserAuthConfigured(env = process.env) {
 
 export function isTesterRegistrationEnabled(env = process.env) {
   return getTesterInviteCode(env).length >= 8;
+}
+
+export function isUserRegistrationEnabled(env = process.env) {
+  return isUserAuthConfigured(env);
 }
 
 function requireAuthConfig(env = process.env) {
@@ -383,17 +385,6 @@ function cleanDisplayName(value, email) {
   return displayName || email.split("@")[0];
 }
 
-function inviteCodeMatches(value, env = process.env) {
-  if (!isTesterRegistrationEnabled(env)) return false;
-  const expected = createHash("sha256")
-    .update(getTesterInviteCode(env))
-    .digest();
-  const received = createHash("sha256")
-    .update(typeof value === "string" ? value.trim() : "")
-    .digest();
-  return timingSafeEqual(expected, received);
-}
-
 function mapAuthError(error, fallbackMessage) {
   const status = Number(error?.status);
   if (status === 400 || status === 401) {
@@ -452,32 +443,15 @@ export async function signInUser(
   return { user: data.user, session: sessionPayload(data.session) };
 }
 
-export async function registerTester(
-  { email, password, displayName, inviteCode },
-  {
-    env = process.env,
-    client,
-    approveAccess = approveTesterAccess,
-    approveEmail = approveTesterEmail,
-  } = {},
+export async function registerUser(
+  { email, password, displayName },
+  { env = process.env, client, approveAccess = approveTesterAccess } = {},
 ) {
-  if (!inviteCodeMatches(inviteCode, env)) {
-    throw new UserAuthError(
-      "Кодът за тестов достъп е неправилен.",
-      403,
-      "AUTH_INVALID_INVITE_CODE",
-    );
-  }
   const cleanCredentials = {
     email: cleanEmail(email),
     password: cleanPassword(password),
   };
   const authClient = client || createAuthClient(env);
-  try {
-    await approveEmail(cleanCredentials.email, { env });
-  } catch (error) {
-    throw mapTesterAccessError(error);
-  }
 
   let { data, error } = await authClient.auth.signUp({
     ...cleanCredentials,
@@ -495,6 +469,18 @@ export async function registerTester(
       data = recovered.data;
       error = null;
     }
+  }
+
+  const isObfuscatedExistingUser =
+    !data?.session &&
+    Array.isArray(data?.user?.identities) &&
+    data.user.identities.length === 0;
+  if (isObfuscatedExistingUser) {
+    throw new UserAuthError(
+      "Профилът не можа да бъде създаден. Ако вече имаш профил, върни се към входа.",
+      422,
+      "AUTH_SIGNUP_REJECTED",
+    );
   }
 
   if (error || !data?.user) {

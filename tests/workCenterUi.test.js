@@ -76,7 +76,6 @@ function createHarness({
   testerAuth = { configured: false, registrationEnabled: false },
   fetchFails = false,
   testerPrepareResponse = null,
-  testerInviteCode = "current-private-invite",
 } = {}) {
   const dom = new JSDOM(`<!doctype html><body>
     <aside id="sidebar"></aside>
@@ -126,9 +125,7 @@ function createHarness({
               ? { connected: githubConnected }
               : path.includes("/api/tester-auth/status")
                 ? testerAuth
-                : path.includes("/api/tester-auth/invite-code")
-                  ? { inviteCode: testerInviteCode }
-                  : config || {};
+                : config || {};
       return {
         ok: true,
         json: async () => result,
@@ -361,44 +358,39 @@ test("work center shows real connection state instead of claiming everything wor
   assert.match(text, /DigitalOcean Read: работи/u);
   assert.match(text, /Cloudflare Read: не е конфигуриран/u);
   assert.match(text, /Изисква еднократен вход в Google/u);
-  assert.match(text, /Активирай тестови профили/u);
+  assert.match(text, /Активирай потребителски профили/u);
   assert.match(text, /Изисква точно потвърждение/u);
 });
 
-test("work center shows the invite action only after tester auth is active", async () => {
+test("work center shows normal registration after user auth is active", async () => {
   const harness = createHarness({
     testerAuth: { configured: true, registrationEnabled: true },
   });
   await openCenter(harness);
   const card = harness.dom.window.document.querySelector(
-    '[data-work-center-action="show-tester-invite"]',
+    '[data-work-center-action="copy-registration-link"]',
   );
 
-  assert.match(card.textContent, /Тестови профили/u);
-  assert.match(card.textContent, /Работи · Само за собственика/u);
+  assert.match(card.textContent, /Потребителски профили/u);
+  assert.match(card.textContent, /Работи · Нормална регистрация/u);
 });
 
-test("copies a current tester invitation link without manual code entry", async () => {
+test("copies the normal registration address", async () => {
   const harness = createHarness({
     testerAuth: { configured: true, registrationEnabled: true },
-    testerInviteCode: "current/private invite",
   });
   await openCenter(harness);
   const { document } = harness.dom.window;
   document
-    .querySelector('[data-work-center-action="show-tester-invite"]')
+    .querySelector('[data-work-center-action="copy-registration-link"]')
     .click();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  const copyLink = document.querySelector("[data-copy-tester-invite-link]");
-  copyLink.click();
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(
     document.body.dataset.copiedText,
-    "https://synchron.foundation/#tester-invite=current%2Fprivate%20invite",
+    "https://synchron.foundation/",
   );
-  assert.equal(copyLink.textContent, "Линкът е копиран");
+  assert.match(document.body.textContent, /Адресът за регистрация е копиран/u);
 });
 
 test("tester auth action is visibly actionable on mobile", async () => {
@@ -553,7 +545,7 @@ test("current capabilities summary uses only live verified status", async () => 
   assert.match(working.textContent, /Google Drive/u);
   assert.match(working.textContent, /Gmail/u);
   assert.match(working.textContent, /Google Calendar/u);
-  assert.match(working.textContent, /Тестови профили/u);
+  assert.match(working.textContent, /Потребителски профили/u);
 });
 
 test("current capabilities reports GitHub Write as disabled without Copilot", async () => {

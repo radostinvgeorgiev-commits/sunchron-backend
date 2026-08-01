@@ -13,6 +13,12 @@
     organizer: "Организатор",
     builder: "Създател на проекти",
   });
+  const MODEL_OPTIONS = Object.freeze({
+    auto: "Автоматичен · препоръчано",
+    "gpt-5.6-sol": "GPT-5.6 Sol · най-високо качество",
+    "gpt-5.6-terra": "GPT-5.6 Terra · балансиран",
+    "gpt-5.6-luna": "GPT-5.6 Luna · бърз",
+  });
 
   let storageKey = "synchronWorkMode:anonymous";
   let workState = null;
@@ -72,6 +78,7 @@
           id: "synchron-builder",
           name: "AI CORE",
           role: "builder",
+          model: "auto",
           purpose: "Подготвя реален резултат и показва какво е проверено.",
         },
       ],
@@ -107,6 +114,9 @@
           role: Object.hasOwn(ROLE_LABELS, agent?.role)
             ? agent.role
             : "general",
+          model: Object.hasOwn(MODEL_OPTIONS, agent?.model)
+            ? agent.model
+            : "auto",
           purpose: cleanText(agent?.purpose, 400),
         }))
       : fallback.agents;
@@ -396,7 +406,7 @@
       addText(
         button,
         "small",
-        `${ROLE_LABELS[agent.role]}${agent.purpose ? ` · ${agent.purpose}` : ""}`,
+        `${ROLE_LABELS[agent.role]} · ${MODEL_OPTIONS[agent.model]}${agent.purpose ? ` · ${agent.purpose}` : ""}`,
       );
       list.appendChild(button);
     }
@@ -559,6 +569,16 @@
       role.appendChild(option);
     }
     form.appendChild(role);
+    addText(form, "label", "Модел").htmlFor = "newWorkAgentModel";
+    const model = document.createElement("select");
+    model.id = "newWorkAgentModel";
+    for (const [id, label] of Object.entries(MODEL_OPTIONS)) {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = label;
+      model.appendChild(option);
+    }
+    form.appendChild(model);
     addText(form, "label", "Допълнителен фокус").htmlFor =
       "newWorkAgentPurpose";
     const purpose = document.createElement("textarea");
@@ -576,6 +596,7 @@
         id: createId("agent"),
         name: cleanText(name.value, 50),
         role: Object.hasOwn(ROLE_LABELS, role.value) ? role.value : "general",
+        model: Object.hasOwn(MODEL_OPTIONS, model.value) ? model.value : "auto",
         purpose: cleanText(purpose.value, 400),
       };
       if (!agent.name) return;
@@ -668,6 +689,7 @@
         agent: {
           name: agent?.name || "AI CORE",
           role: agent?.role || "general",
+          model: agent?.model || "auto",
           purpose: agent?.purpose || "",
         },
       },

@@ -26,6 +26,6 @@ test("every successful conversation save path forwards the real persistence resu
     /\.\.\.getConversationPersistenceMetadata\(conversationPersisted\)/gu,
   );
 
-  assert.equal(saveCalls?.length, 9);
+  assert.equal(saveCalls?.length, 10);
   assert.equal(metadataCalls?.length, saveCalls?.length);
 });

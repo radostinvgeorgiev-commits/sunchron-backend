@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildWorkContextStatusReply,
   buildWorkModeContext,
+  isWorkContextStatusRequest,
   listWorkAgentModels,
   listWorkAgentRoles,
   normalizeInteractionMode,
@@ -72,5 +74,38 @@ test("the available personal-agent roles are explicit", () => {
   assert.deepEqual(
     listWorkAgentRoles().map(({ id }) => id),
     ["general", "researcher", "organizer", "builder"],
+  );
+});
+
+test("active work context questions use verified state instead of chat history", () => {
+  assert.equal(
+    isWorkContextStatusRequest(
+      "Кой личен агент, модел, роля и проект са активни в момента?",
+    ),
+    true,
+  );
+  assert.equal(
+    isWorkContextStatusRequest("Разкажи ми какво правихме вчера."),
+    false,
+  );
+
+  const reply = buildWorkContextStatusReply({
+    project: { name: "AI CORE развитие", objective: "Работещ продукт" },
+    agent: {
+      name: "AI CORE Ръководител SOL",
+      role: "organizer",
+      model: "gpt-5.6-sol",
+      purpose: "Проверявай фактите",
+    },
+  });
+
+  assert.equal(
+    reply,
+    [
+      "Агент: AI CORE Ръководител SOL",
+      "Модел: GPT-5.6 Sol",
+      "Роля: Организатор",
+      "Проект: AI CORE развитие",
+    ].join("\n"),
   );
 });

@@ -105,6 +105,32 @@ export function buildWorkModeContext(value) {
   ].join("\n");
 }
 
+export function isWorkContextStatusRequest(message) {
+  const text = cleanText(message, 500).toLocaleLowerCase("bg-BG");
+  if (!text) return false;
+  const asksForStatus = /(?:кой|какъв|каква|кои|кажи|покажи|изброй)/u.test(
+    text,
+  );
+  const mentionsContext = /(?:агент|модел|роля|проект)/u.test(text);
+  const asksForCurrent = /(?:актив|избран|работен контекст|в момента)/u.test(
+    text,
+  );
+  return asksForStatus && mentionsContext && asksForCurrent;
+}
+
+export function buildWorkContextStatusReply(value) {
+  const context = sanitizeWorkContext(value);
+  if (!context) {
+    return "Няма активен работен контекст.";
+  }
+  return [
+    `Агент: ${context.agent.name}`,
+    `Модел: ${AGENT_MODELS[context.agent.model].label}`,
+    `Роля: ${AGENT_ROLES[context.agent.role].label}`,
+    `Проект: ${context.project.name || "Без активен проект"}`,
+  ].join("\n");
+}
+
 export function listWorkAgentRoles() {
   return Object.entries(AGENT_ROLES).map(([id, role]) => ({
     id,

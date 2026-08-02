@@ -60,6 +60,28 @@ test("shows a safe actionable message when DigitalOcean is unreachable", async (
   assert.match(response.body.error, /Опитай отново/u);
 });
 
+test("shows a safe actionable message for an invalid DigitalOcean app spec", async () => {
+  const app = testApp({
+    inspect: async () => {
+      throw new DigitalOceanError(
+        "DigitalOcean не върна валиден app spec.",
+        502,
+        "DIGITALOCEAN_INVALID_APP_SPEC",
+      );
+    },
+  });
+
+  const response = await request(app)
+    .post("/api/digitalocean-domain/prepare")
+    .send({})
+    .expect(502);
+  assert.equal(response.body.code, "DIGITALOCEAN_INVALID_APP_SPEC");
+  assert.equal(
+    response.body.error,
+    "DigitalOcean не върна валиден app spec.",
+  );
+});
+
 test("prepares an exact owner confirmation for only the www domain", async () => {
   let created;
   const app = testApp({

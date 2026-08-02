@@ -144,7 +144,19 @@ async function request(
     const payload = await readErrorPayload(response);
     throw digitalOceanRequestError(response, payload, { method, path });
   }
-  return response.json();
+  try {
+    const payload = await response.json();
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      throw new TypeError("DigitalOcean response is not an object");
+    }
+    return payload;
+  } catch {
+    throw new DigitalOceanError(
+      "DigitalOcean върна невалиден отговор. Няма да бъде направена промяна.",
+      502,
+      "DIGITALOCEAN_INVALID_RESPONSE",
+    );
+  }
 }
 
 function normalizeTesterAuthConfig({ projectUrl, publishableKey }) {

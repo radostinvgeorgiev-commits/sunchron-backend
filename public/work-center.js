@@ -786,7 +786,9 @@
       }
       showTesterAuthResult({
         title: "Настройването на www адреса не успя",
-        message: error.message,
+        message: error.code
+          ? `${error.message}\nКод: ${error.code}`
+          : error.message,
         anchor: card,
       });
     } finally {

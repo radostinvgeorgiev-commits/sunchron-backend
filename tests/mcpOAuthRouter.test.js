@@ -5,6 +5,10 @@ import express from "express";
 import request from "supertest";
 
 import { createMcpOAuthRouter } from "../src/routes/mcpOAuthRouter.js";
+import {
+  getMcpOAuthRuntimeStatus,
+  resetMcpOAuthStateForTests,
+} from "../src/services/mcpOAuthService.js";
 import mcpRouter, {
   mcpJsonParseErrorHandler,
 } from "../src/routes/mcpRouter.js";
@@ -175,6 +179,7 @@ test("the dedicated OAuth secret is never accepted as a legacy static bearer", a
 });
 
 test("authorization consent issues a code bound to the browser profile", async () => {
+  resetMcpOAuthStateForTests();
   const previous = process.env.MCP_ACCESS_TOKEN;
   process.env.MCP_ACCESS_TOKEN = SECRET;
   const verifier = "v".repeat(64);
@@ -217,6 +222,11 @@ test("authorization consent issues a code bound to the browser profile", async (
   assert.equal(callback.origin, "https://chatgpt.com");
   assert.equal(callback.searchParams.get("state"), "state-123");
   assert.match(callback.searchParams.get("code"), /^sx-code\./u);
+  const authorizationStatus = getMcpOAuthRuntimeStatus();
+  assert.equal(authorizationStatus.authorization, "redirected");
+  assert.equal(authorizationStatus.authorizationDecision, "allow");
+  assert.equal(authorizationStatus.authorizationErrorCode, null);
+  assert.match(authorizationStatus.authorizationUpdatedAt, /^\d{4}-\d{2}-\d{2}T/u);
   const token = await request(app)
     .post("/oauth/token")
     .type("form")

@@ -44,7 +44,7 @@ test("MCP initialize and tool discovery work without credentials", async () => {
     .post("/mcp")
     .send({ jsonrpc: "2.0", id: 2, method: "tools/list" })
     .expect(200);
-  assert.equal(listed.body.result.tools.length, 13);
+  assert.equal(listed.body.result.tools.length, 14);
   assert.equal(listed.body.result.tools[0].securitySchemes[0].type, "oauth2");
 });
 
@@ -178,6 +178,35 @@ test("authorization consent issues a code bound to the browser profile", async (
     .expect(200);
   assert.equal(token.body.token_type, "Bearer");
   assert.ok(token.body.refresh_token);
+  if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
+  else process.env.MCP_ACCESS_TOKEN = previous;
+});
+
+test("authorization consent names the AI CORE conversation permission", async () => {
+  const previous = process.env.MCP_ACCESS_TOKEN;
+  process.env.MCP_ACCESS_TOKEN = SECRET;
+  const app = express();
+  app.use(
+    createMcpOAuthRouter({
+      resolveIdentity: async () => ({
+        id: "owner-id",
+        displayName: "Радко",
+        role: "owner",
+        memoryOwnerId: "primary-user",
+      }),
+      validateRequest: async () => ({
+        clientId: "https://chatgpt.com/oauth/synchron/client.json",
+        clientName: "ChatGPT",
+        redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
+        state: "state-agent-chat",
+        codeChallenge: "challenge",
+        resource: "https://synchron.foundation/mcp",
+        scopes: ["synchron:agent.chat"],
+      }),
+    }),
+  );
+  const consent = await request(app).get("/oauth/authorize").expect(200);
+  assert.match(consent.text, /Разговор с AI CORE в собствения профил/u);
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
   else process.env.MCP_ACCESS_TOKEN = previous;
 });

@@ -15,6 +15,7 @@ const formParser = express.urlencoded({ extended: false, limit: "16kb" });
 const passThrough = (_req, _res, next) => next();
 const SCOPE_LABELS = Object.freeze({
   "synchron:read": "Четене на разрешените данни и системни статуси",
+  "synchron:agent.chat": "Разговор с AI CORE в собствения профил",
   "synchron:github.write": "Потвърждавани промени в GitHub",
   "synchron:infrastructure.write": "Потвърждавани промени в инфраструктурата",
 });

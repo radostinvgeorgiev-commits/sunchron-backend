@@ -22,6 +22,7 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
       "get_project_context",
       "list_synchron_conversations",
       "get_synchron_conversation",
+      "talk_to_ai_core",
       "get_digitalocean_app_status",
       "get_system_configuration",
       "get_digitalocean_account_audit",
@@ -40,6 +41,15 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
   assert.equal(confirm.annotations.destructiveHint, true);
   assert.deepEqual(confirm.securitySchemes, [
     { type: "oauth2", scopes: ["synchron:github.write"] },
+  ]);
+  const conversation = MCP_TOOLS.find(
+    (tool) => tool.name === "talk_to_ai_core",
+  );
+  assert.equal(conversation.annotations.readOnlyHint, false);
+  assert.equal(conversation.annotations.destructiveHint, false);
+  assert.equal(conversation.annotations.openWorldHint, true);
+  assert.deepEqual(conversation.securitySchemes, [
+    { type: "oauth2", scopes: ["synchron:agent.chat"] },
   ]);
   const confirmWww = MCP_TOOLS.find(
     (tool) => tool.name === "confirm_digitalocean_www_domain",
@@ -64,6 +74,50 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
   assert.deepEqual(systemConfiguration.securitySchemes, [
     { type: "oauth2", scopes: ["synchron:read"] },
   ]);
+});
+
+test("MCP sends one owner-scoped message to AI CORE and audits it", async () => {
+  const events = [];
+  const handle = createMcpRequestHandler({
+    runAgentConversation: async (input) => {
+      assert.equal(input.ownerId, "primary-user");
+      assert.equal(input.message, "Дай една следваща стъпка");
+      assert.equal(input.sessionId, "bridge-session");
+      assert.equal(input.identity.role, "owner");
+      return {
+        sessionId: "bridge-session",
+        response: "Провери разговора през MCP.",
+        project: { id: "project-1", name: "SYNCHRON-X" },
+        agent: { id: "agent-1", name: "AI CORE", role: "builder" },
+        conversationPersisted: true,
+        externalActionsExecuted: false,
+        codeChanged: false,
+      };
+    },
+    audit: async (event) => events.push(event),
+  });
+  const response = await handle(
+    {
+      jsonrpc: "2.0",
+      id: 14,
+      method: "tools/call",
+      params: {
+        name: "talk_to_ai_core",
+        arguments: {
+          message: "Дай една следваща стъпка",
+          sessionId: "bridge-session",
+        },
+      },
+    },
+    "primary-user",
+    { role: "owner", displayName: "Радко" },
+  );
+  assert.equal(response.result.content[0].text, "Провери разговора през MCP.");
+  assert.equal(response.result.structuredContent.conversationPersisted, true);
+  assert.equal(events[0].action, "agent.chat");
+  assert.equal(events[0].actor, "chatgpt-mcp");
+  assert.equal(events[0].outcome, "succeeded");
+  assert.equal(events[0].details, "conversation-mcp");
 });
 
 test("MCP tracks a GitHub Copilot task as a read-only tool", async () => {

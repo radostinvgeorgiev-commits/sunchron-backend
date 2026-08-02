@@ -9,10 +9,12 @@ import { getOpenSearchClient } from "../config/opensearch.js";
 
 export const DEFAULT_MCP_RESOURCE_URL = "https://synchron.foundation/mcp";
 export const MCP_READ_SCOPE = "synchron:read";
+export const MCP_AGENT_CHAT_SCOPE = "synchron:agent.chat";
 export const MCP_GITHUB_WRITE_SCOPE = "synchron:github.write";
 export const MCP_INFRASTRUCTURE_WRITE_SCOPE = "synchron:infrastructure.write";
 export const MCP_SCOPES = Object.freeze([
   MCP_READ_SCOPE,
+  MCP_AGENT_CHAT_SCOPE,
   MCP_GITHUB_WRITE_SCOPE,
   MCP_INFRASTRUCTURE_WRITE_SCOPE,
 ]);
@@ -173,6 +175,9 @@ export function getMcpAuthorizationServerMetadata(env = process.env) {
 }
 
 export function requiredScopesForMcpTool(name) {
+  if (name === "talk_to_ai_core") {
+    return [MCP_AGENT_CHAT_SCOPE];
+  }
   if (
     name === "prepare_digitalocean_www_domain" ||
     name === "confirm_digitalocean_www_domain"

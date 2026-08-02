@@ -12,6 +12,7 @@ import {
   getMcpAuthorizationServerMetadata,
   getMcpProtectedResourceMetadata,
   isMcpOAuthConfigured,
+  MCP_AGENT_CHAT_SCOPE,
   MCP_GITHUB_WRITE_SCOPE,
   MCP_INFRASTRUCTURE_WRITE_SCOPE,
   MCP_READ_SCOPE,
@@ -92,6 +93,7 @@ test("publishes OAuth 2.1 protected-resource and authorization metadata", () => 
     authorization_servers: ["https://synchron.foundation"],
     scopes_supported: [
       MCP_READ_SCOPE,
+      MCP_AGENT_CHAT_SCOPE,
       MCP_GITHUB_WRITE_SCOPE,
       MCP_INFRASTRUCTURE_WRITE_SCOPE,
     ],

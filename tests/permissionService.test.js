@@ -21,6 +21,7 @@ test("allows approved reads and requires confirmation for risky actions", () => 
   assert.equal(evaluatePermission("github.read").decision, "allow");
   assert.equal(evaluatePermission("github.write").decision, "confirm");
   assert.equal(evaluatePermission("code.execute.read").decision, "allow");
+  assert.equal(evaluatePermission("agent.chat").decision, "allow");
   assert.equal(evaluatePermission("payment").decision, "confirm");
 });
 

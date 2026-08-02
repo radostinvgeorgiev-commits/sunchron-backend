@@ -84,6 +84,12 @@ const POLICY = Object.freeze({
     risk: "high",
     reason: "Изтриването на постоянна памет изисква потвърждение.",
   }),
+  "agent.chat": Object.freeze({
+    decision: "allow",
+    risk: "medium",
+    reason:
+      "Разговорът е ограничен до собствения AI CORE профил и не изпълнява външни действия.",
+  }),
   "external.send": Object.freeze({
     decision: "confirm",
     risk: "high",

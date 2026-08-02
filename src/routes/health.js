@@ -12,7 +12,10 @@ import {
   MCP_TOOLS,
   createMcpRequestHandler,
 } from "../services/mcpReadService.js";
-import { isMcpOAuthConfigured } from "../services/mcpOAuthService.js";
+import {
+  getMcpOAuthRuntimeStatus,
+  isMcpOAuthConfigured,
+} from "../services/mcpOAuthService.js";
 import { isCopilotAutomationEnabled } from "../config/featureFlags.js";
 import { isCodexAgentConfigured } from "../services/codexAgentService.js";
 import { isToolExecutable } from "../tools/capabilityEngine.js";
@@ -164,6 +167,7 @@ export async function getBridgeDiagnosticsStatus({
         mode: "oauth2-with-legacy-static-bearer",
         chatgptOAuthReady: isMcpOAuthConfigured(env),
         discovery: "/.well-known/oauth-protected-resource",
+        tokenExchange: getMcpOAuthRuntimeStatus(),
       },
     },
   };

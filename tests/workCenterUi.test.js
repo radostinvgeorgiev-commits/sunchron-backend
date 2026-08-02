@@ -74,8 +74,11 @@ function createHarness({
   googleConnected = false,
   githubConnected = false,
   testerAuth = { configured: false, registrationEnabled: false },
+  publicDomain = { configured: false, domain: "www.synchron.foundation" },
   fetchFails = false,
   testerPrepareResponse = null,
+  domainPrepareResponse = null,
+  domainConfirmResponse = null,
 } = {}) {
   const dom = new JSDOM(`<!doctype html><body>
     <aside id="sidebar"></aside>
@@ -109,11 +112,24 @@ function createHarness({
         dom.window.document.body.dataset.redirectedTo = url;
       },
     },
+    confirm: () => true,
     fetch: async (url) => {
       if (fetchFails) throw new Error("offline");
       const path = String(url);
       if (path.includes("/api/tester-auth/prepare") && testerPrepareResponse) {
         return testerPrepareResponse;
+      }
+      if (
+        path.includes("/api/digitalocean-domain/prepare") &&
+        domainPrepareResponse
+      ) {
+        return domainPrepareResponse;
+      }
+      if (
+        path.includes("/api/digitalocean-domain/confirm") &&
+        domainConfirmResponse
+      ) {
+        return domainConfirmResponse;
       }
       const result = path.includes("/health/ready")
         ? readiness
@@ -125,7 +141,9 @@ function createHarness({
               ? { connected: githubConnected }
               : path.includes("/api/tester-auth/status")
                 ? testerAuth
-                : config || {};
+                : path.includes("/api/digitalocean-domain/status")
+                  ? publicDomain
+                  : config || {};
       return {
         ok: true,
         json: async () => result,
@@ -373,6 +391,52 @@ test("work center shows normal registration after user auth is active", async ()
 
   assert.match(card.textContent, /Потребителски профили/u);
   assert.match(card.textContent, /Работи · Нормална регистрация/u);
+});
+
+test("work center shows the exact public www domain action", async () => {
+  const harness = createHarness();
+  await openCenter(harness);
+  const card = harness.dom.window.document.querySelector(
+    '[data-work-center-action="activate-www-domain"]',
+  );
+
+  assert.match(card.textContent, /Публичен www адрес/u);
+  assert.match(card.textContent, /www\.synchron\.foundation/u);
+  assert.match(card.textContent, /Добави www адреса/u);
+});
+
+test("public www action uses prepare and exact confirm before reporting deployment", async () => {
+  const harness = createHarness({
+    domainPrepareResponse: {
+      ok: true,
+      status: 201,
+      json: async () => ({
+        confirmationId: "confirmation-www",
+        domain: "www.synchron.foundation",
+        message: "Ще бъде добавен само www адресът.",
+      }),
+    },
+    domainConfirmResponse: {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: "ok",
+        updated: true,
+        domain: "www.synchron.foundation",
+        deploymentId: "deploy-www",
+      }),
+    },
+  });
+  await openCenter(harness);
+  const { document } = harness.dom.window;
+  document
+    .querySelector('[data-work-center-action="activate-www-domain"]')
+    .click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.match(document.body.textContent, /www адресът се активира/u);
+  assert.match(document.body.textContent, /DigitalOcean започва deployment/u);
 });
 
 test("copies the normal registration address", async () => {

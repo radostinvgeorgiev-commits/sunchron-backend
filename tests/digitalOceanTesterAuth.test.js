@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  activateDigitalOceanDomainAlias,
   activateTesterAuthConfiguration,
+  addDigitalOceanDomainAlias,
   addTesterAuthEnvironmentVariables,
   DigitalOceanError,
+  inspectDigitalOceanDomainAlias,
   inspectTesterAuthActivation,
   missingTesterAuthEnvironmentKeys,
   TESTER_AUTH_ENV_KEYS,
@@ -22,6 +25,111 @@ function jsonResponse(status, payload) {
     },
   };
 }
+
+test("adds only the approved www domain and preserves the current spec", () => {
+  const current = {
+    name: "synchron",
+    domains: [{ domain: "synchron.foundation", type: "PRIMARY" }],
+    services: [{ name: "web", run_command: "npm start" }],
+  };
+  const result = addDigitalOceanDomainAlias(current);
+
+  assert.equal(result.added, true);
+  assert.deepEqual(current.domains, [
+    { domain: "synchron.foundation", type: "PRIMARY" },
+  ]);
+  assert.deepEqual(result.spec.domains, [
+    { domain: "synchron.foundation", type: "PRIMARY" },
+    { domain: "www.synchron.foundation", type: "ALIAS" },
+  ]);
+  assert.deepEqual(result.spec.services, current.services);
+  assert.throws(
+    () => addDigitalOceanDomainAlias(current, "other.example.com"),
+    (error) =>
+      error instanceof DigitalOceanError &&
+      error.code === "DIGITALOCEAN_DOMAIN_NOT_ALLOWED",
+  );
+});
+
+test("inspects and updates the www domain with one safe app-spec write", async () => {
+  const calls = [];
+  const currentSpec = {
+    name: "synchron",
+    domains: [{ domain: "synchron.foundation", type: "PRIMARY" }],
+    envs: [
+      {
+        key: "EXISTING_SECRET",
+        scope: "RUN_TIME",
+        type: "SECRET",
+        value: "EV[1:preserved]",
+      },
+    ],
+    services: [{ name: "web", run_command: "npm start" }],
+  };
+  const fetchImpl = async (_url, options) => {
+    calls.push(options);
+    if (options.method === "GET") {
+      return jsonResponse(200, {
+        app: { id: "app-1", spec: currentSpec },
+      });
+    }
+    return jsonResponse(200, {
+      app: { id: "app-1", in_progress_deployment: { id: "deploy-www" } },
+    });
+  };
+  const env = {
+    DIGITALOCEAN_API_TOKEN: "do-token",
+    DIGITALOCEAN_APP_ID: "app-1",
+  };
+
+  const inspection = await inspectDigitalOceanDomainAlias({ env, fetchImpl });
+  assert.equal(inspection.configured, false);
+  assert.deepEqual(inspection.currentDomains, [
+    { domain: "synchron.foundation", type: "PRIMARY" },
+  ]);
+
+  const result = await activateDigitalOceanDomainAlias({
+    expectedAppId: "app-1",
+    env,
+    fetchImpl,
+  });
+  assert.equal(result.updated, true);
+  assert.equal(result.domain, "www.synchron.foundation");
+  assert.equal(result.deploymentId, "deploy-www");
+  assert.equal(calls.length, 3);
+  const submitted = JSON.parse(calls[2].body).spec;
+  assert.deepEqual(submitted.domains, [
+    { domain: "synchron.foundation", type: "PRIMARY" },
+    { domain: "www.synchron.foundation", type: "ALIAS" },
+  ]);
+  assert.equal(submitted.envs[0].value, "EV[1:preserved]");
+  assert.doesNotMatch(calls[2].body, /do-token/u);
+});
+
+test("does not write when the www domain is already configured", async () => {
+  const methods = [];
+  const result = await activateDigitalOceanDomainAlias({
+    env: {
+      DIGITALOCEAN_API_TOKEN: "do-token",
+      DIGITALOCEAN_APP_ID: "app-1",
+    },
+    fetchImpl: async (_url, options) => {
+      methods.push(options.method);
+      return jsonResponse(200, {
+        app: {
+          id: "app-1",
+          spec: {
+            name: "synchron",
+            domains: [{ domain: "www.synchron.foundation", type: "ALIAS" }],
+          },
+        },
+      });
+    },
+  });
+
+  assert.equal(result.updated, false);
+  assert.deepEqual(methods, ["GET"]);
+});
 
 test("adds only the missing tester-auth variables at app level", () => {
   const current = {

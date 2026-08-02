@@ -51,7 +51,9 @@ test("MCP initialize and tool discovery work without credentials", async () => {
     .send({ jsonrpc: "2.0", id: 2, method: "tools/list" })
     .expect(200);
   assert.equal(listed.body.result.tools.length, 14);
-  assert.equal(listed.body.result.tools[0].securitySchemes[0].type, "oauth2");
+  assert.deepEqual(listed.body.result.tools[0].securitySchemes, [
+    { type: "noauth" },
+  ]);
 });
 
 test("MCP rejects an untrusted Origin", async () => {

@@ -218,10 +218,10 @@ export function requiredScopesForMcpTool(name) {
 }
 
 export function mcpToolSecuritySchemes(name) {
+  void name;
   return Object.freeze([
     Object.freeze({
-      type: "oauth2",
-      scopes: Object.freeze(requiredScopesForMcpTool(name)),
+      type: "noauth",
     }),
   ]);
 }

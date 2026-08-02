@@ -39,41 +39,31 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
   );
   assert.equal(confirm.annotations.readOnlyHint, false);
   assert.equal(confirm.annotations.destructiveHint, true);
-  assert.deepEqual(confirm.securitySchemes, [
-    { type: "oauth2", scopes: ["synchron:github.write"] },
-  ]);
+  assert.deepEqual(confirm.securitySchemes, [{ type: "noauth" }]);
   const conversation = MCP_TOOLS.find(
     (tool) => tool.name === "talk_to_ai_core",
   );
   assert.equal(conversation.annotations.readOnlyHint, false);
   assert.equal(conversation.annotations.destructiveHint, false);
   assert.equal(conversation.annotations.openWorldHint, true);
-  assert.deepEqual(conversation.securitySchemes, [
-    { type: "oauth2", scopes: ["synchron:agent.chat"] },
-  ]);
+  assert.deepEqual(conversation.securitySchemes, [{ type: "noauth" }]);
   const confirmWww = MCP_TOOLS.find(
     (tool) => tool.name === "confirm_digitalocean_www_domain",
   );
   assert.equal(confirmWww.annotations.readOnlyHint, false);
   assert.equal(confirmWww.annotations.destructiveHint, true);
-  assert.deepEqual(confirmWww.securitySchemes, [
-    { type: "oauth2", scopes: ["synchron:infrastructure.write"] },
-  ]);
+  assert.deepEqual(confirmWww.securitySchemes, [{ type: "noauth" }]);
   const digitalOceanAudit = MCP_TOOLS.find(
     (tool) => tool.name === "get_digitalocean_account_audit",
   );
   assert.equal(digitalOceanAudit.annotations.readOnlyHint, true);
   assert.equal(digitalOceanAudit.annotations.destructiveHint, false);
-  assert.deepEqual(digitalOceanAudit.securitySchemes, [
-    { type: "oauth2", scopes: ["synchron:read"] },
-  ]);
+  assert.deepEqual(digitalOceanAudit.securitySchemes, [{ type: "noauth" }]);
   const systemConfiguration = MCP_TOOLS.find(
     (tool) => tool.name === "get_system_configuration",
   );
   assert.equal(systemConfiguration.annotations.readOnlyHint, true);
-  assert.deepEqual(systemConfiguration.securitySchemes, [
-    { type: "oauth2", scopes: ["synchron:read"] },
-  ]);
+  assert.deepEqual(systemConfiguration.securitySchemes, [{ type: "noauth" }]);
 });
 
 test("MCP sends one owner-scoped message to AI CORE and audits it", async () => {
@@ -161,9 +151,7 @@ test("MCP tracks a GitHub Copilot task as a read-only tool", async () => {
     (candidate) => candidate.name === "get_github_copilot_task_status",
   );
   assert.equal(tool.annotations.readOnlyHint, true);
-  assert.deepEqual(tool.securitySchemes, [
-    { type: "oauth2", scopes: ["synchron:read"] },
-  ]);
+  assert.deepEqual(tool.securitySchemes, [{ type: "noauth" }]);
 });
 
 test("MCP returns the safe system configuration without secret values", async () => {

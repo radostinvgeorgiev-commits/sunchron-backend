@@ -8,7 +8,6 @@ import {
   getMcpProtectedResourceMetadata,
   McpOAuthError,
   recordMcpAuthorizationRuntimeStatus,
-  resolveMcpIssuerUrl,
   validateMcpConsentToken,
   validateMcpAuthorizationRequest,
 } from "../services/mcpOAuthService.js";
@@ -141,7 +140,6 @@ export function createMcpOAuthRouter({
           });
           callback.searchParams.set("error", "access_denied");
           callback.searchParams.set("state", request.state);
-          callback.searchParams.set("iss", resolveMcpIssuerUrl());
           return res.redirect(callback.href);
         }
         const code = createMcpAuthorizationCode(request, identity);
@@ -151,7 +149,6 @@ export function createMcpOAuthRouter({
         });
         callback.searchParams.set("code", code);
         callback.searchParams.set("state", request.state);
-        callback.searchParams.set("iss", resolveMcpIssuerUrl());
         noStore(res);
         return res.redirect(callback.href);
       } catch (error) {

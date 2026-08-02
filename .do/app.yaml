@@ -41,6 +41,9 @@ services:
       - key: APP_COMMIT_SHA
         value: ${_self.COMMIT_HASH}
         scope: RUN_TIME
+      - key: DIGITALOCEAN_APP_ID
+        value: ${APP_ID}
+        scope: RUN_TIME
       - key: MCP_ACCESS_TOKEN
         scope: RUN_TIME
         type: SECRET

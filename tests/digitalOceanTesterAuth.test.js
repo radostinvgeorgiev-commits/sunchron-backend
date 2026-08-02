@@ -196,6 +196,27 @@ test("fails closed when automatic DigitalOcean app resolution is ambiguous", asy
   );
 });
 
+test("reports a safe DigitalOcean network error without leaking details", async () => {
+  await assert.rejects(
+    inspectDigitalOceanDomainAlias({
+      env: {
+        DIGITALOCEAN_API_TOKEN: "do-token",
+        DIGITALOCEAN_APP_ID: APP_ID,
+      },
+      fetchImpl: async () => {
+        throw new Error("connect ECONNRESET token=do-token");
+      },
+    }),
+    (error) => {
+      assert.equal(error.code, "DIGITALOCEAN_NETWORK_ERROR");
+      assert.equal(error.status, 502);
+      assert.match(error.message, /временно не е достъпен/u);
+      assert.doesNotMatch(error.message, /ECONNRESET|do-token/u);
+      return true;
+    },
+  );
+});
+
 test("adds only the missing tester-auth variables at app level", () => {
   const current = {
     name: "synchron",

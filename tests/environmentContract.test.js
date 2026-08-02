@@ -92,3 +92,9 @@ test("Copilot automation stays explicitly disabled by default", () => {
   assert.match(appSpecBlock, /^\s*value:\s*["']?false["']?\s*$/mu);
   assert.match(envExample, /^COPILOT_AUTOMATION_ENABLED=false$/mu);
 });
+
+test("DigitalOcean app id uses the platform-provided UUID", () => {
+  const block = appSpecKeyBlock(appSpec, "DIGITALOCEAN_APP_ID");
+  assert.match(block, /^\s*value:\s*\$\{APP_ID\}\s*$/mu);
+  assert.match(block, /^\s*scope:\s*RUN_TIME\s*$/mu);
+});

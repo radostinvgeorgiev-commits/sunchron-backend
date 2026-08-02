@@ -117,18 +117,29 @@ async function request(
   } = {},
 ) {
   const token = requiredToken(env);
-  const response = await fetchImpl(
-    `${env.DIGITALOCEAN_API_URL || DEFAULT_API_URL}${path}`,
-    {
-      method,
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+  let response;
+  try {
+    response = await fetchImpl(
+      `${env.DIGITALOCEAN_API_URL || DEFAULT_API_URL}${path}`,
+      {
+        method,
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(body === undefined
+            ? {}
+            : { "Content-Type": "application/json" }),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    },
-  );
+    );
+  } catch {
+    throw new DigitalOceanError(
+      "DigitalOcean API временно не е достъпен. Опитай отново след малко.",
+      502,
+      "DIGITALOCEAN_NETWORK_ERROR",
+    );
+  }
   if (!response.ok) {
     const payload = await readErrorPayload(response);
     throw digitalOceanRequestError(response, payload, { method, path });

@@ -1,5 +1,5 @@
 (() => {
-  const STORAGE_VERSION = 4;
+  const STORAGE_VERSION = 5;
   const WORKSPACE_ENDPOINT = "/api/workspaces";
   const PETS = Object.freeze([
     {
@@ -43,6 +43,7 @@
     general: "Универсален помощник",
     researcher: "Изследовател",
     organizer: "Организатор",
+    documents: "Документи и поща",
     builder: "Създател на проекти",
     coder: "Codex разработчик",
   });
@@ -56,6 +57,62 @@
     "gpt-5.6-terra": "GPT-5.6 Terra · балансиран",
     "gpt-5.6-luna": "GPT-5.6 Luna · бърз",
   });
+
+  const DEFAULT_AGENTS = Object.freeze([
+    Object.freeze({
+      id: "synchron-builder",
+      name: "AI CORE",
+      role: "builder",
+      model: "auto",
+      purpose: "Подготвя реален резултат и показва какво е проверено.",
+      engine: "ai-core",
+      petId: "robot",
+    }),
+    Object.freeze({
+      id: "research-agent",
+      name: "Изследовател",
+      role: "researcher",
+      model: "auto",
+      purpose: "Проверява актуални източници и отделя фактите от изводите.",
+      engine: "ai-core",
+      petId: "owl",
+    }),
+    Object.freeze({
+      id: "organizer-agent",
+      name: "Организатор",
+      role: "organizer",
+      model: "auto",
+      purpose: "Подрежда задачи и календар, като спира преди външни промени.",
+      engine: "ai-core",
+      petId: "rock",
+    }),
+    Object.freeze({
+      id: "documents-agent",
+      name: "Документи",
+      role: "documents",
+      model: "auto",
+      purpose: "Работи с разрешени файлове, документи и поща.",
+      engine: "ai-core",
+      petId: "cat",
+    }),
+    Object.freeze({
+      id: "codex-agent",
+      name: "Codex",
+      role: "coder",
+      model: "gpt-5.6-terra",
+      purpose: "Анализира кода без запис и без интернет.",
+      engine: "codex",
+      petId: "spark",
+    }),
+  ]);
+
+  function agentPetId(agent) {
+    if (PETS.some((pet) => pet.id === agent?.petId)) return agent.petId;
+    return (
+      DEFAULT_AGENTS.find((defaultAgent) => defaultAgent.id === agent?.id)
+        ?.petId || "robot"
+    );
+  }
 
   let storageKey = "synchronWorkMode:anonymous";
   let workState = null;
@@ -113,24 +170,7 @@
           run: null,
         },
       ],
-      agents: [
-        {
-          id: "synchron-builder",
-          name: "AI CORE",
-          role: "builder",
-          model: "auto",
-          purpose: "Подготвя реален резултат и показва какво е проверено.",
-          engine: "ai-core",
-        },
-        {
-          id: "codex-agent",
-          name: "Codex",
-          role: "coder",
-          model: "gpt-5.6-terra",
-          purpose: "Анализира кода без запис и без интернет.",
-          engine: "codex",
-        },
-      ],
+      agents: DEFAULT_AGENTS.map((agent) => ({ ...agent })),
       activities: [],
     };
   }
@@ -198,6 +238,7 @@
           engine: Object.hasOwn(ENGINE_OPTIONS, agent?.engine)
             ? agent.engine
             : "ai-core",
+          petId: agentPetId(agent),
         }))
       : fallback.agents;
     const activities = Array.isArray(value.activities)
@@ -225,21 +266,39 @@
     ) {
       agents.push(fallback.agents.find((agent) => agent.engine === "codex"));
     }
+    if ((Number.parseInt(value.version, 10) || 0) < STORAGE_VERSION) {
+      for (const defaultAgent of fallback.agents) {
+        if (agents.length >= 12) break;
+        if (!agents.some((agent) => agent.id === defaultAgent.id)) {
+          agents.push({ ...defaultAgent });
+        }
+      }
+    }
+
+    const activeProjectId = projects.some(
+      (project) => project.id === value.activeProjectId,
+    )
+      ? value.activeProjectId
+      : projects[0].id;
+    const activeAgentId = agents.some(
+      (agent) => agent.id === value.activeAgentId,
+    )
+      ? value.activeAgentId
+      : agents[0].id;
+    const petId = PETS.some((pet) => pet.id === value.petId)
+      ? value.petId
+      : fallback.petId;
+    if ((Number.parseInt(value.version, 10) || 0) < STORAGE_VERSION) {
+      const activeAgent = agents.find((agent) => agent.id === activeAgentId);
+      if (activeAgent) activeAgent.petId = petId;
+    }
 
     return {
       version: STORAGE_VERSION,
       mode: value.mode === "work" ? "work" : "chat",
-      activeProjectId: projects.some(
-        (project) => project.id === value.activeProjectId,
-      )
-        ? value.activeProjectId
-        : projects[0].id,
-      activeAgentId: agents.some((agent) => agent.id === value.activeAgentId)
-        ? value.activeAgentId
-        : agents[0].id,
-      petId: PETS.some((pet) => pet.id === value.petId)
-        ? value.petId
-        : fallback.petId,
+      activeProjectId,
+      activeAgentId,
+      petId,
       petState: ["ready", "running", "needs-input", "blocked"].includes(
         value.petState,
       )
@@ -495,11 +554,13 @@
       button.classList.toggle("active", agent.id === workState.activeAgentId);
       button.addEventListener("click", () => {
         workState.activeAgentId = agent.id;
+        workState.petId = agent.petId;
         saveState();
         renderMode();
         openManager();
       });
-      addText(button, "strong", agent.name);
+      const agentPet = PETS.find((pet) => pet.id === agent.petId) || PETS[0];
+      addText(button, "strong", `${agentPet.symbol} ${agent.name}`);
       addText(
         button,
         "small",
@@ -514,6 +575,7 @@
       edit.addEventListener("click", () => {
         editingAgentId = agent.id;
         workState.activeAgentId = agent.id;
+        workState.petId = agent.petId;
         saveState();
         renderMode();
         openManager();
@@ -535,6 +597,8 @@
       button.setAttribute("aria-label", `Избери ${pet.label}`);
       button.addEventListener("click", () => {
         workState.petId = pet.id;
+        const agent = activeAgent();
+        if (agent) agent.petId = pet.id;
         saveState();
         renderPet();
         reopen();
@@ -710,6 +774,17 @@
       engine.appendChild(option);
     }
     form.appendChild(engine);
+    addText(form, "label", "Любимец на агента").htmlFor =
+      "newWorkAgentPet";
+    const pet = document.createElement("select");
+    pet.id = "newWorkAgentPet";
+    for (const item of PETS) {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = `${item.symbol} ${item.label}`;
+      pet.appendChild(option);
+    }
+    form.appendChild(pet);
     const submit = document.createElement("button");
     submit.type = "submit";
     submit.textContent = "Създай и избери агента";
@@ -725,11 +800,15 @@
         engine: Object.hasOwn(ENGINE_OPTIONS, engine.value)
           ? engine.value
           : "ai-core",
+        petId: PETS.some((item) => item.id === pet.value)
+          ? pet.value
+          : "robot",
       };
       if (!agent.name) return;
       const previousActiveAgentId = workState.activeAgentId;
       workState.agents.unshift(agent);
       workState.activeAgentId = agent.id;
+      workState.petId = agent.petId;
       if (!saveState()) {
         workState.agents = workState.agents.filter(
           (item) => item.id !== agent.id,
@@ -799,6 +878,18 @@
     }
     engine.value = agent.engine;
     form.appendChild(engine);
+    addText(form, "label", "Любимец на агента").htmlFor =
+      "editWorkAgentPet";
+    const pet = document.createElement("select");
+    pet.id = "editWorkAgentPet";
+    for (const item of PETS) {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = `${item.symbol} ${item.label}`;
+      pet.appendChild(option);
+    }
+    pet.value = agent.petId;
+    form.appendChild(pet);
 
     const actions = document.createElement("div");
     actions.className = "work-form-actions";
@@ -827,11 +918,15 @@
         engine: Object.hasOwn(ENGINE_OPTIONS, engine.value)
           ? engine.value
           : "ai-core",
+        petId: PETS.some((item) => item.id === pet.value)
+          ? pet.value
+          : "robot",
       };
       if (!next.name || !next.purpose) return;
       const previous = { ...agent };
       Object.assign(agent, next);
       workState.activeAgentId = agent.id;
+      workState.petId = agent.petId;
       if (!saveState()) {
         Object.assign(agent, previous);
         managerNotice =
@@ -940,6 +1035,7 @@
           model: agent?.model || "auto",
           purpose: agent?.purpose || "",
           engine: agent?.engine || "ai-core",
+          petId: agent?.petId || "robot",
         },
       },
     };

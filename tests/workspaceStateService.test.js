@@ -50,7 +50,7 @@ test("workspace state is bounded and strips untrusted values", () => {
     { now: "2026-08-01T10:00:00.000Z" },
   );
 
-  assert.equal(state.version, 4);
+  assert.equal(state.version, 5);
   assert.equal(state.mode, "chat");
   assert.equal(state.petId, "robot");
   assert.equal(state.projects.length, 20);
@@ -63,7 +63,10 @@ test("workspace state is bounded and strips untrusted values", () => {
   assert.equal(state.agents[0].role, "general");
   assert.equal(state.agents[0].model, "auto");
   assert.equal(state.agents[0].engine, "ai-core");
-  assert.equal(state.agents.at(-1).engine, "codex");
+  assert.ok(state.agents.some((agent) => agent.engine === "codex"));
+  assert.ok(state.agents.some((agent) => agent.role === "researcher"));
+  assert.ok(state.agents.some((agent) => agent.role === "organizer"));
+  assert.ok(state.agents.some((agent) => agent.role === "documents"));
   assert.equal(state.activities.length, 40);
 });
 
@@ -82,6 +85,38 @@ test("workspace keeps a supported personal pet", () => {
   const state = normalizeWorkspaceState({ petId: "drop" });
 
   assert.equal(state.petId, "drop");
+});
+
+test("legacy workspaces receive specialized agents with their own pets", () => {
+  const state = normalizeWorkspaceState({
+    version: 4,
+    activeAgentId: "synchron-builder",
+    petId: "drop",
+    agents: [
+      {
+        id: "synchron-builder",
+        name: "AI CORE",
+        role: "builder",
+        engine: "ai-core",
+      },
+      {
+        id: "codex-agent",
+        name: "Codex",
+        role: "coder",
+        engine: "codex",
+      },
+    ],
+  });
+
+  assert.equal(state.version, 5);
+  assert.equal(
+    state.agents.find((agent) => agent.id === "synchron-builder").petId,
+    "drop",
+  );
+  assert.equal(state.agents.find((agent) => agent.id === "codex-agent").petId, "spark");
+  assert.equal(state.agents.find((agent) => agent.id === "research-agent").petId, "owl");
+  assert.equal(state.agents.find((agent) => agent.id === "organizer-agent").petId, "rock");
+  assert.equal(state.agents.find((agent) => agent.id === "documents-agent").petId, "cat");
 });
 
 test("workspace state is saved in an isolated hashed document", async () => {
@@ -130,7 +165,7 @@ test("workspace state is saved in an isolated hashed document", async () => {
   assert.doesNotMatch(JSON.stringify(indexed.body), /primary-user/u);
   assert.equal(result.state.mode, "work");
   assert.equal(result.state.agents[0].model, "gpt-5.6-terra");
-  assert.equal(result.state.agents.at(-1).engine, "codex");
+  assert.ok(result.state.agents.some((agent) => agent.engine === "codex"));
   assert.equal(result.state.projects[0].run.nextStep, "Продължи");
   assert.equal(result.persisted, true);
 });
@@ -148,5 +183,8 @@ test("missing workspace returns a safe starter state", async () => {
   assert.equal(result.persisted, false);
   assert.equal(result.state.projects[0].id, "starter-project");
   assert.equal(result.state.agents[0].name, "AI CORE");
-  assert.equal(result.state.agents[1].name, "Codex");
+  assert.deepEqual(
+    result.state.agents.map((agent) => agent.name),
+    ["AI CORE", "Изследовател", "Организатор", "Документи", "Codex"],
+  );
 });

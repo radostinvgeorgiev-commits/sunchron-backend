@@ -1,4 +1,12 @@
 const WORK_MODES = new Set(["chat", "work"]);
+const WORK_PETS = Object.freeze({
+  robot: "Кори",
+  drop: "Капка",
+  spark: "Искра",
+  owl: "Бухал",
+  rock: "Скала",
+  cat: "Мяу",
+});
 
 const AGENT_ROLES = Object.freeze({
   general: {
@@ -14,7 +22,12 @@ const AGENT_ROLES = Object.freeze({
   organizer: {
     label: "Организатор",
     guidance:
-      "Разделяй работата на малки стъпки, следи напредъка и спирай преди рисково външно действие.",
+      "Разделяй работата на малки стъпки, използвай календара само когато задачата го изисква, следи напредъка и спирай преди рисково външно действие.",
+  },
+  documents: {
+    label: "Документи и поща",
+    guidance:
+      "Работи прецизно с разрешените файлове, документи и съобщения. Разграничавай прочетеното съдържание от предложенията и не изпращай нищо без потвърждение.",
   },
   builder: {
     label: "Създател на проекти",
@@ -113,6 +126,9 @@ export function sanitizeWorkContext(value) {
     engine: Object.hasOwn(AGENT_ENGINES, cleanText(value.agent?.engine, 30))
       ? cleanText(value.agent?.engine, 30)
       : "ai-core",
+    petId: Object.hasOwn(WORK_PETS, cleanText(value.agent?.petId, 20))
+      ? cleanText(value.agent?.petId, 20)
+      : "robot",
   };
 
   if (!project.name && !project.objective && !agent.purpose) return null;
@@ -149,6 +165,7 @@ export function buildWorkModeContext(value) {
     `Избран личен агент: ${context.agent.name}`,
     `Изпълнител: ${AGENT_ENGINES[context.agent.engine].label}`,
     `Роля: ${role.label}`,
+    `Любимец на агента: ${WORK_PETS[context.agent.petId]}`,
     `Модел: ${AGENT_MODELS[context.agent.model].label}`,
     `Начин на работа: ${role.guidance}`,
     context.agent.purpose
@@ -185,6 +202,7 @@ export function buildWorkContextStatusReply(value) {
     `Модел: ${AGENT_MODELS[context.agent.model].label}`,
     `Роля: ${AGENT_ROLES[context.agent.role].label}`,
     `Изпълнител: ${AGENT_ENGINES[context.agent.engine].label}`,
+    `Любимец: ${WORK_PETS[context.agent.petId]}`,
     `Проект: ${context.project.name || "Без активен проект"}`,
   ].join("\n");
 }

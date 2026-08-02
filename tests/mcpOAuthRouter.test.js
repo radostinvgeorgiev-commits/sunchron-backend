@@ -221,6 +221,7 @@ test("authorization consent issues a code bound to the browser profile", async (
   const callback = new URL(approved.headers.location);
   assert.equal(callback.origin, "https://chatgpt.com");
   assert.equal(callback.searchParams.get("state"), "state-123");
+  assert.equal(callback.searchParams.has("iss"), false);
   assert.match(callback.searchParams.get("code"), /^sx-code\./u);
   const authorizationStatus = getMcpOAuthRuntimeStatus();
   assert.equal(authorizationStatus.authorization, "redirected");

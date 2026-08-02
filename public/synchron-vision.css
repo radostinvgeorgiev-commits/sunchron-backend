@@ -390,6 +390,16 @@ input:focus-visible {
     padding: 0 !important;
   }
 
+  .app-shell > .sidebar {
+    display: none;
+  }
+
+  .app-shell > .sidebar.mobile-visible {
+    position: fixed;
+    inset: 0 auto 0 0;
+    display: flex;
+  }
+
   .chatPanel {
     height: 100dvh !important;
     border: 0 !important;

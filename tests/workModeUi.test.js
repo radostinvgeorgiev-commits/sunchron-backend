@@ -64,6 +64,10 @@ test("Chat and Work are available with projects, agents, and pet state", async (
   assert.match(workMode, /Личният любимец/u);
   assert.match(workMode, /label: "Кори"/u);
   assert.match(workMode, /name: "Codex"/u);
+  assert.match(workMode, /name: "Изследовател"/u);
+  assert.match(workMode, /name: "Организатор"/u);
+  assert.match(workMode, /name: "Документи"/u);
+  assert.match(workMode, /documents: "Документи и поща"/u);
   assert.match(workMode, /codex: "Codex · изолиран кодов анализ"/u);
   assert.match(workMode, /label: "Капка"/u);
   assert.match(workMode, /label: "Искра"/u);
@@ -98,6 +102,7 @@ test("work settings are scoped by authenticated user and payload is bounded", as
     script,
     /model: Object\.hasOwn\(MODEL_OPTIONS, agent\?\.model\)/u,
   );
+  assert.match(script, /petId: agentPetId\(agent\)/u);
   assert.match(script, /if \(busy && workState\?\.mode === "work"\)/u);
 });
 
@@ -137,6 +142,17 @@ test("work mode runs in the browser and creates an isolated project payload", as
   dom.window.document.getElementById("workModeToolbarBtn").click();
   dom.window.SynchronWorkMode.openManager();
 
+  const researcher = [...dom.window.document.querySelectorAll("button")].find(
+    (button) => button.textContent.includes("Изследовател"),
+  );
+  assert.ok(researcher);
+  researcher.click();
+  assert.equal(dom.window.document.getElementById("workPet").textContent, "🦉");
+  assert.equal(
+    dom.window.SynchronWorkMode.getRequestPayload().workContext.agent.role,
+    "researcher",
+  );
+
   const projectForm = dom.window.document.querySelectorAll("form")[0];
   projectForm.querySelector("input").value = "Тестов проект";
   projectForm.querySelector("textarea").value = "Готов резултат";
@@ -171,6 +187,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   assert.equal(agentPayload.workContext.agent.name, "Тестов ръководител");
   assert.equal(agentPayload.workContext.agent.model, "gpt-5.6-sol");
   assert.equal(agentPayload.workContext.agent.engine, "codex");
+  assert.equal(agentPayload.workContext.agent.petId, "robot");
 
   const editAgent = [...dom.window.document.querySelectorAll("button")].find(
     (button) =>
@@ -183,6 +200,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   editForm.querySelector("#editWorkAgentRole").value = "builder";
   editForm.querySelector("#editWorkAgentModel").value = "gpt-5.6-terra";
   editForm.querySelector("#editWorkAgentEngine").value = "ai-core";
+  editForm.querySelector("#editWorkAgentPet").value = "owl";
   editForm.querySelector("#editWorkAgentPurpose").value =
     "Строи и проверява резултата";
   editForm.dispatchEvent(
@@ -194,6 +212,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   assert.equal(editedPayload.workContext.agent.role, "builder");
   assert.equal(editedPayload.workContext.agent.model, "gpt-5.6-terra");
   assert.equal(editedPayload.workContext.agent.engine, "ai-core");
+  assert.equal(editedPayload.workContext.agent.petId, "owl");
   assert.equal(
     editedPayload.workContext.agent.purpose,
     "Строи и проверява резултата",
@@ -254,6 +273,51 @@ test("work mode runs in the browser and creates an isolated project payload", as
     dom.window.localStorage.getItem("synchronWorkMode:tester-one"),
     /"petId":"spark"/u,
   );
+  dom.window.close();
+});
+
+test("legacy favorite stays attached to the active agent after migration", async () => {
+  const script = await readFile(
+    new URL("../public/work-mode.js", import.meta.url),
+    "utf8",
+  );
+  const dom = createWorkModeDom(script);
+  dom.window.localStorage.setItem(
+    "synchronWorkMode:legacy-tester",
+    JSON.stringify({
+      version: 4,
+      mode: "work",
+      activeProjectId: "starter-project",
+      activeAgentId: "synchron-builder",
+      petId: "drop",
+      petState: "ready",
+      projects: [{ id: "starter-project", name: "Първи проект" }],
+      agents: [
+        {
+          id: "synchron-builder",
+          name: "AI CORE",
+          role: "builder",
+          model: "auto",
+          engine: "ai-core",
+        },
+        {
+          id: "codex-agent",
+          name: "Codex",
+          role: "coder",
+          model: "gpt-5.6-terra",
+          engine: "codex",
+        },
+      ],
+    }),
+  );
+
+  dom.window.SynchronWorkMode.init({ id: "legacy-tester", role: "tester" });
+
+  assert.equal(
+    dom.window.SynchronWorkMode.getRequestPayload().workContext.agent.petId,
+    "drop",
+  );
+  assert.equal(dom.window.document.getElementById("workPet").textContent, "💧");
   dom.window.close();
 });
 

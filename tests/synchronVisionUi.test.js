@@ -58,6 +58,27 @@ test("mobile conversation history stays reachable with very large text", async (
   assert.match(app, /Все още няма запазени разговори/u);
 });
 
+test("desktop keeps the chat visible and both panes reachable with the mouse", async () => {
+  const css = await readFile(
+    new URL("../public/synchron-vision.css", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(css, /@media \(min-width: 901px\)/u);
+  assert.match(
+    css,
+    /\.app-shell > \.chatPanel\s*\{[\s\S]*?grid-area:\s*auto\s*!important;[\s\S]*?grid-column:\s*2;/u,
+  );
+  assert.match(
+    css,
+    /\.app-shell > \.sidebar\s*\{[\s\S]*?overflow-y:\s*auto\s*!important;/u,
+  );
+  assert.match(
+    css,
+    /data-font-scale="max"[^}]*grid-template-columns:\s*clamp\(340px, 24vw, 400px\) minmax\(0, 1fr\)\s*!important;/u,
+  );
+});
+
 test("mobile chat content clears the measured composer and command bar", async () => {
   const [css, script, app] = await Promise.all([
     readFile(new URL("../public/synchron-vision.css", import.meta.url), "utf8"),

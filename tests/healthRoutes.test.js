@@ -160,7 +160,7 @@ test("bridge diagnostics distinguish configuration, response and ChatGPT OAuth r
   assert.equal(result.bridge.reachable, true);
   assert.equal(result.bridge.responding, true);
   assert.equal(result.bridge.readOnly, false);
-  assert.equal(result.bridge.tools, 13);
+  assert.equal(result.bridge.tools, 14);
   assert.equal(result.bridge.readOnlyTools, 11);
   assert.equal(result.bridge.destructiveTools, 2);
   assert.equal(result.bridge.authentication.chatgptOAuthReady, true);

@@ -41,6 +41,7 @@ import {
 } from "./copilotTaskService.js";
 import { getLatestAuthorizedGitHubSession } from "./githubOAuthService.js";
 import { mcpToolSecuritySchemes } from "./mcpOAuthService.js";
+import { sendMcpAgentMessage } from "./mcpAgentConversationService.js";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 
@@ -53,6 +54,12 @@ const READ_ONLY_ANNOTATIONS = Object.freeze({
 const DESTRUCTIVE_ANNOTATIONS = Object.freeze({
   readOnlyHint: false,
   destructiveHint: true,
+  openWorldHint: true,
+  idempotentHint: false,
+});
+const CONVERSATION_ANNOTATIONS = Object.freeze({
+  readOnlyHint: false,
+  destructiveHint: false,
   openWorldHint: true,
   idempotentHint: false,
 });
@@ -114,6 +121,25 @@ export const MCP_TOOLS = Object.freeze([
     },
     securitySchemes: mcpToolSecuritySchemes("get_synchron_conversation"),
     annotations: READ_ONLY_ANNOTATIONS,
+  },
+  {
+    name: "talk_to_ai_core",
+    title: "Говори с AI CORE",
+    description:
+      "Изпраща едно съобщение до AI CORE в собствения профил, връща отговора и запазва разговора. Може да продължи същата нишка чрез sessionId. Не изпълнява инструменти, външни действия или промени по код.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        message: { type: "string", minLength: 1, maxLength: 6000 },
+        sessionId: { type: "string", minLength: 1, maxLength: 160 },
+        projectId: { type: "string", minLength: 1, maxLength: 80 },
+        agentId: { type: "string", minLength: 1, maxLength: 80 },
+      },
+      required: ["message"],
+      additionalProperties: false,
+    },
+    securitySchemes: mcpToolSecuritySchemes("talk_to_ai_core"),
+    annotations: CONVERSATION_ANNOTATIONS,
   },
   {
     name: "get_digitalocean_app_status",
@@ -290,9 +316,10 @@ export function createMcpRequestHandler({
   getSystemConfiguration = getSystemConfigurationReport,
   getLatestGitHubSession = getLatestAuthorizedGitHubSession,
   getGitHubTaskStatus = getCopilotTaskStatus,
+  runAgentConversation = sendMcpAgentMessage,
   executeWrite = executeAuditedWriteAction,
 } = {}) {
-  async function callTool(name, args, ownerId) {
+  async function callTool(name, args, ownerId, identity) {
     let result;
     if (name === "get_personal_context") {
       const items = await listMemories({ scope: "personal", ownerId });
@@ -325,6 +352,16 @@ export function createMcpRequestHandler({
         { sessionId, items },
         `Прочетени са ${items.length} съобщения от избрания разговор.`,
       );
+    } else if (name === "talk_to_ai_core") {
+      const conversation = await runAgentConversation({
+        ownerId,
+        message: args?.message,
+        sessionId: args?.sessionId,
+        projectId: args?.projectId,
+        agentId: args?.agentId,
+        identity,
+      });
+      result = textResult(conversation, conversation.response);
     } else if (name === "get_digitalocean_app_status") {
       const status = await getDigitalOceanStatus();
       result = textResult(status, formatDigitalOceanStatus(status));
@@ -484,30 +521,35 @@ export function createMcpRequestHandler({
     await audit({
       actor: "chatgpt-mcp",
       action:
-        name === "confirm_digitalocean_www_domain"
-          ? DIGITALOCEAN_DOMAIN_ACTION
-          : name === "get_github_copilot_task_status"
-            ? "github.read"
-            : name.includes("github")
-              ? "github.write"
-              : name.includes("digitalocean") ||
-                  name.includes("cloudflare") ||
-                  name.includes("system_configuration")
-                ? "infrastructure.read"
-                : "memory.read",
+        name === "talk_to_ai_core"
+          ? "agent.chat"
+          : name === "confirm_digitalocean_www_domain"
+            ? DIGITALOCEAN_DOMAIN_ACTION
+            : name === "get_github_copilot_task_status"
+              ? "github.read"
+              : name.includes("github")
+                ? "github.write"
+                : name.includes("digitalocean") ||
+                    name.includes("cloudflare") ||
+                    name.includes("system_configuration")
+                  ? "infrastructure.read"
+                  : "memory.read",
       decision: "allow",
       outcome: "succeeded",
       resource: name,
-      details: name.startsWith("confirm_")
-        ? "confirmed-write-mcp"
-        : name.startsWith("prepare_")
-          ? "write-plan-mcp"
-          : "read-only-mcp",
+      details:
+        name === "talk_to_ai_core"
+          ? "conversation-mcp"
+          : name.startsWith("confirm_")
+            ? "confirmed-write-mcp"
+            : name.startsWith("prepare_")
+              ? "write-plan-mcp"
+              : "read-only-mcp",
     });
     return result;
   }
 
-  return async function handleMcpRequest(message, ownerId) {
+  return async function handleMcpRequest(message, ownerId, identity) {
     if (!message || message.jsonrpc !== "2.0") {
       return {
         jsonrpc: "2.0",
@@ -526,7 +568,7 @@ export function createMcpRequestHandler({
             capabilities: { tools: { listChanged: false } },
             serverInfo: { name: "synchron-x-memory", version: "1.0.0" },
             instructions:
-              "Използвай паметта само когато е свързана с въпроса. Личният и проектният контекст са различни. Повечето инструменти са само за четене. Изтриването на слети GitHub клонове е отделен destructive инструмент и работи само след точен план, еднократно потвърждение и повторна проверка.",
+              "Използвай паметта само когато е свързана с въпроса. Личният и проектният контекст са различни. Повечето инструменти са само за четене. Разговорът с AI CORE пази нишката, но не изпълнява външни действия. Двата destructive инструмента работят само след точен план, еднократно потвърждение и повторна проверка.",
           },
         };
       }
@@ -542,6 +584,7 @@ export function createMcpRequestHandler({
           message.params?.name,
           message.params?.arguments,
           ownerId,
+          identity,
         );
         return { jsonrpc: "2.0", id: message.id, result };
       }
@@ -559,7 +602,7 @@ export function createMcpRequestHandler({
           message:
             error?.code === -32602
               ? error.message
-              : "SYNCHRON-X временно не може да прочете исканите данни.",
+              : "SYNCHRON-X временно не може да изпълни заявката.",
         },
       };
     }

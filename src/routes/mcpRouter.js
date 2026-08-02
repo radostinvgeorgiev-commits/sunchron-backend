@@ -26,7 +26,12 @@ export function requireMcpAuthorization(
   const authorization = req.get("authorization");
   if (isValidMcpToken(authorization, env.MCP_ACCESS_TOKEN)) {
     req.mcpOwnerId = env.MEMORY_OWNER_ID || "primary-user";
-    req.mcpAuthentication = { mode: "legacy-static-bearer", role: "owner" };
+    req.mcpAuthentication = {
+      mode: "legacy-static-bearer",
+      id: "owner",
+      role: "owner",
+      displayName: "Радко",
+    };
     return next();
   }
 
@@ -88,7 +93,11 @@ export function requireMcpAuthorization(
 }
 
 router.post("/", requireMcpAuthorization, async (req, res) => {
-  const response = await handleMcpRequest(req.body, req.mcpOwnerId);
+  const response = await handleMcpRequest(
+    req.body,
+    req.mcpOwnerId,
+    req.mcpAuthentication,
+  );
   if (!response) return res.status(202).end();
   return res.json(response);
 });

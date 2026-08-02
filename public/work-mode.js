@@ -67,6 +67,7 @@
     chatModeBtn: document.getElementById("chatModeBtn"),
     workModeToolbarBtn: document.getElementById("workModeToolbarBtn"),
     workModeBtn: document.getElementById("workModeBtn"),
+    workPetBtn: document.getElementById("workPetBtn"),
     workContextBtn: document.getElementById("workContextBtn"),
     projectLabel: document.getElementById("workProjectLabel"),
     agentLabel: document.getElementById("workAgentLabel"),
@@ -359,7 +360,12 @@
       ready: "Готово за преглед",
       blocked: "Задачата е блокирана",
     };
-    elements.workContextBtn.title = `${pet.label}: ${statusLabels[workState.petState]}. ${pet.description}`;
+    const petTitle = `${pet.label}: ${statusLabels[workState.petState]}. ${pet.description}`;
+    elements.workPetBtn.title = petTitle;
+    elements.workPetBtn.setAttribute(
+      "aria-label",
+      `Избери любимец. ${petTitle}`,
+    );
   }
 
   function setMode(mode) {
@@ -463,7 +469,7 @@
     parent.appendChild(list);
   }
 
-  function renderPetChoices(parent) {
+  function renderPetChoices(parent, reopen = openManager) {
     const grid = document.createElement("div");
     grid.className = "pet-choice-grid";
     for (const pet of PETS) {
@@ -476,7 +482,7 @@
         workState.petId = pet.id;
         saveState();
         renderPet();
-        openManager();
+        reopen();
       });
       addText(button, "span", pet.symbol);
       addText(button, "strong", pet.label);
@@ -766,6 +772,21 @@
     return container;
   }
 
+  function openPetManager() {
+    closeOtherPanels();
+    elements.drawerTitle.textContent = "Избери любимец";
+    elements.drawerBody.replaceChildren();
+    addText(
+      elements.drawerBody,
+      "p",
+      "Избери кой любимец да те придружава в AI CORE.",
+      "work-manager-intro",
+    );
+    renderPetChoices(elements.drawerBody, openPetManager);
+    elements.drawer.hidden = false;
+    elements.drawerBackdrop.hidden = false;
+  }
+
   function openManager() {
     closeOtherPanels();
     elements.drawerTitle.textContent = "Работа, агенти и любимец";
@@ -872,6 +893,7 @@
       setMode("work"),
     );
     elements.workModeBtn?.addEventListener("click", () => setMode("work"));
+    elements.workPetBtn?.addEventListener("click", openPetManager);
     elements.workContextBtn?.addEventListener("click", openManager);
     elements.commandBar?.addEventListener("click", (event) => {
       const command = event.target.closest("[data-command]")?.dataset.command;
@@ -889,6 +911,7 @@
     onError: () => workState?.mode === "work" && setPetState("blocked"),
     onTask,
     openManager,
+    openPetManager,
     setBusy: (busy) => {
       if (busy && workState?.mode === "work") setPetState("running");
     },

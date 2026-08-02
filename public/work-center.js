@@ -598,6 +598,94 @@
     panel.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
   }
 
+  function showPublicWwwError(error, card) {
+    if (error.code === "AUTH_REQUIRED") {
+      showTesterAuthResult({
+        title: "Необходим е вход на собственика",
+        message:
+          "Отварям защитения GitHub вход. След връщането натисни картата отново.",
+        anchor: card,
+      });
+      globalThis.location?.assign?.("/api/github/connect");
+      return;
+    }
+    showTesterAuthResult({
+      title: "Настройването на www адреса не успя",
+      message: error.code
+        ? `${error.message}\nКод: ${error.code}`
+        : error.message,
+      anchor: card,
+    });
+  }
+
+  function showPublicWwwConfirmation({ card, prepared }) {
+    body.querySelector("[data-www-domain-confirmation]")?.remove();
+
+    const panel = document.createElement("section");
+    panel.className = "work-center-intro";
+    panel.dataset.wwwDomainConfirmation = "";
+    addText(panel, "strong", "Потвърди добавянето на www адреса");
+    addText(panel, "p", prepared.message);
+    addText(panel, "p", `Адрес: ${prepared.domain}`);
+
+    const actions = document.createElement("div");
+    actions.className = "chatgpt-app-actions";
+    const confirmButton = addText(
+      actions,
+      "button",
+      "Потвърди добавянето",
+      "chatgpt-app-copy",
+    );
+    confirmButton.type = "button";
+    confirmButton.dataset.confirmWwwDomain = "";
+    const cancelButton = addText(
+      actions,
+      "button",
+      "Отказ",
+      "chatgpt-app-copy secondary",
+    );
+    cancelButton.type = "button";
+    cancelButton.dataset.cancelWwwDomain = "";
+    panel.appendChild(actions);
+
+    const finish = () => {
+      delete card.dataset.awaitingWwwConfirmation;
+      card.disabled = false;
+      panel.remove();
+    };
+
+    cancelButton.addEventListener("click", finish);
+    confirmButton.addEventListener("click", async () => {
+      confirmButton.disabled = true;
+      cancelButton.disabled = true;
+      try {
+        const result = await readJson(
+          await fetch("/api/digitalocean-domain/confirm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              confirmationId: prepared.confirmationId,
+            }),
+          }),
+        );
+        finish();
+        showTesterAuthResult({
+          title: "www адресът се активира",
+          message: `${result.domain} е добавен. DigitalOcean започва deployment; след публикуването адресът ще бъде проверен отново.`,
+          anchor: card,
+        });
+      } catch (error) {
+        finish();
+        showPublicWwwError(error, card);
+      }
+    });
+
+    card.dataset.awaitingWwwConfirmation = "true";
+    card.disabled = true;
+    card.insertAdjacentElement("afterend", panel);
+    panel.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+  }
+
   function showChatGptAppSetup(card) {
     body.querySelector("[data-chatgpt-app-setup]")?.remove();
     const panel = document.createElement("section");
@@ -738,6 +826,7 @@
   }
 
   async function activatePublicWwwDomain(card) {
+    if (card.dataset.awaitingWwwConfirmation === "true") return;
     card.disabled = true;
     try {
       const prepared = await readJson(
@@ -755,44 +844,11 @@
         });
         return;
       }
-      const approved = globalThis.confirm(
-        `${prepared.message}\n\nАдрес: ${prepared.domain}\n\nПродължаваме ли?`,
-      );
-      if (!approved) return;
-      const result = await readJson(
-        await fetch("/api/digitalocean-domain/confirm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            confirmationId: prepared.confirmationId,
-          }),
-        }),
-      );
-      showTesterAuthResult({
-        title: "www адресът се активира",
-        message: `${result.domain} е добавен. DigitalOcean започва deployment; след публикуването адресът ще бъде проверен отново.`,
-        anchor: card,
-      });
+      showPublicWwwConfirmation({ card, prepared });
     } catch (error) {
-      if (error.code === "AUTH_REQUIRED") {
-        showTesterAuthResult({
-          title: "Необходим е вход на собственика",
-          message:
-            "Отварям защитения GitHub вход. След връщането натисни картата отново.",
-          anchor: card,
-        });
-        globalThis.location?.assign?.("/api/github/connect");
-        return;
-      }
-      showTesterAuthResult({
-        title: "Настройването на www адреса не успя",
-        message: error.code
-          ? `${error.message}\nКод: ${error.code}`
-          : error.message,
-        anchor: card,
-      });
+      showPublicWwwError(error, card);
     } finally {
-      card.disabled = false;
+      card.disabled = card.dataset.awaitingWwwConfirmation === "true";
     }
   }
 

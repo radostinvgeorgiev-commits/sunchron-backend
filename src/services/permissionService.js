@@ -16,6 +16,12 @@ const POLICY = Object.freeze({
     risk: "medium",
     reason: "Промените в GitHub изискват отделно разрешение.",
   }),
+  "code.execute.read": Object.freeze({
+    decision: "allow",
+    risk: "medium",
+    reason:
+      "Codex работи в изолирано копие на кода без запис и без мрежов достъп.",
+  }),
   "calendar.read": Object.freeze({
     decision: "allow",
     risk: "low",
@@ -49,7 +55,8 @@ const POLICY = Object.freeze({
   "infrastructure.read": Object.freeze({
     decision: "allow",
     risk: "low",
-    reason: "Инфраструктурният достъп е ограничен само до статус и диагностика.",
+    reason:
+      "Инфраструктурният достъп е ограничен само до статус и диагностика.",
   }),
   "image.read": Object.freeze({
     decision: "allow",
@@ -116,9 +123,7 @@ export function listPermissions() {
 
 function referenceFingerprint(value) {
   const text = cleanText(value);
-  return text
-    ? createHash("sha256").update(text).digest("hex")
-    : null;
+  return text ? createHash("sha256").update(text).digest("hex") : null;
 }
 
 function buildAuditEntry(event) {

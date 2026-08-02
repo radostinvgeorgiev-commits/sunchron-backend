@@ -21,6 +21,16 @@ const AGENT_ROLES = Object.freeze({
     guidance:
       "Изготвяй използваеми резултати, планове и файлово съдържание, но не твърди, че код или файл е записан без реален изпълним инструмент.",
   },
+  coder: {
+    label: "Codex разработчик",
+    guidance:
+      "Анализирай реалния код в изолирана област. Не твърди, че промяна е записана, преди да има потвърден write процес.",
+  },
+});
+
+const AGENT_ENGINES = Object.freeze({
+  "ai-core": { label: "AI CORE" },
+  codex: { label: "Codex" },
 });
 
 const AGENT_MODELS = Object.freeze({
@@ -65,6 +75,9 @@ export function sanitizeWorkContext(value) {
     role,
     model,
     purpose: cleanText(value.agent?.purpose, 400),
+    engine: Object.hasOwn(AGENT_ENGINES, cleanText(value.agent?.engine, 30))
+      ? cleanText(value.agent?.engine, 30)
+      : "ai-core",
   };
 
   if (!project.name && !project.objective && !agent.purpose) return null;
@@ -93,6 +106,7 @@ export function buildWorkModeContext(value) {
       ? `Цел на проекта: ${context.project.objective}`
       : "Цел на проекта: още не е описана.",
     `Избран личен агент: ${context.agent.name}`,
+    `Изпълнител: ${AGENT_ENGINES[context.agent.engine].label}`,
     `Роля: ${role.label}`,
     `Модел: ${AGENT_MODELS[context.agent.model].label}`,
     `Начин на работа: ${role.guidance}`,
@@ -127,6 +141,7 @@ export function buildWorkContextStatusReply(value) {
     `Агент: ${context.agent.name}`,
     `Модел: ${AGENT_MODELS[context.agent.model].label}`,
     `Роля: ${AGENT_ROLES[context.agent.role].label}`,
+    `Изпълнител: ${AGENT_ENGINES[context.agent.engine].label}`,
     `Проект: ${context.project.name || "Без активен проект"}`,
   ].join("\n");
 }
@@ -143,6 +158,31 @@ export function listWorkAgentModels() {
     id,
     label: model.label,
   }));
+}
+
+export function listWorkAgentEngines() {
+  return Object.entries(AGENT_ENGINES).map(([id, engine]) => ({
+    id,
+    label: engine.label,
+  }));
+}
+
+export function routeSelectedWorkAgentCapabilities(requests, value, message) {
+  const context = sanitizeWorkContext(value);
+  const safeRequests = Array.isArray(requests) ? requests : [];
+  if (context?.agent?.engine !== "codex") return safeRequests;
+
+  const nonCodeRequests = safeRequests.filter(
+    ({ capability }) => !String(capability || "").startsWith("code."),
+  );
+  return [
+    {
+      capability: "code.analyze",
+      action: "code.execute.read",
+      message: cleanText(message, 8000),
+    },
+    ...nonCodeRequests,
+  ];
 }
 
 export function resolveWorkAgentModel(value) {

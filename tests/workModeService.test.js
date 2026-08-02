@@ -6,9 +6,11 @@ import {
   buildWorkModeContext,
   isWorkContextStatusRequest,
   listWorkAgentModels,
+  listWorkAgentEngines,
   listWorkAgentRoles,
   normalizeInteractionMode,
   resolveWorkAgentModel,
+  routeSelectedWorkAgentCapabilities,
   sanitizeWorkContext,
 } from "../src/services/workModeService.js";
 
@@ -30,6 +32,7 @@ test("work context is bounded and uses a server-owned role allowlist", () => {
       role: "system-admin",
       model: "made-up-model",
       purpose: "Следи проверките",
+      engine: "root-shell",
     },
   });
 
@@ -38,6 +41,7 @@ test("work context is bounded and uses a server-owned role allowlist", () => {
   assert.equal(context.agent.role, "general");
   assert.equal(context.agent.model, "auto");
   assert.equal(context.agent.name, "Моят агент");
+  assert.equal(context.agent.engine, "ai-core");
   assert.equal(Object.isFrozen(context), true);
 });
 
@@ -73,7 +77,40 @@ test("the available personal-agent models are explicit and server-owned", () => 
 test("the available personal-agent roles are explicit", () => {
   assert.deepEqual(
     listWorkAgentRoles().map(({ id }) => id),
-    ["general", "researcher", "organizer", "builder"],
+    ["general", "researcher", "organizer", "builder", "coder"],
+  );
+});
+
+test("the available agent engines are explicit and Codex replaces code writes with isolated analysis", () => {
+  assert.deepEqual(
+    listWorkAgentEngines().map(({ id }) => id),
+    ["ai-core", "codex"],
+  );
+  const requests = routeSelectedWorkAgentCapabilities(
+    [
+      { capability: "code.read", action: "github.read" },
+      { capability: "code.write", action: "github.write" },
+      { capability: "web.search", action: "web.read" },
+    ],
+    {
+      project: { name: "SYNCHRON-X" },
+      agent: {
+        name: "Codex",
+        role: "coder",
+        model: "gpt-5.6-terra",
+        engine: "codex",
+        purpose: "Анализира кода",
+      },
+    },
+    "Поправи бутона.",
+  );
+
+  assert.deepEqual(
+    requests.map(({ capability, action }) => ({ capability, action })),
+    [
+      { capability: "code.analyze", action: "code.execute.read" },
+      { capability: "web.search", action: "web.read" },
+    ],
   );
 });
 
@@ -105,6 +142,7 @@ test("active work context questions use verified state instead of chat history",
       "Агент: AI CORE Ръководител SOL",
       "Модел: GPT-5.6 Sol",
       "Роля: Организатор",
+      "Изпълнител: AI CORE",
       "Проект: AI CORE развитие",
     ].join("\n"),
   );

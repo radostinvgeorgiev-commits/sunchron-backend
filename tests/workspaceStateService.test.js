@@ -38,7 +38,7 @@ test("workspace state is bounded and strips untrusted values", () => {
     { now: "2026-08-01T10:00:00.000Z" },
   );
 
-  assert.equal(state.version, 2);
+  assert.equal(state.version, 3);
   assert.equal(state.mode, "chat");
   assert.equal(state.petId, "robot");
   assert.equal(state.projects.length, 20);
@@ -47,6 +47,8 @@ test("workspace state is bounded and strips untrusted values", () => {
   assert.doesNotMatch(state.projects[0].name, /\u0000/u);
   assert.equal(state.agents[0].role, "general");
   assert.equal(state.agents[0].model, "auto");
+  assert.equal(state.agents[0].engine, "ai-core");
+  assert.equal(state.agents.at(-1).engine, "codex");
   assert.equal(state.activities.length, 40);
 });
 
@@ -100,6 +102,7 @@ test("workspace state is saved in an isolated hashed document", async () => {
   assert.doesNotMatch(JSON.stringify(indexed.body), /primary-user/u);
   assert.equal(result.state.mode, "work");
   assert.equal(result.state.agents[0].model, "gpt-5.6-terra");
+  assert.equal(result.state.agents.at(-1).engine, "codex");
   assert.equal(result.persisted, true);
 });
 
@@ -116,4 +119,5 @@ test("missing workspace returns a safe starter state", async () => {
   assert.equal(result.persisted, false);
   assert.equal(result.state.projects[0].id, "starter-project");
   assert.equal(result.state.agents[0].name, "AI CORE");
+  assert.equal(result.state.agents[1].name, "Codex");
 });

@@ -24,6 +24,15 @@ test("избира GitHub без AI Core да знае конкретния ин
   assert.equal(result.requiresConfirmation, false);
 });
 
+test("избира Codex само за изолиран кодов анализ", () => {
+  const result = resolveCapability("code.analyze");
+  assert.equal(result.tool.id, "openai-codex");
+  assert.equal(result.permission.action, "code.execute.read");
+  assert.equal(result.permission.decision, "allow");
+  assert.equal(result.requiresConfirmation, false);
+  assert.equal(isToolExecutable("openai-codex"), true);
+});
+
 test("маркира опасните действия за потвърждение", () => {
   const result = resolveCapability("memory.delete");
   assert.equal(result.permission.action, "memory.delete");
@@ -108,6 +117,23 @@ test("регистрира Supabase като изпълним инструмен
 });
 
 test("runtime availability blocks configured-looking tools without credentials", () => {
+  assert.equal(
+    getToolRuntimeAvailability("openai-codex", {}, {}).available,
+    false,
+  );
+  assert.equal(
+    getToolRuntimeAvailability(
+      "openai-codex",
+      {},
+      { OPENAI_API_KEY: "key", CODEX_AGENT_ENABLED: "false" },
+    ).code,
+    "CODEX_AGENT_NOT_CONFIGURED",
+  );
+  assert.equal(
+    getToolRuntimeAvailability("openai-codex", {}, { OPENAI_API_KEY: "key" })
+      .available,
+    true,
+  );
   assert.equal(
     getToolRuntimeAvailability("supabase-status", {}, {}).available,
     false,

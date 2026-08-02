@@ -5,7 +5,14 @@ import { getOpenSearchClient } from "../config/opensearch.js";
 const DEFAULT_INDEX = "synchron-workspaces-v1";
 const VALID_MODES = new Set(["chat", "work"]);
 const VALID_STATUSES = new Set(["ready", "running", "needs-input", "blocked"]);
-const VALID_ROLES = new Set(["general", "researcher", "organizer", "builder"]);
+const VALID_ROLES = new Set([
+  "general",
+  "researcher",
+  "organizer",
+  "builder",
+  "coder",
+]);
+const VALID_ENGINES = new Set(["ai-core", "codex"]);
 const VALID_MODELS = new Set([
   "auto",
   "gpt-5.6-sol",
@@ -38,7 +45,7 @@ function cleanId(value, fallback) {
 
 function defaultWorkspaceState(now = new Date().toISOString()) {
   return {
-    version: 2,
+    version: 3,
     mode: "chat",
     activeProjectId: "starter-project",
     activeAgentId: "synchron-builder",
@@ -60,6 +67,15 @@ function defaultWorkspaceState(now = new Date().toISOString()) {
         role: "builder",
         model: "auto",
         purpose: "Подготвя реален резултат и показва какво е проверено.",
+        engine: "ai-core",
+      },
+      {
+        id: "codex-agent",
+        name: "Codex",
+        role: "coder",
+        model: "gpt-5.6-terra",
+        purpose: "Анализира кода в изолирана област без запис и без интернет.",
+        engine: "codex",
       },
     ],
     activities: [],
@@ -89,6 +105,7 @@ export function normalizeWorkspaceState(value, { now } = {}) {
         role: VALID_ROLES.has(agent?.role) ? agent.role : "general",
         model: VALID_MODELS.has(agent?.model) ? agent.model : "auto",
         purpose: cleanText(agent?.purpose, 400),
+        engine: VALID_ENGINES.has(agent?.engine) ? agent.engine : "ai-core",
       }))
     : fallback.agents;
   const activities = Array.isArray(value.activities)
@@ -106,6 +123,9 @@ export function normalizeWorkspaceState(value, { now } = {}) {
 
   if (!projects.length) projects.push(...fallback.projects);
   if (!agents.length) agents.push(...fallback.agents);
+  if (!agents.some((agent) => agent.engine === "codex") && agents.length < 12) {
+    agents.push(fallback.agents.find((agent) => agent.engine === "codex"));
+  }
 
   const activeProjectId = projects.some(
     (project) => project.id === value.activeProjectId,
@@ -117,7 +137,7 @@ export function normalizeWorkspaceState(value, { now } = {}) {
     : agents[0].id;
 
   return {
-    version: 2,
+    version: 3,
     mode: VALID_MODES.has(value.mode) ? value.mode : "chat",
     activeProjectId,
     activeAgentId,

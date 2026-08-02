@@ -81,6 +81,24 @@ test("member capability filtering is deny-by-default", () => {
   );
 });
 
+test("member profiles cannot invoke the Codex execution capability", () => {
+  const requests = [
+    {
+      capability: "code.analyze",
+      action: "code.execute.read",
+      message: "Провери кода.",
+    },
+  ];
+  assert.deepEqual(
+    filterCapabilityRequestsForIdentity(requests, { role: "member" }),
+    [],
+  );
+  assert.deepEqual(
+    filterCapabilityRequestsForIdentity(requests, { role: "owner" }),
+    requests,
+  );
+});
+
 test("routes a new calendar event only to confirmed Calendar Write", () => {
   const message = "Създай събитие: Среща | 2026-08-05 14:30 | 60";
   const requests = detectCapabilityRequests(message);

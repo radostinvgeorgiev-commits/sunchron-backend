@@ -25,6 +25,7 @@ import webSearchRouter from "./src/routes/webSearchRouter.js";
 import publicConfigRouter from "./src/routes/publicConfigRouter.js";
 import userAuthRouter from "./src/routes/userAuthRouter.js";
 import testerAuthAdminRouter from "./src/routes/testerAuthAdminRouter.js";
+import digitalOceanDomainAdminRouter from "./src/routes/digitalOceanDomainAdminRouter.js";
 import systemRouter from "./src/routes/systemRouter.js";
 import workspacesRouter from "./src/routes/workspacesRouter.js";
 import mcpRouter from "./src/routes/mcpRouter.js";
@@ -155,6 +156,13 @@ app.use(
   requirePrimaryOwner,
   privateApiRateLimiter,
   testerAuthAdminRouter,
+);
+app.use(
+  "/api/digitalocean-domain",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  privateApiRateLimiter,
+  digitalOceanDomainAdminRouter,
 );
 app.use(
   "/api/system",

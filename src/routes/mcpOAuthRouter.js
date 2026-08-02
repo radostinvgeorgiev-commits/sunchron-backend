@@ -7,6 +7,7 @@ import {
   getMcpAuthorizationServerMetadata,
   getMcpProtectedResourceMetadata,
   McpOAuthError,
+  recordMcpAuthorizationRuntimeStatus,
   resolveMcpIssuerUrl,
   validateMcpConsentToken,
   validateMcpAuthorizationRequest,
@@ -134,18 +135,32 @@ export function createMcpOAuthRouter({
         validateMcpConsentToken(req.body?.consent_token, request, identity);
         const callback = new URL(request.redirectUri);
         if (req.body?.decision !== "allow") {
+          recordMcpAuthorizationRuntimeStatus({
+            authorization: "redirected",
+            decision: "deny",
+          });
           callback.searchParams.set("error", "access_denied");
           callback.searchParams.set("state", request.state);
           callback.searchParams.set("iss", resolveMcpIssuerUrl());
           return res.redirect(callback.href);
         }
         const code = createMcpAuthorizationCode(request, identity);
+        recordMcpAuthorizationRuntimeStatus({
+          authorization: "redirected",
+          decision: "allow",
+        });
         callback.searchParams.set("code", code);
         callback.searchParams.set("state", request.state);
         callback.searchParams.set("iss", resolveMcpIssuerUrl());
         noStore(res);
         return res.redirect(callback.href);
       } catch (error) {
+        recordMcpAuthorizationRuntimeStatus({
+          authorization: "failed",
+          decision: req.body?.decision === "allow" ? "allow" : "deny",
+          errorCode:
+            error instanceof McpOAuthError ? error.code : "server_error",
+        });
         return oauthError(res, error);
       }
     },

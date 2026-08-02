@@ -148,6 +148,8 @@ test("work mode runs in the browser and creates an isolated project payload", as
   assert.equal(payload.mode, "work");
   assert.equal(payload.workContext.project.name, "Тестов проект");
   assert.equal(payload.workContext.project.objective, "Готов резултат");
+  assert.match(payload.workContext.project.id, /^project-/u);
+  assert.equal(payload.workContext.project.run, null);
   assert.equal(payload.workContext.agent.engine, "ai-core");
   assert.match(
     dom.window.localStorage.getItem("synchronWorkMode:tester-one"),
@@ -207,6 +209,31 @@ test("work mode runs in the browser and creates an isolated project payload", as
     "running",
   );
   dom.window.SynchronWorkMode.onTask({ status: "waiting_confirmation" });
+  assert.equal(
+    dom.window.document.getElementById("workPet").dataset.petState,
+    "needs-input",
+  );
+  dom.window.SynchronWorkMode.onDone({
+    task: { id: "task-codex", status: "completed", verified: true },
+    projectRun: {
+      projectId: payload.workContext.project.id,
+      sequence: 1,
+      status: "ready_for_next_step",
+      summary: "Проверен е маршрутът.",
+      evidence: ["src/routes/chat.js"],
+      nextStep: "Добави целеви тест.",
+      needsUserDecision: true,
+      codeChanged: true,
+      updatedAt: "2026-08-02T15:30:00.000Z",
+    },
+  });
+  const continuedPayload = dom.window.SynchronWorkMode.getRequestPayload();
+  assert.equal(continuedPayload.workContext.project.run.sequence, 1);
+  assert.equal(
+    continuedPayload.workContext.project.run.nextStep,
+    "Добави целеви тест.",
+  );
+  assert.equal(continuedPayload.workContext.project.run.codeChanged, false);
   assert.equal(
     dom.window.document.getElementById("workPet").dataset.petState,
     "needs-input",

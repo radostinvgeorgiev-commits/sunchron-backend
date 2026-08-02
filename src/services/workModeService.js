@@ -33,6 +33,12 @@ const AGENT_ENGINES = Object.freeze({
   codex: { label: "Codex" },
 });
 
+const PROJECT_RUN_STATUSES = new Set([
+  "complete",
+  "ready_for_next_step",
+  "blocked",
+]);
+
 const AGENT_MODELS = Object.freeze({
   auto: { label: "Автоматичен", apiModel: null },
   "gpt-5.6-sol": { label: "GPT-5.6 Sol", apiModel: "gpt-5.6-sol" },
@@ -52,16 +58,45 @@ export function normalizeInteractionMode(value) {
   return WORK_MODES.has(value) ? value : "chat";
 }
 
+function sanitizeProjectRun(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const summary = cleanText(value.summary, 4000);
+  const nextStep = cleanText(value.nextStep, 1200);
+  if (!summary && !nextStep) return null;
+  return Object.freeze({
+    sequence: Math.max(
+      0,
+      Math.min(Number.parseInt(value.sequence, 10) || 0, 999999),
+    ),
+    status: PROJECT_RUN_STATUSES.has(value.status)
+      ? value.status
+      : "ready_for_next_step",
+    summary,
+    evidence: Object.freeze(
+      (Array.isArray(value.evidence) ? value.evidence : [])
+        .slice(0, 8)
+        .map((item) => cleanText(item, 500))
+        .filter(Boolean),
+    ),
+    nextStep,
+    needsUserDecision: value.needsUserDecision === true,
+    codeChanged: false,
+    updatedAt: cleanText(value.updatedAt, 40),
+  });
+}
+
 export function sanitizeWorkContext(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
 
   const project =
     value.project && typeof value.project === "object"
       ? {
+          id: cleanText(value.project.id, 80),
           name: cleanText(value.project.name, 80),
           objective: cleanText(value.project.objective, 600),
+          run: sanitizeProjectRun(value.project.run),
         }
-      : { name: "", objective: "" };
+      : { id: "", name: "", objective: "", run: null };
   const requestedRole = cleanText(value.agent?.role, 30);
   const role = Object.hasOwn(AGENT_ROLES, requestedRole)
     ? requestedRole
@@ -105,6 +140,12 @@ export function buildWorkModeContext(value) {
     context.project.objective
       ? `Цел на проекта: ${context.project.objective}`
       : "Цел на проекта: още не е описана.",
+    context.project.run?.summary
+      ? `Последен проверен резултат: ${context.project.run.summary}`
+      : "",
+    context.project.run?.nextStep
+      ? `Предложена следваща стъпка: ${context.project.run.nextStep}`
+      : "",
     `Избран личен агент: ${context.agent.name}`,
     `Изпълнител: ${AGENT_ENGINES[context.agent.engine].label}`,
     `Роля: ${role.label}`,
@@ -116,7 +157,9 @@ export function buildWorkModeContext(value) {
     "Този контекст не отменя разрешенията, потвържденията, защитата на данните или ограниченията на инструментите.",
     "Показвай напредъка и връщай резултат за преглед. Не твърди, че файл, код, имейл, резервация или външна промяна е направена без реално изпълнение.",
     "[КРАЙ НА РАБОТНИЯ РЕЖИМ]",
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function isWorkContextStatusRequest(message) {

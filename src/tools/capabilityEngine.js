@@ -54,7 +54,7 @@ import {
 } from "../services/systemConfigurationService.js";
 import {
   isCodexAgentConfigured,
-  runCodexReadAnalysis,
+  runCodexProjectAnalysis,
 } from "../services/codexAgentService.js";
 import { findToolsByCapability, registerCoreTools } from "./toolRegistry.js";
 
@@ -369,16 +369,23 @@ const executors = Object.freeze({
     });
     return prepared.output;
   },
-  "openai-codex": async ({ input }) =>
-    runCodexReadAnalysis({
+  "openai-codex": async ({ input }) => {
+    const result = await runCodexProjectAnalysis({
       message: input.message,
+      projectId: input.workContext?.project?.id,
       projectName: input.workContext?.project?.name,
       projectObjective: input.workContext?.project?.objective,
+      previousRun: input.workContext?.project?.run,
       model:
         input.workContext?.agent?.model === "auto"
           ? undefined
           : input.workContext?.agent?.model,
-    }),
+    });
+    return {
+      output: result.output,
+      metadata: Object.freeze({ projectRun: result.projectRun }),
+    };
+  },
   "google-calendar-read": async ({ input }) => {
     if (!(await hasSession(input.googleSessionId))) {
       throw new GoogleDriveError(
@@ -576,11 +583,12 @@ export async function executeCapability(capability, input = {}, options = {}) {
     throw new CapabilityError(runtime.reason, runtime.code, 503);
   }
 
-  const output = await executor({
+  const execution = await executor({
     capability: resolved.capability,
     input,
     confirmed: options.confirmed === true,
   });
+  const output = typeof execution === "string" ? execution : execution?.output;
   if (typeof output !== "string" || !output.trim()) {
     throw new CapabilityError(
       `Инструментът "${resolved.tool.name}" не върна валиден резултат.`,
@@ -589,7 +597,17 @@ export async function executeCapability(capability, input = {}, options = {}) {
     );
   }
 
-  return Object.freeze({ ...resolved, output });
+  const metadata =
+    execution?.metadata &&
+    typeof execution.metadata === "object" &&
+    !Array.isArray(execution.metadata)
+      ? Object.freeze({ ...execution.metadata })
+      : null;
+  return Object.freeze({
+    ...resolved,
+    output,
+    ...(metadata ? { metadata } : {}),
+  });
 }
 
 export function isToolExecutable(toolId, env = process.env) {

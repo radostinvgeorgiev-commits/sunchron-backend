@@ -19,6 +19,18 @@ test("workspace state is bounded and strips untrusted values", () => {
         name: `\u0000Проект ${index}`,
         objective: "Цел",
         status: "deleted",
+        run:
+          index === 0
+            ? {
+                sequence: 2,
+                status: "ready_for_next_step",
+                summary: "Проверен резултат",
+                evidence: ["src/index.js"],
+                nextStep: "Добави тест",
+                needsUserDecision: true,
+                codeChanged: true,
+              }
+            : null,
       })),
       agents: [
         {
@@ -38,13 +50,16 @@ test("workspace state is bounded and strips untrusted values", () => {
     { now: "2026-08-01T10:00:00.000Z" },
   );
 
-  assert.equal(state.version, 3);
+  assert.equal(state.version, 4);
   assert.equal(state.mode, "chat");
   assert.equal(state.petId, "robot");
   assert.equal(state.projects.length, 20);
   assert.equal(state.projects[0].id, "project-0");
   assert.equal(state.projects[0].status, "ready");
   assert.doesNotMatch(state.projects[0].name, /\u0000/u);
+  assert.equal(state.projects[0].run.sequence, 2);
+  assert.equal(state.projects[0].run.codeChanged, false);
+  assert.equal(state.projects[0].run.needsUserDecision, true);
   assert.equal(state.agents[0].role, "general");
   assert.equal(state.agents[0].model, "auto");
   assert.equal(state.agents[0].engine, "ai-core");
@@ -83,7 +98,19 @@ test("workspace state is saved in an isolated hashed document", async () => {
       mode: "work",
       activeProjectId: "p1",
       activeAgentId: "a1",
-      projects: [{ id: "p1", name: "Сайт", status: "running" }],
+      projects: [
+        {
+          id: "p1",
+          name: "Сайт",
+          status: "running",
+          run: {
+            sequence: 1,
+            status: "ready_for_next_step",
+            summary: "Проверено",
+            nextStep: "Продължи",
+          },
+        },
+      ],
       agents: [
         {
           id: "a1",
@@ -99,10 +126,12 @@ test("workspace state is saved in an isolated hashed document", async () => {
   assert.equal(indexed.index, "synchron-workspaces-v1");
   assert.equal(indexed.id, workspaceDocumentId("primary-user"));
   assert.equal(indexed.body.ownerHash, indexed.id);
+  assert.equal(indexed.body.schemaVersion, 2);
   assert.doesNotMatch(JSON.stringify(indexed.body), /primary-user/u);
   assert.equal(result.state.mode, "work");
   assert.equal(result.state.agents[0].model, "gpt-5.6-terra");
   assert.equal(result.state.agents.at(-1).engine, "codex");
+  assert.equal(result.state.projects[0].run.nextStep, "Продължи");
   assert.equal(result.persisted, true);
 });
 

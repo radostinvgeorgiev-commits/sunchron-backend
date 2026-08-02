@@ -24,8 +24,16 @@ test("interaction mode accepts only chat and work", () => {
 test("work context is bounded and uses a server-owned role allowlist", () => {
   const context = sanitizeWorkContext({
     project: {
+      id: "project-one",
       name: `\u0000${"П".repeat(100)}`,
       objective: "Ясен резултат",
+      run: {
+        sequence: 4,
+        status: "ready_for_next_step",
+        summary: "Проверен е чат маршрутът.",
+        evidence: ["src/routes/chat.js"],
+        nextStep: "Добави тест.",
+      },
     },
     agent: {
       name: "Моят агент",
@@ -42,12 +50,22 @@ test("work context is bounded and uses a server-owned role allowlist", () => {
   assert.equal(context.agent.model, "auto");
   assert.equal(context.agent.name, "Моят агент");
   assert.equal(context.agent.engine, "ai-core");
+  assert.equal(context.project.id, "project-one");
+  assert.equal(context.project.run.sequence, 4);
+  assert.equal(context.project.run.codeChanged, false);
   assert.equal(Object.isFrozen(context), true);
 });
 
 test("work prompt keeps user context below permissions and real execution", () => {
   const prompt = buildWorkModeContext({
-    project: { name: "Сайт", objective: "Публикувана тестова версия" },
+    project: {
+      name: "Сайт",
+      objective: "Публикувана тестова версия",
+      run: {
+        summary: "Проверена е структурата.",
+        nextStep: "Добави един тест.",
+      },
+    },
     agent: {
       name: "Строител",
       role: "builder",
@@ -61,6 +79,8 @@ test("work prompt keeps user context below permissions and real execution", () =
   assert.match(prompt, /без реално изпълнение/u);
   assert.match(prompt, /Активен проект: Сайт/u);
   assert.match(prompt, /Модел: GPT-5\.6 Sol/u);
+  assert.match(prompt, /Последен проверен резултат: Проверена е структурата/u);
+  assert.match(prompt, /Предложена следваща стъпка: Добави един тест/u);
 });
 
 test("the available personal-agent models are explicit and server-owned", () => {

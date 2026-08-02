@@ -587,6 +587,10 @@ test("OAuth runtime diagnostics expose only a safe token exchange result", async
   assert.equal(status.errorCode, "unsupported_grant_type");
   assert.match(status.updatedAt, /^\d{4}-\d{2}-\d{2}T/u);
   assert.deepEqual(Object.keys(status).sort(), [
+    "authorization",
+    "authorizationDecision",
+    "authorizationErrorCode",
+    "authorizationUpdatedAt",
     "errorCode",
     "grantType",
     "tokenExchange",

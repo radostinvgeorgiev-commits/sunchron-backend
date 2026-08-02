@@ -5,7 +5,9 @@ import express from "express";
 import request from "supertest";
 
 import { createMcpOAuthRouter } from "../src/routes/mcpOAuthRouter.js";
-import mcpRouter from "../src/routes/mcpRouter.js";
+import mcpRouter, {
+  mcpJsonParseErrorHandler,
+} from "../src/routes/mcpRouter.js";
 
 const SECRET = "router-test-secret-with-more-than-thirty-two-characters";
 const DEDICATED_SECRET =
@@ -46,6 +48,55 @@ test("MCP initialize and tool discovery work without credentials", async () => {
     .expect(200);
   assert.equal(listed.body.result.tools.length, 14);
   assert.equal(listed.body.result.tools[0].securitySchemes[0].type, "oauth2");
+});
+
+test("MCP rejects an untrusted Origin", async () => {
+  const app = express();
+  app.use(express.json());
+  app.use("/mcp", mcpRouter);
+  const response = await request(app)
+    .post("/mcp")
+    .set("Origin", "https://evil.example")
+    .send({ jsonrpc: "2.0", id: 20, method: "initialize" })
+    .expect(403);
+  assert.equal(response.body.error.code, -32000);
+});
+
+test("MCP accepts a trusted Origin", async () => {
+  const app = express();
+  app.use(express.json());
+  app.use("/mcp", mcpRouter);
+  const response = await request(app)
+    .post("/mcp")
+    .set("Origin", "https://chatgpt.com")
+    .send({ jsonrpc: "2.0", id: 21, method: "initialize" })
+    .expect(200);
+  assert.equal(response.body.result.protocolVersion, "2025-06-18");
+});
+
+test("MCP rejects an unsupported protocol version after initialization", async () => {
+  const app = express();
+  app.use(express.json());
+  app.use("/mcp", mcpRouter);
+  const response = await request(app)
+    .post("/mcp")
+    .set("MCP-Protocol-Version", "invalid")
+    .send({ jsonrpc: "2.0", id: 22, method: "tools/list" })
+    .expect(400);
+  assert.equal(response.body.error.code, -32600);
+});
+
+test("MCP returns a JSON-RPC parse error for malformed JSON", async () => {
+  const app = express();
+  app.use(express.json());
+  app.use("/mcp", mcpJsonParseErrorHandler, mcpRouter);
+  const response = await request(app)
+    .post("/mcp")
+    .set("Content-Type", "application/json")
+    .send("{bad json")
+    .expect(400);
+  assert.equal(response.type, "application/json");
+  assert.equal(response.body.error.code, -32700);
 });
 
 test("an unauthenticated tool call returns the ChatGPT OAuth challenge", async () => {

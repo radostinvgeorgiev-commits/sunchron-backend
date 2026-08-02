@@ -358,6 +358,32 @@ input:focus-visible {
   display: none;
 }
 
+@media (min-width: 901px) {
+  .app-shell > .chatPanel {
+    grid-area: auto !important;
+    grid-column: 2;
+    grid-row: 1;
+    width: 100%;
+    height: 100%;
+  }
+
+  .app-shell > .sidebar {
+    min-height: 0;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+  }
+
+  .app-shell > .sidebar .sidebar-section {
+    min-height: 180px;
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  :root[data-font-scale="max"] .app-shell {
+    grid-template-columns: clamp(340px, 24vw, 400px) minmax(0, 1fr) !important;
+  }
+}
+
 @media (max-width: 900px) {
   .app-shell {
     display: block !important;

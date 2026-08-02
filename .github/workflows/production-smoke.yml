@@ -170,6 +170,7 @@ jobs:
                     "get_project_context",
                     "list_synchron_conversations",
                     "get_synchron_conversation",
+                    "talk_to_ai_core",
                     "get_digitalocean_app_status",
                     "get_system_configuration",
                     "get_digitalocean_account_audit",
@@ -187,6 +188,12 @@ jobs:
                   const trackerScopes = tracker?.securitySchemes?.flatMap(
                     (scheme) => scheme.scopes || [],
                   ) || [];
+                  const conversation = tools?.find(
+                    (tool) => tool.name === "talk_to_ai_core",
+                  );
+                  const conversationScopes = conversation?.securitySchemes?.flatMap(
+                    (scheme) => scheme.scopes || [],
+                  ) || [];
                   const confirmWww = tools?.find(
                     (tool) => tool.name === "confirm_digitalocean_www_domain",
                   );
@@ -199,6 +206,8 @@ jobs:
                     expected.every((name) => names.includes(name)) &&
                     tracker?.annotations?.readOnlyHint === true &&
                     trackerScopes.includes("synchron:read") &&
+                    conversation?.annotations?.destructiveHint === false &&
+                    conversationScopes.includes("synchron:agent.chat") &&
                     confirmWww?.annotations?.destructiveHint === true &&
                     confirmWwwScopes.includes("synchron:infrastructure.write");
                   console.log(JSON.stringify({ names, trackerReadOnly: tracker?.annotations?.readOnlyHint }));

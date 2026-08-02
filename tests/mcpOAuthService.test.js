@@ -511,6 +511,52 @@ test("production replay guard is atomic across local state resets", async () => 
   assert.equal(await consumeMcpGrantOnce(input), false);
 });
 
+test("first production token exchange creates the durable replay index", async () => {
+  const calls = [];
+  const client = {
+    indices: {
+      async exists(input) {
+        calls.push(["exists", input]);
+        return { body: false };
+      },
+      async create(input) {
+        calls.push(["create-index", input]);
+      },
+    },
+    async create(input) {
+      calls.push(["create-record", input]);
+    },
+    async deleteByQuery() {
+      return { deleted: 0 };
+    },
+  };
+  const env = {
+    ...ENV,
+    NODE_ENV: "production",
+    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-first-link-test",
+  };
+
+  assert.equal(
+    await consumeMcpGrantOnce({
+      grantType: "authorization_code",
+      tokenId: "first-chatgpt-link",
+      expiresAt: Math.floor(Date.now() / 1_000) + 60,
+      env,
+      client,
+    }),
+    true,
+  );
+  assert.deepEqual(
+    calls.map(([name]) => name),
+    ["exists", "create-index", "create-record"],
+  );
+  assert.equal(calls[1][1].index, "oauth-replay-first-link-test");
+  assert.deepEqual(calls[1][1].body.mappings.properties, {
+    grantType: { type: "keyword" },
+    expiresAt: { type: "date" },
+  });
+});
+
 test("production OAuth fails closed without the durable replay store", async () => {
   assert.equal(
     requiresPersistentMcpReplayGuard({ NODE_ENV: "production" }),

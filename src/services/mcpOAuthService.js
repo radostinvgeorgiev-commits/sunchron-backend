@@ -33,6 +33,7 @@ const MCP_OAUTH_REPLAY_INDEX =
   process.env.MCP_OAUTH_REPLAY_INDEX || "synchron-mcp-oauth-replay-v1";
 const consumedAuthorizationCodes = new Map();
 const consumedRefreshTokens = new Map();
+let replayIndexPromise = null;
 let lastReplayCleanupAt = 0;
 let activeReplayCleanup = null;
 
@@ -518,6 +519,47 @@ function replayRecordId(grantType, tokenId) {
     .digest("hex");
 }
 
+async function ensureMcpReplayIndex(client, env = process.env) {
+  if (
+    !client?.indices ||
+    typeof client.indices.exists !== "function" ||
+    typeof client.indices.create !== "function"
+  ) {
+    return;
+  }
+  if (!replayIndexPromise) {
+    const index = env.MCP_OAUTH_REPLAY_INDEX || MCP_OAUTH_REPLAY_INDEX;
+    replayIndexPromise = (async () => {
+      const existsResponse = await client.indices.exists({ index });
+      const exists = existsResponse.body ?? existsResponse;
+      if (exists) return;
+      try {
+        await client.indices.create({
+          index,
+          body: {
+            mappings: {
+              properties: {
+                grantType: { type: "keyword" },
+                expiresAt: { type: "date" },
+              },
+            },
+          },
+        });
+      } catch (error) {
+        const status = openSearchStatus(error);
+        const type = error?.meta?.body?.error?.type;
+        if (status !== 400 || type !== "resource_already_exists_exception") {
+          throw error;
+        }
+      }
+    })().catch((error) => {
+      replayIndexPromise = null;
+      throw error;
+    });
+  }
+  await replayIndexPromise;
+}
+
 function openSearchStatus(error) {
   return error?.statusCode || error?.meta?.statusCode || 0;
 }
@@ -584,6 +626,7 @@ export async function consumeMcpGrantOnce({
   if (client) {
     try {
       const replayIndex = env.MCP_OAUTH_REPLAY_INDEX || MCP_OAUTH_REPLAY_INDEX;
+      await ensureMcpReplayIndex(client, env);
       await client.create({
         index: replayIndex,
         id: replayRecordId(grantType, tokenId),
@@ -839,6 +882,7 @@ export function verifyMcpAccessToken(
 export function resetMcpOAuthStateForTests() {
   consumedAuthorizationCodes.clear();
   consumedRefreshTokens.clear();
+  replayIndexPromise = null;
   lastReplayCleanupAt = 0;
   activeReplayCleanup = null;
 }

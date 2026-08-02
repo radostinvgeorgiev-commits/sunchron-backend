@@ -8,6 +8,8 @@ import {
   createMcpAuthorizationCode,
   exchangeMcpAuthorizationCode,
   exchangeMcpRefreshToken,
+  exchangeMcpToken,
+  getMcpOAuthRuntimeStatus,
   getMcpOAuthSecretMode,
   getMcpAuthorizationServerMetadata,
   getMcpProtectedResourceMetadata,
@@ -572,6 +574,24 @@ test("production OAuth fails closed without the durable replay store", async () 
     }),
     (error) => error.code === "temporarily_unavailable" && error.status === 503,
   );
+});
+
+test("OAuth runtime diagnostics expose only a safe token exchange result", async () => {
+  await assert.rejects(
+    exchangeMcpToken({ grant_type: "unsupported" }, ENV),
+    (error) => error.code === "unsupported_grant_type",
+  );
+  const status = getMcpOAuthRuntimeStatus();
+  assert.equal(status.tokenExchange, "failed");
+  assert.equal(status.grantType, "unsupported");
+  assert.equal(status.errorCode, "unsupported_grant_type");
+  assert.match(status.updatedAt, /^\d{4}-\d{2}-\d{2}T/u);
+  assert.deepEqual(Object.keys(status).sort(), [
+    "errorCode",
+    "grantType",
+    "tokenExchange",
+    "updatedAt",
+  ]);
 });
 
 test("expired durable replay records are cleaned on a bounded schedule", async () => {

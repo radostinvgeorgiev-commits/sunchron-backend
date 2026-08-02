@@ -36,6 +36,12 @@ const consumedRefreshTokens = new Map();
 let replayIndexPromise = null;
 let lastReplayCleanupAt = 0;
 let activeReplayCleanup = null;
+let oauthRuntimeStatus = Object.freeze({
+  tokenExchange: "not-attempted",
+  grantType: null,
+  errorCode: null,
+  updatedAt: null,
+});
 
 export class McpOAuthError extends Error {
   constructor(
@@ -812,17 +818,41 @@ export async function exchangeMcpRefreshToken(
 }
 
 export async function exchangeMcpToken(input, env = process.env) {
-  if (input?.grant_type === "authorization_code") {
-    return exchangeMcpAuthorizationCode(input, env);
+  const grantType = String(input?.grant_type || "unknown");
+  try {
+    let result;
+    if (grantType === "authorization_code") {
+      result = await exchangeMcpAuthorizationCode(input, env);
+    } else if (grantType === "refresh_token") {
+      result = await exchangeMcpRefreshToken(input, env);
+    } else {
+      throw new McpOAuthError(
+        "Неподдържан OAuth grant.",
+        400,
+        "unsupported_grant_type",
+      );
+    }
+    oauthRuntimeStatus = Object.freeze({
+      tokenExchange: "success",
+      grantType,
+      errorCode: null,
+      updatedAt: new Date().toISOString(),
+    });
+    return result;
+  } catch (error) {
+    oauthRuntimeStatus = Object.freeze({
+      tokenExchange: "failed",
+      grantType,
+      errorCode:
+        error instanceof McpOAuthError ? error.code : "server_error",
+      updatedAt: new Date().toISOString(),
+    });
+    throw error;
   }
-  if (input?.grant_type === "refresh_token") {
-    return exchangeMcpRefreshToken(input, env);
-  }
-  throw new McpOAuthError(
-    "Неподдържан OAuth grant.",
-    400,
-    "unsupported_grant_type",
-  );
+}
+
+export function getMcpOAuthRuntimeStatus() {
+  return { ...oauthRuntimeStatus };
 }
 
 export function verifyMcpAccessToken(
@@ -885,4 +915,10 @@ export function resetMcpOAuthStateForTests() {
   replayIndexPromise = null;
   lastReplayCleanupAt = 0;
   activeReplayCleanup = null;
+  oauthRuntimeStatus = Object.freeze({
+    tokenExchange: "not-attempted",
+    grantType: null,
+    errorCode: null,
+    updatedAt: null,
+  });
 }

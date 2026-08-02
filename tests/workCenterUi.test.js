@@ -439,6 +439,28 @@ test("public www action uses prepare and exact confirm before reporting deployme
   assert.match(document.body.textContent, /DigitalOcean започва deployment/u);
 });
 
+test("public www action shows the safe DigitalOcean diagnostic code", async () => {
+  const harness = createHarness({
+    domainPrepareResponse: {
+      ok: false,
+      status: 502,
+      json: async () => ({
+        error: "DigitalOcean не върна валиден app spec.",
+        code: "DIGITALOCEAN_INVALID_APP_SPEC",
+      }),
+    },
+  });
+  await openCenter(harness);
+  const { document } = harness.dom.window;
+  document
+    .querySelector('[data-work-center-action="activate-www-domain"]')
+    .click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.match(document.body.textContent, /не върна валиден app spec/u);
+  assert.match(document.body.textContent, /DIGITALOCEAN_INVALID_APP_SPEC/u);
+});
+
 test("copies the normal registration address", async () => {
   const harness = createHarness({
     testerAuth: { configured: true, registrationEnabled: true },

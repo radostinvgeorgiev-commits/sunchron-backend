@@ -7,6 +7,7 @@ import {
   createDigitalOceanDomainAdminRouter,
   DIGITALOCEAN_DOMAIN_ACTION,
 } from "../src/routes/digitalOceanDomainAdminRouter.js";
+import { DigitalOceanError } from "../src/services/digitalOceanService.js";
 
 function testApp(options) {
   const app = express();
@@ -39,6 +40,24 @@ test("reports the current www domain state without writing", async () => {
   assert.equal(response.body.configured, false);
   assert.equal(response.body.domain, "www.synchron.foundation");
   assert.match(response.headers["cache-control"], /no-store/u);
+});
+
+test("shows a safe actionable message when DigitalOcean is unreachable", async () => {
+  const app = testApp({
+    inspect: async () => {
+      throw new DigitalOceanError(
+        "DigitalOcean API временно не е достъпен. Опитай отново след малко.",
+        502,
+        "DIGITALOCEAN_NETWORK_ERROR",
+      );
+    },
+  });
+
+  const response = await request(app)
+    .get("/api/digitalocean-domain/status")
+    .expect(502);
+  assert.equal(response.body.code, "DIGITALOCEAN_NETWORK_ERROR");
+  assert.match(response.body.error, /Опитай отново/u);
 });
 
 test("prepares an exact owner confirmation for only the www domain", async () => {

@@ -11,6 +11,7 @@ import {
 } from "../src/services/mcpOAuthService.js";
 import mcpRouter, {
   mcpJsonParseErrorHandler,
+  requireMcpAuthorization,
 } from "../src/routes/mcpRouter.js";
 
 const SECRET = "router-test-secret-with-more-than-thirty-two-characters";
@@ -52,9 +53,34 @@ test("MCP initialize and tool discovery work without credentials", async () => {
     .expect(200);
   assert.equal(listed.body.result.tools.length, 14);
   assert.deepEqual(listed.body.result.tools[0].securitySchemes, [
+    { type: "oauth2", scopes: ["synchron:read"] },
+  ]);
+  const publicStatus = listed.body.result.tools.find(
+    (tool) => tool.name === "get_digitalocean_app_status",
+  );
+  assert.deepEqual(publicStatus.securitySchemes, [
     { type: "noauth" },
     { type: "oauth2", scopes: ["synchron:read"] },
   ]);
+});
+
+test("only the redacted production status can pass without credentials", async () => {
+  const app = express();
+  app.use(express.json());
+  app.post("/mcp", requireMcpAuthorization, (req, res) =>
+    res.json({ authentication: req.mcpAuthentication }),
+  );
+  const publicStatus = await request(app)
+    .post("/mcp")
+    .send({
+      jsonrpc: "2.0",
+      id: 23,
+      method: "tools/call",
+      params: { name: "get_digitalocean_app_status", arguments: {} },
+    })
+    .expect(200);
+  assert.equal(publicStatus.body.authentication.mode, "noauth");
+  assert.equal(publicStatus.body.authentication.role, "anonymous");
 });
 
 test("MCP rejects an untrusted Origin", async () => {

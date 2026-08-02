@@ -40,7 +40,6 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
   assert.equal(confirm.annotations.readOnlyHint, false);
   assert.equal(confirm.annotations.destructiveHint, true);
   assert.deepEqual(confirm.securitySchemes, [
-    { type: "noauth" },
     { type: "oauth2", scopes: ["synchron:github.write"] },
   ]);
   const conversation = MCP_TOOLS.find(
@@ -50,7 +49,6 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
   assert.equal(conversation.annotations.destructiveHint, false);
   assert.equal(conversation.annotations.openWorldHint, true);
   assert.deepEqual(conversation.securitySchemes, [
-    { type: "noauth" },
     { type: "oauth2", scopes: ["synchron:agent.chat"] },
   ]);
   const confirmWww = MCP_TOOLS.find(
@@ -59,7 +57,6 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
   assert.equal(confirmWww.annotations.readOnlyHint, false);
   assert.equal(confirmWww.annotations.destructiveHint, true);
   assert.deepEqual(confirmWww.securitySchemes, [
-    { type: "noauth" },
     { type: "oauth2", scopes: ["synchron:infrastructure.write"] },
   ]);
   const digitalOceanAudit = MCP_TOOLS.find(
@@ -68,7 +65,6 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
   assert.equal(digitalOceanAudit.annotations.readOnlyHint, true);
   assert.equal(digitalOceanAudit.annotations.destructiveHint, false);
   assert.deepEqual(digitalOceanAudit.securitySchemes, [
-    { type: "noauth" },
     { type: "oauth2", scopes: ["synchron:read"] },
   ]);
   const systemConfiguration = MCP_TOOLS.find(
@@ -76,9 +72,62 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
   );
   assert.equal(systemConfiguration.annotations.readOnlyHint, true);
   assert.deepEqual(systemConfiguration.securitySchemes, [
+    { type: "oauth2", scopes: ["synchron:read"] },
+  ]);
+  const publicStatus = MCP_TOOLS.find(
+    (tool) => tool.name === "get_digitalocean_app_status",
+  );
+  assert.deepEqual(publicStatus.securitySchemes, [
     { type: "noauth" },
     { type: "oauth2", scopes: ["synchron:read"] },
   ]);
+});
+
+test("anonymous production status omits identifiers and configuration names", async () => {
+  const handle = createMcpRequestHandler({
+    getDigitalOceanStatus: async () => ({
+      id: "private-app-id",
+      name: "SYNCHRON-X",
+      liveUrl: "https://synchron.foundation",
+      activeDeployment: {
+        id: "private-deployment-id",
+        phase: "ACTIVE",
+        createdAt: "2026-08-03T00:00:00.000Z",
+        updatedAt: "2026-08-03T00:01:00.000Z",
+      },
+      inProgressDeployment: null,
+      environmentVariables: [{ key: "PRIVATE_VARIABLE_NAME" }],
+      deploymentsAvailable: true,
+      deployments: [
+        {
+          id: "private-history-id",
+          phase: "ACTIVE",
+          cause: "private commit message",
+          createdAt: "2026-08-03T00:00:00.000Z",
+          updatedAt: "2026-08-03T00:01:00.000Z",
+        },
+      ],
+    }),
+    audit: async () => {},
+  });
+  const response = await handle(
+    {
+      jsonrpc: "2.0",
+      id: 24,
+      method: "tools/call",
+      params: { name: "get_digitalocean_app_status", arguments: {} },
+    },
+    null,
+    { role: "anonymous" },
+  );
+  assert.equal(response.result.structuredContent.name, "SYNCHRON-X");
+  assert.equal(response.result.structuredContent.id, undefined);
+  assert.equal(
+    response.result.structuredContent.activeDeployment.id,
+    undefined,
+  );
+  assert.equal(response.result.structuredContent.environmentVariables, undefined);
+  assert.equal(response.result.structuredContent.deployments[0].cause, undefined);
 });
 
 test("MCP sends one owner-scoped message to AI CORE and audits it", async () => {
@@ -167,7 +216,6 @@ test("MCP tracks a GitHub Copilot task as a read-only tool", async () => {
   );
   assert.equal(tool.annotations.readOnlyHint, true);
   assert.deepEqual(tool.securitySchemes, [
-    { type: "noauth" },
     { type: "oauth2", scopes: ["synchron:read"] },
   ]);
 });

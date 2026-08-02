@@ -287,6 +287,27 @@ function safeLimit(value, fallback = 20) {
     : fallback;
 }
 
+function publicDigitalOceanStatus(status = {}) {
+  const publicDeployment = (deployment) =>
+    deployment
+      ? {
+          phase: deployment.phase || null,
+          createdAt: deployment.createdAt || null,
+          updatedAt: deployment.updatedAt || null,
+        }
+      : null;
+  return {
+    name: status.name || "SYNCHRON-X",
+    liveUrl: status.liveUrl || null,
+    activeDeployment: publicDeployment(status.activeDeployment),
+    inProgressDeployment: publicDeployment(status.inProgressDeployment),
+    deploymentsAvailable: status.deploymentsAvailable !== false,
+    deployments: (Array.isArray(status.deployments) ? status.deployments : [])
+      .slice(0, 5)
+      .map(publicDeployment),
+  };
+}
+
 export function isValidMcpToken(header, expectedToken) {
   if (typeof expectedToken !== "string" || expectedToken.length < 32)
     return false;
@@ -364,7 +385,14 @@ export function createMcpRequestHandler({
       result = textResult(conversation, conversation.response);
     } else if (name === "get_digitalocean_app_status") {
       const status = await getDigitalOceanStatus();
-      result = textResult(status, formatDigitalOceanStatus(status));
+      const visibleStatus =
+        identity?.role === "anonymous"
+          ? publicDigitalOceanStatus(status)
+          : status;
+      result = textResult(
+        visibleStatus,
+        formatDigitalOceanStatus(visibleStatus),
+      );
     } else if (name === "get_digitalocean_account_audit") {
       const auditReport = await getDigitalOceanAudit();
       result = textResult(auditReport, formatDigitalOceanAudit(auditReport));

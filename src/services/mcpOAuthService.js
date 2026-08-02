@@ -217,16 +217,18 @@ export function requiredScopesForMcpTool(name) {
     : [MCP_READ_SCOPE];
 }
 
+export function allowsAnonymousMcpTool(name) {
+  return name === "get_digitalocean_app_status";
+}
+
 export function mcpToolSecuritySchemes(name) {
-  return Object.freeze([
-    Object.freeze({
-      type: "noauth",
-    }),
-    Object.freeze({
-      type: "oauth2",
-      scopes: Object.freeze(requiredScopesForMcpTool(name)),
-    }),
-  ]);
+  const oauth2 = Object.freeze({
+    type: "oauth2",
+    scopes: Object.freeze(requiredScopesForMcpTool(name)),
+  });
+  return allowsAnonymousMcpTool(name)
+    ? Object.freeze([Object.freeze({ type: "noauth" }), oauth2])
+    : Object.freeze([oauth2]);
 }
 
 export function buildMcpAuthenticateChallenge(

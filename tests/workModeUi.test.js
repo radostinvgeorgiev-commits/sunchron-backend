@@ -63,6 +63,8 @@ test("Chat and Work are available with projects, agents, and pet state", async (
   assert.match(workMode, /function createEditAgentForm/u);
   assert.match(workMode, /Личният любимец/u);
   assert.match(workMode, /label: "Кори"/u);
+  assert.match(workMode, /name: "Codex"/u);
+  assert.match(workMode, /codex: "Codex · изолиран кодов анализ"/u);
   assert.match(workMode, /label: "Капка"/u);
   assert.match(workMode, /label: "Искра"/u);
   assert.match(workMode, /label: "Бухал"/u);
@@ -88,6 +90,10 @@ test("work settings are scoped by authenticated user and payload is bounded", as
   assert.match(script, /\.slice\(0, 12\)/u);
   assert.match(script, /name: cleanText\(project\?\.name, 80\)/u);
   assert.match(script, /purpose: cleanText\(agent\?\.purpose, 400\)/u);
+  assert.match(
+    script,
+    /engine: Object\.hasOwn\(ENGINE_OPTIONS, agent\?\.engine\)/u,
+  );
   assert.match(
     script,
     /model: Object\.hasOwn\(MODEL_OPTIONS, agent\?\.model\)/u,
@@ -142,6 +148,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   assert.equal(payload.mode, "work");
   assert.equal(payload.workContext.project.name, "Тестов проект");
   assert.equal(payload.workContext.project.objective, "Готов резултат");
+  assert.equal(payload.workContext.agent.engine, "ai-core");
   assert.match(
     dom.window.localStorage.getItem("synchronWorkMode:tester-one"),
     /Тестов проект/u,
@@ -152,6 +159,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   agentForm.querySelector("input").value = "Тестов ръководител";
   agentForm.querySelector("#newWorkAgentRole").value = "organizer";
   agentForm.querySelector("#newWorkAgentModel").value = "gpt-5.6-sol";
+  agentForm.querySelector("#newWorkAgentEngine").value = "codex";
   agentForm.querySelector("textarea").value = "Води проверимите етапи";
   agentForm.dispatchEvent(
     new dom.window.Event("submit", { bubbles: true, cancelable: true }),
@@ -160,6 +168,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   const agentPayload = dom.window.SynchronWorkMode.getRequestPayload();
   assert.equal(agentPayload.workContext.agent.name, "Тестов ръководител");
   assert.equal(agentPayload.workContext.agent.model, "gpt-5.6-sol");
+  assert.equal(agentPayload.workContext.agent.engine, "codex");
 
   const editAgent = [...dom.window.document.querySelectorAll("button")].find(
     (button) =>
@@ -171,6 +180,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   editForm.querySelector("#editWorkAgentName").value = "Обновен ръководител";
   editForm.querySelector("#editWorkAgentRole").value = "builder";
   editForm.querySelector("#editWorkAgentModel").value = "gpt-5.6-terra";
+  editForm.querySelector("#editWorkAgentEngine").value = "ai-core";
   editForm.querySelector("#editWorkAgentPurpose").value =
     "Строи и проверява резултата";
   editForm.dispatchEvent(
@@ -181,6 +191,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   assert.equal(editedPayload.workContext.agent.name, "Обновен ръководител");
   assert.equal(editedPayload.workContext.agent.role, "builder");
   assert.equal(editedPayload.workContext.agent.model, "gpt-5.6-terra");
+  assert.equal(editedPayload.workContext.agent.engine, "ai-core");
   assert.equal(
     editedPayload.workContext.agent.purpose,
     "Строи и проверява резултата",

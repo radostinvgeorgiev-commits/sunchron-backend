@@ -167,6 +167,21 @@ export function registerCoreTools() {
       healthStatus: "unavailable",
     },
     {
+      id: "openai-codex",
+      provider: "openai",
+      name: "Codex",
+      version: "1.0.0",
+      category: "code",
+      capabilities: ["code.analyze"],
+      permissions: ["code.execute.read"],
+      capabilityPermissions: {
+        "code.analyze": "code.execute.read",
+      },
+      enabled: true,
+      requiresConfirmation: false,
+      healthStatus: "unavailable",
+    },
+    {
       id: "google-drive-read",
       provider: "google",
       name: "Google Drive Read",

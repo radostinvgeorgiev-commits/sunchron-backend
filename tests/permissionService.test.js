@@ -20,6 +20,7 @@ test.beforeEach(() => {
 test("allows approved reads and requires confirmation for risky actions", () => {
   assert.equal(evaluatePermission("github.read").decision, "allow");
   assert.equal(evaluatePermission("github.write").decision, "confirm");
+  assert.equal(evaluatePermission("code.execute.read").decision, "allow");
   assert.equal(evaluatePermission("payment").decision, "confirm");
 });
 
@@ -32,6 +33,7 @@ test("denies unknown actions by default", () => {
 test("exposes the permission registry without mutable policy objects", () => {
   const permissions = listPermissions();
   assert.ok(permissions.some((item) => item.action === "memory.delete"));
+  assert.ok(permissions.some((item) => item.action === "code.execute.read"));
   assert.ok(permissions.every((item) => item.decision));
 });
 
@@ -48,7 +50,6 @@ test("records append-only audit events when OpenSearch is unavailable", async ()
   assert.equal(events[0].decision, "allow");
   assert.equal(events[0].outcome, "succeeded");
 });
-
 
 test("durable write records intent before one adapter call and a final outcome", async () => {
   const events = [];

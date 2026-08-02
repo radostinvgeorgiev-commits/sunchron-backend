@@ -77,6 +77,7 @@ import {
 } from "../services/agentPlannerService.js";
 import { requestOpenAIText } from "../services/aiCoreService.js";
 import { executeTaskPlan } from "../services/taskExecutionService.js";
+import { CodexAgentError } from "../services/codexAgentService.js";
 import {
   canPlanCapabilities,
   filterCapabilityRequestsForIdentity,
@@ -94,6 +95,7 @@ import {
   isWorkContextStatusRequest,
   normalizeInteractionMode,
   resolveWorkAgentModel,
+  routeSelectedWorkAgentCapabilities,
   sanitizeWorkContext,
 } from "../services/workModeService.js";
 
@@ -106,6 +108,7 @@ const DIRECT_CAPABILITY_REPLIES = new Set([
   "system.integrations.status",
   "calendar.write",
   "code.read",
+  "code.analyze",
   "code.task-status",
   "code.write",
   "infrastructure.digitalocean.read",
@@ -598,6 +601,7 @@ function capabilityLabel(capability) {
   if (capability === "calendar.read") return "календар";
   if (capability === "calendar.write") return "запис в календара";
   if (capability === "code.read") return "GitHub";
+  if (capability === "code.analyze") return "Codex";
   if (capability === "code.task-status") return "GitHub задача";
   if (capability === "code.write") return "GitHub запис";
   if (capability === "files.read") return "Google Drive";
@@ -627,6 +631,7 @@ function formatCapabilityFailureMessage(error) {
     error instanceof GitHubServiceError ||
     error instanceof GitHubOAuthError ||
     error instanceof CopilotTaskError ||
+    error instanceof CodexAgentError ||
     error instanceof GoogleDriveError ||
     error instanceof WebSearchError
   ) {
@@ -955,6 +960,14 @@ router.post("/chat", async (req, res) => {
       res.write(`: heartbeat ${Date.now()}\n\n`);
     }
   };
+  let heartbeatInterval = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
+  const clearHeartbeat = () => {
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  };
+  sendHeartbeat();
+  res.on("close", clearHeartbeat);
+  res.on("finish", clearHeartbeat);
 
   if (
     !image &&
@@ -1292,6 +1305,14 @@ router.post("/chat", async (req, res) => {
         : fallbackCapabilityRequests;
     }
   }
+  detectedCapabilityRequests = filterCapabilityRequestsForIdentity(
+    routeSelectedWorkAgentCapabilities(
+      detectedCapabilityRequests,
+      cleanWorkContext,
+      cleanMessage,
+    ),
+    req.owner,
+  );
   console.info(
     `[Chat] Detected ${detectedCapabilityRequests.length} capability subtasks for ${cleanSessionId}: ${detectedCapabilityRequests
       .map((request, index) => `#${index + 1}:${request.capability}`)
@@ -1306,6 +1327,7 @@ router.post("/chat", async (req, res) => {
       githubSessionId,
       ownerId,
       sessionId: cleanSessionId,
+      workContext: cleanWorkContext,
       prepareConfirmation: true,
     },
     notify: (taskEvent) => sendEvent("task", taskEvent),
@@ -1433,10 +1455,9 @@ router.post("/chat", async (req, res) => {
 
   const abortController = new AbortController();
   let timedOut = false;
-  let heartbeatInterval;
   let timeoutHandle;
   const cleanup = () => {
-    if (heartbeatInterval) clearInterval(heartbeatInterval);
+    clearHeartbeat();
     if (timeoutHandle) clearTimeout(timeoutHandle);
   };
   const abortUpstream = () => {
@@ -1447,8 +1468,6 @@ router.post("/chat", async (req, res) => {
     cleanup();
     if (!res.writableEnded) abortUpstream();
   });
-  sendHeartbeat();
-  heartbeatInterval = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
   timeoutHandle = setTimeout(() => {
     timedOut = true;
     abortUpstream();

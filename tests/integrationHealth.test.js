@@ -7,6 +7,7 @@ import { resetToolRegistryForTests } from "../src/tools/toolRegistry.js";
 
 const ENV_NAMES = [
   "OPENAI_API_KEY",
+  "CODEX_AGENT_ENABLED",
   "OPENSEARCH_HOST",
   "OPENSEARCH_PORT",
   "OPENSEARCH_USERNAME",
@@ -40,7 +41,7 @@ test("integration status reports configuration without exposing secret values", 
     assert.equal(status.core.chatAgent.primaryProvider, "openai");
     assert.equal(status.core.chatAgent.removedProvider, "digitalocean-agent");
     assert.equal(status.core.openai.configured, true);
-    assert.equal(status.tools.length, 13);
+    assert.equal(status.tools.length, 14);
     assert.equal(
       status.tools
         .filter((tool) => tool.id !== "github-write")
@@ -55,6 +56,11 @@ test("integration status reports configuration without exposing secret values", 
     assert.equal(githubWrite.configured, true);
     assert.equal(githubWrite.authenticated, false);
     assert.equal(githubWrite.healthStatus, "degraded");
+    const codex = status.tools.find((tool) => tool.id === "openai-codex");
+    assert.equal(codex.enabled, true);
+    assert.equal(codex.executable, true);
+    assert.equal(codex.configured, true);
+    assert.equal(codex.healthStatus, "healthy");
     assert.doesNotMatch(JSON.stringify(status), /secret-/u);
   } finally {
     for (const [name, value] of Object.entries(original)) {

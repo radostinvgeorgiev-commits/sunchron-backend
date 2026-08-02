@@ -14,6 +14,7 @@ import {
 } from "../services/mcpReadService.js";
 import { isMcpOAuthConfigured } from "../services/mcpOAuthService.js";
 import { isCopilotAutomationEnabled } from "../config/featureFlags.js";
+import { isCodexAgentConfigured } from "../services/codexAgentService.js";
 import { isToolExecutable } from "../tools/capabilityEngine.js";
 import { listTools, registerCoreTools } from "../tools/toolRegistry.js";
 
@@ -255,6 +256,19 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
     },
     "openai-web-search": {
       configured: Boolean(process.env.OPENAI_API_KEY),
+    },
+    "openai-codex": {
+      configured: isCodexAgentConfigured(),
+      runtimeEnabled:
+        String(process.env.CODEX_AGENT_ENABLED || "").toLowerCase() !== "false",
+      availabilityCode:
+        String(process.env.CODEX_AGENT_ENABLED || "").toLowerCase() === "false"
+          ? "CODEX_AGENT_DISABLED"
+          : null,
+      availabilityReason:
+        String(process.env.CODEX_AGENT_ENABLED || "").toLowerCase() === "false"
+          ? "Codex агентът е изключен от конфигурацията."
+          : null,
     },
     "supabase-status": {
       configured: hasAllProcessEnvironmentVariables(

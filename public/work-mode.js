@@ -1,5 +1,5 @@
 (() => {
-  const STORAGE_VERSION = 2;
+  const STORAGE_VERSION = 3;
   const WORKSPACE_ENDPOINT = "/api/workspaces";
   const PETS = Object.freeze([
     {
@@ -44,6 +44,11 @@
     researcher: "Изследовател",
     organizer: "Организатор",
     builder: "Създател на проекти",
+    coder: "Codex разработчик",
+  });
+  const ENGINE_OPTIONS = Object.freeze({
+    "ai-core": "AI CORE",
+    codex: "Codex · изолиран кодов анализ",
   });
   const MODEL_OPTIONS = Object.freeze({
     auto: "Автоматичен · препоръчано",
@@ -114,6 +119,15 @@
           role: "builder",
           model: "auto",
           purpose: "Подготвя реален резултат и показва какво е проверено.",
+          engine: "ai-core",
+        },
+        {
+          id: "codex-agent",
+          name: "Codex",
+          role: "coder",
+          model: "gpt-5.6-terra",
+          purpose: "Анализира кода без запис и без интернет.",
+          engine: "codex",
         },
       ],
       activities: [],
@@ -152,6 +166,9 @@
             ? agent.model
             : "auto",
           purpose: cleanText(agent?.purpose, 400),
+          engine: Object.hasOwn(ENGINE_OPTIONS, agent?.engine)
+            ? agent.engine
+            : "ai-core",
         }))
       : fallback.agents;
     const activities = Array.isArray(value.activities)
@@ -173,6 +190,12 @@
 
     if (!projects.length) projects.push(...fallback.projects);
     if (!agents.length) agents.push(...fallback.agents);
+    if (
+      !agents.some((agent) => agent.engine === "codex") &&
+      agents.length < 12
+    ) {
+      agents.push(fallback.agents.find((agent) => agent.engine === "codex"));
+    }
 
     return {
       version: STORAGE_VERSION,
@@ -448,7 +471,7 @@
       addText(
         button,
         "small",
-        `${ROLE_LABELS[agent.role]} · ${MODEL_OPTIONS[agent.model]}${agent.purpose ? ` · ${agent.purpose}` : ""}`,
+        `${ENGINE_OPTIONS[agent.engine]} · ${ROLE_LABELS[agent.role]} · ${MODEL_OPTIONS[agent.model]}${agent.purpose ? ` · ${agent.purpose}` : ""}`,
       );
       item.appendChild(button);
       const edit = document.createElement("button");
@@ -644,6 +667,16 @@
     purpose.maxLength = 400;
     purpose.required = true;
     form.appendChild(purpose);
+    addText(form, "label", "Изпълнител").htmlFor = "newWorkAgentEngine";
+    const engine = document.createElement("select");
+    engine.id = "newWorkAgentEngine";
+    for (const [id, label] of Object.entries(ENGINE_OPTIONS)) {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = label;
+      engine.appendChild(option);
+    }
+    form.appendChild(engine);
     const submit = document.createElement("button");
     submit.type = "submit";
     submit.textContent = "Създай и избери агента";
@@ -656,6 +689,9 @@
         role: Object.hasOwn(ROLE_LABELS, role.value) ? role.value : "general",
         model: Object.hasOwn(MODEL_OPTIONS, model.value) ? model.value : "auto",
         purpose: cleanText(purpose.value, 400),
+        engine: Object.hasOwn(ENGINE_OPTIONS, engine.value)
+          ? engine.value
+          : "ai-core",
       };
       if (!agent.name) return;
       const previousActiveAgentId = workState.activeAgentId;
@@ -719,6 +755,17 @@
     purpose.required = true;
     purpose.value = agent.purpose;
     form.appendChild(purpose);
+    addText(form, "label", "Изпълнител").htmlFor = "editWorkAgentEngine";
+    const engine = document.createElement("select");
+    engine.id = "editWorkAgentEngine";
+    for (const [id, label] of Object.entries(ENGINE_OPTIONS)) {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = label;
+      engine.appendChild(option);
+    }
+    engine.value = agent.engine;
+    form.appendChild(engine);
 
     const actions = document.createElement("div");
     actions.className = "work-form-actions";
@@ -744,6 +791,9 @@
         role: Object.hasOwn(ROLE_LABELS, role.value) ? role.value : "general",
         model: Object.hasOwn(MODEL_OPTIONS, model.value) ? model.value : "auto",
         purpose: cleanText(purpose.value, 400),
+        engine: Object.hasOwn(ENGINE_OPTIONS, engine.value)
+          ? engine.value
+          : "ai-core",
       };
       if (!next.name || !next.purpose) return;
       const previous = { ...agent };
@@ -854,6 +904,7 @@
           role: agent?.role || "general",
           model: agent?.model || "auto",
           purpose: agent?.purpose || "",
+          engine: agent?.engine || "ai-core",
         },
       },
     };

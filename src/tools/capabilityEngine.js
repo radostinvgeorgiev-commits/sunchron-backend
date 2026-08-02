@@ -52,6 +52,10 @@ import {
   formatSystemConfigurationReport,
   getSystemConfigurationReport,
 } from "../services/systemConfigurationService.js";
+import {
+  isCodexAgentConfigured,
+  runCodexReadAnalysis,
+} from "../services/codexAgentService.js";
 import { findToolsByCapability, registerCoreTools } from "./toolRegistry.js";
 
 export class CapabilityError extends Error {
@@ -135,6 +139,12 @@ export function getToolRuntimeAvailability(
       return configured(
         hasEnvironment(env, "OPENAI_API_KEY"),
         "OpenAI Web Search не е конфигуриран.",
+      );
+    case "openai-codex":
+      return configured(
+        isCodexAgentConfigured(env),
+        "Codex агентът не е конфигуриран.",
+        "CODEX_AGENT_NOT_CONFIGURED",
       );
     case "supabase-status":
       return configured(
@@ -230,6 +240,7 @@ export async function buildIntegrationStatusReport(
     ["DigitalOcean Read", digitalOcean],
     ["OpenAI разговор", Boolean(env.OPENAI_API_KEY)],
     ["OpenAI Web Search", Boolean(env.OPENAI_API_KEY)],
+    ["Codex", isCodexAgentConfigured(env)],
   ];
   const sessionTools = [
     [
@@ -358,6 +369,16 @@ const executors = Object.freeze({
     });
     return prepared.output;
   },
+  "openai-codex": async ({ input }) =>
+    runCodexReadAnalysis({
+      message: input.message,
+      projectName: input.workContext?.project?.name,
+      projectObjective: input.workContext?.project?.objective,
+      model:
+        input.workContext?.agent?.model === "auto"
+          ? undefined
+          : input.workContext?.agent?.model,
+    }),
   "google-calendar-read": async ({ input }) => {
     if (!(await hasSession(input.googleSessionId))) {
       throw new GoogleDriveError(

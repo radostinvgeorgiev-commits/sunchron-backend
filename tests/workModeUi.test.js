@@ -10,7 +10,8 @@ function createWorkModeDom(script, fetchImpl) {
       <button id="chatModeBtn"></button>
       <button id="workModeToolbarBtn"></button>
       <button id="workModeBtn"></button>
-      <button id="workContextBtn"><strong id="workProjectLabel"></strong><small id="workAgentLabel"></small><span id="workPet"></span></button>
+      <button id="workPetBtn"><span id="workPet"></span></button>
+      <button id="workContextBtn"><strong id="workProjectLabel"></strong><small id="workAgentLabel"></small></button>
       <aside id="dataDrawer" hidden><h2 id="dataDrawerTitle"></h2><div id="dataDrawerBody"></div></aside>
       <div id="drawerBackdrop" hidden></div>
       <nav id="sidebar"></nav><div id="sidebarBackdrop" hidden></div>
@@ -37,6 +38,7 @@ test("Chat and Work are available with projects, agents, and pet state", async (
 
   assert.match(html, /id="chatModeBtn"/u);
   assert.match(html, /id="workModeToolbarBtn"/u);
+  assert.match(html, /id="workPetBtn"/u);
   assert.match(html, /id="workContextBtn"/u);
   assert.match(html, /id="workPet"/u);
   assert.match(html, /\/work-mode\.js\?v=/u);
@@ -52,6 +54,7 @@ test("Chat and Work are available with projects, agents, and pet state", async (
   assert.match(css, /data-pet-state="running"/u);
   assert.match(css, /data-pet-state="needs-input"/u);
   assert.match(css, /data-pet-state="blocked"/u);
+  assert.match(css, /\.work-pet-button/u);
   assert.match(css, /prefers-reduced-motion/u);
 
   assert.match(workMode, /function getRequestPayload/u);
@@ -103,7 +106,8 @@ test("work mode runs in the browser and creates an isolated project payload", as
       <button id="chatModeBtn"></button>
       <button id="workModeToolbarBtn"></button>
       <button id="workModeBtn"></button>
-      <button id="workContextBtn"><strong id="workProjectLabel"></strong><small id="workAgentLabel"></small><span id="workPet"></span></button>
+      <button id="workPetBtn"><span id="workPet"></span></button>
+      <button id="workContextBtn"><strong id="workProjectLabel"></strong><small id="workAgentLabel"></small></button>
       <aside id="dataDrawer" hidden><h2 id="dataDrawerTitle"></h2><div id="dataDrawerBody"></div></aside>
       <div id="drawerBackdrop" hidden></div>
       <nav id="sidebar"></nav><div id="sidebarBackdrop" hidden></div>
@@ -114,6 +118,16 @@ test("work mode runs in the browser and creates an isolated project payload", as
 
   dom.window.eval(script);
   dom.window.SynchronWorkMode.init({ id: "tester-one", role: "tester" });
+  dom.window.document.getElementById("workPetBtn").click();
+  assert.equal(
+    dom.window.document.getElementById("dataDrawerTitle").textContent,
+    "Избери любимец",
+  );
+  assert.ok(dom.window.document.querySelector('[aria-label="Избери Бухал"]'));
+  assert.doesNotMatch(
+    dom.window.document.getElementById("dataDrawerBody").textContent,
+    /Проекти|Лични агенти/u,
+  );
   dom.window.document.getElementById("workModeToolbarBtn").click();
   dom.window.SynchronWorkMode.openManager();
 

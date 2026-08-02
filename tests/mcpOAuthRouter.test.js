@@ -203,13 +203,15 @@ test("authorization consent issues a code bound to the browser profile", async (
   assert.match(consent.text, /Свързване на ChatGPT със AI CORE/u);
   assert.match(consent.text, /Четене на разрешените данни/u);
   assert.match(consent.text, /отделно точно потвърждение/u);
-  const csrf = consent.text.match(/name="csrf_token" value="([^"]+)"/u)?.[1];
-  assert.ok(csrf);
+  const consentToken = consent.text.match(
+    /name="consent_token" value="([^"]+)"/u,
+  )?.[1];
+  assert.ok(consentToken);
+  assert.equal(consent.headers["set-cookie"], undefined);
   const approved = await request(app)
     .post("/oauth/authorize")
-    .set("Cookie", `synchron_mcp_csrf=${csrf}`)
     .type("form")
-    .send({ csrf_token: csrf, decision: "allow" })
+    .send({ consent_token: consentToken, decision: "allow" })
     .expect(302);
   const callback = new URL(approved.headers.location);
   assert.equal(callback.origin, "https://chatgpt.com");
@@ -231,6 +233,51 @@ test("authorization consent issues a code bound to the browser profile", async (
   assert.ok(token.body.refresh_token);
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
   else process.env.MCP_ACCESS_TOKEN = previous;
+});
+
+test("authorization consent rejects a modified browser-independent token", async () => {
+  const previous = process.env.MCP_ACCESS_TOKEN;
+  process.env.MCP_ACCESS_TOKEN = SECRET;
+  try {
+    const oauthRequest = {
+      clientId: "https://chatgpt.com/oauth/synchron/client.json",
+      clientName: "ChatGPT",
+      redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
+      state: "state-tampered-consent",
+      codeChallenge: "c".repeat(43),
+      resource: "https://synchron.foundation/mcp",
+      scopes: ["synchron:read"],
+    };
+    const app = express();
+    app.use(
+      createMcpOAuthRouter({
+        resolveIdentity: async () => ({
+          id: "owner-id",
+          displayName: "Радко",
+          role: "owner",
+          memoryOwnerId: "primary-user",
+        }),
+        validateRequest: async () => oauthRequest,
+      }),
+    );
+    const consent = await request(app).get("/oauth/authorize").expect(200);
+    const consentToken = consent.text.match(
+      /name="consent_token" value="([^"]+)"/u,
+    )?.[1];
+    assert.ok(consentToken);
+    const [prefix, encoded] = consentToken.split(".");
+    const tamperedToken = `${prefix}.${encoded.startsWith("A") ? "B" : "A"}${encoded.slice(1)}`;
+    const response = await request(app)
+      .post("/oauth/authorize")
+      .type("form")
+      .send({ consent_token: tamperedToken, decision: "allow" })
+      .expect(403);
+    assert.equal(response.body.error, "access_denied");
+    assert.equal(response.body.error_description, "Невалидно потвърждение.");
+  } finally {
+    if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
+    else process.env.MCP_ACCESS_TOKEN = previous;
+  }
 });
 
 test("authorization consent names the AI CORE conversation permission", async () => {

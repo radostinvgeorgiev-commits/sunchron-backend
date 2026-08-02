@@ -1,13 +1,14 @@
 import express from "express";
-import { randomUUID } from "node:crypto";
 import { resolveRequestIdentity } from "../middleware/ownerAuth.js";
 import {
   createMcpAuthorizationCode,
+  createMcpConsentToken,
   exchangeMcpToken,
   getMcpAuthorizationServerMetadata,
   getMcpProtectedResourceMetadata,
   McpOAuthError,
   resolveMcpIssuerUrl,
+  validateMcpConsentToken,
   validateMcpAuthorizationRequest,
 } from "../services/mcpOAuthService.js";
 
@@ -45,7 +46,7 @@ function oauthError(res, error) {
   });
 }
 
-function consentPage(request, identity, csrfToken) {
+function consentPage(request, identity, consentToken) {
   const fields = {
     response_type: "code",
     client_id: request.clientId,
@@ -55,7 +56,7 @@ function consentPage(request, identity, csrfToken) {
     code_challenge_method: "S256",
     resource: request.resource,
     scope: request.scopes.join(" "),
-    csrf_token: csrfToken,
+    consent_token: consentToken,
   };
   const hidden = Object.entries(fields)
     .map(
@@ -106,12 +107,10 @@ export function createMcpOAuthRouter({
       noStore(res);
       if (!identity)
         return res.status(401).type("html").send(loginRequiredPage());
-      const csrfToken = randomUUID();
-      res.append(
-        "Set-Cookie",
-        `synchron_mcp_csrf=${csrfToken}; Path=/oauth; HttpOnly; Secure; SameSite=Strict; Max-Age=600`,
-      );
-      return res.type("html").send(consentPage(request, identity, csrfToken));
+      const consentToken = createMcpConsentToken(request, identity);
+      return res
+        .type("html")
+        .send(consentPage(request, identity, consentToken));
     } catch (error) {
       return oauthError(res, error);
     }
@@ -131,19 +130,8 @@ export function createMcpOAuthRouter({
             "access_denied",
           );
         }
-        const csrfCookie = String(req.headers.cookie || "")
-          .split(";")
-          .map((part) => part.trim())
-          .find((part) => part.startsWith("synchron_mcp_csrf="))
-          ?.slice("synchron_mcp_csrf=".length);
-        if (!csrfCookie || csrfCookie !== req.body?.csrf_token) {
-          throw new McpOAuthError(
-            "Невалидно потвърждение.",
-            403,
-            "access_denied",
-          );
-        }
         const request = await validateRequest(req.body);
+        validateMcpConsentToken(req.body?.consent_token, request, identity);
         const callback = new URL(request.redirectUri);
         if (req.body?.decision !== "allow") {
           callback.searchParams.set("error", "access_denied");
@@ -155,10 +143,6 @@ export function createMcpOAuthRouter({
         callback.searchParams.set("code", code);
         callback.searchParams.set("state", request.state);
         callback.searchParams.set("iss", resolveMcpIssuerUrl());
-        res.append(
-          "Set-Cookie",
-          "synchron_mcp_csrf=; Path=/oauth; HttpOnly; Secure; SameSite=Strict; Max-Age=0",
-        );
         noStore(res);
         return res.redirect(callback.href);
       } catch (error) {

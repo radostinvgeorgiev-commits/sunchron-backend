@@ -96,6 +96,49 @@ test("normal chat uses OpenAI Responses without the removed DigitalOcean agent",
   }
 });
 
+test("runtime model question answers from verified OpenAI response metadata", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        model: "gpt-5.6-terra-verified",
+        output: [
+          {
+            type: "message",
+            content: [
+              {
+                type: "output_text",
+                text: "Не мога да проверя локалните файлове.",
+              },
+            ],
+          },
+        ],
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+
+  try {
+    const response = await request(app)
+      .post("/chat/chat")
+      .set("Cookie", OWNER_COOKIE)
+      .send({
+        sessionId: "runtime-model-test",
+        message: "Кой AI доставчик и кой модел използва този разговор?",
+      })
+      .expect(200);
+
+    assert.match(
+      response.text,
+      /Този отговор реално е обработен от openai · gpt-5\.6-terra-verified\./u,
+    );
+    assert.doesNotMatch(response.text, /Не мога да проверя локалните файлове/u);
+    assert.match(response.text, /"provider":"openai"/u);
+    assert.match(response.text, /"model":"gpt-5.6-terra-verified"/u);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("normal chat does not call the removed DigitalOcean agent when OpenAI is unavailable", async () => {
   const originalFetch = globalThis.fetch;
   const originalOpenAiKey = process.env.OPENAI_API_KEY;

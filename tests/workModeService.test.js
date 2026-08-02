@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildWorkContextStatusReply,
   buildWorkModeContext,
+  isRuntimeAiIdentityRequest,
   isWorkContextStatusRequest,
   listWorkAgentModels,
   listWorkAgentEngines,
@@ -141,6 +142,34 @@ test("the available agent engines are explicit and Codex replaces code writes wi
       { capability: "web.search", action: "web.read" },
     ],
   );
+});
+
+test("runtime provider and model questions do not launch Codex code analysis", () => {
+  for (const message of [
+    "Кой AI доставчик и кой модел използва този разговор?",
+    "Покажи реалния модел, който работи в момента.",
+    "Кой provider обработва текущия отговор?",
+  ]) {
+    assert.equal(isRuntimeAiIdentityRequest(message), true);
+    assert.deepEqual(
+      routeSelectedWorkAgentCapabilities(
+        [{ capability: "code.read", action: "github.read" }],
+        {
+          project: { name: "SYNCHRON-X" },
+          agent: {
+            name: "Codex",
+            role: "coder",
+            model: "gpt-5.6-terra",
+            engine: "codex",
+          },
+        },
+        message,
+      ),
+      [],
+    );
+  }
+
+  assert.equal(isRuntimeAiIdentityRequest("Провери модела в src/config.js"), false);
 });
 
 test("active work context questions use verified state instead of chat history", () => {

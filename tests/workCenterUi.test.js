@@ -80,6 +80,7 @@ function createHarness({
   domainPrepareResponse = null,
   domainConfirmResponse = null,
 } = {}) {
+  const domainRequests = [];
   const dom = new JSDOM(`<!doctype html><body>
     <aside id="sidebar"></aside>
     <button id="workCenterBtn">Работен център</button>
@@ -113,7 +114,7 @@ function createHarness({
       },
     },
     confirm: () => true,
-    fetch: async (url) => {
+    fetch: async (url, options = {}) => {
       if (fetchFails) throw new Error("offline");
       const path = String(url);
       if (path.includes("/api/tester-auth/prepare") && testerPrepareResponse) {
@@ -123,12 +124,14 @@ function createHarness({
         path.includes("/api/digitalocean-domain/prepare") &&
         domainPrepareResponse
       ) {
+        domainRequests.push({ path, options });
         return domainPrepareResponse;
       }
       if (
         path.includes("/api/digitalocean-domain/confirm") &&
         domainConfirmResponse
       ) {
+        domainRequests.push({ path, options });
         return domainConfirmResponse;
       }
       const result = path.includes("/health/ready")
@@ -152,7 +155,7 @@ function createHarness({
   };
   context.globalThis = context;
   vm.runInNewContext(source, context);
-  return { dom, context };
+  return { dom, context, domainRequests };
 }
 
 async function openCenter(harness) {
@@ -433,10 +436,48 @@ test("public www action uses prepare and exact confirm before reporting deployme
     .querySelector('[data-work-center-action="activate-www-domain"]')
     .click();
   await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.match(document.body.textContent, /Потвърди добавянето на www адреса/u);
+  assert.match(document.body.textContent, /Адрес: www\.synchron\.foundation/u);
+  assert.equal(harness.domainRequests.length, 1);
+
+  document.querySelector("[data-confirm-www-domain]").click();
   await new Promise((resolve) => setTimeout(resolve, 0));
 
+  assert.equal(harness.domainRequests.length, 2);
+  assert.deepEqual(
+    JSON.parse(harness.domainRequests[1].options.body),
+    { confirmationId: "confirmation-www" },
+  );
   assert.match(document.body.textContent, /www адресът се активира/u);
   assert.match(document.body.textContent, /DigitalOcean започва deployment/u);
+});
+
+test("public www action can be cancelled without changing DigitalOcean", async () => {
+  const harness = createHarness({
+    domainPrepareResponse: {
+      ok: true,
+      status: 201,
+      json: async () => ({
+        confirmationId: "confirmation-www",
+        domain: "www.synchron.foundation",
+        message: "Ще бъде добавен само www адресът.",
+      }),
+    },
+  });
+  await openCenter(harness);
+  const { document } = harness.dom.window;
+  const card = document.querySelector(
+    '[data-work-center-action="activate-www-domain"]',
+  );
+  card.click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  document.querySelector("[data-cancel-www-domain]").click();
+
+  assert.equal(harness.domainRequests.length, 1);
+  assert.equal(document.querySelector("[data-www-domain-confirmation]"), null);
+  assert.equal(card.disabled, false);
 });
 
 test("public www action shows the safe DigitalOcean diagnostic code", async () => {

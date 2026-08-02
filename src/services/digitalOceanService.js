@@ -296,7 +296,7 @@ function appMatchesPublicProject(app, configuredValue) {
   );
 }
 
-async function resolveDomainAppConfig({
+async function resolveDigitalOceanAppConfig({
   env = process.env,
   fetchImpl = fetch,
 }) {
@@ -368,7 +368,10 @@ async function loadDomainAliasActivation({
   env = process.env,
   fetchImpl = fetch,
 } = {}) {
-  const { token, appId } = await resolveDomainAppConfig({ env, fetchImpl });
+  const { token, appId } = await resolveDigitalOceanAppConfig({
+    env,
+    fetchImpl,
+  });
   if (expectedAppId && expectedAppId !== appId) {
     throw new DigitalOceanError(
       "Потвърждението е за друго DigitalOcean приложение.",
@@ -638,15 +641,28 @@ export function listDigitalOceanEnvironmentVariables(spec = {}) {
 }
 
 export async function getDigitalOceanAppStatus(options = {}) {
-  const { appId } = requiredAppConfig(options.env);
+  const { token, appId } = await resolveDigitalOceanAppConfig({
+    env: options.env,
+    fetchImpl: options.fetchImpl,
+  });
+  const requestOptions = {
+    ...options,
+    env: {
+      ...(options.env || process.env),
+      DIGITALOCEAN_API_TOKEN: token,
+    },
+  };
   const appPath = `/apps/${encodeURIComponent(appId)}`;
   const deploymentsPath = `${appPath}/deployments?page=1&per_page=5`;
-  const appData = await requestWithTransientRetry(appPath, options);
+  const appData = await requestWithTransientRetry(appPath, requestOptions);
   let deploymentsData = { deployments: [] };
   let deploymentsAvailable = true;
   let deploymentsErrorCode = null;
   try {
-    deploymentsData = await requestWithTransientRetry(deploymentsPath, options);
+    deploymentsData = await requestWithTransientRetry(
+      deploymentsPath,
+      requestOptions,
+    );
   } catch (error) {
     if (!isTransientDigitalOceanError(error)) throw error;
     deploymentsAvailable = false;

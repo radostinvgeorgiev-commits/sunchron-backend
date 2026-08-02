@@ -16,6 +16,8 @@ import {
 } from "../src/services/cloudflareService.js";
 import { detectCapabilityRequests } from "../src/routes/chat.js";
 
+const TEST_APP_ID = "6e6fdc40-2ef5-4534-8906-8a6414b089b5";
+
 test("DigitalOcean bridge reads app and deployment status without writes", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {
@@ -27,7 +29,7 @@ test("DigitalOcean bridge reads app and deployment status without writes", async
     }
     return Response.json({
       app: {
-        id: "app-1",
+        id: TEST_APP_ID,
         spec: { name: "sunchron-backend" },
         live_url: "https://synchron.foundation",
         active_deployment: { id: "dep-1", phase: "ACTIVE" },
@@ -35,7 +37,10 @@ test("DigitalOcean bridge reads app and deployment status without writes", async
     });
   };
   const status = await getDigitalOceanAppStatus({
-    env: { DIGITALOCEAN_API_TOKEN: "secret", DIGITALOCEAN_APP_ID: "app-1" },
+    env: {
+      DIGITALOCEAN_API_TOKEN: "secret",
+      DIGITALOCEAN_APP_ID: TEST_APP_ID,
+    },
     fetchImpl,
   });
   assert.equal(status.activeDeployment.phase, "ACTIVE");
@@ -49,6 +54,49 @@ test("DigitalOcean bridge reads app and deployment status without writes", async
   assert.doesNotMatch(JSON.stringify(status), /secret/u);
 });
 
+test("DigitalOcean app status resolves a configured app name to its real id", async () => {
+  const calls = [];
+  const appId = TEST_APP_ID;
+  const fetchImpl = async (url) => {
+    const parsed = new URL(String(url));
+    calls.push(`${parsed.pathname}${parsed.search}`);
+    if (parsed.pathname === "/v2/apps") {
+      return Response.json({
+        apps: [{ id: appId, spec: { name: "sunchron-backend" } }],
+      });
+    }
+    if (parsed.pathname.endsWith("/deployments")) {
+      return Response.json({ deployments: [] });
+    }
+    return Response.json({
+      app: {
+        id: appId,
+        spec: { name: "sunchron-backend" },
+        active_deployment: { id: "dep-1", phase: "ACTIVE" },
+      },
+    });
+  };
+
+  const status = await getDigitalOceanAppStatus({
+    env: {
+      DIGITALOCEAN_API_TOKEN: "secret",
+      DIGITALOCEAN_APP_ID: "sunchron-backend",
+    },
+    fetchImpl,
+  });
+
+  assert.equal(status.id, appId);
+  assert.deepEqual(calls, [
+    "/v2/apps?per_page=200",
+    `/v2/apps/${appId}`,
+    `/v2/apps/${appId}/deployments?page=1&per_page=5`,
+  ]);
+  assert.equal(
+    calls.some((path) => path.includes("/apps/sunchron-backend")),
+    false,
+  );
+});
+
 test("DigitalOcean app status retries a transient app read", async () => {
   let appCalls = 0;
   const fetchImpl = async (url) => {
@@ -59,7 +107,7 @@ test("DigitalOcean app status retries a transient app read", async () => {
     if (appCalls === 1) throw new Error("temporary network failure");
     return Response.json({
       app: {
-        id: "app-1",
+        id: TEST_APP_ID,
         spec: { name: "sunchron-backend" },
         active_deployment: { id: "dep-1", phase: "ACTIVE" },
       },
@@ -67,7 +115,10 @@ test("DigitalOcean app status retries a transient app read", async () => {
   };
 
   const status = await getDigitalOceanAppStatus({
-    env: { DIGITALOCEAN_API_TOKEN: "secret", DIGITALOCEAN_APP_ID: "app-1" },
+    env: {
+      DIGITALOCEAN_API_TOKEN: "secret",
+      DIGITALOCEAN_APP_ID: TEST_APP_ID,
+    },
     fetchImpl,
     retryDelaysMs: [0],
     sleepImpl: async () => {},
@@ -87,7 +138,7 @@ test("DigitalOcean app status keeps verified app data when deployment history is
     }
     return Response.json({
       app: {
-        id: "app-1",
+        id: TEST_APP_ID,
         spec: { name: "sunchron-backend" },
         live_url: "https://synchron.foundation",
         active_deployment: { id: "dep-1", phase: "ACTIVE" },
@@ -96,7 +147,10 @@ test("DigitalOcean app status keeps verified app data when deployment history is
   };
 
   const status = await getDigitalOceanAppStatus({
-    env: { DIGITALOCEAN_API_TOKEN: "secret", DIGITALOCEAN_APP_ID: "app-1" },
+    env: {
+      DIGITALOCEAN_API_TOKEN: "secret",
+      DIGITALOCEAN_APP_ID: TEST_APP_ID,
+    },
     fetchImpl,
     retryDelaysMs: [0, 0],
     sleepImpl: async () => {},
@@ -117,14 +171,14 @@ test("DigitalOcean app status never hides token errors from deployment history",
     if (String(url).includes("/deployments")) {
       return Response.json({ message: "unauthorized" }, { status: 401 });
     }
-    return Response.json({ app: { id: "app-1", spec: {} } });
+    return Response.json({ app: { id: TEST_APP_ID, spec: {} } });
   };
 
   await assert.rejects(
     getDigitalOceanAppStatus({
       env: {
         DIGITALOCEAN_API_TOKEN: "secret",
-        DIGITALOCEAN_APP_ID: "app-1",
+        DIGITALOCEAN_APP_ID: TEST_APP_ID,
       },
       fetchImpl,
       retryDelaysMs: [0],

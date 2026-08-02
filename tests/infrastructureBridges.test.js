@@ -49,6 +49,91 @@ test("DigitalOcean bridge reads app and deployment status without writes", async
   assert.doesNotMatch(JSON.stringify(status), /secret/u);
 });
 
+test("DigitalOcean app status retries a transient app read", async () => {
+  let appCalls = 0;
+  const fetchImpl = async (url) => {
+    if (String(url).includes("/deployments")) {
+      return Response.json({ deployments: [] });
+    }
+    appCalls += 1;
+    if (appCalls === 1) throw new Error("temporary network failure");
+    return Response.json({
+      app: {
+        id: "app-1",
+        spec: { name: "sunchron-backend" },
+        active_deployment: { id: "dep-1", phase: "ACTIVE" },
+      },
+    });
+  };
+
+  const status = await getDigitalOceanAppStatus({
+    env: { DIGITALOCEAN_API_TOKEN: "secret", DIGITALOCEAN_APP_ID: "app-1" },
+    fetchImpl,
+    retryDelaysMs: [0],
+    sleepImpl: async () => {},
+  });
+
+  assert.equal(appCalls, 2);
+  assert.equal(status.activeDeployment.phase, "ACTIVE");
+  assert.equal(status.deploymentsAvailable, true);
+});
+
+test("DigitalOcean app status keeps verified app data when deployment history is temporarily unavailable", async () => {
+  let deploymentCalls = 0;
+  const fetchImpl = async (url) => {
+    if (String(url).includes("/deployments")) {
+      deploymentCalls += 1;
+      return Response.json({ message: "temporary failure" }, { status: 503 });
+    }
+    return Response.json({
+      app: {
+        id: "app-1",
+        spec: { name: "sunchron-backend" },
+        live_url: "https://synchron.foundation",
+        active_deployment: { id: "dep-1", phase: "ACTIVE" },
+      },
+    });
+  };
+
+  const status = await getDigitalOceanAppStatus({
+    env: { DIGITALOCEAN_API_TOKEN: "secret", DIGITALOCEAN_APP_ID: "app-1" },
+    fetchImpl,
+    retryDelaysMs: [0, 0],
+    sleepImpl: async () => {},
+  });
+
+  assert.equal(deploymentCalls, 3);
+  assert.equal(status.activeDeployment.phase, "ACTIVE");
+  assert.equal(status.deploymentsAvailable, false);
+  assert.equal(status.deploymentsErrorCode, "DIGITALOCEAN_UPSTREAM_ERROR");
+  assert.match(
+    formatDigitalOceanStatus(status),
+    /основният статус на приложението е проверен/u,
+  );
+});
+
+test("DigitalOcean app status never hides token errors from deployment history", async () => {
+  const fetchImpl = async (url) => {
+    if (String(url).includes("/deployments")) {
+      return Response.json({ message: "unauthorized" }, { status: 401 });
+    }
+    return Response.json({ app: { id: "app-1", spec: {} } });
+  };
+
+  await assert.rejects(
+    getDigitalOceanAppStatus({
+      env: {
+        DIGITALOCEAN_API_TOKEN: "secret",
+        DIGITALOCEAN_APP_ID: "app-1",
+      },
+      fetchImpl,
+      retryDelaysMs: [0],
+      sleepImpl: async () => {},
+    }),
+    (error) => error.code === "DIGITALOCEAN_TOKEN_INVALID",
+  );
+});
+
 test("DigitalOcean full audit reads account resources without writes or secrets", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {

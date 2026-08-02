@@ -159,6 +159,42 @@ async function request(
   }
 }
 
+function isTransientDigitalOceanError(error) {
+  return (
+    error instanceof DigitalOceanError &&
+    ["DIGITALOCEAN_NETWORK_ERROR", "DIGITALOCEAN_UPSTREAM_ERROR"].includes(
+      error.code,
+    )
+  );
+}
+
+async function requestWithTransientRetry(path, options = {}) {
+  const retryDelaysMs = Array.isArray(options.retryDelaysMs)
+    ? options.retryDelaysMs
+    : [200, 500];
+  const sleepImpl =
+    options.sleepImpl ||
+    ((delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)));
+  let lastError;
+
+  for (let attempt = 0; attempt <= retryDelaysMs.length; attempt += 1) {
+    try {
+      return await request(path, options);
+    } catch (error) {
+      lastError = error;
+      if (
+        !isTransientDigitalOceanError(error) ||
+        attempt >= retryDelaysMs.length
+      ) {
+        throw error;
+      }
+      await sleepImpl(retryDelaysMs[attempt]);
+    }
+  }
+
+  throw lastError;
+}
+
 function normalizeTesterAuthConfig({ projectUrl, publishableKey }) {
   let url;
   try {
@@ -603,13 +639,19 @@ export function listDigitalOceanEnvironmentVariables(spec = {}) {
 
 export async function getDigitalOceanAppStatus(options = {}) {
   const { appId } = requiredAppConfig(options.env);
-  const [appData, deploymentsData] = await Promise.all([
-    request(`/apps/${encodeURIComponent(appId)}`, options),
-    request(
-      `/apps/${encodeURIComponent(appId)}/deployments?page=1&per_page=5`,
-      options,
-    ),
-  ]);
+  const appPath = `/apps/${encodeURIComponent(appId)}`;
+  const deploymentsPath = `${appPath}/deployments?page=1&per_page=5`;
+  const appData = await requestWithTransientRetry(appPath, options);
+  let deploymentsData = { deployments: [] };
+  let deploymentsAvailable = true;
+  let deploymentsErrorCode = null;
+  try {
+    deploymentsData = await requestWithTransientRetry(deploymentsPath, options);
+  } catch (error) {
+    if (!isTransientDigitalOceanError(error)) throw error;
+    deploymentsAvailable = false;
+    deploymentsErrorCode = error.code;
+  }
   const app = appData.app || {};
   const deployments = (deploymentsData.deployments || []).slice(0, 5);
   return {
@@ -631,6 +673,8 @@ export async function getDigitalOceanAppStatus(options = {}) {
         }
       : null,
     environmentVariables: listDigitalOceanEnvironmentVariables(app.spec),
+    deploymentsAvailable,
+    deploymentsErrorCode,
     deployments: deployments.map((deployment) => ({
       id: deployment.id,
       phase: deployment.phase,
@@ -1300,7 +1344,9 @@ export function formatDigitalOceanStatus(status) {
       : "Няма текущ деплой.",
     status.liveUrl ? `Адрес: ${status.liveUrl}` : null,
     `Environment variables: ${status.environmentVariables?.length || 0} имена; стойностите не се връщат.`,
-    `Последни деплои: ${status.deployments.length}.`,
+    status.deploymentsAvailable === false
+      ? "Историята на последните деплои временно не е достъпна; основният статус на приложението е проверен."
+      : `Последни деплои: ${status.deployments.length}.`,
   ]
     .filter(Boolean)
     .join("\n");

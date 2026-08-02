@@ -1,5 +1,5 @@
 (() => {
-  const STORAGE_VERSION = 3;
+  const STORAGE_VERSION = 4;
   const WORKSPACE_ENDPOINT = "/api/workspaces";
   const PETS = Object.freeze([
     {
@@ -110,6 +110,7 @@
           objective: "",
           status: "ready",
           updatedAt: new Date().toISOString(),
+          run: null,
         },
       ],
       agents: [
@@ -138,6 +139,33 @@
     return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
   }
 
+  function normalizeProjectRun(value) {
+    if (!value || typeof value !== "object") return null;
+    const summary = cleanText(value.summary, 4000);
+    const nextStep = cleanText(value.nextStep, 1200);
+    if (!summary && !nextStep) return null;
+    return {
+      sequence: Math.max(
+        0,
+        Math.min(Number.parseInt(value.sequence, 10) || 0, 999999),
+      ),
+      status: ["complete", "ready_for_next_step", "blocked"].includes(
+        value.status,
+      )
+        ? value.status
+        : "ready_for_next_step",
+      summary,
+      evidence: (Array.isArray(value.evidence) ? value.evidence : [])
+        .slice(0, 8)
+        .map((item) => cleanText(item, 500))
+        .filter(Boolean),
+      nextStep,
+      needsUserDecision: value.needsUserDecision === true,
+      codeChanged: false,
+      updatedAt: cleanText(value.updatedAt, 40),
+    };
+  }
+
   function normalizeState(value) {
     const fallback = defaultState();
     if (!value || typeof value !== "object") return fallback;
@@ -153,6 +181,7 @@
             ? project.status
             : "ready",
           updatedAt: cleanText(project?.updatedAt, 40),
+          run: normalizeProjectRun(project?.run),
         }))
       : fallback.projects;
     const agents = Array.isArray(value.agents)
@@ -446,6 +475,9 @@
       });
       addText(button, "strong", project.name);
       addText(button, "small", project.objective || "Още няма описана цел.");
+      if (project.run?.nextStep) {
+        addText(button, "small", `Следва: ${project.run.nextStep}`);
+      }
       list.appendChild(button);
     }
     parent.appendChild(list);
@@ -609,6 +641,7 @@
         objective: cleanText(objective.value, 600),
         status: "ready",
         updatedAt: new Date().toISOString(),
+        run: null,
       };
       if (!project.name) return;
       const previousActiveProjectId = workState.activeProjectId;
@@ -896,8 +929,10 @@
       mode: "work",
       workContext: {
         project: {
+          id: project?.id || "",
           name: project?.name || "",
           objective: project?.objective || "",
+          run: project?.run || null,
         },
         agent: {
           name: agent?.name || "AI CORE",
@@ -927,8 +962,26 @@
   function onDone(data) {
     if (!workState || workState.mode !== "work") return;
     recordActivity(data?.task);
+    const run = normalizeProjectRun(data?.projectRun);
+    const projectId = cleanText(data?.projectRun?.projectId, 80);
+    const project = workState.projects.find(
+      (item) => item.id === (projectId || workState.activeProjectId),
+    );
+    if (run && project) {
+      project.run = run;
+      project.updatedAt = run.updatedAt || new Date().toISOString();
+      project.status =
+        run.status === "blocked"
+          ? "blocked"
+          : run.needsUserDecision
+            ? "needs-input"
+            : "ready";
+      saveState();
+    }
     const status = data?.task?.status;
-    if (status === "waiting_confirmation") setPetState("needs-input");
+    if (run?.needsUserDecision) setPetState("needs-input");
+    else if (run?.status === "blocked") setPetState("blocked");
+    else if (status === "waiting_confirmation") setPetState("needs-input");
     else if (status === "failed" || status === "partial")
       setPetState("blocked");
     else setPetState("ready");

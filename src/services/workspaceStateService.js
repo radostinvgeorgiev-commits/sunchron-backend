@@ -13,6 +13,11 @@ const VALID_ROLES = new Set([
   "coder",
 ]);
 const VALID_ENGINES = new Set(["ai-core", "codex"]);
+const VALID_RUN_STATUSES = new Set([
+  "complete",
+  "ready_for_next_step",
+  "blocked",
+]);
 const VALID_MODELS = new Set([
   "auto",
   "gpt-5.6-sol",
@@ -43,9 +48,34 @@ function cleanId(value, fallback) {
   return id || fallback;
 }
 
+function normalizeProjectRun(value, timestamp) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const summary = cleanText(value.summary, 4000);
+  const nextStep = cleanText(value.nextStep, 1200);
+  if (!summary && !nextStep) return null;
+  return {
+    sequence: Math.max(
+      0,
+      Math.min(Number.parseInt(value.sequence, 10) || 0, 999999),
+    ),
+    status: VALID_RUN_STATUSES.has(value.status)
+      ? value.status
+      : "ready_for_next_step",
+    summary,
+    evidence: (Array.isArray(value.evidence) ? value.evidence : [])
+      .slice(0, 8)
+      .map((item) => cleanText(item, 500))
+      .filter(Boolean),
+    nextStep,
+    needsUserDecision: value.needsUserDecision === true,
+    codeChanged: false,
+    updatedAt: cleanText(value.updatedAt, 40) || timestamp,
+  };
+}
+
 function defaultWorkspaceState(now = new Date().toISOString()) {
   return {
-    version: 3,
+    version: 4,
     mode: "chat",
     activeProjectId: "starter-project",
     activeAgentId: "synchron-builder",
@@ -58,6 +88,7 @@ function defaultWorkspaceState(now = new Date().toISOString()) {
         objective: "",
         status: "ready",
         updatedAt: now,
+        run: null,
       },
     ],
     agents: [
@@ -96,6 +127,7 @@ export function normalizeWorkspaceState(value, { now } = {}) {
         objective: cleanText(project?.objective, 600),
         status: VALID_STATUSES.has(project?.status) ? project.status : "ready",
         updatedAt: cleanText(project?.updatedAt, 40) || timestamp,
+        run: normalizeProjectRun(project?.run, timestamp),
       }))
     : fallback.projects;
   const agents = Array.isArray(value.agents)
@@ -137,7 +169,7 @@ export function normalizeWorkspaceState(value, { now } = {}) {
     : agents[0].id;
 
   return {
-    version: 3,
+    version: 4,
     mode: VALID_MODES.has(value.mode) ? value.mode : "chat",
     activeProjectId,
     activeAgentId,
@@ -224,7 +256,7 @@ export async function saveWorkspaceState(
       index: indexName(env),
       id: documentId,
       body: {
-        schemaVersion: 1,
+        schemaVersion: 2,
         ownerHash: documentId,
         state,
         updatedAt,

@@ -15,6 +15,7 @@ import {
   CodexAgentError,
   createIsolatedSourceWorkspace,
   isCodexAgentConfigured,
+  runCodexProjectAnalysis,
   runCodexReadAnalysis,
 } from "../src/services/codexAgentService.js";
 
@@ -63,6 +64,7 @@ test("Codex analysis is forced into read-only, offline, isolated execution", asy
   await mkdir(workspace);
   let clientOptions;
   let threadOptions;
+  let turnOptions;
   let prompt;
 
   class FakeCodex {
@@ -73,17 +75,32 @@ test("Codex analysis is forced into read-only, offline, isolated execution", asy
     startThread(options) {
       threadOptions = options;
       return {
-        async run(input) {
+        async run(input, options) {
           prompt = input;
-          return { finalResponse: "Проверено: src/routes/chat.js" };
+          turnOptions = options;
+          return {
+            finalResponse: JSON.stringify({
+              status: "ready_for_next_step",
+              summary: "Маршрутът е проверен.",
+              evidence: ["src/routes/chat.js използва Capability Engine."],
+              nextStep: "Добави целеви тест.",
+              needsUserDecision: false,
+            }),
+          };
         },
       };
     }
   }
 
-  const output = await runCodexReadAnalysis({
+  const result = await runCodexProjectAnalysis({
     message: "Провери маршрута за чат.",
+    projectId: "project-1",
     projectName: "SYNCHRON-X",
+    previousRun: {
+      sequence: 2,
+      summary: "Преди това беше проверен work mode.",
+      nextStep: "Провери маршрута.",
+    },
     apiKey: "test-openai-key",
     env: {
       PATH: "/usr/bin:/bin",
@@ -93,12 +110,18 @@ test("Codex analysis is forced into read-only, offline, isolated execution", asy
     createWorkspace: async () => ({ root, workspace, files: 2 }),
   });
 
-  assert.equal(output, "Проверено: src/routes/chat.js");
+  assert.match(result.output, /Резултат: Маршрутът е проверен/u);
+  assert.match(result.output, /Следваща стъпка: Добави целеви тест/u);
+  assert.equal(result.projectRun.projectId, "project-1");
+  assert.equal(result.projectRun.sequence, 3);
+  assert.equal(result.projectRun.codeChanged, false);
   assert.equal(threadOptions.sandboxMode, "read-only");
   assert.equal(threadOptions.networkAccessEnabled, false);
   assert.equal(threadOptions.webSearchMode, "disabled");
   assert.equal(threadOptions.approvalPolicy, "never");
   assert.equal(threadOptions.workingDirectory, workspace);
+  assert.equal(turnOptions.signal instanceof AbortSignal, true);
+  assert.equal(turnOptions.outputSchema.additionalProperties, false);
   assert.equal(clientOptions.apiKey, "test-openai-key");
   assert.deepEqual(Object.keys(clientOptions.env).sort(), [
     "HOME",
@@ -108,6 +131,7 @@ test("Codex analysis is forced into read-only, offline, isolated execution", asy
   ]);
   assert.doesNotMatch(prompt, /must-never-reach-child|test-openai-key/u);
   assert.match(prompt, /кодът още не е променен/u);
+  assert.match(prompt, /ПРЕДИШЕН ПРОВЕРЕН РЕЗУЛТАТ/u);
   await assert.rejects(access(root));
 });
 
@@ -121,7 +145,15 @@ test("Codex blocks a final response containing a configured secret", async () =>
     startThread() {
       return {
         async run() {
-          return { finalResponse: `Намерих ${secret}` };
+          return {
+            finalResponse: JSON.stringify({
+              status: "blocked",
+              summary: `Намерих ${secret}`,
+              evidence: [],
+              nextStep: "Спри.",
+              needsUserDecision: true,
+            }),
+          };
         },
       };
     }
@@ -150,4 +182,38 @@ test("Codex fails closed when no API key is configured", async () => {
       error instanceof CodexAgentError &&
       error.code === "CODEX_AGENT_NOT_CONFIGURED",
   );
+});
+
+test("Codex read compatibility returns the formatted project result", async () => {
+  const root = await mkdtemp(join(tmpdir(), "codex-compat-test-"));
+  const workspace = join(root, "workspace");
+  await mkdir(workspace);
+
+  class FakeCodex {
+    startThread() {
+      return {
+        async run() {
+          return {
+            finalResponse: JSON.stringify({
+              status: "complete",
+              summary: "Проверката приключи.",
+              evidence: [],
+              nextStep: "",
+              needsUserDecision: false,
+            }),
+          };
+        },
+      };
+    }
+  }
+
+  const output = await runCodexReadAnalysis({
+    message: "Провери.",
+    apiKey: "test-openai-key",
+    sdkLoader: async () => ({ Codex: FakeCodex }),
+    createWorkspace: async () => ({ root, workspace, files: 1 }),
+  });
+
+  assert.match(output, /Резултат: Проверката приключи/u);
+  assert.match(output, /Кодът не е променян/u);
 });

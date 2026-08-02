@@ -333,6 +333,16 @@ test("verified tool results bypass AI rewriting", () => {
     },
   ];
   assert.equal(shouldReplyWithVerifiedToolOutput(githubStatusResults), true);
+  assert.equal(
+    shouldReplyWithVerifiedToolOutput([
+      {
+        status: "fulfilled",
+        request: { capability: "code.analyze" },
+        result: { output: "Codex result" },
+      },
+    ]),
+    false,
+  );
 
   const githubStatusReply =
     buildCapabilityReplies(githubStatusResults).join("\n");

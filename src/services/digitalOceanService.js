@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 
 const DEFAULT_API_URL = "https://api.digitalocean.com/v2";
+const DEFAULT_APP_NAME = "sunchron-backend";
+const PRIMARY_PUBLIC_DOMAIN = "synchron.foundation";
 export const PUBLIC_WWW_DOMAIN = "www.synchron.foundation";
 export const TESTER_AUTH_ENV_KEYS = Object.freeze([
   "SUPABASE_URL",
@@ -213,6 +215,57 @@ function normalizeDomainName(value) {
     .replace(/\.$/u, "");
 }
 
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(
+    String(value || "").trim(),
+  );
+}
+
+function appMatchesPublicProject(app, configuredValue) {
+  const appName = String(app?.spec?.name || app?.name || "").trim();
+  const acceptedNames = new Set(
+    [configuredValue, DEFAULT_APP_NAME]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean),
+  );
+  const domains = listDigitalOceanDomains(app?.spec);
+  return (
+    acceptedNames.has(appName) ||
+    domains.some(({ domain }) =>
+      [PRIMARY_PUBLIC_DOMAIN, PUBLIC_WWW_DOMAIN].includes(domain),
+    )
+  );
+}
+
+async function resolveDomainAppConfig({
+  env = process.env,
+  fetchImpl = fetch,
+}) {
+  const token = requiredToken(env);
+  const configuredValue = String(env.DIGITALOCEAN_APP_ID || "").trim();
+  if (isUuid(configuredValue)) {
+    return { token, appId: configuredValue, resolvedFromList: false };
+  }
+
+  const options = { env: { ...env, DIGITALOCEAN_API_TOKEN: token }, fetchImpl };
+  const appsData = await request("/apps?per_page=200", options);
+  const matches = (Array.isArray(appsData.apps) ? appsData.apps : []).filter(
+    (app) => isUuid(app?.id) && appMatchesPublicProject(app, configuredValue),
+  );
+  if (matches.length !== 1) {
+    throw new DigitalOceanError(
+      matches.length > 1
+        ? "Намерени са повече от едно възможни DigitalOcean приложения. Няма да бъде направена промяна."
+        : "Работещото DigitalOcean приложение не беше намерено автоматично. Няма да бъде направена промяна.",
+      409,
+      matches.length > 1
+        ? "DIGITALOCEAN_APP_RESOLUTION_AMBIGUOUS"
+        : "DIGITALOCEAN_APP_RESOLUTION_FAILED",
+    );
+  }
+  return { token, appId: matches[0].id, resolvedFromList: true };
+}
+
 export function listDigitalOceanDomains(spec = {}) {
   return (Array.isArray(spec?.domains) ? spec.domains : [])
     .map((entry) => ({
@@ -256,7 +309,7 @@ async function loadDomainAliasActivation({
   env = process.env,
   fetchImpl = fetch,
 } = {}) {
-  const { token, appId } = requiredAppConfig(env);
+  const { token, appId } = await resolveDomainAppConfig({ env, fetchImpl });
   if (expectedAppId && expectedAppId !== appId) {
     throw new DigitalOceanError(
       "Потвърждението е за друго DigitalOcean приложение.",

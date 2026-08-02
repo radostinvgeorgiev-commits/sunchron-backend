@@ -15,6 +15,7 @@ import {
 
 const PROJECT_URL = "https://projectref.supabase.co";
 const PUBLISHABLE_KEY = "sb_publishable_abcdefghijklmnopqrstuvwxyz";
+const APP_ID = "6e6fdc40-2ef5-4534-8906-8a6414b089b5";
 
 function jsonResponse(status, payload) {
   return {
@@ -70,16 +71,16 @@ test("inspects and updates the www domain with one safe app-spec write", async (
     calls.push(options);
     if (options.method === "GET") {
       return jsonResponse(200, {
-        app: { id: "app-1", spec: currentSpec },
+        app: { id: APP_ID, spec: currentSpec },
       });
     }
     return jsonResponse(200, {
-      app: { id: "app-1", in_progress_deployment: { id: "deploy-www" } },
+      app: { id: APP_ID, in_progress_deployment: { id: "deploy-www" } },
     });
   };
   const env = {
     DIGITALOCEAN_API_TOKEN: "do-token",
-    DIGITALOCEAN_APP_ID: "app-1",
+    DIGITALOCEAN_APP_ID: APP_ID,
   };
 
   const inspection = await inspectDigitalOceanDomainAlias({ env, fetchImpl });
@@ -89,7 +90,7 @@ test("inspects and updates the www domain with one safe app-spec write", async (
   ]);
 
   const result = await activateDigitalOceanDomainAlias({
-    expectedAppId: "app-1",
+    expectedAppId: APP_ID,
     env,
     fetchImpl,
   });
@@ -111,13 +112,13 @@ test("does not write when the www domain is already configured", async () => {
   const result = await activateDigitalOceanDomainAlias({
     env: {
       DIGITALOCEAN_API_TOKEN: "do-token",
-      DIGITALOCEAN_APP_ID: "app-1",
+      DIGITALOCEAN_APP_ID: APP_ID,
     },
     fetchImpl: async (_url, options) => {
       methods.push(options.method);
       return jsonResponse(200, {
         app: {
-          id: "app-1",
+          id: APP_ID,
           spec: {
             name: "synchron",
             domains: [{ domain: "www.synchron.foundation", type: "ALIAS" }],
@@ -129,6 +130,70 @@ test("does not write when the www domain is already configured", async () => {
 
   assert.equal(result.updated, false);
   assert.deepEqual(methods, ["GET"]);
+});
+
+test("resolves the public app safely when DIGITALOCEAN_APP_ID is not a UUID", async () => {
+  const paths = [];
+  const result = await inspectDigitalOceanDomainAlias({
+    env: {
+      DIGITALOCEAN_API_TOKEN: "do-token",
+      DIGITALOCEAN_APP_ID: "sunchron-backend",
+    },
+    fetchImpl: async (url) => {
+      const parsed = new URL(url);
+      paths.push(`${parsed.pathname}${parsed.search}`);
+      if (parsed.pathname === "/v2/apps") {
+        return jsonResponse(200, {
+          apps: [
+            {
+              id: APP_ID,
+              spec: {
+                name: "sunchron-backend",
+                domains: [{ domain: "synchron.foundation", type: "PRIMARY" }],
+              },
+            },
+          ],
+        });
+      }
+      return jsonResponse(200, {
+        app: {
+          id: APP_ID,
+          spec: {
+            name: "sunchron-backend",
+            domains: [{ domain: "synchron.foundation", type: "PRIMARY" }],
+          },
+        },
+      });
+    },
+  });
+
+  assert.equal(result.appId, APP_ID);
+  assert.equal(result.configured, false);
+  assert.deepEqual(paths, ["/v2/apps?per_page=200", `/v2/apps/${APP_ID}`]);
+});
+
+test("fails closed when automatic DigitalOcean app resolution is ambiguous", async () => {
+  await assert.rejects(
+    inspectDigitalOceanDomainAlias({
+      env: {
+        DIGITALOCEAN_API_TOKEN: "do-token",
+        DIGITALOCEAN_APP_ID: "not-a-uuid",
+      },
+      fetchImpl: async () =>
+        jsonResponse(200, {
+          apps: [
+            { id: APP_ID, spec: { name: "sunchron-backend" } },
+            {
+              id: "ee8c9caf-1111-4222-8333-0123456789ab",
+              spec: { name: "sunchron-backend" },
+            },
+          ],
+        }),
+    }),
+    (error) =>
+      error instanceof DigitalOceanError &&
+      error.code === "DIGITALOCEAN_APP_RESOLUTION_AMBIGUOUS",
+  );
 });
 
 test("adds only the missing tester-auth variables at app level", () => {

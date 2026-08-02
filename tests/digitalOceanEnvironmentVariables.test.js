@@ -5,6 +5,8 @@ import {
   listDigitalOceanEnvironmentVariables,
 } from "../src/services/digitalOceanService.js";
 
+const TEST_APP_ID = "6e6fdc40-2ef5-4534-8906-8a6414b089b5";
+
 test("DigitalOcean environment inventory returns metadata without values", () => {
   const inventory = listDigitalOceanEnvironmentVariables({
     name: "sunchron-backend",
@@ -54,10 +56,10 @@ test("DigitalOcean environment inventory returns metadata without values", () =>
 test("DigitalOcean app status exposes only safe environment metadata", async () => {
   const responses = new Map([
     [
-      "/apps/app-1",
+      `/apps/${TEST_APP_ID}`,
       {
         app: {
-          id: "app-1",
+          id: TEST_APP_ID,
           spec: {
             name: "sunchron-backend",
             services: [
@@ -77,7 +79,7 @@ test("DigitalOcean app status exposes only safe environment metadata", async () 
         },
       },
     ],
-    ["/apps/app-1/deployments?page=1&per_page=5", { deployments: [] }],
+    [`/apps/${TEST_APP_ID}/deployments?page=1&per_page=5`, { deployments: [] }],
   ]);
   const fetchImpl = async (url) => {
     const parsed = new URL(url);
@@ -91,7 +93,7 @@ test("DigitalOcean app status exposes only safe environment metadata", async () 
   const status = await getDigitalOceanAppStatus({
     env: {
       DIGITALOCEAN_API_TOKEN: "token",
-      DIGITALOCEAN_APP_ID: "app-1",
+      DIGITALOCEAN_APP_ID: TEST_APP_ID,
     },
     fetchImpl,
   });

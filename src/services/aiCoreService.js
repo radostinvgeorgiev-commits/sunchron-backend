@@ -27,7 +27,7 @@ export function extractOpenAIOutputText(data) {
   return text;
 }
 
-export async function requestOpenAIText({
+export async function requestOpenAIResponse({
   apiKey = process.env.OPENAI_API_KEY,
   input,
   model = process.env.OPENAI_CHAT_MODEL || DEFAULT_OPENAI_CHAT_MODEL,
@@ -77,5 +77,17 @@ export async function requestOpenAIText({
       "OPENAI_EMPTY_RESPONSE",
     );
   }
-  return text;
+  return {
+    text,
+    provider: "openai",
+    model:
+      typeof data?.model === "string" && data.model.trim()
+        ? data.model.trim()
+        : model,
+  };
+}
+
+export async function requestOpenAIText(options) {
+  const response = await requestOpenAIResponse(options);
+  return response.text;
 }

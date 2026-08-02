@@ -75,7 +75,7 @@ import {
   planCapabilities,
   shouldUseAgentPlanner,
 } from "../services/agentPlannerService.js";
-import { requestOpenAIText } from "../services/aiCoreService.js";
+import { requestOpenAIResponse } from "../services/aiCoreService.js";
 import { executeTaskPlan } from "../services/taskExecutionService.js";
 import { CodexAgentError } from "../services/codexAgentService.js";
 import {
@@ -1497,7 +1497,7 @@ router.post("/chat", async (req, res) => {
   }, aiTimeoutMs);
 
   try {
-    const fullReply = await requestOpenAIText({
+    const aiResponse = await requestOpenAIResponse({
       apiKey: openAiApiKey,
       input: messages,
       model: resolveWorkAgentModel(cleanWorkContext?.agent?.model),
@@ -1505,6 +1505,7 @@ router.post("/chat", async (req, res) => {
       reasoningEffort: "low",
       verbosity: "medium",
     });
+    const fullReply = aiResponse.text;
     sendEvent("token", { token: fullReply });
     if (!fullReply.trim()) {
       throw new Error("AI ядрото приключи без текстов отговор.");
@@ -1524,7 +1525,8 @@ router.post("/chat", async (req, res) => {
       capabilities: capabilityResults.map(({ request }) => request.capability),
       task: taskResult,
       mode: capabilityResults.length ? "agentic" : "conversation",
-      provider: "openai",
+      provider: aiResponse.provider,
+      model: aiResponse.model,
       ...(projectRun ? { projectRun } : {}),
       ...getConversationPersistenceMetadata(conversationPersisted),
     });

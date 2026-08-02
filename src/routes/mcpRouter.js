@@ -5,6 +5,7 @@ import {
   MCP_PROTOCOL_VERSION,
 } from "../services/mcpReadService.js";
 import {
+  allowsAnonymousMcpTool,
   buildMcpAuthenticateChallenge,
   McpOAuthError,
   requiredScopesForMcpTool,
@@ -95,6 +96,17 @@ export function requireMcpAuthorization(
       id: "owner",
       role: "owner",
       displayName: "Радко",
+    };
+    return next();
+  }
+
+  if (!authorization && allowsAnonymousMcpTool(toolName)) {
+    req.mcpOwnerId = null;
+    req.mcpAuthentication = {
+      mode: "noauth",
+      id: "anonymous",
+      role: "anonymous",
+      displayName: "Публична проверка",
     };
     return next();
   }

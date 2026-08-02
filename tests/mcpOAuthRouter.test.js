@@ -53,6 +53,7 @@ test("MCP initialize and tool discovery work without credentials", async () => {
   assert.equal(listed.body.result.tools.length, 14);
   assert.deepEqual(listed.body.result.tools[0].securitySchemes, [
     { type: "noauth" },
+    { type: "oauth2", scopes: ["synchron:read"] },
   ]);
 });
 

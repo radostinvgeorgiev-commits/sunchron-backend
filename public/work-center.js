@@ -2,7 +2,7 @@
   const REPOSITORY_URL =
     "https://github.com/radostinvgeorgiev-commits/sunchron-backend";
   const MCP_RESOURCE_URL = "https://synchron.foundation/mcp";
-  const PUBLIC_REGISTRATION_URL = "https://www.synchron.foundation";
+  const PUBLIC_REGISTRATION_URL = "https://synchron.foundation/register";
   const CHATGPT_APP_GUIDE_URL =
     "https://developers.openai.com/apps-sdk/deploy/testing";
   const FALLBACK_CONFIG = Object.freeze({

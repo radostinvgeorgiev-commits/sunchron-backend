@@ -37,6 +37,10 @@ let replayIndexPromise = null;
 let lastReplayCleanupAt = 0;
 let activeReplayCleanup = null;
 let oauthRuntimeStatus = Object.freeze({
+  authorization: "not-attempted",
+  authorizationDecision: null,
+  authorizationErrorCode: null,
+  authorizationUpdatedAt: null,
   tokenExchange: "not-attempted",
   grantType: null,
   errorCode: null,
@@ -833,6 +837,7 @@ export async function exchangeMcpToken(input, env = process.env) {
       );
     }
     oauthRuntimeStatus = Object.freeze({
+      ...oauthRuntimeStatus,
       tokenExchange: "success",
       grantType,
       errorCode: null,
@@ -841,6 +846,7 @@ export async function exchangeMcpToken(input, env = process.env) {
     return result;
   } catch (error) {
     oauthRuntimeStatus = Object.freeze({
+      ...oauthRuntimeStatus,
       tokenExchange: "failed",
       grantType,
       errorCode:
@@ -849,6 +855,20 @@ export async function exchangeMcpToken(input, env = process.env) {
     });
     throw error;
   }
+}
+
+export function recordMcpAuthorizationRuntimeStatus({
+  authorization,
+  decision = null,
+  errorCode = null,
+}) {
+  oauthRuntimeStatus = Object.freeze({
+    ...oauthRuntimeStatus,
+    authorization,
+    authorizationDecision: decision,
+    authorizationErrorCode: errorCode,
+    authorizationUpdatedAt: new Date().toISOString(),
+  });
 }
 
 export function getMcpOAuthRuntimeStatus() {
@@ -916,6 +936,10 @@ export function resetMcpOAuthStateForTests() {
   lastReplayCleanupAt = 0;
   activeReplayCleanup = null;
   oauthRuntimeStatus = Object.freeze({
+    authorization: "not-attempted",
+    authorizationDecision: null,
+    authorizationErrorCode: null,
+    authorizationUpdatedAt: null,
     tokenExchange: "not-attempted",
     grantType: null,
     errorCode: null,

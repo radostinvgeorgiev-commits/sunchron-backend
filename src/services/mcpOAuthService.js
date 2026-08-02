@@ -10,9 +10,15 @@ import { getOpenSearchClient } from "../config/opensearch.js";
 export const DEFAULT_MCP_RESOURCE_URL = "https://synchron.foundation/mcp";
 export const MCP_READ_SCOPE = "synchron:read";
 export const MCP_GITHUB_WRITE_SCOPE = "synchron:github.write";
+export const MCP_INFRASTRUCTURE_WRITE_SCOPE = "synchron:infrastructure.write";
 export const MCP_SCOPES = Object.freeze([
   MCP_READ_SCOPE,
   MCP_GITHUB_WRITE_SCOPE,
+  MCP_INFRASTRUCTURE_WRITE_SCOPE,
+]);
+const MCP_OWNER_ONLY_SCOPES = Object.freeze([
+  MCP_GITHUB_WRITE_SCOPE,
+  MCP_INFRASTRUCTURE_WRITE_SCOPE,
 ]);
 
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
@@ -167,6 +173,12 @@ export function getMcpAuthorizationServerMetadata(env = process.env) {
 }
 
 export function requiredScopesForMcpTool(name) {
+  if (
+    name === "prepare_digitalocean_www_domain" ||
+    name === "confirm_digitalocean_www_domain"
+  ) {
+    return [MCP_INFRASTRUCTURE_WRITE_SCOPE];
+  }
   return name === "prepare_github_merged_branch_cleanup" ||
     name === "confirm_github_merged_branch_cleanup"
     ? [MCP_GITHUB_WRITE_SCOPE]
@@ -255,6 +267,10 @@ function parseScopes(value) {
     );
   }
   return scopes;
+}
+
+function requiresOwnerRole(scopes = []) {
+  return scopes.some((scope) => MCP_OWNER_ONLY_SCOPES.includes(scope));
 }
 
 function isAllowedOpenAiClientId(value) {
@@ -356,12 +372,9 @@ export function createMcpAuthorizationCode(
   if (!identity?.id || !identity?.memoryOwnerId || !identity?.role) {
     throw new McpOAuthError("Липсва валиден SYNCHRON-X профил.", 401);
   }
-  if (
-    request.scopes.includes(MCP_GITHUB_WRITE_SCOPE) &&
-    identity.role !== "owner"
-  ) {
+  if (requiresOwnerRole(request.scopes) && identity.role !== "owner") {
     throw new McpOAuthError(
-      "GitHub записът е достъпен само за собственика.",
+      "MCP записът е достъпен само за собственика.",
       403,
       "access_denied",
     );
@@ -723,8 +736,7 @@ export function verifyMcpAccessToken(
   }
   if (
     requiredScopes.some((scope) => !payload.scopes.includes(scope)) ||
-    (requiredScopes.includes(MCP_GITHUB_WRITE_SCOPE) &&
-      payload.role !== "owner")
+    (requiresOwnerRole(requiredScopes) && payload.role !== "owner")
   ) {
     throw new McpOAuthError(
       "MCP token няма необходимите права.",

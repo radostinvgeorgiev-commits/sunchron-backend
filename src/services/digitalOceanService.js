@@ -4,6 +4,8 @@ const DEFAULT_API_URL = "https://api.digitalocean.com/v2";
 const DEFAULT_APP_NAME = "sunchron-backend";
 const PRIMARY_PUBLIC_DOMAIN = "synchron.foundation";
 export const PUBLIC_WWW_DOMAIN = "www.synchron.foundation";
+export const DIGITALOCEAN_DOMAIN_ACTION =
+  "infrastructure.digitalocean:add_www_domain";
 export const TESTER_AUTH_ENV_KEYS = Object.freeze([
   "SUPABASE_URL",
   "SUPABASE_PUBLISHABLE_KEY",
@@ -126,9 +128,7 @@ async function request(
         headers: {
           Accept: "application/json",
           Authorization: `Bearer ${token}`,
-          ...(body === undefined
-            ? {}
-            : { "Content-Type": "application/json" }),
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       },

@@ -2,8 +2,10 @@
 
 ## Какво работи
 
-SYNCHRON-X има MCP Streamable HTTP адрес `/mcp` и 11 инструмента: 10 само за
-четене и един двустъпков потвърждаван cleanup flow. Основните read инструменти
+SYNCHRON-X има MCP Streamable HTTP адрес `/mcp` и 13 инструмента: 11 само за
+четене и два двустъпкови потвърждавани write flow-а. Освен GitHub cleanup,
+мостът подготвя и потвърждава добавянето само на `www.synchron.foundation`
+към предварително провереното DigitalOcean приложение. Основните read инструменти
 включват:
 
 - `get_personal_context`;

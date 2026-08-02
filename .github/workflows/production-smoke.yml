@@ -173,6 +173,8 @@ jobs:
                     "get_digitalocean_app_status",
                     "get_system_configuration",
                     "get_digitalocean_account_audit",
+                    "prepare_digitalocean_www_domain",
+                    "confirm_digitalocean_www_domain",
                     "get_cloudflare_zone_status",
                     "get_github_copilot_task_status",
                     "prepare_github_merged_branch_cleanup",
@@ -185,12 +187,20 @@ jobs:
                   const trackerScopes = tracker?.securitySchemes?.flatMap(
                     (scheme) => scheme.scopes || [],
                   ) || [];
+                  const confirmWww = tools?.find(
+                    (tool) => tool.name === "confirm_digitalocean_www_domain",
+                  );
+                  const confirmWwwScopes = confirmWww?.securitySchemes?.flatMap(
+                    (scheme) => scheme.scopes || [],
+                  ) || [];
                   const valid =
                     names.length === expected.length &&
                     new Set(names).size === names.length &&
                     expected.every((name) => names.includes(name)) &&
                     tracker?.annotations?.readOnlyHint === true &&
-                    trackerScopes.includes("synchron:read");
+                    trackerScopes.includes("synchron:read") &&
+                    confirmWww?.annotations?.destructiveHint === true &&
+                    confirmWwwScopes.includes("synchron:infrastructure.write");
                   console.log(JSON.stringify({ names, trackerReadOnly: tracker?.annotations?.readOnlyHint }));
                   process.exit(valid ? 0 : 1);
                 } catch {

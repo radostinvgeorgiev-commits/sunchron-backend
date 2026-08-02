@@ -67,6 +67,7 @@ test("normal chat uses OpenAI Responses without the removed DigitalOcean agent",
     assert.equal(body.store, false);
     return new Response(
       JSON.stringify({
+        model: "gpt-5.6-terra-verified",
         output: [
           {
             type: "message",
@@ -87,6 +88,7 @@ test("normal chat uses OpenAI Responses without the removed DigitalOcean agent",
 
     assert.match(response.text, /Отговор от OpenAI\./u);
     assert.match(response.text, /"provider":"openai"/u);
+    assert.match(response.text, /"model":"gpt-5.6-terra-verified"/u);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;

@@ -1276,6 +1276,23 @@ function showConversationPersistenceWarning(message) {
   turn.insertBefore(warning, actions || null);
 }
 
+function showAiResponseSource(message, provider, model) {
+  const turn = message?.closest(".assistant-turn");
+  if (!turn || turn.querySelector(".ai-response-source")) return;
+
+  const cleanProvider = typeof provider === "string" ? provider.trim() : "";
+  const cleanModel = typeof model === "string" ? model.trim() : "";
+  if (!cleanProvider && !cleanModel) return;
+
+  const source = document.createElement("div");
+  source.className = "ai-response-source";
+  source.textContent = [cleanProvider, cleanModel].filter(Boolean).join(" · ");
+  source.setAttribute("aria-label", "AI доставчик и модел");
+
+  const actions = turn.querySelector(".message-actions");
+  turn.insertBefore(source, actions || null);
+}
+
 async function handleMessageAction(event) {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
@@ -1473,6 +1490,11 @@ async function sendMessage() {
         } else if (parsed.event === "done") {
           completed = true;
           globalThis.SynchronWorkMode?.onDone(parsed.data);
+          showAiResponseSource(
+            responseBubble,
+            parsed.data?.provider,
+            parsed.data?.model,
+          );
           if (
             parsed.data?.conversationPersisted === false &&
             parsed.data?.warningCode === "CONVERSATION_NOT_SAVED"

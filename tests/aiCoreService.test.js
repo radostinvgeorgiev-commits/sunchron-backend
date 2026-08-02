@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   DEFAULT_OPENAI_CHAT_MODEL,
   extractOpenAIOutputText,
+  requestOpenAIResponse,
   requestOpenAIText,
 } from "../src/services/aiCoreService.js";
 
@@ -69,5 +70,27 @@ test("allows the final conversation to request stronger reasoning and detail", a
         headers: { "content-type": "application/json" },
       });
     },
+  });
+});
+
+test("returns the provider and model reported by OpenAI", async () => {
+  const result = await requestOpenAIResponse({
+    apiKey: "test-openai-key",
+    input: [{ role: "user", content: "Кой модел работи?" }],
+    model: "requested-model",
+    fetchImpl: async () =>
+      new Response(
+        JSON.stringify({
+          model: "actual-response-model",
+          output_text: "Проверено.",
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+  });
+
+  assert.deepEqual(result, {
+    text: "Проверено.",
+    provider: "openai",
+    model: "actual-response-model",
   });
 });

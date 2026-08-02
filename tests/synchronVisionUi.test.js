@@ -138,3 +138,16 @@ test("the chat keeps a successful answer visible when conversation persistence f
   assert.match(script, /showConversationPersistenceWarning\(responseBubble\)/u);
   assert.match(css, /\.conversation-persistence-warning/u);
 });
+
+test("each live AI answer shows its verified provider and model", async () => {
+  const [script, css] = await Promise.all([
+    readFile(new URL("../public/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(script, /showAiResponseSource\(/u);
+  assert.match(script, /parsed\.data\?\.provider/u);
+  assert.match(script, /parsed\.data\?\.model/u);
+  assert.match(script, /AI доставчик и модел/u);
+  assert.match(css, /\.ai-response-source/u);
+});

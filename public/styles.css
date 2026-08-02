@@ -632,6 +632,13 @@ input {
     line-height: 1.4;
 }
 
+.ai-response-source {
+  margin-top: 6px;
+  color: var(--muted-text, #6b7280);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .user-turn {
     max-width: 82%;
     align-self: flex-end;

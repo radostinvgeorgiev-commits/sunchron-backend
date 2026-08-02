@@ -36,6 +36,17 @@ test("rejects unknown actions", () => {
   assert.equal(isAllowedAction(""), false);
 });
 
+test("allows only the exact confirmed DigitalOcean www domain action", () => {
+  assert.equal(
+    isAllowedAction("infrastructure.digitalocean:add_www_domain"),
+    true,
+  );
+  assert.equal(
+    isAllowedAction("infrastructure.digitalocean:add_other_domain"),
+    false,
+  );
+});
+
 test("blocks every legacy direct GitHub write action", () => {
   for (const action of [
     "github.write:create_file",

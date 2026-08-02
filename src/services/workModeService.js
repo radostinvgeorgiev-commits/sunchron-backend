@@ -192,6 +192,22 @@ export function isWorkContextStatusRequest(message) {
   return asksForStatus && mentionsContext && asksForCurrent;
 }
 
+export function isRuntimeAiIdentityRequest(message) {
+  const text = cleanText(message, 500).toLocaleLowerCase("bg-BG");
+  if (!text) return false;
+  const asksForIdentity =
+    /(?:кой|какъв|каква|кажи|покажи|посочи|използва|работи|доставчик|provider)/u.test(
+      text,
+    );
+  const mentionsRuntime =
+    /(?:ai|изкуствен интелект|доставчик|provider|модел)/u.test(text);
+  const refersToCurrentReply =
+    /(?:този разговор|текущ(?:ия|ият)|реалн|в момента|използва|работи)/u.test(
+      text,
+    );
+  return asksForIdentity && mentionsRuntime && refersToCurrentReply;
+}
+
 export function buildWorkContextStatusReply(value) {
   const context = sanitizeWorkContext(value);
   if (!context) {
@@ -236,6 +252,7 @@ export function routeSelectedWorkAgentCapabilities(requests, value, message) {
   const nonCodeRequests = safeRequests.filter(
     ({ capability }) => !String(capability || "").startsWith("code."),
   );
+  if (isRuntimeAiIdentityRequest(message)) return nonCodeRequests;
   return [
     {
       capability: "code.analyze",

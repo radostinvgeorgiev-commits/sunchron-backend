@@ -92,6 +92,7 @@ import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 import {
   buildWorkContextStatusReply,
   buildWorkModeContext,
+  isRuntimeAiIdentityRequest,
   isWorkContextStatusRequest,
   normalizeInteractionMode,
   resolveWorkAgentModel,
@@ -1505,7 +1506,9 @@ router.post("/chat", async (req, res) => {
       reasoningEffort: "low",
       verbosity: "medium",
     });
-    const fullReply = aiResponse.text;
+    const fullReply = isRuntimeAiIdentityRequest(cleanMessage)
+      ? `Този отговор реално е обработен от ${aiResponse.provider} · ${aiResponse.model}.`
+      : aiResponse.text;
     sendEvent("token", { token: fullReply });
     if (!fullReply.trim()) {
       throw new Error("AI ядрото приключи без текстов отговор.");

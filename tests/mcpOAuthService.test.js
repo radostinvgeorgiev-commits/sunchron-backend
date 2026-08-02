@@ -13,6 +13,7 @@ import {
   getMcpProtectedResourceMetadata,
   isMcpOAuthConfigured,
   MCP_GITHUB_WRITE_SCOPE,
+  MCP_INFRASTRUCTURE_WRITE_SCOPE,
   MCP_READ_SCOPE,
   requiresPersistentMcpReplayGuard,
   resetMcpOAuthStateForTests,
@@ -89,7 +90,11 @@ test("publishes OAuth 2.1 protected-resource and authorization metadata", () => 
   assert.deepEqual(getMcpProtectedResourceMetadata(ENV), {
     resource: ENV.MCP_RESOURCE_URL,
     authorization_servers: ["https://synchron.foundation"],
-    scopes_supported: [MCP_READ_SCOPE, MCP_GITHUB_WRITE_SCOPE],
+    scopes_supported: [
+      MCP_READ_SCOPE,
+      MCP_GITHUB_WRITE_SCOPE,
+      MCP_INFRASTRUCTURE_WRITE_SCOPE,
+    ],
   });
   const authorization = getMcpAuthorizationServerMetadata(ENV);
   assert.equal(
@@ -134,8 +139,7 @@ test("uses an explicit dedicated or legacy fallback OAuth key mode", () => {
         { id: "owner-id", memoryOwnerId: "primary-user", role: "owner" },
         { ...ENV, MCP_OAUTH_SECRET: "too-short" },
       ),
-    (error) =>
-      error.code === "temporarily_unavailable" && error.status === 503,
+    (error) => error.code === "temporarily_unavailable" && error.status === 503,
   );
 });
 
@@ -342,24 +346,29 @@ test("exchanges a one-time PKCE code for an opaque owner-scoped token", async ()
   );
 });
 
-test("blocks write authorization for a tester identity", async () => {
-  const request = await validateMcpAuthorizationRequest(
-    authorizationInput([MCP_GITHUB_WRITE_SCOPE]),
-    { env: ENV, fetchImpl: clientMetadataFetch },
-  );
-  assert.throws(
-    () =>
-      createMcpAuthorizationCode(
-        request,
-        {
-          id: "tester-id",
-          memoryOwnerId: "supabase:tester-id",
-          role: "tester",
-        },
-        ENV,
-      ),
-    (error) => error.code === "access_denied",
-  );
+test("blocks every write authorization for a tester identity", async () => {
+  for (const scope of [
+    MCP_GITHUB_WRITE_SCOPE,
+    MCP_INFRASTRUCTURE_WRITE_SCOPE,
+  ]) {
+    const request = await validateMcpAuthorizationRequest(
+      authorizationInput([scope]),
+      { env: ENV, fetchImpl: clientMetadataFetch },
+    );
+    assert.throws(
+      () =>
+        createMcpAuthorizationCode(
+          request,
+          {
+            id: "tester-id",
+            memoryOwnerId: "supabase:tester-id",
+            role: "tester",
+          },
+          ENV,
+        ),
+      (error) => error.code === "access_denied",
+    );
+  }
 });
 
 test("distinguishes an invalid token from a valid token without scope", async () => {

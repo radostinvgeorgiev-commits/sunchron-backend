@@ -44,7 +44,7 @@ test("MCP initialize and tool discovery work without credentials", async () => {
     .post("/mcp")
     .send({ jsonrpc: "2.0", id: 2, method: "tools/list" })
     .expect(200);
-  assert.equal(listed.body.result.tools.length, 11);
+  assert.equal(listed.body.result.tools.length, 13);
   assert.equal(listed.body.result.tools[0].securitySchemes[0].type, "oauth2");
 });
 
@@ -150,6 +150,8 @@ test("authorization consent issues a code bound to the browser profile", async (
   );
   const consent = await request(app).get("/oauth/authorize").expect(200);
   assert.match(consent.text, /Свързване на ChatGPT със AI CORE/u);
+  assert.match(consent.text, /Четене на разрешените данни/u);
+  assert.match(consent.text, /отделно точно потвърждение/u);
   const csrf = consent.text.match(/name="csrf_token" value="([^"]+)"/u)?.[1];
   assert.ok(csrf);
   const approved = await request(app)

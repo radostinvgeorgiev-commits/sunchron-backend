@@ -10,740 +10,198 @@ import { getOpenSearchClient } from "../config/opensearch.js";
 export const DEFAULT_MCP_RESOURCE_URL = "https://synchron.foundation/mcp";
 export const MCP_READ_SCOPE = "synchron:read";
 export const MCP_GITHUB_WRITE_SCOPE = "synchron:github.write";
+export const MCP_INFRASTRUCTURE_WRITE_SCOPE = "synchron:infrastructure.write";
 export const MCP_SCOPES = Object.freeze([
   MCP_READ_SCOPE,
   MCP_GITHUB_WRITE_SCOPE,
+  MCP_INFRASTRUCTURE_WRITE_SCOPE,
 ]);
+const MCP_OWNER_ONLY_SCOPES = Object.freeze([
+  MCP_GITHUB_WRITEÛv¶‰ËkºwµçY˜[ÙNÂˆÛÛœİÜİH\›šÜİ˜[YKÓİÙ\Ø\ÙJ
+NÂˆ™]\›ˆ
+ˆÜİOOH˜Ú]Ü˜ÛÛHˆˆÜİ™[™ÕÚ]
+‹˜Ú]Ü˜ÛÛHŠHˆÜİOOH›Ü[˜ZK˜ÛÛHˆˆÜİ™[™ÕÚ]
+‹›Ü[˜ZK˜ÛÛHŠBˆ
+NÂˆHØ]ÚÂˆ™]\›ˆ˜[ÙNÂˆBŸB‚™^Ü\Ş[˜È[˜İ[Ûˆ˜[Y]SXÜ]]Üš^˜][Û”™\]Y\İ
+ˆ[œ]ˆÈ[ˆH›ØÙ\ÜË™[‹™]Ú[\H™]ÚHHßKŠHÂˆÛÛœİ™\Ûİ\˜ÙHH™\ÛÛ™SXÜ™\Ûİ\˜ÙU\›
+[ŠNÂˆÛÛœİÛY[YHİš[™Ê[œ]Ë˜ÛY[ÚYˆŠKš[J
+NÂˆÛÛœİ™Y\™Xİ\šHHİš[™Ê[œ]Ëœ™Y\™Xİİ\šHˆŠKš[J
+NÂˆÛÛœİİ]HHİš[™Ê[œ]Ëœİ]HˆŠKš[J
+NÂˆÛÛœİÛÙPÚ[[™ÙHHİš[™Ê[œ]Ë˜ÛÙWØÚ[[™ÙHˆŠKš[J
+NÂ‚ˆYˆ
+[œ]Ëœ™\ÜÛœÙWİ\HOOH˜ÛÙHŠHÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠ´'ô/´-4-4b´`4-´,4`t-H4`t,4/4/ˆ]]Üš^˜][ÛˆÛÙKˆŠNÂˆBˆYˆ
+Z\Ğ[İÙYÜ[ZPÛY[Y
+ÛY[Y
+JHÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠ´'t-t/ô/´-ô/t,4`ˆĞ]]4.´.ô.4-t/t`‹ˆ‹š[˜[YØÛY[ŠNÂˆBˆYˆ
+\İ]Hİ]K›[™İˆWÌ
+HÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠ´&ô.4/ô`t,´,4,´,4.ô.4-4/t/ˆĞ]]4`tb´`t`´/´cô/t.4-KˆŠNÂˆBˆYˆ
+ˆ[œ]Ë˜ÛÙWØÚ[[™ÙWÛY]ÙOOH”ÌMˆˆˆK×–ĞKV˜K^ŒNWËW^ÍËLIİK\İ
+ÛÙPÚ[[™ÙJBˆ
+HÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠ´&4-ô.4`t.´,´,4`t-HĞÑHÌM‹ˆŠNÂˆBˆYˆ
+İš[™Ê[œ]Ëœ™\Ûİ\˜ÙHˆŠHOOH™\Ûİ\˜ÙJHÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠ´'t-t,´,4.ô.4-4-t/HPÔ™\Ûİ\˜ÙKˆ‹š[˜[Yİ\™Ù]ŠNÂˆB‚ˆ]Y]Y]NÂˆHÂˆÛÛœİ™\ÜÛœÙHH]ØZ]™]Ú[\
+ÛY[YÂˆXY\œÎˆÈXØÙ\ˆ˜\XØ][Û‹ÚœÛÛˆˆKˆ™Y\™Xİˆ™\œ›Üˆ‹ˆÚYÛ˜[ˆX›ÜÚYÛ˜[[Y[İ]
+WÌ
+KˆJNÂˆYˆ
+\™\ÜÛœÙK›ÚÊH›İÈ™]È\œ›ÜŠÓQS•ÓQUQUWÕSURSP“HŠNÂˆY]Y]HH]ØZ]™\ÜÛœÙKšœÛÛŠ
+NÂˆHØ]ÚÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠˆ“Ğ]]4.´.ô.4-t/t`´b´`ˆ4/t-H4/4/´-´-H4-4,4,tb´-4-H4/ô`4/´,´-t`4-t/Kˆ‹ˆˆš[˜[YØÛY[‹ˆ
+NÂˆB‚ˆYˆ
+ˆY]Y]OË˜ÛY[ÚYOOHÛY[Yˆ\[ÙˆY]Y]OË˜ÛY[Û˜[YHOOHœİš[™Èˆˆ[Y]Y]K˜ÛY[Û˜[YKš[J
+HˆP\œ˜^Kš\Ğ\œ˜^JY]Y]Kœ™Y\™Xİİ\š\ÊHˆ[Y]Y]Kœ™Y\™Xİİ\š\Ëš[˜ÛY\Ê™Y\™Xİ\šJHˆJˆY]Y]KÚÙ[—Ù[™Ú[Ø]]ÛY]ÙOOH››Û™HˆˆY]Y]KÚÙ[—Ù[™Ú[Ø]]ÛY]Ù×Üİ\ÜYËš[˜ÛY\ÏËŠ››Û™HŠBˆ
+Bˆ
+HÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠˆ“Ğ]]Ø[˜XÚÈ4,4-4`4-t`tb´`ˆ4/t-H4-H4`4,4-ô`4-tb4-t/H4/´`ˆ4.´.ô.4-t/t`´,ˆ‹ˆˆš[˜[YØÛY[‹ˆ
+NÂˆB‚ˆ™]\›ˆÂˆÛY[YˆÛY[˜[YNˆY]Y]K˜ÛY[Û˜[YKš[J
+Kˆ™Y\™Xİ\šKˆİ]KˆÛÙPÚ[[™ÙKˆ™\Ûİ\˜ÙKˆØÛÜ\Îˆ\œÙTØÛÜ\Ê[œ]ËœØÛÜJKˆNÂŸB‚™^Ü[˜İ[ÛˆÜ™X]SXÜ]]Üš^˜][ÛÛÙJˆ™\]Y\İˆY[]Kˆ[ˆH›ØÙ\ÜË™[‹ŠHÂˆYˆ
+ZY[]OËšYZY[]OË›Y[[ÜSİÛ™\’YZY[]OËœ›ÛJHÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠ´&ô.4/ô`t,´,4,´,4.ô.4-4-t/HÖSÒ“Ó‹V4/ô`4/´a4.4.Ëˆ‹JNÂˆBˆYˆ
+™\]Z\™\ÓİÛ™\”›ÛJ™\]Y\İœØÛÜ\ÊH	‰ˆY[]Kœ›ÛHOOH›İÛ™\ˆŠHÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠˆ“PÔ4-ô,4/ô.4`tb´`ˆ4-H4-4/´`t`´b´/ô-t/H4`t,4/4/ˆ4-ô,4`t/´,t`t`´,´-t/t.4.´,ˆ‹ˆËˆ˜XØÙ\Ü×Ù[šYY‹ˆ
+NÂˆBˆÛÛœİ›İÈHX]™›ÛÜŠ]K››İÊ
+HÈWÌ
+NÂˆ™]\›ˆ[˜Ü\^[ØY
+ˆœŞXÛÙH‹ˆÂˆ\ˆ˜]]Üš^˜][Û—ØÛÙH‹ˆNˆ˜[™ÛP]\ÊN
+KÔİš[™Ê˜˜\ÙM\›ŠKˆ\ÜÎˆ™\ÛÛ™SXÜ\ÜİY\•\›
+[ŠKˆ]Yˆ™\]Y\İœ™\Ûİ\˜ÙKˆÛY[Yˆ™\]Y\İ˜ÛY[Yˆ™Y\™Xİ\šNˆ™\]Y\İœ™Y\™Xİ\šKˆÛÙPÚ[[™ÙNˆ™\]Y\İ˜ÛÙPÚ[[™ÙKˆØÛÜ\Îˆ™\]Y\İœØÛÜ\ËˆİXš™Xİˆİš[™ÊY[]KšY
+KˆY[[ÜSİÛ™\’Yˆİš[™ÊY[]K›Y[[ÜSİÛ™\’Y
+Kˆ›ÛNˆİš[™ÊY[]Kœ›ÛJKˆX]ˆ›İËˆ^ˆ›İÈ
+ÈUUÔ’VUSÓ—ĞÓÑWÕÔÑPÓÓ‘ËˆKˆÜ˜[ÙXÜ™]
+[ŠKˆ
+NÂŸB‚™[˜İ[ÛˆØY™Tİš[™Ñ\]X[
+YšYÚ
+HÂˆÛÛœİHHY™™\‹™œ›ÛJİš[™ÊY
+K]ŠNÂˆÛÛœİˆHY™™\‹™œ›ÛJİš[™ÊšYÚ
+K]ŠNÂˆ™]\›ˆK›[™İOOH‹›[™İ	‰ˆ[Z[™ÔØY™Q\]X[
+KŠNÂŸB‚™[˜İ[ÛˆØ\ÕÚÙ[ÛÛœİ[YY
+İÜ™KÚÙ[’Y›İÊHÂˆ›Üˆ
+ÛÛœİÜİÜ™YY^\™\Ğ]HÙˆİÜ™JHÂˆYˆ
+^\™\Ğ]H›İÊHİÜ™K™[]JİÜ™YY
+NÂˆBˆ™]\›ˆİÜ™Kš\ÊÚÙ[’Y
+NÂŸB‚™[˜İ[ÛˆX\šÕÚÙ[ÛÛœİ[YY
+İÜ™KÚÙ[’Y^\™\Ğ]
+HÂˆİÜ™KœÙ]
+ÚÙ[’Y^\™\Ğ]
+NÂˆÚ[H
+İÜ™KœÚ^™HˆPVĞÓÓ”ÕSQQÕÒÑS—Ô‘PÓÔ‘ÊHÂˆİÜ™K™[]JİÜ™KšÙ^\Ê
+K›™^
 
-const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
-const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
-const AUTHORIZATION_CODE_TTL_SECONDS = 5 * 60;
-const MAX_CONSUMED_TOKEN_RECORDS = 10_000;
-const REPLAY_CLEANUP_INTERVAL_SECONDS = 6 * 60 * 60;
-const MCP_OAUTH_REPLAY_INDEX =
-  process.env.MCP_OAUTH_REPLAY_INDEX || "synchron-mcp-oauth-replay-v1";
-const consumedAuthorizationCodes = new Map();
-const consumedRefreshTokens = new Map();
-let lastReplayCleanupAt = 0;
-let activeReplayCleanup = null;
+K˜[YJNÂˆBŸB‚™[˜İ[Ûˆ™\^TİÜ™JÜ˜[\JHÂˆ™]\›ˆÜ˜[\HOOH˜]]Üš^˜][Û—ØÛÙH‚ˆÈÛÛœİ[YY]]Üš^˜][ÛÛÙ\ÂˆˆÛÛœİ[YY™Yœ™\ÚÚÙ[œÎÂŸB‚™[˜İ[Ûˆ™\^T™XÛÜ™Y
+Ü˜[\KÚÙ[’Y
+HÂˆ™]\›ˆÜ™X]R\Ú
+œÚLMˆŠBˆ\]Jİš[™ÊÜ˜[\JJBˆ\]J—ŠBˆ\]Jİš[™ÊÚÙ[’Y
+JBˆ™YÙ\İ
+š^ŠNÂŸB‚™[˜İ[ÛˆÜ[”ÙX\˜Úİ]\Ê\œ›ÜŠHÂˆ™]\›ˆ\œ›ÜËœİ]\ĞÛÙH\œ›ÜË›Y]OËœİ]\ĞÛÙHÂŸB‚™^Ü[˜İ[Ûˆ™\]Z\™\Ô\œÚ\İ[XÜ™\^QİX\™
+[ˆH›ØÙ\ÜË™[ŠHÂˆ™]\›ˆ[‹““ÑWÑS•ˆOOHœ›ÙXİ[ÛˆÂŸB‚™^Ü\Ş[˜È[˜İ[ÛˆÛX[\^\™YXÜ™\^T™XÛÜ™ÊÂˆÛY[HÙ]Ü[”ÙX\˜ÚÛY[
 
-export class McpOAuthError extends Error {
-  constructor(
-    message,
-    status = 400,
-    code = "invalid_request",
-    description = message,
-  ) {
-    super(message);
-    this.name = "McpOAuthError";
-    this.status = status;
-    this.code = code;
-    this.description = description;
-  }
-}
+Kˆ[ˆH›ØÙ\ÜË™[‹ˆ›İÈHX]™›ÛÜŠ]K››İÊ
+HÈWÌ
+Kˆ›Ü˜ÙHH˜[ÙKŸHHßJHÂˆYˆ
+XÛY[\[ÙˆÛY[™[]PT]Y\HOOH™[˜İ[ÛˆŠH™]\›ˆ˜[ÙNÂˆYˆ
+Xİ]™T™\^PÛX[\
+H™]\›ˆXİ]™T™\^PÛX[\ÂˆYˆ
+ˆY›Ü˜ÙH	‰‚ˆ\İ™\^PÛX[\]ˆ	‰‚ˆ›İÈH\İ™\^PÛX[\]‘TVWĞÓPS•TÒS•T•SÔÑPÓÓ‘Âˆ
+HÂˆ™]\›ˆ˜[ÙNÂˆB‚ˆ\İ™\^PÛX[\]H›İÎÂˆXİ]™T™\^PÛX[\HÛY[ˆ™[]PT]Y\JÂˆ[™^ˆ[‹“PÔÓĞUUÔ‘TVWÒS‘VPÔÓĞUUÔ‘TVWÒS‘VˆÛÛ™›XİÎˆœ›ØÙYY‹ˆ™Yœ™\Úˆ˜[ÙKˆ›ÙNˆÂˆ]Y\NˆÂˆ˜[™ÙNˆÂˆ^\™\Ğ]ˆÈNˆ™]È]J›İÈ
+ˆWÌ
+KÒTÓÔİš[™Ê
+HKˆKˆKˆKˆJBˆ[Š
 
-function normalizeHttpsUrl(value, fallback = "") {
-  try {
-    const url = new URL(String(value || fallback).trim());
-    if (url.protocol !== "https:") return "";
-    url.hash = "";
-    url.search = "";
-    return url.href.replace(/\/$/u, "");
-  } catch {
-    return "";
-  }
-}
+HOˆYJBˆ˜Ø]Ú
 
-export function resolveMcpResourceUrl(env = process.env) {
-  return (
-    normalizeHttpsUrl(env.MCP_RESOURCE_URL) ||
-    normalizeHttpsUrl(DEFAULT_MCP_RESOURCE_URL)
-  );
-}
+\œ›ÜŠHOˆÂˆYˆ
+Ü[”ÙX\˜Úİ]\Ê\œ›ÜŠHOOH
+HÂˆÛÛœÛÛK™\œ›ÜŠ–ÓPÔĞ]]™\^WH^\™Y\™XÛÜ™ÛX[\˜Z[YˆŠNÂˆBˆ™]\›ˆÜ[”ÙX\˜Úİ]\Ê\œ›ÜŠHOOHÂˆJBˆ™š[˜[J
 
-export function resolveMcpIssuerUrl(env = process.env) {
-  return new URL(resolveMcpResourceUrl(env)).origin;
-}
+HOˆÂˆXİ]™T™\^PÛX[\H[ÂˆJNÂ‚ˆ™]\›ˆXİ]™T™\^PÛX[\ÂŸB‚™^Ü\Ş[˜È[˜İ[ÛˆÛÛœİ[YSXÜÜ˜[Û˜ÙJÂˆÜ˜[\KˆÚÙ[’Yˆ^\™\Ğ]ˆ[ˆH›ØÙ\ÜË™[‹ˆÛY[HÙ]Ü[”ÙX\˜ÚÛY[
 
-function deriveOAuthSecret(label, source) {
-  return createHash("sha256").update(`${label}\0`).update(source).digest();
-}
-
-function legacyOAuthSecret(env = process.env) {
-  const source =
-    typeof env.MCP_ACCESS_TOKEN === "string" ? env.MCP_ACCESS_TOKEN.trim() : "";
-  if (source.length < 32) {
-    throw new McpOAuthError(
-      "MCP OAuth Ğ·Ğ°Ñ‰Ğ¸Ñ‚Ğ°Ñ‚Ğ° Ğ½Ğµ Ğµ ĞºĞ¾Ğ½Ñ„Ğ¸Ğ³ÑƒÑ€Ğ¸Ñ€Ğ°Ğ½Ğ°.",
-      503,
-      "temporarily_unavailable",
-    );
-  }
-  return deriveOAuthSecret("synchron-mcp-oauth-v1", source);
-}
-
-function dedicatedOAuthSecret(env = process.env) {
-  const source =
-    typeof env.MCP_OAUTH_SECRET === "string" ? env.MCP_OAUTH_SECRET.trim() : "";
-  if (!source) return null;
-  if (source.length < 32) {
-    throw new McpOAuthError(
-      "ĞÑ‚Ğ´ĞµĞ»Ğ½Ğ¸ÑÑ‚ MCP OAuth ĞºĞ»ÑÑ‡ Ğµ Ğ½ĞµĞ²Ğ°Ğ»Ğ¸Ğ´ĞµĞ½.",
-      503,
-      "temporarily_unavailable",
-    );
-  }
-  return deriveOAuthSecret("synchron-mcp-oauth-dedicated-v1", source);
-}
-
-function oauthSecret(env = process.env) {
-  return dedicatedOAuthSecret(env) || legacyOAuthSecret(env);
-}
-
-function oauthVerificationSecrets(env = process.env) {
-  const dedicated = dedicatedOAuthSecret(env);
-  if (!dedicated) return [legacyOAuthSecret(env)];
-  const secrets = [dedicated];
-  try {
-    const legacy = legacyOAuthSecret(env);
-    if (!legacy.equals(dedicated)) secrets.push(legacy);
-  } catch {
-    // A dedicated key can run OAuth without enabling the legacy bearer.
-  }
-  return secrets;
-}
-
-function deriveGrantSecret(secret) {
-  return createHash("sha256")
-    .update(secret)
-    .update("synchron-mcp-oauth-grants-v2\0")
-    .digest();
-}
-
-function grantSecret(env = process.env) {
-  return deriveGrantSecret(oauthSecret(env));
-}
-
-function grantVerificationSecrets(env = process.env) {
-  return oauthVerificationSecrets(env).map(deriveGrantSecret);
-}
-
-export function getMcpOAuthSecretMode(env = process.env) {
-  if (dedicatedOAuthSecret(env)) return "dedicated";
-  legacyOAuthSecret(env);
-  return "legacy_fallback";
-}
-
-export function isMcpOAuthConfigured(env = process.env) {
-  try {
-    return Boolean(resolveMcpResourceUrl(env) && oauthSecret(env));
-  } catch {
-    return false;
-  }
-}
-
-export function getMcpProtectedResourceMetadata(env = process.env) {
-  const resource = resolveMcpResourceUrl(env);
-  return {
-    resource,
-    authorization_servers: [resolveMcpIssuerUrl(env)],
-    scopes_supported: MCP_SCOPES,
-  };
-}
-
-export function getMcpAuthorizationServerMetadata(env = process.env) {
-  const issuer = resolveMcpIssuerUrl(env);
-  return {
-    issuer,
-    authorization_endpoint: `${issuer}/oauth/authorize`,
-    token_endpoint: `${issuer}/oauth/token`,
-    client_id_metadata_document_supported: true,
-    token_endpoint_auth_methods_supported: ["none"],
-    response_types_supported: ["code"],
-    grant_types_supported: ["authorization_code", "refresh_token"],
-    code_challenge_methods_supported: ["S256"],
-    scopes_supported: MCP_SCOPES,
-  };
-}
-
-export function requiredScopesForMcpTool(name) {
-  return name === "prepare_github_merged_branch_cleanup" ||
-    name === "confirm_github_merged_branch_cleanup"
-    ? [MCP_GITHUB_WRITE_SCOPE]
-    : [MCP_READ_SCOPE];
-}
-
-export function mcpToolSecuritySchemes(name) {
-  return Object.freeze([
-    Object.freeze({
-      type: "oauth2",
-      scopes: Object.freeze(requiredScopesForMcpTool(name)),
-    }),
-  ]);
-}
-
-export function buildMcpAuthenticateChallenge(
-  scopes = [MCP_READ_SCOPE],
-  env = process.env,
-  { error, description } = {},
-) {
-  const safeHeaderValue = (value) =>
-    String(value).replace(/[^\x20-\x7E]|["\\]/gu, "");
-  const origin = resolveMcpIssuerUrl(env);
-  const values = [
-    `resource_metadata="${origin}/.well-known/oauth-protected-resource"`,
-    `scope="${scopes.join(" ")}"`,
-  ];
-  if (error) values.push(`error="${safeHeaderValue(error)}"`);
-  if (description) {
-    values.push(`error_description="${safeHeaderValue(description)}"`);
-  }
-  return `Bearer ${values.join(", ")}`;
-}
-
-function encryptPayload(prefix, payload, key) {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const ciphertext = Buffer.concat([
-    cipher.update(JSON.stringify(payload), "utf8"),
-    cipher.final(),
-  ]);
-  return `${prefix}.${Buffer.concat([
-    iv,
-    cipher.getAuthTag(),
-    ciphertext,
-  ]).toString("base64url")}`;
-}
-
-function decryptPayload(value, prefix, key) {
-  if (typeof value !== "string" || !value.startsWith(`${prefix}.`)) return null;
-  try {
-    const data = Buffer.from(value.slice(prefix.length + 1), "base64url");
-    if (data.length < 29) return null;
-    const decipher = createDecipheriv("aes-256-gcm", key, data.subarray(0, 12));
-    decipher.setAuthTag(data.subarray(12, 28));
-    const plaintext = Buffer.concat([
-      decipher.update(data.subarray(28)),
-      decipher.final(),
-    ]).toString("utf8");
-    return JSON.parse(plaintext);
-  } catch {
-    return null;
-  }
-}
-
-function decryptPayloadWithFallback(value, prefix, keys) {
-  for (const key of keys) {
-    const payload = decryptPayload(value, prefix, key);
-    if (payload) return payload;
-  }
-  return null;
-}
-
-function parseScopes(value) {
-  const scopes = [...new Set(String(value || MCP_READ_SCOPE).split(/\s+/u))]
-    .map((scope) => scope.trim())
-    .filter(Boolean);
-  if (
-    scopes.length === 0 ||
-    scopes.some((scope) => !MCP_SCOPES.includes(scope))
-  ) {
-    throw new McpOAuthError(
-      "ĞŸĞ¾Ğ¸ÑĞºĞ°Ğ½Ğ¸Ñ‚Ğµ MCP Ğ¿Ñ€Ğ°Ğ²Ğ° Ğ½Ğµ ÑĞµ Ğ¿Ğ¾Ğ´Ğ´ÑŠÑ€Ğ¶Ğ°Ñ‚.",
-      400,
-      "invalid_scope",
-    );
-  }
-  return scopes;
-}
-
-function isAllowedOpenAiClientId(value) {
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:" || url.username || url.password) return false;
-    const host = url.hostname.toLowerCase();
-    return (
-      host === "chatgpt.com" ||
-      host.endsWith(".chatgpt.com") ||
-      host === "openai.com" ||
-      host.endsWith(".openai.com")
-    );
-  } catch {
-    return false;
-  }
-}
-
-export async function validateMcpAuthorizationRequest(
-  input,
-  { env = process.env, fetchImpl = fetch } = {},
-) {
-  const resource = resolveMcpResourceUrl(env);
-  const clientId = String(input?.client_id || "").trim();
-  const redirectUri = String(input?.redirect_uri || "").trim();
-  const state = String(input?.state || "").trim();
-  const codeChallenge = String(input?.code_challenge || "").trim();
-
-  if (input?.response_type !== "code") {
-    throw new McpOAuthError("ĞŸĞ¾Ğ´Ğ´ÑŠÑ€Ğ¶Ğ° ÑĞµ ÑĞ°Ğ¼Ğ¾ authorization code.");
-  }
-  if (!isAllowedOpenAiClientId(clientId)) {
-    throw new McpOAuthError("ĞĞµĞ¿Ğ¾Ğ·Ğ½Ğ°Ñ‚ OAuth ĞºĞ»Ğ¸ĞµĞ½Ñ‚.", 400, "invalid_client");
-  }
-  if (!state || state.length > 1_000) {
-    throw new McpOAuthError("Ğ›Ğ¸Ğ¿ÑĞ²Ğ° Ğ²Ğ°Ğ»Ğ¸Ğ´Ğ½Ğ¾ OAuth ÑÑŠÑÑ‚Ğ¾ÑĞ½Ğ¸Ğµ.");
-  }
-  if (
-    input?.code_challenge_method !== "S256" ||
-    !/^[A-Za-z0-9_-]{43,128}$/u.test(codeChallenge)
-  ) {
-    throw new McpOAuthError("Ğ˜Ğ·Ğ¸ÑĞºĞ²Ğ° ÑĞµ PKCE S256.");
-  }
-  if (String(input?.resource || "") !== resource) {
-    throw new McpOAuthError("ĞĞµĞ²Ğ°Ğ»Ğ¸Ğ´ĞµĞ½ MCP resource.", 400, "invalid_target");
-  }
-
-  let metadata;
-  try {
-    const response = await fetchImpl(clientId, {
-      headers: { Accept: "application/json" },
-      redirect: "error",
-      signal: AbortSignal.timeout(5_000),
-    });
-    if (!response.ok) throw new Error("CLIENT_METADATA_UNAVAILABLE");
-    metadata = await response.json();
-  } catch {
-    throw new McpOAuthError(
-      "OAuth ĞºĞ»Ğ¸ĞµĞ½Ñ‚ÑŠÑ‚ Ğ½Ğµ Ğ¼Ğ¾Ğ¶Ğµ Ğ´Ğ° Ğ±ÑŠĞ´Ğµ Ğ¿Ñ€Ğ¾Ğ²ĞµÑ€ĞµĞ½.",
-      400,
-      "invalid_client",
-    );
-  }
-
-  if (
-    metadata?.client_id !== clientId ||
-    typeof metadata?.client_name !== "string" ||
-    !metadata.client_name.trim() ||
-    !Array.isArray(metadata.redirect_uris) ||
-    !metadata.redirect_uris.includes(redirectUri) ||
-    !(
-      metadata.token_endpoint_auth_method === "none" ||
-      metadata.token_endpoint_auth_methods_supported?.includes?.("none")
-    )
-  ) {
-    throw new McpOAuthError(
-      "OAuth callback Ğ°Ğ´Ñ€ĞµÑÑŠÑ‚ Ğ½Ğµ Ğµ Ñ€Ğ°Ğ·Ñ€ĞµÑˆĞµĞ½ Ğ¾Ñ‚ ĞºĞ»Ğ¸ĞµĞ½Ñ‚Ğ°.",
-      400,
-      "invalid_client",
-    );
-  }
-
-  return {
-    clientId,
-    clientName: metadata.client_name.trim(),
-    redirectUri,
-    state,
-    codeChallenge,
-    resource,
-    scopes: parseScopes(input?.scope),
-  };
-}
-
-export function createMcpAuthorizationCode(
-  request,
-  identity,
-  env = process.env,
-) {
-  if (!identity?.id || !identity?.memoryOwnerId || !identity?.role) {
-    throw new McpOAuthError("Ğ›Ğ¸Ğ¿ÑĞ²Ğ° Ğ²Ğ°Ğ»Ğ¸Ğ´ĞµĞ½ SYNCHRON-X Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ».", 401);
-  }
-  if (
-    request.scopes.includes(MCP_GITHUB_WRITE_SCOPE) &&
-    identity.role !== "owner"
-  ) {
-    throw new McpOAuthError(
-      "GitHub Ğ·Ğ°Ğ¿Ğ¸ÑÑŠÑ‚ Ğµ Ğ´Ğ¾ÑÑ‚ÑŠĞ¿ĞµĞ½ ÑĞ°Ğ¼Ğ¾ Ğ·Ğ° ÑĞ¾Ğ±ÑÑ‚Ğ²ĞµĞ½Ğ¸ĞºĞ°.",
-      403,
-      "access_denied",
-    );
-  }
-  const now = Math.floor(Date.now() / 1_000);
-  return encryptPayload(
-    "sx-code",
-    {
-      typ: "authorization_code",
-      jti: randomBytes(18).toString("base64url"),
-      iss: resolveMcpIssuerUrl(env),
-      aud: request.resource,
-      clientId: request.clientId,
-      redirectUri: request.redirectUri,
-      codeChallenge: request.codeChallenge,
-      scopes: request.scopes,
-      subject: String(identity.id),
-      memoryOwnerId: String(identity.memoryOwnerId),
-      role: String(identity.role),
-      iat: now,
-      exp: now + AUTHORIZATION_CODE_TTL_SECONDS,
-    },
-    grantSecret(env),
-  );
-}
-
-function safeStringEqual(left, right) {
-  const a = Buffer.from(String(left), "utf8");
-  const b = Buffer.from(String(right), "utf8");
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
-function wasTokenConsumed(store, tokenId, now) {
-  for (const [storedId, expiresAt] of store) {
-    if (expiresAt <= now) store.delete(storedId);
-  }
-  return store.has(tokenId);
-}
-
-function markTokenConsumed(store, tokenId, expiresAt) {
-  store.set(tokenId, expiresAt);
-  while (store.size > MAX_CONSUMED_TOKEN_RECORDS) {
-    store.delete(store.keys().next().value);
-  }
-}
-
-function replayStore(grantType) {
-  return grantType === "authorization_code"
-    ? consumedAuthorizationCodes
-    : consumedRefreshTokens;
-}
-
-function replayRecordId(grantType, tokenId) {
-  return createHash("sha256")
-    .update(String(grantType))
-    .update("\0")
-    .update(String(tokenId))
-    .digest("hex");
-}
-
-function openSearchStatus(error) {
-  return error?.statusCode || error?.meta?.statusCode || 0;
-}
-
-export function requiresPersistentMcpReplayGuard(env = process.env) {
-  return env.NODE_ENV === "production";
-}
-
-export async function cleanupExpiredMcpReplayRecords({
-  client = getOpenSearchClient(),
-  env = process.env,
-  now = Math.floor(Date.now() / 1_000),
-  force = false,
-} = {}) {
-  if (!client || typeof client.deleteByQuery !== "function") return false;
-  if (activeReplayCleanup) return activeReplayCleanup;
-  if (
-    !force &&
-    lastReplayCleanupAt > 0 &&
-    now - lastReplayCleanupAt < REPLAY_CLEANUP_INTERVAL_SECONDS
-  ) {
-    return false;
-  }
-
-  lastReplayCleanupAt = now;
-  activeReplayCleanup = client
-    .deleteByQuery({
-      index: env.MCP_OAUTH_REPLAY_INDEX || MCP_OAUTH_REPLAY_INDEX,
-      conflicts: "proceed",
-      refresh: false,
-      body: {
-        query: {
-          range: {
-            expiresAt: { lte: new Date(now * 1_000).toISOString() },
-          },
-        },
-      },
-    })
-    .then(() => true)
-    .catch((error) => {
-      if (openSearchStatus(error) !== 404) {
-        console.error("[MCP OAuth replay] Expired-record cleanup failed.");
-      }
-      return openSearchStatus(error) === 404;
-    })
-    .finally(() => {
-      activeReplayCleanup = null;
-    });
-
-  return activeReplayCleanup;
-}
-
-export async function consumeMcpGrantOnce({
-  grantType,
-  tokenId,
-  expiresAt,
-  env = process.env,
-  client = getOpenSearchClient(),
-}) {
-  const store = replayStore(grantType);
-  const now = Math.floor(Date.now() / 1_000);
-  if (wasTokenConsumed(store, tokenId, now)) return false;
-
-  if (client) {
-    try {
-      const replayIndex = env.MCP_OAUTH_REPLAY_INDEX || MCP_OAUTH_REPLAY_INDEX;
-      await client.create({
-        index: replayIndex,
-        id: replayRecordId(grantType, tokenId),
-        body: {
-          grantType,
-          expiresAt: new Date(expiresAt * 1_000).toISOString(),
-        },
-        refresh: true,
-      });
-      await cleanupExpiredMcpReplayRecords({ client, env, now });
-    } catch (error) {
-      if (openSearchStatus(error) === 409) return false;
-      if (requiresPersistentMcpReplayGuard(env)) {
-        throw new McpOAuthError(
-          "MCP OAuth ĞµĞ´Ğ½Ğ¾ĞºÑ€Ğ°Ñ‚Ğ½Ğ°Ñ‚Ğ° Ğ·Ğ°Ñ‰Ğ¸Ñ‚Ğ° Ğ²Ñ€ĞµĞ¼ĞµĞ½Ğ½Ğ¾ Ğ½Ğµ Ğµ Ğ´Ğ¾ÑÑ‚ÑŠĞ¿Ğ½Ğ°.",
-          503,
-          "temporarily_unavailable",
-        );
-      }
-    }
-  } else if (requiresPersistentMcpReplayGuard(env)) {
-    throw new McpOAuthError(
-      "MCP OAuth ĞµĞ´Ğ½Ğ¾ĞºÑ€Ğ°Ñ‚Ğ½Ğ°Ñ‚Ğ° Ğ·Ğ°Ñ‰Ğ¸Ñ‚Ğ° Ğ½Ğµ Ğµ ĞºĞ¾Ğ½Ñ„Ğ¸Ğ³ÑƒÑ€Ğ¸Ñ€Ğ°Ğ½Ğ°.",
-      503,
-      "temporarily_unavailable",
-    );
-  }
-
-  markTokenConsumed(store, tokenId, expiresAt);
-  return true;
-}
-
-function createAccessAndRefreshTokens(payload, env, now) {
-  const accessToken = encryptPayload(
-    "sx-token",
-    {
-      typ: "access_token",
-      iss: payload.iss,
-      aud: payload.aud,
-      clientId: payload.clientId,
-      scopes: payload.scopes,
-      subject: payload.subject,
-      memoryOwnerId: payload.memoryOwnerId,
-      role: payload.role,
-      iat: now,
-      nbf: now - 5,
-      exp: now + ACCESS_TOKEN_TTL_SECONDS,
-    },
-    oauthSecret(env),
-  );
-  const refreshToken = encryptPayload(
-    "sx-refresh",
-    {
-      typ: "refresh_token",
-      jti: randomBytes(18).toString("base64url"),
-      iss: payload.iss,
-      aud: payload.aud,
-      clientId: payload.clientId,
-      scopes: payload.scopes,
-      subject: payload.subject,
-      memoryOwnerId: payload.memoryOwnerId,
-      role: payload.role,
-      iat: now,
-      exp: now + REFRESH_TOKEN_TTL_SECONDS,
-    },
-    grantSecret(env),
-  );
-  return {
-    access_token: accessToken,
-    refresh_token: refreshToken,
-    token_type: "Bearer",
-    expires_in: ACCESS_TOKEN_TTL_SECONDS,
-    scope: payload.scopes.join(" "),
-  };
-}
-
-export async function exchangeMcpAuthorizationCode(
-  input,
-  env = process.env,
-  { consumeGrant = consumeMcpGrantOnce } = {},
-) {
-  const code = String(input?.code || "");
-  const payload = decryptPayloadWithFallback(
-    code,
-    "sx-code",
-    grantVerificationSecrets(env),
-  );
-  const now = Math.floor(Date.now() / 1_000);
-  if (
-    !payload ||
-    payload.typ !== "authorization_code" ||
-    payload.iss !== resolveMcpIssuerUrl(env) ||
-    payload.aud !== resolveMcpResourceUrl(env) ||
-    payload.exp <= now
-  ) {
-    throw new McpOAuthError(
-      "ĞĞµĞ²Ğ°Ğ»Ğ¸Ğ´ĞµĞ½ Ğ¸Ğ»Ğ¸ Ğ¸Ğ·Ñ‚ĞµĞºÑŠĞ» authorization code.",
-      400,
-      "invalid_grant",
-    );
-  }
-  if (
-    input?.grant_type !== "authorization_code" ||
-    !safeStringEqual(input?.client_id, payload.clientId) ||
-    !safeStringEqual(input?.redirect_uri, payload.redirectUri) ||
-    !safeStringEqual(input?.resource, payload.aud)
-  ) {
-    throw new McpOAuthError(
-      "Authorization code Ğ½Ğµ ÑÑŠĞ²Ğ¿Ğ°Ğ´Ğ° ÑÑŠÑ Ğ·Ğ°ÑĞ²ĞºĞ°Ñ‚Ğ°.",
-      400,
-      "invalid_grant",
-    );
-  }
-  const verifier = String(input?.code_verifier || "");
-  if (!/^[A-Za-z0-9._~-]{43,128}$/u.test(verifier)) {
-    throw new McpOAuthError("ĞĞµĞ²Ğ°Ğ»Ğ¸Ğ´ĞµĞ½ PKCE verifier.", 400, "invalid_grant");
-  }
-  const challenge = createHash("sha256").update(verifier).digest("base64url");
-  if (!safeStringEqual(challenge, payload.codeChallenge)) {
-    throw new McpOAuthError(
-      "PKCE Ğ¿Ñ€Ğ¾Ğ²ĞµÑ€ĞºĞ°Ñ‚Ğ° Ğµ Ğ½ĞµÑƒÑĞ¿ĞµÑˆĞ½Ğ°.",
-      400,
-      "invalid_grant",
-    );
-  }
-
-  const consumed = await consumeGrant({
-    grantType: "authorization_code",
-    tokenId: payload.jti,
-    expiresAt: payload.exp,
-    env,
-  });
-  if (!consumed) {
-    throw new McpOAuthError(
-      "ĞĞµĞ²Ğ°Ğ»Ğ¸Ğ´ĞµĞ½ Ğ¸Ğ»Ğ¸ Ğ¸Ğ·Ñ‚ĞµĞºÑŠĞ» authorization code.",
-      400,
-      "invalid_grant",
-    );
-  }
-  return createAccessAndRefreshTokens(payload, env, now);
-}
-
-export async function exchangeMcpRefreshToken(
-  input,
-  env = process.env,
-  { consumeGrant = consumeMcpGrantOnce } = {},
-) {
-  const payload = decryptPayloadWithFallback(
-    String(input?.refresh_token || ""),
-    "sx-refresh",
-    grantVerificationSecrets(env),
-  );
-  const now = Math.floor(Date.now() / 1_000);
-  if (
-    !payload ||
-    payload.typ !== "refresh_token" ||
-    payload.iss !== resolveMcpIssuerUrl(env) ||
-    payload.aud !== resolveMcpResourceUrl(env) ||
-    payload.exp <= now ||
-    !safeStringEqual(input?.client_id, payload.clientId) ||
-    !safeStringEqual(input?.resource, payload.aud)
-  ) {
-    throw new McpOAuthError(
-      "ĞĞµĞ²Ğ°Ğ»Ğ¸Ğ´ĞµĞ½ Ğ¸Ğ»Ğ¸ Ğ¸Ğ·Ñ‚ĞµĞºÑŠĞ» refresh token.",
-      400,
-      "invalid_grant",
-    );
-  }
-  const consumed = await consumeGrant({
-    grantType: "refresh_token",
-    tokenId: payload.jti,
-    expiresAt: payload.exp,
-    env,
-  });
-  if (!consumed) {
-    throw new McpOAuthError(
-      "ĞĞµĞ²Ğ°Ğ»Ğ¸Ğ´ĞµĞ½ Ğ¸Ğ»Ğ¸ Ğ¸Ğ·Ñ‚ĞµĞºÑŠĞ» refresh token.",
-      400,
-      "invalid_grant",
-    );
-  }
-  return createAccessAndRefreshTokens(payload, env, now);
-}
-
-export async function exchangeMcpToken(input, env = process.env) {
-  if (input?.grant_type === "authorization_code") {
-    return exchangeMcpAuthorizationCode(input, env);
-  }
-  if (input?.grant_type === "refresh_token") {
-    return exchangeMcpRefreshToken(input, env);
-  }
-  throw new McpOAuthError(
-    "ĞĞµĞ¿Ğ¾Ğ´Ğ´ÑŠÑ€Ğ¶Ğ°Ğ½ OAuth grant.",
-    400,
-    "unsupported_grant_type",
-  );
-}
-
-export function verifyMcpAccessToken(
-  authorizationHeader,
-  requiredScopes = [MCP_READ_SCOPE],
-  env = process.env,
-) {
-  if (
-    typeof authorizationHeader !== "string" ||
-    !authorizationHeader.startsWith("Bearer ")
-  ) {
-    return null;
-  }
-  const payload = decryptPayloadWithFallback(
-    authorizationHeader.slice(7),
-    "sx-token",
-    oauthVerificationSecrets(env),
-  );
-  const now = Math.floor(Date.now() / 1_000);
-  if (
-    !payload ||
-    payload.typ !== "access_token" ||
-    payload.iss !== resolveMcpIssuerUrl(env) ||
-    payload.aud !== resolveMcpResourceUrl(env) ||
-    payload.nbf > now ||
-    payload.exp <= now ||
-    !Array.isArray(payload.scopes) ||
-    !payload.subject ||
-    !payload.memoryOwnerId ||
-    !["owner", "member", "tester"].includes(payload.role)
-  ) {
-    throw new McpOAuthError(
-      "ĞĞµĞ²Ğ°Ğ»Ğ¸Ğ´ĞµĞ½ Ğ¸Ğ»Ğ¸ Ğ¸Ğ·Ñ‚ĞµĞºÑŠĞ» MCP token.",
-      401,
-      "invalid_token",
-    );
-  }
-  if (
-    requiredScopes.some((scope) => !payload.scopes.includes(scope)) ||
-    (requiredScopes.includes(MCP_GITHUB_WRITE_SCOPE) &&
-      payload.role !== "owner")
-  ) {
-    throw new McpOAuthError(
-      "MCP token Ğ½ÑĞ¼Ğ° Ğ½ĞµĞ¾Ğ±Ñ…Ğ¾Ğ´Ğ¸Ğ¼Ğ¸Ñ‚Ğµ Ğ¿Ñ€Ğ°Ğ²Ğ°.",
-      403,
-      "insufficient_scope",
-    );
-  }
-  return {
-    id: payload.subject,
-    memoryOwnerId: payload.memoryOwnerId,
-    role: payload.role,
-    scopes: payload.scopes,
-    clientId: payload.clientId,
-  };
-}
-
-export function resetMcpOAuthStateForTests() {
-  consumedAuthorizationCodes.clear();
-  consumedRefreshTokens.clear();
-  lastReplayCleanupAt = 0;
-  activeReplayCleanup = null;
-}
+KŸJHÂˆÛÛœİİÜ™HH™\^TİÜ™JÜ˜[\JNÂˆÛÛœİ›İÈHX]™›ÛÜŠ]K››İÊ
+HÈWÌ
+NÂˆYˆ
+Ø\ÕÚÙ[ÛÛœİ[YY
+İÜ™KÚÙ[’Y›İÊJH™]\›ˆ˜[ÙNÂ‚ˆYˆ
+ÛY[
+HÂˆHÂˆÛÛœİ™\^R[™^H[‹“PÔÓĞUUÔ‘TVWÒS‘VPÔÓĞUUÔ‘TVWÒS‘VÂˆ]ØZ]ÛY[˜Ü™X]JÂˆ[™^ˆ™\^R[™^ˆYˆ™\^T™XÛÜ™Y
+Ü˜[\KÚÙ[’Y
+Kˆ›ÙNˆÂˆÜ˜[\Kˆ^\™\Ğ]ˆ™]È]J^\™\Ğ]
+ˆWÌ
+KÒTÓÔİš[™Ê
+KˆKˆ™Yœ™\ÚˆYKˆJNÂˆ]ØZ]ÛX[\^\™YXÜ™\^T™XÛÜ™ÊÈÛY[[‹›İÈJNÂˆHØ]Ú
+\œ›ÜŠHÂˆYˆ
+Ü[”ÙX\˜Úİ]\Ê\œ›ÜŠHOOHJH™]\›ˆ˜[ÙNÂˆYˆ
+™\]Z\™\Ô\œÚ\İ[XÜ™\^QİX\™
+[ŠJHÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠˆ“PÔĞ]]4-t-4/t/´.´`4,4`´/t,4`´,4-ô,4bt.4`´,4,´`4-t/4-t/t/t/ˆ4/t-H4-H4-4/´`t`´b´/ô/t,ˆ‹ˆLËˆ[\Ü˜\š[Wİ[˜]˜Z[X›H‹ˆ
+NÂˆBˆBˆH[ÙHYˆ
+™\]Z\™\Ô\œÚ\İ[XÜ™\^QİX\™
+[ŠJHÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠˆ“PÔĞ]]4-t-4/t/´.´`4,4`´/t,4`´,4-ô,4bt.4`´,4/t-H4-H4.´/´/ta4.4,ô`ô`4.4`4,4/t,ˆ‹ˆLËˆ[\Ü˜\š[Wİ[˜]˜Z[X›H‹ˆ
+NÂˆB‚ˆX\šÕÚÙ[ÛÛœİ[YY
+İÜ™KÚÙ[’Y^\™\Ğ]
+NÂˆ™]\›ˆYNÂŸB‚™[˜İ[ÛˆÜ™X]PXØÙ\ÜĞ[™™Yœ™\ÚÚÙ[œÊ^[ØY[‹›İÊHÂˆÛÛœİXØÙ\ÜÕÚÙ[ˆH[˜Ü\^[ØY
+ˆœŞ]ÚÙ[ˆ‹ˆÂˆ\ˆ˜XØÙ\Ü×İÚÙ[ˆ‹ˆ\ÜÎˆ^[ØYš\ÜËˆ]Yˆ^[ØY˜]YˆÛY[Yˆ^[ØY˜ÛY[YˆØÛÜ\Îˆ^[ØYœØÛÜ\ËˆİXš™Xİˆ^[ØYœİXš™XİˆY[[ÜSİÛ™\’Yˆ^[ØY›Y[[ÜSİÛ™\’Yˆ›ÛNˆ^[ØYœ›ÛKˆX]ˆ›İËˆ˜™ˆ›İÈHKˆ^ˆ›İÈ
+ÈPĞÑTÔ×ÕÒÑS—ÕÔÑPÓÓ‘ËˆKˆØ]]ÙXÜ™]
+[ŠKˆ
+NÂˆÛÛœİ™Yœ™\ÚÚÙ[ˆH[˜Ü\^[ØY
+ˆœŞ\™Yœ™\Ú‹ˆÂˆ\ˆœ™Yœ™\ÚİÚÙ[ˆ‹ˆNˆ˜[™ÛP]\ÊN
+KÔİš[™Ê˜˜\ÙM\›ŠKˆ\ÜÎˆ^[ØYš\ÜËˆ]Yˆ^[ØY˜]YˆÛY[Yˆ^[ØY˜ÛY[YˆØÛÜ\Îˆ^[ØYœØÛÜ\ËˆİXš™Xİˆ^[ØYœİXš™XİˆY[[ÜSİÛ™\’Yˆ^[ØY›Y[[ÜSİÛ™\’Yˆ›ÛNˆ^[ØYœ›ÛKˆX]ˆ›İËˆ^ˆ›İÈ
+È‘Q”‘TÒÕÒÑS—ÕÔÑPÓÓ‘ËˆKˆÜ˜[ÙXÜ™]
+[ŠKˆ
+NÂˆ™]\›ˆÂˆXØÙ\Ü×İÚÙ[ˆXØÙ\ÜÕÚÙ[‹ˆ™Yœ™\ÚİÚÙ[ˆ™Yœ™\ÚÚÙ[‹ˆÚÙ[—İ\Nˆ™X\™\ˆ‹ˆ^\™\×Ú[ˆPĞÑTÔ×ÕÒÑS—ÕÔÑPÓÓ‘ËˆØÛÜNˆ^[ØYœØÛÜ\Ëš›Ú[ŠˆŠKˆNÂŸB‚™^Ü\Ş[˜È[˜İ[Ûˆ^Ú[™ÙSXÜ]]Üš^˜][ÛÛÙJˆ[œ]ˆ[ˆH›ØÙ\ÜË™[‹ˆÈÛÛœİ[YQÜ˜[HÛÛœİ[YSXÜÜ˜[Û˜ÙHHHßKŠHÂˆÛÛœİÛÙHHİš[™Ê[œ]Ë˜ÛÙHˆŠNÂˆÛÛœİ^[ØYHXÜ\^[ØYÚ]˜[˜XÚÊˆÛÙKˆœŞXÛÙH‹ˆÜ˜[™\šYšXØ][Û”ÙXÜ™]Ê[ŠKˆ
+NÂˆÛÛœİ›İÈHX]™›ÛÜŠ]K››İÊ
+HÈWÌ
+NÂˆYˆ
+ˆ\^[ØYˆ^[ØY\OOH˜]]Üš^˜][Û—ØÛÙHˆˆ^[ØYš\ÜÈOOH™\ÛÛ™SXÜ\ÜİY\•\›
+[ŠHˆ^[ØY˜]YOOH™\ÛÛ™SXÜ™\Ûİ\˜ÙU\›
+[ŠHˆ^[ØY™^H›İÂˆ
+HÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠˆ´'t-t,´,4.ô.4-4-t/H4.4.ô.4.4-ô`´-t.´b´.È]]Üš^˜][ÛˆÛÙKˆ‹ˆˆš[˜[YÙÜ˜[‹ˆ
+NÂˆBˆYˆ
+ˆ[œ]Ë™Ü˜[İ\HOOH˜]]Üš^˜][Û—ØÛÙHˆˆ\ØY™Tİš[™Ñ\]X[
+[œ]Ë˜ÛY[ÚY^[ØY˜ÛY[Y
+Hˆ\ØY™Tİš[™Ñ\]X[
+[œ]Ëœ™Y\™Xİİ\šK^[ØYœ™Y\™Xİ\šJHˆ\ØY™Tİš[™Ñ\]X[
+[œ]Ëœ™\Ûİ\˜ÙK^[ØY˜]Y
+Bˆ
+HÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠˆ]]Üš^˜][ÛˆÛÙH4/t-H4`tb´,´/ô,4-4,4`tb´`H4-ô,4cô,´.´,4`´,ˆ‹ˆˆš[˜[YÙÜ˜[‹ˆ
+NÂˆBˆÛÛœİ™\šYšY\ˆHİš[™Ê[œ]Ë˜ÛÙWİ™\šYšY\ˆˆŠNÂˆYˆ
+K×–ĞKV˜K^ŒNK—ß‹W^ÍËLIİK\İ
+™\šYšY\ŠJHÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠ´'t-t,´,4.ô.4-4-t/HĞÑH™\šYšY\‹ˆ‹š[˜[YÙÜ˜[ŠNÂˆBˆÛÛœİÚ[[™ÙHHÜ™X]R\Ú
+œÚLMˆŠK\]J™\šYšY\ŠK™YÙ\İ
+˜˜\ÙM\›ŠNÂˆYˆ
+\ØY™Tİš[™Ñ\]X[
+Ú[[™ÙK^[ØY˜ÛÙPÚ[[™ÙJJHÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠˆ”ĞÑH4/ô`4/´,´-t`4.´,4`´,4-H4/t-t`ô`t/ô-tb4/t,ˆ‹ˆˆš[˜[YÙÜ˜[‹ˆ
+NÂˆB‚ˆÛÛœİÛÛœİ[YYH]ØZ]ÛÛœİ[YQÜ˜[
+ÂˆÜ˜[\Nˆ˜]]Üš^˜][Û—ØÛÙH‹ˆÚÙ[’Yˆ^[ØYšKˆ^\™\Ğ]ˆ^[ØY™^ˆ[‹ˆJNÂˆYˆ
+XÛÛœİ[YY
+HÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠˆ´'t-t,´,4.ô.4-4-t/H4.4.ô.4.4-ô`´-t.´b´.È]]Üš^˜][ÛˆÛÙKˆ‹ˆˆš[˜[YÙÜ˜[‹ˆ
+NÂˆBˆ™]\›ˆÜ™X]PXØÙ\ÜĞ[™™Yœ™\ÚÚÙ[œÊ^[ØY[‹›İÊNÂŸB‚™^Ü\Ş[˜È[˜İ[Ûˆ^Ú[™ÙSXÜ™Yœ™\ÚÚÙ[Šˆ[œ]ˆ[ˆH›ØÙ\ÜË™[‹ˆÈÛÛœİ[YQÜ˜[HÛÛœİ[YSXÜÜ˜[Û˜ÙHHHßKŠHÂˆÛÛœİ^[ØYHXÜ\^[ØYÚ]˜[˜XÚÊˆİš[™Ê[œ]Ëœ™Yœ™\ÚİÚÙ[ˆˆŠKˆœŞ\™Yœ™\Ú‹ˆÜ˜[™\šYšXØ][Û”ÙXÜ™]Ê[ŠKˆ
+NÂˆÛÛœİ›İÈHX]™›ÛÜŠ]K››İÊ
+HÈWÌ
+NÂˆYˆ
+ˆ\^[ØYˆ^[ØY\OOHœ™Yœ™\ÚİÚÙ[ˆˆˆ^[ØYš\ÜÈOOH™\ÛÛ™SXÜ\ÜİY\•\›
+[ŠHˆ^[ØY˜]YOOH™\ÛÛ™SXÜ™\Ûİ\˜ÙU\›
+[ŠHˆ^[ØY™^H›İÈˆ\ØY™Tİš[™Ñ\]X[
+[œ]Ë˜ÛY[ÚY^[ØY˜ÛY[Y
+Hˆ\ØY™Tİš[™Ñ\]X[
+[œ]Ëœ™\Ûİ\˜ÙK^[ØY˜]Y
+Bˆ
+HÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠˆ´'t-t,´,4.ô.4-4-t/H4.4.ô.4.4-ô`´-t.´b´.È™Yœ™\ÚÚÙ[‹ˆ‹ˆˆš[˜[YÙÜ˜[‹ˆ
+NÂˆBˆÛÛœİÛÛœİ[YYH]ØZ]ÛÛœİ[YQÜ˜[
+ÂˆÜ˜[\Nˆœ™Yœ™\ÚİÚÙ[ˆ‹ˆÚÙ[’Yˆ^[ØYšKˆ^\™\Ğ]ˆ^[ØY™^ˆ[‹ˆJNÂˆYˆ
+XÛÛœİ[YY
+HÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠˆ´'t-t,´,4.ô.4-4-t/H4.4.ô.4.4-ô`´-t.´b´.È™Yœ™\ÚÚÙ[‹ˆ‹ˆˆš[˜[YÙÜ˜[‹ˆ
+NÂˆBˆ™]\›ˆÜ™X]PXØÙ\ÜĞ[™™Yœ™\ÚÚÙ[œÊ^[ØY[‹›İÊNÂŸB‚™^Ü\Ş[˜È[˜İ[Ûˆ^Ú[™ÙSXÜÚÙ[Š[œ][ˆH›ØÙ\ÜË™[ŠHÂˆYˆ
+[œ]Ë™Ü˜[İ\HOOH˜]]Üš^˜][Û—ØÛÙHŠHÂˆ™]\›ˆ^Ú[™ÙSXÜ]]Üš^˜][ÛÛÙJ[œ][ŠNÂˆBˆYˆ
+[œ]Ë™Ü˜[İ\HOOHœ™Yœ™\ÚİÚÙ[ˆŠHÂˆ™]\›ˆ^Ú[™ÙSXÜ™Yœ™\ÚÚÙ[Š[œ][ŠNÂˆBˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠˆ´'t-t/ô/´-4-4b´`4-´,4/HĞ]]Ü˜[ˆ‹ˆˆ[œİ\ÜYÙÜ˜[İ\H‹ˆ
+NÂŸB‚™^Ü[˜İ[Ûˆ™\šYSXÜXØÙ\ÜÕÚÙ[Šˆ]]Üš^˜][Û’XY\‹ˆ™\]Z\™YØÛÜ\ÈHÓPÔÔ‘PQÔĞÓÔWKˆ[ˆH›ØÙ\ÜË™[‹ŠHÂˆYˆ
+ˆ\[Ùˆ]]Üš^˜][Û’XY\ˆOOHœİš[™ÈˆˆX]]Üš^˜][Û’XY\‹œİ\ÕÚ]
+™X\™\ˆŠBˆ
+HÂˆ™]\›ˆ[ÂˆBˆÛÛœİ^[ØYHXÜ\^[ØYÚ]˜[˜XÚÊˆ]]Üš^˜][Û’XY\‹œÛXÙJÊKˆœŞ]ÚÙ[ˆ‹ˆØ]]™\šYšXØ][Û”ÙXÜ™]Ê[ŠKˆ
+NÂˆÛÛœİ›İÈHX]™›ÛÜŠ]K››İÊ
+HÈWÌ
+NÂˆYˆ
+ˆ\^[ØYˆ^[ØY\OOH˜XØÙ\Ü×İÚÙ[ˆˆˆ^[ØYš\ÜÈOOH™\ÛÛ™SXÜ\ÜİY\•\›
+[ŠHˆ^[ØY˜]YOOH™\ÛÛ™SXÜ™\Ûİ\˜ÙU\›
+[ŠHˆ^[ØY›˜™ˆˆ›İÈˆ^[ØY™^H›İÈˆP\œ˜^Kš\Ğ\œ˜^J^[ØYœØÛÜ\ÊHˆ\^[ØYœİXš™Xİˆ\^[ØY›Y[[ÜSİÛ™\’YˆVÈ›İÛ™\ˆ‹›Y[X™\ˆ‹\İ\ˆ—Kš[˜ÛY\Ê^[ØYœ›ÛJBˆ
+HÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠˆ´'t-t,´,4.ô.4-4-t/H4.4.ô.4.4-ô`´-t.´b´.ÈPÔÚÙ[‹ˆ‹ˆKˆš[˜[YİÚÙ[ˆ‹ˆ
+NÂˆBˆYˆ
+ˆ™\]Z\™YØÛÜ\ËœÛÛYJ
+ØÛÜJHOˆ\^[ØYœØÛÜ\Ëš[˜ÛY\ÊØÛÜJJHˆ
+™\]Z\™\ÓİÛ™\”›ÛJ™\]Z\™YØÛÜ\ÊH	‰ˆ^[ØYœ›ÛHOOH›İÛ™\ˆŠBˆ
+HÂˆ›İÈ™]ÈXÜĞ]]\œ›ÜŠˆ“PÔÚÙ[ˆ4/tcô/4,4/t-t/´,tat/´-4.4/4.4`´-H4/ô`4,4,´,ˆ‹ˆËˆš[œİY™šXÚY[ÜØÛÜH‹ˆ
+NÂˆBˆ™]\›ˆÂˆYˆ^[ØYœİXš™XİˆY[[ÜSİÛ™\’Yˆ^[ØY›Y[[ÜSİÛ™\’Yˆ›ÛNˆ^[ØYœ›ÛKˆØÛÜ\Îˆ^[ØYœØÛÜ\ËˆÛY[Yˆ^[ØY˜ÛY[YˆNÂŸB‚™^Ü[˜İ[Ûˆ™\Ù]XÜĞ]]İ]Q›Ü•\İÊ
+HÂˆÛÛœİ[YY]]Üš^˜][ÛÛÙ\Ë˜ÛX\Š
+NÂˆÛÛœİ[YY™Yœ™\ÚÚÙ[œË˜ÛX\Š
+NÂˆ\İ™\^PÛX[\]HÂˆXİ]™T™\^PÛX[\H[ÂŸB

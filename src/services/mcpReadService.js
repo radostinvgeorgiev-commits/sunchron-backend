@@ -4,7 +4,10 @@ import {
   listConversationSummaries,
   listProfileMemories,
 } from "./memoryService.js";
-import { recordAuditEvent } from "./permissionService.js";
+import {
+  executeAuditedWriteAction,
+  recordAuditEvent,
+} from "./permissionService.js";
 import {
   createDurableConfirmation,
   markDurableConfirmationUsed,
@@ -15,10 +18,14 @@ import {
   executeMergedBranchCleanup,
 } from "./githubBranchCleanupService.js";
 import {
+  activateDigitalOceanDomainAlias,
+  DIGITALOCEAN_DOMAIN_ACTION,
   formatDigitalOceanAudit,
   formatDigitalOceanStatus,
   getDigitalOceanAccountAudit,
   getDigitalOceanAppStatus,
+  inspectDigitalOceanDomainAlias,
+  PUBLIC_WWW_DOMAIN,
 } from "./digitalOceanService.js";
 import {
   formatCloudflareStatus,
@@ -148,6 +155,35 @@ export const MCP_TOOLS = Object.freeze([
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
+    name: "prepare_digitalocean_www_domain",
+    title: "Подготви добавянето на www адреса",
+    description:
+      "Проверява DigitalOcean приложението и подготвя еднократно потвърждение само за www.synchron.foundation. Не променя домейни и не стартира deployment.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    securitySchemes: mcpToolSecuritySchemes("prepare_digitalocean_www_domain"),
+    annotations: READ_ONLY_ANNOTATIONS,
+  },
+  {
+    name: "confirm_digitalocean_www_domain",
+    title: "Потвърди добавянето на www адреса",
+    description:
+      "Добавя единствено www.synchron.foundation към предварително провереното DigitalOcean приложение след валидно еднократно потвърждение и устойчив журнал.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        confirmationId: { type: "string", minLength: 1, maxLength: 100 },
+      },
+      required: ["confirmationId"],
+      additionalProperties: false,
+    },
+    securitySchemes: mcpToolSecuritySchemes("confirm_digitalocean_www_domain"),
+    annotations: DESTRUCTIVE_ANNOTATIONS,
+  },
+  {
     name: "get_cloudflare_zone_status",
     title: "Провери Cloudflare и DNS",
     description:
@@ -248,10 +284,13 @@ export function createMcpRequestHandler({
   consumeConfirmation = markDurableConfirmationUsed,
   getDigitalOceanStatus = getDigitalOceanAppStatus,
   getDigitalOceanAudit = getDigitalOceanAccountAudit,
+  inspectDigitalOceanDomain = inspectDigitalOceanDomainAlias,
+  activateDigitalOceanDomain = activateDigitalOceanDomainAlias,
   getCloudflareStatus = getCloudflareZoneStatus,
   getSystemConfiguration = getSystemConfigurationReport,
   getLatestGitHubSession = getLatestAuthorizedGitHubSession,
   getGitHubTaskStatus = getCopilotTaskStatus,
+  executeWrite = executeAuditedWriteAction,
 } = {}) {
   async function callTool(name, args, ownerId) {
     let result;
@@ -292,6 +331,82 @@ export function createMcpRequestHandler({
     } else if (name === "get_digitalocean_account_audit") {
       const auditReport = await getDigitalOceanAudit();
       result = textResult(auditReport, formatDigitalOceanAudit(auditReport));
+    } else if (name === "prepare_digitalocean_www_domain") {
+      const status = await inspectDigitalOceanDomain({
+        domain: PUBLIC_WWW_DOMAIN,
+      });
+      if (status.configured) {
+        result = textResult(
+          {
+            configured: true,
+            domain: status.domain,
+            readAccessVerified: status.readAccessVerified,
+          },
+          `${status.domain} вече е конфигуриран в DigitalOcean.`,
+        );
+      } else {
+        const confirmation = await createConfirmation({
+          sessionId: ownerId,
+          action: DIGITALOCEAN_DOMAIN_ACTION,
+          resource: {
+            appId: status.appId,
+            domain: status.domain,
+          },
+          params: { domain: status.domain },
+        });
+        result = textResult(
+          {
+            configured: false,
+            confirmationId: confirmation.id,
+            expiresAt: new Date(confirmation.expiresAt).toISOString(),
+            domain: status.domain,
+            readAccessVerified: status.readAccessVerified,
+            requiredWriteScope: status.requiredWriteScope,
+          },
+          `DigitalOcean проверката е успешна. Нужно е точно потвърждение за добавяне само на ${status.domain}.`,
+        );
+      }
+    } else if (name === "confirm_digitalocean_www_domain") {
+      const confirmationId =
+        typeof args?.confirmationId === "string"
+          ? args.confirmationId.trim()
+          : "";
+      if (!confirmationId) {
+        throw Object.assign(new Error("Липсва confirmationId."), {
+          code: -32602,
+        });
+      }
+      const confirmation = await validateConfirmation(confirmationId, ownerId);
+      if (
+        confirmation.action !== DIGITALOCEAN_DOMAIN_ACTION ||
+        confirmation.resource?.domain !== PUBLIC_WWW_DOMAIN
+      ) {
+        throw Object.assign(
+          new Error("Потвърждението не е за www.synchron.foundation."),
+          { code: -32602 },
+        );
+      }
+      await consumeConfirmation(confirmationId);
+      const activation = await executeWrite({
+        action: DIGITALOCEAN_DOMAIN_ACTION,
+        capability: "infrastructure.write",
+        actor: "chatgpt-mcp",
+        sessionId: ownerId,
+        confirmationId,
+        resource: confirmation.resource.domain,
+        details: "add_www_domain_alias",
+        execute: () =>
+          activateDigitalOceanDomain({
+            domain: confirmation.resource.domain,
+            expectedAppId: confirmation.resource.appId,
+          }),
+      });
+      result = textResult(
+        activation,
+        activation.updated
+          ? `${activation.domain} е добавен и DigitalOcean стартира deployment.`
+          : `${activation.domain} вече е конфигуриран; не е направена повторна промяна.`,
+      );
     } else if (name === "get_system_configuration") {
       const configuration = await getSystemConfiguration();
       result = textResult(
@@ -369,21 +484,23 @@ export function createMcpRequestHandler({
     await audit({
       actor: "chatgpt-mcp",
       action:
-        name === "get_github_copilot_task_status"
-          ? "github.read"
-          : name.includes("github")
-            ? "github.write"
-            : name.includes("digitalocean") ||
-                name.includes("cloudflare") ||
-                name.includes("system_configuration")
-              ? "infrastructure.read"
-              : "memory.read",
+        name === "confirm_digitalocean_www_domain"
+          ? DIGITALOCEAN_DOMAIN_ACTION
+          : name === "get_github_copilot_task_status"
+            ? "github.read"
+            : name.includes("github")
+              ? "github.write"
+              : name.includes("digitalocean") ||
+                  name.includes("cloudflare") ||
+                  name.includes("system_configuration")
+                ? "infrastructure.read"
+                : "memory.read",
       decision: "allow",
       outcome: "succeeded",
       resource: name,
-      details: name.startsWith("confirm_github")
+      details: name.startsWith("confirm_")
         ? "confirmed-write-mcp"
-        : name.startsWith("prepare_github")
+        : name.startsWith("prepare_")
           ? "write-plan-mcp"
           : "read-only-mcp",
     });

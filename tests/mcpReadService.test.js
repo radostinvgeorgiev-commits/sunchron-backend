@@ -25,6 +25,8 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
       "get_digitalocean_app_status",
       "get_system_configuration",
       "get_digitalocean_account_audit",
+      "prepare_digitalocean_www_domain",
+      "confirm_digitalocean_www_domain",
       "get_cloudflare_zone_status",
       "get_github_copilot_task_status",
       "prepare_github_merged_branch_cleanup",
@@ -38,6 +40,14 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
   assert.equal(confirm.annotations.destructiveHint, true);
   assert.deepEqual(confirm.securitySchemes, [
     { type: "oauth2", scopes: ["synchron:github.write"] },
+  ]);
+  const confirmWww = MCP_TOOLS.find(
+    (tool) => tool.name === "confirm_digitalocean_www_domain",
+  );
+  assert.equal(confirmWww.annotations.readOnlyHint, false);
+  assert.equal(confirmWww.annotations.destructiveHint, true);
+  assert.deepEqual(confirmWww.securitySchemes, [
+    { type: "oauth2", scopes: ["synchron:infrastructure.write"] },
   ]);
   const digitalOceanAudit = MCP_TOOLS.find(
     (tool) => tool.name === "get_digitalocean_account_audit",
@@ -270,4 +280,78 @@ test("MCP cleanup requires the exact one-time confirmation", async () => {
   );
   assert.equal(confirmed.result.structuredContent.count, 1);
   assert.deepEqual(consumed, ["confirmation-1"]);
+});
+
+test("MCP www activation requires the exact one-time confirmation", async () => {
+  const consumed = [];
+  const writes = [];
+  const handle = createMcpRequestHandler({
+    inspectDigitalOceanDomain: async ({ domain }) => ({
+      appId: "app-1",
+      domain,
+      configured: false,
+      readAccessVerified: true,
+      requiredWriteScope: "app:update",
+    }),
+    createConfirmation: async (data) => ({
+      ...data,
+      id: "www-confirmation-1",
+      expiresAt: Date.now() + 60_000,
+    }),
+    validateConfirmation: async (id, ownerId) => ({
+      id,
+      sessionId: ownerId,
+      action: "infrastructure.digitalocean:add_www_domain",
+      resource: {
+        appId: "app-1",
+        domain: "www.synchron.foundation",
+      },
+      params: { domain: "www.synchron.foundation" },
+    }),
+    consumeConfirmation: async (id) => consumed.push(id),
+    executeWrite: async (input) => {
+      writes.push(input);
+      return input.execute();
+    },
+    activateDigitalOceanDomain: async (input) => ({
+      updated: true,
+      appId: input.expectedAppId,
+      domain: input.domain,
+      deploymentId: "deployment-1",
+    }),
+    audit: async () => {},
+  });
+
+  const prepared = await handle(
+    {
+      jsonrpc: "2.0",
+      id: 20,
+      method: "tools/call",
+      params: { name: "prepare_digitalocean_www_domain", arguments: {} },
+    },
+    "primary-user",
+  );
+  assert.equal(
+    prepared.result.structuredContent.confirmationId,
+    "www-confirmation-1",
+  );
+
+  const confirmed = await handle(
+    {
+      jsonrpc: "2.0",
+      id: 21,
+      method: "tools/call",
+      params: {
+        name: "confirm_digitalocean_www_domain",
+        arguments: { confirmationId: "www-confirmation-1" },
+      },
+    },
+    "primary-user",
+  );
+  assert.equal(confirmed.result.structuredContent.updated, true);
+  assert.equal(confirmed.result.structuredContent.deploymentId, "deployment-1");
+  assert.deepEqual(consumed, ["www-confirmation-1"]);
+  assert.equal(writes[0].action, "infrastructure.digitalocean:add_www_domain");
+  assert.equal(writes[0].capability, "infrastructure.write");
+  assert.equal(writes[0].confirmationId, "www-confirmation-1");
 });

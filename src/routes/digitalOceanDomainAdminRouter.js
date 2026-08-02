@@ -1,6 +1,7 @@
 import express from "express";
 import {
   activateDigitalOceanDomainAlias,
+  DIGITALOCEAN_DOMAIN_ACTION,
   inspectDigitalOceanDomainAlias,
   PUBLIC_WWW_DOMAIN,
 } from "../services/digitalOceanService.js";
@@ -15,8 +16,7 @@ import {
 } from "../services/permissionService.js";
 import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 
-export const DIGITALOCEAN_DOMAIN_ACTION =
-  "infrastructure.digitalocean:add_www_domain";
+export { DIGITALOCEAN_DOMAIN_ACTION };
 
 async function safeAudit(audit, event) {
   try {

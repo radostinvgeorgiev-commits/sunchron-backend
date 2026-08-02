@@ -79,6 +79,23 @@ test("desktop keeps the chat visible and both panes reachable with the mouse", a
   );
 });
 
+test("intermediate widths use the mobile sidebar without pushing chat below it", async () => {
+  const css = await readFile(
+    new URL("../public/synchron-vision.css", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(css, /@media \(max-width: 900px\)/u);
+  assert.match(
+    css,
+    /\.app-shell > \.sidebar\s*\{[\s\S]*?display:\s*none;/u,
+  );
+  assert.match(
+    css,
+    /\.app-shell > \.sidebar\.mobile-visible\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?display:\s*flex;/u,
+  );
+});
+
 test("mobile chat content clears the measured composer and command bar", async () => {
   const [css, script, app] = await Promise.all([
     readFile(new URL("../public/synchron-vision.css", import.meta.url), "utf8"),

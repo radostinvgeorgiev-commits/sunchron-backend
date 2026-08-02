@@ -58,7 +58,12 @@ test("Chat and Work are available with projects, agents, and pet state", async (
   assert.match(workMode, /function createProjectForm/u);
   assert.match(workMode, /function createAgentForm/u);
   assert.match(workMode, /function createEditAgentForm/u);
-  assert.match(workMode, /Любимецът показва/u);
+  assert.match(workMode, /Личният любимец/u);
+  assert.match(workMode, /label: "Кори"/u);
+  assert.match(workMode, /label: "Капка"/u);
+  assert.match(workMode, /label: "Искра"/u);
+  assert.match(workMode, /label: "Бухал"/u);
+  assert.match(workMode, /label: "Скала"/u);
   assert.match(workMode, /\/api\/workspaces/u);
   assert.match(workMode, /защитения ти профил/u);
   assert.match(workMode, /function recordActivity/u);
@@ -180,6 +185,22 @@ test("work mode runs in the browser and creates an isolated project payload", as
   assert.equal(
     dom.window.document.getElementById("workPet").dataset.petState,
     "needs-input",
+  );
+
+  dom.window.SynchronWorkMode.openManager();
+  const sparkPet = dom.window.document.querySelector(
+    '[aria-label="Избери Искра"]',
+  );
+  assert.ok(sparkPet);
+  sparkPet.click();
+  assert.equal(dom.window.document.getElementById("workPet").textContent, "🔥");
+  assert.equal(
+    dom.window.document.getElementById("workPet").dataset.petId,
+    "spark",
+  );
+  assert.match(
+    dom.window.localStorage.getItem("synchronWorkMode:tester-one"),
+    /"petId":"spark"/u,
   );
   dom.window.close();
 });

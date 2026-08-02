@@ -2,10 +2,42 @@
   const STORAGE_VERSION = 2;
   const WORKSPACE_ENDPOINT = "/api/workspaces";
   const PETS = Object.freeze([
-    { id: "robot", symbol: "🤖", label: "Робот" },
-    { id: "cat", symbol: "🐈", label: "Котка" },
-    { id: "owl", symbol: "🦉", label: "Сова" },
-    { id: "spark", symbol: "✨", label: "Искра" },
+    {
+      id: "robot",
+      symbol: "🤖",
+      label: "Кори",
+      description: "Технически и точен помощник.",
+    },
+    {
+      id: "drop",
+      symbol: "💧",
+      label: "Капка",
+      description: "Спокоен спътник за фокус.",
+    },
+    {
+      id: "spark",
+      symbol: "🔥",
+      label: "Искра",
+      description: "Енергия за бърза работа.",
+    },
+    {
+      id: "owl",
+      symbol: "🦉",
+      label: "Бухал",
+      description: "Наблюдателен и прецизен.",
+    },
+    {
+      id: "rock",
+      symbol: "🪨",
+      label: "Скала",
+      description: "Стабилен при трудни задачи.",
+    },
+    {
+      id: "cat",
+      symbol: "🐈",
+      label: "Мяу",
+      description: "Любопитен и гъвкав спътник.",
+    },
   ]);
   const ROLE_LABELS = Object.freeze({
     general: "Универсален помощник",
@@ -319,6 +351,7 @@
   function renderPet() {
     const pet = selectedPet();
     elements.pet.textContent = pet.symbol;
+    elements.pet.dataset.petId = pet.id;
     elements.pet.dataset.petState = workState.petState;
     const statusLabels = {
       running: "Работи по задачата",
@@ -326,7 +359,7 @@
       ready: "Готово за преглед",
       blocked: "Задачата е блокирана",
     };
-    elements.workContextBtn.title = `${pet.label}: ${statusLabels[workState.petState]}`;
+    elements.workContextBtn.title = `${pet.label}: ${statusLabels[workState.petState]}. ${pet.description}`;
   }
 
   function setMode(mode) {
@@ -438,6 +471,7 @@
       button.type = "button";
       button.className = "pet-choice";
       button.classList.toggle("active", pet.id === workState.petId);
+      button.setAttribute("aria-label", `Избери ${pet.label}`);
       button.addEventListener("click", () => {
         workState.petId = pet.id;
         saveState();
@@ -445,14 +479,15 @@
         openManager();
       });
       addText(button, "span", pet.symbol);
-      addText(button, "small", pet.label);
+      addText(button, "strong", pet.label);
+      addText(button, "small", pet.description);
       grid.appendChild(button);
     }
     parent.appendChild(grid);
     addText(
       parent,
       "p",
-      "Любимецът показва: работи, чака решение, готов е или е блокиран. Той не променя правата на AI.",
+      "Личният любимец се запазва в защитения ти профил и показва: работи, чака решение, готов е или е блокиран. Той не променя правата на AI.",
       "work-pet-status",
     );
   }
@@ -772,7 +807,7 @@
     if (editingAgent) createEditAgentForm(agents, editingAgent);
     else createAgentForm(agents);
 
-    const pets = section(elements.drawerBody, "Домашен любимец");
+    const pets = section(elements.drawerBody, "Личен любимец");
     renderPetChoices(pets);
 
     const activity = section(elements.drawerBody, "Последни задачи");

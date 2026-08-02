@@ -61,6 +61,12 @@ test("workspace document id is stable and does not expose the owner id", () => {
   assert.doesNotMatch(first, /user-123/u);
 });
 
+test("workspace keeps a supported personal pet", () => {
+  const state = normalizeWorkspaceState({ petId: "drop" });
+
+  assert.equal(state.petId, "drop");
+});
+
 test("workspace state is saved in an isolated hashed document", async () => {
   let indexed = null;
   const client = {

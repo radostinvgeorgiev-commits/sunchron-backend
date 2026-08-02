@@ -12,7 +12,7 @@ const VALID_MODELS = new Set([
   "gpt-5.6-terra",
   "gpt-5.6-luna",
 ]);
-const VALID_PETS = new Set(["robot", "cat", "owl", "spark"]);
+const VALID_PETS = new Set(["robot", "drop", "spark", "owl", "rock", "cat"]);
 
 export class WorkspaceStateError extends Error {
   constructor(message, status = 503, code = "WORKSPACE_STATE_UNAVAILABLE") {

@@ -28,7 +28,7 @@ import testerAuthAdminRouter from "./src/routes/testerAuthAdminRouter.js";
 import digitalOceanDomainAdminRouter from "./src/routes/digitalOceanDomainAdminRouter.js";
 import systemRouter from "./src/routes/systemRouter.js";
 import workspacesRouter from "./src/routes/workspacesRouter.js";
-import mcpRouter from "./src/routes/mcpRouter.js";
+import mcpRouter, { mcpJsonParseErrorHandler } from "./src/routes/mcpRouter.js";
 import { createMcpOAuthRouter } from "./src/routes/mcpOAuthRouter.js";
 
 dotenv.config();
@@ -140,7 +140,7 @@ app.use("/health", healthRouter);
 app.use("/api/public-config", publicConfigRouter);
 app.use("/api/auth", oauthRateLimiter, userAuthRouter);
 app.use("/api/github", oauthRateLimiter, githubOAuthRouter);
-app.use("/mcp", privateApiRateLimiter, mcpRouter);
+app.use("/mcp", mcpJsonParseErrorHandler, privateApiRateLimiter, mcpRouter);
 
 app.use("/chat", requireOwnerSession, paidAiRateLimiter, chatRouter);
 app.use("/memory", requireOwnerSession, privateApiRateLimiter, memoryRouter);

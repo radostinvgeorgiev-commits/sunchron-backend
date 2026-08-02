@@ -2,6 +2,7 @@ import express from "express";
 import {
   createMcpRequestHandler,
   isValidMcpToken,
+  MCP_PROTOCOL_VERSION,
 } from "../services/mcpReadService.js";
 import {
   buildMcpAuthenticateChallenge,
@@ -12,6 +13,69 @@ import {
 
 const router = express.Router();
 const handleMcpRequest = createMcpRequestHandler();
+const DEFAULT_ALLOWED_MCP_ORIGINS = Object.freeze([
+  "https://synchron.foundation",
+  "https://www.synchron.foundation",
+  "https://chatgpt.com",
+]);
+const SUPPORTED_MCP_PROTOCOL_VERSIONS = new Set([
+  "2025-03-26",
+  MCP_PROTOCOL_VERSION,
+]);
+
+function allowedMcpOrigins(env = process.env) {
+  const configured = String(env.MCP_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  return new Set(
+    configured.length > 0 ? configured : DEFAULT_ALLOWED_MCP_ORIGINS,
+  );
+}
+
+export function validateMcpTransport(
+  req,
+  res,
+  next,
+  { env = process.env } = {},
+) {
+  const origin = req.get("origin");
+  if (origin && !allowedMcpOrigins(env).has(origin)) {
+    return res.status(403).json({
+      jsonrpc: "2.0",
+      id: req.body?.id ?? null,
+      error: { code: -32000, message: "Неразрешен Origin за MCP заявка." },
+    });
+  }
+
+  const requestedVersion = req.get("mcp-protocol-version");
+  const isInitialization = req.body?.method === "initialize";
+  if (
+    !isInitialization &&
+    requestedVersion &&
+    !SUPPORTED_MCP_PROTOCOL_VERSIONS.has(requestedVersion)
+  ) {
+    return res.status(400).json({
+      jsonrpc: "2.0",
+      id: req.body?.id ?? null,
+      error: {
+        code: -32600,
+        message: "Неподдържана MCP протоколна версия.",
+      },
+    });
+  }
+
+  return next();
+}
+
+export function mcpJsonParseErrorHandler(error, req, res, next) {
+  if (error?.type !== "entity.parse.failed") return next(error);
+  return res.status(400).json({
+    jsonrpc: "2.0",
+    id: null,
+    error: { code: -32700, message: "Невалиден JSON в MCP заявката." },
+  });
+}
 
 export function requireMcpAuthorization(
   req,
@@ -92,15 +156,20 @@ export function requireMcpAuthorization(
   });
 }
 
-router.post("/", requireMcpAuthorization, async (req, res) => {
-  const response = await handleMcpRequest(
-    req.body,
-    req.mcpOwnerId,
-    req.mcpAuthentication,
-  );
-  if (!response) return res.status(202).end();
-  return res.json(response);
-});
+router.post(
+  "/",
+  validateMcpTransport,
+  requireMcpAuthorization,
+  async (req, res) => {
+    const response = await handleMcpRequest(
+      req.body,
+      req.mcpOwnerId,
+      req.mcpAuthentication,
+    );
+    if (!response) return res.status(202).end();
+    return res.json(response);
+  },
+);
 
 router.get("/", (_req, res) =>
   res.status(405).json({

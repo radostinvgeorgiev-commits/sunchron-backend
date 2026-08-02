@@ -26,6 +26,7 @@ const MCP_OWNER_ONLY_SCOPES = Object.freeze([
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
 const AUTHORIZATION_CODE_TTL_SECONDS = 5 * 60;
+const CONSENT_TOKEN_TTL_SECONDS = 10 * 60;
 const MAX_CONSUMED_TOKEN_RECORDS = 10_000;
 const REPLAY_CLEANUP_INTERVAL_SECONDS = 6 * 60 * 60;
 const MCP_OAUTH_REPLAY_INDEX =
@@ -134,6 +135,21 @@ function grantSecret(env = process.env) {
 
 function grantVerificationSecrets(env = process.env) {
   return oauthVerificationSecrets(env).map(deriveGrantSecret);
+}
+
+function deriveConsentSecret(secret) {
+  return createHash("sha256")
+    .update(secret)
+    .update("synchron-mcp-oauth-consent-v1\0")
+    .digest();
+}
+
+function consentSecret(env = process.env) {
+  return deriveConsentSecret(oauthSecret(env));
+}
+
+function consentVerificationSecrets(env = process.env) {
+  return oauthVerificationSecrets(env).map(deriveConsentSecret);
 }
 
 export function getMcpOAuthSecretMode(env = process.env) {
@@ -410,6 +426,68 @@ function safeStringEqual(left, right) {
   const a = Buffer.from(String(left), "utf8");
   const b = Buffer.from(String(right), "utf8");
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function consentBinding(request, identity) {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        clientId: request.clientId,
+        redirectUri: request.redirectUri,
+        state: request.state,
+        codeChallenge: request.codeChallenge,
+        resource: request.resource,
+        scopes: request.scopes,
+        subject: String(identity.id),
+      }),
+    )
+    .digest("base64url");
+}
+
+export function createMcpConsentToken(
+  request,
+  identity,
+  env = process.env,
+  now = Math.floor(Date.now() / 1_000),
+) {
+  if (!identity?.id) {
+    throw new McpOAuthError("Липсва валиден SYNCHRON-X профил.", 401);
+  }
+  return encryptPayload(
+    "sx-consent",
+    {
+      typ: "consent",
+      binding: consentBinding(request, identity),
+      iat: now,
+      exp: now + CONSENT_TOKEN_TTL_SECONDS,
+    },
+    consentSecret(env),
+  );
+}
+
+export function validateMcpConsentToken(
+  token,
+  request,
+  identity,
+  env = process.env,
+  now = Math.floor(Date.now() / 1_000),
+) {
+  const payload = decryptPayloadWithFallback(
+    String(token || ""),
+    "sx-consent",
+    consentVerificationSecrets(env),
+  );
+  if (
+    !payload ||
+    payload.typ !== "consent" ||
+    payload.iat > now + 60 ||
+    payload.exp <= now ||
+    payload.exp - payload.iat !== CONSENT_TOKEN_TTL_SECONDS ||
+    !safeStringEqual(payload.binding, consentBinding(request, identity))
+  ) {
+    throw new McpOAuthError("Невалидно потвърждение.", 403, "access_denied");
+  }
+  return true;
 }
 
 function wasTokenConsumed(store, tokenId, now) {

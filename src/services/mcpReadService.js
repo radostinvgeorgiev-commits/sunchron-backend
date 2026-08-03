@@ -40,7 +40,10 @@ import {
   getCopilotTaskStatus,
 } from "./copilotTaskService.js";
 import { getLatestAuthorizedGitHubSession } from "./githubOAuthService.js";
-import { mcpToolSecuritySchemes } from "./mcpOAuthService.js";
+import {
+  getMcpOAuthRuntimeStatus,
+  mcpToolSecuritySchemes,
+} from "./mcpOAuthService.js";
 import { sendMcpAgentMessage } from "./mcpAgentConversationService.js";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
@@ -287,7 +290,7 @@ function safeLimit(value, fallback = 20) {
     : fallback;
 }
 
-function publicDigitalOceanStatus(status = {}) {
+function publicDigitalOceanStatus(status = {}, oauth = {}) {
   const publicDeployment = (deployment) =>
     deployment
       ? {
@@ -305,6 +308,15 @@ function publicDigitalOceanStatus(status = {}) {
     deployments: (Array.isArray(status.deployments) ? status.deployments : [])
       .slice(0, 5)
       .map(publicDeployment),
+    oauth: {
+      authorization: oauth.authorization || "not-attempted",
+      authorizationDecision: oauth.authorizationDecision || null,
+      authorizationErrorCode: oauth.authorizationErrorCode || null,
+      tokenExchange: oauth.tokenExchange || "not-attempted",
+      grantType: oauth.grantType || null,
+      errorCode: oauth.errorCode || null,
+      updatedAt: oauth.updatedAt || oauth.authorizationUpdatedAt || null,
+    },
   };
 }
 
@@ -330,6 +342,7 @@ export function createMcpRequestHandler({
   validateConfirmation = validateDurableConfirmation,
   consumeConfirmation = markDurableConfirmationUsed,
   getDigitalOceanStatus = getDigitalOceanAppStatus,
+  getOAuthRuntimeStatus = getMcpOAuthRuntimeStatus,
   getDigitalOceanAudit = getDigitalOceanAccountAudit,
   inspectDigitalOceanDomain = inspectDigitalOceanDomainAlias,
   activateDigitalOceanDomain = activateDigitalOceanDomainAlias,
@@ -387,7 +400,7 @@ export function createMcpRequestHandler({
       const status = await getDigitalOceanStatus();
       const visibleStatus =
         identity?.role === "anonymous"
-          ? publicDigitalOceanStatus(status)
+          ? publicDigitalOceanStatus(status, getOAuthRuntimeStatus())
           : status;
       result = textResult(
         visibleStatus,

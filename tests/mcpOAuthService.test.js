@@ -281,6 +281,52 @@ test("validates OpenAI CIMD metadata and exact callback and resource", async () 
   );
 });
 
+test("uses a pinned ChatGPT client policy when CIMD retrieval is unavailable", async () => {
+  const request = await validateMcpAuthorizationRequest(authorizationInput(), {
+    env: ENV,
+    fetchImpl: async () => {
+      throw new Error("network unavailable");
+    },
+  });
+
+  assert.equal(request.clientId, CLIENT_ID);
+  assert.equal(request.clientName, "ChatGPT");
+  assert.equal(request.redirectUri, REDIRECT_URI);
+  assert.deepEqual(request.scopes, [MCP_READ_SCOPE]);
+});
+
+test("does not apply the ChatGPT fallback outside pinned OAuth paths", async () => {
+  const unavailable = async () => {
+    throw new Error("network unavailable");
+  };
+
+  await assert.rejects(
+    validateMcpAuthorizationRequest(
+      {
+        ...authorizationInput(),
+        client_id: "https://chatgpt.com/not-oauth/client.json",
+      },
+      { env: ENV, fetchImpl: unavailable },
+    ),
+    (error) =>
+      error.code === "invalid_client" &&
+      error.description === "OAuth клиентът не може да бъде проверен.",
+  );
+
+  await assert.rejects(
+    validateMcpAuthorizationRequest(
+      {
+        ...authorizationInput(),
+        redirect_uri: "https://chatgpt.com/not-a-connector/callback",
+      },
+      { env: ENV, fetchImpl: unavailable },
+    ),
+    (error) =>
+      error.code === "invalid_client" &&
+      error.description === "OAuth клиентът не може да бъде проверен.",
+  );
+});
+
 test("exchanges a one-time PKCE code for an opaque owner-scoped token", async () => {
   const request = await validateMcpAuthorizationRequest(
     authorizationInput([MCP_READ_SCOPE, MCP_GITHUB_WRITE_SCOPE]),

@@ -326,6 +326,47 @@ function isAllowedOpenAiClientId(value) {
   }
 }
 
+function trustedChatGptClientMetadata(clientId, redirectUri) {
+  try {
+    const clientUrl = new URL(clientId);
+    const callbackUrl = new URL(redirectUri);
+    const clientSegments = clientUrl.pathname.split("/").filter(Boolean);
+    const callbackSegments = callbackUrl.pathname.split("/").filter(Boolean);
+    const safeSegment = (segment) =>
+      /^[A-Za-z0-9._~-]+$/u.test(segment) &&
+      segment !== "." &&
+      segment !== "..";
+
+    if (
+      clientUrl.origin !== "https://chatgpt.com" ||
+      clientUrl.search ||
+      clientUrl.hash ||
+      clientSegments.length < 3 ||
+      clientSegments[0] !== "oauth" ||
+      clientSegments.at(-1) !== "client.json" ||
+      !clientSegments.slice(1, -1).every(safeSegment) ||
+      callbackUrl.origin !== "https://chatgpt.com" ||
+      callbackUrl.search ||
+      callbackUrl.hash ||
+      callbackSegments.length !== 3 ||
+      callbackSegments[0] !== "connector" ||
+      callbackSegments[1] !== "oauth" ||
+      !/^[A-Za-z0-9_-]{6,128}$/u.test(callbackSegments[2])
+    ) {
+      return null;
+    }
+
+    return {
+      client_id: clientId,
+      client_name: "ChatGPT",
+      redirect_uris: [redirectUri],
+      token_endpoint_auth_methods_supported: ["none"],
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function validateMcpAuthorizationRequest(
   input,
   { env = process.env, fetchImpl = fetch } = {},
@@ -365,11 +406,14 @@ export async function validateMcpAuthorizationRequest(
     if (!response.ok) throw new Error("CLIENT_METADATA_UNAVAILABLE");
     metadata = await response.json();
   } catch {
-    throw new McpOAuthError(
-      "OAuth клиентът не може да бъде проверен.",
-      400,
-      "invalid_client",
-    );
+    metadata = trustedChatGptClientMetadata(clientId, redirectUri);
+    if (!metadata) {
+      throw new McpOAuthError(
+        "OAuth клиентът не може да бъде проверен.",
+        400,
+        "invalid_client",
+      );
+    }
   }
 
   if (

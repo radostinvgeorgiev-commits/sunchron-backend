@@ -26,6 +26,10 @@ function noStore(res) {
   res.set("Pragma", "no-cache");
 }
 
+function preserveOAuthPopupHandoff(res) {
+  res.set("Cross-Origin-Opener-Policy", "unsafe-none");
+}
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/gu, "&amp;")
@@ -93,6 +97,7 @@ export function createMcpOAuthRouter({
   });
 
   router.get("/oauth/authorize", oauthRateLimiter, async (req, res) => {
+    preserveOAuthPopupHandoff(res);
     try {
       const request = await validateRequest(req.query);
       const identity = await resolveIdentity(req, res);
@@ -113,6 +118,7 @@ export function createMcpOAuthRouter({
     oauthRateLimiter,
     formParser,
     async (req, res) => {
+      preserveOAuthPopupHandoff(res);
       try {
         const identity = await resolveIdentity(req, res);
         if (!identity) {

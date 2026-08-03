@@ -488,20 +488,16 @@ function safeStringEqual(left, right) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-function consentBinding(request, identity) {
-  return createHash("sha256")
-    .update(
-      JSON.stringify({
-        clientId: request.clientId,
-        redirectUri: request.redirectUri,
-        state: request.state,
-        codeChallenge: request.codeChallenge,
-        resource: request.resource,
-        scopes: request.scopes,
-        subject: String(identity.id),
-      }),
-    )
-    .digest("base64url");
+function consentRequest(request) {
+  return {
+    clientId: String(request.clientId),
+    clientName: String(request.clientName || "ChatGPT"),
+    redirectUri: String(request.redirectUri),
+    state: String(request.state),
+    codeChallenge: String(request.codeChallenge),
+    resource: String(request.resource),
+    scopes: [...request.scopes],
+  };
 }
 
 export function createMcpConsentToken(
@@ -517,7 +513,8 @@ export function createMcpConsentToken(
     "sx-consent",
     {
       typ: "consent",
-      binding: consentBinding(request, identity),
+      subject: String(identity.id),
+      request: consentRequest(request),
       iat: now,
       exp: now + CONSENT_TOKEN_TTL_SECONDS,
     },
@@ -525,9 +522,8 @@ export function createMcpConsentToken(
   );
 }
 
-export function validateMcpConsentToken(
+export function resolveMcpConsentRequest(
   token,
-  request,
   identity,
   env = process.env,
   now = Math.floor(Date.now() / 1_000),
@@ -543,7 +539,32 @@ export function validateMcpConsentToken(
     payload.iat > now + 60 ||
     payload.exp <= now ||
     payload.exp - payload.iat !== CONSENT_TOKEN_TTL_SECONDS ||
-    !safeStringEqual(payload.binding, consentBinding(request, identity))
+    !safeStringEqual(payload.subject, String(identity?.id || "")) ||
+    !payload.request ||
+    payload.request.resource !== resolveMcpResourceUrl(env) ||
+    !Array.isArray(payload.request.scopes)
+  ) {
+    throw new McpOAuthError("Невалидно потвърждение.", 403, "access_denied");
+  }
+  return consentRequest({
+    ...payload.request,
+    scopes: parseScopes(payload.request.scopes.join(" ")),
+  });
+}
+
+export function validateMcpConsentToken(
+  token,
+  request,
+  identity,
+  env = process.env,
+  now = Math.floor(Date.now() / 1_000),
+) {
+  const trustedRequest = resolveMcpConsentRequest(token, identity, env, now);
+  if (
+    !safeStringEqual(
+      JSON.stringify(trustedRequest),
+      JSON.stringify(consentRequest(request)),
+    )
   ) {
     throw new McpOAuthError("Невалидно потвърждение.", 403, "access_denied");
   }

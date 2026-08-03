@@ -8,7 +8,7 @@ import {
   getMcpProtectedResourceMetadata,
   McpOAuthError,
   recordMcpAuthorizationRuntimeStatus,
-  validateMcpConsentToken,
+  resolveMcpConsentRequest,
   validateMcpAuthorizationRequest,
 } from "../services/mcpOAuthService.js";
 
@@ -48,14 +48,6 @@ function oauthError(res, error) {
 
 function consentPage(request, identity, consentToken) {
   const fields = {
-    response_type: "code",
-    client_id: request.clientId,
-    redirect_uri: request.redirectUri,
-    state: request.state,
-    code_challenge: request.codeChallenge,
-    code_challenge_method: "S256",
-    resource: request.resource,
-    scope: request.scopes.join(" "),
     consent_token: consentToken,
   };
   const hidden = Object.entries(fields)
@@ -130,8 +122,10 @@ export function createMcpOAuthRouter({
             "access_denied",
           );
         }
-        const request = await validateRequest(req.body);
-        validateMcpConsentToken(req.body?.consent_token, request, identity);
+        const request = resolveMcpConsentRequest(
+          req.body?.consent_token,
+          identity,
+        );
         const callback = new URL(request.redirectUri);
         if (req.body?.decision !== "allow") {
           recordMcpAuthorizationRuntimeStatus({

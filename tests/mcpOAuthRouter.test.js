@@ -320,6 +320,57 @@ test("authorization consent rejects a modified browser-independent token", async
   }
 });
 
+test("authorization consent ignores altered repeated OAuth form fields", async () => {
+  const previous = process.env.MCP_ACCESS_TOKEN;
+  process.env.MCP_ACCESS_TOKEN = SECRET;
+  try {
+    const oauthRequest = {
+      clientId: "https://chatgpt.com/oauth/synchron/client.json",
+      clientName: "ChatGPT",
+      redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
+      state: "state-browser-round-trip",
+      codeChallenge: "c".repeat(43),
+      resource: "https://synchron.foundation/mcp",
+      scopes: ["synchron:read"],
+    };
+    const app = express();
+    app.use(
+      createMcpOAuthRouter({
+        resolveIdentity: async () => ({
+          id: "owner-id",
+          displayName: "Радко",
+          role: "owner",
+          memoryOwnerId: "primary-user",
+        }),
+        validateRequest: async () => oauthRequest,
+      }),
+    );
+    const consent = await request(app).get("/oauth/authorize").expect(200);
+    const consentToken = consent.text.match(
+      /name="consent_token" value="([^"]+)"/u,
+    )?.[1];
+    assert.ok(consentToken);
+    assert.doesNotMatch(consent.text, /name="state"/u);
+    const approved = await request(app)
+      .post("/oauth/authorize")
+      .type("form")
+      .send({
+        consent_token: consentToken,
+        decision: "allow",
+        state: "altered-by-browser",
+        redirect_uri: "https://attacker.example/callback",
+      })
+      .expect(302);
+    const callback = new URL(approved.headers.location);
+    assert.equal(callback.origin, "https://chatgpt.com");
+    assert.equal(callback.searchParams.get("state"), oauthRequest.state);
+    assert.match(callback.searchParams.get("code"), /^sx-code\./u);
+  } finally {
+    if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
+    else process.env.MCP_ACCESS_TOKEN = previous;
+  }
+});
+
 test("authorization consent names the AI CORE conversation permission", async () => {
   const previous = process.env.MCP_ACCESS_TOKEN;
   process.env.MCP_ACCESS_TOKEN = SECRET;

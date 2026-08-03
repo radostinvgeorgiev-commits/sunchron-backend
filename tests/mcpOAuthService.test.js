@@ -634,8 +634,12 @@ test("OAuth runtime diagnostics expose only a safe token exchange result", async
   assert.match(status.updatedAt, /^\d{4}-\d{2}-\d{2}T/u);
   assert.deepEqual(Object.keys(status).sort(), [
     "authorization",
+    "authorizationCallbackHost",
+    "authorizationCallbackPath",
     "authorizationDecision",
     "authorizationErrorCode",
+    "authorizationLocationLength",
+    "authorizationRedirectStatus",
     "authorizationUpdatedAt",
     "errorCode",
     "grantType",

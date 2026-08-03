@@ -26,6 +26,29 @@ function noStore(res) {
   res.set("Pragma", "no-cache");
 }
 
+function allowOAuthPopupHandoff(res) {
+  res.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+}
+
+function safeRedirectDiagnostics(location) {
+  try {
+    const parsed = new URL(location);
+    return {
+      callbackHost: parsed.hostname || null,
+      callbackPath: parsed.pathname || null,
+      redirectStatus: 302,
+      locationLength: String(location).length,
+    };
+  } catch {
+    return {
+      callbackHost: null,
+      callbackPath: null,
+      redirectStatus: 302,
+      locationLength: String(location || "").length,
+    };
+  }
+}
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/gu, "&amp;")
@@ -94,6 +117,7 @@ export function createMcpOAuthRouter({
 
   router.get("/oauth/authorize", oauthRateLimiter, async (req, res) => {
     try {
+      allowOAuthPopupHandoff(res);
       const request = await validateRequest(req.query);
       const identity = await resolveIdentity(req, res);
       noStore(res);
@@ -114,6 +138,7 @@ export function createMcpOAuthRouter({
     formParser,
     async (req, res) => {
       try {
+        allowOAuthPopupHandoff(res);
         const identity = await resolveIdentity(req, res);
         if (!identity) {
           throw new McpOAuthError(
@@ -128,21 +153,25 @@ export function createMcpOAuthRouter({
         );
         const callback = new URL(request.redirectUri);
         if (req.body?.decision !== "allow") {
+          callback.searchParams.set("error", "access_denied");
+          callback.searchParams.set("state", request.state);
+          const diagnostics = safeRedirectDiagnostics(callback.href);
           recordMcpAuthorizationRuntimeStatus({
             authorization: "redirected",
             decision: "deny",
+            ...diagnostics,
           });
-          callback.searchParams.set("error", "access_denied");
-          callback.searchParams.set("state", request.state);
           return res.redirect(callback.href);
         }
         const code = createMcpAuthorizationCode(request, identity);
+        callback.searchParams.set("code", code);
+        callback.searchParams.set("state", request.state);
+        const diagnostics = safeRedirectDiagnostics(callback.href);
         recordMcpAuthorizationRuntimeStatus({
           authorization: "redirected",
           decision: "allow",
+          ...diagnostics,
         });
-        callback.searchParams.set("code", code);
-        callback.searchParams.set("state", request.state);
         noStore(res);
         return res.redirect(callback.href);
       } catch (error) {

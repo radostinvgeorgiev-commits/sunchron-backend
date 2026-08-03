@@ -40,6 +40,10 @@ let oauthRuntimeStatus = Object.freeze({
   authorization: "not-attempted",
   authorizationDecision: null,
   authorizationErrorCode: null,
+  authorizationCallbackHost: null,
+  authorizationCallbackPath: null,
+  authorizationRedirectStatus: null,
+  authorizationLocationLength: null,
   authorizationUpdatedAt: null,
   tokenExchange: "not-attempted",
   grantType: null,
@@ -931,12 +935,26 @@ export function recordMcpAuthorizationRuntimeStatus({
   authorization,
   decision = null,
   errorCode = null,
+  callbackHost = null,
+  callbackPath = null,
+  redirectStatus = null,
+  locationLength = null,
 }) {
   oauthRuntimeStatus = Object.freeze({
     ...oauthRuntimeStatus,
     authorization,
     authorizationDecision: decision,
     authorizationErrorCode: errorCode,
+    authorizationCallbackHost: callbackHost,
+    authorizationCallbackPath: callbackPath,
+    authorizationRedirectStatus:
+      Number.isInteger(redirectStatus) && redirectStatus >= 100
+        ? redirectStatus
+        : null,
+    authorizationLocationLength:
+      Number.isInteger(locationLength) && locationLength >= 0
+        ? locationLength
+        : null,
     authorizationUpdatedAt: new Date().toISOString(),
   });
 }
@@ -1009,6 +1027,10 @@ export function resetMcpOAuthStateForTests() {
     authorization: "not-attempted",
     authorizationDecision: null,
     authorizationErrorCode: null,
+    authorizationCallbackHost: null,
+    authorizationCallbackPath: null,
+    authorizationRedirectStatus: null,
+    authorizationLocationLength: null,
     authorizationUpdatedAt: null,
     tokenExchange: "not-attempted",
     grantType: null,

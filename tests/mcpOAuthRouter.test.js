@@ -237,6 +237,10 @@ test("authorization consent issues a code bound to the browser profile", async (
   assert.match(consent.text, /Свързване на ChatGPT със AI CORE/u);
   assert.match(consent.text, /Четене на разрешените данни/u);
   assert.match(consent.text, /отделно точно потвърждение/u);
+  assert.equal(
+    consent.headers["cross-origin-opener-policy"],
+    "same-origin-allow-popups",
+  );
   const consentToken = consent.text.match(
     /name="consent_token" value="([^"]+)"/u,
   )?.[1];
@@ -249,13 +253,29 @@ test("authorization consent issues a code bound to the browser profile", async (
     .expect(302);
   const callback = new URL(approved.headers.location);
   assert.equal(callback.origin, "https://chatgpt.com");
+  assert.equal(callback.pathname, "/connector/oauth/test-callback");
   assert.equal(callback.searchParams.get("state"), "state-123");
   assert.equal(callback.searchParams.has("iss"), false);
   assert.match(callback.searchParams.get("code"), /^sx-code\./u);
+  assert.ok(callback.searchParams.get("code").length <= 2048);
+  assert.equal(
+    approved.headers["cross-origin-opener-policy"],
+    "same-origin-allow-popups",
+  );
   const authorizationStatus = getMcpOAuthRuntimeStatus();
   assert.equal(authorizationStatus.authorization, "redirected");
   assert.equal(authorizationStatus.authorizationDecision, "allow");
   assert.equal(authorizationStatus.authorizationErrorCode, null);
+  assert.equal(authorizationStatus.authorizationCallbackHost, "chatgpt.com");
+  assert.equal(
+    authorizationStatus.authorizationCallbackPath,
+    "/connector/oauth/test-callback",
+  );
+  assert.equal(authorizationStatus.authorizationRedirectStatus, 302);
+  assert.equal(
+    authorizationStatus.authorizationLocationLength,
+    approved.headers.location.length,
+  );
   assert.match(authorizationStatus.authorizationUpdatedAt, /^\d{4}-\d{2}-\d{2}T/u);
   const token = await request(app)
     .post("/oauth/token")
@@ -365,6 +385,73 @@ test("authorization consent ignores altered repeated OAuth form fields", async (
     assert.equal(callback.origin, "https://chatgpt.com");
     assert.equal(callback.searchParams.get("state"), oauthRequest.state);
     assert.match(callback.searchParams.get("code"), /^sx-code\./u);
+  } finally {
+    if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
+    else process.env.MCP_ACCESS_TOKEN = previous;
+  }
+});
+
+test("oauth authorize redirect overrides global COOP and keeps exact callback handoff", async () => {
+  const previous = process.env.MCP_ACCESS_TOKEN;
+  process.env.MCP_ACCESS_TOKEN = SECRET;
+  try {
+    const oauthRequest = {
+      clientId: "https://chatgpt.com/oauth/synchron/client.json",
+      clientName: "ChatGPT",
+      redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
+      state: "state-popup-handoff",
+      codeChallenge: createHash("sha256").update("x".repeat(64)).digest("base64url"),
+      resource: "https://synchron.foundation/mcp",
+      scopes: ["synchron:read"],
+    };
+    const app = express();
+    app.use((_req, res, next) => {
+      res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+      res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+      res.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
+      next();
+    });
+    app.use(
+      createMcpOAuthRouter({
+        resolveIdentity: async () => ({
+          id: "owner-id",
+          displayName: "Радко",
+          role: "owner",
+          memoryOwnerId: "primary-user",
+        }),
+        validateRequest: async () => oauthRequest,
+      }),
+    );
+    const consent = await request(app).get("/oauth/authorize").expect(200);
+    const consentToken = consent.text.match(
+      /name="consent_token" value="([^"]+)"/u,
+    )?.[1];
+    assert.ok(consentToken);
+    assert.equal(
+      consent.headers["cross-origin-opener-policy"],
+      "same-origin-allow-popups",
+    );
+
+    const approved = await request(app)
+      .post("/oauth/authorize")
+      .type("form")
+      .send({ consent_token: consentToken, decision: "allow" })
+      .expect(302);
+    const location = approved.headers.location;
+    const callback = new URL(location);
+    assert.equal(callback.origin, "https://chatgpt.com");
+    assert.equal(callback.pathname, "/connector/oauth/test-callback");
+    assert.equal(callback.searchParams.get("state"), oauthRequest.state);
+    assert.match(callback.searchParams.get("code"), /^sx-code\./u);
+    assert.ok(location.length <= 2048);
+    assert.equal(
+      approved.headers["cross-origin-opener-policy"],
+      "same-origin-allow-popups",
+    );
+    assert.equal(
+      approved.headers["cross-origin-resource-policy"],
+      "same-origin",
+    );
   } finally {
     if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
     else process.env.MCP_ACCESS_TOKEN = previous;

@@ -147,10 +147,10 @@ test("an unauthenticated tool call returns the ChatGPT OAuth challenge", async (
       method: "tools/call",
       params: { name: "get_personal_context", arguments: {} },
     })
-    .expect(200);
-  assert.equal(response.body.result.isError, true);
+    .expect(401);
+  assert.equal(response.body.error.code, -32001);
   assert.match(
-    response.body.result._meta["mcp/www_authenticate"][0],
+    response.headers["www-authenticate"],
     /oauth-protected-resource/u,
   );
   assert.match(response.headers["www-authenticate"], /synchron:read/u);

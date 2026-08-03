@@ -152,18 +152,12 @@ export function requireMcpAuthorization(
       },
     });
   }
-  return res.json({
+  return res.status(401).json({
     jsonrpc: "2.0",
     id: req.body?.id ?? null,
-    result: {
-      content: [
-        {
-          type: "text",
-          text: "Нужно е OAuth свързване със AI CORE.",
-        },
-      ],
-      isError: true,
-      _meta: { "mcp/www_authenticate": [challenge] },
+    error: {
+      code: -32001,
+      message: "Нужно е OAuth свързване със AI CORE.",
     },
   });
 }

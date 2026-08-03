@@ -12,11 +12,16 @@ export const MCP_READ_SCOPE = "synchron:read";
 export const MCP_AGENT_CHAT_SCOPE = "synchron:agent.chat";
 export const MCP_GITHUB_WRITE_SCOPE = "synchron:github.write";
 export const MCP_INFRASTRUCTURE_WRITE_SCOPE = "synchron:infrastructure.write";
+export const MCP_OFFLINE_ACCESS_SCOPE = "offline_access";
 export const MCP_SCOPES = Object.freeze([
   MCP_READ_SCOPE,
   MCP_AGENT_CHAT_SCOPE,
   MCP_GITHUB_WRITE_SCOPE,
   MCP_INFRASTRUCTURE_WRITE_SCOPE,
+]);
+const MCP_AUTHORIZATION_SCOPES = Object.freeze([
+  ...MCP_SCOPES,
+  MCP_OFFLINE_ACCESS_SCOPE,
 ]);
 const MCP_OWNER_ONLY_SCOPES = Object.freeze([
   MCP_GITHUB_WRITE_SCOPE,
@@ -197,7 +202,7 @@ export function getMcpAuthorizationServerMetadata(env = process.env) {
     response_types_supported: ["code"],
     grant_types_supported: ["authorization_code", "refresh_token"],
     code_challenge_methods_supported: ["S256"],
-    scopes_supported: MCP_SCOPES,
+    scopes_supported: MCP_AUTHORIZATION_SCOPES,
   };
 }
 
@@ -295,7 +300,7 @@ function parseScopes(value) {
     .filter(Boolean);
   if (
     scopes.length === 0 ||
-    scopes.some((scope) => !MCP_SCOPES.includes(scope))
+    scopes.some((scope) => !MCP_AUTHORIZATION_SCOPES.includes(scope))
   ) {
     throw new McpOAuthError(
       "Поисканите MCP права не се поддържат.",

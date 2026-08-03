@@ -17,6 +17,7 @@ import {
   MCP_AGENT_CHAT_SCOPE,
   MCP_GITHUB_WRITE_SCOPE,
   MCP_INFRASTRUCTURE_WRITE_SCOPE,
+  MCP_OFFLINE_ACCESS_SCOPE,
   MCP_READ_SCOPE,
   requiresPersistentMcpReplayGuard,
   resetMcpOAuthStateForTests,
@@ -111,6 +112,13 @@ test("publishes OAuth 2.1 protected-resource and authorization metadata", () => 
     "refresh_token",
   ]);
   assert.deepEqual(authorization.code_challenge_methods_supported, ["S256"]);
+  assert.deepEqual(authorization.scopes_supported, [
+    MCP_READ_SCOPE,
+    MCP_AGENT_CHAT_SCOPE,
+    MCP_GITHUB_WRITE_SCOPE,
+    MCP_INFRASTRUCTURE_WRITE_SCOPE,
+    MCP_OFFLINE_ACCESS_SCOPE,
+  ]);
 });
 
 test("uses an explicit dedicated or legacy fallback OAuth key mode", () => {
@@ -278,6 +286,48 @@ test("validates OpenAI CIMD metadata and exact callback and resource", async () 
       { env: ENV, fetchImpl: clientMetadataFetch },
     ),
     (error) => error.code === "invalid_target",
+  );
+});
+
+test("accepts offline_access for ChatGPT refresh-token continuity", async () => {
+  const request = await validateMcpAuthorizationRequest(
+    authorizationInput([MCP_READ_SCOPE, MCP_OFFLINE_ACCESS_SCOPE]),
+    { env: ENV, fetchImpl: clientMetadataFetch },
+  );
+  assert.deepEqual(request.scopes, [
+    MCP_READ_SCOPE,
+    MCP_OFFLINE_ACCESS_SCOPE,
+  ]);
+
+  const code = createMcpAuthorizationCode(
+    request,
+    { id: "owner-id", memoryOwnerId: "primary-user", role: "owner" },
+    ENV,
+  );
+  const token = await exchangeMcpAuthorizationCode(
+    {
+      grant_type: "authorization_code",
+      code,
+      client_id: CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: VERIFIER,
+      resource: ENV.MCP_RESOURCE_URL,
+    },
+    ENV,
+  );
+
+  assert.ok(token.refresh_token);
+  assert.equal(
+    token.scope,
+    `${MCP_READ_SCOPE} ${MCP_OFFLINE_ACCESS_SCOPE}`,
+  );
+  assert.equal(
+    verifyMcpAccessToken(
+      `Bearer ${token.access_token}`,
+      [MCP_READ_SCOPE],
+      ENV,
+    ).memoryOwnerId,
+    "primary-user",
   );
 });
 

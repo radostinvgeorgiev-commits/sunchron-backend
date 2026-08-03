@@ -34,6 +34,7 @@ test("OAuth discovery is public and describes the exact MCP resource", async () 
     authorization.body.token_endpoint,
     "https://synchron.foundation/oauth/token",
   );
+  assert.ok(authorization.body.scopes_supported.includes("offline_access"));
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
   else process.env.MCP_ACCESS_TOKEN = previous;
 });

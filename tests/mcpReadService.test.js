@@ -108,6 +108,15 @@ test("anonymous production status omits identifiers and configuration names", as
         },
       ],
     }),
+    getOAuthRuntimeStatus: () => ({
+      authorization: "redirected",
+      authorizationDecision: "allow",
+      authorizationErrorCode: null,
+      tokenExchange: "failed",
+      grantType: "authorization_code",
+      errorCode: "temporarily_unavailable",
+      updatedAt: "2026-08-03T07:48:00.000Z",
+    }),
     audit: async () => {},
   });
   const response = await handle(
@@ -128,6 +137,15 @@ test("anonymous production status omits identifiers and configuration names", as
   );
   assert.equal(response.result.structuredContent.environmentVariables, undefined);
   assert.equal(response.result.structuredContent.deployments[0].cause, undefined);
+  assert.deepEqual(response.result.structuredContent.oauth, {
+    authorization: "redirected",
+    authorizationDecision: "allow",
+    authorizationErrorCode: null,
+    tokenExchange: "failed",
+    grantType: "authorization_code",
+    errorCode: "temporarily_unavailable",
+    updatedAt: "2026-08-03T07:48:00.000Z",
+  });
 });
 
 test("MCP sends one owner-scoped message to AI CORE and audits it", async () => {

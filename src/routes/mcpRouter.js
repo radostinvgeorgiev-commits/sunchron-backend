@@ -139,25 +139,24 @@ export function requireMcpAuthorization(
           error: oauthError.code,
           description: oauthError.description,
         }
-      : {},
+      : {
+          error: "invalid_token",
+          description: "OAuth access token is required.",
+        },
   );
   res.set("WWW-Authenticate", challenge);
-  if (authorization) {
-    return res.status(oauthError?.status === 403 ? 403 : 401).json({
-      jsonrpc: "2.0",
-      id: req.body?.id ?? null,
-      error: {
-        code: -32001,
-        message: oauthError?.message || "Невалиден или изтекъл MCP token.",
-      },
-    });
-  }
-  return res.status(401).json({
+  const message = authorization
+    ? oauthError?.message || "Невалиден или изтекъл MCP token."
+    : "Нужно е OAuth свързване със AI CORE.";
+  return res.status(oauthError?.status === 403 ? 403 : 401).json({
     jsonrpc: "2.0",
     id: req.body?.id ?? null,
-    error: {
-      code: -32001,
-      message: "Нужно е OAuth свързване със AI CORE.",
+    result: {
+      content: [{ type: "text", text: message }],
+      _meta: {
+        "mcp/www_authenticate": [challenge],
+      },
+      isError: true,
     },
   });
 }

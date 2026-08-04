@@ -133,7 +133,7 @@ test("MCP returns a JSON-RPC parse error for malformed JSON", async () => {
   assert.equal(response.body.error.code, -32700);
 });
 
-test("an unauthenticated tool call returns the ChatGPT OAuth challenge", async () => {
+test("an unauthenticated tool call returns the ChatGPT OAuth UI challenge", async () => {
   const previous = process.env.MCP_ACCESS_TOKEN;
   process.env.MCP_ACCESS_TOKEN = SECRET;
   const app = express();
@@ -148,12 +148,22 @@ test("an unauthenticated tool call returns the ChatGPT OAuth challenge", async (
       params: { name: "get_personal_context", arguments: {} },
     })
     .expect(401);
-  assert.equal(response.body.error.code, -32001);
+  assert.equal(response.body.result.isError, true);
+  assert.match(
+    response.body.result.content[0].text,
+    /OAuth свързване/u,
+  );
+  assert.equal(
+    response.body.result._meta["mcp/www_authenticate"][0],
+    response.headers["www-authenticate"],
+  );
   assert.match(
     response.headers["www-authenticate"],
     /oauth-protected-resource/u,
   );
   assert.match(response.headers["www-authenticate"], /synchron:read/u);
+  assert.match(response.headers["www-authenticate"], /error="invalid_token"/u);
+  assert.match(response.headers["www-authenticate"], /error_description=/u);
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
   else process.env.MCP_ACCESS_TOKEN = previous;
 });
@@ -174,7 +184,11 @@ test("an invalid bearer token is rejected with HTTP 401", async () => {
       params: { name: "get_personal_context", arguments: {} },
     })
     .expect(401);
-  assert.equal(response.body.error.code, -32001);
+  assert.equal(response.body.result.isError, true);
+  assert.equal(
+    response.body.result._meta["mcp/www_authenticate"][0],
+    response.headers["www-authenticate"],
+  );
   assert.match(response.headers["www-authenticate"], /invalid_token/u);
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
   else process.env.MCP_ACCESS_TOKEN = previous;
@@ -199,7 +213,11 @@ test("the dedicated OAuth secret is never accepted as a legacy static bearer", a
         params: { name: "get_personal_context", arguments: {} },
       })
       .expect(401);
-    assert.equal(response.body.error.code, -32001);
+    assert.equal(response.body.result.isError, true);
+    assert.equal(
+      response.body.result._meta["mcp/www_authenticate"][0],
+      response.headers["www-authenticate"],
+    );
   } finally {
     if (previousAccess === undefined) delete process.env.MCP_ACCESS_TOKEN;
     else process.env.MCP_ACCESS_TOKEN = previousAccess;

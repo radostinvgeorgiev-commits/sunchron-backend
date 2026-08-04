@@ -3,7 +3,6 @@
     "https://github.com/radostinvgeorgiev-commits/sunchron-backend";
   const MCP_RESOURCE_URL = "https://synchron.foundation/mcp";
   const PUBLIC_REGISTRATION_URL = "https://synchron.foundation/register";
-  const PUBLIC_WWW_URL = "https://www.synchron.foundation/";
   const CHATGPT_APP_GUIDE_URL =
     "https://developers.openai.com/apps-sdk/deploy/testing";
   const FALLBACK_CONFIG = Object.freeze({
@@ -368,7 +367,6 @@
     integrations = null,
     sessions = {},
     testerAuth = null,
-    publicDomain = null,
   ) {
     const chatgptUrl = safeHttpsUrl(
       config.chatgptWorkUrl,
@@ -483,20 +481,6 @@
         icon: "fa-brands fa-digital-ocean",
         status: `DigitalOcean Read: ${digitalOceanStatus.label.toLocaleLowerCase("bg-BG")}`,
       }),
-      createActionCard({
-        title: "Публичен www адрес",
-        description:
-          "Отваря AI CORE директно от www.synchron.foundation за всеки посетител.",
-        action: "activate-www-domain",
-        icon: "fa-solid fa-globe",
-        status: publicDomain?.configured
-          ? "Конфигуриран в DigitalOcean"
-          : "Изисква точно потвърждение",
-        statusClass: publicDomain?.configured ? "internal" : "warning",
-        actionLabel: publicDomain?.configured
-          ? "Провери публичния адрес"
-          : "Добави www адреса",
-      }),
       createInternalCard({
         title: "Системен контрол",
         description:
@@ -595,94 +579,6 @@
     } else {
       body.prepend(panel);
     }
-    panel.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
-  }
-
-  function showPublicWwwError(error, card) {
-    if (error.code === "AUTH_REQUIRED") {
-      showTesterAuthResult({
-        title: "Необходим е вход на собственика",
-        message:
-          "Отварям защитения GitHub вход. След връщането натисни картата отново.",
-        anchor: card,
-      });
-      globalThis.location?.assign?.("/api/github/connect");
-      return;
-    }
-    showTesterAuthResult({
-      title: "Настройването на www адреса не успя",
-      message: error.code
-        ? `${error.message}\nКод: ${error.code}`
-        : error.message,
-      anchor: card,
-    });
-  }
-
-  function showPublicWwwConfirmation({ card, prepared }) {
-    body.querySelector("[data-www-domain-confirmation]")?.remove();
-
-    const panel = document.createElement("section");
-    panel.className = "work-center-intro";
-    panel.dataset.wwwDomainConfirmation = "";
-    addText(panel, "strong", "Потвърди добавянето на www адреса");
-    addText(panel, "p", prepared.message);
-    addText(panel, "p", `Адрес: ${prepared.domain}`);
-
-    const actions = document.createElement("div");
-    actions.className = "chatgpt-app-actions";
-    const confirmButton = addText(
-      actions,
-      "button",
-      "Потвърди добавянето",
-      "chatgpt-app-copy",
-    );
-    confirmButton.type = "button";
-    confirmButton.dataset.confirmWwwDomain = "";
-    const cancelButton = addText(
-      actions,
-      "button",
-      "Отказ",
-      "chatgpt-app-copy secondary",
-    );
-    cancelButton.type = "button";
-    cancelButton.dataset.cancelWwwDomain = "";
-    panel.appendChild(actions);
-
-    const finish = () => {
-      delete card.dataset.awaitingWwwConfirmation;
-      card.disabled = false;
-      panel.remove();
-    };
-
-    cancelButton.addEventListener("click", finish);
-    confirmButton.addEventListener("click", async () => {
-      confirmButton.disabled = true;
-      cancelButton.disabled = true;
-      try {
-        const result = await readJson(
-          await fetch("/api/digitalocean-domain/confirm", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              confirmationId: prepared.confirmationId,
-            }),
-          }),
-        );
-        finish();
-        showTesterAuthResult({
-          title: "www адресът се активира",
-          message: `${result.domain} е добавен. DigitalOcean започва deployment; след публикуването адресът ще бъде проверен отново.`,
-          anchor: card,
-        });
-      } catch (error) {
-        finish();
-        showPublicWwwError(error, card);
-      }
-    });
-
-    card.dataset.awaitingWwwConfirmation = "true";
-    card.disabled = true;
-    card.insertAdjacentElement("afterend", panel);
     panel.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
   }
 
@@ -825,33 +721,6 @@
     }
   }
 
-  async function activatePublicWwwDomain(card) {
-    if (card.dataset.awaitingWwwConfirmation === "true") return;
-    card.disabled = true;
-    try {
-      const prepared = await readJson(
-        await fetch("/api/digitalocean-domain/prepare", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: "{}",
-        }),
-      );
-      if (prepared.configured) {
-        showTesterAuthResult({
-          title: "www адресът е конфигуриран",
-          message: `${prepared.domain} е добавен в DigitalOcean. Отвори ${PUBLIC_WWW_URL} за крайна проверка.`,
-          anchor: card,
-        });
-        return;
-      }
-      showPublicWwwConfirmation({ card, prepared });
-    } catch (error) {
-      showPublicWwwError(error, card);
-    } finally {
-      card.disabled = card.dataset.awaitingWwwConfirmation === "true";
-    }
-  }
-
   async function openWorkCenter() {
     title.textContent = "Работен център";
     drawer.hidden = false;
@@ -867,7 +736,6 @@
       googleResult,
       githubResult,
       testerAuthResult,
-      publicDomainResult,
     ] = await Promise.allSettled([
       fetch("/api/public-config", { cache: "no-store" }),
       fetch("/health/ready", { cache: "no-store" }),
@@ -875,7 +743,6 @@
       fetch("/api/google/status", { cache: "no-store" }),
       fetch("/api/github/status", { cache: "no-store" }),
       fetch("/api/tester-auth/status", { cache: "no-store" }),
-      fetch("/api/digitalocean-domain/status", { cache: "no-store" }),
     ]);
 
     let config = FALLBACK_CONFIG;
@@ -908,13 +775,6 @@
     if (testerAuthResult.status === "fulfilled" && testerAuthResult.value.ok) {
       testerAuth = await testerAuthResult.value.json();
     }
-    let publicDomain = null;
-    if (
-      publicDomainResult.status === "fulfilled" &&
-      publicDomainResult.value.ok
-    ) {
-      publicDomain = await publicDomainResult.value.json();
-    }
     renderWorkCenter(
       config,
       readiness,
@@ -924,7 +784,6 @@
         githubConnected,
       },
       testerAuth,
-      publicDomain,
     );
   }
 
@@ -946,10 +805,6 @@
     }
     if (actionCard?.dataset.workCenterAction === "activate-tester-auth") {
       await activateTesterAuth(actionCard);
-      return;
-    }
-    if (actionCard?.dataset.workCenterAction === "activate-www-domain") {
-      await activatePublicWwwDomain(actionCard);
       return;
     }
     if (actionCard?.dataset.workCenterAction === "copy-registration-link") {

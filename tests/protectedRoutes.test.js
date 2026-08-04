@@ -14,11 +14,6 @@ const { createGitHubSession } =
 
 test("keeps liveness and sign-in routes public", async () => {
   await request(app).get("/health").expect(200);
-  const publicEntry = await request(app)
-    .get("/")
-    .set("Host", "www.synchron.foundation")
-    .expect(302);
-  assert.equal(publicEntry.headers.location, "/register");
   await request(app).get("/").set("Host", "synchron.foundation").expect(200);
   const registration = await request(app).get("/register").expect(200);
   assert.match(registration.text, /id="registerForm"/u);
@@ -35,7 +30,6 @@ test("blocks personal data and paid AI routes without owner sign-in", async () =
     ["get", "/memory/conversations"],
     ["get", "/calendar/events"],
     ["get", "/api/tester-auth/status"],
-    ["get", "/api/digitalocean-domain/status"],
     ["get", "/api/system/configuration"],
     ["get", "/api/workspaces"],
     ["put", "/api/workspaces"],

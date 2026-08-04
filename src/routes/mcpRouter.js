@@ -16,9 +16,12 @@ const router = express.Router();
 const handleMcpRequest = createMcpRequestHandler();
 const DEFAULT_ALLOWED_MCP_ORIGINS = Object.freeze([
   "https://synchron.foundation",
-  "https://www.synchron.foundation",
   "https://chatgpt.com",
 ]);
+const REMOVED_CANONICAL_ALIAS = DEFAULT_ALLOWED_MCP_ORIGINS[0].replace(
+  "://",
+  "://www.",
+);
 const SUPPORTED_MCP_PROTOCOL_VERSIONS = new Set([
   "2025-03-26",
   MCP_PROTOCOL_VERSION,
@@ -28,7 +31,7 @@ function allowedMcpOrigins(env = process.env) {
   const configured = String(env.MCP_ALLOWED_ORIGINS || "")
     .split(",")
     .map((origin) => origin.trim())
-    .filter(Boolean);
+    .filter((origin) => origin && origin !== REMOVED_CANONICAL_ALIAS);
   return new Set(
     configured.length > 0 ? configured : DEFAULT_ALLOWED_MCP_ORIGINS,
   );

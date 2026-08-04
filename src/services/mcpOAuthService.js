@@ -210,12 +210,6 @@ export function requiredScopesForMcpTool(name) {
   if (name === "talk_to_ai_core") {
     return [MCP_AGENT_CHAT_SCOPE];
   }
-  if (
-    name === "prepare_digitalocean_www_domain" ||
-    name === "confirm_digitalocean_www_domain"
-  ) {
-    return [MCP_INFRASTRUCTURE_WRITE_SCOPE];
-  }
   return name === "prepare_github_merged_branch_cleanup" ||
     name === "confirm_github_merged_branch_cleanup"
     ? [MCP_GITHUB_WRITE_SCOPE]
@@ -924,8 +918,7 @@ export async function exchangeMcpToken(input, env = process.env) {
       ...oauthRuntimeStatus,
       tokenExchange: "failed",
       grantType,
-      errorCode:
-        error instanceof McpOAuthError ? error.code : "server_error",
+      errorCode: error instanceof McpOAuthError ? error.code : "server_error",
       updatedAt: new Date().toISOString(),
     });
     throw error;

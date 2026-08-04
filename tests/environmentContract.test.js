@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import test from "node:test";
+
+import { getEnvironmentCatalog } from "../src/config/environmentCatalog.js";
 
 const appSpec = readFileSync(
   new URL("../.do/app.yaml", import.meta.url),
@@ -10,6 +14,7 @@ const envExample = readFileSync(
   new URL("../.env.example", import.meta.url),
   "utf8",
 );
+const projectRoot = fileURLToPath(new URL("../", import.meta.url));
 
 function appSpecEnvironmentKeys(source) {
   return new Set(
@@ -34,6 +39,14 @@ function appSpecKeyBlock(source, key) {
     (line, index) => index > start && /^\s+- key:/u.test(line),
   );
   return lines.slice(start, end === -1 ? lines.length : end).join("\n");
+}
+
+function javascriptFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const target = join(directory, entry.name);
+    if (entry.isDirectory()) return javascriptFiles(target);
+    return entry.isFile() && entry.name.endsWith(".js") ? [target] : [];
+  });
 }
 
 test("required MCP and memory variables stay declared in DigitalOcean", () => {
@@ -84,6 +97,50 @@ test("bridge variables stay documented without real secret values", () => {
     "CLOUDFLARE_API_TOKEN",
   ]) {
     assert.match(envExample, new RegExp(`^${key}=$`, "mu"));
+  }
+});
+
+test("documented runtime variables stay present in the safe inventory", () => {
+  const catalogKeys = new Set(getEnvironmentCatalog().map((item) => item.key));
+  const documentedKeys = exampleEnvironmentKeys(envExample);
+
+  for (const key of documentedKeys) {
+    assert.equal(
+      catalogKeys.has(key),
+      true,
+      `${key} is documented but missing from the environment catalog`,
+    );
+  }
+
+  for (const key of ["MCP_ALLOWED_ORIGINS", "WORKSPACE_STATE_INDEX"]) {
+    assert.equal(
+      documentedKeys.has(key),
+      true,
+      `${key} is used at runtime but missing from .env.example`,
+    );
+  }
+});
+
+test("source environment reads stay present in the safe inventory", () => {
+  const catalogKeys = new Set(getEnvironmentCatalog().map((item) => item.key));
+  const platformKeys = new Set(["LANG", "PATH"]);
+  const sourceFiles = [
+    ...javascriptFiles(join(projectRoot, "src")),
+    join(projectRoot, "server.js"),
+  ];
+
+  for (const file of sourceFiles) {
+    const source = readFileSync(file, "utf8");
+    for (const match of source.matchAll(
+      /(?:process\.)?env\.([A-Z][A-Z0-9_]+)/gu,
+    )) {
+      const key = match[1];
+      assert.equal(
+        platformKeys.has(key) || catalogKeys.has(key),
+        true,
+        `${key} is read by ${file} but missing from the environment catalog`,
+      );
+    }
   }
 });
 

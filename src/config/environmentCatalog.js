@@ -66,6 +66,24 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "Незадължителен адрес само за стария анализ на изображения.",
       { hasDefault: true, state: "compatibility" },
     ),
+    general(
+      "CODEX_AGENT_ENABLED",
+      "Codex",
+      "Включва изолирания специалист за анализ на код, освен при точна стойност false.",
+      { hasDefault: true },
+    ),
+    general(
+      "OPENAI_CODEX_MODEL",
+      "Codex",
+      "Незадължителен модел за изолирания анализ на код.",
+      { hasDefault: true },
+    ),
+    general(
+      "CODEX_AGENT_TIMEOUT_MS",
+      "Codex",
+      "Максимално време за един изолиран анализ на код.",
+      { hasDefault: true },
+    ),
 
     secret(
       "OPENSEARCH_HOST",
@@ -121,6 +139,12 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "Индекс за одобрени тестови профили.",
       { hasDefault: true },
     ),
+    general(
+      "WORKSPACE_STATE_INDEX",
+      "Памет",
+      "Индекс за състоянието на личните работни области.",
+      { hasDefault: true },
+    ),
 
     secret(
       "MCP_ACCESS_TOKEN",
@@ -137,6 +161,12 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "MCP_RESOURCE_URL",
       "ChatGPT / MCP",
       "Каноничен HTTPS адрес на MCP ресурса.",
+      { hasDefault: true },
+    ),
+    general(
+      "MCP_ALLOWED_ORIGINS",
+      "ChatGPT / MCP",
+      "Незадължителен списък с разрешени browser origins; production използва основния домейн и ChatGPT по подразбиране.",
       { hasDefault: true },
     ),
     general(

@@ -174,8 +174,6 @@ jobs:
                     "get_digitalocean_app_status",
                     "get_system_configuration",
                     "get_digitalocean_account_audit",
-                    "prepare_digitalocean_www_domain",
-                    "confirm_digitalocean_www_domain",
                     "get_cloudflare_zone_status",
                     "get_github_copilot_task_status",
                     "prepare_github_merged_branch_cleanup",
@@ -194,12 +192,6 @@ jobs:
                   const conversationScopes = conversation?.securitySchemes?.flatMap(
                     (scheme) => scheme.scopes || [],
                   ) || [];
-                  const confirmWww = tools?.find(
-                    (tool) => tool.name === "confirm_digitalocean_www_domain",
-                  );
-                  const confirmWwwScopes = confirmWww?.securitySchemes?.flatMap(
-                    (scheme) => scheme.scopes || [],
-                  ) || [];
                   const valid =
                     names.length === expected.length &&
                     new Set(names).size === names.length &&
@@ -207,9 +199,7 @@ jobs:
                     tracker?.annotations?.readOnlyHint === true &&
                     trackerScopes.includes("synchron:read") &&
                     conversation?.annotations?.destructiveHint === false &&
-                    conversationScopes.includes("synchron:agent.chat") &&
-                    confirmWww?.annotations?.destructiveHint === true &&
-                    confirmWwwScopes.includes("synchron:infrastructure.write");
+                    conversationScopes.includes("synchron:agent.chat");
                   console.log(JSON.stringify({ names, trackerReadOnly: tracker?.annotations?.readOnlyHint }));
                   process.exit(valid ? 0 : 1);
                 } catch {
@@ -230,26 +220,29 @@ jobs:
             exit 1
           fi
 
-          challenge="$(curl --fail --silent --show-error \
+          challenge_headers="$(mktemp)"
+          challenge_body="$(mktemp)"
+          trap 'rm -f "${challenge_headers}" "${challenge_body}"' EXIT
+          challenge_status="$(curl --silent --show-error \
             --max-time 30 \
+            --dump-header "${challenge_headers}" \
+            --output "${challenge_body}" \
+            --write-out '%{http_code}' \
             --header 'Content-Type: application/json' \
             --header 'Accept: application/json, text/event-stream' \
             --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_github_copilot_task_status","arguments":{"issueNumber":83}}}' \
             https://synchron.foundation/mcp)"
-          printf '%s' "${challenge}" | node -e '
-            let input = "";
-            process.stdin.on("data", (chunk) => { input += chunk; });
-            process.stdin.on("end", () => {
-              const result = JSON.parse(input).result;
-              const challenges = result?._meta?.["mcp/www_authenticate"] || [];
-              const valid =
-                result?.isError === true &&
-                challenges.some(
-                  (value) => value.includes("Bearer") && value.includes("synchron:read"),
-                );
-              if (!valid) process.exit(1);
-            });
-          '
+          test "${challenge_status}" = "401"
+          grep -Eqi '^www-authenticate:[[:space:]]*Bearer.*resource_metadata="https://synchron\.foundation/\.well-known/oauth-protected-resource".*scope="synchron:read"' "${challenge_headers}"
+          node -e '
+            const fs = require("node:fs");
+            const result = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const valid =
+              result?.jsonrpc === "2.0" &&
+              result?.id === 2 &&
+              result?.error?.code === -32001;
+            if (!valid) process.exit(1);
+          ' "${challenge_body}"
 
       - name: Check tester auth readiness
         shell: bash

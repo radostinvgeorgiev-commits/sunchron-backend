@@ -74,13 +74,9 @@ function createHarness({
   googleConnected = false,
   githubConnected = false,
   testerAuth = { configured: false, registrationEnabled: false },
-  publicDomain = { configured: false, domain: "www.synchron.foundation" },
   fetchFails = false,
   testerPrepareResponse = null,
-  domainPrepareResponse = null,
-  domainConfirmResponse = null,
 } = {}) {
-  const domainRequests = [];
   const dom = new JSDOM(`<!doctype html><body>
     <aside id="sidebar"></aside>
     <button id="workCenterBtn">Работен център</button>
@@ -120,20 +116,6 @@ function createHarness({
       if (path.includes("/api/tester-auth/prepare") && testerPrepareResponse) {
         return testerPrepareResponse;
       }
-      if (
-        path.includes("/api/digitalocean-domain/prepare") &&
-        domainPrepareResponse
-      ) {
-        domainRequests.push({ path, options });
-        return domainPrepareResponse;
-      }
-      if (
-        path.includes("/api/digitalocean-domain/confirm") &&
-        domainConfirmResponse
-      ) {
-        domainRequests.push({ path, options });
-        return domainConfirmResponse;
-      }
       const result = path.includes("/health/ready")
         ? readiness
         : path.includes("/health/integrations")
@@ -144,9 +126,7 @@ function createHarness({
               ? { connected: githubConnected }
               : path.includes("/api/tester-auth/status")
                 ? testerAuth
-                : path.includes("/api/digitalocean-domain/status")
-                  ? publicDomain
-                  : config || {};
+                : config || {};
       return {
         ok: true,
         json: async () => result,
@@ -155,7 +135,7 @@ function createHarness({
   };
   context.globalThis = context;
   vm.runInNewContext(source, context);
-  return { dom, context, domainRequests };
+  return { dom, context };
 }
 
 async function openCenter(harness) {
@@ -380,7 +360,6 @@ test("work center shows real connection state instead of claiming everything wor
   assert.match(text, /Cloudflare Read: не е конфигуриран/u);
   assert.match(text, /Изисква еднократен вход в Google/u);
   assert.match(text, /Активирай потребителски профили/u);
-  assert.match(text, /Изисква точно потвърждение/u);
 });
 
 test("work center shows normal registration after user auth is active", async () => {
@@ -394,112 +373,6 @@ test("work center shows normal registration after user auth is active", async ()
 
   assert.match(card.textContent, /Потребителски профили/u);
   assert.match(card.textContent, /Работи · Нормална регистрация/u);
-});
-
-test("work center shows the exact public www domain action", async () => {
-  const harness = createHarness();
-  await openCenter(harness);
-  const card = harness.dom.window.document.querySelector(
-    '[data-work-center-action="activate-www-domain"]',
-  );
-
-  assert.match(card.textContent, /Публичен www адрес/u);
-  assert.match(card.textContent, /www\.synchron\.foundation/u);
-  assert.match(card.textContent, /Добави www адреса/u);
-});
-
-test("public www action uses prepare and exact confirm before reporting deployment", async () => {
-  const harness = createHarness({
-    domainPrepareResponse: {
-      ok: true,
-      status: 201,
-      json: async () => ({
-        confirmationId: "confirmation-www",
-        domain: "www.synchron.foundation",
-        message: "Ще бъде добавен само www адресът.",
-      }),
-    },
-    domainConfirmResponse: {
-      ok: true,
-      status: 200,
-      json: async () => ({
-        status: "ok",
-        updated: true,
-        domain: "www.synchron.foundation",
-        deploymentId: "deploy-www",
-      }),
-    },
-  });
-  await openCenter(harness);
-  const { document } = harness.dom.window;
-  document
-    .querySelector('[data-work-center-action="activate-www-domain"]')
-    .click();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  assert.match(document.body.textContent, /Потвърди добавянето на www адреса/u);
-  assert.match(document.body.textContent, /Адрес: www\.synchron\.foundation/u);
-  assert.equal(harness.domainRequests.length, 1);
-
-  document.querySelector("[data-confirm-www-domain]").click();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  assert.equal(harness.domainRequests.length, 2);
-  assert.deepEqual(
-    JSON.parse(harness.domainRequests[1].options.body),
-    { confirmationId: "confirmation-www" },
-  );
-  assert.match(document.body.textContent, /www адресът се активира/u);
-  assert.match(document.body.textContent, /DigitalOcean започва deployment/u);
-});
-
-test("public www action can be cancelled without changing DigitalOcean", async () => {
-  const harness = createHarness({
-    domainPrepareResponse: {
-      ok: true,
-      status: 201,
-      json: async () => ({
-        confirmationId: "confirmation-www",
-        domain: "www.synchron.foundation",
-        message: "Ще бъде добавен само www адресът.",
-      }),
-    },
-  });
-  await openCenter(harness);
-  const { document } = harness.dom.window;
-  const card = document.querySelector(
-    '[data-work-center-action="activate-www-domain"]',
-  );
-  card.click();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  document.querySelector("[data-cancel-www-domain]").click();
-
-  assert.equal(harness.domainRequests.length, 1);
-  assert.equal(document.querySelector("[data-www-domain-confirmation]"), null);
-  assert.equal(card.disabled, false);
-});
-
-test("public www action shows the safe DigitalOcean diagnostic code", async () => {
-  const harness = createHarness({
-    domainPrepareResponse: {
-      ok: false,
-      status: 502,
-      json: async () => ({
-        error: "DigitalOcean не върна валиден app spec.",
-        code: "DIGITALOCEAN_INVALID_APP_SPEC",
-      }),
-    },
-  });
-  await openCenter(harness);
-  const { document } = harness.dom.window;
-  document
-    .querySelector('[data-work-center-action="activate-www-domain"]')
-    .click();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  assert.match(document.body.textContent, /не върна валиден app spec/u);
-  assert.match(document.body.textContent, /DIGITALOCEAN_INVALID_APP_SPEC/u);
 });
 
 test("copies the normal registration address", async () => {

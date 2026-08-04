@@ -3,8 +3,6 @@ name: sunchron-backend
 domains:
   - domain: synchron.foundation
     type: PRIMARY
-  - domain: www.synchron.foundation
-    type: ALIAS
 
 services:
   - name: web

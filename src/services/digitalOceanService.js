@@ -3,9 +3,6 @@ import { randomBytes } from "node:crypto";
 const DEFAULT_API_URL = "https://api.digitalocean.com/v2";
 const DEFAULT_APP_NAME = "sunchron-backend";
 const PRIMARY_PUBLIC_DOMAIN = "synchron.foundation";
-export const PUBLIC_WWW_DOMAIN = "www.synchron.foundation";
-export const DIGITALOCEAN_DOMAIN_ACTION =
-  "infrastructure.digitalocean:add_www_domain";
 export const TESTER_AUTH_ENV_KEYS = Object.freeze([
   "SUPABASE_URL",
   "SUPABASE_PUBLISHABLE_KEY",
@@ -290,9 +287,7 @@ function appMatchesPublicProject(app, configuredValue) {
   const domains = listDigitalOceanDomains(app?.spec);
   return (
     acceptedNames.has(appName) ||
-    domains.some(({ domain }) =>
-      [PRIMARY_PUBLIC_DOMAIN, PUBLIC_WWW_DOMAIN].includes(domain),
-    )
+    domains.some(({ domain }) => domain === PRIMARY_PUBLIC_DOMAIN)
   );
 }
 
@@ -332,134 +327,6 @@ export function listDigitalOceanDomains(spec = {}) {
       type: typeof entry?.type === "string" ? entry.type : null,
     }))
     .filter(({ domain }) => domain);
-}
-
-export function addDigitalOceanDomainAlias(spec, domain = PUBLIC_WWW_DOMAIN) {
-  if (!spec || typeof spec !== "object" || Array.isArray(spec)) {
-    throw new DigitalOceanError(
-      "DigitalOcean не върна валиден app spec.",
-      502,
-      "DIGITALOCEAN_INVALID_APP_SPEC",
-    );
-  }
-  const normalizedDomain = normalizeDomainName(domain);
-  if (normalizedDomain !== PUBLIC_WWW_DOMAIN) {
-    throw new DigitalOceanError(
-      "Разрешен е само публичният www адрес на AI CORE.",
-      400,
-      "DIGITALOCEAN_DOMAIN_NOT_ALLOWED",
-    );
-  }
-  const currentDomains = listDigitalOceanDomains(spec);
-  if (currentDomains.some((entry) => entry.domain === normalizedDomain)) {
-    return { spec: structuredClone(spec), added: false };
-  }
-  const nextSpec = structuredClone(spec);
-  nextSpec.domains = [
-    ...(Array.isArray(nextSpec.domains) ? nextSpec.domains : []),
-    { domain: normalizedDomain, type: "ALIAS" },
-  ];
-  return { spec: nextSpec, added: true };
-}
-
-async function loadDomainAliasActivation({
-  domain = PUBLIC_WWW_DOMAIN,
-  expectedAppId = "",
-  env = process.env,
-  fetchImpl = fetch,
-} = {}) {
-  const { token, appId } = await resolveDigitalOceanAppConfig({
-    env,
-    fetchImpl,
-  });
-  if (expectedAppId && expectedAppId !== appId) {
-    throw new DigitalOceanError(
-      "Потвърждението е за друго DigitalOcean приложение.",
-      409,
-      "DIGITALOCEAN_APP_CHANGED",
-    );
-  }
-  const normalizedDomain = normalizeDomainName(domain);
-  if (normalizedDomain !== PUBLIC_WWW_DOMAIN) {
-    throw new DigitalOceanError(
-      "Разрешен е само публичният www адрес на AI CORE.",
-      400,
-      "DIGITALOCEAN_DOMAIN_NOT_ALLOWED",
-    );
-  }
-  const options = { env: { ...env, DIGITALOCEAN_API_TOKEN: token }, fetchImpl };
-  const appData = await request(`/apps/${encodeURIComponent(appId)}`, options);
-  const app = appData.app || {};
-  const currentSpec = app.spec;
-  assertSafeSecretRoundTrip(currentSpec);
-  return {
-    app,
-    appId,
-    currentSpec,
-    currentDomains: listDigitalOceanDomains(currentSpec),
-    domain: normalizedDomain,
-    options,
-  };
-}
-
-export async function inspectDigitalOceanDomainAlias(options = {}) {
-  const inspection = await loadDomainAliasActivation(options);
-  return {
-    appId: inspection.appId,
-    domain: inspection.domain,
-    configured: inspection.currentDomains.some(
-      (entry) => entry.domain === inspection.domain,
-    ),
-    currentDomains: inspection.currentDomains,
-    readAccessVerified: true,
-    requiredWriteScope: "app:update",
-  };
-}
-
-export async function activateDigitalOceanDomainAlias({
-  domain = PUBLIC_WWW_DOMAIN,
-  expectedAppId = "",
-  env = process.env,
-  fetchImpl = fetch,
-} = {}) {
-  const inspection = await loadDomainAliasActivation({
-    domain,
-    expectedAppId,
-    env,
-    fetchImpl,
-  });
-  const update = addDigitalOceanDomainAlias(
-    inspection.currentSpec,
-    inspection.domain,
-  );
-  if (!update.added) {
-    return {
-      updated: false,
-      appId: inspection.appId,
-      domain: inspection.domain,
-      deploymentId:
-        inspection.app.in_progress_deployment?.id ||
-        inspection.app.active_deployment?.id ||
-        null,
-    };
-  }
-  const updatedData = await request(
-    `/apps/${encodeURIComponent(inspection.appId)}`,
-    {
-      ...inspection.options,
-      method: "PUT",
-      body: { spec: update.spec },
-    },
-  );
-  return {
-    updated: true,
-    appId: inspection.appId,
-    domain: inspection.domain,
-    deploymentId:
-      updatedData.app?.in_progress_deployment?.id ||
-      updatedData.app?.active_deployment?.id ||
-      null,
-  };
 }
 
 export function missingTesterAuthEnvironmentKeys(spec = {}) {

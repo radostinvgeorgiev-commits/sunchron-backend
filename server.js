@@ -25,7 +25,6 @@ import webSearchRouter from "./src/routes/webSearchRouter.js";
 import publicConfigRouter from "./src/routes/publicConfigRouter.js";
 import userAuthRouter from "./src/routes/userAuthRouter.js";
 import testerAuthAdminRouter from "./src/routes/testerAuthAdminRouter.js";
-import digitalOceanDomainAdminRouter from "./src/routes/digitalOceanDomainAdminRouter.js";
 import systemRouter from "./src/routes/systemRouter.js";
 import workspacesRouter from "./src/routes/workspacesRouter.js";
 import mcpRouter, { mcpJsonParseErrorHandler } from "./src/routes/mcpRouter.js";
@@ -116,15 +115,6 @@ app.get(
 );
 app.use("/", mcpOAuthRouter);
 
-app.get("/", (req, res, next) => {
-  if (req.hostname.toLowerCase() !== "www.synchron.foundation") {
-    next();
-    return;
-  }
-
-  res.redirect(302, "/register");
-});
-
 app.use(
   express.static("public", {
     maxAge: 0,
@@ -156,13 +146,6 @@ app.use(
   requirePrimaryOwner,
   privateApiRateLimiter,
   testerAuthAdminRouter,
-);
-app.use(
-  "/api/digitalocean-domain",
-  requireOwnerSession,
-  requirePrimaryOwner,
-  privateApiRateLimiter,
-  digitalOceanDomainAdminRouter,
 );
 app.use(
   "/api/system",

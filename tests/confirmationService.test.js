@@ -36,17 +36,6 @@ test("rejects unknown actions", () => {
   assert.equal(isAllowedAction(""), false);
 });
 
-test("allows only the exact confirmed DigitalOcean www domain action", () => {
-  assert.equal(
-    isAllowedAction("infrastructure.digitalocean:add_www_domain"),
-    true,
-  );
-  assert.equal(
-    isAllowedAction("infrastructure.digitalocean:add_other_domain"),
-    false,
-  );
-});
-
 test("blocks every legacy direct GitHub write action", () => {
   for (const action of [
     "github.write:create_file",
@@ -273,8 +262,10 @@ test("deny of non-existent confirmation returns CONFIRMATION_NOT_FOUND", () => {
   );
 });
 
-
 test("requires durable confirmations in production", () => {
-  assert.equal(requiresPersistentConfirmations({ NODE_ENV: "production" }), true);
+  assert.equal(
+    requiresPersistentConfirmations({ NODE_ENV: "production" }),
+    true,
+  );
   assert.equal(requiresPersistentConfirmations({ NODE_ENV: "test" }), false);
 });

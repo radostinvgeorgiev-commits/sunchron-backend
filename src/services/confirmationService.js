@@ -16,7 +16,6 @@ const ALLOWED_ACTIONS = new Set([
   "github.copilot:start_task",
   "github.write:delete_merged_branches",
   "infrastructure.digitalocean:activate_tester_auth",
-  "infrastructure.digitalocean:add_www_domain",
   "calendar.write:create_event",
   "memory.write:save_profile",
   "memory.delete:profile",

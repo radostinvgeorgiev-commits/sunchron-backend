@@ -241,3 +241,125 @@
     border-radius: 24px;
   }
 }
+
+/* ── Token balance sidebar ──────────────────────────────────────────────── */
+.sidebar-tokens {
+  margin-top: auto;
+  padding: 10px 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.sidebar-tokens > span {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+
+.token-balance-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.token-balance-value {
+  flex: 1;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: #111827;
+}
+
+.token-balance-low {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.token-buy-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.token-buy-btn:hover {
+  background: #f3f4f6;
+}
+
+/* ── Purchase modal ─────────────────────────────────────────────────────── */
+.billing-modal {
+  border: none;
+  border-radius: 16px;
+  padding: 28px 28px 24px;
+  max-width: 360px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+}
+
+.billing-modal::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.billing-modal h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.billing-modal-info {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 0 16px;
+}
+
+.billing-modal label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.billing-modal input[type="number"] {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 15px;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+}
+
+.billing-modal-message {
+  font-size: 13px;
+  min-height: 20px;
+  color: #374151;
+  margin: 0 0 14px;
+}
+
+.billing-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.billing-modal-actions button {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.billing-modal-actions .auth-primary {
+  background: #16a34a;
+  color: #fff;
+  border-color: #16a34a;
+}
+
+.billing-modal-actions .auth-primary:hover {
+  background: #15803d;
+}

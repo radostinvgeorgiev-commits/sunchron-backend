@@ -24,6 +24,7 @@ import githubOAuthRouter from "./src/routes/githubOAuthRouter.js";
 import webSearchRouter from "./src/routes/webSearchRouter.js";
 import publicConfigRouter from "./src/routes/publicConfigRouter.js";
 import userAuthRouter from "./src/routes/userAuthRouter.js";
+import billingRouter from "./src/routes/billingRouter.js";
 import testerAuthAdminRouter from "./src/routes/testerAuthAdminRouter.js";
 import digitalOceanDomainAdminRouter from "./src/routes/digitalOceanDomainAdminRouter.js";
 import systemRouter from "./src/routes/systemRouter.js";
@@ -139,6 +140,7 @@ app.use(
 app.use("/health", healthRouter);
 app.use("/api/public-config", publicConfigRouter);
 app.use("/api/auth", oauthRateLimiter, userAuthRouter);
+app.use("/api/billing", privateApiRateLimiter, billingRouter);
 app.use("/api/github", oauthRateLimiter, githubOAuthRouter);
 app.use("/mcp", mcpJsonParseErrorHandler, privateApiRateLimiter, mcpRouter);
 

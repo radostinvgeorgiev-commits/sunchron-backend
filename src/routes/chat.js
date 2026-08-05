@@ -101,6 +101,12 @@ import {
   routeSelectedWorkAgentCapabilities,
   sanitizeWorkContext,
 } from "../services/workModeService.js";
+import {
+  AI_CALL_COST_TOKENS,
+  BillingError,
+  deductTokens,
+  getBalance,
+} from "../services/billingService.js";
 
 const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
@@ -137,6 +143,15 @@ async function saveConversationTurnBestEffort(
   } catch (error) {
     logSafeError("[ConversationMemory] Save failure", error);
     return false;
+  }
+}
+
+async function deductTokensBestEffort(userId) {
+  if (!userId) return;
+  try {
+    await deductTokens(userId, AI_CALL_COST_TOKENS, "AI разговор");
+  } catch (error) {
+    logSafeError("[Billing deduct]", error);
   }
 }
 
@@ -807,6 +822,31 @@ router.post("/chat", async (req, res) => {
   if (!cleanMessage) {
     return res.status(400).json({ error: "Напиши съобщение." });
   }
+
+  // Token balance check — skip for the owner role to preserve existing behaviour.
+  if (req.owner.role !== "owner") {
+    try {
+      const { balance } = await getBalance(req.owner.id);
+      if (balance < AI_CALL_COST_TOKENS) {
+        return res.status(402).json({
+          error: `Insufficient tokens. Баланс: ${balance}, необходими: ${AI_CALL_COST_TOKENS}.`,
+          code: "INSUFFICIENT_TOKENS",
+          balance,
+          required: AI_CALL_COST_TOKENS,
+        });
+      }
+    } catch (billingErr) {
+      if (billingErr instanceof BillingError && billingErr.code !== "BILLING_STORAGE_UNAVAILABLE") {
+        return res.status(billingErr.status).json({
+          error: billingErr.message,
+          code: billingErr.code,
+        });
+      }
+      // When billing storage is unavailable, allow the request through (fail open).
+      logSafeError("[Chat billing check]", billingErr);
+    }
+  }
+
   console.log(`[POST /chat] sessionId: ${cleanSessionId}`);
 
   let memories;
@@ -982,6 +1022,15 @@ router.post("/chat", async (req, res) => {
   sendHeartbeat();
   res.on("close", clearHeartbeat);
   res.on("finish", clearHeartbeat);
+
+  // Deduct tokens for member users after a successful AI response.
+  if (req.owner.role !== "owner") {
+    res.once("finish", () => {
+      if (res.statusCode < 400) {
+        deductTokensBestEffort(req.owner.id);
+      }
+    });
+  }
 
   if (
     !image &&

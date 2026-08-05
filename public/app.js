@@ -274,6 +274,7 @@ async function startApplication(user) {
   globalThis.SynchronWorkMode?.init(user);
   elements.authGate.hidden = true;
   elements.appShell.hidden = false;
+  document.dispatchEvent(new CustomEvent("synchron:auth", { detail: { user } }));
   updateSessionDisplay();
 
   elements.sendBtn.addEventListener("click", sendMessage);

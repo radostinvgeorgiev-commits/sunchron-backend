@@ -238,6 +238,15 @@
           />
           <div id="conversationList" class="conversation-list"></div>
         </div>
+        <div class="sidebar-section sidebar-tokens" id="tokenBalanceSection" hidden>
+          <span>Токени</span>
+          <div class="token-balance-row">
+            <span id="tokenBalanceDisplay" class="token-balance-value">—</span>
+            <button id="buyTokensBtn" class="token-buy-btn" type="button">
+              <i class="fa-solid fa-coins"></i> Купи
+            </button>
+          </div>
+        </div>
       </aside>
 
       <section class="chatPanel" id="chat-container">
@@ -463,6 +472,20 @@
       </nav>
     </main>
 
+    <dialog id="purchaseTokensModal" class="billing-modal" aria-labelledby="purchaseTokensTitle">
+      <form method="dialog" id="purchaseTokensForm">
+        <h2 id="purchaseTokensTitle">Купи токени</h2>
+        <p class="billing-modal-info">1&nbsp;€ = 10&nbsp;000 токена</p>
+        <label for="purchaseEuros">Сума (EUR)</label>
+        <input id="purchaseEuros" name="euros" type="number" min="1" max="100" value="1" required />
+        <p id="purchaseTokensMessage" class="billing-modal-message" aria-live="polite"></p>
+        <div class="billing-modal-actions">
+          <button type="submit" id="confirmPurchaseBtn" class="auth-primary">Плати</button>
+          <button type="button" id="cancelPurchaseBtn">Отказ</button>
+        </div>
+      </form>
+    </dialog>
+
     <script src="/markdown-renderer.js?v=20260728-xss"></script>
     <script src="/work-mode.js?v=20260802-specialized-agents-v1"></script>
     <script src="/assets/20260801-profile-actions/app.js"></script>
@@ -474,5 +497,6 @@
     <script src="/search.js?v=20260726-search"></script>
     <script src="/modules.js?v=20260726-modules"></script>
     <script src="/assets/20260730-v2/synchron-vision.js"></script>
+    <script src="/billing.js?v=20260805-billing-v1"></script>
   </body>
 </html>

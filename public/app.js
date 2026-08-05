@@ -147,9 +147,16 @@ async function submitAuth(path, body) {
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    const error = new Error(data?.error || "Входът не беше успешен.");
+    const action = path.endsWith("/register") ? "Регистрацията" : "Входът";
+    const error = new Error(
+      data?.error || `${action} не беше успешен (HTTP ${response.status}).`,
+    );
     error.code = data?.code || "AUTH_REQUEST_FAILED";
+    error.status = response.status;
     throw error;
+  }
+  if (!data) {
+    throw new Error(`Невалиден отговор от услугата (HTTP ${response.status}).`);
   }
   return data;
 }

@@ -21,11 +21,26 @@ function computeDelay(attempt, options, random = Math.random) {
 
 async function withAbortableTimeout(run, timeoutMs, { signal } = {}) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort("timeout"), timeoutMs);
+  let timeoutReason = null;
+  const timeout = setTimeout(() => {
+    timeoutReason = new Error("Connection timed out");
+    timeoutReason.name = "AbortError";
+    timeoutReason.code = "CONNECTION_TIMEOUT";
+    controller.abort("timeout");
+  }, timeoutMs);
   const onAbort = () => controller.abort("cancelled");
   if (signal) signal.addEventListener("abort", onAbort, { once: true });
   try {
-    return await run(controller.signal);
+    return await Promise.race([
+      run(controller.signal),
+      new Promise((_, reject) => {
+        controller.signal.addEventListener(
+          "abort",
+          () => reject(timeoutReason || new DOMException("Aborted", "AbortError")),
+          { once: true },
+        );
+      }),
+    ]);
   } finally {
     clearTimeout(timeout);
     if (signal) signal.removeEventListener("abort", onAbort);

@@ -199,6 +199,7 @@ test("bridge diagnostics stop a blocked self-check within the configured timeout
     env: { MCP_ACCESS_TOKEN: "m".repeat(48) },
     handleMcpRequest: () => new Promise(() => {}),
     timeoutMs: 10,
+    wait: async () => {},
   });
 
   assert.equal(result.status, "incomplete");

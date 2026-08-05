@@ -128,6 +128,7 @@ export async function getBridgeDiagnosticsStatus({
   env = process.env,
   handleMcpRequest = createMcpRequestHandler(),
   timeoutMs = 1_000,
+  wait,
 } = {}) {
   const configured =
     typeof env.MCP_ACCESS_TOKEN === "string" &&
@@ -149,6 +150,7 @@ export async function getBridgeDiagnosticsStatus({
       maxDelayMs: 250,
       cooldownMs: 1_000,
     },
+    ...(typeof wait === "function" ? { wait } : {}),
     logger: (event, fields) => logStructuredEvent(event, fields),
     connect: async () => {
       const response = await handleMcpRequest(
@@ -164,8 +166,12 @@ export async function getBridgeDiagnosticsStatus({
     },
   });
 
-  const lifecycle = await manager.open();
-  responding = lifecycle.ok === true;
+  try {
+    const lifecycle = await manager.open();
+    responding = lifecycle.ok === true;
+  } catch {
+    responding = false;
+  }
 
   return {
     status: configured && responding ? "operational" : "incomplete",

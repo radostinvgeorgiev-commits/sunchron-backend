@@ -23,13 +23,16 @@ test("production smoke publishes a readable commit status without a custom secre
   assert.match(workflow, /Check MCP tool catalog and OAuth challenge/u);
   assert.match(workflow, /get_github_copilot_task_status/u);
   assert.match(workflow, /names\.length === expected\.length/u);
-  assert.match(workflow, /mcp\/www_authenticate/u);
+  assert.match(workflow, /challenge_headers/u);
   assert.match(workflow, /synchron:read/u);
-  assert.match(workflow, /challenge="\$\(curl --silent --show-error/u);
+  assert.match(workflow, /--dump-header -/u);
+  assert.match(workflow, /--output \/dev\/null/u);
+  assert.match(workflow, /\^www-authenticate:/u);
   assert.doesNotMatch(
     workflow,
-    /challenge="\$\(curl --fail --silent --show-error/u,
+    /challenge_headers="\$\(curl --fail --silent --show-error/u,
   );
+  assert.doesNotMatch(workflow, /mcp\/www_authenticate/u);
   assert.match(workflow, /Check workspace authentication boundary/u);
   assert.match(workflow, /\/api\/workspaces/u);
   assert.match(workflow, /AUTH_REQUIRED/u);

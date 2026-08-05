@@ -19,6 +19,13 @@ rollback. Историческите audit документи пазят кон�
 Не обявявай deployment за успешен само защото `/health` отговаря. Exact SHA,
 readiness и production smoke трябва да сочат една и съща версия.
 
+## Owner acceptance
+
+След зелен production baseline изпълнявай реалните ChatGPT MCP, GitHub и Google
+проверки само по [`OWNER_ACCEPTANCE_RUNBOOK.md`](./OWNER_ACCEPTANCE_RUNBOOK.md).
+Този цикъл започва read-only; всяко външно write действие има отделно точно
+потвърждение, проверка на резултата и cleanup.
+
 ## Read-only проверка
 
 Изпълни от чисто копие на хранилището:

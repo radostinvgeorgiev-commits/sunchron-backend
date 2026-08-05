@@ -111,6 +111,7 @@ test("prepares an exact one-time confirmation without creating an event", async 
   );
   assert.doesNotMatch(JSON.stringify(confirmations[0]), /google-session/u);
   assert.match(prepared.output, /още не съм го записал/u);
+  assert.match(prepared.output, /Календар: основен \(primary\)/u);
   assert.match(prepared.output, /confirmation-calendar/u);
 });
 

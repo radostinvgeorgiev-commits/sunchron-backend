@@ -266,6 +266,7 @@ export async function prepareCalendarEvent({
         ? "Подготвих календарното напомняне, но още не съм го записал."
         : "Подготвих календарното събитие, но още не съм го записал.",
       `Заглавие: ${draft.title}`,
+      "Календар: основен (primary)",
       `Начало: ${draft.start.replace("T", " ")} (${draft.timeZone})`,
       ...(isReminder
         ? [`Напомняне: ${draft.reminderMinutes} минути преди`]

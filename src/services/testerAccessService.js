@@ -3,6 +3,10 @@ import { createHash, createHmac } from "node:crypto";
 import { getOpenSearchClient } from "../config/opensearch.js";
 
 const DEFAULT_INDEX = "synchron-tester-access-v1";
+const ACCESS_REQUEST_OPTIONS = Object.freeze({
+  requestTimeout: 5_000,
+  maxRetries: 0,
+});
 
 export class TesterAccessError extends Error {
   constructor(message, status, code) {
@@ -88,16 +92,19 @@ export async function approveTesterAccess(
   const userId = cleanUserId(user);
   const approvedAt = new Date().toISOString();
   try {
-    await requireClient(client).index({
-      index: accessIndex(env),
-      id: userId,
-      body: {
-        userId,
-        status: "approved",
-        approvedAt,
+    await requireClient(client).index(
+      {
+        index: accessIndex(env),
+        id: userId,
+        body: {
+          userId,
+          status: "approved",
+          approvedAt,
+        },
+        refresh: true,
       },
-      refresh: true,
-    });
+      ACCESS_REQUEST_OPTIONS,
+    );
   } catch (error) {
     if (error instanceof TesterAccessError) throw error;
     throw new TesterAccessError(
@@ -123,16 +130,19 @@ export async function approveTesterEmail(
   }
   const approvedAt = new Date().toISOString();
   try {
-    await requireClient(client).index({
-      index: accessIndex(env),
-      id: emailApprovalId(emailHash),
-      body: {
-        emailHash,
-        status: "approved",
-        approvedAt,
+    await requireClient(client).index(
+      {
+        index: accessIndex(env),
+        id: emailApprovalId(emailHash),
+        body: {
+          emailHash,
+          status: "approved",
+          approvedAt,
+        },
+        refresh: true,
       },
-      refresh: true,
-    });
+      ACCESS_REQUEST_OPTIONS,
+    );
   } catch (error) {
     if (error instanceof TesterAccessError) throw error;
     throw new TesterAccessError(
@@ -157,10 +167,13 @@ export async function assertTesterAccess(
 
   const accessClient = requireClient(client);
   try {
-    const response = await accessClient.get({
-      index: accessIndex(env),
-      id: userId,
-    });
+    const response = await accessClient.get(
+      {
+        index: accessIndex(env),
+        id: userId,
+      },
+      ACCESS_REQUEST_OPTIONS,
+    );
     const source = response.body?._source ?? response._source;
     if (source?.userId === userId && source?.status === "approved") {
       return true;
@@ -179,10 +192,13 @@ export async function assertTesterAccess(
   const emailHash = cleanEmailHash(user?.email, env);
   if (emailHash) {
     try {
-      const response = await accessClient.get({
-        index: accessIndex(env),
-        id: emailApprovalId(emailHash),
-      });
+      const response = await accessClient.get(
+        {
+          index: accessIndex(env),
+          id: emailApprovalId(emailHash),
+        },
+        ACCESS_REQUEST_OPTIONS,
+      );
       const source = response.body?._source ?? response._source;
       if (source?.emailHash === emailHash && source?.status === "approved") {
         return true;

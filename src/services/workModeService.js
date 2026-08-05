@@ -287,4 +287,3 @@ export function resolveWorkAgentModel(value) {
     ? AGENT_MODELS[id].apiModel || undefined
     : undefined;
 }
-

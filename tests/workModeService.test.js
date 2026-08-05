@@ -211,6 +211,12 @@ test("runtime provider and model questions do not launch Codex code analysis", (
   }
 
   assert.equal(isRuntimeAiIdentityRequest("Провери модела в src/config.js"), false);
+  assert.equal(
+    isRuntimeAiIdentityRequest(
+      "Тест на AI CORE: отговори само с „AI CORE работи“ и не използвай инструменти.",
+    ),
+    false,
+  );
 });
 
 test("active work context questions use verified state instead of chat history", () => {

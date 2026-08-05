@@ -56,6 +56,17 @@ test("a negative tool instruction remains an ordinary AI conversation", () => {
   assert.deepEqual(requests, []);
 });
 
+test("an explicit GitHub read with no additional tools stays focused", () => {
+  const requests = detectCapabilityRequests(
+    "AUTO тест: провери само за четене последния commit в GitHub. Не използвай други инструменти и не прави промени.",
+  );
+
+  assert.deepEqual(
+    requests.map(({ capability, action }) => ({ capability, action })),
+    [{ capability: "code.read", action: "github.read" }],
+  );
+});
+
 test("member profiles receive only web search and their own memory tools", () => {
   const requests = detectCapabilityRequests(
     "Потърси актуалната прогноза, провери паметта и провери GitHub.",

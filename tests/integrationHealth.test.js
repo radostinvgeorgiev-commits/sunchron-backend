@@ -158,10 +158,11 @@ test("removed DigitalOcean AI Agent is not required by production configuration"
 
   assert.doesNotMatch(appSpec, /key:\s*AGENT_(?:URL|KEY)/u);
   assert.doesNotMatch(server, /if\s*\(!process\.env\.AGENT_KEY\)/u);
-  assert.match(server, /if\s*\(!process\.env\.OPENAI_API_KEY\)/u);
+  assert.match(server, /validateRuntimeConfig\(process\.env\)/u);
   assert.doesNotMatch(identity, /DigitalOcean Agent е резервният AI/u);
   assert.match(identity, /DigitalOcean Agent е премахнат/u);
-  assert.doesNotMatch(envExample, /^AGENT_(?:URL|KEY)=/mu);
+  assert.match(envExample, /^AGENT_KEY=your-agent-key$/mu);
+  assert.doesNotMatch(envExample, /^AGENT_URL=/mu);
 });
 
 test("project identity keeps the bridge-first integration policy", async () => {

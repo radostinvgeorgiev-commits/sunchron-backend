@@ -38,6 +38,13 @@ test("registration does not send an invitation code", () => {
   assert.match(app, /password: elements\.registerPassword\.value/u);
 });
 
+test("registration errors identify the failed action and HTTP status", () => {
+  assert.match(app, /path\.endsWith\("\/register"\)/u);
+  assert.match(app, /Регистрацията/u);
+  assert.match(app, /HTTP \$\{response\.status\}/u);
+  assert.match(app, /Невалиден отговор от услугата/u);
+});
+
 test("direct registration address opens the registration form", () => {
   assert.match(app, /const REGISTRATION_PATH = "\/register"/u);
   assert.match(app, /isDirectRegistrationPage\(\)/u);

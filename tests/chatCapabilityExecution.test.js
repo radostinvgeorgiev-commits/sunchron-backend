@@ -48,6 +48,14 @@ test("detects multiple capability subtasks in one message", () => {
   );
 });
 
+test("a negative tool instruction remains an ordinary AI conversation", () => {
+  const requests = detectCapabilityRequests(
+    "Тест на AI CORE: отговори само с „AI CORE работи“ и не използвай инструменти.",
+  );
+
+  assert.deepEqual(requests, []);
+});
+
 test("member profiles receive only web search and their own memory tools", () => {
   const requests = detectCapabilityRequests(
     "Потърси актуалната прогноза, провери паметта и провери GitHub.",

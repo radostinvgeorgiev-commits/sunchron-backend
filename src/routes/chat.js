@@ -92,6 +92,7 @@ import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 import {
   buildWorkContextStatusReply,
   buildWorkModeContext,
+  hasExplicitNoToolBoundary,
   isRuntimeAiIdentityRequest,
   isWorkContextStatusRequest,
   normalizeInteractionMode,
@@ -358,6 +359,7 @@ export function detectCapabilityRequests(message) {
       /(?:(?:инструмент(?:ите)?|връзк(?:и|ите)|интеграци(?:и|ите)).{0,50}(?:работят|работи|достъпни|активни|статус|ползва(?:ш|те)?|използва(?:ш|те)?|достъп)|(?:мож(?:еш|е)|имаш|има|работят|работи|достъпни|активни|статус|ползва(?:ш|те)?|използва(?:ш|те)?|достъп).{0,50}(?:инструмент(?:ите)?|връзк(?:и|ите)|интеграци(?:и|ите)))/iu.test(
         subtask,
       ) &&
+      !hasExplicitNoToolBoundary(subtask) &&
       !copilotBridgeStatusRequest &&
       !/(?:регистрирани|tool\s+registry|capability\s+engine)/iu.test(subtask)
     ) {

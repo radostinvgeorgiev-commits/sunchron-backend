@@ -196,7 +196,7 @@ export function isRuntimeAiIdentityRequest(message) {
   const text = cleanText(message, 500).toLocaleLowerCase("bg-BG");
   if (!text) return false;
   const asksForIdentity =
-    /(?:кой|какъв|каква|кажи|покажи|посочи|използва|работи|доставчик|provider)/u.test(
+    /(?:кой|какъв|каква|кажи|покажи|посочи|доставчик|provider)/u.test(
       text,
     );
   const mentionsRuntime =
@@ -248,6 +248,14 @@ export function hasExplicitNoToolBoundary(message) {
   const text = cleanText(message, 8000);
   if (!text) return false;
   return /(?:не\s+(?:използвай|ползвай|стартирай|извиквай)\s+(?:никакви\s+)?инструмент(?:и|ите)?|без\s+(?:да\s+)?(?:използваш|ползваш|стартираш|извикваш)\s+инструмент(?:и|ите)?)/iu.test(
+    text,
+  );
+}
+
+export function hasExplicitNoAdditionalToolsBoundary(message) {
+  const text = cleanText(message, 8000);
+  if (!text) return false;
+  return /(?:не\s+(?:използвай|ползвай|стартирай|извиквай)\s+(?:други|допълнителни)\s+инструмент(?:и|ите)?|без\s+(?:други|допълнителни)\s+инструмент(?:и|ите)?)/iu.test(
     text,
   );
 }

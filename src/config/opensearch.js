@@ -1,4 +1,5 @@
 import { Client } from "@opensearch-project/opensearch";
+import { validateRuntimeConfig } from "./runtimeConfig.js";
 import { logSafeError } from "../utils/safeLogging.js";
 
 let opensearchClient = null;
@@ -20,39 +21,18 @@ export function resolveOpenSearchTlsOptions(env = process.env) {
 }
 
 export function createOpenSearchClient() {
-  const {
-    OPENSEARCH_USERNAME,
-    OPENSEARCH_PASSWORD,
-    OPENSEARCH_HOST,
-    OPENSEARCH_PORT,
-  } = process.env;
-
-  if (
-    !OPENSEARCH_USERNAME ||
-    !OPENSEARCH_PASSWORD ||
-    !OPENSEARCH_HOST ||
-    !OPENSEARCH_PORT
-  ) {
-    const missing = [];
-    if (!OPENSEARCH_USERNAME) missing.push("OPENSEARCH_USERNAME");
-    if (!OPENSEARCH_PASSWORD) missing.push("OPENSEARCH_PASSWORD");
-    if (!OPENSEARCH_HOST) missing.push("OPENSEARCH_HOST");
-    if (!OPENSEARCH_PORT) missing.push("OPENSEARCH_PORT");
-
-    console.warn(
-      `⚠️  OpenSearch credentials not configured. Missing: ${missing.join(", ")}`,
-    );
-    return null;
-  }
-
   try {
+    const config = validateRuntimeConfig(process.env);
     opensearchClient = new Client({
-      node: `https://${OPENSEARCH_HOST}:${OPENSEARCH_PORT}`,
+      node: config.openSearch.url,
       auth: {
-        username: OPENSEARCH_USERNAME,
-        password: OPENSEARCH_PASSWORD,
+        username: config.openSearch.username,
+        password: config.openSearch.password,
       },
-      ssl: resolveOpenSearchTlsOptions(),
+      ssl: {
+        ...resolveOpenSearchTlsOptions(process.env),
+        rejectUnauthorized: config.openSearch.tlsRejectUnauthorized,
+      },
     });
 
     console.log("✅ OpenSearch client initialized");

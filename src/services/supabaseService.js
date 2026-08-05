@@ -1,3 +1,5 @@
+import { validateRuntimeConfig } from "../config/runtimeConfig.js";
+
 const DEFAULT_TIMEOUT_MS = 10000;
 
 export class SupabaseServiceError extends Error {
@@ -45,7 +47,7 @@ function normalizeProjectUrl(value) {
 
 export async function checkSupabaseStatus({
   fetchImpl = fetch,
-  projectUrl = process.env.SUPABASE_URL,
+  projectUrl = validateRuntimeConfig(process.env).supabase.url,
   publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY,
   timeoutMs = process.env.SUPABASE_TIMEOUT_MS,
 } = {}) {

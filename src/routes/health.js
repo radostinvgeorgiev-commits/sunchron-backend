@@ -12,6 +12,7 @@ import {
   MCP_TOOLS,
   createMcpRequestHandler,
 } from "../services/mcpReadService.js";
+import { createConnectionLifecycleManager } from "../services/connectionLifecycleService.js";
 import {
   getMcpOAuthRuntimeStatus,
   isMcpOAuthConfigured,
@@ -20,6 +21,7 @@ import { isCopilotAutomationEnabled } from "../config/featureFlags.js";
 import { isCodexAgentConfigured } from "../services/codexAgentService.js";
 import { isToolExecutable } from "../tools/capabilityEngine.js";
 import { listTools, registerCoreTools } from "../tools/toolRegistry.js";
+import { logStructuredEvent } from "../utils/safeLogging.js";
 
 const router = express.Router();
 const DEFAULT_READINESS_TIMEOUT_MS = 2_000;
@@ -120,6 +122,7 @@ export function createReadinessHandler(options = {}) {
 }
 
 router.get("/ready", createReadinessHandler());
+router.get("/readyz", createReadinessHandler());
 
 export async function getBridgeDiagnosticsStatus({
   env = process.env,
@@ -137,18 +140,32 @@ export async function getBridgeDiagnosticsStatus({
     (tool) => tool.annotations?.destructiveHint === true,
   ).length;
 
-  try {
-    const response = await withTimeout(
-      handleMcpRequest(
+  const manager = createConnectionLifecycleManager({
+    name: "mcp-bridge",
+    options: {
+      timeoutMs,
+      maxRetries: 2,
+      baseDelayMs: 50,
+      maxDelayMs: 250,
+      cooldownMs: 1_000,
+    },
+    logger: (event, fields) => logStructuredEvent(event, fields),
+    connect: async () => {
+      const response = await handleMcpRequest(
         { jsonrpc: "2.0", id: "diagnostics", method: "initialize" },
         env.MEMORY_OWNER_ID || "primary-user",
-      ),
-      timeoutMs,
-    );
-    responding = response?.result?.serverInfo?.name === "synchron-x-memory";
-  } catch {
-    responding = false;
-  }
+      );
+      if (response?.result?.serverInfo?.name !== "synchron-x-memory") {
+        const error = new Error("Bridge handshake failed");
+        error.code = "BRIDGE_HANDSHAKE_FAILED";
+        throw error;
+      }
+      return response;
+    },
+  });
+
+  const lifecycle = await manager.open();
+  responding = lifecycle.ok === true;
 
   return {
     status: configured && responding ? "operational" : "incomplete",
@@ -159,6 +176,7 @@ export async function getBridgeDiagnosticsStatus({
       configured,
       reachable: true,
       responding,
+      lifecycle: manager.getStatus(),
       readOnly: destructiveTools === 0,
       tools: MCP_TOOLS.length,
       readOnlyTools,
@@ -182,6 +200,7 @@ export function createBridgeDiagnosticsHandler(options = {}) {
 
 router.get("/bridge", createBridgeDiagnosticsHandler());
 router.get("/mcp-status", createBridgeDiagnosticsHandler());
+router.get("/healthz", (req, res) => res.json({ status: "ok", ...getRuntimeVersion() }));
 
 function hasAllProcessEnvironmentVariables(...names) {
   return hasAllEnvironmentVariables(process.env, ...names);

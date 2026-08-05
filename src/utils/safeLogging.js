@@ -38,3 +38,32 @@ export function safeErrorCode(error, fallback = "UNCLASSIFIED_ERROR") {
 export function logSafeError(context, error) {
   console.error(context, safeErrorMetadata(error));
 }
+
+const SECRET_KEY_PATTERN =
+  /(authorization|token|secret|password|cookie|key|api[-_]?key)/iu;
+
+function redactValue(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => redactValue(item));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entryValue]) => [
+        key,
+        SECRET_KEY_PATTERN.test(key) ? "[REDACTED]" : redactValue(entryValue),
+      ]),
+    );
+  }
+  if (typeof value === "string" && value.length > 128) return "[REDACTED]";
+  return value;
+}
+
+export function logStructuredEvent(event, fields = {}, { debug = false } = {}) {
+  const payload = redactValue(fields);
+  const line = { event, ...payload };
+  if (debug) {
+    console.info(event, line);
+    return;
+  }
+  console.info(event, line);
+}

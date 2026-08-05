@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  logStructuredEvent,
   logSafeError,
   safeErrorCode,
   safeErrorMetadata,
@@ -83,6 +84,29 @@ test("safe logger emits only the fixed context and safe metadata", () => {
     name: "OAuthSessionError",
     code: "SESSION_PERSISTENCE_FAILED",
     status: 503,
+  });
+
+  test("structured logs redact secret-like fields", () => {
+    const originalConsoleInfo = console.info;
+    const calls = [];
+    console.info = (...values) => calls.push(values);
+    try {
+      logStructuredEvent("connection.retry", {
+        authorization: "******",
+        nextDelayMs: 123,
+        nested: { apiKey: "top-secret", ok: true },
+      });
+    } finally {
+      console.info = originalConsoleInfo;
+    }
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0][0], "connection.retry");
+    assert.deepEqual(calls[0][1], {
+      event: "connection.retry",
+      authorization: "[REDACTED]",
+      nextDelayMs: 123,
+      nested: { apiKey: "[REDACTED]", ok: true },
+    });
   });
   assert.doesNotMatch(JSON.stringify(calls), new RegExp(SENTINEL, "u"));
 });

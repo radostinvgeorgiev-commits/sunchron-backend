@@ -11,6 +11,11 @@ import {
 import { createRateLimiters } from "./src/middleware/rateLimits.js";
 import { startMemoryStartupVerification } from "./src/services/memoryStartupVerificationService.js";
 import { executeCapability } from "./src/tools/capabilityEngine.js";
+import {
+  ConfigValidationError,
+  validateRuntimeConfig,
+} from "./src/config/runtimeConfig.js";
+import { logStructuredEvent } from "./src/utils/safeLogging.js";
 
 import chatRouter from "./src/routes/chat.js";
 import healthRouter from "./src/routes/health.js";
@@ -33,11 +38,41 @@ import { createMcpOAuthRouter } from "./src/routes/mcpOAuthRouter.js";
 
 dotenv.config();
 
+let runtimeConfig;
+try {
+  runtimeConfig = validateRuntimeConfig(process.env);
+} catch (error) {
+  if (error instanceof ConfigValidationError) {
+    console.error("[Config] Startup blocked", {
+      code: error.code,
+      details: error.details,
+    });
+    if (process.env.NODE_ENV === "test") {
+      runtimeConfig = validateRuntimeConfig({
+        ...process.env,
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY || "test-openai-key",
+        MCP_ACCESS_TOKEN: process.env.MCP_ACCESS_TOKEN || "m".repeat(48),
+        AGENT_KEY: process.env.AGENT_KEY || "test-agent-key",
+        DATABASE_URL: process.env.DATABASE_URL || "postgres://test-db/internal",
+        OPENSEARCH_HOST: process.env.OPENSEARCH_HOST || "localhost",
+        OPENSEARCH_PORT: process.env.OPENSEARCH_PORT || "9200",
+        OPENSEARCH_PROTOCOL: process.env.OPENSEARCH_PROTOCOL || "https",
+        OPENSEARCH_USERNAME: process.env.OPENSEARCH_USERNAME || "tester",
+        OPENSEARCH_PASSWORD: process.env.OPENSEARCH_PASSWORD || "tester",
+      });
+    } else {
+      process.exit(1);
+    }
+  } else {
+    throw error;
+  }
+}
+
 const { oauthRateLimiter, paidAiRateLimiter, privateApiRateLimiter } =
   createRateLimiters();
 const mcpOAuthRouter = createMcpOAuthRouter({ oauthRateLimiter });
 
-if (!process.env.OPENAI_API_KEY) {
+if (!runtimeConfig.openAi.enabled) {
   console.warn(
     "⚠️  OPENAI_API_KEY is not configured. Direct AI conversation is unavailable; independent tools can still run.",
   );
@@ -246,9 +281,13 @@ if (process.env.NODE_ENV !== "test") {
 }
 
 function startServer() {
-  const PORT = process.env.PORT || 8080;
-  app.listen(PORT, () => {
-    console.log(`✅ Server running on port ${PORT}`);
+  const { host, port, debugLogs } = runtimeConfig.server;
+  app.listen(port, host, () => {
+    logStructuredEvent(
+      "server.ready",
+      { host, port, debugLogs, bind: `${host}:${port}` },
+      { debug: debugLogs },
+    );
     void startMemoryStartupVerification({
       ownerId: process.env.MEMORY_OWNER_ID || "primary-user",
       verifyDeleteGuard: async ({ fact, scope, ownerId }) => {

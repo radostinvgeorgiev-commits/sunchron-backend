@@ -6,6 +6,7 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const readme = read("../README.md");
 const agentInstructions = read("../AGENTS.md");
 const runbook = read("../docs/OPERATIONS_RUNBOOK.md");
+const ownerAcceptanceRunbook = read("../docs/OWNER_ACCEPTANCE_RUNBOOK.md");
 
 test("current documentation names the real chat provider and operations source", () => {
   assert.match(readme, /OpenAI Responses API/u);
@@ -33,4 +34,27 @@ test("operations runbook keeps rollback and destructive boundaries explicit", ()
     assert.match(runbook, new RegExp(marker, "u"));
   }
   assert.doesNotMatch(runbook, /rm\s+-rf|git\s+push\s+--force/u);
+});
+
+test("owner acceptance is repeatable, exact and never an unattended write", () => {
+  assert.match(runbook, /OWNER_ACCEPTANCE_RUNBOOK\.md/u);
+
+  for (const marker of [
+    "https://synchron.foundation/mcp",
+    "get_system_configuration",
+    "COPILOT_AUTOMATION_DISABLED",
+    "GitHub read adapter-ът използва сървърния read достъп/публичния API",
+    "GITHUB_PROMPT_NOT_SHOWN",
+    "Потвърждавам календарно събитие:",
+    "CALENDAR_TARGET_NOT_SHOWN",
+    "prepare → преглед на въздействието → точно потвърждение → execute → verify → cleanup",
+    "Не стартирай write acceptance от CI",
+  ]) {
+    assert.match(ownerAcceptanceRunbook, new RegExp(marker, "u"));
+  }
+
+  assert.doesNotMatch(
+    ownerAcceptanceRunbook,
+    /Authorization:\s*Bearer|MCP_ACCESS_TOKEN\s*=|refresh_token\s*=/u,
+  );
 });

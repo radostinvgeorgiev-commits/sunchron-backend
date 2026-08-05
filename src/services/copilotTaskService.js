@@ -807,11 +807,19 @@ export async function prepareCopilotTask({
   }
   splitRepository(repository);
   assertBaseRef(baseRef);
+  const cleanPrompt = typeof prompt === "string" ? prompt.trim() : "";
+  if (!cleanPrompt) {
+    throw new CopilotTaskError(
+      "Липсва кодова задача за Copilot.",
+      400,
+      "MISSING_COPILOT_PROMPT",
+    );
+  }
   const confirmation = await createDurableConfirmation({
     sessionId,
     action: "github.copilot:start_task",
     resource: { repository, baseRef },
-    params: { prompt },
+    params: { prompt: cleanPrompt },
   });
   return {
     confirmationId: confirmation.id,
@@ -820,6 +828,7 @@ export async function prepareCopilotTask({
       "Подготвих кодовата задача за GitHub Copilot.",
       `Хранилище: ${repository}`,
       `Начален клон: ${baseRef}`,
+      `Задача: ${cleanPrompt}`,
       "Copilot ще работи в отделен клон и ще създаде Pull Request. Няма да слива в main.",
       "За изпълнение изпрати точно:",
       `${CONFIRM_PREFIX} ${confirmation.id}`,

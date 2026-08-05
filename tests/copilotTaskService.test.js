@@ -425,6 +425,7 @@ test("requires an exact one-time confirmation before starting Copilot", async ()
     prompt: "Промени цвета на бутона Памет.",
   });
   assert.match(prepared.output, /Потвърждавам GitHub задача:/u);
+  assert.match(prepared.output, /Задача: Промени цвета на бутона Памет\./u);
   assert.equal(
     extractCopilotConfirmationId(
       `Потвърждавам GitHub задача: ${prepared.confirmationId}`,
@@ -457,6 +458,20 @@ test("requires an exact one-time confirmation before starting Copilot", async ()
         fetchImpl: copilotGraphqlFetch(),
       }),
     (error) => error.code === "CONFIRMATION_NOT_FOUND",
+  );
+});
+
+test("does not prepare a Copilot confirmation without an exact task", async () => {
+  const session = await connectedSession();
+
+  await assert.rejects(
+    () =>
+      prepareCopilotTask({
+        sessionId: "chat-session",
+        githubSessionId: session.id,
+        prompt: "   ",
+      }),
+    (error) => error.code === "MISSING_COPILOT_PROMPT",
   );
 });
 

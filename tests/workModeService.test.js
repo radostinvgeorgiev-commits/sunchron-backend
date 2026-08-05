@@ -144,6 +144,47 @@ test("the available agent engines are explicit and Codex replaces code writes wi
   );
 });
 
+test("Codex work mode preserves an explicit GitHub read-only request", () => {
+  const message =
+    "AUTO тест: провери само за четене последния commit в GitHub хранилището radostinvgeorgiev-commits/sunchron-backend. Не използвай други инструменти и не прави промени.";
+  const requests = routeSelectedWorkAgentCapabilities(
+    [{ capability: "code.read", action: "github.read", message }],
+    {
+      project: { name: "SYNCHRON-X" },
+      agent: {
+        name: "Codex",
+        role: "coder",
+        model: "gpt-5.6-terra",
+        engine: "codex",
+      },
+    },
+    message,
+  );
+
+  assert.deepEqual(
+    requests.map(({ capability, action }) => ({ capability, action })),
+    [{ capability: "code.read", action: "github.read" }],
+  );
+});
+
+test("Codex work mode respects an explicit no-tools boundary", () => {
+  const requests = routeSelectedWorkAgentCapabilities(
+    [{ capability: "system.integrations.status", action: "infrastructure.read" }],
+    {
+      project: { name: "SYNCHRON-X" },
+      agent: {
+        name: "Codex",
+        role: "coder",
+        model: "gpt-5.6-terra",
+        engine: "codex",
+      },
+    },
+    "Отговори само с „AI CORE работи“ и не използвай инструменти.",
+  );
+
+  assert.deepEqual(requests, []);
+});
+
 test("runtime provider and model questions do not launch Codex code analysis", () => {
   for (const message of [
     "Кой AI доставчик и кой модел използва този разговор?",
@@ -206,3 +247,4 @@ test("active work context questions use verified state instead of chat history",
     ].join("\n"),
   );
 });
+

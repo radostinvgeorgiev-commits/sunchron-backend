@@ -90,6 +90,10 @@ import {
 } from "../config/projectIdentity.js";
 import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 import {
+  consumeTokens,
+  isBillingConfigured,
+} from "../services/billingService.js";
+import {
   buildWorkContextStatusReply,
   buildWorkModeContext,
   hasExplicitNoAdditionalToolsBoundary,
@@ -104,6 +108,30 @@ import {
 
 const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
+
+/**
+ * Estimate token usage from reply length (rough heuristic: ~4 chars per token).
+ * Records consumption best-effort so billing errors never block the response.
+ */
+async function recordAiTokenConsumptionBestEffort(
+  userId,
+  userText,
+  replyText,
+  model,
+) {
+  if (!userId || !isBillingConfigured()) return;
+  try {
+    const estimatedTokens = Math.ceil(
+      ((userText || "").length + (replyText || "").length) / 4,
+    );
+    await consumeTokens(userId, Math.max(1, estimatedTokens), {
+      model,
+      endpoint: "/chat",
+    });
+  } catch (error) {
+    logSafeError("[Chat billing] Token consumption record failure", error);
+  }
+}
 const DEFAULT_AI_TIMEOUT_MS = 120000;
 const DIGITALOCEAN_NAME_PATTERN =
   /(?:digital\s*ocean|ди[гж]итал\s*о(?:кеа|ка|ке)н|ди[гж]итъл\s*о(?:кеа|ка|ке)н)/iu;
@@ -130,9 +158,10 @@ async function saveConversationTurnBestEffort(
   userText,
   replyText,
   ownerId,
-) {
-  try {
+  { billingUserId = null, model = null } = {},
+) {  try {
     await saveConversationTurn(sessionId, userText, replyText, ownerId);
+    recordAiTokenConsumptionBestEffort(billingUserId, userText, replyText, model);
     return true;
   } catch (error) {
     logSafeError("[ConversationMemory] Save failure", error);
@@ -793,6 +822,7 @@ router.post("/chat", async (req, res) => {
   const githubSessionId =
     parseGitHubCookies(req.headers.cookie).synchron_github_session || "";
   const ownerId = req.owner.memoryOwnerId;
+  const billingUserId = req.owner.id || null;
   const ownerToolsAllowed = req.owner.role === "owner";
   const capabilityPlanningAllowed = canPlanCapabilities(req.owner);
   const cleanSessionId = typeof sessionId === "string" ? sessionId.trim() : "";
@@ -1524,6 +1554,7 @@ router.post("/chat", async (req, res) => {
       cleanMessage,
       fullReply,
       ownerId,
+      { billingUserId, model: aiResponse.model },
     );
     sendEvent("done", {
       ok: true,

@@ -11,13 +11,17 @@ import {
 
 function createClient() {
   const records = new Map();
+  const requestOptions = [];
   return {
     records,
-    async index({ id, body }) {
+    requestOptions,
+    async index({ id, body }, options) {
+      requestOptions.push({ operation: "index", options });
       records.set(id, structuredClone(body));
       return { body: { result: "created" } };
     },
-    async get({ id }) {
+    async get({ id }, options) {
+      requestOptions.push({ operation: "get", options });
       if (!records.has(id)) {
         const error = new Error("not found");
         error.statusCode = 404;
@@ -48,6 +52,35 @@ test("invite-approved registration stores a server-side access record", async ()
   assert.equal(
     await assertTesterAccess({ id: "user-approved" }, { client }),
     true,
+  );
+  assert.deepEqual(client.requestOptions, [
+    {
+      operation: "index",
+      options: { requestTimeout: 5_000, maxRetries: 0 },
+    },
+    {
+      operation: "get",
+      options: { requestTimeout: 5_000, maxRetries: 0 },
+    },
+  ]);
+});
+
+test("approval timeout fails closed with a bounded service error", async () => {
+  const client = {
+    async index(_request, options) {
+      assert.deepEqual(options, { requestTimeout: 5_000, maxRetries: 0 });
+      const error = new Error("Request timed out");
+      error.name = "TimeoutError";
+      throw error;
+    },
+  };
+
+  await assert.rejects(
+    approveTesterAccess({ id: "slow-user" }, { client }),
+    (error) =>
+      error instanceof TesterAccessError &&
+      error.code === "TESTER_ACCESS_PERSISTENCE_FAILED" &&
+      error.status === 503,
   );
 });
 

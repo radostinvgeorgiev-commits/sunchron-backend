@@ -1,6 +1,7 @@
 import express from "express";
 import { resolveRequestIdentity } from "../middleware/ownerAuth.js";
 import {
+  consumeMcpConsentRequest,
   createMcpAuthorizationCode,
   createMcpConsentToken,
   exchangeMcpToken,
@@ -8,7 +9,6 @@ import {
   getMcpProtectedResourceMetadata,
   McpOAuthError,
   recordMcpAuthorizationRuntimeStatus,
-  resolveMcpConsentRequest,
   validateMcpAuthorizationRequest,
 } from "../services/mcpOAuthService.js";
 
@@ -128,7 +128,7 @@ export function createMcpOAuthRouter({
             "access_denied",
           );
         }
-        const request = resolveMcpConsentRequest(
+        const request = await consumeMcpConsentRequest(
           req.body?.consent_token,
           identity,
         );

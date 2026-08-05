@@ -36,6 +36,7 @@ const MAX_CONSUMED_TOKEN_RECORDS = 10_000;
 const REPLAY_CLEANUP_INTERVAL_SECONDS = 6 * 60 * 60;
 const MCP_OAUTH_REPLAY_INDEX =
   process.env.MCP_OAUTH_REPLAY_INDEX || "synchron-mcp-oauth-replay-v1";
+const consumedConsentTokens = new Map();
 const consumedAuthorizationCodes = new Map();
 const consumedRefreshTokens = new Map();
 let replayIndexPromise = null;
@@ -527,7 +528,7 @@ export function createMcpConsentToken(
   );
 }
 
-export function resolveMcpConsentRequest(
+function validatedMcpConsentPayload(
   token,
   identity,
   env = process.env,
@@ -549,6 +550,39 @@ export function resolveMcpConsentRequest(
     payload.request.resource !== resolveMcpResourceUrl(env) ||
     !Array.isArray(payload.request.scopes)
   ) {
+    throw new McpOAuthError("Невалидно потвърждение.", 403, "access_denied");
+  }
+  return payload;
+}
+
+export function resolveMcpConsentRequest(
+  token,
+  identity,
+  env = process.env,
+  now = Math.floor(Date.now() / 1_000),
+) {
+  const payload = validatedMcpConsentPayload(token, identity, env, now);
+  return consentRequest({
+    ...payload.request,
+    scopes: parseScopes(payload.request.scopes.join(" ")),
+  });
+}
+
+export async function consumeMcpConsentRequest(
+  token,
+  identity,
+  env = process.env,
+  now = Math.floor(Date.now() / 1_000),
+  { consumeGrant = consumeMcpGrantOnce } = {},
+) {
+  const payload = validatedMcpConsentPayload(token, identity, env, now);
+  const consumed = await consumeGrant({
+    grantType: "consent_token",
+    tokenId: createHash("sha256").update(String(token)).digest("base64url"),
+    expiresAt: payload.exp,
+    env,
+  });
+  if (!consumed) {
     throw new McpOAuthError("Невалидно потвърждение.", 403, "access_denied");
   }
   return consentRequest({
@@ -591,9 +625,9 @@ function markTokenConsumed(store, tokenId, expiresAt) {
 }
 
 function replayStore(grantType) {
-  return grantType === "authorization_code"
-    ? consumedAuthorizationCodes
-    : consumedRefreshTokens;
+  if (grantType === "consent_token") return consumedConsentTokens;
+  if (grantType === "authorization_code") return consumedAuthorizationCodes;
+  return consumedRefreshTokens;
 }
 
 function replayRecordId(grantType, tokenId) {
@@ -924,8 +958,7 @@ export async function exchangeMcpToken(input, env = process.env) {
       ...oauthRuntimeStatus,
       tokenExchange: "failed",
       grantType,
-      errorCode:
-        error instanceof McpOAuthError ? error.code : "server_error",
+      errorCode: error instanceof McpOAuthError ? error.code : "server_error",
       updatedAt: new Date().toISOString(),
     });
     throw error;
@@ -1005,6 +1038,7 @@ export function verifyMcpAccessToken(
 }
 
 export function resetMcpOAuthStateForTests() {
+  consumedConsentTokens.clear();
   consumedAuthorizationCodes.clear();
   consumedRefreshTokens.clear();
   replayIndexPromise = null;

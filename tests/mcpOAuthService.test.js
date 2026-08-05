@@ -4,8 +4,10 @@ import test from "node:test";
 
 import {
   cleanupExpiredMcpReplayRecords,
+  consumeMcpConsentRequest,
   consumeMcpGrantOnce,
   createMcpAuthorizationCode,
+  createMcpConsentToken,
   exchangeMcpAuthorizationCode,
   exchangeMcpRefreshToken,
   exchangeMcpToken,
@@ -294,10 +296,7 @@ test("accepts offline_access for ChatGPT refresh-token continuity", async () => 
     authorizationInput([MCP_READ_SCOPE, MCP_OFFLINE_ACCESS_SCOPE]),
     { env: ENV, fetchImpl: clientMetadataFetch },
   );
-  assert.deepEqual(request.scopes, [
-    MCP_READ_SCOPE,
-    MCP_OFFLINE_ACCESS_SCOPE,
-  ]);
+  assert.deepEqual(request.scopes, [MCP_READ_SCOPE, MCP_OFFLINE_ACCESS_SCOPE]);
 
   const code = createMcpAuthorizationCode(
     request,
@@ -317,16 +316,10 @@ test("accepts offline_access for ChatGPT refresh-token continuity", async () => 
   );
 
   assert.ok(token.refresh_token);
+  assert.equal(token.scope, `${MCP_READ_SCOPE} ${MCP_OFFLINE_ACCESS_SCOPE}`);
   assert.equal(
-    token.scope,
-    `${MCP_READ_SCOPE} ${MCP_OFFLINE_ACCESS_SCOPE}`,
-  );
-  assert.equal(
-    verifyMcpAccessToken(
-      `Bearer ${token.access_token}`,
-      [MCP_READ_SCOPE],
-      ENV,
-    ).memoryOwnerId,
+    verifyMcpAccessToken(`Bearer ${token.access_token}`, [MCP_READ_SCOPE], ENV)
+      .memoryOwnerId,
     "primary-user",
   );
 });
@@ -607,6 +600,49 @@ test("production replay guard is atomic across local state resets", async () => 
   assert.equal(await consumeMcpGrantOnce(input), true);
   resetMcpOAuthStateForTests();
   assert.equal(await consumeMcpGrantOnce(input), false);
+});
+
+test("consent token replay stays blocked across an application restart", async () => {
+  const seen = new Set();
+  const client = {
+    async create({ id }) {
+      if (seen.has(id)) {
+        const error = new Error("version conflict");
+        error.meta = { statusCode: 409 };
+        throw error;
+      }
+      seen.add(id);
+    },
+  };
+  const env = { ...ENV, NODE_ENV: "production" };
+  const identity = {
+    id: "owner-id",
+    memoryOwnerId: "primary-user",
+    role: "owner",
+  };
+  const oauthRequest = {
+    clientId: CLIENT_ID,
+    clientName: "ChatGPT",
+    redirectUri: REDIRECT_URI,
+    state: "state-consent-restart",
+    codeChallenge: createHash("sha256").update(VERIFIER).digest("base64url"),
+    resource: ENV.MCP_RESOURCE_URL,
+    scopes: [MCP_READ_SCOPE],
+  };
+  const now = Math.floor(Date.now() / 1_000);
+  const token = createMcpConsentToken(oauthRequest, identity, env, now);
+  const consumeGrant = (input) => consumeMcpGrantOnce({ ...input, client });
+
+  const resolved = await consumeMcpConsentRequest(token, identity, env, now, {
+    consumeGrant,
+  });
+  assert.deepEqual(resolved, oauthRequest);
+
+  resetMcpOAuthStateForTests();
+  await assert.rejects(
+    consumeMcpConsentRequest(token, identity, env, now, { consumeGrant }),
+    (error) => error.code === "access_denied" && error.status === 403,
+  );
 });
 
 test("first production token exchange creates the durable replay index", async () => {

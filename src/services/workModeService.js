@@ -244,6 +244,14 @@ export function listWorkAgentEngines() {
   }));
 }
 
+export function hasExplicitNoToolBoundary(message) {
+  const text = cleanText(message, 8000);
+  if (!text) return false;
+  return /(?:не\s+(?:използвай|ползвай|стартирай|извиквай)\s+(?:никакви\s+)?инструмент(?:и|ите)?|без\s+(?:да\s+)?(?:използваш|ползваш|стартираш|извикваш)\s+инструмент(?:и|ите)?)/iu.test(
+    text,
+  );
+}
+
 export function routeSelectedWorkAgentCapabilities(requests, value, message) {
   const context = sanitizeWorkContext(value);
   const safeRequests = Array.isArray(requests) ? requests : [];
@@ -252,7 +260,17 @@ export function routeSelectedWorkAgentCapabilities(requests, value, message) {
   const nonCodeRequests = safeRequests.filter(
     ({ capability }) => !String(capability || "").startsWith("code."),
   );
+  if (hasExplicitNoToolBoundary(message)) return [];
   if (isRuntimeAiIdentityRequest(message)) return nonCodeRequests;
+  const codeReadRequests = safeRequests.filter(({ capability }) =>
+    ["code.read", "code.task-status"].includes(capability),
+  );
+  const hasCodeWrite = safeRequests.some(
+    ({ capability }) => capability === "code.write",
+  );
+  if (codeReadRequests.length && !hasCodeWrite) {
+    return [...codeReadRequests, ...nonCodeRequests];
+  }
   return [
     {
       capability: "code.analyze",
@@ -269,3 +287,4 @@ export function resolveWorkAgentModel(value) {
     ? AGENT_MODELS[id].apiModel || undefined
     : undefined;
 }
+

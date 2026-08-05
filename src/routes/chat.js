@@ -92,6 +92,7 @@ import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 import {
   buildWorkContextStatusReply,
   buildWorkModeContext,
+  hasExplicitNoAdditionalToolsBoundary,
   hasExplicitNoToolBoundary,
   isRuntimeAiIdentityRequest,
   isWorkContextStatusRequest,
@@ -360,6 +361,7 @@ export function detectCapabilityRequests(message) {
         subtask,
       ) &&
       !hasExplicitNoToolBoundary(subtask) &&
+      !hasExplicitNoAdditionalToolsBoundary(subtask) &&
       !copilotBridgeStatusRequest &&
       !/(?:регистрирани|tool\s+registry|capability\s+engine)/iu.test(subtask)
     ) {
@@ -1293,6 +1295,7 @@ router.post("/chat", async (req, res) => {
     capabilityPlanningAllowed &&
     !memoryAction &&
     openAiApiKey &&
+    !hasExplicitNoAdditionalToolsBoundary(cleanMessage) &&
     shouldUseAgentPlanner(cleanMessage, fallbackCapabilityRequests)
   ) {
     try {

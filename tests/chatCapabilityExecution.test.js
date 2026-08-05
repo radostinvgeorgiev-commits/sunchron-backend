@@ -684,4 +684,3 @@ test("an explicit read-only GitHub check never attempts GitHub write", () => {
     ["code.read"],
   );
 });
-

@@ -148,12 +148,18 @@ test("an unauthenticated tool call returns the ChatGPT OAuth challenge", async (
       params: { name: "get_personal_context", arguments: {} },
     })
     .expect(401);
-  assert.equal(response.body.error.code, -32001);
+  assert.equal(response.body.result.isError, true);
+  assert.equal(
+    response.body.result._meta["mcp/www_authenticate"][0],
+    response.headers["www-authenticate"],
+  );
   assert.match(
     response.headers["www-authenticate"],
     /oauth-protected-resource/u,
   );
   assert.match(response.headers["www-authenticate"], /synchron:read/u);
+  assert.match(response.headers["www-authenticate"], /error="invalid_token"/u);
+  assert.match(response.headers["www-authenticate"], /error_description=/u);
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
   else process.env.MCP_ACCESS_TOKEN = previous;
 });
@@ -174,7 +180,11 @@ test("an invalid bearer token is rejected with HTTP 401", async () => {
       params: { name: "get_personal_context", arguments: {} },
     })
     .expect(401);
-  assert.equal(response.body.error.code, -32001);
+  assert.equal(response.body.result.isError, true);
+  assert.equal(
+    response.body.result._meta["mcp/www_authenticate"][0],
+    response.headers["www-authenticate"],
+  );
   assert.match(response.headers["www-authenticate"], /invalid_token/u);
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
   else process.env.MCP_ACCESS_TOKEN = previous;
@@ -199,7 +209,11 @@ test("the dedicated OAuth secret is never accepted as a legacy static bearer", a
         params: { name: "get_personal_context", arguments: {} },
       })
       .expect(401);
-    assert.equal(response.body.error.code, -32001);
+    assert.equal(response.body.result.isError, true);
+    assert.equal(
+      response.body.result._meta["mcp/www_authenticate"][0],
+      response.headers["www-authenticate"],
+    );
   } finally {
     if (previousAccess === undefined) delete process.env.MCP_ACCESS_TOKEN;
     else process.env.MCP_ACCESS_TOKEN = previousAccess;
@@ -440,6 +454,54 @@ test("authorization consent ignores altered repeated OAuth form fields", async (
     assert.equal(callback.origin, "https://chatgpt.com");
     assert.equal(callback.searchParams.get("state"), oauthRequest.state);
     assert.match(callback.searchParams.get("code"), /^sx-code\./u);
+  } finally {
+    if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
+    else process.env.MCP_ACCESS_TOKEN = previous;
+  }
+});
+
+test("authorization consent token cannot issue more than one code", async () => {
+  const previous = process.env.MCP_ACCESS_TOKEN;
+  process.env.MCP_ACCESS_TOKEN = SECRET;
+  try {
+    const oauthRequest = {
+      clientId: "https://chatgpt.com/oauth/synchron/client.json",
+      clientName: "ChatGPT",
+      redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
+      state: "state-one-time-consent",
+      codeChallenge: "c".repeat(43),
+      resource: "https://synchron.foundation/mcp",
+      scopes: ["synchron:read"],
+    };
+    const app = express();
+    app.use(
+      createMcpOAuthRouter({
+        resolveIdentity: async () => ({
+          id: "owner-id",
+          displayName: "Радко",
+          role: "owner",
+          memoryOwnerId: "primary-user",
+        }),
+        validateRequest: async () => oauthRequest,
+      }),
+    );
+    const consent = await request(app).get("/oauth/authorize").expect(200);
+    const consentToken = consent.text.match(
+      /name="consent_token" value="([^"]+)"/u,
+    )?.[1];
+    assert.ok(consentToken);
+
+    await request(app)
+      .post("/oauth/authorize")
+      .type("form")
+      .send({ consent_token: consentToken, decision: "allow" })
+      .expect(302);
+    const replayed = await request(app)
+      .post("/oauth/authorize")
+      .type("form")
+      .send({ consent_token: consentToken, decision: "allow" })
+      .expect(403);
+    assert.equal(replayed.body.error, "access_denied");
   } finally {
     if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
     else process.env.MCP_ACCESS_TOKEN = previous;

@@ -230,26 +230,16 @@ jobs:
             exit 1
           fi
 
-          challenge="$(curl --silent --show-error \
+          challenge_headers="$(curl --silent --show-error \
             --max-time 30 \
+            --dump-header - \
+            --output /dev/null \
             --header 'Content-Type: application/json' \
             --header 'Accept: application/json, text/event-stream' \
             --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_github_copilot_task_status","arguments":{"issueNumber":83}}}' \
             https://synchron.foundation/mcp)"
-          printf '%s' "${challenge}" | node -e '
-            let input = "";
-            process.stdin.on("data", (chunk) => { input += chunk; });
-            process.stdin.on("end", () => {
-              const result = JSON.parse(input).result;
-              const challenges = result?._meta?.["mcp/www_authenticate"] || [];
-              const valid =
-                result?.isError === true &&
-                challenges.some(
-                  (value) => value.includes("Bearer") && value.includes("synchron:read"),
-                );
-              if (!valid) process.exit(1);
-            });
-          '
+          printf '%s' "${challenge_headers}" \
+            | grep -Eiq '^www-authenticate:.*Bearer.*synchron:read'
 
       - name: Check tester auth readiness
         shell: bash

@@ -81,16 +81,4 @@ router.get("/history", async (req, res) => {
   }
 });
 
-// Internal: POST /api/billing/deduct — called by the chat route
-// Body: { userId, cost, description }
-router.post("/deduct", async (req, res) => {
-  try {
-    const { userId, cost, description } = req.body || {};
-    const newBalance = await deductTokens(userId, cost, description);
-    return res.json({ newBalance });
-  } catch (error) {
-    return sendBillingError(res, error);
-  }
-});
-
 export default router;

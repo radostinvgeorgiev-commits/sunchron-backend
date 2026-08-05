@@ -130,3 +130,29 @@ services:
       - key: PAID_AI_RATE_LIMIT
         value: "60"
         scope: RUN_TIME
+
+workers:
+  - name: mcp-tunnel
+    image:
+      registry_type: GHCR
+      registry: openai
+      repository: tunnel-client
+      tag: v0.0.10
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    envs:
+      - key: CONTROL_PLANE_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: CONTROL_PLANE_TUNNEL_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: MCP_SERVER_URL
+        value: http://web/mcp
+        scope: RUN_TIME
+      - key: LOG_LEVEL
+        value: info
+        scope: RUN_TIME
+      - key: LOG_FORMAT
+        value: json
+        scope: RUN_TIME

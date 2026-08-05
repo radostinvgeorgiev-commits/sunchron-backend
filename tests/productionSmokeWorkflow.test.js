@@ -25,6 +25,11 @@ test("production smoke publishes a readable commit status without a custom secre
   assert.match(workflow, /names\.length === expected\.length/u);
   assert.match(workflow, /mcp\/www_authenticate/u);
   assert.match(workflow, /synchron:read/u);
+  assert.match(workflow, /challenge="\$\(curl --silent --show-error/u);
+  assert.doesNotMatch(
+    workflow,
+    /challenge="\$\(curl --fail --silent --show-error/u,
+  );
   assert.match(workflow, /Check workspace authentication boundary/u);
   assert.match(workflow, /\/api\/workspaces/u);
   assert.match(workflow, /AUTH_REQUIRED/u);

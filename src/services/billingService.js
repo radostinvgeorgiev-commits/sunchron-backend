@@ -80,7 +80,7 @@ async function supabaseRestRequest(
   const response = await fetch(`${cfg.projectUrl}/rest/v1${path}`, {
     method,
     headers: {
-      apikey: cfg.publishableKey || cfg.serviceRoleKey,
+      apikey: authKey,
       Authorization: "Bearer " + authKey,
       "Content-Type": "application/json",
       Prefer: method === "POST" ? "return=representation" : "return=minimal",
@@ -195,9 +195,16 @@ export async function consumeTokens(
   }
 
   const newBalance = current.tokens - amount;
+  // Use optimistic concurrency: the PATCH only matches when the stored token
+  // count still equals the value we read.  If a concurrent request already
+  // updated the row, Supabase returns an empty result set (0 rows affected)
+  // and the deduction is effectively a no-op, preventing double-spend.
   await supabaseRestRequest(
     cfg,
-    "/token_balance?user_id=eq." + encodeURIComponent(userId),
+    "/token_balance?user_id=eq." +
+      encodeURIComponent(userId) +
+      "&tokens=eq." +
+      current.tokens,
     {
       method: "PATCH",
       body: { tokens: newBalance, last_updated: new Date().toISOString() },

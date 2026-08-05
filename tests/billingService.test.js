@@ -118,7 +118,7 @@ test("consumeTokens — deducts tokens and records transaction", async () => {
   const patchCall = requests.find(
     (r) => r.method === "PATCH" && r.url.includes("/token_balance"),
   );
-  assert.ok(patchCall, "PATCH должен быть вызван");
+  assert.ok(patchCall, "PATCH трябва да бъде извикан");
 
   delete global.fetch;
 });
@@ -186,7 +186,7 @@ test("getTransactions — returns transaction list", async () => {
   delete global.fetch;
 });
 
-test("getTransactions — returns empty array when billing not configured", async () => {
+test("getTransactions — throws BILLING_NOT_CONFIGURED when billing not configured", async () => {
   await assert.rejects(
     () => getTransactions("uid", { env: { ...ENV, SUPABASE_URL: "" } }),
     (err) =>

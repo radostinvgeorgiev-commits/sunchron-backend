@@ -390,7 +390,585 @@ export function detectCapabilityRequests(message) {
         message: subtask,
       });
     }
-    if (isCalendarWriteRequest(s…5357 tokens truncated…es.writableEnded && !res.destroyed) {
+    if (isCalendarWriteRequest(subtask)) {
+      requests.push({
+        capability: "calendar.write",
+        action: "calendar.write",
+        message,
+      });
+    } else if (isCalendarReadRequest(subtask)) {
+      requests.push({
+        capability: "calendar.read",
+        action: "calendar.read",
+        message: subtask,
+      });
+    }
+    if (
+      /(?:google\s+drive|драйв|моите?\s+файлове|файловете?\s+ми)/iu.test(
+        subtask,
+      )
+    ) {
+      requests.push({
+        capability: "files.read",
+        action: "drive.read",
+        message: subtask,
+      });
+    }
+    if (/(?:gmail|джимейл|имейлите?\s+ми|пощата\s+ми)/iu.test(subtask)) {
+      requests.push({
+        capability: "mail.read",
+        action: "mail.read",
+        message: subtask,
+      });
+    }
+    if (
+      /(?:тествай|докажи).{0,40}(?:постоянната\s+)?памет(?:та)?|провери.{0,40}(?:постоянната\s+)?памет(?:та)?\s+(?:сама|автоматично|реално)|автоматичен\s+тест.{0,30}памет/iu.test(
+        subtask,
+      ) &&
+      !/(?:само\s+прочети|само\s+покажи|какво\s+помниш)/iu.test(subtask)
+    ) {
+      requests.push({
+        capability: "memory.verify",
+        action: "memory.test",
+        message: subtask,
+      });
+    } else if (
+      /(?:какво\s+помниш|провери\s+паметта|постоянната\s+(?:ми\s+)?памет)/iu.test(
+        subtask,
+      ) &&
+      !/(?:запомни|запиши|изтрий|забрави|преди\s+запис)/iu.test(subtask)
+    ) {
+      requests.push({
+        capability: "memory.read",
+        action: "memory.read",
+        message: subtask,
+        scope: /(?:проекта|synchron-x|novarium)/iu.test(subtask)
+          ? "project"
+          : undefined,
+      });
+    }
+    if (isWebSearchRequest(subtask)) {
+      requests.push({
+        capability: "web.search",
+        action: "web.read",
+        message: subtask,
+      });
+    }
+    if (
+      /(?:supabase|супабейс)/iu.test(subtask) &&
+      /(?:провери|покажи|статус|свързан|работи|достъпен|check|status)/iu.test(
+        subtask,
+      )
+    ) {
+      requests.push({
+        capability: "database.status",
+        action: "database.read",
+        message: subtask,
+      });
+    }
+    if (
+      !systemConfigurationRequest &&
+      DIGITALOCEAN_NAME_PATTERN.test(subtask) &&
+      /(?:провери|покажи|статус|работи|деплой|deployment|публикуван|последн|направи|одит|акаунт|ресурс|droplet|сървър|баз|мреж|firewall|защит|разход|billing|storage|volume|snapshot|kubernetes)/iu.test(
+        subtask,
+      )
+    ) {
+      requests.push({
+        capability: "infrastructure.digitalocean.read",
+        action: "infrastructure.read",
+        message: subtask,
+      });
+    }
+    if (
+      /(?:cloudflare|клаудфлеър|клауф\s*фаер)/iu.test(subtask) &&
+      /(?:провери|покажи|статус|работи|dns|домейн|зона|запис)/iu.test(subtask)
+    ) {
+      requests.push({
+        capability: "infrastructure.cloudflare.read",
+        action: "infrastructure.read",
+        message: subtask,
+      });
+    }
+    const repositoryInspectionSubtask =
+      /(?:tool\s+registry|capability\s+engine|(?:кои\s+)?инструменти.*регистрирани|регистрирани\s+инструменти|разрешения.*инструмент|чатът.*capability|последно\s+поправен.*проблем)/iu.test(
+        subtask,
+      );
+    const mergedBranchCleanupPlan =
+      isMergedBranchCleanupPlanRequest(subtask) ||
+      (hasGitHubContext &&
+        /(?:слет|merged).{0,50}(?:клон|branch)|(?:клон|branch).{0,50}(?:слет|merged)/iu.test(
+          subtask,
+        ) &&
+        /(?:подготви|покажи|намери|изброй|списък|провери|безопасн)/iu.test(
+          subtask,
+        ));
+    const wantsGitHubRead =
+      !copilotBridgeStatusRequest &&
+      !copilotTaskStatusRequest &&
+      !/(?:използва\s+успешно|кои\s+са\s+достъпни)/iu.test(subtask) &&
+      (mergedBranchCleanupPlan ||
+        isGitHubReadRequest(subtask) ||
+        (hasGitHubContext && repositoryInspectionSubtask) ||
+        (hasGitHubWriteIntent &&
+          isExplicitGitHubReadSubtask(subtask, hasGitHubContext)));
+    const allowReadForWriteTask =
+      !hasGitHubWriteIntent ||
+      (!writeTaskReadAdded &&
+        isExplicitGitHubReadSubtask(subtask, hasGitHubContext));
+    if (wantsGitHubRead && allowReadForWriteTask) {
+      requests.push({
+        capability: "code.read",
+        action: "github.read",
+        message: subtask,
+      });
+      if (hasGitHubWriteIntent) writeTaskReadAdded = true;
+    }
+  }
+  if (hasGitHubWriteIntent) {
+    requests.push({
+      capability: "code.write",
+      action: "github.write",
+      message,
+    });
+  }
+  return requests;
+}
+
+export function mergeCapabilityRequests(
+  fallbackRequests = [],
+  plannedRequests = [],
+) {
+  const safeFallback = Array.isArray(fallbackRequests) ? fallbackRequests : [];
+  const safePlanned = Array.isArray(plannedRequests) ? plannedRequests : [];
+  const merged = [...safeFallback];
+  const fallbackCapabilities = new Set(
+    safeFallback.map(({ capability }) => capability).filter(Boolean),
+  );
+  const seen = new Set(
+    merged.map(
+      ({ capability, message, scope }) =>
+        `${capability || ""}\u0000${message || ""}\u0000${scope || ""}`,
+    ),
+  );
+
+  for (const request of safePlanned) {
+    if (!request?.capability) continue;
+    if (fallbackCapabilities.has(request.capability)) continue;
+    const key = `${request.capability}\u0000${request.message || ""}\u0000${request.scope || ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(request);
+  }
+
+  return merged;
+}
+
+function hasConfirmedMemoryDeletePrefix(message) {
+  if (typeof message !== "string") return false;
+  const separatorIndex = message.indexOf(":");
+  if (separatorIndex < 0) return false;
+  const prefix = message.slice(0, separatorIndex + 1).trim();
+  return /^потвърждавам\s+изтриване(?:то)?\s+от\s+постоянната\s+(?:ми\s+)?памет(?:та)?(?:\s+само(?:\s+на\s+факта)?)?\s*:$/iu.test(
+    prefix,
+  );
+}
+
+export function extractConfirmedMemoryDeleteCommand(message) {
+  if (!hasConfirmedMemoryDeletePrefix(message)) return null;
+  const separatorIndex = message.indexOf(":");
+  const payload = message.slice(separatorIndex + 1).trim();
+  return extractForgetMemoryCommand(`Изтрий от паметта: ${payload}`);
+}
+
+export async function executeDetectedCapabilities(
+  message,
+  executeFn,
+  requests = detectCapabilityRequests(message),
+  executionContext = {},
+) {
+  const execution = await executeTaskPlan({
+    message,
+    requests,
+    executeFn,
+    executionContext,
+  });
+  return execution.results;
+}
+
+function capabilityLabel(capability) {
+  if (capability === "system.integrations.status")
+    return "статус на инструментите";
+  if (capability === "system.configuration.read")
+    return "системна конфигурация";
+  if (capability === "calendar.read") return "календар";
+  if (capability === "calendar.write") return "запис в календара";
+  if (capability === "code.read") return "GitHub";
+  if (capability === "code.analyze") return "Codex";
+  if (capability === "code.task-status") return "GitHub задача";
+  if (capability === "code.write") return "GitHub запис";
+  if (capability === "files.read") return "Google Drive";
+  if (capability === "mail.read") return "Gmail";
+  if (capability === "memory.read") return "памет";
+  if (capability === "memory.verify") return "автоматичен тест на паметта";
+  if (capability === "web.search") return "интернет търсене";
+  if (capability === "infrastructure.digitalocean.read") return "DigitalOcean";
+  if (capability === "infrastructure.cloudflare.read") return "Cloudflare";
+  return capability;
+}
+
+function formatCapabilityFailureMessage(error) {
+  if (error instanceof DigitalOceanError) {
+    const messages = {
+      DIGITALOCEAN_TOKEN_INVALID:
+        "DigitalOcean token-ът е невалиден, изтекъл или отнет.",
+      DIGITALOCEAN_FORBIDDEN:
+        "DigitalOcean връзката няма право да прочете тези данни.",
+      DIGITALOCEAN_NOT_CONFIGURED: "DigitalOcean Read не е конфигуриран.",
+      DIGITALOCEAN_APP_NOT_CONFIGURED: "DigitalOcean App ID не е конфигуриран.",
+      DIGITALOCEAN_UPSTREAM_ERROR: "DigitalOcean API временно не отговаря.",
+    };
+    return messages[error.code] || "DigitalOcean временно не е достъпен.";
+  }
+  if (
+    error instanceof GitHubServiceError ||
+    error instanceof GitHubOAuthError ||
+    error instanceof CopilotTaskError ||
+    error instanceof CodexAgentError ||
+    error instanceof GoogleDriveError ||
+    error instanceof WebSearchError
+  ) {
+    return error.message;
+  }
+  if (error instanceof CapabilityError) {
+    if (
+      error.code === "CAPABILITY_PERMISSION_DENIED" ||
+      error.code === "CAPABILITY_CONFIRMATION_REQUIRED"
+    ) {
+      return error.message;
+    }
+    if (error.code === "CAPABILITY_UNAVAILABLE") {
+      return error.message;
+    }
+    return "Инструментът за тази заявка временно не е достъпен.";
+  }
+  return "Избраният инструмент временно не е достъпен.";
+}
+
+export function buildMemoryReply(memoryAction) {
+  if (!memoryAction) return null;
+  if (memoryAction.type === "write-confirmation-required") {
+    return formatMemoryWritePreparation(memoryAction);
+  }
+  if (memoryAction.type === "delete-confirmation-required") {
+    return formatMemoryDeletePreparation(memoryAction);
+  }
+  if (memoryAction.type === "cleared") {
+    return "Изчистих постоянната памет.";
+  }
+  if (memoryAction.type === "forgot") {
+    return memoryAction.deleted
+      ? `Забравих: ${memoryAction.fact}.`
+      : "Не намерих такъв запис в постоянната памет.";
+  }
+  if (memoryAction.type === "batch") {
+    const updatedCount = memoryAction.items.filter(
+      (item) => item.replaced,
+    ).length;
+    const updatedSuffix = updatedCount
+      ? `, от които ${updatedCount} обновени`
+      : "";
+    return [
+      `Записах ${memoryAction.items.length} факта в постоянната памет${updatedSuffix}:`,
+      ...memoryAction.items.map(({ fact }) => `• ${fact}`),
+    ].join("\n");
+  }
+  if (memoryAction.type === "updated") {
+    return `Поправих постоянната памет: ${memoryAction.fact}.`;
+  }
+  return `Запомних: ${memoryAction.fact}.`;
+}
+
+export function mergeMemoryTaskStatus(task, memoryAction) {
+  if (!memoryAction) return task;
+  const waitsForConfirmation =
+    memoryAction.type === "write-confirmation-required" ||
+    memoryAction.type === "delete-confirmation-required";
+  if (!waitsForConfirmation) {
+    return Object.freeze({ ...task, status: "completed", verified: true });
+  }
+  return Object.freeze({
+    ...task,
+    status: "waiting_confirmation",
+    verified: false,
+  });
+}
+
+export function buildCapabilityReplies(capabilityResults) {
+  const replies = [];
+  const seenReplyKeys = new Set();
+  const addUniqueReply = (reply) => {
+    if (typeof reply !== "string") return;
+    const trimmedReply = reply.trim();
+    if (!trimmedReply) return;
+    const key = trimmedReply.replace(/\s+/gu, " ");
+    if (seenReplyKeys.has(key)) return;
+    seenReplyKeys.add(key);
+    replies.push(trimmedReply);
+  };
+
+  for (const capabilityResult of capabilityResults) {
+    if (capabilityResult.status === "fulfilled") {
+      addUniqueReply(capabilityResult.result.output);
+      continue;
+    }
+    const { request, error } = capabilityResult;
+    const message = formatCapabilityFailureMessage(error);
+    addUniqueReply(
+      `Не успях да изпълня заявката за ${capabilityLabel(request.capability)}: ${message}`,
+    );
+  }
+  if (capabilityResults.length > 1) {
+    const statusByCapability = new Map();
+    for (const item of capabilityResults) {
+      const key = item.request.capability;
+      const existing = statusByCapability.get(key);
+      const name =
+        item.result?.tool?.name || existing?.name || capabilityLabel(key);
+      statusByCapability.set(key, {
+        name,
+        successful:
+          item.status === "fulfilled" || Boolean(existing?.successful),
+        failed: item.status === "rejected" || Boolean(existing?.failed),
+      });
+    }
+    addUniqueReply(
+      [
+        "Използвани инструменти:",
+        ...[...statusByCapability.values()].map((status) => {
+          const result =
+            status.successful && status.failed
+              ? "частично достъпен"
+              : status.successful
+                ? "успешно"
+                : "недостъпен";
+          return `• ${status.name} — ${result}`;
+        }),
+      ].join("\n"),
+    );
+  }
+  return replies;
+}
+
+export function shouldReplyWithVerifiedToolOutput(capabilityResults) {
+  return (
+    Array.isArray(capabilityResults) &&
+    capabilityResults.length > 0 &&
+    capabilityResults.every(({ request }) =>
+      DIRECT_CAPABILITY_REPLIES.has(request?.capability),
+    )
+  );
+}
+
+function projectRunFromCapabilityResults(capabilityResults, workContext) {
+  const expectedProjectId = workContext?.project?.id || "";
+  const run = capabilityResults.find(
+    (item) => item.status === "fulfilled" && item.result?.metadata?.projectRun,
+  )?.result?.metadata?.projectRun;
+  if (!run) return null;
+  if (expectedProjectId && run.projectId !== expectedProjectId) return null;
+  return run;
+}
+
+router.post("/chat", async (req, res) => {
+  const openAiApiKey = process.env.OPENAI_API_KEY;
+  const aiTimeoutMs = parsePositiveInteger(
+    process.env.OPENAI_TIMEOUT_MS,
+    DEFAULT_AI_TIMEOUT_MS,
+  );
+  const { sessionId, message, image, mode, workContext } = req.body || {};
+  const googleSessionId =
+    parseCookies(req.headers.cookie).synchron_google_session || "";
+  const githubSessionId =
+    parseGitHubCookies(req.headers.cookie).synchron_github_session || "";
+  const ownerId = req.owner.memoryOwnerId;
+  const ownerToolsAllowed = req.owner.role === "owner";
+  const capabilityPlanningAllowed = canPlanCapabilities(req.owner);
+  const cleanSessionId = typeof sessionId === "string" ? sessionId.trim() : "";
+  const cleanMessage = typeof message === "string" ? message.trim() : "";
+  const interactionMode = normalizeInteractionMode(mode);
+  const cleanWorkContext =
+    interactionMode === "work" ? sanitizeWorkContext(workContext) : null;
+
+  if (!cleanSessionId) {
+    return res.status(400).json({ error: "Липсва валидна сесия." });
+  }
+  if (!cleanMessage) {
+    return res.status(400).json({ error: "Напиши съобщение." });
+  }
+  console.log(`[POST /chat] sessionId: ${cleanSessionId}`);
+
+  let memories;
+  let history;
+  let memoryAction = null;
+  const autoMemoryCount = 0;
+  let memoryAvailable = true;
+  const memoryWriteConfirmationId =
+    extractMemoryWriteConfirmationId(cleanMessage);
+  const memoryDeleteConfirmationId =
+    extractMemoryDeleteConfirmationId(cleanMessage);
+  const explicitMemoryIntent =
+    Boolean(memoryWriteConfirmationId) ||
+    Boolean(memoryDeleteConfirmationId) ||
+    extractPersistentMemoryCommands(cleanMessage).length > 0 ||
+    isConfirmedForgetAllCommand(cleanMessage) ||
+    isForgetAllCommand(cleanMessage) ||
+    hasConfirmedMemoryDeletePrefix(cleanMessage) ||
+    Boolean(extractForgetMemoryCommand(cleanMessage));
+  try {
+    if (memoryWriteConfirmationId) {
+      // The exact one-time confirmation is executed after the SSE channel is
+      // established. No content from the confirmation message is re-parsed.
+    } else if (memoryDeleteConfirmationId) {
+      const result = await confirmMemoryDelete({
+        confirmationId: memoryDeleteConfirmationId,
+        sessionId: cleanSessionId,
+        ownerId,
+      });
+      memoryAction =
+        result.target.kind === "all"
+          ? { type: "cleared", deleted: result.deleted }
+          : {
+              type: "forgot",
+              fact: result.target.fact,
+              scope: result.target.scope,
+              deleted: result.deleted,
+            };
+    } else {
+      const memoryCommands = extractPersistentMemoryCommands(cleanMessage);
+      if (memoryCommands.length) {
+        const prepared = await prepareMemoryWrite({
+          sessionId: cleanSessionId,
+          ownerId,
+          items: memoryCommands,
+        });
+        memoryAction = {
+          type: "write-confirmation-required",
+          ...prepared,
+        };
+      } else if (
+        isConfirmedForgetAllCommand(cleanMessage) ||
+        isForgetAllCommand(cleanMessage)
+      ) {
+        const prepared = await prepareMemoryDelete({
+          sessionId: cleanSessionId,
+          ownerId,
+          target: { kind: "all" },
+        });
+        memoryAction = {
+          type: "delete-confirmation-required",
+          ...prepared,
+        };
+      } else {
+        const confirmedDelete =
+          extractConfirmedMemoryDeleteCommand(cleanMessage);
+        const forgetCommand =
+          confirmedDelete || extractForgetMemoryCommand(cleanMessage);
+        if (forgetCommand) {
+          const prepared = await prepareMemoryDelete({
+            sessionId: cleanSessionId,
+            ownerId,
+            target: {
+              kind: "fact",
+              fact: forgetCommand.fact,
+              scope: forgetCommand.scope,
+            },
+          });
+          memoryAction = {
+            type: "delete-confirmation-required",
+            ...prepared,
+          };
+        }
+      }
+    }
+    [memories, history] = await Promise.all([
+      listProfileMemories({ ownerId }),
+      listConversationMessages(cleanSessionId, undefined, ownerId),
+    ]);
+  } catch (error) {
+    logSafeError("[Memory] Chat request failure", error);
+    if (
+      error instanceof MemoryDeleteConfirmationError ||
+      isAuditSafetyError(error)
+    ) {
+      return res.status(error.status).json({
+        error: error.message,
+        code: error.code,
+      });
+    }
+    if (explicitMemoryIntent) {
+      return res.status(503).json({
+        error:
+          "Постоянната памет временно не е достъпна. Нищо не беше записано или изтрито.",
+      });
+    }
+    memories = [];
+    history = [];
+    memoryAvailable = false;
+  }
+
+  let messages = buildAvatarMessages(
+    memories,
+    history,
+    cleanMessage,
+    req.owner,
+    { mode: interactionMode, workContext: cleanWorkContext },
+  );
+
+  if (image) {
+    if (!ownerToolsAllowed) {
+      return res.status(403).json({
+        error:
+          "Снимките и външните инструменти още не са включени за тестовите профили.",
+        code: "TESTER_TOOL_DISABLED",
+      });
+    }
+    try {
+      validateImageInput(image);
+    } catch (error) {
+      const status = error instanceof ImageServiceError ? error.status : 400;
+      return res.status(status).json({ error: error.message });
+    }
+  }
+
+  const copilotConfirmationId = extractCopilotConfirmationId(cleanMessage);
+  const calendarConfirmationId = extractCalendarConfirmationId(cleanMessage);
+  if (copilotConfirmationId && !ownerToolsAllowed) {
+    return res.status(403).json({
+      error: "GitHub действията са достъпни само за собственика.",
+      code: "OWNER_ONLY",
+    });
+  }
+  if (calendarConfirmationId && !ownerToolsAllowed) {
+    return res.status(403).json({
+      error: "Календарните действия са достъпни само за собственика.",
+      code: "OWNER_ONLY",
+    });
+  }
+
+  res.status(200);
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  if (typeof res.flushHeaders === "function") res.flushHeaders();
+
+  const sendEvent = (event, data) => {
+    if (res.writableEnded || res.destroyed) return false;
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    return true;
+  };
+  const sendHeartbeat = () => {
+    if (!res.writableEnded && !res.destroyed) {
       res.write(`: heartbeat ${Date.now()}\n\n`);
     }
   };
@@ -977,4 +1555,3 @@ export function detectCapabilityRequests(message) {
 });
 
 export default router;
-

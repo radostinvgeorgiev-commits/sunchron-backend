@@ -39,6 +39,12 @@ npm test
 npm audit --omit=dev --audit-level=high
 ```
 
+DigitalOcean App Platform е единственият production deployment канал за сайта.
+Не добавяй GitHub Pages deployment или отделен tunnel worker без доказана нужда,
+точна цена, runtime конфигурация и изрично разрешение. Cloudflare обслужва DNS и
+edge proxy към DigitalOcean; наличието на Cloudflare не означава, че е нужен
+`cloudflared` Tunnel.
+
 После провери публичните endpoints, без credentials:
 
 ```bash

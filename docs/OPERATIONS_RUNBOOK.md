@@ -61,6 +61,7 @@ curl --fail --silent --show-error https://synchron.foundation/health
 curl --fail --silent --show-error https://synchron.foundation/health/ready
 curl --fail --silent --show-error https://synchron.foundation/health/dependencies
 curl --silent --show-error https://synchron.foundation/health/backups
+curl --fail --silent --show-error https://synchron.foundation/health/storage-report
 curl --fail --silent --show-error https://synchron.foundation/api/auth/session
 ```
 
@@ -71,6 +72,11 @@ curl --fail --silent --show-error https://synchron.foundation/api/auth/session
 точния production cluster, но `provesRestore=false` означава, че възстановяване
 не е изпълнявано. Supabase backup статусът остава `unverified`, докато не бъде
 проверен чрез разрешен owner/management изглед.
+
+`/health/storage-report` връща същите два безопасни отчета в JSON с транспортен
+HTTP `200`, за да не бъдат скривани точните вътрешни статуси от edge 5xx
+страница. Той не променя health семантиката: production smoke оценява
+`dependencies.status` и `backups.status`, а не общия HTTP код на отчета.
 
 MCP каталогът е read-only JSON-RPC заявка:
 

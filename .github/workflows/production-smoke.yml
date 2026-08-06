@@ -102,15 +102,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          response="$(curl --fail --silent --show-error \
-            --retry 3 --retry-delay 10 --retry-all-errors \
-            --max-time 30 \
-            https://synchron.foundation/health/dependencies)"
-          printf '%s' "${response}" | node -e '
+          dependencies_healthy=false
+          for attempt in 1 2 3; do
+            if response="$(curl --fail --silent --show-error \
+              --retry 2 --retry-delay 2 --retry-all-errors \
+              --max-time 30 \
+              https://synchron.foundation/health/storage-report)" &&
+              printf '%s' "${response}" | node -e '
             let input = "";
             process.stdin.on("data", (chunk) => { input += chunk; });
             process.stdin.on("end", () => {
-              const report = JSON.parse(input);
+              const report = JSON.parse(input).dependencies;
               const checks = report.checks || {};
               console.log(
                 `storage=${report.status} opensearch=${checks.opensearch?.status} supabase=${checks.supabase?.status}`,
@@ -124,7 +126,13 @@ jobs:
                 process.exit(1);
               }
             });
-          '
+            '; then
+              dependencies_healthy=true
+              break
+            fi
+            sleep $((attempt * 10))
+          done
+          test "${dependencies_healthy}" = "true"
 
       - name: Check backup coverage and OpenSearch restore-point inventory
         shell: bash
@@ -132,15 +140,15 @@ jobs:
           set -euo pipefail
           verified=false
           for attempt in 1 2 3; do
-            response="$(curl --silent --show-error \
+            if response="$(curl --fail --silent --show-error \
               --retry 2 --retry-delay 2 --retry-all-errors \
               --max-time 30 \
-              https://synchron.foundation/health/backups)"
-            if printf '%s' "${response}" | node -e '
+              https://synchron.foundation/health/storage-report)" &&
+              printf '%s' "${response}" | node -e '
               let input = "";
               process.stdin.on("data", (chunk) => { input += chunk; });
               process.stdin.on("end", () => {
-                const report = JSON.parse(input);
+                const report = JSON.parse(input).backups;
                 const backup = report.checks?.opensearch;
                 const supabase = report.checks?.supabase;
                 console.log(
@@ -158,7 +166,7 @@ jobs:
                   process.exit(1);
                 }
               });
-            '; then
+              '; then
               verified=true
               break
             fi

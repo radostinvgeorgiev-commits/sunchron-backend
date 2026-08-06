@@ -7,6 +7,7 @@ import {
   inspectStorageDependencies,
 } from "../src/services/storageHealthService.js";
 import { checkSupabaseStatus } from "../src/services/supabaseService.js";
+import { TESTER_AUTH_BOOTSTRAP } from "../src/config/testerAuthBootstrap.js";
 
 test("storage dependency health verifies OpenSearch and Supabase without secrets", async () => {
   const report = await inspectStorageDependencies({
@@ -75,6 +76,41 @@ test("storage health forwards its timeout to the real Supabase abort signal", as
   assert.equal(aborted, true);
   assert.equal(report.status, "unavailable");
   assert.equal(report.checks.supabase.errorCode, "SUPABASE_TIMEOUT");
+});
+
+test("storage health uses the public bootstrap for App Platform placeholders", async () => {
+  const report = await inspectStorageDependencies({
+    loadOpenSearchClient: () => ({
+      cluster: { health: async () => ({ body: { status: "green" } }) },
+      search: async () => ({ body: { hits: { hits: [] } } }),
+    }),
+    checkSupabase: (options) =>
+      checkSupabaseStatus({
+        ...options,
+        env: {
+          SUPABASE_URL: "EV[1:encrypted-placeholder]",
+          SUPABASE_PUBLISHABLE_KEY: "EV[1:encrypted-placeholder]",
+        },
+        fetchImpl: async (url, request) => {
+          assert.equal(
+            url,
+            `${TESTER_AUTH_BOOTSTRAP.projectUrl}/auth/v1/settings`,
+          );
+          assert.equal(
+            request.headers.apikey,
+            TESTER_AUTH_BOOTSTRAP.publishableKey,
+          );
+          return new Response("{}", { status: 200 });
+        },
+      }),
+  });
+
+  assert.equal(report.status, "healthy");
+  assert.equal(report.checks.supabase.status, "healthy");
+  assert.doesNotMatch(
+    JSON.stringify(report),
+    new RegExp(TESTER_AUTH_BOOTSTRAP.publishableKey, "u"),
+  );
 });
 
 test("backup timeout aborts the underlying DigitalOcean request", async () => {

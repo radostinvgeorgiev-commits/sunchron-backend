@@ -208,7 +208,7 @@
   border-radius: 30px;
 }
 
-:root[data-font-scale="max"] .chat-input-area input {
+:root[data-font-scale="max"] .chat-input-area textarea {
   font-size: var(--synchron-input-text) !important;
   line-height: 1.3;
 }

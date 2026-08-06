@@ -69,7 +69,9 @@ test("bridge variables stay documented without real secret values", () => {
     "DIGITALOCEAN_TOKEN",
     "DIGITALOCEAN_APP_ID",
     "DIGITALOCEAN_API_URL",
+    "OPENSEARCH_DATABASE_ID",
     "CLOUDFLARE_API_TOKEN",
+    "CLOUDFLARE_ZONE_NAME",
     "CLOUDFLARE_ZONE_ID",
     "CLOUDFLARE_API_URL",
   ];
@@ -85,6 +87,17 @@ test("bridge variables stay documented without real secret values", () => {
   ]) {
     assert.match(envExample, new RegExp(`^${key}=$`, "mu"));
   }
+});
+
+test("server-side infrastructure diagnostics are declared without values", () => {
+  for (const key of ["DIGITALOCEAN_API_TOKEN", "CLOUDFLARE_API_TOKEN"]) {
+    const block = appSpecKeyBlock(appSpec, key);
+    assert.match(block, /^\s*type:\s*SECRET\s*$/mu);
+    assert.doesNotMatch(block, /^\s*value:/mu);
+  }
+
+  const zoneName = appSpecKeyBlock(appSpec, "CLOUDFLARE_ZONE_NAME");
+  assert.match(zoneName, /^\s*value:\s*synchron\.foundation\s*$/mu);
 });
 
 test("Copilot automation stays explicitly disabled by default", () => {

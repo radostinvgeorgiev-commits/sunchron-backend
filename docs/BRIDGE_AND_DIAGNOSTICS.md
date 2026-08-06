@@ -5,10 +5,8 @@
 SYNCHRON-X има MCP Streamable HTTP адрес `/mcp` и 14 инструмента: 11 само за
 четене, един ограничен разговор с AI CORE и два двустъпкови потвърждавани
 write flow-а. Разговорният инструмент пази нишката в собствения профил, но не
-стартира Capability Engine, външни действия или промени по код. Освен GitHub cleanup,
-мостът подготвя и потвърждава добавянето само на `www.synchron.foundation`
-към предварително провереното DigitalOcean приложение. Основните read инструменти
-включват:
+стартира Capability Engine, външни действия или промени по код. Основните read
+инструменти включват:
 
 - `get_personal_context`;
 - `get_project_context`;
@@ -19,6 +17,10 @@ Legacy техническият достъп е ограничен с `MCP_ACCES
 authorization codes, access tokens и refresh tokens използват отделния
 `MCP_OAUTH_SECRET`, когато е конфигуриран. Нито една от стойностите не се
 показва в диагностиката, логовете или отговорите.
+
+MCP Streamable HTTP е приложен транспорт през същия DigitalOcean deployment.
+Той не е Cloudflare Tunnel, `cloudflared`, Worker, втори backend или отделен
+production канал. Cloudflare обслужва DNS и edge proxy към DigitalOcean.
 
 ## Диагностика
 
@@ -49,6 +51,11 @@ authorization codes, access tokens и refresh tokens използват отде
 
 ## Миграция на OAuth ключа
 
+Това е отделна бъдеща production операция, а не автоматична диагностична
+стъпка. Добавяне, премахване или ротация на `MCP_OAUTH_SECRET` или
+`MCP_ACCESS_TOKEN` се изпълнява само след изрично разрешение и готов rollback
+план. Не изпълнявай стъпките по-долу само за да направиш health проверка зелена.
+
 Фаза 1 поддържа безопасен преход:
 
 - без `MCP_OAUTH_SECRET` OAuth продължава със стария derivation от
@@ -69,3 +76,12 @@ authorization codes, access tokens и refresh tokens използват отде
    в отделен PR.
 5. Едва след доказан owner OAuth acceptance ротирай или премахни
    `MCP_ACCESS_TOKEN` static bearer в отделна задача с rollback.
+
+## Backup и restore не са bridge операции
+
+`/mcp` и `/health/bridge` не създават backup, restore или fork. Read-only
+проверка може да потвърди backup inventory, но не доказва възстановяване.
+OpenSearch restore/fork се стартира само след показана цена, cost ceiling,
+изолиран target, план за изтриване и изрично разрешение. Supabase backup plan се
+проверява отделно чрез разрешен owner/management изглед; не се предполага от
+работещата Auth връзка.

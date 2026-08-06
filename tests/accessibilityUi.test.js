@@ -114,13 +114,13 @@ test("chat offers four readable sizes including 48px and 60px", () => {
 });
 
 test("accessibility assets load after the ordinary interface styles", () => {
-  const modulesPosition = html.indexOf("/modules.css");
+  const appShellPosition = html.indexOf("/appshell.css");
   const accessibilityPosition = html.indexOf("/accessibility.css");
   const appPosition = html.indexOf("/app.js");
   const accessibilityScriptPosition = html.indexOf("/accessibility.js");
 
-  assert.ok(modulesPosition >= 0);
-  assert.ok(accessibilityPosition > modulesPosition);
+  assert.ok(appShellPosition >= 0);
+  assert.ok(accessibilityPosition > appShellPosition);
   assert.ok(accessibilityScriptPosition > appPosition);
   assert.match(html, /<html lang="bg" data-font-scale="max">/u);
   assert.match(html, /id="fontSizeDecreaseBtn"/u);

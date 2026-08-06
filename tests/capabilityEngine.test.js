@@ -270,6 +270,7 @@ test("връща общ статус само след реални провер
       checkMemory: async () => [],
       checkSupabase: async () => ({ status: "healthy" }),
       checkDigitalOcean: async () => ({ app: { id: "app-1" } }),
+      checkCloudflare: async () => ({ status: "active" }),
       env: {
         OPENAI_API_KEY: "configured",
         COPILOT_AUTOMATION_ENABLED: "true",
@@ -282,8 +283,45 @@ test("връща общ статус само след реални провер
   assert.match(report, /Synchron Memory/u);
   assert.match(report, /Supabase Status/u);
   assert.match(report, /DigitalOcean Read/u);
+  assert.match(report, /Cloudflare Read/u);
   assert.match(report, /Google Drive — изисква Google вход/u);
   assert.match(report, /GitHub Write — свързан; изисква потвърждение/u);
+});
+
+test("не обявява Cloudflare за свързан без успешна жива проверка", async () => {
+  const report = await buildIntegrationStatusReport(
+    { ownerId: "primary-user" },
+    {
+      checkGitHub: async () => true,
+      checkMemory: async () => [],
+      checkSupabase: async () => ({ status: "healthy" }),
+      checkDigitalOcean: async () => ({ app: { id: "app-1" } }),
+      checkCloudflare: async () => {
+        throw new Error("invalid token");
+      },
+      env: { CLOUDFLARE_API_TOKEN: "configured" },
+    },
+  );
+
+  assert.match(report, /Cloudflare Read — реалната проверка е неуспешна/u);
+  assert.doesNotMatch(report, /Cloudflare Read — свързан/u);
+});
+
+test("не обявява неактивна Cloudflare зона за работеща", async () => {
+  const report = await buildIntegrationStatusReport(
+    { ownerId: "primary-user" },
+    {
+      checkGitHub: async () => true,
+      checkMemory: async () => [],
+      checkSupabase: async () => ({ status: "healthy" }),
+      checkDigitalOcean: async () => ({ app: { id: "app-1" } }),
+      checkCloudflare: async () => ({ status: "pending", paused: false }),
+      env: { CLOUDFLARE_API_TOKEN: "configured" },
+    },
+  );
+
+  assert.match(report, /Cloudflare Read — реалната проверка е неуспешна/u);
+  assert.doesNotMatch(report, /Cloudflare Read — свързан/u);
 });
 
 test("връща фокусиран проверен статус за GitHub Copilot моста", async () => {

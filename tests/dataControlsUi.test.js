@@ -12,7 +12,6 @@ test("application exposes working memory and permission controls", async () => {
   assert.match(html, /id="permissionsBtn"/u);
   assert.match(html, /id="dataDrawer"/u);
   assert.match(html, /id="imagesBtn"/u);
-  assert.match(html, /id="modulesBtn"/u);
   assert.match(html, /id="focusBtn"/u);
   assert.match(html, /id="toolsBtn"/u);
   assert.match(html, /id="workCenterBtn"/u);
@@ -25,7 +24,7 @@ test("application exposes working memory and permission controls", async () => {
   assert.doesNotMatch(script, /x-confirm-memory-delete/u);
   assert.match(script, /elements\.imageInput\.click\(\)/u);
   assert.match(script, /function closeSidebar\(\)/u);
-  assert.match(script, /function openModulesDrawer\(\)/u);
+  assert.doesNotMatch(script, /function openModulesDrawer\(\)/u);
   assert.match(html, /task-journal\.js/u);
   assert.doesNotMatch(script, /function openFocusDrawer\(\)/u);
   assert.doesNotMatch(script, /Свързване на GitHub Copilot/u);
@@ -49,5 +48,5 @@ test("application exposes working memory and permission controls", async () => {
     /Кодовият мост е запазен, но е изключен в текущия режим без Copilot/u,
   );
   assert.doesNotMatch(script, /fetch\(["']\/opensearch-status["']/u);
-  assert.match(html, /\/assets\/20260801-profile-actions\/app\.js/u);
+  assert.match(html, /\/assets\/20260806-green-chat-v1\/app\.js/u);
 });

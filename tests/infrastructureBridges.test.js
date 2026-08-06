@@ -51,7 +51,70 @@ test("DigitalOcean bridge reads app and deployment status without writes", async
       (call) => !call.options.method || call.options.method === "GET",
     ),
   );
+  assert.ok(calls.every((call) => call.options.signal instanceof AbortSignal));
   assert.doesNotMatch(JSON.stringify(status), /secret/u);
+});
+
+test("Cloudflare read rejects a malformed successful response", async () => {
+  await assert.rejects(
+    getCloudflareZoneStatus({
+      env: { CLOUDFLARE_API_TOKEN: "secret", CLOUDFLARE_ZONE_ID: "zone-1" },
+      fetchImpl: async () => Response.json({}),
+    }),
+    (error) => error.code === "CLOUDFLARE_UPSTREAM_ERROR",
+  );
+});
+
+test("Cloudflare read rejects an empty zone inside a successful envelope", async () => {
+  await assert.rejects(
+    getCloudflareZoneStatus({
+      env: { CLOUDFLARE_API_TOKEN: "secret", CLOUDFLARE_ZONE_ID: "zone-1" },
+      fetchImpl: async () => Response.json({ success: true, result: null }),
+    }),
+    (error) => error.code === "CLOUDFLARE_INVALID_RESPONSE",
+  );
+});
+
+test("Cloudflare read rejects a zone with a mismatched name or invalid status", async () => {
+  for (const zone of [
+    { id: "zone-1", name: "other.example", status: "active" },
+    { id: "zone-1", name: "synchron.foundation", status: "unknown" },
+  ]) {
+    await assert.rejects(
+      getCloudflareZoneStatus({
+        env: {
+          CLOUDFLARE_API_TOKEN: "secret",
+          CLOUDFLARE_ZONE_ID: "zone-1",
+          CLOUDFLARE_ZONE_NAME: "synchron.foundation",
+        },
+        fetchImpl: async () => Response.json({ success: true, result: zone }),
+      }),
+      (error) => error.code === "CLOUDFLARE_INVALID_RESPONSE",
+    );
+  }
+});
+
+test("Cloudflare read rejects malformed DNS records inside a successful envelope", async () => {
+  await assert.rejects(
+    getCloudflareZoneStatus({
+      env: {
+        CLOUDFLARE_API_TOKEN: "secret",
+        CLOUDFLARE_ZONE_ID: "zone-1",
+      },
+      fetchImpl: async (url) =>
+        String(url).includes("/dns_records")
+          ? Response.json({ success: true, result: [null] })
+          : Response.json({
+              success: true,
+              result: {
+                id: "zone-1",
+                name: "synchron.foundation",
+                status: "active",
+              },
+            }),
+    }),
+    (error) => error.code === "CLOUDFLARE_INVALID_RESPONSE",
+  );
 });
 
 test("DigitalOcean app status resolves a configured app name to its real id", async () => {
@@ -376,13 +439,21 @@ test("database backup inventory distinguishes a verified empty backup list", asy
 test("focused OpenSearch backup audit performs only database and backup reads", async () => {
   const calls = [];
   const audit = await getDigitalOceanOpenSearchBackupAudit({
-    env: { DIGITALOCEAN_API_TOKEN: "focused-read-token" },
+    env: {
+      DIGITALOCEAN_API_TOKEN: "focused-read-token",
+      OPENSEARCH_DATABASE_ID: "db-search",
+      OPENSEARCH_HOST: "https://memory.db.ondigitalocean.com:25060",
+    },
     fetchImpl: async (url, options) => {
       calls.push({ url: String(url), options });
       if (String(url).endsWith("/databases?per_page=200")) {
         return Response.json({
           databases: [
-            { id: "db-search", engine: "opensearch" },
+            {
+              id: "db-search",
+              engine: "opensearch",
+              connection: { host: "memory.db.ondigitalocean.com" },
+            },
             { id: "db-postgres", engine: "pg" },
           ],
         });
@@ -456,6 +527,125 @@ test("Cloudflare bridge reads zone and DNS without writes", async () => {
     ),
   );
   assert.doesNotMatch(JSON.stringify(status), /secret/u);
+});
+
+test("focused OpenSearch backup audit cannot use another cluster's restore points", async () => {
+  const calls = [];
+  const audit = await getDigitalOceanOpenSearchBackupAudit({
+    env: {
+      DIGITALOCEAN_API_TOKEN: "focused-read-token",
+      OPENSEARCH_HOST: "production.db.ondigitalocean.com",
+    },
+    fetchImpl: async (url) => {
+      const path = new URL(url).pathname;
+      calls.push(path);
+      if (path === "/v2/databases") {
+        return Response.json({
+          databases: [
+            {
+              id: "db-unrelated",
+              engine: "opensearch",
+              connection: { host: "other.db.ondigitalocean.com" },
+            },
+            {
+              id: "db-production",
+              engine: "opensearch",
+              connection: { host: "production.db.ondigitalocean.com" },
+            },
+          ],
+        });
+      }
+      if (path === "/v2/databases/db-production/backups") {
+        return Response.json({ backups: [] });
+      }
+      throw new Error(`Unexpected read: ${path}`);
+    },
+  });
+
+  assert.equal(audit.databaseBackups.length, 1);
+  assert.equal(audit.databaseBackups[0].status, "verified");
+  assert.equal(audit.databaseBackups[0].backupCount, 0);
+  assert.deepEqual(calls, [
+    "/v2/databases",
+    "/v2/databases/db-production/backups",
+  ]);
+});
+
+test("focused OpenSearch backup audit rejects a conflicting database id and runtime host", async () => {
+  const calls = [];
+  const audit = await getDigitalOceanOpenSearchBackupAudit({
+    env: {
+      DIGITALOCEAN_API_TOKEN: "focused-read-token",
+      OPENSEARCH_DATABASE_ID: "db-other",
+      OPENSEARCH_HOST: "production.db.ondigitalocean.com",
+    },
+    fetchImpl: async (url) => {
+      const path = new URL(url).pathname;
+      calls.push(path);
+      if (path === "/v2/databases") {
+        return Response.json({
+          databases: [
+            {
+              id: "db-other",
+              engine: "opensearch",
+              connection: { host: "other.db.ondigitalocean.com" },
+            },
+            {
+              id: "db-production",
+              engine: "opensearch",
+              connection: { host: "production.db.ondigitalocean.com" },
+            },
+          ],
+        });
+      }
+      throw new Error(`Unexpected read: ${path}`);
+    },
+  });
+
+  assert.deepEqual(calls, ["/v2/databases"]);
+  assert.equal(audit.databaseBackups.length, 1);
+  assert.equal(audit.databaseBackups[0].status, "unverified");
+  assert.equal(
+    audit.databaseBackups[0].errorCode,
+    "OPENSEARCH_DATABASE_TARGET_MISMATCH",
+  );
+});
+
+test("Cloudflare read discovers the production zone when no zone id is configured", async () => {
+  const calls = [];
+  const status = await getCloudflareZoneStatus({
+    env: { CLOUDFLARE_API_TOKEN: "secret" },
+    fetchImpl: async (url, options) => {
+      calls.push({ url: String(url), options });
+      if (String(url).includes("/dns_records")) {
+        return Response.json({ success: true, result: [] });
+      }
+      return Response.json({
+        success: true,
+        result: [
+          {
+            id: "zone-discovered",
+            name: "synchron.foundation",
+            status: "active",
+          },
+        ],
+      });
+    },
+  });
+
+  assert.equal(status.id, "zone-discovered");
+  assert.equal(status.name, "synchron.foundation");
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].url, /\/zones\?name=synchron\.foundation/u);
+  assert.match(
+    calls[1].url,
+    /\/zones\/zone-discovered\/dns_records\?per_page=100/u,
+  );
+  assert.ok(
+    calls.every(
+      (call) => !call.options.method || call.options.method === "GET",
+    ),
+  );
 });
 
 test("chat routes infrastructure status requests to the bridges", () => {

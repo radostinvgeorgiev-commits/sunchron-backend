@@ -1,0 +1,17 @@
+version: 2
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Europe/Sofia"
+    open-pull-requests-limit: 1
+    groups:
+      all-npm-dependencies:
+        applies-to: "version-updates"
+        patterns:
+          - "*"

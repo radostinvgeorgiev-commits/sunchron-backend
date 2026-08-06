@@ -24,6 +24,24 @@ test("production smoke publishes a readable commit status without a custom secre
   assert.match(workflow, /<title>AI CORE/u);
   assert.match(workflow, /ai-core-mark\.png/u);
   assert.match(workflow, /Check MCP tool catalog and OAuth challenge/u);
+  assert.match(workflow, /Check OpenSearch and Supabase dependencies/u);
+  assert.match(workflow, /\/health\/dependencies/u);
+  assert.match(workflow, /memoryIndexReadable/u);
+  assert.match(
+    workflow,
+    /Check backup coverage and OpenSearch restore-point inventory/u,
+  );
+  assert.match(workflow, /\/health\/backups/u);
+  assert.match(workflow, /provesRestore/u);
+  assert.match(workflow, /report\.status !== "partially-verified"/u);
+  assert.match(workflow, /backup\?\.fresh !== true/u);
+  assert.match(workflow, /supabase\?\.status !== "unverified"/u);
+  const backupStep = workflow
+    .split(
+      "- name: Check backup coverage and OpenSearch restore-point inventory",
+    )[1]
+    .split("- name: Check production memory acceptance")[0];
+  assert.doesNotMatch(backupStep, /curl --fail/u);
   assert.match(workflow, /get_github_copilot_task_status/u);
   assert.match(workflow, /names\.length === expected\.length/u);
   assert.match(workflow, /challenge_headers/u);

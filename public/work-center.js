@@ -134,8 +134,16 @@
   }
 
   function closeWorkCenter() {
+    const wasOpen = !drawer.hidden;
     drawer.hidden = true;
     backdrop.hidden = true;
+    if (wasOpen) {
+      document.dispatchEvent(
+        new document.defaultView.CustomEvent(
+          "synchron:data-drawer-closed",
+        ),
+      );
+    }
     document.getElementById("chatInput")?.focus();
   }
 

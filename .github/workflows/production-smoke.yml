@@ -98,6 +98,74 @@ jobs:
             https://synchron.foundation/health/ready \
             | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"'
 
+      - name: Check OpenSearch and Supabase dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail --silent --show-error \
+            --retry 3 --retry-delay 10 --retry-all-errors \
+            --max-time 30 \
+            https://synchron.foundation/health/dependencies)"
+          printf '%s' "${response}" | node -e '
+            let input = "";
+            process.stdin.on("data", (chunk) => { input += chunk; });
+            process.stdin.on("end", () => {
+              const report = JSON.parse(input);
+              const checks = report.checks || {};
+              console.log(
+                `storage=${report.status} opensearch=${checks.opensearch?.status} supabase=${checks.supabase?.status}`,
+              );
+              if (
+                report.status !== "healthy" ||
+                checks.opensearch?.status !== "healthy" ||
+                checks.opensearch?.memoryIndexReadable !== true ||
+                checks.supabase?.status !== "healthy"
+              ) {
+                process.exit(1);
+              }
+            });
+          '
+
+      - name: Check backup coverage and OpenSearch restore-point inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          verified=false
+          for attempt in 1 2 3; do
+            response="$(curl --silent --show-error \
+              --retry 2 --retry-delay 2 --retry-all-errors \
+              --max-time 30 \
+              https://synchron.foundation/health/backups)"
+            if printf '%s' "${response}" | node -e '
+              let input = "";
+              process.stdin.on("data", (chunk) => { input += chunk; });
+              process.stdin.on("end", () => {
+                const report = JSON.parse(input);
+                const backup = report.checks?.opensearch;
+                const supabase = report.checks?.supabase;
+                console.log(
+                  `coverage=${report.status} opensearch=${backup?.status} fresh=${Boolean(backup?.fresh)} supabase=${supabase?.status} proves-restore=${Boolean(backup?.provesRestore)}`,
+                );
+                if (
+                  report.status !== "partially-verified" ||
+                  backup?.status !== "verified" ||
+                  backup?.fresh !== true ||
+                  backup?.readOnlyCheck !== true ||
+                  backup?.provesRestore !== false ||
+                  supabase?.status !== "unverified" ||
+                  supabase?.provesRestore !== false
+                ) {
+                  process.exit(1);
+                }
+              });
+            '; then
+              verified=true
+              break
+            fi
+            sleep $((attempt * 10))
+          done
+          test "${verified}" = "true"
+
       - name: Check production memory acceptance
         shell: bash
         run: |

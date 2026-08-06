@@ -61,6 +61,12 @@ test("integration status reports configuration without exposing secret values", 
     assert.equal(codex.executable, true);
     assert.equal(codex.configured, true);
     assert.equal(codex.healthStatus, "healthy");
+    const cloudflare = status.tools.find(
+      (tool) => tool.id === "cloudflare-read",
+    );
+    assert.equal(cloudflare.configured, true);
+    assert.equal(cloudflare.healthStatus, "degraded");
+    assert.equal(cloudflare.availabilityCode, "CLOUDFLARE_LIVE_CHECK_REQUIRED");
     assert.doesNotMatch(JSON.stringify(status), /secret-/u);
   } finally {
     for (const [name, value] of Object.entries(original)) {
@@ -164,19 +170,20 @@ test("removed DigitalOcean AI Agent is not required by production configuration"
   assert.doesNotMatch(envExample, /^AGENT_(?:URL|KEY)=/mu);
 });
 
-test("project identity keeps the bridge-first integration policy", async () => {
+test("project identity keeps one capability-based integration policy", async () => {
   const identity = await import("../src/config/projectIdentity.js");
 
   assert.match(
-    identity.BRIDGE_FIRST_POLICY,
-    /първо се търси и проверява реален мост/u,
+    identity.INTEGRATION_POLICY,
+    /Tool Registry, изпълнимият адаптер, конфигурацията и реална заявка/u,
   );
+  assert.match(identity.INTEGRATION_POLICY, /добавя чрез Capability Engine/u);
   assert.match(
-    identity.BRIDGE_FIRST_POLICY,
-    /предлага конкретен мост за изграждане/u,
+    identity.INTEGRATION_POLICY,
+    /Не се създава отделен тунел, worker или втори deployment/u,
   );
-  assert.match(identity.BRIDGE_FIRST_POLICY, /не заобикаля разрешенията/u);
   assert.ok(
-    identity.PROJECT_BASE_CONTEXT.includes(identity.BRIDGE_FIRST_POLICY),
+    identity.PROJECT_BASE_CONTEXT.includes(identity.INTEGRATION_POLICY),
   );
+  assert.equal("BRIDGE_FIRST_POLICY" in identity, false);
 });

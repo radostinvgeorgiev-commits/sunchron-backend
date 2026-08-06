@@ -6,8 +6,8 @@
     --border: #dce4eb;
     --text: #17212b;
     --muted: #6d7b88;
-    --success: #20b15a;
-    --error: #df3e4f;
+    --success: #087a42;
+    --error: #b42335;
     --agent-bg: transparent;
     --shadow: 0 8px 28px rgba(24, 54, 84, 0.06);
 }
@@ -258,7 +258,7 @@
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
 }
 
-.chat-input-area input {
+.chat-input-area textarea {
     min-width: 0;
     flex: 1;
     border: 0;
@@ -810,7 +810,7 @@ input {
 }
 
 .status-yellow {
-    color: #c58a00;
+    color: #7c4a03;
 }
 
 .close-btn {
@@ -821,6 +821,12 @@ input {
     color: #4e5c69;
     background: #edf2f6;
     font-size: 18px;
+}
+
+.statusPanel .close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .message.typing {

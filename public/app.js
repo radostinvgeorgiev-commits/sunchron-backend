@@ -16,9 +16,13 @@ const state = {
   authenticatedUser: null,
   registrationEnabled: false,
   applicationStarted: false,
+  storageStatusLoading: false,
+  storageOpenSearchHealthy: null,
 };
 
 const REGISTRATION_PATH = "/register";
+const MAX_CHAT_INPUT_HEIGHT = 160;
+let statusReturnFocus = null;
 
 const elements = {
   authGate: document.getElementById("authGate"),
@@ -56,6 +60,14 @@ const elements = {
   sessionIdDisplay: document.getElementById("sessionIdDisplay"),
   serverStatusDisplay: document.getElementById("serverStatusDisplay"),
   opensearchStatusDisplay: document.getElementById("opensearchStatusDisplay"),
+  supabaseStatusDisplay: document.getElementById("supabaseStatusDisplay"),
+  opensearchBackupStatusDisplay: document.getElementById(
+    "opensearchBackupStatusDisplay",
+  ),
+  supabaseBackupStatusDisplay: document.getElementById(
+    "supabaseBackupStatusDisplay",
+  ),
+  storageStatusCheckedAt: document.getElementById("storageStatusCheckedAt"),
   actionsLog: document.getElementById("actionsLog"),
   conversationList: document.getElementById("conversationList"),
   conversationSearch: document.getElementById("conversationSearch"),
@@ -64,7 +76,6 @@ const elements = {
   sidebar: document.getElementById("sidebar"),
   sidebarBackdrop: document.getElementById("sidebarBackdrop"),
   imagesBtn: document.getElementById("imagesBtn"),
-  modulesBtn: document.getElementById("modulesBtn"),
   systemConfigurationBtn: document.getElementById("systemConfigurationBtn"),
   focusBtn: document.getElementById("focusBtn"),
   toolsBtn: document.getElementById("toolsBtn"),
@@ -288,6 +299,7 @@ async function startApplication(user) {
       sendMessage();
     }
   });
+  elements.chatInput.addEventListener("input", resizeChatInput);
   elements.newChatBtn.addEventListener("click", startNewChat);
   elements.toggleStatusBtn.addEventListener("click", toggleProfileActions);
   elements.profileStatusBtn.addEventListener("click", openStatus);
@@ -300,7 +312,6 @@ async function startApplication(user) {
   elements.mobileMenuBtn.addEventListener("click", toggleSidebar);
   elements.sidebarBackdrop.addEventListener("click", closeSidebar);
   elements.imagesBtn.addEventListener("click", openImagePicker);
-  elements.modulesBtn.addEventListener("click", openModulesDrawer);
   elements.toolsBtn.addEventListener("click", openToolsDrawer);
   elements.systemConfigurationBtn.addEventListener(
     "click",
@@ -318,8 +329,11 @@ async function startApplication(user) {
 
   checkHealth();
   checkOpenSearch();
+  checkStorageStatus();
   setInterval(checkHealth, 10000);
   setInterval(checkOpenSearch, 20000);
+  setInterval(checkStorageStatus, 60000);
+  resizeChatInput();
 
   await restoreConversation();
   await loadConversations();
@@ -486,6 +500,15 @@ function closeProfileActions() {
   elements.toggleStatusBtn.setAttribute("aria-expanded", "false");
 }
 
+function resizeChatInput() {
+  elements.chatInput.style.height = "auto";
+  const naturalHeight = elements.chatInput.scrollHeight;
+  const nextHeight = Math.min(naturalHeight, MAX_CHAT_INPUT_HEIGHT);
+  elements.chatInput.style.height = `${nextHeight}px`;
+  elements.chatInput.style.overflowY =
+    naturalHeight > MAX_CHAT_INPUT_HEIGHT ? "auto" : "hidden";
+}
+
 function openImagePicker() {
   closeSidebar();
   elements.imageInput.click();
@@ -551,12 +574,34 @@ function clearPendingImage() {
 }
 
 function openStatus() {
+  const activeElement = document.activeElement;
+  statusReturnFocus =
+    activeElement === elements.profileStatusBtn
+      ? elements.toggleStatusBtn
+      : activeElement &&
+    activeElement !== document.body &&
+    typeof activeElement.focus === "function"
+      ? activeElement
+      : elements.toggleStatusBtn;
   closeSidebar();
   elements.statusPanel.classList.add("mobile-visible");
+  elements.statusPanel.setAttribute("aria-hidden", "false");
+  void checkStorageStatus();
+  elements.closeContextBtn.focus({ preventScroll: true });
 }
 
 function closeStatus() {
+  const wasOpen = elements.statusPanel.classList.contains("mobile-visible");
   elements.statusPanel.classList.remove("mobile-visible");
+  elements.statusPanel.setAttribute("aria-hidden", "true");
+  if (!wasOpen) return;
+
+  document.dispatchEvent(new CustomEvent("synchron:status-closed"));
+  const returnTarget = statusReturnFocus;
+  statusReturnFocus = null;
+  if (returnTarget?.isConnected && typeof returnTarget.focus === "function") {
+    returnTarget.focus({ preventScroll: true });
+  }
 }
 
 function prepareVoiceInput() {
@@ -593,6 +638,7 @@ function prepareVoiceInput() {
       transcript += event.results[index][0].transcript;
     }
     elements.chatInput.value = transcript.trim();
+    resizeChatInput();
     const lastResult = event.results[event.results.length - 1];
     if (lastResult?.isFinal) elements.chatInput.focus();
   };
@@ -615,18 +661,6 @@ function toggleVoiceInput() {
   } else {
     state.recognition.start();
   }
-}
-
-function openModulesDrawer() {
-  openDataDrawer("Работни области");
-  elements.dataDrawerBody.innerHTML = `
-        <div class="module-summary">
-            Това са области, в които личната AI операционна система използва разговора,
-            паметта и разрешените инструменти. Областта сама по себе си не
-            означава, че външна услуга е свързана.
-        </div>
-        <section class="drawer-section permission-list module-list" data-module-list></section>`;
-  document.dispatchEvent(new CustomEvent("synchron:modules-opened"));
 }
 
 function isGoogleTool(tool) {
@@ -899,8 +933,14 @@ function openDataDrawer(title) {
 }
 
 function closeDataDrawer() {
+  const wasOpen = !elements.dataDrawer.hidden;
   elements.dataDrawer.hidden = true;
   elements.drawerBackdrop.hidden = true;
+  if (wasOpen) {
+    document.dispatchEvent(
+      new CustomEvent("synchron:data-drawer-closed"),
+    );
+  }
 }
 
 function renderDrawerLoading() {
@@ -1417,6 +1457,7 @@ async function sendMessage() {
   const messageText = text || "Какво виждаш на тази снимка?";
   appendMessage("user", messageText, image);
   elements.chatInput.value = "";
+  resizeChatInput();
   clearPendingImage();
   logAction("Изпратено съобщение");
   showTypingIndicator();
@@ -1630,7 +1671,7 @@ async function checkOpenSearch() {
 
     if (memory?.ready) {
       state.opensearchFailures = 0;
-      updateOpenSearchUI(memory.status || "operational");
+      updateStorageAwareOpenSearchUI(memory.status || "operational");
       return;
     }
 
@@ -1640,22 +1681,132 @@ async function checkOpenSearch() {
   }
 }
 
+async function readHealthReport(path) {
+  const response = await fetch(path, { cache: "no-store" });
+  const report = await response.json();
+  return { ok: response.ok, report };
+}
+
+function setStorageStatus(element, text, tone) {
+  if (!element) return;
+  element.textContent = text;
+  element.className = `context-value status-${tone}`;
+}
+
+function renderDependencyHealth(result) {
+  if (result.status !== "fulfilled") {
+    state.storageOpenSearchHealthy = false;
+    updateOpenSearchUI("unavailable");
+    setStorageStatus(
+      elements.supabaseStatusDisplay,
+      "Реалната проверка е недостъпна",
+      "red",
+    );
+    return null;
+  }
+
+  const { report } = result.value;
+  const opensearch = report?.checks?.opensearch;
+  const supabase = report?.checks?.supabase;
+  state.storageOpenSearchHealthy = opensearch?.status === "healthy";
+  updateOpenSearchUI(
+    state.storageOpenSearchHealthy
+      ? opensearch.clusterStatus || "operational"
+      : opensearch?.status || "unavailable",
+  );
+  setStorageStatus(
+    elements.supabaseStatusDisplay,
+    supabase?.status === "healthy"
+      ? "Проверено с реална заявка · работи"
+      : "Реалната заявка е неуспешна",
+    supabase?.status === "healthy" ? "green" : "red",
+  );
+  return report?.checkedAt || null;
+}
+
+function renderBackupHealth(result) {
+  if (result.status !== "fulfilled") {
+    setStorageStatus(
+      elements.opensearchBackupStatusDisplay,
+      "Инвентарът не е достъпен · restore не е тестван",
+      "red",
+    );
+    setStorageStatus(
+      elements.supabaseBackupStatusDisplay,
+      "Непроверен · backup политиката не е видима",
+      "yellow",
+    );
+    return null;
+  }
+
+  const { report } = result.value;
+  const opensearch = report?.checks?.opensearch;
+  const inventoryVerified = opensearch?.status === "verified";
+  setStorageStatus(
+    elements.opensearchBackupStatusDisplay,
+    inventoryVerified
+      ? "Инвентарът е проверен · restore не е тестван"
+      : "Инвентарът не е потвърден · restore не е тестван",
+    inventoryVerified ? "yellow" : "red",
+  );
+  setStorageStatus(
+    elements.supabaseBackupStatusDisplay,
+    "Непроверен · backup политиката не е видима",
+    "yellow",
+  );
+  return report?.checkedAt || null;
+}
+
+function renderStorageCheckedAt(...timestamps) {
+  const latest = timestamps
+    .filter((value) => Number.isFinite(Date.parse(value)))
+    .sort((left, right) => Date.parse(right) - Date.parse(left))[0];
+  elements.storageStatusCheckedAt.textContent = latest
+    ? `Последна проверка: ${new Date(latest).toLocaleString("bg-BG")}`
+    : "Последна проверка: недостъпна";
+}
+
+async function checkStorageStatus() {
+  if (state.storageStatusLoading) return;
+  state.storageStatusLoading = true;
+  try {
+    const [dependencies, backups] = await Promise.allSettled([
+      readHealthReport("/health/dependencies"),
+      readHealthReport("/health/backups"),
+    ]);
+    renderStorageCheckedAt(
+      renderDependencyHealth(dependencies),
+      renderBackupHealth(backups),
+    );
+  } finally {
+    state.storageStatusLoading = false;
+  }
+}
+
 function markMemoryOperational() {
   state.lastMemorySuccessAt = Date.now();
   state.opensearchFailures = 0;
-  updateOpenSearchUI("operational");
+  updateStorageAwareOpenSearchUI("operational");
 }
 
 function handleOpenSearchProbeFailure(status) {
   const memoryWorkedRecently = Date.now() - state.lastMemorySuccessAt < 60_000;
 
   if (memoryWorkedRecently) {
-    updateOpenSearchUI("operational");
+    updateStorageAwareOpenSearchUI("operational");
     return;
   }
 
   state.opensearchFailures += 1;
-  updateOpenSearchUI(state.opensearchFailures >= 3 ? status : "checking");
+  updateStorageAwareOpenSearchUI(
+    state.opensearchFailures >= 3 ? status : "checking",
+  );
+}
+
+function updateStorageAwareOpenSearchUI(status) {
+  updateOpenSearchUI(
+    state.storageOpenSearchHealthy === false ? "unavailable" : status,
+  );
 }
 
 function setServerStatus(isOnline) {

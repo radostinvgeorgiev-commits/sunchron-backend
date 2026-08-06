@@ -3,6 +3,8 @@
 Това е единният безопасен ред за проверка на production, triage на инцидент и
 rollback. Историческите audit документи пазят контекст, но не са източник за
 текущ commit, тестова бройка или runtime състояние.
+Актуалното продуктово състояние и следващите acceptance стъпки са в
+[`CURRENT_PRODUCT_ACCEPTANCE.md`](./CURRENT_PRODUCT_ACCEPTANCE.md).
 
 ## Източници на истина
 
@@ -11,13 +13,20 @@ rollback. Историческите audit документи пазят кон�
 | GitHub `main`        | `git ls-remote origin refs/heads/main`         | връща един SHA                                                 |
 | Production commit    | `GET https://synchron.foundation/health`       | `status=ok` и `commit` съвпада с `main`                        |
 | Readiness            | `GET https://synchron.foundation/health/ready` | `status=ready`                                                 |
+| Storage зависимости  | `GET /health/dependencies`                     | OpenSearch и Supabase са `healthy`                             |
+| Backup наблюдение    | `GET /health/backups`                          | OpenSearch е `verified`; Supabase е честно означен             |
 | Памет                | `checks.memory` и `checks.memoryAcceptance`    | green, ready, isolated, cleanup, без промяна на реалната памет |
 | MCP                  | `checks.bridge` и `/mcp`                       | configured, responding и валиден каталог                       |
-| Тестови профили      | `GET /api/auth/session`                        | четирите безопасни configuration флага са `true`               |
+| Auth конфигурация    | `GET /api/auth/session`                        | четирите безопасни configuration флага са `true`               |
 | Deploy доказателство | commit status `synchron/production-smoke`      | `success` за същия SHA                                         |
 
 Не обявявай deployment за успешен само защото `/health` отговаря. Exact SHA,
 readiness и production smoke трябва да сочат една и съща версия.
+
+Флаговете `configured`, `registrationEnabled`, `projectConnection` и
+`sessionProtection` доказват само runtime конфигурация. Те не доказват, че нов
+потребител реално може да се регистрира, да излезе и да влезе отново. Това се
+приема само с отделен изолиран signup/logout/login тест.
 
 ## Owner acceptance
 
@@ -50,8 +59,18 @@ edge proxy към DigitalOcean; наличието на Cloudflare не озна
 ```bash
 curl --fail --silent --show-error https://synchron.foundation/health
 curl --fail --silent --show-error https://synchron.foundation/health/ready
+curl --fail --silent --show-error https://synchron.foundation/health/dependencies
+curl --silent --show-error https://synchron.foundation/health/backups
 curl --fail --silent --show-error https://synchron.foundation/api/auth/session
 ```
+
+`/health/dependencies` е жива read-only проверка на OpenSearch и Supabase и
+връща `503`, ако някоя от тях е недостъпна. `/health/backups` показва само
+безопасен статус и връща `503`, докато покритието е частично.
+`opensearch.status=verified` и `fresh=true` доказват свеж backup inventory за
+точния production cluster, но `provesRestore=false` означава, че възстановяване
+не е изпълнявано. Supabase backup статусът остава `unverified`, докато не бъде
+проверен чрез разрешен owner/management изглед.
 
 MCP каталогът е read-only JSON-RPC заявка:
 
@@ -88,6 +107,9 @@ state: success
    - readiness failure — приложение, памет или bridge не е готов;
    - MCP failure — каталогът, OAuth challenge или обработчикът не отговаря;
    - identity failure — tester/owner конфигурацията не е готова;
+   - storage dependency failure — OpenSearch или Supabase не отговаря на
+     ограничената жива проверка;
+   - backup visibility failure — backup inventory не може да бъде потвърден;
    - dependency/CI failure — release-ът не трябва да се merge-ва.
 3. Провери последния зелен exact commit и първия неуспешен commit. Не приемай,
    че най-новият merge е причината без diff и лог доказателство.
@@ -134,6 +156,16 @@ write adapter, спри и поискай изрично разрешение.
 точна цена, cost ceiling, изрично разрешение, изолиран target и план за
 изтриване след теста.
 
+Потвърдените 3 OpenSearch restore точки не са restore тест. Не пренасочвай
+production към тях и не стартирай временен cluster без отделното разрешение.
+Supabase backup policy също остава непроверена, докато runtime разполага само с
+publishable key.
+
+При Free Plan има две отделни решения, нито едно не се включва автоматично:
+платен plan със scheduled backups или криптиран логически `supabase db dump` в
+одобрено външно хранилище. Логическият dump изисква нов привилегирован DB secret,
+retention, контрол на достъпа, наблюдение и изолиран restore тест.
+
 ## Secrets и OAuth
 
 - Не показвай стойност, дължина, hash или fragment на secret/token.
@@ -166,9 +198,11 @@ GitHub Read остава активен, а `code.write`, `code.branch` и
 
 1. `main`, `/health` и провереният commit status сочат един SHA;
 2. `/health/ready` е ready;
-3. memory acceptance е ready, isolated, cleanup completed и real memory
+3. `/health/dependencies` е healthy и `/health/backups` връща очаквания
+   безопасен статус;
+4. memory acceptance е ready, isolated, cleanup completed и real memory
    unchanged;
-4. MCP каталогът и OAuth challenge са валидни;
-5. tester auth readiness е зелено;
-6. `synchron/production-smoke` е success;
-7. причината и приложената поправка са записани без secrets или лични данни.
+5. MCP каталогът и OAuth challenge са валидни;
+6. auth конфигурацията е зелена; реалният signup/login се отчита отделно;
+7. `synchron/production-smoke` е success;
+8. причината и приложената поправка са записани без secrets или лични данни.

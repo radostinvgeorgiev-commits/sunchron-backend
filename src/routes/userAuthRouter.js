@@ -19,6 +19,12 @@ import { logSafeError } from "../utils/safeLogging.js";
 
 const router = express.Router();
 
+router.use((_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  next();
+});
+
 function sendAuthError(res, error) {
   const known = error instanceof UserAuthError;
   return res.status(known ? error.status : 500).json({

@@ -1,5 +1,7 @@
 .auth-gate[hidden],
-.app-shell[hidden] {
+.app-shell[hidden],
+.auth-form[hidden],
+.auth-link[hidden] {
   display: none !important;
 }
 
@@ -16,7 +18,7 @@
   background:
     radial-gradient(
       circle at 12% 8%,
-      rgba(232, 96, 53, 0.16),
+      rgba(20, 108, 82, 0.18),
       transparent 28rem
     ),
     radial-gradient(
@@ -24,7 +26,7 @@
       rgba(27, 139, 103, 0.14),
       transparent 32rem
     ),
-    #f4f1e9;
+    #edf4f1;
 }
 
 .auth-card {
@@ -56,7 +58,7 @@
 
 .auth-kicker {
   margin: 24px 0 4px;
-  color: #e86035;
+  color: #146c52;
   font-size: 13px;
   font-weight: 850;
   letter-spacing: 0.14em;
@@ -99,8 +101,8 @@
 }
 
 .auth-form input:focus {
-  border-color: #e86035;
-  box-shadow: 0 0 0 4px rgba(232, 96, 53, 0.13);
+  border-color: #146c52;
+  box-shadow: 0 0 0 4px rgba(20, 108, 82, 0.15);
 }
 
 .auth-primary {
@@ -109,7 +111,7 @@
   border: 0;
   border-radius: 16px;
   color: #fff;
-  background: #e86035;
+  background: #146c52;
   cursor: pointer;
   font-weight: 850;
 }

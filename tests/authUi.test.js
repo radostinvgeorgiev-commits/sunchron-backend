@@ -16,6 +16,8 @@ test("renders a real login gate before the private application", () => {
   assert.match(html, /id="appShell" hidden/u);
   assert.match(html, /href="\/api\/github\/connect"/u);
   assert.match(css, /\.app-shell\[hidden\]/u);
+  assert.match(css, /\.auth-form\[hidden\]/u);
+  assert.match(css, /\.auth-link\[hidden\]/u);
 });
 
 test("offers normal registration with name, email, and password", () => {

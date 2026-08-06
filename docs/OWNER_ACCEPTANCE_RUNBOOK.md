@@ -74,11 +74,16 @@ deployment само за този тест и не ротирай OAuth secret.
 не owner OAuth сесията; неговият успешен SHA не трябва да се отчита като OAuth
 tool call.
 
-### Write — само когато мостът е изрично разрешен
+### Отрицателна контрола и отделен extended write acceptance
 
 Production режимът без Copilot трябва да върне
 `COPILOT_AUTOMATION_DISABLED`. Това е успешна отрицателна контрола: не трябва да
 се създават issue, branch, commit или Pull Request.
+
+Тази отрицателна контрола е валиден резултат за текущото owner acceptance и не
+го оставя незавършено. Тя не доказва работещ GitHub write adapter. Реалният
+GitHub write е отделен extended acceptance и не е условие за read-only
+продуктовото приемане.
 
 Не включвай Copilot automation само за acceptance. Реален GitHub write тест се
 прави в отделна сесия едва когато има наличен Copilot достъп, изрично разрешена
@@ -149,20 +154,24 @@ write тестът не започва, ако owner няма достъп да 
 | ------ | --- | -------------- | -------- | ---------- | ------ | -------- | ------- |
 
 Допустими резултати: `passed`, `failed`, `blocked`, `not-run`. `blocked` не е
-`passed`. GitHub write в режим `COPILOT_AUTOMATION_DISABLED` се записва като
-`blocked` с успешна отрицателна контрола, а не като работещ write adapter.
+`passed`. При `COPILOT_AUTOMATION_DISABLED` запиши отделен ред
+`GitHub / negative-control / passed`, а GitHub write — `not-run`. Не записвай
+отрицателната контрола като работещ write adapter.
 
-Owner acceptance е завършен само когато:
+Текущият read-only owner acceptance е завършен само когато:
 
 - ChatGPT MCP read работи с owner OAuth identity;
 - GitHub owner OAuth status е connected, а отделният read adapter връща точния
   SHA, без двете проверки да се смесват;
-- GitHub write е реално проверен след точно потвърждение; ако е `blocked`,
-  общият owner acceptance остава незавършен;
+- GitHub write отрицателната контрола е `passed`; реалният GitHub write остава
+  отделен extended acceptance;
 - Google read работи за Calendar, Drive и Gmail;
-- Calendar write е проверен след видим target и точно потвърждение; ако target
-  липсва, общият owner acceptance остава незавършен;
-- всички временни външни ресурси са почистени и cleanup е проверен.
+- няма неочаквано външно write действие.
+
+Extended write acceptance се отчита отделно. Ако бъде стартиран, всеки GitHub
+или Calendar write изисква видим точен target, еднократно потвърждение, проверка
+на резултата и доказан cleanup. `blocked` или `not-run` в extended write не
+обезсилва успешно завършения read-only owner acceptance.
 
 При failure първо запиши provider, стъпка, безопасен error code и run ID. Не
 прави несвързана архитектурна промяна и не публикувай tokens или response body с

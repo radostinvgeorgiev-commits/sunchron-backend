@@ -1,9 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
-import {
-  createOpenSearchClient,
-  getOpenSearchClient,
-} from "./src/config/opensearch.js";
+import { createOpenSearchClient } from "./src/config/opensearch.js";
 import {
   requireOwnerSession,
   requirePrimaryOwner,
@@ -83,7 +80,7 @@ app.use((_req, res, next) => {
 });
 app.use(express.json({ limit: "8mb" }));
 
-const mobileLayoutAssetVersion = "20260730-v2";
+const mobileLayoutAssetVersion = "20260806-green-chat-v1";
 const versionedApplicationAssets = Object.freeze({
   "app.js": "public/app.js",
   "work-center.js": "public/work-center.js",
@@ -213,24 +210,6 @@ app.use(
   paidAiRateLimiter,
   webSearchRouter,
 );
-
-app.get("/opensearch-status", requireOwnerSession, async (req, res) => {
-  const client = getOpenSearchClient();
-  if (!client) {
-    return res.json({ status: "not-configured" });
-  }
-
-  try {
-    const health = await client.cluster.health();
-    res.json({ status: health.body.status });
-  } catch {
-    console.error("[OpenSearch status] Health check failed.");
-    res.status(503).json({
-      status: "error",
-      code: "OPENSEARCH_UNAVAILABLE",
-    });
-  }
-});
 
 app.get("/", (_req, res) => {
   res.sendFile(`${process.cwd()}/public/index.html`);

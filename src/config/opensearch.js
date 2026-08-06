@@ -2,6 +2,12 @@ import { Client } from "@opensearch-project/opensearch";
 import { logSafeError } from "../utils/safeLogging.js";
 
 let opensearchClient = null;
+const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+
+function positiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 export function resolveOpenSearchTlsOptions(env = process.env) {
   const explicitlyDisabled =
@@ -53,6 +59,10 @@ export function createOpenSearchClient() {
         password: OPENSEARCH_PASSWORD,
       },
       ssl: resolveOpenSearchTlsOptions(),
+      requestTimeout: positiveInteger(
+        process.env.OPENSEARCH_REQUEST_TIMEOUT_MS,
+        DEFAULT_REQUEST_TIMEOUT_MS,
+      ),
     });
 
     console.log("✅ OpenSearch client initialized");

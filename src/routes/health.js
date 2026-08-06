@@ -18,11 +18,31 @@ import {
 } from "../services/mcpOAuthService.js";
 import { isCopilotAutomationEnabled } from "../config/featureFlags.js";
 import { isCodexAgentConfigured } from "../services/codexAgentService.js";
+import {
+  createSingleFlightCache,
+  inspectStorageBackups,
+  inspectStorageDependencies,
+} from "../services/storageHealthService.js";
 import { isToolExecutable } from "../tools/capabilityEngine.js";
 import { listTools, registerCoreTools } from "../tools/toolRegistry.js";
 
 const router = express.Router();
 const DEFAULT_READINESS_TIMEOUT_MS = 2_000;
+const DEFAULT_OPENSEARCH_BACKUP_MAX_AGE_HOURS = 48;
+const MAX_VERIFIED_BACKUP_CACHE_TTL_MS = 6 * 60 * 60_000;
+const FAILED_BACKUP_CACHE_TTL_MS = 15_000;
+const loadStorageDependencies = createSingleFlightCache(
+  inspectStorageDependencies,
+  { ttlMs: 30_000 },
+);
+const loadStorageBackups = createSingleFlightCache(inspectStorageBackups, {
+  ttlMs: resolveStorageBackupCacheTtlMs,
+});
+
+router.use((_req, res, next) => {
+  setPrivateHealthHeaders(res);
+  next();
+});
 
 export function getRuntimeVersion(env = process.env) {
   return resolveRuntimeVersion(env);
@@ -38,6 +58,34 @@ router.get("/", (req, res) => {
 
 function hasAllEnvironmentVariables(env, ...names) {
   return names.every((name) => Boolean(env[name]));
+}
+
+export function resolveStorageBackupCacheTtlMs(
+  report,
+  {
+    now = () => Date.now(),
+    maxAgeHours = process.env.OPENSEARCH_BACKUP_MAX_AGE_HOURS,
+  } = {},
+) {
+  const backup = report?.checks?.opensearch;
+  if (backup?.status !== "verified" || backup?.fresh !== true) {
+    return FAILED_BACKUP_CACHE_TTL_MS;
+  }
+
+  const newestTimestamp = Date.parse(backup.newestCreatedAt);
+  const parsedMaxAgeHours = Number.parseInt(maxAgeHours, 10);
+  const boundedMaxAgeHours =
+    Number.isFinite(parsedMaxAgeHours) && parsedMaxAgeHours > 0
+      ? parsedMaxAgeHours
+      : DEFAULT_OPENSEARCH_BACKUP_MAX_AGE_HOURS;
+  if (!Number.isFinite(newestTimestamp)) return FAILED_BACKUP_CACHE_TTL_MS;
+
+  const remainingFreshnessMs =
+    newestTimestamp + boundedMaxAgeHours * 60 * 60_000 - now();
+  return Math.max(
+    1,
+    Math.min(MAX_VERIFIED_BACKUP_CACHE_TTL_MS, remainingFreshnessMs),
+  );
 }
 
 async function withTimeout(promise, timeoutMs) {
@@ -66,7 +114,13 @@ export async function getReadinessStatus({
   try {
     const client = loadOpenSearchClient();
     if (client) {
-      const response = await withTimeout(client.cluster.health(), timeoutMs);
+      const response = await withTimeout(
+        client.cluster.health(
+          {},
+          { requestTimeout: timeoutMs, maxRetries: 0 },
+        ),
+        timeoutMs,
+      );
       const clusterStatus = response?.body?.status || response?.status;
       memory = {
         ready: Boolean(clusterStatus) && clusterStatus !== "red",
@@ -120,6 +174,59 @@ export function createReadinessHandler(options = {}) {
 }
 
 router.get("/ready", createReadinessHandler());
+
+function setPrivateHealthHeaders(res) {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+}
+
+export function createStorageDependenciesHandler({
+  loadStatus = loadStorageDependencies,
+} = {}) {
+  return async function storageDependenciesHandler(_req, res) {
+    setPrivateHealthHeaders(res);
+    const result = await loadStatus();
+    res.status(result.status === "healthy" ? 200 : 503).json(result);
+  };
+}
+
+function publicBackupStatus(report) {
+  return {
+    status: report.status,
+    checkedAt: report.checkedAt,
+    checks: {
+      opensearch: {
+        status: report.checks?.opensearch?.status || "unverified",
+        errorCode: report.checks?.opensearch?.errorCode || null,
+        fresh: report.checks?.opensearch?.fresh === true,
+        readOnlyCheck: true,
+        provesRestore: false,
+      },
+      supabase: {
+        status: report.checks?.supabase?.status || "unverified",
+        errorCode:
+          report.checks?.supabase?.errorCode ||
+          "SUPABASE_BACKUP_STATUS_NOT_VISIBLE_TO_RUNTIME",
+        readOnlyCheck: true,
+        provesRestore: false,
+      },
+    },
+  };
+}
+
+export function createStorageBackupsHandler({
+  loadStatus = loadStorageBackups,
+} = {}) {
+  return async function storageBackupsHandler(_req, res) {
+    setPrivateHealthHeaders(res);
+    const report = await loadStatus();
+    const result = publicBackupStatus(report);
+    res.status(result.status === "verified" ? 200 : 503).json(result);
+  };
+}
+
+router.get("/dependencies", createStorageDependenciesHandler());
+router.get("/backups", createStorageBackupsHandler());
 
 export async function getBridgeDiagnosticsStatus({
   env = process.env,
@@ -196,6 +303,7 @@ function resolveToolHealthStatus(tool, configuration = {}) {
     return "unavailable";
   }
   if (configuration.authenticated === false) return "degraded";
+  if (configuration.liveVerified === false) return "degraded";
   return "healthy";
 }
 
@@ -287,9 +395,14 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
         ) && Boolean(process.env.DIGITALOCEAN_APP_ID),
     },
     "cloudflare-read": {
-      configured:
-        Boolean(process.env.CLOUDFLARE_API_TOKEN) &&
-        Boolean(process.env.CLOUDFLARE_ZONE_ID),
+      configured: Boolean(process.env.CLOUDFLARE_API_TOKEN),
+      liveVerified: false,
+      availabilityCode: process.env.CLOUDFLARE_API_TOKEN
+        ? "CLOUDFLARE_LIVE_CHECK_REQUIRED"
+        : null,
+      availabilityReason: process.env.CLOUDFLARE_API_TOKEN
+        ? "Cloudflare е конфигуриран, но тази справка не е жива API проверка."
+        : null,
     },
     "opensearch-memory": {
       configured: hasAllProcessEnvironmentVariables(

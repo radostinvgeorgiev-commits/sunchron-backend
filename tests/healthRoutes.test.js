@@ -6,9 +6,12 @@ import request from "supertest";
 import {
   createBridgeDiagnosticsHandler,
   createReadinessHandler,
+  createStorageBackupsHandler,
+  createStorageDependenciesHandler,
   getBridgeDiagnosticsStatus,
   getReadinessStatus,
   getRuntimeVersion,
+  resolveStorageBackupCacheTtlMs,
 } from "../src/routes/health.js";
 
 test("liveness version exposes the deployed commit without exposing secrets", () => {
@@ -22,6 +25,7 @@ test("liveness version exposes the deployed commit without exposing secrets", ()
 });
 
 test("readiness requires OpenAI and a healthy OpenSearch cluster", async () => {
+  let requestOptions;
   const result = await getReadinessStatus({
     env: {
       OPENAI_API_KEY: "secret",
@@ -30,11 +34,15 @@ test("readiness requires OpenAI and a healthy OpenSearch cluster", async () => {
     },
     loadOpenSearchClient: () => ({
       cluster: {
-        health: async () => ({ body: { status: "green" } }),
+        health: async (_params, options) => {
+          requestOptions = options;
+          return { body: { status: "green" } };
+        },
       },
     }),
   });
 
+  assert.deepEqual(requestOptions, { requestTimeout: 2_000, maxRetries: 0 });
   assert.equal(result.status, "ready");
   assert.equal(result.commit, "abc123");
   assert.equal(result.checks.memory.status, "green");
@@ -141,6 +149,109 @@ test("readiness rejects a red OpenSearch cluster", async () => {
 
   assert.equal(result.status, "not-ready");
   assert.equal(result.checks.memory.status, "red");
+});
+
+test("dependency health is no-store and returns 503 on a live dependency failure", async () => {
+  const app = express();
+  app.get(
+    "/health/dependencies",
+    createStorageDependenciesHandler({
+      loadStatus: async () => ({
+        status: "unavailable",
+        checkedAt: "2026-08-06T10:00:00.000Z",
+        checks: {
+          opensearch: { status: "healthy" },
+          supabase: {
+            status: "unavailable",
+            errorCode: "SUPABASE_TIMEOUT",
+          },
+        },
+      }),
+    }),
+  );
+
+  const response = await request(app).get("/health/dependencies").expect(503);
+  assert.equal(response.headers["cache-control"], "no-store, max-age=0");
+  assert.equal(response.headers.pragma, "no-cache");
+  assert.equal(response.body.checks.supabase.errorCode, "SUPABASE_TIMEOUT");
+});
+
+test("backup health exposes status without counts, dates or resource ids", async () => {
+  const app = express();
+  app.get(
+    "/health/backups",
+    createStorageBackupsHandler({
+      loadStatus: async () => ({
+        status: "partially-verified",
+        checkedAt: "2026-08-06T10:00:00.000Z",
+        checks: {
+          opensearch: {
+            status: "verified",
+            fresh: true,
+            restorePointCount: 3,
+            oldestCreatedAt: "2026-08-03T10:00:00.000Z",
+            newestCreatedAt: "2026-08-06T10:00:00.000Z",
+          },
+          supabase: {
+            status: "unverified",
+            errorCode: "SUPABASE_BACKUP_STATUS_NOT_VISIBLE_TO_RUNTIME",
+          },
+        },
+      }),
+    }),
+  );
+
+  const response = await request(app).get("/health/backups").expect(503);
+  assert.equal(response.body.status, "partially-verified");
+  const serialized = JSON.stringify(response.body);
+  assert.equal(response.body.checks.opensearch.status, "verified");
+  assert.equal(response.body.checks.opensearch.fresh, true);
+  assert.equal(response.body.checks.opensearch.provesRestore, false);
+  assert.equal(response.body.checks.supabase.status, "unverified");
+  assert.doesNotMatch(
+    serialized,
+    /restorePointCount|oldestCreatedAt|newestCreatedAt|databaseId/u,
+  );
+});
+
+test("verified backup cache cannot outlive the remaining freshness window", () => {
+  const now = () => Date.parse("2026-08-06T10:00:00.000Z");
+  const nearlyStale = {
+    checks: {
+      opensearch: {
+        status: "verified",
+        fresh: true,
+        newestCreatedAt: "2026-08-04T10:01:00.000Z",
+      },
+    },
+  };
+
+  assert.equal(
+    resolveStorageBackupCacheTtlMs(nearlyStale, { now, maxAgeHours: 48 }),
+    60_000,
+  );
+  assert.equal(
+    resolveStorageBackupCacheTtlMs(
+      {
+        checks: {
+          opensearch: {
+            status: "verified",
+            fresh: true,
+            newestCreatedAt: "2026-08-06T09:00:00.000Z",
+          },
+        },
+      },
+      { now, maxAgeHours: 48 },
+    ),
+    6 * 60 * 60_000,
+  );
+  assert.equal(
+    resolveStorageBackupCacheTtlMs(
+      { checks: { opensearch: { status: "unverified" } } },
+      { now, maxAgeHours: 48 },
+    ),
+    15_000,
+  );
 });
 
 test("bridge diagnostics distinguish configuration, response and ChatGPT OAuth readiness", async () => {

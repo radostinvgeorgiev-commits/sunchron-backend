@@ -24,13 +24,15 @@ test("environment inventory exposes metadata and never values", () => {
     ],
   });
   const openAi = inventory.find((item) => item.key === "OPENAI_API_KEY");
-  const logicCore = inventory.find((item) => item.key === "LOGIC_CORE_URL");
   const memoryOwner = inventory.find((item) => item.key === "MEMORY_OWNER_ID");
 
   assert.equal(openAi.runtimeConfigured, true);
   assert.equal(openAi.digitalOceanDeclared, true);
   assert.equal(openAi.status, "configured");
-  assert.equal(logicCore.status, "unused");
+  assert.equal(
+    inventory.some((item) => item.key === "LOGIC_CORE_URL"),
+    false,
+  );
   assert.equal(memoryOwner.status, "defaulted");
   assert.equal(JSON.stringify(inventory).includes(secretValue), false);
 });

@@ -68,7 +68,13 @@ scheduleMobileLayoutUpdate();
 function activateCommand(command) {
   if (!commandBar) return;
   for (const button of commandBar.querySelectorAll("button")) {
-    button.classList.toggle("active", button.dataset.command === command);
+    const isActive = button.dataset.command === command;
+    button.classList.toggle("active", isActive);
+    if (isActive) {
+      button.setAttribute("aria-current", "page");
+    } else {
+      button.removeAttribute("aria-current");
+    }
   }
 }
 
@@ -89,22 +95,21 @@ commandBar?.addEventListener("click", (event) => {
     document.getElementById("closeContextBtn")?.click();
     document.getElementById("chatInput")?.focus();
     activateCommand("chat");
-  } else if (command === "work") {
-    document.getElementById("workModeToolbarBtn")?.click();
-    activateCommand("work");
   } else if (command === "memory") {
     forwardClick("memoryBtn", "memory");
-  } else if (command === "tasks") {
-    forwardClick("focusBtn", "tasks");
   } else if (command === "connections") {
     forwardClick("workCenterBtn", "connections");
+  } else if (command === "status") {
+    forwardClick("profileStatusBtn", "status");
   }
 });
 
-document.getElementById("closeDataDrawerBtn")?.addEventListener("click", () => {
-  activateCommand(
-    document.body.dataset.interactionMode === "work" ? "work" : "chat",
-  );
+document.addEventListener("synchron:data-drawer-closed", () => {
+  activateCommand("chat");
+});
+
+document.addEventListener("synchron:status-closed", () => {
+  activateCommand("chat");
 });
 
 activateCommand("chat");

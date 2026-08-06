@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 
 const DEFAULT_API_URL = "https://api.digitalocean.com/v2";
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 const DEFAULT_APP_NAME = "sunchron-backend";
 const PRIMARY_PUBLIC_DOMAIN = "synchron.foundation";
 export const PUBLIC_WWW_DOMAIN = "www.synchron.foundation";
@@ -109,6 +110,11 @@ function requiredAppConfig(env = process.env) {
   return { token, appId };
 }
 
+function positiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 async function request(
   path,
   {
@@ -116,9 +122,18 @@ async function request(
     fetchImpl = fetch,
     method = "GET",
     body = undefined,
+    signal = undefined,
   } = {},
 ) {
   const token = requiredToken(env);
+  const requestSignal =
+    signal ||
+    AbortSignal.timeout(
+      positiveInteger(
+        env.DIGITALOCEAN_REQUEST_TIMEOUT_MS,
+        DEFAULT_REQUEST_TIMEOUT_MS,
+      ),
+    );
   let response;
   try {
     response = await fetchImpl(
@@ -131,13 +146,17 @@ async function request(
           ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        signal: requestSignal,
       },
     );
-  } catch {
+  } catch (error) {
+    const timedOut = ["AbortError", "TimeoutError"].includes(error?.name);
     throw new DigitalOceanError(
-      "DigitalOcean API временно не е достъпен. Опитай отново след малко.",
+      timedOut
+        ? "DigitalOcean API не отговори в допустимото време."
+        : "DigitalOcean API временно не е достъпен. Опитай отново след малко.",
       502,
-      "DIGITALOCEAN_NETWORK_ERROR",
+      timedOut ? "DIGITALOCEAN_TIMEOUT" : "DIGITALOCEAN_NETWORK_ERROR",
     );
   }
   if (!response.ok) {
@@ -162,9 +181,11 @@ async function request(
 function isTransientDigitalOceanError(error) {
   return (
     error instanceof DigitalOceanError &&
-    ["DIGITALOCEAN_NETWORK_ERROR", "DIGITALOCEAN_UPSTREAM_ERROR"].includes(
-      error.code,
-    )
+    [
+      "DIGITALOCEAN_NETWORK_ERROR",
+      "DIGITALOCEAN_TIMEOUT",
+      "DIGITALOCEAN_UPSTREAM_ERROR",
+    ].includes(error.code)
   );
 }
 
@@ -794,12 +815,98 @@ export async function getDigitalOceanOpenSearchBackupAudit(options = {}) {
   const databases = safeArray(data?.databases).filter(
     (database) => database?.engine === "opensearch",
   );
+  const target = selectProductionOpenSearchDatabase(databases, options.env);
+  if (!target.database) {
+    return {
+      checkedAt: new Date().toISOString(),
+      databaseBackups: [
+        {
+          engine: "opensearch",
+          status: "unverified",
+          backupCount: null,
+          oldestCreatedAt: null,
+          newestCreatedAt: null,
+          errorCode: target.errorCode,
+          errorStatus: null,
+        },
+      ],
+    };
+  }
   return {
     checkedAt: new Date().toISOString(),
     databaseBackups: await getDigitalOceanDatabaseBackupInventory(
-      databases,
+      [target.database],
       options,
     ),
+  };
+}
+
+function normalizedHost(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  try {
+    return new URL(raw.includes("://") ? raw : `https://${raw}`).hostname
+      .toLowerCase()
+      .replace(/\.$/u, "");
+  } catch {
+    return null;
+  }
+}
+
+function databaseConnectionHosts(database) {
+  return [
+    database?.connection?.host,
+    database?.private_connection?.host,
+    database?.standby_connection?.host,
+    database?.standby_private_connection?.host,
+  ]
+    .map(normalizedHost)
+    .filter(Boolean);
+}
+
+function selectProductionOpenSearchDatabase(databases, env = process.env) {
+  const configuredId = String(env.OPENSEARCH_DATABASE_ID || "").trim();
+  const configuredHost = normalizedHost(env.OPENSEARCH_HOST);
+  if (configuredId) {
+    const matches = databases.filter(
+      (database) => String(database?.id || "") === configuredId,
+    );
+    if (matches.length !== 1) {
+      return {
+        database: null,
+        errorCode: "OPENSEARCH_DATABASE_TARGET_NOT_FOUND",
+      };
+    }
+    if (!configuredHost) {
+      return {
+        database: null,
+        errorCode: "OPENSEARCH_DATABASE_TARGET_UNBOUND",
+      };
+    }
+    if (!databaseConnectionHosts(matches[0]).includes(configuredHost)) {
+      return {
+        database: null,
+        errorCode: "OPENSEARCH_DATABASE_TARGET_MISMATCH",
+      };
+    }
+    return { database: matches[0], errorCode: null };
+  }
+
+  if (!configuredHost) {
+    return { database: null, errorCode: "OPENSEARCH_DATABASE_TARGET_UNBOUND" };
+  }
+  const matches = databases.filter((database) =>
+    databaseConnectionHosts(database).includes(configuredHost),
+  );
+  if (matches.length === 1) {
+    return { database: matches[0], errorCode: null };
+  }
+  return {
+    database: null,
+    errorCode:
+      matches.length > 1
+        ? "OPENSEARCH_DATABASE_TARGET_AMBIGUOUS"
+        : "OPENSEARCH_DATABASE_TARGET_NOT_FOUND",
   };
 }
 

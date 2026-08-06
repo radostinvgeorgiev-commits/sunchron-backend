@@ -76,6 +76,11 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     secret("OPENSEARCH_PORT", "Памет", "Порт на OpenSearch.", {
       requiredNow: true,
     }),
+    general(
+      "OPENSEARCH_DATABASE_ID",
+      "Памет",
+      "Незадължително точно обвързване на backup проверката с DigitalOcean cluster.",
+    ),
     secret("OPENSEARCH_USERNAME", "Памет", "Потребител за OpenSearch.", {
       requiredNow: true,
     }),
@@ -300,7 +305,13 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general(
       "CLOUDFLARE_ZONE_ID",
       "Cloudflare",
-      "Идентификатор на Cloudflare зоната.",
+      "Незадължителен директен идентификатор на Cloudflare зоната.",
+    ),
+    general(
+      "CLOUDFLARE_ZONE_NAME",
+      "Cloudflare",
+      "Име за автоматично откриване на Cloudflare зоната.",
+      { hasDefault: true },
     ),
     general("CLOUDFLARE_API_URL", "Cloudflare", "Cloudflare API адрес.", {
       hasDefault: true,
@@ -340,12 +351,41 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       requiredNow: true,
     }),
     general("PORT", "Runtime", "Вътрешен HTTP порт.", { hasDefault: true }),
-
     general(
-      "LOGIC_CORE_URL",
-      "Стар модул",
-      "Останала документация за отделния Python Logic Core; Node приложението не я използва.",
-      { state: "unused" },
+      "STORAGE_HEALTH_TIMEOUT_MS",
+      "Наблюдение",
+      "Максимално време за OpenSearch и Supabase здравна проверка.",
+      { hasDefault: true },
+    ),
+    general(
+      "BACKUP_HEALTH_TIMEOUT_MS",
+      "Наблюдение",
+      "Максимално време за read-only проверка на restore точките.",
+      { hasDefault: true },
+    ),
+    general(
+      "OPENSEARCH_BACKUP_MAX_AGE_HOURS",
+      "Наблюдение",
+      "Максимална възраст на последната OpenSearch restore точка.",
+      { hasDefault: true },
+    ),
+    general(
+      "OPENSEARCH_REQUEST_TIMEOUT_MS",
+      "Наблюдение",
+      "Максимално време за OpenSearch заявка.",
+      { hasDefault: true },
+    ),
+    general(
+      "DIGITALOCEAN_REQUEST_TIMEOUT_MS",
+      "Наблюдение",
+      "Максимално време за DigitalOcean API заявка.",
+      { hasDefault: true },
+    ),
+    general(
+      "CLOUDFLARE_REQUEST_TIMEOUT_MS",
+      "Наблюдение",
+      "Максимално време за Cloudflare API заявка.",
+      { hasDefault: true },
     ),
   ].map((item) => Object.freeze(item)),
 );

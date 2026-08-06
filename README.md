@@ -52,3 +52,12 @@ npm test
 безопасен incident/rollback ред използвай
 [`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md). Не приемай стара
 тестова бройка или commit от исторически audit за текущо състояние.
+
+Актуалното разделение между потвърдено, release candidate и още неприето е в
+[`docs/CURRENT_PRODUCT_ACCEPTANCE.md`](docs/CURRENT_PRODUCT_ACCEPTANCE.md).
+Този документ е текущият roadmap; старите технически одити са само архив.
+
+Приетата по-дългосрочна продуктова посока, UX изискванията и безопасният ред за
+оценка на външни инструменти са в
+[`docs/PRODUCT_DIRECTION.md`](docs/PRODUCT_DIRECTION.md). Кандидат в този
+документ не означава внедрена или работеща production интеграция.

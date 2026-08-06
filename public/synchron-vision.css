@@ -1,12 +1,12 @@
 :root {
   --sx-ink: #12201d;
   --sx-muted: #65736e;
-  --sx-paper: #f4f1e9;
+  --sx-paper: #edf4f1;
   --sx-surface: rgba(255, 255, 255, 0.86);
   --sx-line: rgba(18, 32, 29, 0.12);
-  --sx-accent: #e86035;
-  --sx-accent-dark: #be3e1d;
-  --sx-green: #1b8b67;
+  --sx-accent: #146c52;
+  --sx-accent-dark: #0b4f3b;
+  --sx-green: #146c52;
   --sx-shadow: 0 22px 70px rgba(33, 45, 40, 0.12);
   --sx-radius: 26px;
 }
@@ -16,12 +16,12 @@ body {
   background:
     radial-gradient(
       circle at 8% 4%,
-      rgba(232, 96, 53, 0.12),
+      rgba(20, 108, 82, 0.14),
       transparent 28rem
     ),
     radial-gradient(
       circle at 94% 96%,
-      rgba(27, 139, 103, 0.1),
+      rgba(25, 195, 125, 0.1),
       transparent 34rem
     ),
     var(--sx-paper) !important;
@@ -39,13 +39,15 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   -webkit-tap-highlight-color: transparent;
 }
 
 button:focus-visible,
-input:focus-visible {
-  outline: 4px solid rgba(232, 96, 53, 0.28) !important;
+input:focus-visible,
+textarea:focus-visible {
+  outline: 4px solid rgba(20, 108, 82, 0.3) !important;
   outline-offset: 3px;
 }
 
@@ -110,7 +112,7 @@ input:focus-visible {
   border-radius: 17px !important;
   color: #fff !important;
   background: var(--sx-accent) !important;
-  box-shadow: 0 10px 24px rgba(232, 96, 53, 0.22);
+  box-shadow: 0 10px 24px rgba(20, 108, 82, 0.24);
   font-weight: 800;
 }
 
@@ -194,15 +196,15 @@ input:focus-visible {
 }
 
 .status-indicator {
-  border: 1px solid rgba(27, 139, 103, 0.18);
+  border: 1px solid rgba(20, 108, 82, 0.2);
   border-radius: 999px;
   color: var(--sx-green);
-  background: rgba(27, 139, 103, 0.08) !important;
+  background: rgba(20, 108, 82, 0.08) !important;
   font-weight: 750;
 }
 
 #agentStatusDot.online {
-  box-shadow: 0 0 0 5px rgba(27, 139, 103, 0.12);
+  box-shadow: 0 0 0 5px rgba(20, 108, 82, 0.12);
 }
 
 #chatMessages {
@@ -219,11 +221,11 @@ input:focus-visible {
 }
 
 .message.user {
-  border: 1px solid rgba(232, 96, 53, 0.16) !important;
+  border: 1px solid rgba(20, 108, 82, 0.2) !important;
   border-radius: 24px 24px 7px 24px !important;
   color: #fff !important;
   background: var(--sx-accent) !important;
-  box-shadow: 0 12px 30px rgba(232, 96, 53, 0.17);
+  box-shadow: 0 12px 30px rgba(20, 108, 82, 0.2);
 }
 
 .message.agent {
@@ -295,17 +297,32 @@ input:focus-visible {
 }
 
 .chat-input-area:focus-within {
-  border-color: rgba(232, 96, 53, 0.7) !important;
+  border-color: rgba(20, 108, 82, 0.72) !important;
   box-shadow:
     0 18px 50px rgba(33, 45, 40, 0.14),
-    0 0 0 5px rgba(232, 96, 53, 0.1) !important;
+    0 0 0 5px rgba(20, 108, 82, 0.12) !important;
 }
 
-.chat-input-area input {
+.chat-input-area textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  max-height: 160px;
+  flex: 1;
+  padding: 12px 8px;
+  overflow-y: hidden;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
   color: var(--sx-ink) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font: inherit;
+  line-height: 1.45;
+  resize: none;
 }
 
-.chat-input-area input::placeholder {
+.chat-input-area textarea::placeholder {
   color: #87918d;
 }
 
@@ -325,7 +342,7 @@ input:focus-visible {
 
 #sendBtn {
   background: var(--sx-accent) !important;
-  box-shadow: 0 9px 22px rgba(232, 96, 53, 0.25);
+  box-shadow: 0 9px 22px rgba(20, 108, 82, 0.28);
 }
 
 .composer-note {
@@ -336,12 +353,41 @@ input:focus-visible {
 .data-drawer {
   border: 1px solid var(--sx-line) !important;
   border-radius: 26px !important;
-  background: rgba(252, 250, 245, 0.98) !important;
+  background: rgba(248, 252, 250, 0.98) !important;
   box-shadow: 0 30px 90px rgba(18, 32, 29, 0.22) !important;
+}
+
+.statusPanel {
+  z-index: 80 !important;
+  flex-direction: column;
+}
+
+.statusPanel .panel-header {
+  flex: 0 0 auto;
+}
+
+.statusPanel .panel-content {
+  min-height: 0;
+  flex: 1;
 }
 
 .data-drawer-kicker {
   color: var(--sx-accent) !important;
+}
+
+.status-evidence {
+  margin-top: 7px;
+  display: block;
+  color: var(--sx-muted);
+  font-size: var(--synchron-small-text, 17px);
+  line-height: 1.45;
+}
+
+.status-checked-at {
+  margin: 4px 0 18px;
+  color: var(--sx-muted);
+  font-size: var(--synchron-small-text, 17px);
+  line-height: 1.45;
 }
 
 .context-box,
@@ -408,10 +454,10 @@ input:focus-visible {
     background:
       radial-gradient(
         circle at 100% 0%,
-        rgba(232, 96, 53, 0.08),
+        rgba(20, 108, 82, 0.08),
         transparent 22rem
       ),
-      #fbfaf6 !important;
+      #f7fbf9 !important;
   }
 
   .sidebar {
@@ -422,7 +468,7 @@ input:focus-visible {
     z-index: 120 !important;
     border: 0 !important;
     border-radius: 0 28px 28px 0 !important;
-    background: rgba(250, 248, 242, 0.98) !important;
+    background: rgba(247, 251, 249, 0.98) !important;
     overflow-y: auto !important;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
@@ -481,29 +527,12 @@ input:focus-visible {
     left: 0;
     z-index: 60;
     padding: 10px 12px !important;
-    background: linear-gradient(to top, #fbfaf6 72%, transparent) !important;
-  }
-
-  .search-mode-bar {
-    width: 100%;
-    margin-bottom: 7px;
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .search-mode-bar::-webkit-scrollbar {
-    display: none;
-  }
-
-  .search-mode {
-    flex: 0 0 auto;
-    min-height: 42px;
+    background: linear-gradient(to top, #f7fbf9 72%, transparent) !important;
   }
 
   .chat-input-area {
     min-height: 62px !important;
+    align-items: flex-end !important;
     border-radius: 22px !important;
   }
 
@@ -536,10 +565,10 @@ input:focus-visible {
     min-height: calc(70px + env(safe-area-inset-bottom));
     padding: 7px 8px max(7px, env(safe-area-inset-bottom));
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
     border-top: 1px solid var(--sx-line);
-    background: rgba(252, 250, 245, 0.94);
+    background: rgba(248, 252, 250, 0.95);
     box-shadow: 0 -14px 40px rgba(33, 45, 40, 0.08);
     backdrop-filter: blur(22px);
     -webkit-backdrop-filter: blur(22px);
@@ -568,7 +597,7 @@ input:focus-visible {
 
   .mobile-command-bar button.active {
     color: var(--sx-accent);
-    background: rgba(232, 96, 53, 0.1);
+    background: rgba(20, 108, 82, 0.11);
   }
 
   .data-drawer {

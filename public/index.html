@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#111111" />
+    <meta name="theme-color" content="#0f5f47" />
     <meta
       name="description"
       content="AI CORE — лична AI операционна система с контролирана памет и разрешени инструменти."
@@ -16,8 +16,6 @@
     <link rel="apple-touch-icon" href="/ai-core-mark.png" />
     <link rel="stylesheet" href="/styles.css?v=20260727-connection-actions" />
     <link rel="stylesheet" href="/appshell.css?v=20260731-chatgpt-app" />
-    <link rel="stylesheet" href="/search.css?v=20260726-search" />
-    <link rel="stylesheet" href="/modules.css?v=20260726-modules" />
     <link rel="stylesheet" href="/accessibility.css?v=20260728-font-stepper" />
     <link rel="stylesheet" href="/task-journal.css?v=20260728-task-journal" />
     <link rel="stylesheet" href="/auth.css?v=20260801-profile-actions" />
@@ -25,7 +23,10 @@
       rel="stylesheet"
       href="/work-mode.css?v=20260802-pet-picker-button-v2"
     />
-    <link rel="stylesheet" href="/assets/20260730-v2/synchron-vision.css" />
+    <link
+      rel="stylesheet"
+      href="/assets/20260806-green-chat-v1/synchron-vision.css"
+    />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
@@ -222,7 +223,6 @@
           <button id="gmailBtn" type="button">Gmail</button>
           <button id="googleCalendarBtn" type="button">Google Calendar</button>
           <button id="googleMapsBtn" type="button">Google Maps</button>
-          <button id="modulesBtn" type="button">Работни области</button>
           <button id="systemConfigurationBtn" type="button">
             Системен контрол
           </button>
@@ -346,14 +346,15 @@
               accept="image/jpeg,image/png,image/webp"
               hidden
             />
-            <input
-              type="text"
+            <textarea
               id="chatInput"
+              rows="1"
+              aria-label="Съобщение до AI CORE"
               placeholder="Пиши на AI CORE"
               autocomplete="off"
               enterkeyhint="send"
               autofocus
-            />
+            ></textarea>
             <button
               id="voiceBtn"
               class="voice-btn"
@@ -376,6 +377,9 @@
       <aside
         class="statusPanel"
         id="statusPanel"
+        role="dialog"
+        aria-hidden="true"
+        aria-modal="false"
         aria-label="Състояние и данни"
       >
         <div class="panel-header status-header">
@@ -408,6 +412,33 @@
               Проверка…
             </div>
           </div>
+          <div class="context-box">
+            <div class="context-label">Supabase Auth</div>
+            <div class="context-value" id="supabaseStatusDisplay">
+              Проверка с реална заявка…
+            </div>
+          </div>
+          <div class="context-box">
+            <div class="context-label">OpenSearch backup</div>
+            <div class="context-value" id="opensearchBackupStatusDisplay">
+              Проверка на инвентара…
+            </div>
+            <small class="status-evidence">
+              Наличният инвентар не доказва успешно възстановяване.
+            </small>
+          </div>
+          <div class="context-box">
+            <div class="context-label">Supabase backup</div>
+            <div class="context-value" id="supabaseBackupStatusDisplay">
+              Непроверен
+            </div>
+            <small class="status-evidence">
+              Runtime ключът не вижда backup политиката на доставчика.
+            </small>
+          </div>
+          <p class="status-checked-at" id="storageStatusCheckedAt">
+            Последна проверка: предстои
+          </p>
           <div class="context-label activity-title">Последни действия</div>
           <ul class="log-list" id="actionsLog">
             <li>Няма скорошни действия</li>
@@ -439,40 +470,39 @@
         <div class="data-drawer-body" id="dataDrawerBody"></div>
       </aside>
 
-      <nav class="mobile-command-bar" aria-label="Бързи действия">
-        <button class="active" type="button" data-command="chat">
+      <nav class="mobile-command-bar" aria-label="Основна мобилна навигация">
+        <button
+          class="active"
+          type="button"
+          data-command="chat"
+          aria-current="page"
+        >
           <i class="fa-regular fa-message"></i>
           <span>Чат</span>
-        </button>
-        <button type="button" data-command="work">
-          <i class="fa-solid fa-briefcase"></i>
-          <span>Работа</span>
         </button>
         <button type="button" data-command="memory">
           <i class="fa-solid fa-brain"></i>
           <span>Памет</span>
         </button>
-        <button type="button" data-command="tasks" data-owner-only>
-          <i class="fa-solid fa-list-check"></i>
-          <span>Задачи</span>
-        </button>
-        <button type="button" data-command="connections" data-owner-only>
+        <button type="button" data-command="connections">
           <i class="fa-solid fa-plug"></i>
           <span>Връзки</span>
+        </button>
+        <button type="button" data-command="status">
+          <i class="fa-solid fa-heart-pulse"></i>
+          <span>Статус</span>
         </button>
       </nav>
     </main>
 
     <script src="/markdown-renderer.js?v=20260728-xss"></script>
     <script src="/work-mode.js?v=20260802-specialized-agents-v1"></script>
-    <script src="/assets/20260801-profile-actions/app.js"></script>
+    <script src="/assets/20260806-green-chat-v1/app.js"></script>
     <script src="/accessibility.js?v=20260728-font-stepper"></script>
     <script src="/assets/20260730-connections-v1/work-center.js"></script>
     <script src="/task-journal.js?v=20260728-task-journal"></script>
     <script src="/google-drive.js?v=20260727-connection-actions"></script>
     <script src="/google-apps.js?v=20260727-connection-actions"></script>
-    <script src="/search.js?v=20260726-search"></script>
-    <script src="/modules.js?v=20260726-modules"></script>
-    <script src="/assets/20260730-v2/synchron-vision.js"></script>
+    <script src="/assets/20260806-green-chat-v1/synchron-vision.js"></script>
   </body>
 </html>

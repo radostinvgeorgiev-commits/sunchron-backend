@@ -161,7 +161,7 @@ export function getToolRuntimeAvailability(
       );
     case "cloudflare-read":
       return configured(
-        hasEnvironment(env, "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ZONE_ID"),
+        hasEnvironment(env, "CLOUDFLARE_API_TOKEN"),
         "Cloudflare Read не е конфигуриран.",
       );
     case "opensearch-memory":
@@ -184,10 +184,10 @@ function resolvePermission(tool, capability) {
   return tool.capabilityPermissions?.[capability] || null;
 }
 
-async function checkedStatus(check) {
+async function checkedStatus(check, isWorking = () => true) {
   try {
-    await check();
-    return true;
+    const result = await check();
+    return isWorking(result) === true;
   } catch {
     return false;
   }
@@ -202,6 +202,7 @@ export async function buildIntegrationStatusReport(
       listProfileMemories({ ownerId: input.ownerId, limit: 1 }),
     checkSupabase = checkSupabaseStatus,
     checkDigitalOcean = getDigitalOceanAppStatus,
+    checkCloudflare = getCloudflareZoneStatus,
     checkGoogleSession = hasSession,
     checkGitHubWriteBridge = getCopilotBridgeStatus,
     env = process.env,
@@ -222,22 +223,33 @@ export async function buildIntegrationStatusReport(
     return formatCopilotBridgeStatus(bridge);
   }
 
-  const [githubRead, memory, supabase, digitalOcean, googleConnected] =
-    await Promise.all([
-      checkedStatus(checkGitHub),
-      checkedStatus(checkMemory),
-      checkedStatus(checkSupabase),
-      checkedStatus(checkDigitalOcean),
-      input.googleSessionId
-        ? checkedStatus(() => checkGoogleSession(input.googleSessionId))
-        : false,
-    ]);
+  const [
+    githubRead,
+    memory,
+    supabase,
+    digitalOcean,
+    cloudflare,
+    googleConnected,
+  ] = await Promise.all([
+    checkedStatus(checkGitHub),
+    checkedStatus(checkMemory),
+    checkedStatus(checkSupabase),
+    checkedStatus(checkDigitalOcean),
+    checkedStatus(
+      checkCloudflare,
+      (status) => status?.status === "active" && status?.paused !== true,
+    ),
+    input.googleSessionId
+      ? checkedStatus(() => checkGoogleSession(input.googleSessionId))
+      : false,
+  ]);
 
   const working = [
     ["GitHub Read", githubRead],
     ["Synchron Memory", memory],
     ["Supabase Status", supabase],
     ["DigitalOcean Read", digitalOcean],
+    ["Cloudflare Read", cloudflare],
     ["OpenAI разговор", Boolean(env.OPENAI_API_KEY)],
     ["OpenAI Web Search", Boolean(env.OPENAI_API_KEY)],
     ["Codex", isCodexAgentConfigured(env)],
@@ -253,11 +265,6 @@ export async function buildIntegrationStatusReport(
     ["Google Drive", googleConnected, "изисква Google вход"],
     ["Google Calendar", googleConnected, "изисква Google вход"],
     ["Gmail", googleConnected, "изисква Google вход"],
-    [
-      "Cloudflare Read",
-      Boolean(env.CLOUDFLARE_API_TOKEN && env.CLOUDFLARE_ZONE_ID),
-      "липсват Cloudflare настройки",
-    ],
   ];
 
   return [

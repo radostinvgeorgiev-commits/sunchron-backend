@@ -104,6 +104,29 @@ export function resolveMcpResourceUrl(env = process.env) {
   );
 }
 
+function resolveOpenAiTunnelResourceUrl(env = process.env) {
+  const resource = normalizeHttpsUrl(env.MCP_OPENAI_TUNNEL_RESOURCE_URL);
+  if (!resource) return "";
+
+  const url = new URL(resource);
+  if (
+    !/^tunnel-service\.gateway\.[a-z0-9-]+\.internal\.api\.openai\.org$/u.test(
+      url.hostname,
+    ) ||
+    !/^\/v1\/mcp\/tunnel_[A-Za-z0-9_-]+$/u.test(url.pathname)
+  ) {
+    return "";
+  }
+  return resource;
+}
+
+function isAllowedMcpResourceUrl(resource, env = process.env) {
+  const requested = String(resource || "");
+  const canonical = resolveMcpResourceUrl(env);
+  const tunnel = resolveOpenAiTunnelResourceUrl(env);
+  return requested === canonical || Boolean(tunnel && requested === tunnel);
+}
+
 export function resolveMcpIssuerUrl(env = process.env) {
   return new URL(resolveMcpResourceUrl(env)).origin;
 }
@@ -454,7 +477,7 @@ export async function validateMcpAuthorizationRequest(
   input,
   { env = process.env, fetchImpl = fetch } = {},
 ) {
-  const resource = resolveMcpResourceUrl(env);
+  const resource = String(input?.resource || "");
   const clientId = String(input?.client_id || "").trim();
   const redirectUri = String(input?.redirect_uri || "").trim();
   const state = String(input?.state || "").trim();
@@ -475,7 +498,7 @@ export async function validateMcpAuthorizationRequest(
   ) {
     throw new McpOAuthError("Изисква се PKCE S256.");
   }
-  if (String(input?.resource || "") !== resource) {
+  if (!isAllowedMcpResourceUrl(resource, env)) {
     throw new McpOAuthError("Невалиден MCP resource.", 400, "invalid_target");
   }
 
@@ -625,7 +648,7 @@ export function resolveMcpConsentRequest(
     payload.exp - payload.iat !== CONSENT_TOKEN_TTL_SECONDS ||
     !safeStringEqual(payload.subject, String(identity?.id || "")) ||
     !payload.request ||
-    payload.request.resource !== resolveMcpResourceUrl(env) ||
+    !isAllowedMcpResourceUrl(payload.request.resource, env) ||
     !Array.isArray(payload.request.scopes)
   ) {
     throw new McpOAuthError("Невалидно потвърждение.", 403, "access_denied");
@@ -1425,7 +1448,7 @@ export async function exchangeMcpAuthorizationCode(
     !payload ||
     payload.typ !== "authorization_code" ||
     payload.iss !== resolveMcpIssuerUrl(env) ||
-    payload.aud !== resolveMcpResourceUrl(env) ||
+    !isAllowedMcpResourceUrl(payload.aud, env) ||
     payload.exp <= now
   ) {
     throw new McpOAuthError(
@@ -1501,7 +1524,7 @@ export async function exchangeMcpRefreshToken(
     !payload ||
     payload.typ !== "refresh_token" ||
     payload.iss !== resolveMcpIssuerUrl(env) ||
-    payload.aud !== resolveMcpResourceUrl(env) ||
+    !isAllowedMcpResourceUrl(payload.aud, env) ||
     payload.exp <= now ||
     !safeStringEqual(input?.client_id, payload.clientId) ||
     !safeStringEqual(input?.resource, payload.aud)
@@ -1623,7 +1646,7 @@ export function verifyMcpAccessToken(
     !payload ||
     payload.typ !== "access_token" ||
     payload.iss !== resolveMcpIssuerUrl(env) ||
-    payload.aud !== resolveMcpResourceUrl(env) ||
+    !isAllowedMcpResourceUrl(payload.aud, env) ||
     payload.nbf > now ||
     payload.exp <= now ||
     !Array.isArray(payload.scopes) ||

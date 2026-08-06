@@ -62,6 +62,9 @@ services:
       - key: MCP_RESOURCE_URL
         value: https://synchron.foundation/mcp
         scope: RUN_TIME
+      - key: MCP_OPENAI_TUNNEL_RESOURCE_URL
+        value: https://tunnel-service.gateway.unified-0.internal.api.openai.org/v1/mcp/tunnel_6a72f3d764848191958716862a10ce6a
+        scope: RUN_TIME
       - key: MEMORY_OWNER_ID
         scope: RUN_TIME
         type: SECRET

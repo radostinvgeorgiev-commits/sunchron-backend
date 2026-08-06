@@ -27,7 +27,7 @@ function extractMcpChallengeStep(workflow) {
   )[1];
   assert.ok(namedStep, "MCP OAuth challenge step is missing");
   const block = namedStep.split(/^      - name:/mu)[0];
-  const run = block.split("        run: |\n")[1];
+  const run = block.split(/        run: \|\r?\n/u)[1];
   assert.ok(run, "MCP OAuth challenge bash block is missing");
   return run.replace(/^ {10}/gmu, "").trimEnd();
 }

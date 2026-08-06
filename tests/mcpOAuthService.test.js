@@ -38,6 +38,12 @@ const ENV = {
   MCP_ACCESS_TOKEN: "mcp-oauth-test-secret-with-more-than-32-characters",
   MCP_RESOURCE_URL: "https://synchron.foundation/mcp",
 };
+const TUNNEL_RESOURCE =
+  "https://tunnel-service.gateway.unified-0.internal.api.openai.org/v1/mcp/tunnel_test123";
+const TUNNEL_ENV = {
+  ...ENV,
+  MCP_OPENAI_TUNNEL_RESOURCE_URL: TUNNEL_RESOURCE,
+};
 const DEDICATED_ENV = {
   ...ENV,
   MCP_OAUTH_SECRET: "dedicated-oauth-test-secret-with-more-than-32-characters",
@@ -485,6 +491,86 @@ test("validates OpenAI CIMD metadata and exact callback and resource", async () 
     validateMcpAuthorizationRequest(
       { ...authorizationInput(), resource: "https://attacker.example/mcp" },
       { env: ENV, fetchImpl: clientMetadataFetch },
+    ),
+    (error) => error.code === "invalid_target",
+  );
+});
+
+test("accepts only the configured OpenAI secure tunnel resource through the full token flow", async () => {
+  const tunnelInput = {
+    ...authorizationInput(),
+    resource: TUNNEL_RESOURCE,
+  };
+  const request = await validateMcpAuthorizationRequest(tunnelInput, {
+    env: TUNNEL_ENV,
+    fetchImpl: clientMetadataFetch,
+  });
+  assert.equal(request.resource, TUNNEL_RESOURCE);
+
+  const code = createMcpAuthorizationCode(
+    request,
+    { id: "owner-id", memoryOwnerId: "primary-user", role: "owner" },
+    TUNNEL_ENV,
+  );
+  const token = await exchangeMcpAuthorizationCode(
+    {
+      grant_type: "authorization_code",
+      code,
+      client_id: CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: VERIFIER,
+      resource: TUNNEL_RESOURCE,
+    },
+    TUNNEL_ENV,
+  );
+  assert.equal(
+    verifyMcpAccessToken(
+      `Bearer ${token.access_token}`,
+      [MCP_READ_SCOPE],
+      TUNNEL_ENV,
+    ).memoryOwnerId,
+    "primary-user",
+  );
+
+  const refreshed = await exchangeMcpRefreshToken(
+    {
+      grant_type: "refresh_token",
+      refresh_token: token.refresh_token,
+      client_id: CLIENT_ID,
+      resource: TUNNEL_RESOURCE,
+    },
+    TUNNEL_ENV,
+  );
+  assert.equal(
+    verifyMcpAccessToken(
+      `Bearer ${refreshed.access_token}`,
+      [MCP_READ_SCOPE],
+      TUNNEL_ENV,
+    ).memoryOwnerId,
+    "primary-user",
+  );
+
+  await assert.rejects(
+    validateMcpAuthorizationRequest(
+      {
+        ...tunnelInput,
+        resource:
+          "https://tunnel-service.gateway.unified-0.internal.api.openai.org/v1/mcp/tunnel_other",
+      },
+      { env: TUNNEL_ENV, fetchImpl: clientMetadataFetch },
+    ),
+    (error) => error.code === "invalid_target",
+  );
+  await assert.rejects(
+    validateMcpAuthorizationRequest(
+      { ...tunnelInput, resource: "https://attacker.example/mcp" },
+      {
+        env: {
+          ...ENV,
+          MCP_OPENAI_TUNNEL_RESOURCE_URL: "https://attacker.example/mcp",
+        },
+        fetchImpl: clientMetadataFetch,
+      },
     ),
     (error) => error.code === "invalid_target",
   );

@@ -145,6 +145,11 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       { hasDefault: true },
     ),
     general(
+      "MCP_OPENAI_TUNNEL_RESOURCE_URL",
+      "ChatGPT / MCP",
+      "Точният ресурс на одобрения OpenAI Secure MCP Tunnel.",
+    ),
+    general(
       "MCP_OAUTH_REPLAY_INDEX",
       "ChatGPT / MCP",
       "Индекс за устойчивата еднократна OAuth защита.",

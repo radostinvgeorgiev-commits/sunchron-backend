@@ -73,6 +73,37 @@ test("allows the final conversation to request stronger reasoning and detail", a
   });
 });
 
+test("supports a strict JSON schema for bounded code analysis", async () => {
+  const schema = {
+    type: "object",
+    properties: { summary: { type: "string" } },
+    required: ["summary"],
+    additionalProperties: false,
+  };
+  await requestOpenAIResponse({
+    apiKey: "test-openai-key",
+    input: [{ role: "user", content: "Провери кода" }],
+    outputSchema: schema,
+    outputSchemaName: "codex result!",
+    fetchImpl: async (_url, options) => {
+      const body = JSON.parse(options.body);
+      assert.deepEqual(body.text, {
+        verbosity: "low",
+        format: {
+          type: "json_schema",
+          name: "codex_result_",
+          strict: true,
+          schema,
+        },
+      });
+      return new Response(JSON.stringify({ output_text: '{"summary":"Да"}' }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+});
+
 test("returns the provider and model reported by OpenAI", async () => {
   const result = await requestOpenAIResponse({
     apiKey: "test-openai-key",

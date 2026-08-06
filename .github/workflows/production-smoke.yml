@@ -261,6 +261,11 @@ jobs:
                     "get_github_copilot_task_status",
                     "prepare_github_merged_branch_cleanup",
                     "confirm_github_merged_branch_cleanup",
+                    "list_available_capabilities",
+                    "list_action_history",
+                    "list_tasks",
+                    "create_task_draft",
+                    "list_projects",
                   ];
                   const names = Array.isArray(tools) ? tools.map((tool) => tool.name) : [];
                   const tracker = tools?.find(
@@ -281,8 +286,26 @@ jobs:
                   const confirmWwwScopes = confirmWww?.securitySchemes?.flatMap(
                     (scheme) => scheme.scopes || [],
                   ) || [];
+                  const capabilities = tools?.find(
+                    (tool) => tool.name === "list_available_capabilities",
+                  );
+                  const capabilitiesScopes = capabilities?.securitySchemes?.flatMap(
+                    (scheme) => scheme.scopes || [],
+                  ) || [];
+                  const actionHistory = tools?.find(
+                    (tool) => tool.name === "list_action_history",
+                  );
+                  const actionHistoryScopes = actionHistory?.securitySchemes?.flatMap(
+                    (scheme) => scheme.scopes || [],
+                  ) || [];
+                  const taskDraft = tools?.find(
+                    (tool) => tool.name === "create_task_draft",
+                  );
+                  const taskDraftScopes = taskDraft?.securitySchemes?.flatMap(
+                    (scheme) => scheme.scopes || [],
+                  ) || [];
                   const valid =
-                    names.length === expected.length &&
+                    names.length >= expected.length &&
                     new Set(names).size === names.length &&
                     expected.every((name) => names.includes(name)) &&
                     tracker?.annotations?.readOnlyHint === true &&
@@ -290,8 +313,19 @@ jobs:
                     conversation?.annotations?.destructiveHint === false &&
                     conversationScopes.includes("synchron:agent.chat") &&
                     confirmWww?.annotations?.destructiveHint === true &&
-                    confirmWwwScopes.includes("synchron:infrastructure.write");
-                  console.log(JSON.stringify({ names, trackerReadOnly: tracker?.annotations?.readOnlyHint }));
+                    confirmWwwScopes.includes("synchron:infrastructure.write") &&
+                    capabilities?.annotations?.readOnlyHint === true &&
+                    capabilitiesScopes.includes("synchron:read") &&
+                    actionHistory?.annotations?.readOnlyHint === true &&
+                    actionHistoryScopes.includes("synchron:audit.read") &&
+                    taskDraft?.annotations?.readOnlyHint === false &&
+                    taskDraft?.annotations?.destructiveHint === false &&
+                    taskDraftScopes.includes("synchron:tasks.write");
+                  console.log(JSON.stringify({
+                    catalogSize: names.length,
+                    missingExpected: expected.filter((name) => !names.includes(name)),
+                    trackerReadOnly: tracker?.annotations?.readOnlyHint,
+                  }));
                   process.exit(valid ? 0 : 1);
                 } catch {
                   process.exit(1);

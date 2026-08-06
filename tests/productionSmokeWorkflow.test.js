@@ -25,13 +25,21 @@ test("production smoke publishes a readable commit status without a custom secre
   assert.match(workflow, /ai-core-mark\.png/u);
   assert.match(workflow, /Check MCP tool catalog and OAuth challenge/u);
   assert.match(workflow, /Check OpenSearch and Supabase dependencies/u);
-  assert.match(workflow, /\/health\/dependencies/u);
+  assert.match(workflow, /\/health\/storage-report/u);
   assert.match(workflow, /memoryIndexReadable/u);
+  const dependencyStep = workflow
+    .split("- name: Check OpenSearch and Supabase dependencies")[1]
+    .split(
+      "- name: Check backup coverage and OpenSearch restore-point inventory",
+    )[0];
+  assert.match(dependencyStep, /dependencies_healthy=false/u);
+  assert.match(dependencyStep, /for attempt in 1 2 3/u);
+  assert.match(dependencyStep, /test "\$\{dependencies_healthy\}" = "true"/u);
   assert.match(
     workflow,
     /Check backup coverage and OpenSearch restore-point inventory/u,
   );
-  assert.match(workflow, /\/health\/backups/u);
+  assert.match(workflow, /JSON\.parse\(input\)\.backups/u);
   assert.match(workflow, /provesRestore/u);
   assert.match(workflow, /report\.status !== "partially-verified"/u);
   assert.match(workflow, /backup\?\.fresh !== true/u);
@@ -41,7 +49,8 @@ test("production smoke publishes a readable commit status without a custom secre
       "- name: Check backup coverage and OpenSearch restore-point inventory",
     )[1]
     .split("- name: Check production memory acceptance")[0];
-  assert.doesNotMatch(backupStep, /curl --fail/u);
+  assert.match(backupStep, /curl --fail/u);
+  assert.match(backupStep, /if response="\$\(curl --fail/u);
   assert.match(workflow, /get_github_copilot_task_status/u);
   assert.match(workflow, /names\.length === expected\.length/u);
   assert.match(workflow, /challenge_headers/u);

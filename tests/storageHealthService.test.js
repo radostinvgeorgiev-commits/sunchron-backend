@@ -56,7 +56,7 @@ test("storage health forwards its timeout to the real Supabase abort signal", as
       checkSupabaseStatus({
         ...options,
         projectUrl: "https://example.supabase.co",
-        publishableKey: "public-test-key",
+        publishableKey: "sb_publishable_public_test_key_1234567890",
         fetchImpl: async (_url, { signal }) =>
           new Promise((_resolve, reject) => {
             signal.addEventListener(
@@ -107,9 +107,17 @@ test("storage health uses the public bootstrap for App Platform placeholders", a
 
   assert.equal(report.status, "healthy");
   assert.equal(report.checks.supabase.status, "healthy");
+  assert.equal(
+    report.checks.supabase.connectionSource,
+    "public-bootstrap",
+  );
   assert.doesNotMatch(
     JSON.stringify(report),
     new RegExp(TESTER_AUTH_BOOTSTRAP.publishableKey, "u"),
+  );
+  assert.doesNotMatch(
+    JSON.stringify(report),
+    new RegExp(new URL(TESTER_AUTH_BOOTSTRAP.projectUrl).hostname, "u"),
   );
 });
 

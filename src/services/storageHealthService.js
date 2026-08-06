@@ -102,12 +102,18 @@ async function inspectSupabase({ checkSupabase, timeoutMs }) {
       timeoutMs,
       "SUPABASE_TIMEOUT",
     );
+    const connectionSource = ["runtime", "public-bootstrap"].includes(
+      result?.connectionSource,
+    )
+      ? result.connectionSource
+      : null;
     return {
       status: result?.status === "healthy" ? "healthy" : "unavailable",
       responseTimeMs:
         Number.isFinite(result?.responseTimeMs) && result.responseTimeMs >= 0
           ? result.responseTimeMs
           : null,
+      ...(connectionSource ? { connectionSource } : {}),
       errorCode: result?.status === "healthy" ? null : "SUPABASE_UNAVAILABLE",
     };
   } catch (error) {

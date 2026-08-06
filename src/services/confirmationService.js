@@ -19,7 +19,18 @@ const ALLOWED_ACTIONS = new Set([
   "infrastructure.digitalocean:add_www_domain",
   "calendar.write:create_event",
   "memory.write:save_profile",
+  "memory.write:update_profile",
   "memory.delete:profile",
+  "tasks.write:update_status",
+  "mail.send:draft",
+  "mail.delete:message",
+  "contacts.write:create",
+  "contacts.write:update",
+  "github.write:create_branch",
+  "github.write:create_file",
+  "github.write:update_file",
+  "github.write:create_pr",
+  "github.write:close_issue",
 ]);
 
 // Fields that must never be stored in a confirmation (audit safety)

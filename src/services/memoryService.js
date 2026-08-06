@@ -630,6 +630,83 @@ export async function saveProfileMemory(
   };
 }
 
+export async function updateProfileMemoryById(
+  id,
+  fact,
+  requestedScope = "personal",
+  ownerId = OWNER_ID,
+) {
+  const cleanId = typeof id === "string" ? id.trim() : "";
+  if (!cleanId || cleanId.length > 200) {
+    const error = new Error("Невалиден идентификатор на спомен.");
+    error.code = "INVALID_MEMORY";
+    throw error;
+  }
+  const { fact: cleanFact, scope } = normalizeProfileMemoryDraft(
+    fact,
+    requestedScope,
+  );
+  await ensureProfileIndex();
+  const client = getClientOrThrow();
+  let existing;
+  try {
+    const response = await client.get({ index: PROFILE_INDEX, id: cleanId });
+    existing = response.body?._source ?? response._source;
+  } catch (error) {
+    const status = error?.statusCode || error?.meta?.statusCode;
+    if (status === 404) {
+      const missing = new Error("Споменът не е намерен.");
+      missing.code = "MEMORY_NOT_FOUND";
+      missing.status = 404;
+      throw missing;
+    }
+    throw error;
+  }
+  if (existing?.ownerId !== ownerId) {
+    const missing = new Error("Споменът не е намерен.");
+    missing.code = "MEMORY_NOT_FOUND";
+    missing.status = 404;
+    throw missing;
+  }
+
+  const normalizedFact = normalizeFact(cleanFact);
+  const metadata = deriveMemoryMetadata(cleanFact, scope);
+  const nextId = profileMemoryDocumentId(ownerId, metadata.memoryKey);
+  const now = new Date().toISOString();
+  const body = {
+    ownerId,
+    fact: cleanFact,
+    normalizedFact,
+    ...metadata,
+    createdAt: existing.createdAt || now,
+    updatedAt: now,
+    source: "confirmed-memory-update",
+  };
+  const operations = [{ index: { _index: PROFILE_INDEX, _id: nextId } }, body];
+  if (nextId !== cleanId) {
+    operations.push({ delete: { _index: PROFILE_INDEX, _id: cleanId } });
+  }
+  const response = await client.bulk({ refresh: true, body: operations });
+  const result = response.body || response;
+  if (result?.errors) {
+    const error = new Error(
+      "Промяната на спомена не можа да бъде завършена еднозначно.",
+    );
+    error.code = "MEMORY_UPDATE_UNCERTAIN";
+    error.status = 502;
+    throw error;
+  }
+  return {
+    id: nextId,
+    fact: cleanFact,
+    normalizedFact,
+    ...metadata,
+    updatedAt: now,
+    source: body.source,
+    replaced: true,
+  };
+}
+
 export async function deleteProfileMemoryByFact(
   fact,
   requestedScope = "personal",

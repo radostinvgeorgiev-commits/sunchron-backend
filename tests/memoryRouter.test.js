@@ -202,6 +202,37 @@ test("memory API writes only the fact stored in the one-time confirmation", asyn
   assert.doesNotMatch(JSON.stringify(auditEvents), /123e4567/u);
 });
 
+test("memory API binds an edit request to the exact existing memory id", async () => {
+  let preparedInput;
+  const app = writeTestApp({
+    prepare: async (input) => {
+      preparedInput = input;
+      return {
+        confirmationId: "123e4567-e89b-12d3-a456-426614174000",
+        expiresAt: Date.now() + 60_000,
+        items: input.items,
+      };
+    },
+    audit: async () => {},
+  });
+
+  await request(app)
+    .post("/memory/profile")
+    .send({
+      sessionId: "session-a",
+      memoryId: "memory-existing",
+      fact: "Поправен факт",
+      scope: "personal",
+    })
+    .expect(409);
+
+  assert.equal(preparedInput.ownerId, "owner-a");
+  assert.equal(preparedInput.replaceId, "memory-existing");
+  assert.deepEqual(preparedInput.items, [
+    { fact: "Поправен факт", scope: "personal" },
+  ]);
+});
+
 test("memory API returns an exact audit safety error without a duplicate audit", async () => {
   const auditEvents = [];
   const app = writeTestApp({

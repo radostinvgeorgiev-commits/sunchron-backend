@@ -1,19 +1,44 @@
-import { evaluatePermission } from "../services/permissionService.js";
+import {
+  evaluatePermission,
+  listAuditEvents,
+} from "../services/permissionService.js";
 import { isCopilotAutomationEnabled } from "../config/featureFlags.js";
 import { answerGitHubReadRequest } from "../services/githubService.js";
 import {
+  createGmailDraft,
   GoogleDriveError,
   hasSession,
   listDriveFiles,
   listGmailMessages,
   listGoogleCalendarEvents,
+  searchGmailMessages,
+  searchGoogleContacts,
 } from "../services/googleDriveService.js";
-import { prepareCalendarEvent } from "../services/calendarService.js";
+import {
+  confirmCalendarEvent,
+  prepareCalendarEvent,
+} from "../services/calendarService.js";
+import {
+  confirmGoogleAction,
+  prepareGmailDraftSend,
+  prepareGmailMessageTrash,
+  prepareGoogleContactChange,
+} from "../services/googleActionService.js";
 import {
   deleteProfileMemoryByFact,
+  listConversationMessages,
+  listConversationSummaries,
   listProfileMemories,
   saveProfileMemory,
 } from "../services/memoryService.js";
+import {
+  addTaskNote,
+  confirmTaskStatusChange,
+  createTaskDraft,
+  linkTaskToProject,
+  listTasks,
+  prepareTaskStatusChange,
+} from "../services/taskManagementService.js";
 import {
   formatMemoryAcceptanceReport,
   runMemoryAcceptanceTest,
@@ -35,6 +60,11 @@ import {
   isMergedBranchCleanupPlanRequest,
   prepareMergedBranchCleanup,
 } from "../services/githubBranchCleanupService.js";
+import {
+  confirmGitHubChange,
+  prepareGitHubChange,
+} from "../services/githubActionService.js";
+import { getGitHubSession } from "../services/githubOAuthService.js";
 import { checkSupabaseStatus } from "../services/supabaseService.js";
 import {
   formatDigitalOceanAudit,
@@ -56,7 +86,11 @@ import {
   isCodexAgentConfigured,
   runCodexProjectAnalysis,
 } from "../services/codexAgentService.js";
-import { findToolsByCapability, registerCoreTools } from "./toolRegistry.js";
+import {
+  findToolsByCapability,
+  listTools,
+  registerCoreTools,
+} from "./toolRegistry.js";
 
 export class CapabilityError extends Error {
   constructor(message, code, status = 400) {
@@ -88,6 +122,27 @@ export function getToolRuntimeAvailability(
     Object.freeze({ available, reason, code });
 
   switch (toolId) {
+    case "synchron-agent-chat":
+      if (
+        !hasEnvironment(
+          env,
+          "OPENAI_API_KEY",
+          "OPENSEARCH_HOST",
+          "OPENSEARCH_PORT",
+          "OPENSEARCH_USERNAME",
+          "OPENSEARCH_PASSWORD",
+        )
+      ) {
+        return configured(
+          false,
+          "AI CORE разговорът или постоянната история не са конфигурирани.",
+        );
+      }
+      return configured(
+        Boolean(input.ownerId),
+        "AI CORE разговорът изисква проверен профил.",
+        "CAPABILITY_AUTH_REQUIRED",
+      );
     case "synchron-integrations-status":
     case "synchron-system-inspector":
     case "github-read":
@@ -112,10 +167,23 @@ export function getToolRuntimeAvailability(
         "GitHub Write изисква удостоверена собственическа сесия.",
         "CAPABILITY_AUTH_REQUIRED",
       );
+    case "github-confirmed-write":
+      if (!hasEnvironment(env, "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET")) {
+        return configured(
+          false,
+          "Потвърждаваният GitHub запис не е конфигуриран.",
+        );
+      }
+      return configured(
+        Boolean(input.githubSessionId || input.githubSession),
+        "GitHub записът изисква удостоверена собственическа сесия.",
+        "CAPABILITY_AUTH_REQUIRED",
+      );
     case "google-drive-read":
     case "google-calendar-read":
     case "google-calendar-write":
     case "gmail-read":
+    case "google-contacts":
       if (
         !hasEnvironment(
           env,
@@ -133,6 +201,23 @@ export function getToolRuntimeAvailability(
       return configured(
         Boolean(input.googleSessionId),
         "Google инструментът изисква удостоверена Google сесия.",
+        "CAPABILITY_AUTH_REQUIRED",
+      );
+    case "synchron-tasks":
+      if (
+        !hasEnvironment(
+          env,
+          "OPENSEARCH_HOST",
+          "OPENSEARCH_PORT",
+          "OPENSEARCH_USERNAME",
+          "OPENSEARCH_PASSWORD",
+        )
+      ) {
+        return configured(false, "Задачите не са конфигурирани.");
+      }
+      return configured(
+        Boolean(input.ownerId),
+        "Задачите изискват проверен профил.",
         "CAPABILITY_AUTH_REQUIRED",
       );
     case "openai-web-search":
@@ -342,9 +427,107 @@ export function resolveCapability(capability, options = {}) {
   });
 }
 
+function requiredInput(value, label) {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new CapabilityError(`Липсва ${label}.`, "MISSING_CAPABILITY_INPUT");
+  }
+  return value.trim();
+}
+
+function confirmationOutput(prepared, label) {
+  return [
+    `${label} е подготвено, но не е изпълнено.`,
+    `Потвърждение: ${prepared.confirmationId}.`,
+    `Валидно до: ${new Date(prepared.expiresAt).toISOString()}.`,
+  ].join("\n");
+}
+
 const executors = Object.freeze({
-  "synchron-integrations-status": async ({ input }) =>
-    buildIntegrationStatusReport(input),
+  "synchron-agent-chat": async ({ capability, input }) => {
+    if (capability === "chat.list_threads") {
+      const threads = await listConversationSummaries(20, input.ownerId);
+      if (!threads.length) return "Няма запазени разговори в SYNCHRON-X.";
+      return [
+        "Разговори в SYNCHRON-X:",
+        ...threads.map(
+          (thread) =>
+            `• ${thread.title} — ${thread.sessionId} — ${thread.messageCount} съобщения`,
+        ),
+      ].join("\n");
+    }
+    if (
+      capability === "chat.read_history" ||
+      capability === "chat.read_reply"
+    ) {
+      const sessionId = requiredInput(input.sessionId, "sessionId");
+      const messages = await listConversationMessages(
+        sessionId,
+        undefined,
+        input.ownerId,
+      );
+      if (capability === "chat.read_reply") {
+        const reply = messages.findLast((item) => item.role === "assistant");
+        return reply?.content || "В тази нишка още няма отговор от AI CORE.";
+      }
+      if (!messages.length) return "Избраният разговор е празен.";
+      return messages
+        .map(
+          (item) =>
+            `${item.role === "user" ? "Радко" : "AI CORE"}: ${item.content}`,
+        )
+        .join("\n\n");
+    }
+    const { sendMcpAgentMessage } =
+      await import("../services/mcpAgentConversationService.js");
+    const conversation = await sendMcpAgentMessage({
+      ownerId: input.ownerId,
+      message: input.message,
+      sessionId:
+        capability === "chat.continue_session" ? input.sessionId : undefined,
+      projectId: input.projectId,
+      agentId: input.agentId,
+      identity: input.identity,
+    });
+    return conversation.response;
+  },
+  "synchron-integrations-status": async ({ capability, input }) => {
+    if (capability === "system.tools.read") {
+      registerCoreTools();
+      return [
+        "Регистрирани инструменти:",
+        ...listTools().map(
+          (tool) =>
+            `• ${tool.name}: ${tool.capabilities.join(", ")} — ${tool.permissions.join(", ")}`,
+        ),
+      ].join("\n");
+    }
+    if (
+      capability === "system.audit.read" ||
+      capability === "system.errors.read"
+    ) {
+      const errorsOnly = capability === "system.errors.read";
+      const events = (await listAuditEvents(errorsOnly ? 100 : 30))
+        .filter((event) =>
+          errorsOnly
+            ? ["failed", "blocked", "uncertain"].includes(event.outcome)
+            : true,
+        )
+        .slice(0, errorsOnly ? 20 : 30);
+      if (!events.length) {
+        return errorsOnly
+          ? "Няма записани безопасни грешки."
+          : "Журналът на действията е празен.";
+      }
+      return [
+        errorsOnly ? "Последни безопасни грешки:" : "История на действията:",
+        ...events.map(
+          (event) =>
+            `• ${event.timestamp || "без дата"} — ${event.action || "unknown"} — ${event.outcome || "unknown"}`,
+        ),
+      ].join("\n");
+    }
+    return buildIntegrationStatusReport(input);
+  },
   "synchron-system-inspector": async () =>
     formatSystemConfigurationReport(await getSystemConfigurationReport()),
   "github-read": async ({ capability, input }) => {
@@ -375,6 +558,34 @@ const executors = Object.freeze({
       prompt: input.message,
     });
     return prepared.output;
+  },
+  "github-confirmed-write": async ({ capability, input, confirmed }) => {
+    const githubSession =
+      input.githubSession || (await getGitHubSession(input.githubSessionId));
+    if (confirmed) {
+      const changed = await confirmGitHubChange({
+        ownerId: input.ownerId,
+        sessionId: input.sessionId,
+        confirmationId: requiredInput(input.confirmationId, "confirmationId"),
+        githubSession,
+      });
+      return `Потвърдената GitHub промяна е изпълнена: ${changed.url || changed.sha || changed.number || "готово"}.`;
+    }
+    const operations = {
+      "github.branch.create": "create_branch",
+      "github.file.create": "create_file",
+      "github.file.update": "update_file",
+      "github.pull-request.create": "create_pr",
+      "github.issue.close": "close_issue",
+    };
+    const prepared = await prepareGitHubChange({
+      ownerId: input.ownerId,
+      sessionId: input.sessionId,
+      githubSession,
+      operation: operations[capability],
+      input: input.change || input,
+    });
+    return confirmationOutput(prepared, "GitHub промяната");
   },
   "openai-codex": async ({ input }) => {
     const result = await runCodexProjectAnalysis({
@@ -411,7 +622,15 @@ const executors = Object.freeze({
       ),
     ].join("\n");
   },
-  "google-calendar-write": async ({ input }) => {
+  "google-calendar-write": async ({ input, confirmed }) => {
+    if (confirmed) {
+      const event = await confirmCalendarEvent({
+        confirmationId: requiredInput(input.confirmationId, "confirmationId"),
+        sessionId: input.sessionId,
+        googleSessionId: input.googleSessionId,
+      });
+      return `Календарното събитие е създадено: ${event.title}.`;
+    }
     const prepared = await prepareCalendarEvent({
       sessionId: input.sessionId,
       googleSessionId: input.googleSessionId,
@@ -427,8 +646,55 @@ const executors = Object.freeze({
       ...files.slice(0, 15).map((file) => `• ${file.name}`),
     ].join("\n");
   },
-  "gmail-read": async ({ input }) => {
-    const messages = await listGmailMessages(input.googleSessionId, 10);
+  "gmail-read": async ({ capability, input, confirmed }) => {
+    if (capability === "mail.draft") {
+      const draft = await createGmailDraft(input.googleSessionId, {
+        to: input.to,
+        subject: input.subject,
+        body: input.body || input.message,
+      });
+      return `Създадена е Gmail чернова до ${draft.to}. Нищо не е изпратено.`;
+    }
+    if (capability === "mail.send" || capability === "mail.delete") {
+      if (confirmed) {
+        const changed = await confirmGoogleAction({
+          ownerId: input.ownerId,
+          googleSessionId: input.googleSessionId,
+          sessionId: input.sessionId,
+          confirmationId: requiredInput(input.confirmationId, "confirmationId"),
+        });
+        return capability === "mail.send"
+          ? `Gmail черновата е изпратена: ${changed.id}.`
+          : `Gmail съобщението е преместено в кошчето: ${changed.id}.`;
+      }
+      const prepared =
+        capability === "mail.send"
+          ? await prepareGmailDraftSend({
+              ownerId: input.ownerId,
+              googleSessionId: input.googleSessionId,
+              sessionId: input.sessionId,
+              draftId: input.draftId,
+            })
+          : await prepareGmailMessageTrash({
+              ownerId: input.ownerId,
+              googleSessionId: input.googleSessionId,
+              sessionId: input.sessionId,
+              messageId: input.messageId,
+            });
+      return confirmationOutput(
+        prepared,
+        capability === "mail.send"
+          ? "Изпращането на Gmail черновата"
+          : "Преместването на Gmail съобщението в кошчето",
+      );
+    }
+    const messages = input.query
+      ? await searchGmailMessages(
+          input.googleSessionId,
+          input.query,
+          input.limit || 10,
+        )
+      : await listGmailMessages(input.googleSessionId, input.limit || 10);
     if (!messages.length) return "Няма намерени съобщения в Gmail.";
     return [
       "Последни съобщения в Gmail:",
@@ -437,6 +703,100 @@ const executors = Object.freeze({
           `• ${message.unread ? "Непрочетено — " : ""}${message.subject} — ${message.from}`,
       ),
     ].join("\n");
+  },
+  "google-contacts": async ({ capability, input, confirmed }) => {
+    if (capability === "contacts.read") {
+      const contacts = await searchGoogleContacts(
+        input.googleSessionId,
+        requiredInput(input.query || input.message, "заявка за контакт"),
+        input.limit || 10,
+      );
+      if (!contacts.length) return "Няма намерени Google контакти.";
+      return [
+        "Намерени контакти:",
+        ...contacts.map(
+          (contact) =>
+            `• ${contact.name}${contact.email ? ` — ${contact.email}` : ""}${contact.phone ? ` — ${contact.phone}` : ""}`,
+        ),
+      ].join("\n");
+    }
+    if (confirmed) {
+      const contact = await confirmGoogleAction({
+        ownerId: input.ownerId,
+        googleSessionId: input.googleSessionId,
+        sessionId: input.sessionId,
+        confirmationId: requiredInput(input.confirmationId, "confirmationId"),
+      });
+      return `Google контактът е записан: ${contact.name}.`;
+    }
+    const prepared = await prepareGoogleContactChange({
+      ownerId: input.ownerId,
+      googleSessionId: input.googleSessionId,
+      sessionId: input.sessionId,
+      operation: capability === "contacts.create" ? "create" : "update",
+      contact: input.contact,
+    });
+    return confirmationOutput(prepared, "Промяната на Google контакта");
+  },
+  "synchron-tasks": async ({ capability, input, confirmed }) => {
+    if (capability === "tasks.read" || capability === "tasks.progress") {
+      const tasks = await listTasks({
+        ownerId: input.ownerId,
+        unfinished:
+          capability === "tasks.progress" ? true : input.unfinished === true,
+        status: input.status,
+        projectId: input.projectId,
+        limit: input.limit,
+      });
+      if (!tasks.length) return "Няма намерени задачи.";
+      return [
+        "Задачи:",
+        ...tasks.map(
+          (task) =>
+            `• ${task.title} — ${task.status}${task.projectId ? ` — проект ${task.projectId}` : ""}`,
+        ),
+      ].join("\n");
+    }
+    if (capability === "tasks.note") {
+      const task = await addTaskNote({
+        ownerId: input.ownerId,
+        taskId: input.taskId,
+        note: input.note || input.message,
+      });
+      return `Бележката е добавена към „${task.title}“.`;
+    }
+    if (capability === "tasks.link-project") {
+      const task = await linkTaskToProject({
+        ownerId: input.ownerId,
+        taskId: input.taskId,
+        projectId: input.projectId,
+      });
+      return `Задачата „${task.title}“ е свързана с проект ${task.projectId}.`;
+    }
+    if (capability === "tasks.status") {
+      if (confirmed) {
+        const task = await confirmTaskStatusChange({
+          ownerId: input.ownerId,
+          sessionId: input.sessionId,
+          confirmationId: requiredInput(input.confirmationId, "confirmationId"),
+        });
+        return `Статусът на „${task.title}“ е променен на ${task.status}.`;
+      }
+      const prepared = await prepareTaskStatusChange({
+        ownerId: input.ownerId,
+        sessionId: input.sessionId,
+        taskId: input.taskId,
+        status: input.status,
+      });
+      return confirmationOutput(prepared, "Промяната на статуса");
+    }
+    const task = await createTaskDraft({
+      ownerId: input.ownerId,
+      title: input.title || input.message,
+      projectId: input.projectId,
+      note: input.note,
+    });
+    return `Създадена е чернова на задача: ${task.title}.`;
   },
   "openai-web-search": async ({ input }) =>
     formatWebSearchResult(await searchWeb(input.message)),
@@ -562,7 +922,14 @@ export async function executeCapability(capability, input = {}, options = {}) {
   if (resolved.requiresConfirmation && options.confirmed !== true) {
     const canPrepareConfirmation =
       options.prepareConfirmation === true &&
-      ["github-write", "google-calendar-write"].includes(resolved.tool.id);
+      [
+        "github-write",
+        "github-confirmed-write",
+        "google-calendar-write",
+        "gmail-read",
+        "google-contacts",
+        "synchron-tasks",
+      ].includes(resolved.tool.id);
     if (!canPrepareConfirmation) {
       throw new CapabilityError(
         `Способността "${capability}" изисква потвърждение.`,

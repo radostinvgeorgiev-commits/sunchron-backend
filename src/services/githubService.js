@@ -1,5 +1,4 @@
-const DEFAULT_REPOSITORY =
-  "radostinvgeorgiev-commits/sunchron-backend";
+const DEFAULT_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 const DEFAULT_API_URL = "https://api.github.com";
 const DEFAULT_TIMEOUT_MS = 10000;
 
@@ -84,11 +83,7 @@ async function githubRequest(path, options = {}) {
 }
 
 function encodePath(path) {
-  return path
-    .split("/")
-    .filter(Boolean)
-    .map(encodeURIComponent)
-    .join("/");
+  return path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
 }
 
 export function getConfiguredRepository() {
@@ -204,6 +199,94 @@ export async function getFileContent(
   };
 }
 
+export async function listOpenIssues(
+  repository = configuredRepository(),
+  limit = 20,
+) {
+  assertAllowedRepository(repository);
+  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
+  const items = await githubRequest(
+    `/repos/${repository}/issues?state=open&per_page=${safeLimit}`,
+  );
+  return items
+    .filter((item) => !item.pull_request)
+    .map((item) => ({
+      number: item.number,
+      title: item.title,
+      state: item.state,
+      updatedAt: item.updated_at,
+      url: item.html_url,
+    }));
+}
+
+export async function listOpenPullRequests(
+  repository = configuredRepository(),
+  limit = 20,
+) {
+  assertAllowedRepository(repository);
+  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
+  const items = await githubRequest(
+    `/repos/${repository}/pulls?state=open&per_page=${safeLimit}`,
+  );
+  return items.map((item) => ({
+    number: item.number,
+    title: item.title,
+    draft: Boolean(item.draft),
+    state: item.state,
+    head: item.head?.ref || null,
+    base: item.base?.ref || null,
+    updatedAt: item.updated_at,
+    url: item.html_url,
+  }));
+}
+
+export async function listRecentWorkflowRuns(
+  repository = configuredRepository(),
+  limit = 20,
+) {
+  assertAllowedRepository(repository);
+  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
+  const data = await githubRequest(
+    `/repos/${repository}/actions/runs?per_page=${safeLimit}`,
+  );
+  return (Array.isArray(data.workflow_runs) ? data.workflow_runs : []).map(
+    (run) => ({
+      id: run.id,
+      name: run.name || run.display_title || "GitHub Actions",
+      event: run.event || null,
+      status: run.status || null,
+      conclusion: run.conclusion || null,
+      headSha: run.head_sha || null,
+      branch: run.head_branch || null,
+      createdAt: run.created_at || null,
+      updatedAt: run.updated_at || null,
+      url: run.html_url || null,
+    }),
+  );
+}
+
+export async function getGitHubReadOverview({
+  repository = configuredRepository(),
+  limit = 10,
+} = {}) {
+  assertAllowedRepository(repository);
+  const [summary, commits, issues, pullRequests, workflowRuns] =
+    await Promise.all([
+      getRepositorySummary(repository),
+      listRecentCommits(repository, limit),
+      listOpenIssues(repository, limit),
+      listOpenPullRequests(repository, limit),
+      listRecentWorkflowRuns(repository, limit),
+    ]);
+  return Object.freeze({
+    summary,
+    commits: Object.freeze(commits),
+    issues: Object.freeze(issues),
+    pullRequests: Object.freeze(pullRequests),
+    workflowRuns: Object.freeze(workflowRuns),
+  });
+}
+
 export function isGitHubReadRequest(message) {
   const text = typeof message === "string" ? message.trim().toLowerCase() : "";
   return (
@@ -223,9 +306,7 @@ function isRepositoryArchitectureRequest(message) {
 }
 
 function extractArray(block, field) {
-  const match = block.match(
-    new RegExp(`${field}:\\s*\\[([\\s\\S]*?)\\]`, "u"),
-  );
+  const match = block.match(new RegExp(`${field}:\\s*\\[([\\s\\S]*?)\\]`, "u"));
   if (!match) return [];
   return [...match[1].matchAll(/"([^"]+)"/gu)].map((item) => item[1]);
 }
@@ -250,7 +331,11 @@ function parseRegisteredTools(source) {
 async function answerRepositoryArchitectureQuestion(text) {
   const repository = getConfiguredRepository();
 
-  if (/къде\s+(?:са|се намират).*tool\s+registry.*capability\s+engine/iu.test(text)) {
+  if (
+    /къде\s+(?:са|се намират).*tool\s+registry.*capability\s+engine/iu.test(
+      text,
+    )
+  ) {
     return [
       "1. Основните файлове са:",
       "• Tool Registry: src/tools/toolRegistry.js",
@@ -329,7 +414,8 @@ async function answerRepositoryArchitectureQuestion(text) {
     return [
       "5. Трите последно поправени проблема са:",
       ...checks.map(
-        (check) => `• ${check.text}${check.ok ? " — потвърдено в main" : " — не е потвърдено"}`,
+        (check) =>
+          `• ${check.text}${check.ok ? " — потвърдено в main" : " — не е потвърдено"}`,
       ),
     ].join("\n");
   }
@@ -377,9 +463,7 @@ export async function answerGitHubReadRequest(message) {
       `В commit ${commit.shortSha} са променени ${commit.files.length} файла:`,
       ...commit.files.map((file) => {
         const status = statusLabels[file.status] || file.status || "променен";
-        const rename = file.previousPath
-          ? ` от ${file.previousPath}`
-          : "";
+        const rename = file.previousPath ? ` от ${file.previousPath}` : "";
         return `• ${file.path} — ${status}${rename}; +${file.additions}/-${file.deletions} реда.`;
       }),
       `Общо: +${commit.stats.additions}/-${commit.stats.deletions} реда.`,
@@ -391,10 +475,9 @@ export async function answerGitHubReadRequest(message) {
     return "В GitHub не намерих commit-и за разрешеното хранилище.";
   }
 
-  const asksForSeveral =
-    /последните|промените|комитите|commit-и|история/u.test(
-      text,
-    );
+  const asksForSeveral = /последните|промените|комитите|commit-и|история/u.test(
+    text,
+  );
   const selected = asksForSeveral ? commits : commits.slice(0, 1);
   const heading =
     selected.length === 1

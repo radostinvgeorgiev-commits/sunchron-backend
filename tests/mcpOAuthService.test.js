@@ -15,10 +15,15 @@ import {
   getMcpProtectedResourceMetadata,
   isMcpOAuthConfigured,
   MCP_AGENT_CHAT_SCOPE,
+  MCP_AUDIT_READ_SCOPE,
   MCP_GITHUB_WRITE_SCOPE,
+  MCP_GOOGLE_READ_SCOPE,
+  MCP_GOOGLE_WRITE_SCOPE,
   MCP_INFRASTRUCTURE_WRITE_SCOPE,
+  MCP_MEMORY_WRITE_SCOPE,
   MCP_OFFLINE_ACCESS_SCOPE,
   MCP_READ_SCOPE,
+  MCP_TASKS_WRITE_SCOPE,
   requiresPersistentMcpReplayGuard,
   resetMcpOAuthStateForTests,
   validateMcpAuthorizationRequest,
@@ -97,7 +102,12 @@ test("publishes OAuth 2.1 protected-resource and authorization metadata", () => 
     scopes_supported: [
       MCP_READ_SCOPE,
       MCP_AGENT_CHAT_SCOPE,
+      MCP_MEMORY_WRITE_SCOPE,
+      MCP_TASKS_WRITE_SCOPE,
       MCP_GITHUB_WRITE_SCOPE,
+      MCP_GOOGLE_READ_SCOPE,
+      MCP_GOOGLE_WRITE_SCOPE,
+      MCP_AUDIT_READ_SCOPE,
       MCP_INFRASTRUCTURE_WRITE_SCOPE,
     ],
   });
@@ -115,7 +125,12 @@ test("publishes OAuth 2.1 protected-resource and authorization metadata", () => 
   assert.deepEqual(authorization.scopes_supported, [
     MCP_READ_SCOPE,
     MCP_AGENT_CHAT_SCOPE,
+    MCP_MEMORY_WRITE_SCOPE,
+    MCP_TASKS_WRITE_SCOPE,
     MCP_GITHUB_WRITE_SCOPE,
+    MCP_GOOGLE_READ_SCOPE,
+    MCP_GOOGLE_WRITE_SCOPE,
+    MCP_AUDIT_READ_SCOPE,
     MCP_INFRASTRUCTURE_WRITE_SCOPE,
     MCP_OFFLINE_ACCESS_SCOPE,
   ]);
@@ -294,10 +309,7 @@ test("accepts offline_access for ChatGPT refresh-token continuity", async () => 
     authorizationInput([MCP_READ_SCOPE, MCP_OFFLINE_ACCESS_SCOPE]),
     { env: ENV, fetchImpl: clientMetadataFetch },
   );
-  assert.deepEqual(request.scopes, [
-    MCP_READ_SCOPE,
-    MCP_OFFLINE_ACCESS_SCOPE,
-  ]);
+  assert.deepEqual(request.scopes, [MCP_READ_SCOPE, MCP_OFFLINE_ACCESS_SCOPE]);
 
   const code = createMcpAuthorizationCode(
     request,
@@ -317,16 +329,10 @@ test("accepts offline_access for ChatGPT refresh-token continuity", async () => 
   );
 
   assert.ok(token.refresh_token);
+  assert.equal(token.scope, `${MCP_READ_SCOPE} ${MCP_OFFLINE_ACCESS_SCOPE}`);
   assert.equal(
-    token.scope,
-    `${MCP_READ_SCOPE} ${MCP_OFFLINE_ACCESS_SCOPE}`,
-  );
-  assert.equal(
-    verifyMcpAccessToken(
-      `Bearer ${token.access_token}`,
-      [MCP_READ_SCOPE],
-      ENV,
-    ).memoryOwnerId,
+    verifyMcpAccessToken(`Bearer ${token.access_token}`, [MCP_READ_SCOPE], ENV)
+      .memoryOwnerId,
     "primary-user",
   );
 });
@@ -446,9 +452,12 @@ test("exchanges a one-time PKCE code for an opaque owner-scoped token", async ()
   );
 });
 
-test("blocks every write authorization for a tester identity", async () => {
+test("blocks every owner-only authorization for a tester identity", async () => {
   for (const scope of [
     MCP_GITHUB_WRITE_SCOPE,
+    MCP_GOOGLE_READ_SCOPE,
+    MCP_GOOGLE_WRITE_SCOPE,
+    MCP_AUDIT_READ_SCOPE,
     MCP_INFRASTRUCTURE_WRITE_SCOPE,
   ]) {
     const request = await validateMcpAuthorizationRequest(

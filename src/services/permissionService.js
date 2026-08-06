@@ -42,6 +42,46 @@ const POLICY = Object.freeze({
     risk: "medium",
     reason: "Четенето е ограничено до изрично свързания Gmail.",
   }),
+  "mail.draft": Object.freeze({
+    decision: "allow",
+    risk: "medium",
+    reason: "Черновата не изпраща съобщение и остава видима за преглед.",
+  }),
+  "mail.send": Object.freeze({
+    decision: "confirm",
+    risk: "high",
+    reason: "Изпращането на имейл изисква отделно точно потвърждение.",
+  }),
+  "mail.delete": Object.freeze({
+    decision: "confirm",
+    risk: "high",
+    reason: "Преместването на имейл в кошчето изисква потвърждение.",
+  }),
+  "contacts.read": Object.freeze({
+    decision: "allow",
+    risk: "medium",
+    reason: "Търсенето е ограничено до изрично свързаните Google контакти.",
+  }),
+  "contacts.write": Object.freeze({
+    decision: "confirm",
+    risk: "high",
+    reason: "Добавянето или промяната на контакт изисква потвърждение.",
+  }),
+  "tasks.read": Object.freeze({
+    decision: "allow",
+    risk: "low",
+    reason: "Четенето е ограничено до задачите на текущия профил.",
+  }),
+  "tasks.draft": Object.freeze({
+    decision: "allow",
+    risk: "low",
+    reason: "Черновите и бележките са обратими и не стартират външно действие.",
+  }),
+  "tasks.update": Object.freeze({
+    decision: "confirm",
+    risk: "medium",
+    reason: "Промяната на статус на задача изисква точно потвърждение.",
+  }),
   "web.read": Object.freeze({
     decision: "allow",
     risk: "low",

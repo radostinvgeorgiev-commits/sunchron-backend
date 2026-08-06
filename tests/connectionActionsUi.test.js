@@ -12,6 +12,9 @@ test("connection and permission controls lead to real setup actions", async () =
   assert.match(app, /window\.location\.href = "\/api\/google\/connect"/u);
   assert.match(app, /data-connect-service="github"/u);
   assert.match(app, /window\.location\.href = "\/api\/github\/connect"/u);
+  assert.match(app, /data-disconnect-service/u);
+  assert.match(app, /\/api\/google\/disconnect/u);
+  assert.match(app, /\/api\/github\/disconnect/u);
   assert.match(app, /GitHub Read работи/u);
   assert.match(app, /GitHub Write е изключен в текущия режим без Copilot/u);
   assert.match(

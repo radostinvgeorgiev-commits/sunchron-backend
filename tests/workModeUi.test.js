@@ -59,14 +59,15 @@ test("Chat and Work are available with projects, agents, and pet state", async (
 
   assert.match(workMode, /function getRequestPayload/u);
   assert.match(workMode, /function createProjectForm/u);
+  assert.match(workMode, /function renderProjectContextForm/u);
   assert.match(workMode, /function createAgentForm/u);
   assert.match(workMode, /function createEditAgentForm/u);
   assert.match(workMode, /Личният любимец/u);
   assert.match(workMode, /label: "Кори"/u);
-  assert.match(workMode, /name: "Codex"/u);
-  assert.match(workMode, /name: "Изследовател"/u);
-  assert.match(workMode, /name: "Организатор"/u);
-  assert.match(workMode, /name: "Документи"/u);
+  assert.match(workMode, /name: "Код"/u);
+  assert.match(workMode, /name: "Проучи"/u);
+  assert.match(workMode, /name: "Организирай"/u);
+  assert.match(workMode, /name: "Напиши"/u);
   assert.match(workMode, /documents: "Документи и поща"/u);
   assert.match(workMode, /codex: "Codex · изолиран кодов анализ"/u);
   assert.match(workMode, /label: "Капка"/u);
@@ -143,7 +144,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   dom.window.SynchronWorkMode.openManager();
 
   const researcher = [...dom.window.document.querySelectorAll("button")].find(
-    (button) => button.textContent.includes("Изследовател"),
+    (button) => button.textContent.includes("Проучи"),
   );
   assert.ok(researcher);
   researcher.click();
@@ -153,7 +154,9 @@ test("work mode runs in the browser and creates an isolated project payload", as
     "researcher",
   );
 
-  const projectForm = dom.window.document.querySelectorAll("form")[0];
+  const projectForm = dom.window.document
+    .getElementById("newWorkProjectName")
+    .closest("form");
   projectForm.querySelector("input").value = "Тестов проект";
   projectForm.querySelector("textarea").value = "Готов резултат";
   projectForm.dispatchEvent(
@@ -166,14 +169,52 @@ test("work mode runs in the browser and creates an isolated project payload", as
   assert.equal(payload.workContext.project.objective, "Готов резултат");
   assert.match(payload.workContext.project.id, /^project-/u);
   assert.equal(payload.workContext.project.run, null);
+  assert.equal(payload.workContext.project.decisions.length, 0);
+  assert.equal(payload.workContext.project.resources.length, 0);
+  assert.equal(payload.workContext.project.toolIds.length, 0);
   assert.equal(payload.workContext.agent.engine, "ai-core");
   assert.match(
     dom.window.localStorage.getItem("synchronWorkMode:tester-one"),
     /Тестов проект/u,
   );
 
+  const contextForm = dom.window.document.querySelector(
+    ".work-project-context-form",
+  );
+  contextForm.querySelector("#activeProjectDecisions").value =
+    "Питай преди промяна\nСамо HTTPS ресурси";
+  contextForm.querySelector("#activeProjectResources").value =
+    "План | https://example.com/plan\nОпасен | javascript:alert(1)";
+  contextForm.querySelector('input[value="github-read"]').checked = true;
+  contextForm.dispatchEvent(
+    new dom.window.Event("submit", { bubbles: true, cancelable: true }),
+  );
+  const contextualPayload = dom.window.SynchronWorkMode.getRequestPayload();
+  assert.deepEqual(
+    Array.from(
+      contextualPayload.workContext.project.decisions,
+      (item) => item.text,
+    ),
+    ["Питай преди промяна", "Само HTTPS ресурси"],
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(contextualPayload.workContext.project.resources)),
+    [
+      {
+        label: "План",
+        url: "https://example.com/plan",
+        type: "link",
+      },
+    ],
+  );
+  assert.deepEqual(Array.from(contextualPayload.workContext.project.toolIds), [
+    "github-read",
+  ]);
+
   dom.window.SynchronWorkMode.openManager();
-  const agentForm = dom.window.document.querySelectorAll("form")[1];
+  const agentForm = dom.window.document
+    .getElementById("newWorkAgentName")
+    .closest("form");
   agentForm.querySelector("input").value = "Тестов ръководител";
   agentForm.querySelector("#newWorkAgentRole").value = "organizer";
   agentForm.querySelector("#newWorkAgentModel").value = "gpt-5.6-sol";
@@ -219,7 +260,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   );
   assert.match(
     dom.window.document.getElementById("dataDrawerBody").textContent,
-    /Агентът „Обновен ръководител“ е обновен и избран/u,
+    /Режимът „Обновен ръководител“ е обновен и избран/u,
   );
 
   dom.window.SynchronWorkMode.setBusy(true);
@@ -232,6 +273,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
     dom.window.document.getElementById("workPet").dataset.petState,
     "needs-input",
   );
+  dom.window.localStorage.setItem("synchronSessionId", "conversation-1");
   dom.window.SynchronWorkMode.onDone({
     task: { id: "task-codex", status: "completed", verified: true },
     projectRun: {
@@ -253,6 +295,10 @@ test("work mode runs in the browser and creates an isolated project payload", as
     "Добави целеви тест.",
   );
   assert.equal(continuedPayload.workContext.project.run.codeChanged, false);
+  assert.deepEqual(
+    Array.from(continuedPayload.workContext.project.conversationIds),
+    ["conversation-1"],
+  );
   assert.equal(
     dom.window.document.getElementById("workPet").dataset.petState,
     "needs-input",
@@ -346,7 +392,9 @@ test("a late workspace read cannot erase a project created during startup", asyn
   dom.window.SynchronWorkMode.init({ id: "race-tester", role: "tester" });
   dom.window.document.getElementById("workModeToolbarBtn").click();
   dom.window.SynchronWorkMode.openManager();
-  const projectForm = dom.window.document.querySelectorAll("form")[0];
+  const projectForm = dom.window.document
+    .getElementById("newWorkProjectName")
+    .closest("form");
   projectForm.querySelector("input").value = "Неподлежащо на загуба";
   projectForm.querySelector("textarea").value = "Запази локалната промяна";
   projectForm.dispatchEvent(
@@ -413,7 +461,9 @@ test("a pending local project survives reload and replaces stale remote state", 
   await nextTurn();
   firstDom.window.document.getElementById("workModeToolbarBtn").click();
   firstDom.window.SynchronWorkMode.openManager();
-  const projectForm = firstDom.window.document.querySelectorAll("form")[0];
+  const projectForm = firstDom.window.document
+    .getElementById("newWorkProjectName")
+    .closest("form");
   projectForm.querySelector("input").value = "Локален проект";
   projectForm.querySelector("textarea").value = "Чака синхронизация";
   projectForm.dispatchEvent(

@@ -45,6 +45,10 @@ import {
   mcpToolSecuritySchemes,
 } from "./mcpOAuthService.js";
 import { sendMcpAgentMessage } from "./mcpAgentConversationService.js";
+import {
+  createMcpCapabilityHandler,
+  MCP_CAPABILITY_TOOLS,
+} from "./mcpCapabilityService.js";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 
@@ -66,6 +70,22 @@ const CONVERSATION_ANNOTATIONS = Object.freeze({
   openWorldHint: true,
   idempotentHint: false,
 });
+const SAFE_MCP_ERROR_NAMES = new Set([
+  "GitHubActionError",
+  "GitHubServiceError",
+  "GoogleActionError",
+  "GoogleDriveError",
+  "MemoryDeleteConfirmationError",
+  "MemoryWriteConfirmationError",
+  "TaskManagementError",
+  "WorkspaceStateError",
+]);
+const SAFE_CONFIRMATION_ERROR_CODES = new Set([
+  "CONFIRMATION_NOT_FOUND",
+  "CONFIRMATION_EXPIRED",
+  "SESSION_MISMATCH",
+  "CONFIRMATION_PERSISTENCE_FAILED",
+]);
 
 export const MCP_TOOLS = Object.freeze([
   {
@@ -274,6 +294,7 @@ export const MCP_TOOLS = Object.freeze([
     ),
     annotations: DESTRUCTIVE_ANNOTATIONS,
   },
+  ...MCP_CAPABILITY_TOOLS,
 ]);
 
 function textResult(data, summary) {
@@ -288,6 +309,26 @@ function safeLimit(value, fallback = 20) {
   return Number.isInteger(parsed)
     ? Math.min(Math.max(parsed, 1), 50)
     : fallback;
+}
+
+function safeMcpError(error) {
+  if (error?.code === -32601 || error?.code === -32602) {
+    return { code: error.code, message: error.message };
+  }
+  if (
+    SAFE_MCP_ERROR_NAMES.has(error?.name) ||
+    SAFE_CONFIRMATION_ERROR_CODES.has(error?.code)
+  ) {
+    return {
+      code: -32000,
+      message: error.message,
+      data: { code: error.code || "CAPABILITY_FAILED" },
+    };
+  }
+  return {
+    code: -32603,
+    message: "SYNCHRON-X временно не може да изпълни заявката.",
+  };
 }
 
 function publicDigitalOceanStatus(status = {}, oauth = {}) {
@@ -353,7 +394,15 @@ export function createMcpRequestHandler({
   runAgentConversation = sendMcpAgentMessage,
   executeWrite = executeAuditedWriteAction,
 } = {}) {
+  const callCapabilityTool = createMcpCapabilityHandler({ audit });
+
   async function callTool(name, args, ownerId, identity) {
+    const capabilityCall = await callCapabilityTool(name, args, {
+      ownerId,
+      identity,
+    });
+    if (capabilityCall.handled) return capabilityCall.result;
+
     let result;
     if (name === "get_personal_context") {
       const items = await listMemories({ scope: "personal", ownerId });
@@ -609,7 +658,7 @@ export function createMcpRequestHandler({
             capabilities: { tools: { listChanged: false } },
             serverInfo: { name: "synchron-x-memory", version: "1.0.0" },
             instructions:
-              "Използвай паметта само когато е свързана с въпроса. Личният и проектният контекст са различни. Повечето инструменти са само за четене. Разговорът с AI CORE пази нишката, но не изпълнява външни действия. Двата destructive инструмента работят само след точен план, еднократно потвърждение и повторна проверка.",
+              "Използвай само нужните за задачата права. Личният и проектният контекст са различни. Повечето инструменти са само за четене. Разговорът с AI CORE пази нишката, но не изпълнява външни действия. Всеки destructive инструмент подготвя отделен точен план и се изпълнява само след еднократно потвърждение. Merge, промяна на secrets и production deployment не са достъпни през този MCP.",
           },
         };
       }
@@ -638,13 +687,7 @@ export function createMcpRequestHandler({
       return {
         jsonrpc: "2.0",
         id: message.id ?? null,
-        error: {
-          code: Number.isInteger(error?.code) ? error.code : -32603,
-          message:
-            error?.code === -32602
-              ? error.message
-              : "SYNCHRON-X временно не може да изпълни заявката.",
-        },
+        error: safeMcpError(error),
       };
     }
   };

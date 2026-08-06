@@ -47,18 +47,28 @@ test("allows only the exact confirmed DigitalOcean www domain action", () => {
   );
 });
 
-test("blocks every legacy direct GitHub write action", () => {
+test("allows only the exact bounded direct GitHub write actions", () => {
   for (const action of [
     "github.write:create_file",
     "github.write:update_file",
     "github.write:create_branch",
     "github.write:create_pr",
+    "github.write:close_issue",
   ]) {
     assert.equal(
       isAllowedAction(action),
-      false,
-      `expected "${action}" to be blocked`,
+      true,
+      `expected "${action}" to be explicitly allowed`,
     );
+  }
+  for (const action of [
+    "github.write:merge",
+    "github.write:push_main",
+    "github.write:change_secret",
+    "github.write:deploy_production",
+    "github.write:delete_repository",
+  ]) {
+    assert.equal(isAllowedAction(action), false);
   }
 });
 
@@ -273,8 +283,10 @@ test("deny of non-existent confirmation returns CONFIRMATION_NOT_FOUND", () => {
   );
 });
 
-
 test("requires durable confirmations in production", () => {
-  assert.equal(requiresPersistentConfirmations({ NODE_ENV: "production" }), true);
+  assert.equal(
+    requiresPersistentConfirmations({ NODE_ENV: "production" }),
+    true,
+  );
   assert.equal(requiresPersistentConfirmations({ NODE_ENV: "test" }), false);
 });

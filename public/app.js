@@ -11,6 +11,7 @@ const state = {
   conversations: [],
   conversationLoadError: "",
   memoryItems: [],
+  memoryWorkspace: null,
   recognition: null,
   listening: false,
   authenticatedUser: null,
@@ -684,7 +685,10 @@ function toolState(tool, googleConnected, githubConnected) {
   if (isGoogleTool(tool) && !googleConnected) {
     return { label: "Иска свързване", className: "confirm" };
   }
-  if (tool.id === "github-write" && !githubConnected) {
+  if (
+    ["github-write", "github-confirmed-write"].includes(tool.id) &&
+    !githubConnected
+  ) {
     return { label: "Иска свързване", className: "confirm" };
   }
   return { label: "Работи", className: "allow" };
@@ -698,13 +702,16 @@ function toolStatusActions(tool, status, googleConnected, githubConnected) {
     action =
       '<button type="button" class="tool-connect-btn" data-connect-service="google">Свържи Google</button>';
   } else if (
-    tool.id === "github-write" &&
+    ["github-write", "github-confirmed-write"].includes(tool.id) &&
     tool.configured &&
     !githubConnected
   ) {
     action =
       '<button type="button" class="tool-connect-btn" data-connect-service="github">Свържи GitHub</button>';
-  } else if (tool.id === "github-write" && !tool.configured) {
+  } else if (
+    ["github-write", "github-confirmed-write"].includes(tool.id) &&
+    !tool.configured
+  ) {
     action =
       '<button type="button" class="tool-connect-btn" data-github-setup>Настрой GitHub</button>';
   }
@@ -722,12 +729,18 @@ function permissionAction(item, toolMap, googleConnected, githubConnected) {
     "calendar.write",
     "drive.read",
     "mail.read",
+    "mail.draft",
+    "mail.send",
+    "mail.delete",
+    "contacts.read",
+    "contacts.write",
   ]);
   if (googlePermissions.has(item.action) && !googleConnected) {
     return '<button type="button" class="tool-connect-btn" data-connect-service="google">Свържи Google</button>';
   }
 
-  const githubWrite = toolMap.get("github-write");
+  const githubWrite =
+    toolMap.get("github-confirmed-write") || toolMap.get("github-write");
   if (
     item.action === "github.write" &&
     githubWrite?.availabilityCode === "COPILOT_AUTOMATION_DISABLED"
@@ -755,6 +768,24 @@ function permissionAction(item, toolMap, googleConnected, githubConnected) {
   return "";
 }
 
+function connectionControls(googleConnected, githubConnected) {
+  return `
+    <section class="connection-control-grid" aria-label="Управление на връзките">
+      <article class="connection-control-card">
+        <div><strong>Google</strong><p>Drive, Gmail, Calendar и Contacts</p></div>
+        <button type="button" class="tool-connect-btn" data-${googleConnected ? "disconnect" : "connect"}-service="google">
+          ${googleConnected ? "Спри достъпа" : "Свържи Google"}
+        </button>
+      </article>
+      <article class="connection-control-card">
+        <div><strong>GitHub</strong><p>Код, issues, Pull Request-и и Actions</p></div>
+        <button type="button" class="tool-connect-btn" data-${githubConnected ? "disconnect" : "connect"}-service="github">
+          ${githubConnected ? "Спри достъпа" : "Свържи GitHub"}
+        </button>
+      </article>
+    </section>`;
+}
+
 async function openToolsDrawer() {
   openDataDrawer("Инструменти");
   renderDrawerLoading();
@@ -779,9 +810,18 @@ async function openToolsDrawer() {
       "github-read": "Проверява commit-и и файлове. Само за четене.",
       "github-write":
         "Copilot мост: отделен клон, commit-и и Pull Request след точно потвърждение. Без автоматично сливане.",
+      "github-confirmed-write":
+        "Създава отделен branch, файл, commit или Pull Request само след точно потвърждение. Merge, secrets и production deployment са забранени.",
       "google-drive-read": "Чете разрешени файлове от Google Drive.",
       "google-calendar-read": "Показва събития от Google Calendar.",
-      "gmail-read": "Показва разрешени имейли. Не изпраща.",
+      "gmail-read":
+        "Търси и чете имейли и създава чернови. Изпращане и кошче се изпълняват само след точно потвърждение.",
+      "google-contacts":
+        "Търси контакти; добавяне и промяна стават само след потвърждение.",
+      "synchron-tasks":
+        "Пази задачи, бележки, проектни връзки и потвърждавани статуси.",
+      "synchron-agent-chat":
+        "Разговаря с AI CORE до 10 последователни въпроса в една MCP нишка.",
       "openai-web-search": "Търси актуална информация в интернет.",
       "opensearch-memory": "Пази лична и проектна памет под твой контрол.",
       "synchron-system-inspector":
@@ -791,6 +831,7 @@ async function openToolsDrawer() {
       <div class="permission-default">
         Показано е реалното състояние. „Регистриран“ не означава автоматично „работи“.
       </div>
+      ${connectionControls(Boolean(googleData.connected), Boolean(githubData.connected))}
       <section class="drawer-section permission-list">
         <button type="button" class="permission-card tool-status-card system-control-link" data-system-configuration>
           <div>
@@ -962,11 +1003,20 @@ async function openMemoryDrawer() {
   openDataDrawer("Памет");
   renderDrawerLoading();
   try {
-    const response = await fetch("/memory/profile", { cache: "no-store" });
-    if (!response.ok) throw new Error("Паметта временно не е достъпна.");
-    const data = await response.json();
+    const [response, workspaceResponse] = await Promise.all([
+      fetch("/memory/profile", { cache: "no-store" }),
+      fetch("/api/workspaces", { cache: "no-store" }),
+    ]);
+    if (!response.ok || !workspaceResponse.ok) {
+      throw new Error("Паметта временно не е достъпна.");
+    }
+    const [data, workspace] = await Promise.all([
+      response.json(),
+      workspaceResponse.json(),
+    ]);
     markMemoryOperational();
     state.memoryItems = Array.isArray(data.items) ? data.items : [];
+    state.memoryWorkspace = workspace;
     renderMemoryItems();
   } catch (error) {
     renderDrawerError(error.message);
@@ -978,6 +1028,10 @@ function renderMemoryItems() {
     (item) => (item.scope || "personal") === "personal",
   );
   const project = state.memoryItems.filter((item) => item.scope === "project");
+  const memoryMode =
+    state.memoryWorkspace?.state?.preferences?.memoryMode === "disabled"
+      ? "disabled"
+      : "confirm";
   const section = (title, items) => `
         <section class="drawer-section">
             <h3>${title} <span>${items.length}</span></h3>
@@ -994,10 +1048,16 @@ function renderMemoryItems() {
                         ${
                           item.readOnly
                             ? ""
-                            : `<button type="button" data-memory-delete="${escapeHtml(item.id)}"
-                              aria-label="Изтрий този спомен" title="Изтрий">
-                              <i class="fa-regular fa-trash-can"></i>
-                            </button>`
+                            : `<span class="memory-card-actions">
+                                <button type="button" data-memory-edit="${escapeHtml(item.id)}"
+                                  aria-label="Редактирай този спомен" title="Редактирай">
+                                  <i class="fa-regular fa-pen-to-square"></i>
+                                </button>
+                                <button type="button" data-memory-delete="${escapeHtml(item.id)}"
+                                  aria-label="Изтрий този спомен" title="Изтрий">
+                                  <i class="fa-regular fa-trash-can"></i>
+                                </button>
+                              </span>`
                         }
                     </article>`,
                     )
@@ -1006,7 +1066,16 @@ function renderMemoryItems() {
             }
         </section>`;
   elements.dataDrawerBody.innerHTML =
-    section("За теб", personal) + section("За проекта", project);
+    `<section class="memory-policy-card">
+      <strong>Правило за запомняне</strong>
+      <p>AI CORE никога не запомня автоматично. Избери дали да пита преди всеки запис или напълно да забрани записването.</p>
+      <div class="memory-policy-actions">
+        <button type="button" data-memory-policy="confirm" aria-pressed="${memoryMode === "confirm"}">Винаги питай</button>
+        <button type="button" data-memory-policy="disabled" aria-pressed="${memoryMode === "disabled"}">Не записвай</button>
+      </div>
+    </section>` +
+    section("За теб", personal) +
+    section("За проекта", project);
 }
 
 async function openPermissionsDrawer() {
@@ -1050,6 +1119,7 @@ async function openPermissionsDrawer() {
                 Зеленото е активно. Оранжевото също работи, но пита преди рисково действие.
                 Несвързаните услуги имат отделен бутон за вход.
             </div>
+            ${connectionControls(Boolean(googleData.connected), Boolean(githubData.connected))}
             <section class="drawer-section permission-list">
                 ${(data.permissions || [])
                   .map(
@@ -1132,6 +1202,38 @@ function showPermissionInfo(action) {
 }
 
 async function handleDataDrawerAction(event) {
+  const memoryPolicy = event.target.closest("[data-memory-policy]");
+  if (memoryPolicy) {
+    const mode = memoryPolicy.dataset.memoryPolicy;
+    if (
+      !["confirm", "disabled"].includes(mode) ||
+      !state.memoryWorkspace?.state
+    ) {
+      return;
+    }
+    const previous = state.memoryWorkspace.state.preferences || {};
+    state.memoryWorkspace.state.preferences = { ...previous, memoryMode: mode };
+    try {
+      const response = await fetch("/api/workspaces", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state: state.memoryWorkspace.state }),
+      });
+      if (!response.ok)
+        throw new Error("Настройката не можа да бъде запазена.");
+      state.memoryWorkspace = await response.json();
+      renderMemoryItems();
+      logAction(
+        mode === "disabled"
+          ? "Записът в паметта е изключен"
+          : "Паметта ще пита преди всеки запис",
+      );
+    } catch (error) {
+      renderDrawerError(error.message);
+    }
+    return;
+  }
+
   if (event.target.closest("[data-system-configuration]")) {
     await openSystemConfigurationDrawer();
     return;
@@ -1142,6 +1244,35 @@ async function handleDataDrawerAction(event) {
       window.location.href = "/api/google/connect";
     } else if (connectionButton.dataset.connectService === "github") {
       window.location.href = "/api/github/connect";
+    }
+    return;
+  }
+
+  const disconnectButton = event.target.closest("[data-disconnect-service]");
+  if (disconnectButton) {
+    const service = disconnectButton.dataset.disconnectService;
+    if (
+      !window.confirm(
+        `Да спра ли достъпа на AI CORE до ${service === "google" ? "Google" : "GitHub"}?`,
+      )
+    ) {
+      return;
+    }
+    disconnectButton.disabled = true;
+    try {
+      const response = await fetch(
+        service === "google"
+          ? "/api/google/disconnect"
+          : "/api/github/disconnect",
+        { method: "POST" },
+      );
+      if (!response.ok) throw new Error("Връзката не можа да бъде прекъсната.");
+      await openPermissionsDrawer();
+      logAction(
+        `Прекъсната е връзката с ${service === "google" ? "Google" : "GitHub"}`,
+      );
+    } catch (error) {
+      renderDrawerError(error.message);
     }
     return;
   }
@@ -1164,6 +1295,68 @@ async function handleDataDrawerAction(event) {
   const permissionInfo = event.target.closest("[data-permission-info]");
   if (permissionInfo) {
     showPermissionInfo(permissionInfo.dataset.permissionInfo);
+    return;
+  }
+
+  const editButton = event.target.closest("button[data-memory-edit]");
+  if (editButton) {
+    const item = state.memoryItems.find(
+      (candidate) => candidate.id === editButton.dataset.memoryEdit,
+    );
+    if (!item) return;
+    const nextFact = window.prompt(
+      "Редактирай точния текст на спомена:",
+      item.fact,
+    );
+    if (!nextFact || nextFact.trim() === item.fact) return;
+    editButton.disabled = true;
+    try {
+      const preparedResponse = await fetch("/memory/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: state.sessionId,
+          memoryId: item.id,
+          fact: nextFact.trim(),
+          scope: item.scope || "personal",
+        }),
+      });
+      const prepared = await preparedResponse.json().catch(() => null);
+      if (
+        preparedResponse.status !== 409 ||
+        prepared?.code !== "MEMORY_WRITE_CONFIRMATION_REQUIRED" ||
+        !prepared?.confirmationId
+      ) {
+        throw new Error(
+          prepared?.error || "Промяната не можа да бъде подготвена.",
+        );
+      }
+      if (!window.confirm(`Да заменя ли спомена с:\n\n${nextFact.trim()}`)) {
+        editButton.disabled = false;
+        return;
+      }
+      const response = await fetch("/memory/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: state.sessionId,
+          confirmationId: prepared.confirmationId,
+        }),
+      });
+      const updated = await response.json().catch(() => null);
+      if (!response.ok || !updated?.items?.[0]) {
+        throw new Error(
+          updated?.error || "Споменът не можа да бъде редактиран.",
+        );
+      }
+      state.memoryItems = state.memoryItems.map((candidate) =>
+        candidate.id === item.id ? updated.items[0] : candidate,
+      );
+      renderMemoryItems();
+      logAction("Редактиран е потвърден спомен");
+    } catch (error) {
+      renderDrawerError(error.message);
+    }
     return;
   }
 

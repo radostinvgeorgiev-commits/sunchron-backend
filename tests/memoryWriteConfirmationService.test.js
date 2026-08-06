@@ -10,6 +10,7 @@ import {
 import {
   confirmMemoryWrite,
   extractMemoryWriteConfirmationId,
+  MEMORY_UPDATE_ACTION,
   MEMORY_WRITE_ACTION,
   prepareMemoryWrite,
 } from "../src/services/memoryWriteConfirmationService.js";
@@ -95,6 +96,117 @@ test("consumes before one write bound to the same owner and exact fact", async (
       replaced: false,
     },
   ]);
+});
+
+test("updates one exact memory id only after confirmation", async () => {
+  let storedConfirmation;
+  const prepared = await prepareMemoryWrite({
+    sessionId: "session-a",
+    ownerId: "owner-a",
+    replaceId: "memory-old",
+    items: [{ fact: "Любимият ми цвят е зелен", scope: "personal" }],
+    loadWorkspace: async () => ({
+      state: { preferences: { memoryMode: "confirm" } },
+    }),
+    createConfirmation: async (input) => {
+      storedConfirmation = { id: "confirmation-update", ...input };
+      return storedConfirmation;
+    },
+  });
+
+  assert.equal(storedConfirmation.action, MEMORY_UPDATE_ACTION);
+  assert.equal(storedConfirmation.resource.replaceId, "memory-old");
+  assert.equal(prepared.action, MEMORY_UPDATE_ACTION);
+  let savedArgs;
+  const result = await confirmMemoryWrite({
+    confirmationId: "confirmation-update",
+    sessionId: "session-a",
+    ownerId: "owner-a",
+    validateConfirmation: async () => storedConfirmation,
+    consumeConfirmation: async () => {},
+    executeWrite: executeWithoutAudit,
+    loadWorkspace: async () => ({
+      state: { preferences: { memoryMode: "confirm" } },
+    }),
+    updateMemory: async (...args) => {
+      savedArgs = args;
+      return {
+        id: "memory-new",
+        fact: "Любимият ми цвят е зелен",
+        scope: "personal",
+      };
+    },
+  });
+
+  assert.deepEqual(savedArgs, [
+    "memory-old",
+    "Любимият ми цвят е зелен",
+    "personal",
+    "owner-a",
+  ]);
+  assert.deepEqual(result, [
+    {
+      id: "memory-new",
+      fact: "Любимият ми цвят е зелен",
+      scope: "personal",
+      replaced: true,
+    },
+  ]);
+});
+
+test("owner memory policy blocks preparation and confirmation when writes are disabled", async () => {
+  const loadWorkspace = async () => ({
+    state: { preferences: { memoryMode: "disabled" } },
+  });
+  await assert.rejects(
+    () =>
+      prepareMemoryWrite({
+        sessionId: "session-a",
+        ownerId: "owner-a",
+        items: [{ fact: "Не записвай това" }],
+        loadWorkspace,
+      }),
+    (error) => error.code === "MEMORY_WRITE_DISABLED" && error.status === 403,
+  );
+
+  const ownerFingerprint = await (async () => {
+    let resource;
+    await prepareMemoryWrite({
+      sessionId: "session-a",
+      ownerId: "owner-a",
+      items: [{ fact: "Подготвен факт" }],
+      loadWorkspace: async () => ({
+        state: { preferences: { memoryMode: "confirm" } },
+      }),
+      createConfirmation: async (input) => {
+        resource = input.resource;
+        return { id: "confirmation-policy", ...input };
+      },
+    });
+    return resource;
+  })();
+  let consumed = false;
+  await assert.rejects(
+    () =>
+      confirmMemoryWrite({
+        confirmationId: "confirmation-policy",
+        sessionId: "session-a",
+        ownerId: "owner-a",
+        validateConfirmation: async () => ({
+          action: MEMORY_WRITE_ACTION,
+          resource: ownerFingerprint,
+          params: {
+            items: [{ fact: "Подготвен факт", scope: "personal" }],
+          },
+        }),
+        consumeConfirmation: async () => {
+          consumed = true;
+        },
+        loadWorkspace,
+      }),
+    (error) => error.code === "MEMORY_WRITE_DISABLED" && error.status === 403,
+  );
+  assert.equal(consumed, false);
 });
 
 test("blocks a different profile before consuming or writing", async () => {

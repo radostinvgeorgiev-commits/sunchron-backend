@@ -7,6 +7,7 @@ const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DRIVE_API_URL = "https://www.googleapis.com/drive/v3";
 const GMAIL_API_URL = "https://gmail.googleapis.com/gmail/v1";
 const CALENDAR_API_URL = "https://www.googleapis.com/calendar/v3";
+const PEOPLE_API_URL = "https://people.googleapis.com/v1";
 const GOOGLE_SESSION_INDEX =
   process.env.GOOGLE_SESSION_INDEX || "synchron-google-sessions-v1";
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -181,7 +182,11 @@ export function buildAuthorizationUrl(state) {
       "email",
       "https://www.googleapis.com/auth/drive.readonly",
       "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/gmail.compose",
+      "https://www.googleapis.com/auth/gmail.modify",
       "https://www.googleapis.com/auth/calendar.events",
+      "https://www.googleapis.com/auth/contacts.readonly",
+      "https://www.googleapis.com/auth/contacts",
     ].join(" "),
     access_type: "offline",
     prompt: "consent",
@@ -401,6 +406,39 @@ export async function hasSession(id) {
   return Boolean(await loadSession(id));
 }
 
+export async function getLatestGoogleSessionId() {
+  for (const [id] of [...sessions.entries()].reverse()) {
+    if (await hasSession(id)) return id;
+  }
+
+  const client = getOpenSearchClient();
+  if (!client) return null;
+  try {
+    const response = await client.search({
+      index: GOOGLE_SESSION_INDEX,
+      body: { size: 20, sort: [{ updatedAt: { order: "desc" } }] },
+    });
+    const hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
+    for (const hit of hits) {
+      try {
+        const session = decryptGoogleSession(hit._source);
+        if (session?.access_token) {
+          sessions.set(hit._id, session);
+          return hit._id;
+        }
+      } catch {
+        // Ignore stale or unreadable sessions and continue fail-closed.
+      }
+    }
+  } catch (error) {
+    const status = error?.statusCode || error?.meta?.statusCode;
+    if (status !== 404) {
+      logSafeError("[Google session] Latest session lookup failed", error);
+    }
+  }
+  return null;
+}
+
 export async function listDriveFiles(id, fetchImpl = fetch) {
   const mimeQuery = [...SUPPORTED_MIME_TYPES]
     .map((mimeType) => `mimeType='${mimeType}'`)
@@ -560,11 +598,20 @@ function headerValue(headers, name) {
   return header?.value || "";
 }
 
-export async function listGmailMessages(id, limit = 10, fetchImpl = fetch) {
+export async function searchGmailMessages(
+  id,
+  query = "in:anywhere",
+  limit = 10,
+  fetchImpl = fetch,
+) {
   const maxResults = Math.min(Math.max(Number(limit) || 10, 1), 20);
+  const cleanQuery =
+    typeof query === "string" && query.trim()
+      ? query.trim().slice(0, 500)
+      : "in:anywhere";
   const params = new URLSearchParams({
     maxResults: String(maxResults),
-    q: "in:anywhere",
+    q: cleanQuery,
   });
   const listResponse = await googleFetch(
     id,
@@ -608,6 +655,351 @@ export async function listGmailMessages(id, limit = 10, fetchImpl = fetch) {
   );
 }
 
+export async function listGmailMessages(id, limit = 10, fetchImpl = fetch) {
+  return searchGmailMessages(id, "in:anywhere", limit, fetchImpl);
+}
+
+export async function getGmailMessage(id, messageId, fetchImpl = fetch) {
+  const cleanMessageId = gmailMessageId(messageId);
+  const params = new URLSearchParams({ format: "metadata" });
+  for (const name of ["From", "To", "Subject", "Date"]) {
+    params.append("metadataHeaders", name);
+  }
+  const response = await googleFetch(
+    id,
+    `${GMAIL_API_URL}/users/me/messages/${encodeURIComponent(cleanMessageId)}?${params}`,
+    {},
+    fetchImpl,
+    "Gmail",
+  );
+  const message = await response.json();
+  const headers = message.payload?.headers || [];
+  return {
+    id: message.id,
+    threadId: message.threadId || null,
+    from: headerValue(headers, "From"),
+    to: headerValue(headers, "To"),
+    subject: headerValue(headers, "Subject") || "(Без тема)",
+    date: headerValue(headers, "Date"),
+    snippet: message.snippet || "",
+  };
+}
+
+export async function getGmailDraft(id, draftId, fetchImpl = fetch) {
+  const cleanDraftId = gmailMessageId(draftId, "Gmail draftId");
+  const params = new URLSearchParams({ format: "metadata" });
+  for (const name of ["To", "Subject", "Date"]) {
+    params.append("metadataHeaders", name);
+  }
+  const response = await googleFetch(
+    id,
+    `${GMAIL_API_URL}/users/me/drafts/${encodeURIComponent(cleanDraftId)}?${params}`,
+    {},
+    fetchImpl,
+    "Gmail",
+  );
+  const draft = await response.json();
+  const headers = draft.message?.payload?.headers || [];
+  if (!draft?.id || !draft?.message?.id) {
+    throw new GoogleDriveError(
+      "Gmail черновата не е намерена.",
+      404,
+      "GMAIL_DRAFT_NOT_FOUND",
+    );
+  }
+  return {
+    id: draft.id,
+    messageId: draft.message.id,
+    threadId: draft.message.threadId || null,
+    to: headerValue(headers, "To"),
+    subject: headerValue(headers, "Subject") || "(Без тема)",
+  };
+}
+
+function cleanHeader(value, maxLength, label, { required = false } = {}) {
+  const clean = typeof value === "string" ? value.trim() : "";
+  if (
+    (required && !clean) ||
+    /[\r\n]/u.test(clean) ||
+    clean.length > maxLength
+  ) {
+    throw new GoogleDriveError(
+      `Невалидно поле „${label}“ за Gmail.`,
+      400,
+      "GMAIL_DRAFT_INVALID",
+    );
+  }
+  return clean;
+}
+
+function cleanEmail(value, label = "получател") {
+  const email = cleanHeader(value, 320, label, { required: true });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email)) {
+    throw new GoogleDriveError(
+      `Невалиден ${label}.`,
+      400,
+      "GMAIL_ADDRESS_INVALID",
+    );
+  }
+  return email;
+}
+
+function mimeSubject(value) {
+  const subject = cleanHeader(value, 500, "тема");
+  return /^[\x20-\x7e]*$/u.test(subject)
+    ? subject
+    : `=?UTF-8?B?${Buffer.from(subject, "utf8").toString("base64")}?=`;
+}
+
+function gmailMessageId(value, label = "Gmail идентификатор") {
+  const clean = cleanHeader(value, 200, label, { required: true });
+  if (!/^[A-Za-z0-9_-]+$/u.test(clean)) {
+    throw new GoogleDriveError(`Невалиден ${label}.`, 400, "GMAIL_ID_INVALID");
+  }
+  return clean;
+}
+
+export async function createGmailDraft(
+  id,
+  { to, subject = "", body } = {},
+  fetchImpl = fetch,
+) {
+  const recipient = cleanEmail(to);
+  const cleanBody =
+    typeof body === "string" && body.trim() && body.length <= 20_000
+      ? body.trim()
+      : "";
+  if (!cleanBody) {
+    throw new GoogleDriveError(
+      "Липсва валиден текст за Gmail черновата.",
+      400,
+      "GMAIL_DRAFT_INVALID",
+    );
+  }
+  const mime = [
+    `To: ${recipient}`,
+    `Subject: ${mimeSubject(subject)}`,
+    "MIME-Version: 1.0",
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    cleanBody,
+  ].join("\r\n");
+  const response = await googleFetch(
+    id,
+    `${GMAIL_API_URL}/users/me/drafts`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: { raw: Buffer.from(mime, "utf8").toString("base64url") },
+      }),
+    },
+    fetchImpl,
+    "Gmail",
+  );
+  const draft = await response.json();
+  if (!draft?.id || !draft?.message?.id) {
+    throw new GoogleDriveError(
+      "Gmail не върна потвърждение за черновата.",
+      502,
+      "GMAIL_DRAFT_EMPTY_RESULT",
+    );
+  }
+  return {
+    id: draft.id,
+    messageId: draft.message.id,
+    threadId: draft.message.threadId || null,
+    to: recipient,
+    subject: cleanHeader(subject, 500, "тема"),
+    url: `https://mail.google.com/mail/u/0/#drafts/${draft.message.id}`,
+  };
+}
+
+export async function sendGmailDraft(id, draftId, fetchImpl = fetch) {
+  const cleanDraftId = gmailMessageId(draftId, "Gmail draftId");
+  const response = await googleFetch(
+    id,
+    `${GMAIL_API_URL}/users/me/drafts/send`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: cleanDraftId }),
+    },
+    fetchImpl,
+    "Gmail",
+  );
+  const message = await response.json();
+  if (!message?.id) {
+    throw new GoogleDriveError(
+      "Gmail не потвърди изпращането.",
+      502,
+      "GMAIL_SEND_EMPTY_RESULT",
+    );
+  }
+  return {
+    id: message.id,
+    threadId: message.threadId || null,
+    url: `https://mail.google.com/mail/u/0/#sent/${message.id}`,
+  };
+}
+
+export async function trashGmailMessage(id, messageId, fetchImpl = fetch) {
+  const cleanMessageId = gmailMessageId(messageId);
+  const response = await googleFetch(
+    id,
+    `${GMAIL_API_URL}/users/me/messages/${encodeURIComponent(cleanMessageId)}/trash`,
+    { method: "POST" },
+    fetchImpl,
+    "Gmail",
+  );
+  const message = await response.json();
+  if (message?.id !== cleanMessageId) {
+    throw new GoogleDriveError(
+      "Gmail не потвърди преместването в кошчето.",
+      502,
+      "GMAIL_TRASH_EMPTY_RESULT",
+    );
+  }
+  return { id: message.id, trashed: true };
+}
+
+function contactResourceName(value, { optional = false } = {}) {
+  const clean = cleanHeader(value, 200, "Google contact resourceName", {
+    required: !optional,
+  });
+  if (!clean && optional) return "";
+  if (!/^people\/[A-Za-z0-9_-]+$/u.test(clean)) {
+    throw new GoogleDriveError(
+      "Невалиден Google контакт.",
+      400,
+      "GOOGLE_CONTACT_INVALID",
+    );
+  }
+  return clean;
+}
+
+function normalizeContactDraft({ name, email, phone } = {}) {
+  const displayName = cleanHeader(name, 300, "име", { required: true });
+  const cleanContactEmail = email ? cleanEmail(email, "имейл на контакт") : "";
+  const cleanPhone = cleanHeader(phone, 80, "телефон");
+  if (!cleanContactEmail && !cleanPhone) {
+    throw new GoogleDriveError(
+      "Контактът трябва да има имейл или телефон.",
+      400,
+      "GOOGLE_CONTACT_INVALID",
+    );
+  }
+  return { name: displayName, email: cleanContactEmail, phone: cleanPhone };
+}
+
+function normalizeGoogleContact(person = {}) {
+  return {
+    resourceName: person.resourceName || null,
+    etag: person.etag || null,
+    name: person.names?.[0]?.displayName || "Контакт",
+    email: person.emailAddresses?.[0]?.value || "",
+    phone: person.phoneNumbers?.[0]?.value || "",
+  };
+}
+
+export async function searchGoogleContacts(
+  id,
+  query,
+  limit = 10,
+  fetchImpl = fetch,
+) {
+  const cleanQuery = cleanHeader(query, 200, "заявка за контакт", {
+    required: true,
+  });
+  const params = new URLSearchParams({
+    query: cleanQuery,
+    readMask: "names,emailAddresses,phoneNumbers",
+    pageSize: String(Math.min(Math.max(Number(limit) || 10, 1), 30)),
+  });
+  const response = await googleFetch(
+    id,
+    `${PEOPLE_API_URL}/people:searchContacts?${params}`,
+    {},
+    fetchImpl,
+    "Google Contacts",
+  );
+  const data = await response.json();
+  return (Array.isArray(data.results) ? data.results : [])
+    .map((item) => normalizeGoogleContact(item.person))
+    .filter((item) => item.resourceName);
+}
+
+export async function createGoogleContact(id, draft, fetchImpl = fetch) {
+  const contact = normalizeContactDraft(draft);
+  const response = await googleFetch(
+    id,
+    `${PEOPLE_API_URL}/people:createContact`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        names: [{ displayName: contact.name }],
+        ...(contact.email
+          ? { emailAddresses: [{ value: contact.email }] }
+          : {}),
+        ...(contact.phone ? { phoneNumbers: [{ value: contact.phone }] } : {}),
+      }),
+    },
+    fetchImpl,
+    "Google Contacts",
+  );
+  const created = normalizeGoogleContact(await response.json());
+  if (!created.resourceName) {
+    throw new GoogleDriveError(
+      "Google Contacts не потвърди създаването.",
+      502,
+      "GOOGLE_CONTACT_EMPTY_RESULT",
+    );
+  }
+  return created;
+}
+
+export async function updateGoogleContact(
+  id,
+  { resourceName, etag, ...draft } = {},
+  fetchImpl = fetch,
+) {
+  const contact = normalizeContactDraft(draft);
+  const cleanResourceName = contactResourceName(resourceName);
+  const cleanEtag = cleanHeader(etag, 200, "Google contact etag", {
+    required: true,
+  });
+  const params = new URLSearchParams({
+    updatePersonFields: "names,emailAddresses,phoneNumbers",
+  });
+  const response = await googleFetch(
+    id,
+    `${PEOPLE_API_URL}/${cleanResourceName}:updateContact?${params}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        etag: cleanEtag,
+        names: [{ displayName: contact.name }],
+        emailAddresses: contact.email ? [{ value: contact.email }] : [],
+        phoneNumbers: contact.phone ? [{ value: contact.phone }] : [],
+      }),
+    },
+    fetchImpl,
+    "Google Contacts",
+  );
+  const updated = normalizeGoogleContact(await response.json());
+  if (updated.resourceName !== cleanResourceName) {
+    throw new GoogleDriveError(
+      "Google Contacts не потвърди промяната.",
+      502,
+      "GOOGLE_CONTACT_EMPTY_RESULT",
+    );
+  }
+  return updated;
+}
+
 export async function listGoogleCalendarEvents(
   id,
   days = 14,
@@ -642,6 +1034,149 @@ export async function listGoogleCalendarEvents(
     location: event.location || "",
     url: event.htmlLink || "",
   }));
+}
+
+function zonedParts(date, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  return Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, Number(part.value)]),
+  );
+}
+
+function zonedTimestamp({ year, month, day, hour = 0, minute = 0 }, timeZone) {
+  const target = Date.UTC(year, month - 1, day, hour, minute, 0);
+  let candidate = target;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const visible = zonedParts(new Date(candidate), timeZone);
+    const visibleAsUtc = Date.UTC(
+      visible.year,
+      visible.month - 1,
+      visible.day,
+      visible.hour,
+      visible.minute,
+      visible.second,
+    );
+    candidate -= visibleAsUtc - target;
+  }
+  return candidate;
+}
+
+function calendarEventInterval(event, timeZone) {
+  if (event?.allDay && /^\d{4}-\d{2}-\d{2}$/u.test(event.start || "")) {
+    const [year, month, day] = event.start.split("-").map(Number);
+    const [endYear, endMonth, endDay] = /^\d{4}-\d{2}-\d{2}$/u.test(
+      event.end || "",
+    )
+      ? event.end.split("-").map(Number)
+      : [year, month, day + 1];
+    return {
+      start: zonedTimestamp({ year, month, day }, timeZone),
+      end: zonedTimestamp(
+        { year: endYear, month: endMonth, day: endDay },
+        timeZone,
+      ),
+    };
+  }
+  const start = Date.parse(event?.start || "");
+  const end = Date.parse(event?.end || "");
+  return Number.isFinite(start) && Number.isFinite(end) && end > start
+    ? { start, end }
+    : null;
+}
+
+export function findAvailableCalendarSlots(
+  events = [],
+  {
+    now = new Date(),
+    days = 7,
+    durationMinutes = 30,
+    limit = 5,
+    timeZone = "Europe/Sofia",
+  } = {},
+) {
+  const safeDays = Math.min(Math.max(Number(days) || 7, 1), 30);
+  const safeDuration = Math.min(
+    Math.max(Number(durationMinutes) || 30, 15),
+    240,
+  );
+  const safeLimit = Math.min(Math.max(Number(limit) || 5, 1), 20);
+  const nowTimestamp = now instanceof Date ? now.getTime() : Date.parse(now);
+  if (!Number.isFinite(nowTimestamp)) {
+    throw new GoogleDriveError(
+      "Невалиден начален момент за свободните часове.",
+      400,
+      "CALENDAR_SLOT_TIME_INVALID",
+    );
+  }
+  const busy = events
+    .map((event) => calendarEventInterval(event, timeZone))
+    .filter(Boolean);
+  const localNow = zonedParts(new Date(nowTimestamp), timeZone);
+  const calendarAnchor = new Date(
+    Date.UTC(localNow.year, localNow.month - 1, localNow.day),
+  );
+  const slots = [];
+
+  for (
+    let offset = 0;
+    offset < safeDays && slots.length < safeLimit;
+    offset += 1
+  ) {
+    const date = new Date(calendarAnchor.getTime() + offset * 86_400_000);
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth() + 1;
+    const day = date.getUTCDate();
+    const weekday = date.getUTCDay();
+    if (weekday === 0 || weekday === 6) continue;
+
+    const workStart = zonedTimestamp({ year, month, day, hour: 9 }, timeZone);
+    const workEnd = zonedTimestamp({ year, month, day, hour: 18 }, timeZone);
+    const firstCandidate = Math.max(workStart, nowTimestamp);
+    const stepMs = 30 * 60_000;
+    let candidate = Math.ceil(firstCandidate / stepMs) * stepMs;
+    const durationMs = safeDuration * 60_000;
+
+    while (candidate + durationMs <= workEnd && slots.length < safeLimit) {
+      const end = candidate + durationMs;
+      if (!busy.some((item) => item.start < end && item.end > candidate)) {
+        slots.push(
+          Object.freeze({
+            start: new Date(candidate).toISOString(),
+            end: new Date(end).toISOString(),
+            durationMinutes: safeDuration,
+            timeZone,
+          }),
+        );
+      }
+      candidate += stepMs;
+    }
+  }
+  return Object.freeze(slots);
+}
+
+export async function suggestGoogleCalendarSlots(
+  id,
+  options = {},
+  fetchImpl = fetch,
+) {
+  const events = await listGoogleCalendarEvents(
+    id,
+    options.days,
+    50,
+    fetchImpl,
+  );
+  return findAvailableCalendarSlots(events, options);
 }
 
 export async function createGoogleCalendarEvent(id, event, fetchImpl = fetch) {

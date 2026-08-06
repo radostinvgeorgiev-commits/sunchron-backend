@@ -52,7 +52,7 @@ test("MCP initialize and tool discovery work without credentials", async () => {
     .post("/mcp")
     .send({ jsonrpc: "2.0", id: 2, method: "tools/list" })
     .expect(200);
-  assert.equal(listed.body.result.tools.length, 14);
+  assert.equal(listed.body.result.tools.length, 50);
   assert.deepEqual(listed.body.result.tools[0].securitySchemes, [
     { type: "oauth2", scopes: ["synchron:read"] },
   ]);
@@ -63,6 +63,17 @@ test("MCP initialize and tool discovery work without credentials", async () => {
     { type: "noauth" },
     { type: "oauth2", scopes: ["synchron:read"] },
   ]);
+  assert.deepEqual(
+    listed.body.result.tools.find((tool) => tool.name === "send_message")
+      .securitySchemes,
+    [{ type: "oauth2", scopes: ["synchron:agent.chat"] }],
+  );
+  assert.deepEqual(
+    listed.body.result.tools.find(
+      (tool) => tool.name === "confirm_google_action",
+    ).securitySchemes,
+    [{ type: "oauth2", scopes: ["synchron:google.write"] }],
+  );
 });
 
 test("only the redacted production status can pass without credentials", async () => {
@@ -235,10 +246,7 @@ test("authorization consent issues a code bound to the browser profile", async (
     }),
   );
   const consent = await request(app).get("/oauth/authorize").expect(200);
-  assert.equal(
-    consent.headers["cross-origin-opener-policy"],
-    "unsafe-none",
-  );
+  assert.equal(consent.headers["cross-origin-opener-policy"], "unsafe-none");
   assert.match(consent.text, /Свързване на ChatGPT със AI CORE/u);
   assert.match(consent.text, /Четене на разрешените данни/u);
   assert.match(consent.text, /отделно точно потвърждение/u);
@@ -252,10 +260,7 @@ test("authorization consent issues a code bound to the browser profile", async (
     .type("form")
     .send({ consent_token: consentToken, decision: "allow" })
     .expect(302);
-  assert.equal(
-    approved.headers["cross-origin-opener-policy"],
-    "unsafe-none",
-  );
+  assert.equal(approved.headers["cross-origin-opener-policy"], "unsafe-none");
   const callback = new URL(approved.headers.location);
   assert.equal(callback.origin, "https://chatgpt.com");
   assert.equal(callback.searchParams.get("state"), "state-123");
@@ -265,7 +270,10 @@ test("authorization consent issues a code bound to the browser profile", async (
   assert.equal(authorizationStatus.authorization, "redirected");
   assert.equal(authorizationStatus.authorizationDecision, "allow");
   assert.equal(authorizationStatus.authorizationErrorCode, null);
-  assert.match(authorizationStatus.authorizationUpdatedAt, /^\d{4}-\d{2}-\d{2}T/u);
+  assert.match(
+    authorizationStatus.authorizationUpdatedAt,
+    /^\d{4}-\d{2}-\d{2}T/u,
+  );
   const token = await request(app)
     .post("/oauth/token")
     .type("form")
@@ -321,10 +329,7 @@ test("authorization flow overrides global COOP so ChatGPT can complete the popup
       /name="consent_token" value="([^"]+)"/u,
     )?.[1];
     assert.ok(consentToken);
-    assert.equal(
-      consent.headers["cross-origin-opener-policy"],
-      "unsafe-none",
-    );
+    assert.equal(consent.headers["cross-origin-opener-policy"], "unsafe-none");
 
     const approved = await request(app)
       .post("/oauth/authorize")
@@ -336,10 +341,7 @@ test("authorization flow overrides global COOP so ChatGPT can complete the popup
     assert.equal(callback.pathname, "/connector/oauth/test-callback");
     assert.equal(callback.searchParams.get("state"), oauthRequest.state);
     assert.match(callback.searchParams.get("code"), /^sx-code\./u);
-    assert.equal(
-      approved.headers["cross-origin-opener-policy"],
-      "unsafe-none",
-    );
+    assert.equal(approved.headers["cross-origin-opener-policy"], "unsafe-none");
     assert.equal(
       approved.headers["cross-origin-resource-policy"],
       "same-origin",

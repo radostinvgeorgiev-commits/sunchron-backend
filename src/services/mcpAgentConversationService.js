@@ -11,6 +11,7 @@ import { loadWorkspaceState } from "./workspaceStateService.js";
 import { resolveWorkAgentModel } from "./workModeService.js";
 
 const MAX_MESSAGE_LENGTH = 6_000;
+const MAX_SESSION_QUESTIONS = 10;
 const SAFE_ID_PATTERN = /^[a-z0-9:_-]+$/iu;
 const BRIDGE_BOUNDARY = [
   "[MCP МОСТ — САМО РАЗГОВОР]",
@@ -121,6 +122,15 @@ export async function sendMcpAgentMessage(
     listMemories({ ownerId: cleanOwnerId }),
     listMessages(cleanSessionId, undefined, cleanOwnerId),
   ]);
+  const previousQuestions = history.filter(
+    (item) => item?.role === "user",
+  ).length;
+  if (previousQuestions >= MAX_SESSION_QUESTIONS) {
+    throw new McpAgentConversationError(
+      "Тази MCP сесия достигна лимита от 10 въпроса. Започни нова нишка без sessionId.",
+      -32602,
+    );
+  }
   const workContext = {
     project,
     agent,
@@ -156,5 +166,9 @@ export async function sendMcpAgentMessage(
     conversationPersisted: true,
     externalActionsExecuted: false,
     codeChanged: false,
+    turnNumber: previousQuestions + 1,
+    turnsRemaining: MAX_SESSION_QUESTIONS - previousQuestions - 1,
   });
 }
+
+export const MCP_AGENT_SESSION_QUESTION_LIMIT = MAX_SESSION_QUESTIONS;

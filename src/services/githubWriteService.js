@@ -19,19 +19,23 @@ function assertAllowedRepository(repository) {
   }
 }
 
-function requireToken() {
-  if (!process.env.GITHUB_TOKEN) {
+function requireToken(accessToken) {
+  const token =
+    typeof accessToken === "string" && accessToken.trim()
+      ? accessToken.trim()
+      : process.env.GITHUB_TOKEN;
+  if (!token) {
     throw new GitHubServiceError(
-      "GITHUB_TOKEN не е конфигуриран. Записът в GitHub не е възможен.",
+      "Липсва потвърдена GitHub сесия за запис.",
       500,
       "GITHUB_TOKEN_MISSING",
     );
   }
-  return process.env.GITHUB_TOKEN;
+  return token;
 }
 
-function githubWriteHeaders() {
-  const token = requireToken();
+function githubWriteHeaders(accessToken) {
+  const token = requireToken(accessToken);
   return {
     Accept: "application/vnd.github+json",
     "User-Agent": "Synchron-X",
@@ -41,7 +45,7 @@ function githubWriteHeaders() {
   };
 }
 
-async function githubWriteRequest(path, options = {}) {
+async function githubWriteRequest(path, options = {}, accessToken) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
   const apiUrl = (process.env.GITHUB_API_URL || DEFAULT_API_URL).replace(
@@ -51,7 +55,7 @@ async function githubWriteRequest(path, options = {}) {
 
   try {
     const response = await fetch(`${apiUrl}${path}`, {
-      headers: githubWriteHeaders(),
+      headers: githubWriteHeaders(accessToken),
       signal: controller.signal,
       ...options,
     });
@@ -87,17 +91,49 @@ async function githubWriteRequest(path, options = {}) {
 }
 
 function encodePath(path) {
-  return path
-    .split("/")
-    .filter(Boolean)
-    .map(encodeURIComponent)
-    .join("/");
+  return path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
 }
 
 function assertValidPath(path) {
   if (!path || typeof path !== "string" || path.includes("..")) {
     throw new GitHubServiceError("Невалиден път.", 400, "INVALID_PATH");
   }
+  if (
+    path === ".env" ||
+    path.startsWith(".env.") ||
+    path.startsWith(".github/workflows/") ||
+    path === ".do/app.yaml"
+  ) {
+    throw new GitHubServiceError(
+      "Този чувствителен файл не може да се променя от AI CORE.",
+      403,
+      "PROTECTED_PATH",
+    );
+  }
+}
+
+function assertWritableBranch(branch) {
+  const clean = typeof branch === "string" ? branch.trim() : "";
+  if (
+    !clean ||
+    clean === "main" ||
+    !/^[\w.\-/]+$/u.test(clean) ||
+    clean.includes("..") ||
+    clean.includes("@{") ||
+    clean.includes("//") ||
+    clean.startsWith("/") ||
+    clean.startsWith(".") ||
+    clean.endsWith("/") ||
+    clean.endsWith(".") ||
+    clean.endsWith(".lock")
+  ) {
+    throw new GitHubServiceError(
+      "GitHub записът е разрешен само в отделен валиден клон, не в main.",
+      403,
+      "PROTECTED_BRANCH",
+    );
+  }
+  return clean;
 }
 
 /**
@@ -109,9 +145,11 @@ export async function createFile({
   path,
   content,
   message,
+  accessToken,
 }) {
   assertAllowedRepository(repository ?? configuredRepository());
   assertValidPath(path);
+  const writableBranch = assertWritableBranch(branch);
 
   return githubWriteRequest(
     `/repos/${repository ?? configuredRepository()}/contents/${encodePath(path)}`,
@@ -120,9 +158,10 @@ export async function createFile({
       body: JSON.stringify({
         message: message || `Create ${path}`,
         content: Buffer.from(content ?? "", "utf8").toString("base64"),
-        branch,
+        branch: writableBranch,
       }),
     },
+    accessToken,
   );
 }
 
@@ -137,9 +176,11 @@ export async function updateFile({
   content,
   message,
   sha,
+  accessToken,
 }) {
   assertAllowedRepository(repository ?? configuredRepository());
   assertValidPath(path);
+  const writableBranch = assertWritableBranch(branch);
 
   if (!sha || typeof sha !== "string") {
     throw new GitHubServiceError(
@@ -157,9 +198,10 @@ export async function updateFile({
         message: message || `Update ${path}`,
         content: Buffer.from(content ?? "", "utf8").toString("base64"),
         sha,
-        branch,
+        branch: writableBranch,
       }),
     },
+    accessToken,
   );
 }
 
@@ -170,20 +212,24 @@ export async function createBranch({
   repository,
   branchName,
   fromBranch = "main",
+  accessToken,
 }) {
   const repo = repository ?? configuredRepository();
   assertAllowedRepository(repo);
 
-  if (!branchName || !/^[\w.\-/]+$/u.test(branchName)) {
+  const writableBranch = assertWritableBranch(branchName);
+  if (fromBranch !== "main") {
     throw new GitHubServiceError(
-      "Невалидно или липсващо име на клон.",
-      400,
-      "INVALID_BRANCH_NAME",
+      "Нов клон може да започне само от защитения main и не може да се казва main.",
+      403,
+      "PROTECTED_BRANCH",
     );
   }
 
   const refData = await githubWriteRequest(
     `/repos/${repo}/git/ref/heads/${encodeURIComponent(fromBranch)}`,
+    {},
+    accessToken,
   );
   const sha = refData.object?.sha;
   if (!sha) {
@@ -194,10 +240,14 @@ export async function createBranch({
     );
   }
 
-  return githubWriteRequest(`/repos/${repo}/git/refs`, {
-    method: "POST",
-    body: JSON.stringify({ ref: `refs/heads/${branchName}`, sha }),
-  });
+  return githubWriteRequest(
+    `/repos/${repo}/git/refs`,
+    {
+      method: "POST",
+      body: JSON.stringify({ ref: `refs/heads/${writableBranch}`, sha }),
+    },
+    accessToken,
+  );
 }
 
 /**
@@ -209,6 +259,7 @@ export async function createPullRequest({
   body = "",
   head,
   base = "main",
+  accessToken,
 }) {
   const repo = repository ?? configuredRepository();
   assertAllowedRepository(repo);
@@ -227,9 +278,62 @@ export async function createPullRequest({
       "MISSING_HEAD",
     );
   }
+  const writableHead = assertWritableBranch(head);
+  if (base !== "main") {
+    throw new GitHubServiceError(
+      "Pull Request може да е насочен само към main.",
+      403,
+      "PROTECTED_BRANCH",
+    );
+  }
 
-  return githubWriteRequest(`/repos/${repo}/pulls`, {
-    method: "POST",
-    body: JSON.stringify({ title, body, head, base }),
-  });
+  return githubWriteRequest(
+    `/repos/${repo}/pulls`,
+    {
+      method: "POST",
+      body: JSON.stringify({ title, body, head: writableHead, base }),
+    },
+    accessToken,
+  );
+}
+
+export async function closeIssue({ repository, issueNumber, accessToken }) {
+  const repo = repository ?? configuredRepository();
+  assertAllowedRepository(repo);
+  const number = Number(issueNumber);
+  if (!Number.isSafeInteger(number) || number <= 0) {
+    throw new GitHubServiceError(
+      "Невалиден номер на GitHub issue.",
+      400,
+      "INVALID_ISSUE_NUMBER",
+    );
+  }
+  const issue = await githubWriteRequest(
+    `/repos/${repo}/issues/${number}`,
+    {},
+    accessToken,
+  );
+  if (issue.pull_request) {
+    throw new GitHubServiceError(
+      "Pull Request не може да бъде затворен през инструмента за issues.",
+      403,
+      "PULL_REQUEST_NOT_ALLOWED",
+    );
+  }
+  if (issue.state === "closed")
+    return { number, state: "closed", unchanged: true };
+  const updated = await githubWriteRequest(
+    `/repos/${repo}/issues/${number}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ state: "closed" }),
+    },
+    accessToken,
+  );
+  return {
+    number: updated.number,
+    state: updated.state,
+    url: updated.html_url || null,
+    unchanged: false,
+  };
 }

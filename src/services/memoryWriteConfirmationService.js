@@ -7,10 +7,13 @@ import {
 import {
   normalizeProfileMemoryDraft,
   saveProfileMemory,
+  updateProfileMemoryById,
 } from "./memoryService.js";
 import { executeAuditedWriteAction } from "./permissionService.js";
+import { loadWorkspaceState } from "./workspaceStateService.js";
 
 export const MEMORY_WRITE_ACTION = "memory.write:save_profile";
+export const MEMORY_UPDATE_ACTION = "memory.write:update_profile";
 export const MEMORY_WRITE_CONFIRM_PREFIX = "Потвърждавам постоянен запис:";
 
 export class MemoryWriteConfirmationError extends Error {
@@ -62,21 +65,61 @@ function confirmationError(error) {
   );
 }
 
+async function assertMemoryWriteAllowed(
+  ownerId,
+  loadWorkspace = loadWorkspaceState,
+  env = process.env,
+) {
+  try {
+    const workspace = await loadWorkspace(ownerId);
+    if (workspace?.state?.preferences?.memoryMode === "disabled") {
+      throw new MemoryWriteConfirmationError(
+        "Записът в постоянната памет е изключен от собственика.",
+        403,
+        "MEMORY_WRITE_DISABLED",
+      );
+    }
+  } catch (error) {
+    if (error instanceof MemoryWriteConfirmationError) throw error;
+    if (env.NODE_ENV === "production") {
+      throw new MemoryWriteConfirmationError(
+        "Настройката за паметта не може да бъде проверена.",
+        503,
+        "MEMORY_POLICY_UNAVAILABLE",
+      );
+    }
+  }
+}
+
 export async function prepareMemoryWrite({
   sessionId,
   ownerId,
   items,
+  replaceId,
   createConfirmation = createDurableConfirmation,
+  loadWorkspace = loadWorkspaceState,
+  env = process.env,
 }) {
+  await assertMemoryWriteAllowed(ownerId, loadWorkspace, env);
   const normalizedItems = normalizeItems(items);
+  const cleanReplaceId =
+    typeof replaceId === "string" ? replaceId.trim().slice(0, 200) : "";
+  if (cleanReplaceId && normalizedItems.length !== 1) {
+    throw new MemoryWriteConfirmationError(
+      "Редактирането изисква точно един спомен.",
+      400,
+      "MEMORY_UPDATE_ITEMS_INVALID",
+    );
+  }
   let confirmation;
   try {
     confirmation = await createConfirmation({
       sessionId,
-      action: MEMORY_WRITE_ACTION,
+      action: cleanReplaceId ? MEMORY_UPDATE_ACTION : MEMORY_WRITE_ACTION,
       resource: {
         ownerFingerprint: fingerprintOwner(ownerId),
         itemCount: normalizedItems.length,
+        ...(cleanReplaceId ? { replaceId: cleanReplaceId } : {}),
       },
       params: { items: normalizedItems },
     });
@@ -86,6 +129,7 @@ export async function prepareMemoryWrite({
   return Object.freeze({
     confirmationId: confirmation.id,
     expiresAt: confirmation.expiresAt,
+    action: cleanReplaceId ? MEMORY_UPDATE_ACTION : MEMORY_WRITE_ACTION,
     items: normalizedItems,
   });
 }
@@ -134,8 +178,11 @@ export async function confirmMemoryWrite({
   validateConfirmation = validateDurableConfirmation,
   consumeConfirmation = markDurableConfirmationUsed,
   saveMemory = saveProfileMemory,
+  updateMemory = updateProfileMemoryById,
   executeWrite = executeAuditedWriteAction,
   source = "confirmed-memory-write",
+  loadWorkspace = loadWorkspaceState,
+  env = process.env,
 }) {
   let confirmation;
   try {
@@ -143,7 +190,10 @@ export async function confirmMemoryWrite({
   } catch (error) {
     throw confirmationError(error);
   }
-  if (confirmation.action !== MEMORY_WRITE_ACTION) {
+  if (
+    confirmation.action !== MEMORY_WRITE_ACTION &&
+    confirmation.action !== MEMORY_UPDATE_ACTION
+  ) {
     throw new MemoryWriteConfirmationError(
       "Потвърждението не е за запис в паметта.",
       400,
@@ -166,16 +216,37 @@ export async function confirmMemoryWrite({
     );
   }
 
+  await assertMemoryWriteAllowed(ownerId, loadWorkspace, env);
+
   await consumeConfirmation(confirmationId);
   return executeWrite({
     action: "memory.write",
-    capability: MEMORY_WRITE_ACTION,
+    capability: confirmation.action,
     actor: "synchron-x-memory",
     sessionId,
     confirmationId,
     resource: "profile-memory",
-    details: `confirmed-items:${items.length}`,
+    details:
+      confirmation.action === MEMORY_UPDATE_ACTION
+        ? "confirmed-memory-update"
+        : `confirmed-items:${items.length}`,
     execute: async () => {
+      if (confirmation.action === MEMORY_UPDATE_ACTION) {
+        const saved = await updateMemory(
+          confirmation.resource.replaceId,
+          items[0].fact,
+          items[0].scope,
+          ownerId,
+        );
+        return Object.freeze([
+          {
+            id: saved.id,
+            fact: saved.fact,
+            scope: saved.scope,
+            replaced: true,
+          },
+        ]);
+      }
       const savedItems = [];
       for (const item of items) {
         const saved = await saveMemory(item.fact, source, item.scope, ownerId);

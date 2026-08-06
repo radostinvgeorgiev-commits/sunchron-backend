@@ -17,7 +17,13 @@ const passThrough = (_req, _res, next) => next();
 const SCOPE_LABELS = Object.freeze({
   "synchron:read": "Четене на разрешените данни и системни статуси",
   "synchron:agent.chat": "Разговор с AI CORE в собствения профил",
+  "synchron:memory.write": "Потвърждавани промени в постоянната памет",
+  "synchron:tasks.write": "Чернови, бележки и потвърждавани статуси на задачи",
   "synchron:github.write": "Потвърждавани промени в GitHub",
+  "synchron:google.read":
+    "Четене от свързаните Drive, Gmail, Calendar и Contacts",
+  "synchron:google.write": "Чернови и потвърждавани Google промени",
+  "synchron:audit.read": "Четене на безопасния журнал и последните грешки",
   "synchron:infrastructure.write": "Потвърждавани промени в инфраструктурата",
 });
 

@@ -207,6 +207,8 @@ export function createProfileMemoryWriteHandler({
         sessionId,
         ownerId: req.owner.memoryOwnerId,
         items: [{ fact: body.fact, scope: body.scope ?? "personal" }],
+        replaceId:
+          typeof body.memoryId === "string" ? body.memoryId.trim() : "",
       });
       await audit({
         action: "memory.write",

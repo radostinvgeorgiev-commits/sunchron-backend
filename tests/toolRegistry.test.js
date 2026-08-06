@@ -13,9 +13,12 @@ test.beforeEach(() => resetToolRegistryForTests());
 
 test("регистрира съществуващите интеграции с пълни метаданни", () => {
   registerCoreTools();
-  assert.equal(listTools().length, 14);
+  assert.equal(listTools().length, 18);
   assert.deepEqual(getTool("synchron-integrations-status").capabilities, [
     "system.integrations.status",
+    "system.tools.read",
+    "system.audit.read",
+    "system.errors.read",
   ]);
   assert.deepEqual(getTool("synchron-system-inspector").capabilities, [
     "system.configuration.read",
@@ -25,10 +28,21 @@ test("регистрира съществуващите интеграции с 
     "code.search",
     "commit.read",
     "code.task-status",
+    "issues.read",
+    "pull-requests.read",
+    "actions.read",
   ]);
   assert.equal(getTool("github-write").enabled, true);
   assert.equal(getTool("github-write").requiresConfirmation, true);
   assert.equal(getTool("github-write").healthStatus, "unavailable");
+  assert.equal(getTool("github-confirmed-write").requiresConfirmation, true);
+  assert.deepEqual(getTool("github-confirmed-write").capabilities, [
+    "github.branch.create",
+    "github.file.create",
+    "github.file.update",
+    "github.pull-request.create",
+    "github.issue.close",
+  ]);
   assert.deepEqual(getTool("openai-codex").capabilities, ["code.analyze"]);
   assert.equal(getTool("openai-codex").requiresConfirmation, false);
   assert.equal(
@@ -48,6 +62,26 @@ test("регистрира съществуващите интеграции с 
   assert.deepEqual(getTool("cloudflare-read").capabilities, [
     "infrastructure.cloudflare.read",
   ]);
+  assert.deepEqual(getTool("synchron-agent-chat").capabilities, [
+    "chat.send_message",
+    "chat.read_reply",
+    "chat.list_threads",
+    "chat.read_history",
+    "chat.continue_session",
+  ]);
+  assert.equal(getTool("synchron-tasks").requiresConfirmation, false);
+  assert.equal(
+    getTool("synchron-tasks").capabilityPermissions["tasks.status"],
+    "tasks.update",
+  );
+  assert.equal(
+    getTool("google-contacts").capabilityPermissions["contacts.update"],
+    "contacts.write",
+  );
+  assert.equal(
+    getTool("gmail-read").capabilityPermissions["mail.send"],
+    "mail.send",
+  );
 });
 
 test("core registry is fail-closed until runtime availability is checked", () => {

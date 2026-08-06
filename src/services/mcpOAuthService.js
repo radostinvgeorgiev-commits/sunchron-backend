@@ -10,13 +10,23 @@ import { getOpenSearchClient } from "../config/opensearch.js";
 export const DEFAULT_MCP_RESOURCE_URL = "https://synchron.foundation/mcp";
 export const MCP_READ_SCOPE = "synchron:read";
 export const MCP_AGENT_CHAT_SCOPE = "synchron:agent.chat";
+export const MCP_MEMORY_WRITE_SCOPE = "synchron:memory.write";
+export const MCP_TASKS_WRITE_SCOPE = "synchron:tasks.write";
 export const MCP_GITHUB_WRITE_SCOPE = "synchron:github.write";
+export const MCP_GOOGLE_READ_SCOPE = "synchron:google.read";
+export const MCP_GOOGLE_WRITE_SCOPE = "synchron:google.write";
+export const MCP_AUDIT_READ_SCOPE = "synchron:audit.read";
 export const MCP_INFRASTRUCTURE_WRITE_SCOPE = "synchron:infrastructure.write";
 export const MCP_OFFLINE_ACCESS_SCOPE = "offline_access";
 export const MCP_SCOPES = Object.freeze([
   MCP_READ_SCOPE,
   MCP_AGENT_CHAT_SCOPE,
+  MCP_MEMORY_WRITE_SCOPE,
+  MCP_TASKS_WRITE_SCOPE,
   MCP_GITHUB_WRITE_SCOPE,
+  MCP_GOOGLE_READ_SCOPE,
+  MCP_GOOGLE_WRITE_SCOPE,
+  MCP_AUDIT_READ_SCOPE,
   MCP_INFRASTRUCTURE_WRITE_SCOPE,
 ]);
 const MCP_AUTHORIZATION_SCOPES = Object.freeze([
@@ -25,6 +35,9 @@ const MCP_AUTHORIZATION_SCOPES = Object.freeze([
 ]);
 const MCP_OWNER_ONLY_SCOPES = Object.freeze([
   MCP_GITHUB_WRITE_SCOPE,
+  MCP_GOOGLE_READ_SCOPE,
+  MCP_GOOGLE_WRITE_SCOPE,
+  MCP_AUDIT_READ_SCOPE,
   MCP_INFRASTRUCTURE_WRITE_SCOPE,
 ]);
 
@@ -207,8 +220,68 @@ export function getMcpAuthorizationServerMetadata(env = process.env) {
 }
 
 export function requiredScopesForMcpTool(name) {
-  if (name === "talk_to_ai_core") {
+  if (
+    [
+      "talk_to_ai_core",
+      "send_message",
+      "read_reply",
+      "list_threads",
+      "read_history",
+      "continue_session",
+    ].includes(name)
+  ) {
     return [MCP_AGENT_CHAT_SCOPE];
+  }
+  if (
+    [
+      "prepare_memory_write",
+      "confirm_memory_write",
+      "prepare_memory_delete",
+      "confirm_memory_delete",
+    ].includes(name)
+  ) {
+    return [MCP_MEMORY_WRITE_SCOPE];
+  }
+  if (
+    [
+      "create_task_draft",
+      "add_task_note",
+      "link_task_to_project",
+      "prepare_task_status_change",
+      "confirm_task_status_change",
+    ].includes(name)
+  ) {
+    return [MCP_TASKS_WRITE_SCOPE];
+  }
+  if (
+    [
+      "list_google_drive_files",
+      "search_gmail",
+      "list_google_calendar_events",
+      "suggest_calendar_slots",
+      "search_google_contacts",
+    ].includes(name)
+  ) {
+    return [MCP_GOOGLE_READ_SCOPE];
+  }
+  if (
+    [
+      "create_gmail_draft",
+      "prepare_gmail_send",
+      "prepare_gmail_delete",
+      "confirm_google_action",
+      "prepare_calendar_event",
+      "confirm_calendar_event",
+      "prepare_google_contact",
+    ].includes(name)
+  ) {
+    return [MCP_GOOGLE_WRITE_SCOPE];
+  }
+  if (["list_action_history", "list_recent_errors"].includes(name)) {
+    return [MCP_AUDIT_READ_SCOPE];
+  }
+  if (["prepare_github_change", "confirm_github_change"].includes(name)) {
+    return [MCP_GITHUB_WRITE_SCOPE];
   }
   if (
     name === "prepare_digitalocean_www_domain" ||
@@ -924,8 +997,7 @@ export async function exchangeMcpToken(input, env = process.env) {
       ...oauthRuntimeStatus,
       tokenExchange: "failed",
       grantType,
-      errorCode:
-        error instanceof McpOAuthError ? error.code : "server_error",
+      errorCode: error instanceof McpOAuthError ? error.code : "server_error",
       updatedAt: new Date().toISOString(),
     });
     throw error;

@@ -4,6 +4,7 @@ import {
   answerGitHubReadRequest,
   getCommitDetails,
   getFileContent,
+  getGitHubReadOverview,
   getRepositorySummary,
   GitHubServiceError,
   listRecentCommits,
@@ -23,8 +24,7 @@ function jsonResponse(body, status = 200) {
 }
 
 test.beforeEach(() => {
-  process.env.GITHUB_REPOSITORY =
-    "radostinvgeorgiev-commits/sunchron-backend";
+  process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
   process.env.GITHUB_API_URL = "https://github.test";
   delete process.env.GITHUB_TOKEN;
 });
@@ -55,8 +55,7 @@ test("returns a repository summary in read-only mode", async () => {
       private: false,
       description: "Synchron-X",
       updated_at: "2026-07-25T00:00:00Z",
-      html_url:
-        "https://github.com/radostinvgeorgiev-commits/sunchron-backend",
+      html_url: "https://github.com/radostinvgeorgiev-commits/sunchron-backend",
     });
   };
 
@@ -83,6 +82,83 @@ test("limits and normalizes recent commits", async () => {
   const commits = await listRecentCommits(undefined, 100);
   assert.equal(commits[0].shortSha, "a07541e");
   assert.equal(commits[0].message, "Fix memory");
+});
+
+test("returns one read-only overview for repository, commits, issues, PRs and Actions", async () => {
+  global.fetch = async (url) => {
+    const path = String(url);
+    if (path.endsWith("/sunchron-backend")) {
+      return jsonResponse({
+        full_name: process.env.GITHUB_REPOSITORY,
+        default_branch: "main",
+        private: false,
+        html_url: "https://github.test/repository",
+      });
+    }
+    if (path.includes("/commits?")) {
+      return jsonResponse([
+        {
+          sha: "a".repeat(40),
+          commit: { message: "Проверен commit", author: {} },
+          html_url: "https://github.test/commit",
+        },
+      ]);
+    }
+    if (path.includes("/issues?") && !path.includes("/pulls?")) {
+      return jsonResponse([
+        {
+          number: 7,
+          title: "Issue",
+          state: "open",
+          labels: [],
+          html_url: "https://github.test/issue/7",
+        },
+        {
+          number: 8,
+          title: "PR masquerading as issue",
+          pull_request: {},
+        },
+      ]);
+    }
+    if (path.includes("/pulls?")) {
+      return jsonResponse([
+        {
+          number: 8,
+          title: "Pull Request",
+          state: "open",
+          draft: false,
+          head: { ref: "agent/test", sha: "b".repeat(40) },
+          base: { ref: "main" },
+          html_url: "https://github.test/pull/8",
+        },
+      ]);
+    }
+    if (path.includes("/actions/runs?")) {
+      return jsonResponse({
+        workflow_runs: [
+          {
+            id: 9,
+            name: "CI",
+            status: "completed",
+            conclusion: "success",
+            head_sha: "b".repeat(40),
+            head_branch: "agent/test",
+          },
+        ],
+      });
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const overview = await getGitHubReadOverview({ limit: 5 });
+  assert.equal(overview.summary.defaultBranch, "main");
+  assert.equal(overview.commits.length, 1);
+  assert.deepEqual(
+    overview.issues.map((issue) => issue.number),
+    [7],
+  );
+  assert.equal(overview.pullRequests[0].number, 8);
+  assert.equal(overview.workflowRuns[0].conclusion, "success");
 });
 
 test("returns changed files for a specific commit", async () => {
@@ -167,7 +243,10 @@ test("recognizes GitHub questions but ignores unrelated chat", () => {
     isGitHubReadRequest("Каква е последната промяна в проекта?"),
     true,
   );
-  assert.equal(isGitHubReadRequest("Провери последните commit-и в GitHub"), true);
+  assert.equal(
+    isGitHubReadRequest("Провери последните commit-и в GitHub"),
+    true,
+  );
   assert.equal(isGitHubReadRequest("Какво е времето във Варна?"), false);
 });
 

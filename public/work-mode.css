@@ -295,6 +295,58 @@ body[data-interaction-mode="chat"] .work-pet {
   background: #f3fbf6;
 }
 
+.work-project-context-form {
+  border-color: #9bc9b2;
+  background: #f5fbf7;
+}
+
+.work-form-label {
+  margin: 3px 0 0;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.work-project-tools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.work-project-tools label {
+  min-width: 0;
+  padding: 8px 9px;
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  border: 1px solid #dce8e1;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.work-project-tools input {
+  width: auto;
+  margin: 0;
+}
+
+.work-advanced-settings {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #dfe5ec;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.work-advanced-settings > summary {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.work-advanced-settings[open] > summary {
+  margin-bottom: 10px;
+}
+
 .work-form-actions {
   display: grid;
   grid-template-columns: 1fr 2fr;
@@ -330,6 +382,10 @@ body[data-interaction-mode="chat"] .work-pet {
 
   .work-agent-edit {
     width: 100%;
+  }
+
+  .work-project-tools {
+    grid-template-columns: 1fr;
   }
 }
 

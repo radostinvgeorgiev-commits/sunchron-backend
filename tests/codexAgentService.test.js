@@ -13,6 +13,7 @@ import test from "node:test";
 
 import {
   CodexAgentError,
+  createBoundedSourceSnapshot,
   createIsolatedSourceWorkspace,
   isCodexAgentConfigured,
   runCodexProjectAnalysis,
@@ -58,39 +59,18 @@ test("isolated Codex workspace copies source but excludes secrets and dependenci
   }
 });
 
-test("Codex analysis is forced into read-only, offline, isolated execution", async () => {
+test("Codex analysis uses a bounded source request without local command execution", async () => {
   const root = await mkdtemp(join(tmpdir(), "codex-runtime-test-"));
   const workspace = join(root, "workspace");
-  await mkdir(workspace);
-  let clientOptions;
-  let threadOptions;
-  let turnOptions;
+  await mkdir(join(workspace, "src", "routes"), { recursive: true });
+  await writeFile(join(workspace, "AGENTS.md"), "Project rules.");
+  await writeFile(join(workspace, "package.json"), '{"name":"safe"}');
+  await writeFile(
+    join(workspace, "src", "routes", "chat.js"),
+    "export function chat() { return 'safe'; }",
+  );
+  let requestOptions;
   let prompt;
-
-  class FakeCodex {
-    constructor(options) {
-      clientOptions = options;
-    }
-
-    startThread(options) {
-      threadOptions = options;
-      return {
-        async run(input, options) {
-          prompt = input;
-          turnOptions = options;
-          return {
-            finalResponse: JSON.stringify({
-              status: "ready_for_next_step",
-              summary: "Маршрутът е проверен.",
-              evidence: ["src/routes/chat.js използва Capability Engine."],
-              nextStep: "Добави целеви тест.",
-              needsUserDecision: false,
-            }),
-          };
-        },
-      };
-    }
-  }
 
   const result = await runCodexProjectAnalysis({
     message: "Провери маршрута за чат.",
@@ -106,7 +86,19 @@ test("Codex analysis is forced into read-only, offline, isolated execution", asy
       PATH: "/usr/bin:/bin",
       OTHER_SECRET: "must-never-reach-child",
     },
-    sdkLoader: async () => ({ Codex: FakeCodex }),
+    responseRequester: async (options) => {
+      requestOptions = options;
+      prompt = options.input[0].content;
+      return {
+        text: JSON.stringify({
+          status: "ready_for_next_step",
+          summary: "Маршрутът е проверен.",
+          evidence: ["src/routes/chat.js използва Capability Engine."],
+          nextStep: "Добави целеви тест.",
+          needsUserDecision: false,
+        }),
+      };
+    },
     createWorkspace: async () => ({ root, workspace, files: 2 }),
   });
 
@@ -115,21 +107,14 @@ test("Codex analysis is forced into read-only, offline, isolated execution", asy
   assert.equal(result.projectRun.projectId, "project-1");
   assert.equal(result.projectRun.sequence, 3);
   assert.equal(result.projectRun.codeChanged, false);
-  assert.equal(threadOptions.sandboxMode, "read-only");
-  assert.equal(threadOptions.networkAccessEnabled, false);
-  assert.equal(threadOptions.webSearchMode, "disabled");
-  assert.equal(threadOptions.approvalPolicy, "never");
-  assert.equal(threadOptions.workingDirectory, workspace);
-  assert.equal(turnOptions.signal instanceof AbortSignal, true);
-  assert.equal(turnOptions.outputSchema.additionalProperties, false);
-  assert.equal(clientOptions.apiKey, "test-openai-key");
-  assert.deepEqual(Object.keys(clientOptions.env).sort(), [
-    "HOME",
-    "LANG",
-    "PATH",
-    "TMPDIR",
-  ]);
+  assert.equal(requestOptions.apiKey, "test-openai-key");
+  assert.equal(requestOptions.signal instanceof AbortSignal, true);
+  assert.equal(requestOptions.reasoningEffort, "medium");
+  assert.equal(requestOptions.outputSchema.additionalProperties, false);
   assert.doesNotMatch(prompt, /must-never-reach-child|test-openai-key/u);
+  assert.match(prompt, /src\/routes\/chat\.js/u);
+  assert.match(prompt, /return 'safe'/u);
+  assert.match(prompt, /Нямаш shell/u);
   assert.match(prompt, /кодът още не е променен/u);
   assert.match(prompt, /ПРЕДИШЕН ПРОВЕРЕН РЕЗУЛТАТ/u);
   await assert.rejects(access(root));
@@ -141,23 +126,7 @@ test("Codex blocks a final response containing a configured secret", async () =>
   await mkdir(workspace);
   const secret = "private-token-value-123";
 
-  class FakeCodex {
-    startThread() {
-      return {
-        async run() {
-          return {
-            finalResponse: JSON.stringify({
-              status: "blocked",
-              summary: `Намерих ${secret}`,
-              evidence: [],
-              nextStep: "Спри.",
-              needsUserDecision: true,
-            }),
-          };
-        },
-      };
-    }
-  }
+  await writeFile(join(workspace, "package.json"), '{"name":"safe"}');
 
   await assert.rejects(
     () =>
@@ -165,7 +134,15 @@ test("Codex blocks a final response containing a configured secret", async () =>
         message: "Провери.",
         apiKey: "test-openai-key",
         env: { SERVICE_TOKEN: secret },
-        sdkLoader: async () => ({ Codex: FakeCodex }),
+        responseRequester: async () => ({
+          text: JSON.stringify({
+            status: "blocked",
+            summary: `Намерих ${secret}`,
+            evidence: [],
+            nextStep: "Спри.",
+            needsUserDecision: true,
+          }),
+        }),
         createWorkspace: async () => ({ root, workspace, files: 1 }),
       }),
     (error) =>
@@ -189,31 +166,77 @@ test("Codex read compatibility returns the formatted project result", async () =
   const workspace = join(root, "workspace");
   await mkdir(workspace);
 
-  class FakeCodex {
-    startThread() {
-      return {
-        async run() {
-          return {
-            finalResponse: JSON.stringify({
-              status: "complete",
-              summary: "Проверката приключи.",
-              evidence: [],
-              nextStep: "",
-              needsUserDecision: false,
-            }),
-          };
-        },
-      };
-    }
-  }
+  await writeFile(join(workspace, "package.json"), '{"name":"safe"}');
 
   const output = await runCodexReadAnalysis({
     message: "Провери.",
     apiKey: "test-openai-key",
-    sdkLoader: async () => ({ Codex: FakeCodex }),
+    responseRequester: async () => ({
+      text: JSON.stringify({
+        status: "complete",
+        summary: "Проверката приключи.",
+        evidence: [],
+        nextStep: "",
+        needsUserDecision: false,
+      }),
+    }),
     createWorkspace: async () => ({ root, workspace, files: 1 }),
   });
 
   assert.match(output, /Резултат: Проверката приключи/u);
   assert.match(output, /Кодът не е променян/u);
+});
+
+test("bounded source snapshots prioritize the requested file and redact tokens", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "codex-snapshot-test-"));
+  await mkdir(join(workspace, "src", "routes"), { recursive: true });
+  await mkdir(join(workspace, "docs"), { recursive: true });
+  await writeFile(
+    join(workspace, "src", "routes", "chat.js"),
+    [
+      'const apiKey = "sk_test_12345678901234567890";',
+      'const config = { "password": "super-secret-value" };',
+      "export const chat = true;",
+    ].join("\n"),
+  );
+  await writeFile(join(workspace, "docs", "unrelated.md"), "Other notes.");
+
+  try {
+    const snapshot = await createBoundedSourceSnapshot({
+      workspace,
+      message: "Провери src/routes/chat.js",
+      projectObjective: "",
+    });
+    assert.equal(snapshot.includedPaths[0], "src/routes/chat.js");
+    assert.match(snapshot.text, /REDACTED_SECRET/u);
+    assert.doesNotMatch(snapshot.text, /sk_test_12345678901234567890/u);
+    assert.doesNotMatch(snapshot.text, /super-secret-value/u);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("bounded source snapshots enforce file and byte limits", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "codex-limit-test-"));
+  await mkdir(join(workspace, "src"), { recursive: true });
+  try {
+    await Promise.all(
+      Array.from({ length: 70 }, (_, index) =>
+        writeFile(
+          join(workspace, "src", `module-${String(index).padStart(2, "0")}.js`),
+          `export const value${index} = "${"x".repeat(10000)}";`,
+        ),
+      ),
+    );
+    const snapshot = await createBoundedSourceSnapshot({
+      workspace,
+      message: "Направи общ анализ.",
+      projectObjective: "",
+    });
+    assert.ok(snapshot.includedPaths.length <= 64);
+    assert.ok(snapshot.bytes <= 480000);
+    assert.ok(Buffer.byteLength(snapshot.text, "utf8") <= 521000);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
 });

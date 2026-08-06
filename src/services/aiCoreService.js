@@ -35,6 +35,8 @@ export async function requestOpenAIResponse({
   signal,
   verbosity = "low",
   reasoningEffort = "none",
+  outputSchema,
+  outputSchemaName = "structured_response",
 }) {
   if (!apiKey) {
     throw new AiCoreError(
@@ -43,6 +45,23 @@ export async function requestOpenAIResponse({
       503,
     );
   }
+
+  const schemaName = String(outputSchemaName || "structured_response")
+    .replace(/[^A-Za-z0-9_-]/gu, "_")
+    .slice(0, 64);
+  const textOptions = {
+    verbosity,
+    ...(outputSchema && typeof outputSchema === "object"
+      ? {
+          format: {
+            type: "json_schema",
+            name: schemaName || "structured_response",
+            strict: true,
+            schema: outputSchema,
+          },
+        }
+      : {}),
+  };
 
   const response = await fetchImpl(OPENAI_RESPONSES_URL, {
     method: "POST",
@@ -54,7 +73,7 @@ export async function requestOpenAIResponse({
       model,
       input,
       reasoning: { effort: reasoningEffort },
-      text: { verbosity },
+      text: textOptions,
       store: false,
     }),
     signal,

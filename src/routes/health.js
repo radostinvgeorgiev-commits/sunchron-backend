@@ -225,8 +225,77 @@ export function createStorageBackupsHandler({
   };
 }
 
+function unavailableDependencyReport() {
+  return {
+    status: "unavailable",
+    checkedAt: new Date().toISOString(),
+    checks: {
+      opensearch: {
+        status: "unavailable",
+        errorCode: "STORAGE_DEPENDENCY_REPORT_FAILED",
+      },
+      supabase: {
+        status: "unavailable",
+        errorCode: "STORAGE_DEPENDENCY_REPORT_FAILED",
+      },
+    },
+  };
+}
+
+function unavailableBackupReport() {
+  return {
+    status: "unavailable",
+    checkedAt: new Date().toISOString(),
+    checks: {
+      opensearch: {
+        status: "unverified",
+        errorCode: "STORAGE_BACKUP_REPORT_FAILED",
+        fresh: false,
+        readOnlyCheck: true,
+        provesRestore: false,
+      },
+      supabase: {
+        status: "unverified",
+        errorCode: "SUPABASE_BACKUP_STATUS_NOT_VISIBLE_TO_RUNTIME",
+        readOnlyCheck: true,
+        provesRestore: false,
+      },
+    },
+  };
+}
+
+export function createStorageReportHandler({
+  loadDependencies = loadStorageDependencies,
+  loadBackups = loadStorageBackups,
+  now = () => new Date(),
+} = {}) {
+  return async function storageReportHandler(_req, res) {
+    setPrivateHealthHeaders(res);
+    const [dependenciesResult, backupsResult] = await Promise.allSettled([
+      loadDependencies(),
+      loadBackups(),
+    ]);
+    const dependencies =
+      dependenciesResult.status === "fulfilled"
+        ? dependenciesResult.value
+        : unavailableDependencyReport();
+    const backups =
+      backupsResult.status === "fulfilled"
+        ? publicBackupStatus(backupsResult.value)
+        : unavailableBackupReport();
+
+    res.status(200).json({
+      status: "reported",
+      checkedAt: now().toISOString(),
+      dependencies,
+      backups,
+    });
+  };
+}
+
 router.get("/dependencies", createStorageDependenciesHandler());
 router.get("/backups", createStorageBackupsHandler());
+router.get("/storage-report", createStorageReportHandler());
 
 export async function getBridgeDiagnosticsStatus({
   env = process.env,

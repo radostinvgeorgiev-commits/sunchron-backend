@@ -44,9 +44,13 @@ production проверките винаги се установяват по
   runtime publishable key не може да докаже provider backup policy, затова
   статусът остава `unverified`. Отделната owner проверка вече доказва, че при
   текущия Free Plan project backup няма.
-- Scheduled production smoke проверява dependency и backup маршрутите. Тези
-  промени стават production доказателство едва след merge, deployment на точния
-  SHA и успешен `synchron/production-smoke` за същия SHA.
+- `GET /health/storage-report` обединява двата безопасни отчета с транспортен
+  HTTP `200`, така че edge 5xx страница да не скрива точния статус. Това не
+  превръща частичния backup отчет в зелено health доказателство.
+- Scheduled production smoke проверява dependency и backup отчетите чрез
+  `/health/storage-report`. Тези промени стават production доказателство едва
+  след merge, deployment на точния SHA и успешен `synchron/production-smoke`
+  за същия SHA.
 
 ## Още не е прието
 

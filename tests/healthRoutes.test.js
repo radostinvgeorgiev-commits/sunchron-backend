@@ -8,6 +8,7 @@ import {
   createReadinessHandler,
   createStorageBackupsHandler,
   createStorageDependenciesHandler,
+  createStorageReportHandler,
   getBridgeDiagnosticsStatus,
   getReadinessStatus,
   getRuntimeVersion,
@@ -212,6 +213,74 @@ test("backup health exposes status without counts, dates or resource ids", async
     serialized,
     /restorePointCount|oldestCreatedAt|newestCreatedAt|databaseId/u,
   );
+});
+
+test("storage report keeps partial evidence readable without changing health semantics", async () => {
+  const app = express();
+  app.get(
+    "/health/storage-report",
+    createStorageReportHandler({
+      loadDependencies: async () => ({
+        status: "healthy",
+        checkedAt: "2026-08-06T10:00:00.000Z",
+        checks: {
+          opensearch: { status: "healthy", memoryIndexReadable: true },
+          supabase: { status: "healthy" },
+        },
+      }),
+      loadBackups: async () => ({
+        status: "partially-verified",
+        checkedAt: "2026-08-06T10:00:00.000Z",
+        checks: {
+          opensearch: {
+            status: "verified",
+            fresh: true,
+            restorePointCount: 3,
+            newestCreatedAt: "2026-08-06T09:00:00.000Z",
+          },
+          supabase: {
+            status: "unverified",
+            errorCode: "SUPABASE_BACKUP_STATUS_NOT_VISIBLE_TO_RUNTIME",
+          },
+        },
+      }),
+      now: () => new Date("2026-08-06T10:00:01.000Z"),
+    }),
+  );
+
+  const response = await request(app).get("/health/storage-report").expect(200);
+  assert.equal(response.headers["cache-control"], "no-store, max-age=0");
+  assert.equal(response.body.status, "reported");
+  assert.equal(response.body.dependencies.status, "healthy");
+  assert.equal(response.body.backups.status, "partially-verified");
+  assert.equal(response.body.backups.checks.opensearch.provesRestore, false);
+  assert.doesNotMatch(
+    JSON.stringify(response.body.backups),
+    /restorePointCount|newestCreatedAt|databaseId/u,
+  );
+});
+
+test("storage report converts unexpected loader failures into safe fixed codes", async () => {
+  const app = express();
+  app.get(
+    "/health/storage-report",
+    createStorageReportHandler({
+      loadDependencies: async () => {
+        throw new Error("sensitive dependency failure");
+      },
+      loadBackups: async () => {
+        throw new Error("sensitive backup failure");
+      },
+    }),
+  );
+
+  const response = await request(app).get("/health/storage-report").expect(200);
+  const serialized = JSON.stringify(response.body);
+  assert.equal(response.body.dependencies.status, "unavailable");
+  assert.equal(response.body.backups.status, "unavailable");
+  assert.match(serialized, /STORAGE_DEPENDENCY_REPORT_FAILED/u);
+  assert.match(serialized, /STORAGE_BACKUP_REPORT_FAILED/u);
+  assert.doesNotMatch(serialized, /sensitive/u);
 });
 
 test("verified backup cache cannot outlive the remaining freshness window", () => {

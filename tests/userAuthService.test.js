@@ -15,6 +15,10 @@ import {
   userSessionCookie,
   UserAuthError,
 } from "../src/services/userAuthService.js";
+import {
+  resolveTesterAuthConnection,
+  TESTER_AUTH_BOOTSTRAP,
+} from "../src/config/testerAuthBootstrap.js";
 
 const ENV = {
   SUPABASE_URL: "https://project.supabase.co",
@@ -52,6 +56,35 @@ test("detects complete auth and closed/open tester registration", () => {
     }),
     true,
   );
+});
+
+test("auth resolves the Supabase URL and key as one atomic connection", () => {
+  for (const partialRuntime of [
+    {
+      SUPABASE_URL: "not-a-url",
+      SUPABASE_PUBLISHABLE_KEY: ENV.SUPABASE_PUBLISHABLE_KEY,
+    },
+    {
+      SUPABASE_URL: ENV.SUPABASE_URL,
+      SUPABASE_PUBLISHABLE_KEY: "not-a-publishable-key",
+    },
+  ]) {
+    const connection = resolveTesterAuthConnection(partialRuntime);
+    assert.deepEqual(connection, {
+      ...TESTER_AUTH_BOOTSTRAP,
+      connectionSource: "public-bootstrap",
+    });
+    assert.equal(
+      getUserAuthConfigurationStatus({
+        ...partialRuntime,
+        SUPABASE_SESSION_ENCRYPTION_KEY:
+          ENV.SUPABASE_SESSION_ENCRYPTION_KEY,
+      }).projectConnection,
+      true,
+    );
+  }
+
+  assert.equal(resolveTesterAuthConnection(ENV).connectionSource, "runtime");
 });
 
 test("derives isolated tester secrets from the existing owner session secret", () => {

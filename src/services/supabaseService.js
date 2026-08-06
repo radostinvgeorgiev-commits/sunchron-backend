@@ -1,4 +1,7 @@
-import { TESTER_AUTH_BOOTSTRAP } from "../config/testerAuthBootstrap.js";
+import {
+  normalizeTesterAuthPublishableKey,
+  resolveTesterAuthConnection,
+} from "../config/testerAuthBootstrap.js";
 
 const DEFAULT_TIMEOUT_MS = 10000;
 
@@ -45,58 +48,33 @@ function normalizeProjectUrl(value) {
   return url.origin;
 }
 
-function normalizePublishableKey(value) {
-  const key = typeof value === "string" ? value.trim() : "";
-  return key.startsWith("sb_publishable_") || key.split(".").length === 3
-    ? key
-    : "";
-}
-
-function isAppPlatformEncryptedPlaceholder(value) {
-  const normalized = typeof value === "string" ? value.trim() : "";
-  return /^EV\[\d+:[^\]\r\n]+\]$/u.test(normalized);
-}
-
-function shouldUsePublicBootstrap(value) {
-  const normalized = typeof value === "string" ? value.trim() : "";
-  return !normalized || isAppPlatformEncryptedPlaceholder(normalized);
-}
-
-function resolveRuntimeProjectUrl(env = process.env) {
-  return normalizeProjectUrl(
-    shouldUsePublicBootstrap(env.SUPABASE_URL)
-      ? TESTER_AUTH_BOOTSTRAP.projectUrl
-      : env.SUPABASE_URL,
+export async function checkSupabaseStatus(options = {}) {
+  const {
+    fetchImpl = fetch,
+    timeoutMs,
+    env = process.env,
+  } = options;
+  const hasProjectUrl = Object.hasOwn(options, "projectUrl");
+  const hasPublishableKey = Object.hasOwn(options, "publishableKey");
+  if (hasProjectUrl !== hasPublishableKey) {
+    throw new SupabaseServiceError(
+      "Supabase връзката трябва да съдържа адрес и публичен ключ.",
+      503,
+      "SUPABASE_NOT_CONFIGURED",
+    );
+  }
+  const connection = hasProjectUrl
+    ? {
+        projectUrl: options.projectUrl,
+        publishableKey: options.publishableKey,
+        connectionSource: "explicit",
+      }
+    : resolveTesterAuthConnection(env);
+  const url = normalizeProjectUrl(connection.projectUrl);
+  const resolvedPublishableKey = normalizeTesterAuthPublishableKey(
+    connection.publishableKey,
   );
-}
-
-function resolveRuntimePublishableKey(env = process.env) {
-  return normalizePublishableKey(
-    shouldUsePublicBootstrap(env.SUPABASE_PUBLISHABLE_KEY)
-      ? TESTER_AUTH_BOOTSTRAP.publishableKey
-      : env.SUPABASE_PUBLISHABLE_KEY,
-  );
-}
-
-export async function checkSupabaseStatus({
-  fetchImpl = fetch,
-  projectUrl,
-  publishableKey,
-  timeoutMs,
-  env = process.env,
-} = {}) {
-  const url = normalizeProjectUrl(
-    projectUrl === undefined ? resolveRuntimeProjectUrl(env) : projectUrl,
-  );
-  const resolvedPublishableKey =
-    publishableKey === undefined
-      ? resolveRuntimePublishableKey(env)
-      : publishableKey;
-  if (
-    typeof resolvedPublishableKey !== "string" ||
-    !resolvedPublishableKey.trim() ||
-    isAppPlatformEncryptedPlaceholder(resolvedPublishableKey)
-  ) {
+  if (!resolvedPublishableKey) {
     throw new SupabaseServiceError(
       "Supabase ключът за достъп не е конфигуриран.",
       503,
@@ -134,6 +112,7 @@ export async function checkSupabaseStatus({
       status: "healthy",
       service: "Supabase API",
       responseTimeMs: Date.now() - startedAt,
+      connectionSource: connection.connectionSource,
     });
   } catch (error) {
     if (error instanceof SupabaseServiceError) throw error;

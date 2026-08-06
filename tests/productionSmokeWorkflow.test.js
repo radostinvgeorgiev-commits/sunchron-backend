@@ -34,6 +34,10 @@ test("production smoke publishes a readable commit status without a custom secre
     )[0];
   assert.match(dependencyStep, /dependencies_healthy=false/u);
   assert.match(dependencyStep, /for attempt in 1 2 3/u);
+  assert.match(dependencyStep, /"runtime"/u);
+  assert.match(dependencyStep, /"public-bootstrap"/u);
+  assert.match(dependencyStep, /connectionSource/u);
+  assert.match(dependencyStep, /allowedSupabaseSources\.has/u);
   assert.match(dependencyStep, /test "\$\{dependencies_healthy\}" = "true"/u);
   assert.match(
     workflow,

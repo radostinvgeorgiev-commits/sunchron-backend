@@ -114,14 +114,19 @@ jobs:
             process.stdin.on("end", () => {
               const report = JSON.parse(input).dependencies;
               const checks = report.checks || {};
+              const allowedSupabaseSources = new Set([
+                "runtime",
+                "public-bootstrap",
+              ]);
               console.log(
-                `storage=${report.status} opensearch=${checks.opensearch?.status} supabase=${checks.supabase?.status}`,
+                `storage=${report.status} opensearch=${checks.opensearch?.status} supabase=${checks.supabase?.status} supabase-source=${checks.supabase?.connectionSource}`,
               );
               if (
                 report.status !== "healthy" ||
                 checks.opensearch?.status !== "healthy" ||
                 checks.opensearch?.memoryIndexReadable !== true ||
-                checks.supabase?.status !== "healthy"
+                checks.supabase?.status !== "healthy" ||
+                !allowedSupabaseSources.has(checks.supabase?.connectionSource)
               ) {
                 process.exit(1);
               }

@@ -6,7 +6,7 @@ import {
   randomBytes,
   scryptSync,
 } from "node:crypto";
-import { TESTER_AUTH_BOOTSTRAP } from "../config/testerAuthBootstrap.js";
+import { resolveTesterAuthConnection } from "../config/testerAuthBootstrap.js";
 import {
   approveTesterAccess,
   assertTesterAccess,
@@ -26,23 +26,6 @@ export class UserAuthError extends Error {
     this.status = status;
     this.code = code;
   }
-}
-
-function normalizeProjectUrl(value) {
-  if (typeof value !== "string" || !value.trim()) return "";
-  try {
-    const url = new URL(value.trim());
-    return url.protocol === "https:" ? url.origin : "";
-  } catch {
-    return "";
-  }
-}
-
-function normalizePublishableKey(value) {
-  const key = typeof value === "string" ? value.trim() : "";
-  return key.startsWith("sb_publishable_") || key.split(".").length === 3
-    ? key
-    : "";
 }
 
 function sessionSecret(env = process.env) {
@@ -78,12 +61,7 @@ export function getTesterInviteCode(env = process.env) {
 }
 
 function authConfig(env = process.env) {
-  const projectUrl =
-    normalizeProjectUrl(env.SUPABASE_URL) ||
-    normalizeProjectUrl(TESTER_AUTH_BOOTSTRAP.projectUrl);
-  const publishableKey =
-    normalizePublishableKey(env.SUPABASE_PUBLISHABLE_KEY) ||
-    normalizePublishableKey(TESTER_AUTH_BOOTSTRAP.publishableKey);
+  const { projectUrl, publishableKey } = resolveTesterAuthConnection(env);
   return {
     projectUrl,
     publishableKey,

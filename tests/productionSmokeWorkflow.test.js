@@ -56,7 +56,21 @@ test("production smoke publishes a readable commit status without a custom secre
   assert.match(backupStep, /curl --fail/u);
   assert.match(backupStep, /if response="\$\(curl --fail/u);
   assert.match(workflow, /get_github_copilot_task_status/u);
-  assert.match(workflow, /names\.length === expected\.length/u);
+  for (const toolName of [
+    "list_available_capabilities",
+    "list_action_history",
+    "list_tasks",
+    "create_task_draft",
+    "list_projects",
+  ]) {
+    assert.match(workflow, new RegExp(toolName, "u"));
+  }
+  assert.match(workflow, /names\.length >= expected\.length/u);
+  assert.match(workflow, /new Set\(names\)\.size === names\.length/u);
+  assert.match(workflow, /expected\.every\(\(name\) => names\.includes\(name\)\)/u);
+  assert.doesNotMatch(workflow, /names\.length === expected\.length/u);
+  assert.match(workflow, /synchron:audit\.read/u);
+  assert.match(workflow, /synchron:tasks\.write/u);
   assert.match(workflow, /challenge_headers/u);
   assert.match(workflow, /synchron:read/u);
   assert.match(workflow, /--dump-header -/u);

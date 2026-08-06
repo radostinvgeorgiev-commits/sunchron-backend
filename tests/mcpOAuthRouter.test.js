@@ -8,6 +8,7 @@ import { createMcpOAuthRouter } from "../src/routes/mcpOAuthRouter.js";
 import {
   getMcpOAuthRuntimeStatus,
   resetMcpOAuthStateForTests,
+  revokeMcpGrants,
 } from "../src/services/mcpOAuthService.js";
 import mcpRouter, {
   mcpJsonParseErrorHandler,
@@ -17,6 +18,17 @@ import mcpRouter, {
 const SECRET = "router-test-secret-with-more-than-thirty-two-characters";
 const DEDICATED_SECRET =
   "router-dedicated-oauth-secret-with-more-than-thirty-two-characters";
+
+function assertMcpOAuthChallenge(response) {
+  const challenge = response.headers["www-authenticate"];
+  assert.equal(response.body.result?.isError, true);
+  assert.equal(response.body.result?.content?.[0]?.type, "text");
+  assert.ok(response.body.result?.content?.[0]?.text);
+  assert.deepEqual(response.body.result?._meta?.["mcp/www_authenticate"], [
+    challenge,
+  ]);
+  return challenge;
+}
 
 test("OAuth discovery is public and describes the exact MCP resource", async () => {
   const previous = process.env.MCP_ACCESS_TOKEN;
@@ -159,12 +171,11 @@ test("an unauthenticated tool call returns the ChatGPT OAuth challenge", async (
       params: { name: "get_personal_context", arguments: {} },
     })
     .expect(401);
-  assert.equal(response.body.error.code, -32001);
-  assert.match(
-    response.headers["www-authenticate"],
-    /oauth-protected-resource/u,
-  );
-  assert.match(response.headers["www-authenticate"], /synchron:read/u);
+  const challenge = assertMcpOAuthChallenge(response);
+  assert.match(challenge, /oauth-protected-resource/u);
+  assert.match(challenge, /synchron:read/u);
+  assert.match(challenge, /error="invalid_token"/u);
+  assert.match(challenge, /error_description="[^"]+"/u);
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
   else process.env.MCP_ACCESS_TOKEN = previous;
 });
@@ -185,8 +196,9 @@ test("an invalid bearer token is rejected with HTTP 401", async () => {
       params: { name: "get_personal_context", arguments: {} },
     })
     .expect(401);
-  assert.equal(response.body.error.code, -32001);
-  assert.match(response.headers["www-authenticate"], /invalid_token/u);
+  const challenge = assertMcpOAuthChallenge(response);
+  assert.match(challenge, /invalid_token/u);
+  assert.match(challenge, /error_description="[^"]+"/u);
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
   else process.env.MCP_ACCESS_TOKEN = previous;
 });
@@ -210,7 +222,7 @@ test("the dedicated OAuth secret is never accepted as a legacy static bearer", a
         params: { name: "get_personal_context", arguments: {} },
       })
       .expect(401);
-    assert.equal(response.body.error.code, -32001);
+    assertMcpOAuthChallenge(response);
   } finally {
     if (previousAccess === undefined) delete process.env.MCP_ACCESS_TOKEN;
     else process.env.MCP_ACCESS_TOKEN = previousAccess;
@@ -250,6 +262,7 @@ test("authorization consent issues a code bound to the browser profile", async (
   assert.match(consent.text, /Свързване на ChatGPT със AI CORE/u);
   assert.match(consent.text, /Четене на разрешените данни/u);
   assert.match(consent.text, /отделно точно потвърждение/u);
+  assert.match(consent.text, /AI CORE → Разрешения/u);
   const consentToken = consent.text.match(
     /name="consent_token" value="([^"]+)"/u,
   )?.[1];
@@ -288,6 +301,69 @@ test("authorization consent issues a code bound to the browser profile", async (
     .expect(200);
   assert.equal(token.body.token_type, "Bearer");
   assert.ok(token.body.refresh_token);
+
+  const protectedApp = express();
+  protectedApp.use(express.json());
+  protectedApp.post("/mcp", requireMcpAuthorization, (_req, res) =>
+    res.json({ ok: true }),
+  );
+  const insufficientScope = await request(protectedApp)
+    .post("/mcp")
+    .set("Authorization", `Bearer ${token.body.access_token}`)
+    .send({
+      jsonrpc: "2.0",
+      id: 6,
+      method: "tools/call",
+      params: {
+        name: "confirm_github_merged_branch_cleanup",
+        arguments: {},
+      },
+    })
+    .expect(403);
+  const insufficientChallenge = assertMcpOAuthChallenge(insufficientScope);
+  assert.match(insufficientChallenge, /insufficient_scope/u);
+  assert.match(insufficientChallenge, /synchron:github\.write/u);
+  assert.match(insufficientChallenge, /error_description="[^"]+"/u);
+
+  const unavailableApp = express();
+  unavailableApp.use(express.json());
+  unavailableApp.post(
+    "/mcp",
+    (req, res, next) =>
+      requireMcpAuthorization(req, res, next, {
+        env: { ...process.env, NODE_ENV: "production", MCP_ACCESS_TOKEN: SECRET },
+      }),
+    (_req, res) => res.json({ ok: true }),
+  );
+  const unavailable = await request(unavailableApp)
+    .post("/mcp")
+    .set("Authorization", `Bearer ${token.body.access_token}`)
+    .send({
+      jsonrpc: "2.0",
+      id: 8,
+      method: "tools/call",
+      params: { name: "get_personal_context", arguments: {} },
+    })
+    .expect(503);
+  assert.equal(unavailable.body.error.code, -32002);
+  assert.equal(unavailable.headers["www-authenticate"], undefined);
+
+  assert.equal(
+    await revokeMcpGrants({ subject: "owner-id", client: null }),
+    1,
+  );
+  const revokedAccess = await request(protectedApp)
+    .post("/mcp")
+    .set("Authorization", `Bearer ${token.body.access_token}`)
+    .send({
+      jsonrpc: "2.0",
+      id: 7,
+      method: "tools/call",
+      params: { name: "get_personal_context", arguments: {} },
+    })
+    .expect(401);
+  const revokedChallenge = assertMcpOAuthChallenge(revokedAccess);
+  assert.match(revokedChallenge, /error="invalid_token"/u);
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
   else process.env.MCP_ACCESS_TOKEN = previous;
 });
@@ -346,6 +422,57 @@ test("authorization flow overrides global COOP so ChatGPT can complete the popup
       approved.headers["cross-origin-resource-policy"],
       "same-origin",
     );
+  } finally {
+    if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
+    else process.env.MCP_ACCESS_TOKEN = previous;
+  }
+});
+
+test("authorization denial returns a no-store error to the exact ChatGPT callback", async () => {
+  resetMcpOAuthStateForTests();
+  const previous = process.env.MCP_ACCESS_TOKEN;
+  process.env.MCP_ACCESS_TOKEN = SECRET;
+  try {
+    const oauthRequest = {
+      clientId: "https://chatgpt.com/oauth/synchron/client.json",
+      clientName: "ChatGPT",
+      redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
+      state: "state-denied",
+      codeChallenge: "c".repeat(43),
+      resource: "https://synchron.foundation/mcp",
+      scopes: ["synchron:read"],
+    };
+    const app = express();
+    app.use(
+      createMcpOAuthRouter({
+        resolveIdentity: async () => ({
+          id: "owner-id",
+          displayName: "Радко",
+          role: "owner",
+          memoryOwnerId: "primary-user",
+        }),
+        validateRequest: async () => oauthRequest,
+      }),
+    );
+    const consent = await request(app).get("/oauth/authorize").expect(200);
+    const consentToken = consent.text.match(
+      /name="consent_token" value="([^"]+)"/u,
+    )?.[1];
+    assert.ok(consentToken);
+
+    const denied = await request(app)
+      .post("/oauth/authorize")
+      .type("form")
+      .send({ consent_token: consentToken, decision: "deny" })
+      .expect(302);
+    const callback = new URL(denied.headers.location);
+    assert.equal(callback.origin, "https://chatgpt.com");
+    assert.equal(callback.pathname, "/connector/oauth/test-callback");
+    assert.equal(callback.searchParams.get("state"), oauthRequest.state);
+    assert.equal(callback.searchParams.get("error"), "access_denied");
+    assert.equal(callback.searchParams.has("code"), false);
+    assert.equal(denied.headers["cache-control"], "no-store");
+    assert.equal(denied.headers.pragma, "no-cache");
   } finally {
     if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
     else process.env.MCP_ACCESS_TOKEN = previous;

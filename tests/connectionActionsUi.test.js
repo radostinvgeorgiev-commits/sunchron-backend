@@ -12,6 +12,13 @@ test("connection and permission controls lead to real setup actions", async () =
   assert.match(app, /window\.location\.href = "\/api\/google\/connect"/u);
   assert.match(app, /data-connect-service="github"/u);
   assert.match(app, /window\.location\.href = "\/api\/github\/connect"/u);
+  assert.match(app, /<strong>ChatGPT<\/strong>/u);
+  assert.match(app, /chatgptConnected \? "disconnect" : "connect"/u);
+  assert.match(app, /window\.open\("https:\/\/chatgpt\.com\/"/u);
+  assert.match(app, /fetch\("\/permissions\/oauth\/chatgpt"/u);
+  assert.match(app, /\/permissions\/oauth\/chatgpt\/revoke/u);
+  assert.match(app, /JSON\.stringify\(\{ all: true \}\)/u);
+  assert.match(app, /Да отнема ли всички активни права на ChatGPT/u);
   assert.match(app, /data-disconnect-service/u);
   assert.match(app, /\/api\/google\/disconnect/u);
   assert.match(app, /\/api\/github\/disconnect/u);

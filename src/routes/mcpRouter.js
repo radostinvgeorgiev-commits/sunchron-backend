@@ -6,6 +6,7 @@ import {
 } from "../services/mcpReadService.js";
 import {
   allowsAnonymousMcpTool,
+  assertMcpGrantActive,
   buildMcpAuthenticateChallenge,
   McpOAuthError,
   requiredScopesForMcpTool,
@@ -78,7 +79,31 @@ export function mcpJsonParseErrorHandler(error, req, res, next) {
   });
 }
 
-export function requireMcpAuthorization(
+function sendMcpAuthorizationError(req, res, { challenge, message, status }) {
+  res.set("WWW-Authenticate", challenge);
+  return res.status(status).json({
+    jsonrpc: "2.0",
+    id: req.body?.id ?? null,
+    result: {
+      content: [{ type: "text", text: message }],
+      _meta: { "mcp/www_authenticate": [challenge] },
+      isError: true,
+    },
+  });
+}
+
+function sendMcpAuthorizationUnavailable(req, res) {
+  return res.status(503).json({
+    jsonrpc: "2.0",
+    id: req.body?.id ?? null,
+    error: {
+      code: -32002,
+      message: "MCP OAuth validation is temporarily unavailable.",
+    },
+  });
+}
+
+export async function requireMcpAuthorization(
   req,
   res,
   next,
@@ -115,7 +140,9 @@ export function requireMcpAuthorization(
   let oauthError = null;
   try {
     identity = verifyMcpAccessToken(authorization, requiredScopes, env);
+    if (identity) await assertMcpGrantActive(identity, { env });
   } catch (error) {
+    identity = null;
     oauthError =
       error instanceof McpOAuthError
         ? error
@@ -130,35 +157,30 @@ export function requireMcpAuthorization(
     req.mcpAuthentication = { mode: "oauth2", ...identity };
     return next();
   }
+  if (oauthError?.status >= 500) {
+    return sendMcpAuthorizationUnavailable(req, res);
+  }
 
-  const challenge = buildMcpAuthenticateChallenge(
-    requiredScopes,
-    env,
-    oauthError
-      ? {
-          error: oauthError.code,
-          description: oauthError.description,
-        }
-      : {},
-  );
-  res.set("WWW-Authenticate", challenge);
+  const challengeError = oauthError?.code || "invalid_token";
+  const challengeDescription =
+    challengeError === "insufficient_scope"
+      ? "The access token does not include the required scope."
+      : "The access token is missing, invalid, expired, or revoked.";
+  const challenge = buildMcpAuthenticateChallenge(requiredScopes, env, {
+    error: challengeError,
+    description: challengeDescription,
+  });
   if (authorization) {
-    return res.status(oauthError?.status === 403 ? 403 : 401).json({
-      jsonrpc: "2.0",
-      id: req.body?.id ?? null,
-      error: {
-        code: -32001,
-        message: oauthError?.message || "Невалиден или изтекъл MCP token.",
-      },
+    return sendMcpAuthorizationError(req, res, {
+      challenge,
+      message: oauthError?.message || "Невалиден или изтекъл MCP token.",
+      status: oauthError?.status === 403 ? 403 : 401,
     });
   }
-  return res.status(401).json({
-    jsonrpc: "2.0",
-    id: req.body?.id ?? null,
-    error: {
-      code: -32001,
-      message: "Нужно е OAuth свързване със AI CORE.",
-    },
+  return sendMcpAuthorizationError(req, res, {
+    challenge,
+    message: "Нужно е OAuth свързване със AI CORE.",
+    status: 401,
   });
 }
 

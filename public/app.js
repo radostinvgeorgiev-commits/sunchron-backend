@@ -768,9 +768,41 @@ function permissionAction(item, toolMap, googleConnected, githubConnected) {
   return "";
 }
 
-function connectionControls(googleConnected, githubConnected) {
+function connectionControls(
+  googleConnected,
+  githubConnected,
+  chatgptConnection = {},
+) {
+  const chatgptConnected = Boolean(chatgptConnection.connected);
+  const chatgptConfigured = chatgptConnection.configured !== false;
+  const chatgptUnavailable = Boolean(chatgptConnection.unavailable);
+  const chatgptGrants = Array.isArray(chatgptConnection.grants)
+    ? chatgptConnection.grants
+    : [];
+  const chatgptScopes = [
+    ...new Set(
+      chatgptGrants.flatMap((grant) => grant.scopes || []),
+    ),
+  ];
+  const chatgptDescription = chatgptUnavailable
+    ? "Състоянието временно не е достъпно"
+    : chatgptConnected
+      ? `${chatgptGrants.length} активни MCP връзки · ${chatgptScopes.length} разрешения`
+      : chatgptConfigured
+        ? "Няма активна MCP връзка"
+        : "OAuth връзката не е конфигурирана";
   return `
     <section class="connection-control-grid" aria-label="Управление на връзките">
+      <article class="connection-control-card">
+        <div>
+          <strong>ChatGPT</strong>
+          <p>${escapeHtml(chatgptDescription)}</p>
+          ${chatgptScopes.length ? `<small>${escapeHtml(chatgptScopes.join(" · "))}</small>` : ""}
+        </div>
+        <button type="button" class="tool-connect-btn" data-${chatgptConnected ? "disconnect" : "connect"}-service="chatgpt" ${chatgptConfigured ? "" : "disabled"}>
+          ${chatgptConnected ? "Спри достъпа" : "Отвори ChatGPT"}
+        </button>
+      </article>
       <article class="connection-control-card">
         <div><strong>Google</strong><p>Drive, Gmail, Calendar и Contacts</p></div>
         <button type="button" class="tool-connect-btn" data-${googleConnected ? "disconnect" : "connect"}-service="google">
@@ -790,10 +822,18 @@ async function openToolsDrawer() {
   openDataDrawer("Инструменти");
   renderDrawerLoading();
   try {
-    const [healthResponse, googleResponse, githubResponse] = await Promise.all([
+    const [
+      healthResponse,
+      googleResponse,
+      githubResponse,
+      chatgptResponse,
+    ] = await Promise.all([
       fetch("/health/integrations", { cache: "no-store" }),
       fetch("/api/google/status", { cache: "no-store" }).catch(() => null),
       fetch("/api/github/status", { cache: "no-store" }).catch(() => null),
+      fetch("/permissions/oauth/chatgpt", { cache: "no-store" }).catch(
+        () => null,
+      ),
     ]);
     if (!healthResponse.ok) {
       throw new Error("Състоянието на инструментите не е достъпно.");
@@ -805,6 +845,15 @@ async function openToolsDrawer() {
     const githubData = githubResponse?.ok
       ? await githubResponse.json().catch(() => ({}))
       : {};
+    const chatgptData = chatgptResponse?.ok
+      ? await chatgptResponse
+          .json()
+          .catch(() => ({
+            configured: false,
+            connected: false,
+            unavailable: true,
+          }))
+      : { configured: false, connected: false, unavailable: true };
     const tools = Array.isArray(data.tools) ? data.tools : [];
     const descriptions = {
       "github-read": "Проверява commit-и и файлове. Само за четене.",
@@ -831,7 +880,11 @@ async function openToolsDrawer() {
       <div class="permission-default">
         Показано е реалното състояние. „Регистриран“ не означава автоматично „работи“.
       </div>
-      ${connectionControls(Boolean(googleData.connected), Boolean(githubData.connected))}
+      ${connectionControls(
+        Boolean(googleData.connected),
+        Boolean(githubData.connected),
+        chatgptData,
+      )}
       <section class="drawer-section permission-list">
         <button type="button" class="permission-card tool-status-card system-control-link" data-system-configuration>
           <div>
@@ -1087,11 +1140,15 @@ async function openPermissionsDrawer() {
       healthResponse,
       googleResponse,
       githubResponse,
+      chatgptResponse,
     ] = await Promise.all([
       fetch("/permissions", { cache: "no-store" }),
       fetch("/health/integrations", { cache: "no-store" }),
       fetch("/api/google/status", { cache: "no-store" }).catch(() => null),
       fetch("/api/github/status", { cache: "no-store" }).catch(() => null),
+      fetch("/permissions/oauth/chatgpt", { cache: "no-store" }).catch(
+        () => null,
+      ),
     ]);
     if (!permissionsResponse.ok || !healthResponse.ok) {
       throw new Error("Разрешенията временно не са достъпни.");
@@ -1106,6 +1163,15 @@ async function openPermissionsDrawer() {
     const githubData = githubResponse?.ok
       ? await githubResponse.json().catch(() => ({}))
       : {};
+    const chatgptData = chatgptResponse?.ok
+      ? await chatgptResponse
+          .json()
+          .catch(() => ({
+            configured: false,
+            connected: false,
+            unavailable: true,
+          }))
+      : { configured: false, connected: false, unavailable: true };
     const toolMap = new Map(
       (healthData.tools || []).map((tool) => [tool.id, tool]),
     );
@@ -1119,7 +1185,11 @@ async function openPermissionsDrawer() {
                 Зеленото е активно. Оранжевото също работи, но пита преди рисково действие.
                 Несвързаните услуги имат отделен бутон за вход.
             </div>
-            ${connectionControls(Boolean(googleData.connected), Boolean(githubData.connected))}
+            ${connectionControls(
+              Boolean(googleData.connected),
+              Boolean(githubData.connected),
+              chatgptData,
+            )}
             <section class="drawer-section permission-list">
                 ${(data.permissions || [])
                   .map(
@@ -1244,6 +1314,8 @@ async function handleDataDrawerAction(event) {
       window.location.href = "/api/google/connect";
     } else if (connectionButton.dataset.connectService === "github") {
       window.location.href = "/api/github/connect";
+    } else if (connectionButton.dataset.connectService === "chatgpt") {
+      window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
     }
     return;
   }
@@ -1251,9 +1323,17 @@ async function handleDataDrawerAction(event) {
   const disconnectButton = event.target.closest("[data-disconnect-service]");
   if (disconnectButton) {
     const service = disconnectButton.dataset.disconnectService;
+    const serviceName =
+      service === "google"
+        ? "Google"
+        : service === "github"
+          ? "GitHub"
+          : "ChatGPT";
     if (
       !window.confirm(
-        `Да спра ли достъпа на AI CORE до ${service === "google" ? "Google" : "GitHub"}?`,
+        service === "chatgpt"
+          ? "Да отнема ли всички активни права на ChatGPT до AI CORE?"
+          : `Да спра ли достъпа на AI CORE до ${serviceName}?`,
       )
     ) {
       return;
@@ -1263,14 +1343,20 @@ async function handleDataDrawerAction(event) {
       const response = await fetch(
         service === "google"
           ? "/api/google/disconnect"
-          : "/api/github/disconnect",
-        { method: "POST" },
+          : service === "github"
+            ? "/api/github/disconnect"
+            : "/permissions/oauth/chatgpt/revoke",
+        service === "chatgpt"
+          ? {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ all: true }),
+            }
+          : { method: "POST" },
       );
       if (!response.ok) throw new Error("Връзката не можа да бъде прекъсната.");
       await openPermissionsDrawer();
-      logAction(
-        `Прекъсната е връзката с ${service === "google" ? "Google" : "GitHub"}`,
-      );
+      logAction(`Прекъсната е връзката с ${serviceName}`);
     } catch (error) {
       renderDrawerError(error.message);
     }

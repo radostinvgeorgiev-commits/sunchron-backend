@@ -41,7 +41,7 @@ test("integration status reports configuration without exposing secret values", 
     assert.equal(status.core.chatAgent.primaryProvider, "openai");
     assert.equal(status.core.chatAgent.removedProvider, "digitalocean-agent");
     assert.equal(status.core.openai.configured, true);
-    assert.equal(status.tools.length, 14);
+    assert.equal(status.tools.length, 18);
     assert.equal(
       status.tools
         .filter((tool) => tool.id !== "github-write")
@@ -92,6 +92,12 @@ test("GitHub Write reports the authenticated owner session", () => {
     assert.equal(githubWrite.configured, true);
     assert.equal(githubWrite.authenticated, true);
     assert.equal(githubWrite.healthStatus, "healthy");
+    const confirmedWrite = status.tools.find(
+      (tool) => tool.id === "github-confirmed-write",
+    );
+    assert.equal(confirmedWrite.configured, true);
+    assert.equal(confirmedWrite.authenticated, true);
+    assert.equal(confirmedWrite.healthStatus, "healthy");
   } finally {
     for (const [name, value] of Object.entries(original)) {
       if (value === undefined) delete process.env[name];

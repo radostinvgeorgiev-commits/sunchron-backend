@@ -234,12 +234,6 @@
         ? "working"
         : "action"
       : "unavailable";
-    const githubWrite = integrations?.tools?.find(
-      (item) => item.id === "github-write",
-    );
-    const githubWriteDisabled =
-      githubWrite?.availabilityCode === "COPILOT_AUTOMATION_DISABLED";
-
     return [
       {
         label: "AI разговор и постоянна памет",
@@ -254,10 +248,8 @@
         state: resolveCapabilityState(integrations, "github-read"),
       },
       {
-        label: githubWriteDisabled
-          ? "GitHub запис · изключен в режим без Copilot"
-          : "GitHub запис с точно потвърждение",
-        state: resolveCapabilityState(integrations, "github-write", {
+        label: "GitHub запис с точно потвърждение",
+        state: resolveCapabilityState(integrations, "github-confirmed-write", {
           connected: Boolean(sessions.githubConnected),
         }),
       },
@@ -351,6 +343,114 @@
     return section;
   }
 
+  function renderActionCenter({
+    tasks = [],
+    workspace = null,
+    audit = [],
+    memories = [],
+  } = {}) {
+    const section = document.createElement("section");
+    section.className = "action-center";
+    section.setAttribute("aria-labelledby", "actionCenterTitle");
+    const heading = addText(
+      section,
+      "h3",
+      "Център за действие",
+      "action-center-title",
+    );
+    heading.id = "actionCenterTitle";
+    addText(
+      section,
+      "p",
+      "Какво е важно, какво чака решение и какво AI CORE може да продължи.",
+      "action-center-note",
+    );
+
+    const state = workspace?.state || {};
+    const projects = Array.isArray(state.projects) ? state.projects : [];
+    const activeProject =
+      projects.find((project) => project.id === state.activeProjectId) ||
+      projects[0] ||
+      null;
+    const activities = Array.isArray(state.activities) ? state.activities : [];
+    const waitingTasks = tasks.filter((task) => task.status === "blocked");
+    const actionableTasks = tasks.filter((task) =>
+      ["draft", "ready", "in_progress"].includes(task.status),
+    );
+    const waitingActivities = activities.filter(
+      (activity) => activity.status === "needs-input",
+    );
+    const recentApprovalRequests = audit.filter(
+      (event) => event.outcome === "requested" || event.decision === "confirm",
+    );
+    const lastCompleted = audit.find((event) => event.outcome === "succeeded");
+
+    const cards = [
+      {
+        label: "Важно днес",
+        value:
+          activeProject?.run?.nextStep ||
+          activeProject?.objective ||
+          "Избери следваща стъпка за активния проект.",
+        targetId: "workContextBtn",
+        icon: "fa-solid fa-compass",
+      },
+      {
+        label: "Чака твоето решение",
+        value: `${waitingTasks.length + waitingActivities.length} задачи или изпълнения`,
+        targetId: "focusBtn",
+        icon: "fa-solid fa-hand",
+        tone: waitingTasks.length + waitingActivities.length ? "warning" : "ok",
+      },
+      {
+        label: "AI CORE може да продължи",
+        value: `${actionableTasks.length} незавършени задачи`,
+        targetId: "focusBtn",
+        icon: "fa-solid fa-forward",
+      },
+      {
+        label: "Последни заявки за одобрение",
+        value: `${recentApprovalRequests.length} в безопасния журнал`,
+        targetId: "permissionsBtn",
+        icon: "fa-solid fa-circle-check",
+        tone: recentApprovalRequests.length ? "warning" : "ok",
+      },
+      {
+        label: "Последно извършено",
+        value: lastCompleted
+          ? `${lastCompleted.action || "действие"} · ${lastCompleted.timestamp || "без дата"}`
+          : "Няма записано успешно действие.",
+        targetId: "permissionsBtn",
+        icon: "fa-solid fa-clock-rotate-left",
+      },
+      {
+        label: "Контекст",
+        value: `${projects.length} проекта · ${memories.length} управлявани спомена`,
+        targetId: "memoryBtn",
+        icon: "fa-solid fa-layer-group",
+      },
+    ];
+
+    const grid = document.createElement("div");
+    grid.className = "action-center-grid";
+    for (const item of cards) {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = `action-center-card ${item.tone || "neutral"}`;
+      card.dataset.workCenterTarget = item.targetId;
+      const icon = document.createElement("span");
+      icon.className = "action-center-icon";
+      icon.innerHTML = `<i class="${item.icon}" aria-hidden="true"></i>`;
+      const content = document.createElement("span");
+      addText(content, "strong", item.label);
+      addText(content, "span", item.value);
+      card.append(icon, content);
+      grid.appendChild(card);
+    }
+    section.appendChild(grid);
+    return section;
+  }
+
   function resolveChatGptAppStatus(readiness) {
     const bridge = readiness?.checks?.bridge;
     if (
@@ -377,6 +477,7 @@
     sessions = {},
     testerAuth = null,
     publicDomain = null,
+    actionCenter = null,
   ) {
     const chatgptUrl = safeHttpsUrl(
       config.chatgptWorkUrl,
@@ -400,6 +501,7 @@
       "Свързаният разговор е вътре в AI CORE. Външните услуги не получават автоматично достъп до паметта и не дават нови права на агента.",
     );
     body.appendChild(intro);
+    body.appendChild(renderActionCenter(actionCenter || {}));
     body.appendChild(
       renderCurrentCapabilities(readiness, integrations, sessions, testerAuth),
     );
@@ -876,6 +978,10 @@
       githubResult,
       testerAuthResult,
       publicDomainResult,
+      tasksResult,
+      workspaceResult,
+      auditResult,
+      memoriesResult,
     ] = await Promise.allSettled([
       fetch("/api/public-config", { cache: "no-store" }),
       fetch("/health/ready", { cache: "no-store" }),
@@ -884,6 +990,10 @@
       fetch("/api/github/status", { cache: "no-store" }),
       fetch("/api/tester-auth/status", { cache: "no-store" }),
       fetch("/api/digitalocean-domain/status", { cache: "no-store" }),
+      fetch("/api/tasks?unfinished=true&limit=20", { cache: "no-store" }),
+      fetch("/api/workspaces", { cache: "no-store" }),
+      fetch("/permissions/audit?limit=30", { cache: "no-store" }),
+      fetch("/memory/profile", { cache: "no-store" }),
     ]);
 
     let config = FALLBACK_CONFIG;
@@ -923,6 +1033,24 @@
     ) {
       publicDomain = await publicDomainResult.value.json();
     }
+    const actionCenter = {
+      tasks:
+        tasksResult.status === "fulfilled" && tasksResult.value.ok
+          ? (await tasksResult.value.json()).items || []
+          : [],
+      workspace:
+        workspaceResult.status === "fulfilled" && workspaceResult.value.ok
+          ? await workspaceResult.value.json()
+          : null,
+      audit:
+        auditResult.status === "fulfilled" && auditResult.value.ok
+          ? (await auditResult.value.json()).events || []
+          : [],
+      memories:
+        memoriesResult.status === "fulfilled" && memoriesResult.value.ok
+          ? (await memoriesResult.value.json()).items || []
+          : [],
+    };
     renderWorkCenter(
       config,
       readiness,
@@ -933,6 +1061,7 @@
       },
       testerAuth,
       publicDomain,
+      actionCenter,
     );
   }
 

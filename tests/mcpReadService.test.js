@@ -32,6 +32,42 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
       "get_github_copilot_task_status",
       "prepare_github_merged_branch_cleanup",
       "confirm_github_merged_branch_cleanup",
+      "send_message",
+      "read_reply",
+      "list_threads",
+      "read_history",
+      "continue_session",
+      "propose_memory_change",
+      "prepare_memory_write",
+      "confirm_memory_write",
+      "prepare_memory_delete",
+      "confirm_memory_delete",
+      "list_available_capabilities",
+      "list_action_history",
+      "list_recent_errors",
+      "list_tasks",
+      "create_task_draft",
+      "add_task_note",
+      "link_task_to_project",
+      "prepare_task_status_change",
+      "confirm_task_status_change",
+      "list_projects",
+      "get_github_overview",
+      "get_github_file",
+      "prepare_github_change",
+      "confirm_github_change",
+      "list_google_drive_files",
+      "search_gmail",
+      "create_gmail_draft",
+      "prepare_gmail_send",
+      "prepare_gmail_delete",
+      "confirm_google_action",
+      "list_google_calendar_events",
+      "suggest_calendar_slots",
+      "prepare_calendar_event",
+      "confirm_calendar_event",
+      "search_google_contacts",
+      "prepare_google_contact",
     ],
   );
   const confirm = MCP_TOOLS.find(
@@ -80,6 +116,24 @@ test("MCP exposes read tools and a two-step cleanup flow", () => {
   assert.deepEqual(publicStatus.securitySchemes, [
     { type: "noauth" },
     { type: "oauth2", scopes: ["synchron:read"] },
+  ]);
+  const sendMessage = MCP_TOOLS.find((tool) => tool.name === "send_message");
+  assert.equal(sendMessage.annotations.destructiveHint, false);
+  assert.deepEqual(sendMessage.securitySchemes, [
+    { type: "oauth2", scopes: ["synchron:agent.chat"] },
+  ]);
+  const memoryWrite = MCP_TOOLS.find(
+    (tool) => tool.name === "confirm_memory_write",
+  );
+  assert.equal(memoryWrite.annotations.destructiveHint, true);
+  assert.deepEqual(memoryWrite.securitySchemes, [
+    { type: "oauth2", scopes: ["synchron:memory.write"] },
+  ]);
+  const googleWrite = MCP_TOOLS.find(
+    (tool) => tool.name === "confirm_google_action",
+  );
+  assert.deepEqual(googleWrite.securitySchemes, [
+    { type: "oauth2", scopes: ["synchron:google.write"] },
   ]);
 });
 
@@ -135,8 +189,14 @@ test("anonymous production status omits identifiers and configuration names", as
     response.result.structuredContent.activeDeployment.id,
     undefined,
   );
-  assert.equal(response.result.structuredContent.environmentVariables, undefined);
-  assert.equal(response.result.structuredContent.deployments[0].cause, undefined);
+  assert.equal(
+    response.result.structuredContent.environmentVariables,
+    undefined,
+  );
+  assert.equal(
+    response.result.structuredContent.deployments[0].cause,
+    undefined,
+  );
   assert.deepEqual(response.result.structuredContent.oauth, {
     authorization: "redirected",
     authorizationDecision: "allow",
@@ -480,4 +540,26 @@ test("MCP www activation requires the exact one-time confirmation", async () => 
   assert.equal(writes[0].action, "infrastructure.digitalocean:add_www_domain");
   assert.equal(writes[0].capability, "infrastructure.write");
   assert.equal(writes[0].confirmationId, "www-confirmation-1");
+});
+
+test("MCP exposes only controlled capability errors with a safe diagnostic code", async () => {
+  const handler = createMcpRequestHandler({ audit: async () => {} });
+  const response = await handler(
+    {
+      jsonrpc: "2.0",
+      id: 90,
+      method: "tools/call",
+      params: {
+        name: "search_gmail",
+        arguments: { query: "from:client@example.com" },
+      },
+    },
+    "primary-user",
+    { role: "owner" },
+  );
+
+  assert.equal(response.error.code, -32000);
+  assert.equal(response.error.data.code, "NOT_CONNECTED");
+  assert.match(response.error.message, /Google не е свързан/u);
+  assert.doesNotMatch(JSON.stringify(response), /token|password|secret/iu);
 });

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { getOpenSearchClient } from "../config/opensearch.js";
 
 const DEFAULT_INDEX = "synchron-workspaces-v1";
-const WORKSPACE_VERSION = 5;
+const WORKSPACE_VERSION = 6;
 const VALID_MODES = new Set(["chat", "work"]);
 const VALID_STATUSES = new Set(["ready", "running", "needs-input", "blocked"]);
 const VALID_ROLES = new Set([
@@ -27,11 +27,12 @@ const VALID_MODELS = new Set([
   "gpt-5.6-luna",
 ]);
 const VALID_PETS = new Set(["robot", "drop", "spark", "owl", "rock", "cat"]);
+const VALID_MEMORY_MODES = new Set(["confirm", "disabled"]);
 
 const DEFAULT_AGENTS = Object.freeze([
   Object.freeze({
     id: "synchron-builder",
-    name: "AI CORE",
+    name: "Изпълни",
     role: "builder",
     model: "auto",
     purpose: "Подготвя реален резултат и показва какво е проверено.",
@@ -40,7 +41,7 @@ const DEFAULT_AGENTS = Object.freeze([
   }),
   Object.freeze({
     id: "research-agent",
-    name: "Изследовател",
+    name: "Проучи",
     role: "researcher",
     model: "auto",
     purpose: "Проверява актуални източници и отделя фактите от изводите.",
@@ -49,7 +50,7 @@ const DEFAULT_AGENTS = Object.freeze([
   }),
   Object.freeze({
     id: "organizer-agent",
-    name: "Организатор",
+    name: "Организирай",
     role: "organizer",
     model: "auto",
     purpose: "Подрежда задачи и календар, като спира преди външни промени.",
@@ -58,7 +59,7 @@ const DEFAULT_AGENTS = Object.freeze([
   }),
   Object.freeze({
     id: "documents-agent",
-    name: "Документи",
+    name: "Напиши",
     role: "documents",
     model: "auto",
     purpose: "Работи с разрешени файлове, документи и поща.",
@@ -67,7 +68,7 @@ const DEFAULT_AGENTS = Object.freeze([
   }),
   Object.freeze({
     id: "codex-agent",
-    name: "Codex",
+    name: "Код",
     role: "coder",
     model: "gpt-5.6-terra",
     purpose: "Анализира кода в изолирана област без запис и без интернет.",
@@ -131,6 +132,44 @@ function normalizeProjectRun(value, timestamp) {
   };
 }
 
+function normalizeProjectDecisions(value, timestamp) {
+  return (Array.isArray(value) ? value : [])
+    .slice(0, 20)
+    .map((item) => ({
+      text: cleanText(typeof item === "string" ? item : item?.text, 500),
+      createdAt: cleanText(item?.createdAt, 40) || timestamp,
+    }))
+    .filter((item) => item.text);
+}
+
+function normalizeProjectResources(value) {
+  return (Array.isArray(value) ? value : [])
+    .slice(0, 30)
+    .map((item) => {
+      const url = cleanText(item?.url, 1000);
+      let safeUrl = "";
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol === "https:") safeUrl = parsed.href;
+      } catch {
+        safeUrl = "";
+      }
+      return {
+        label: cleanText(item?.label, 120) || "Ресурс",
+        url: safeUrl,
+        type: item?.type === "file" ? "file" : "link",
+      };
+    })
+    .filter((item) => item.url);
+}
+
+function normalizeReferenceIds(value, limit) {
+  return (Array.isArray(value) ? value : [])
+    .slice(0, limit)
+    .map((item) => cleanText(item, 80))
+    .filter((item) => /^[a-z0-9][a-z0-9:_-]{0,79}$/iu.test(item));
+}
+
 function defaultWorkspaceState(now = new Date().toISOString()) {
   return {
     version: WORKSPACE_VERSION,
@@ -147,10 +186,17 @@ function defaultWorkspaceState(now = new Date().toISOString()) {
         status: "ready",
         updatedAt: now,
         run: null,
+        decisions: [],
+        resources: [],
+        toolIds: [],
+        conversationIds: [],
       },
     ],
     agents: DEFAULT_AGENTS.map((agent) => ({ ...agent })),
     activities: [],
+    preferences: {
+      memoryMode: "confirm",
+    },
   };
 }
 
@@ -169,6 +215,10 @@ export function normalizeWorkspaceState(value, { now } = {}) {
         status: VALID_STATUSES.has(project?.status) ? project.status : "ready",
         updatedAt: cleanText(project?.updatedAt, 40) || timestamp,
         run: normalizeProjectRun(project?.run, timestamp),
+        decisions: normalizeProjectDecisions(project?.decisions, timestamp),
+        resources: normalizeProjectResources(project?.resources),
+        toolIds: normalizeReferenceIds(project?.toolIds, 20),
+        conversationIds: normalizeReferenceIds(project?.conversationIds, 50),
       }))
     : fallback.projects;
   const agents = Array.isArray(value.agents)
@@ -194,6 +244,11 @@ export function normalizeWorkspaceState(value, { now } = {}) {
         updatedAt: cleanText(activity?.updatedAt, 40) || timestamp,
       }))
     : [];
+  const preferences = {
+    memoryMode: VALID_MEMORY_MODES.has(value.preferences?.memoryMode)
+      ? value.preferences.memoryMode
+      : "confirm",
+  };
 
   if (!projects.length) projects.push(...fallback.projects);
   if (!agents.length) agents.push(...fallback.agents);
@@ -205,6 +260,18 @@ export function normalizeWorkspaceState(value, { now } = {}) {
       if (agents.length >= 12) break;
       if (!agents.some((agent) => agent.id === defaultAgent.id)) {
         agents.push({ ...defaultAgent });
+      }
+    }
+    for (const defaultAgent of fallback.agents) {
+      const existing = agents.find((agent) => agent.id === defaultAgent.id);
+      if (existing) {
+        Object.assign(existing, {
+          name: defaultAgent.name,
+          role: defaultAgent.role,
+          model: defaultAgent.model,
+          purpose: defaultAgent.purpose,
+          engine: defaultAgent.engine,
+        });
       }
     }
   }
@@ -233,6 +300,7 @@ export function normalizeWorkspaceState(value, { now } = {}) {
     projects,
     agents,
     activities,
+    preferences,
   };
 }
 

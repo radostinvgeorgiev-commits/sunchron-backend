@@ -1,5 +1,5 @@
 (() => {
-  const STORAGE_VERSION = 5;
+  const STORAGE_VERSION = 6;
   const WORKSPACE_ENDPOINT = "/api/workspaces";
   const PETS = Object.freeze([
     {
@@ -57,11 +57,22 @@
     "gpt-5.6-terra": "GPT-5.6 Terra · балансиран",
     "gpt-5.6-luna": "GPT-5.6 Luna · бърз",
   });
+  const PROJECT_TOOL_OPTIONS = Object.freeze([
+    Object.freeze({ id: "synchron-agent-chat", label: "AI разговор" }),
+    Object.freeze({ id: "opensearch-memory", label: "Памет" }),
+    Object.freeze({ id: "synchron-tasks", label: "Задачи" }),
+    Object.freeze({ id: "github-read", label: "GitHub" }),
+    Object.freeze({ id: "google-drive-read", label: "Google Drive" }),
+    Object.freeze({ id: "gmail-read", label: "Gmail" }),
+    Object.freeze({ id: "google-calendar-read", label: "Календар" }),
+    Object.freeze({ id: "google-contacts", label: "Контакти" }),
+    Object.freeze({ id: "openai-web-search", label: "Интернет" }),
+  ]);
 
   const DEFAULT_AGENTS = Object.freeze([
     Object.freeze({
       id: "synchron-builder",
-      name: "AI CORE",
+      name: "Изпълни",
       role: "builder",
       model: "auto",
       purpose: "Подготвя реален резултат и показва какво е проверено.",
@@ -70,7 +81,7 @@
     }),
     Object.freeze({
       id: "research-agent",
-      name: "Изследовател",
+      name: "Проучи",
       role: "researcher",
       model: "auto",
       purpose: "Проверява актуални източници и отделя фактите от изводите.",
@@ -79,7 +90,7 @@
     }),
     Object.freeze({
       id: "organizer-agent",
-      name: "Организатор",
+      name: "Организирай",
       role: "organizer",
       model: "auto",
       purpose: "Подрежда задачи и календар, като спира преди външни промени.",
@@ -88,7 +99,7 @@
     }),
     Object.freeze({
       id: "documents-agent",
-      name: "Документи",
+      name: "Напиши",
       role: "documents",
       model: "auto",
       purpose: "Работи с разрешени файлове, документи и поща.",
@@ -97,7 +108,7 @@
     }),
     Object.freeze({
       id: "codex-agent",
-      name: "Codex",
+      name: "Код",
       role: "coder",
       model: "gpt-5.6-terra",
       purpose: "Анализира кода без запис и без интернет.",
@@ -168,10 +179,17 @@
           status: "ready",
           updatedAt: new Date().toISOString(),
           run: null,
+          decisions: [],
+          resources: [],
+          toolIds: [],
+          conversationIds: [],
         },
       ],
       agents: DEFAULT_AGENTS.map((agent) => ({ ...agent })),
       activities: [],
+      preferences: {
+        memoryMode: "confirm",
+      },
     };
   }
 
@@ -206,6 +224,43 @@
     };
   }
 
+  function normalizeProjectDecisions(value) {
+    return (Array.isArray(value) ? value : [])
+      .slice(0, 20)
+      .map((item) => ({
+        text: cleanText(typeof item === "string" ? item : item?.text, 500),
+        createdAt: cleanText(item?.createdAt, 40) || new Date().toISOString(),
+      }))
+      .filter((item) => item.text);
+  }
+
+  function normalizeProjectResources(value) {
+    return (Array.isArray(value) ? value : [])
+      .slice(0, 30)
+      .map((item) => {
+        let safeUrl = "";
+        try {
+          const parsed = new URL(cleanText(item?.url, 1000));
+          if (parsed.protocol === "https:") safeUrl = parsed.href;
+        } catch {
+          safeUrl = "";
+        }
+        return {
+          label: cleanText(item?.label, 120) || "Ресурс",
+          url: safeUrl,
+          type: item?.type === "file" ? "file" : "link",
+        };
+      })
+      .filter((item) => item.url);
+  }
+
+  function normalizeProjectIds(value, limit) {
+    return (Array.isArray(value) ? value : [])
+      .slice(0, limit)
+      .map((item) => cleanText(item, 80))
+      .filter((item) => /^[a-z0-9][a-z0-9:_-]{0,79}$/iu.test(item));
+  }
+
   function normalizeState(value) {
     const fallback = defaultState();
     if (!value || typeof value !== "object") return fallback;
@@ -222,6 +277,10 @@
             : "ready",
           updatedAt: cleanText(project?.updatedAt, 40),
           run: normalizeProjectRun(project?.run),
+          decisions: normalizeProjectDecisions(project?.decisions),
+          resources: normalizeProjectResources(project?.resources),
+          toolIds: normalizeProjectIds(project?.toolIds, 20),
+          conversationIds: normalizeProjectIds(project?.conversationIds, 50),
         }))
       : fallback.projects;
     const agents = Array.isArray(value.agents)
@@ -257,6 +316,13 @@
           updatedAt: cleanText(activity?.updatedAt, 40),
         }))
       : [];
+    const preferences = {
+      memoryMode: ["confirm", "disabled"].includes(
+        value.preferences?.memoryMode,
+      )
+        ? value.preferences.memoryMode
+        : "confirm",
+    };
 
     if (!projects.length) projects.push(...fallback.projects);
     if (!agents.length) agents.push(...fallback.agents);
@@ -271,6 +337,18 @@
         if (agents.length >= 12) break;
         if (!agents.some((agent) => agent.id === defaultAgent.id)) {
           agents.push({ ...defaultAgent });
+        }
+      }
+      for (const defaultAgent of fallback.agents) {
+        const existing = agents.find((agent) => agent.id === defaultAgent.id);
+        if (existing) {
+          Object.assign(existing, {
+            name: defaultAgent.name,
+            role: defaultAgent.role,
+            model: defaultAgent.model,
+            purpose: defaultAgent.purpose,
+            engine: defaultAgent.engine,
+          });
         }
       }
     }
@@ -307,6 +385,7 @@
       projects,
       agents,
       activities,
+      preferences,
     };
   }
 
@@ -321,6 +400,16 @@
 
   function pendingStorageKey() {
     return `${storageKey}:pending`;
+  }
+
+  function currentConversationId() {
+    try {
+      const value = cleanText(localStorage.getItem("synchronSessionId"), 80);
+      return /^[a-z0-9][a-z0-9:_-]{0,79}$/iu.test(value) ? value : "";
+    } catch {
+      storageAvailable = false;
+      return "";
+    }
   }
 
   function hasPendingRemoteSave() {
@@ -534,6 +623,12 @@
       });
       addText(button, "strong", project.name);
       addText(button, "small", project.objective || "Още няма описана цел.");
+      const contextCounts = [
+        `${project.decisions.length} решения`,
+        `${project.resources.length} ресурса`,
+        `${project.conversationIds.length} разговора`,
+      ];
+      addText(button, "small", contextCounts.join(" · "));
       if (project.run?.nextStep) {
         addText(button, "small", `Следва: ${project.run.nextStep}`);
       }
@@ -561,11 +656,7 @@
       });
       const agentPet = PETS.find((pet) => pet.id === agent.petId) || PETS[0];
       addText(button, "strong", `${agentPet.symbol} ${agent.name}`);
-      addText(
-        button,
-        "small",
-        `${ENGINE_OPTIONS[agent.engine]} · ${ROLE_LABELS[agent.role]} · ${MODEL_OPTIONS[agent.model]}${agent.purpose ? ` · ${agent.purpose}` : ""}`,
-      );
+      addText(button, "small", agent.purpose || ROLE_LABELS[agent.role]);
       item.appendChild(button);
       const edit = document.createElement("button");
       edit.type = "button";
@@ -706,6 +797,10 @@
         status: "ready",
         updatedAt: new Date().toISOString(),
         run: null,
+        decisions: [],
+        resources: [],
+        toolIds: [],
+        conversationIds: [],
       };
       if (!project.name) return;
       const previousActiveProjectId = workState.activeProjectId;
@@ -728,10 +823,115 @@
     parent.appendChild(form);
   }
 
+  function renderProjectContextForm(parent) {
+    const project = activeProject();
+    if (!project) return;
+
+    const form = document.createElement("form");
+    form.className = "work-manager-form work-project-context-form";
+    addText(form, "h4", `Контекст: ${project.name}`);
+
+    addText(form, "label", "Цел").htmlFor = "activeProjectObjective";
+    const objective = document.createElement("textarea");
+    objective.id = "activeProjectObjective";
+    objective.maxLength = 600;
+    objective.value = project.objective;
+    form.appendChild(objective);
+
+    addText(form, "label", "Състояние").htmlFor = "activeProjectStatus";
+    const status = document.createElement("select");
+    status.id = "activeProjectStatus";
+    for (const [id, label] of Object.entries({
+      ready: "Готов за работа",
+      running: "В работа",
+      "needs-input": "Чака решение",
+      blocked: "Блокиран",
+    })) {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = label;
+      status.appendChild(option);
+    }
+    status.value = project.status;
+    form.appendChild(status);
+
+    addText(form, "label", "Важни решения — по едно на ред").htmlFor =
+      "activeProjectDecisions";
+    const decisions = document.createElement("textarea");
+    decisions.id = "activeProjectDecisions";
+    decisions.maxLength = 10000;
+    decisions.value = project.decisions.map((item) => item.text).join("\n");
+    form.appendChild(decisions);
+
+    addText(form, "label", "Файлове и линкове — Име | https://…").htmlFor =
+      "activeProjectResources";
+    const resources = document.createElement("textarea");
+    resources.id = "activeProjectResources";
+    resources.maxLength = 12000;
+    resources.value = project.resources
+      .map((item) => `${item.label} | ${item.url}`)
+      .join("\n");
+    form.appendChild(resources);
+
+    addText(
+      form,
+      "p",
+      "Разрешени инструменти за този проект",
+      "work-form-label",
+    );
+    const tools = document.createElement("div");
+    tools.className = "work-project-tools";
+    for (const item of PROJECT_TOOL_OPTIONS) {
+      const label = document.createElement("label");
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.value = item.id;
+      checkbox.checked = project.toolIds.includes(item.id);
+      label.append(checkbox, document.createTextNode(item.label));
+      tools.appendChild(label);
+    }
+    form.appendChild(tools);
+
+    const submit = document.createElement("button");
+    submit.type = "submit";
+    submit.textContent = "Запази контекста";
+    form.appendChild(submit);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const now = new Date().toISOString();
+      const parsedResources = resources.value.split(/\r?\n/u).map((line) => {
+        const separator = line.indexOf("|");
+        return separator >= 0
+          ? {
+              label: line.slice(0, separator),
+              url: line.slice(separator + 1),
+            }
+          : { label: "Ресурс", url: line };
+      });
+      project.objective = cleanText(objective.value, 600);
+      project.status = status.value;
+      project.decisions = normalizeProjectDecisions(
+        decisions.value
+          .split(/\r?\n/u)
+          .map((text) => ({ text, createdAt: now })),
+      );
+      project.resources = normalizeProjectResources(parsedResources);
+      project.toolIds = [...tools.querySelectorAll("input:checked")].map(
+        (checkbox) => checkbox.value,
+      );
+      project.updatedAt = now;
+      saveState();
+      managerNotice = `Контекстът на „${project.name}“ е обновен.`;
+      renderMode();
+      openManager();
+    });
+    parent.appendChild(form);
+  }
+
   function createAgentForm(parent) {
     const form = document.createElement("form");
     form.className = "work-manager-form";
-    addText(form, "label", "Име на агента").htmlFor = "newWorkAgentName";
+    addText(form, "label", "Име на режима").htmlFor = "newWorkAgentName";
     const name = document.createElement("input");
     name.id = "newWorkAgentName";
     name.maxLength = 50;
@@ -774,8 +974,7 @@
       engine.appendChild(option);
     }
     form.appendChild(engine);
-    addText(form, "label", "Любимец на агента").htmlFor =
-      "newWorkAgentPet";
+    addText(form, "label", "Любимец на агента").htmlFor = "newWorkAgentPet";
     const pet = document.createElement("select");
     pet.id = "newWorkAgentPet";
     for (const item of PETS) {
@@ -787,7 +986,7 @@
     form.appendChild(pet);
     const submit = document.createElement("button");
     submit.type = "submit";
-    submit.textContent = "Създай и избери агента";
+    submit.textContent = "Създай и избери режима";
     form.appendChild(submit);
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -800,9 +999,7 @@
         engine: Object.hasOwn(ENGINE_OPTIONS, engine.value)
           ? engine.value
           : "ai-core",
-        petId: PETS.some((item) => item.id === pet.value)
-          ? pet.value
-          : "robot",
+        petId: PETS.some((item) => item.id === pet.value) ? pet.value : "robot",
       };
       if (!agent.name) return;
       const previousActiveAgentId = workState.activeAgentId;
@@ -815,11 +1012,11 @@
         );
         workState.activeAgentId = previousActiveAgentId;
         managerNotice =
-          "Агентът не е запазен. Провери дали браузърът позволява съхранение на данни и опитай отново.";
+          "Режимът не е запазен. Провери дали браузърът позволява съхранение на данни и опитай отново.";
         openManager();
         return;
       }
-      managerNotice = `Агентът „${agent.name}“ е създаден и избран.`;
+      managerNotice = `Режимът „${agent.name}“ е създаден и избран.`;
       renderMode();
       openManager();
     });
@@ -830,7 +1027,7 @@
     const form = document.createElement("form");
     form.className = "work-manager-form work-agent-edit-form";
     addText(form, "h4", `Редактиране: ${agent.name}`);
-    addText(form, "label", "Име на агента").htmlFor = "editWorkAgentName";
+    addText(form, "label", "Име на режима").htmlFor = "editWorkAgentName";
     const name = document.createElement("input");
     name.id = "editWorkAgentName";
     name.maxLength = 50;
@@ -878,8 +1075,7 @@
     }
     engine.value = agent.engine;
     form.appendChild(engine);
-    addText(form, "label", "Любимец на агента").htmlFor =
-      "editWorkAgentPet";
+    addText(form, "label", "Любимец на агента").htmlFor = "editWorkAgentPet";
     const pet = document.createElement("select");
     pet.id = "editWorkAgentPet";
     for (const item of PETS) {
@@ -918,9 +1114,7 @@
         engine: Object.hasOwn(ENGINE_OPTIONS, engine.value)
           ? engine.value
           : "ai-core",
-        petId: PETS.some((item) => item.id === pet.value)
-          ? pet.value
-          : "robot",
+        petId: PETS.some((item) => item.id === pet.value) ? pet.value : "robot",
       };
       if (!next.name || !next.purpose) return;
       const previous = { ...agent };
@@ -935,7 +1129,7 @@
         return;
       }
       editingAgentId = null;
-      managerNotice = `Агентът „${agent.name}“ е обновен и избран.`;
+      managerNotice = `Режимът „${agent.name}“ е обновен и избран.`;
       renderMode();
       openManager();
     });
@@ -967,12 +1161,12 @@
 
   function openManager() {
     closeOtherPanels();
-    elements.drawerTitle.textContent = "Работа, агенти и любимец";
+    elements.drawerTitle.textContent = "Проекти и работни режими";
     elements.drawerBody.replaceChildren();
     addText(
       elements.drawerBody,
       "p",
-      "Избери проект и личен агент. В режим Работа AI CORE използва този контекст, показва напредъка и спира преди рискови действия.",
+      "Избери проект и ясен работен режим. AI CORE използва контекста, показва напредъка и спира преди рискови действия.",
       "work-manager-intro",
     );
     addText(
@@ -981,7 +1175,7 @@
       !storageAvailable || syncStatus === "error"
         ? "Браузърът блокира запазването. Данните не са изчистени нарочно — разреши съхранението и опитай отново."
         : syncStatus === "synced"
-          ? "Проектите, агентите и задачите са запазени в защитения ти профил."
+          ? "Проектите, режимите и задачите са запазени в защитения ти профил."
           : "Работиш в резервен режим на този браузър. Промените ще се синхронизират при възстановяване на връзката.",
       "work-storage-note",
     );
@@ -996,15 +1190,21 @@
 
     const projects = section(elements.drawerBody, "Проекти");
     renderProjectChoices(projects);
+    renderProjectContextForm(projects);
     createProjectForm(projects);
 
-    const agents = section(elements.drawerBody, "Лични агенти");
+    const agents = section(elements.drawerBody, "Работни режими");
     renderAgentChoices(agents);
     const editingAgent = workState.agents.find(
       (agent) => agent.id === editingAgentId,
     );
-    if (editingAgent) createEditAgentForm(agents, editingAgent);
-    else createAgentForm(agents);
+    const advanced = document.createElement("details");
+    advanced.className = "work-advanced-settings";
+    advanced.open = Boolean(editingAgent);
+    addText(advanced, "summary", "Разширени настройки на режимите");
+    if (editingAgent) createEditAgentForm(advanced, editingAgent);
+    else createAgentForm(advanced);
+    agents.appendChild(advanced);
 
     const pets = section(elements.drawerBody, "Личен любимец");
     renderPetChoices(pets);
@@ -1028,6 +1228,10 @@
           name: project?.name || "",
           objective: project?.objective || "",
           run: project?.run || null,
+          decisions: project?.decisions || [],
+          resources: project?.resources || [],
+          toolIds: project?.toolIds || [],
+          conversationIds: project?.conversationIds || [],
         },
         agent: {
           name: agent?.name || "AI CORE",
@@ -1073,6 +1277,15 @@
             ? "needs-input"
             : "ready";
       saveState();
+    }
+    if (project) {
+      const conversationId = currentConversationId();
+      if (conversationId && !project.conversationIds.includes(conversationId)) {
+        project.conversationIds.unshift(conversationId);
+        project.conversationIds = project.conversationIds.slice(0, 50);
+        project.updatedAt = new Date().toISOString();
+        saveState();
+      }
     }
     const status = data?.task?.status;
     if (run?.needsUserDecision) setPetState("needs-input");

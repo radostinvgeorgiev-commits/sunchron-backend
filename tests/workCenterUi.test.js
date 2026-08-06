@@ -75,6 +75,10 @@ function createHarness({
   githubConnected = false,
   testerAuth = { configured: false, registrationEnabled: false },
   publicDomain = { configured: false, domain: "www.synchron.foundation" },
+  tasks = [],
+  workspace = null,
+  audit = [],
+  memories = [],
   fetchFails = false,
   testerPrepareResponse = null,
   domainPrepareResponse = null,
@@ -146,7 +150,15 @@ function createHarness({
                 ? testerAuth
                 : path.includes("/api/digitalocean-domain/status")
                   ? publicDomain
-                  : config || {};
+                  : path.includes("/api/tasks")
+                    ? { items: tasks }
+                    : path.includes("/api/workspaces")
+                      ? workspace || {}
+                      : path.includes("/permissions/audit")
+                        ? { events: audit }
+                        : path.includes("/memory/profile")
+                          ? { items: memories }
+                          : config || {};
       return {
         ok: true,
         json: async () => result,
@@ -181,6 +193,53 @@ test("work center opens, closes, and preserves unfinished chat text", async () =
   assert.equal(document.getElementById("chatInput").value, "Незавършен текст");
 });
 
+test("action center summarizes projects, pending work, approvals and recent outcomes", async () => {
+  const harness = createHarness({
+    tasks: [
+      { id: "task-1", title: "Продължи теста", status: "in_progress" },
+      { id: "task-2", title: "Чака решение", status: "blocked" },
+    ],
+    workspace: {
+      state: {
+        activeProjectId: "project-1",
+        projects: [
+          {
+            id: "project-1",
+            name: "SYNCHRON-X",
+            objective: "Свържи AI CORE",
+            run: { nextStep: "Провери реалния разговор" },
+          },
+        ],
+        activities: [{ id: "run-1", status: "needs-input" }],
+      },
+    },
+    audit: [
+      {
+        action: "mail.send",
+        decision: "confirm",
+        outcome: "requested",
+      },
+      {
+        action: "memory.write",
+        outcome: "succeeded",
+        timestamp: "2026-08-06T10:00:00.000Z",
+      },
+    ],
+    memories: [{ id: "memory-1" }, { id: "memory-2" }],
+  });
+  await openCenter(harness);
+  const center = harness.dom.window.document.querySelector(".action-center");
+
+  assert.match(center.textContent, /Център за действие/u);
+  assert.match(center.textContent, /Провери реалния разговор/u);
+  assert.match(center.textContent, /2 задачи или изпълнения/u);
+  assert.match(center.textContent, /1 незавършени задачи/u);
+  assert.match(center.textContent, /1 в безопасния журнал/u);
+  assert.match(center.textContent, /memory\.write/u);
+  assert.match(center.textContent, /1 проекта · 2 управлявани спомена/u);
+  assert.equal(center.querySelectorAll(".action-center-card").length, 6);
+});
+
 test("work center uses safe GitHub links without duplicating the task journal", async () => {
   const harness = createHarness({
     config: {
@@ -203,9 +262,11 @@ test("work center uses safe GitHub links without duplicating the task journal", 
       "https://github.com/radostinvgeorgiev-commits/sunchron-backend/issues",
     ),
   );
-  const journalButton = harness.dom.window.document.querySelector(
-    '[data-work-center-target="focusBtn"]',
-  );
+  const journalButton = [
+    ...harness.dom.window.document.querySelectorAll(
+      '[data-work-center-target="focusBtn"]',
+    ),
+  ].find((button) => button.textContent.includes("Дневник на задачите"));
   assert.equal(
     journalButton?.textContent.includes("Дневник на задачите"),
     true,
@@ -445,10 +506,9 @@ test("public www action uses prepare and exact confirm before reporting deployme
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(harness.domainRequests.length, 2);
-  assert.deepEqual(
-    JSON.parse(harness.domainRequests[1].options.body),
-    { confirmationId: "confirmation-www" },
-  );
+  assert.deepEqual(JSON.parse(harness.domainRequests[1].options.body), {
+    confirmationId: "confirmation-www",
+  });
   assert.match(document.body.textContent, /www адресът се активира/u);
   assert.match(document.body.textContent, /DigitalOcean започва deployment/u);
 });
@@ -645,7 +705,7 @@ test("current capabilities summary uses only live verified status", async () => 
     integrations: {
       tools: [
         "github-read",
-        "github-write",
+        "github-confirmed-write",
         "google-drive-read",
         "gmail-read",
         "google-calendar-read",
@@ -676,7 +736,7 @@ test("current capabilities summary uses only live verified status", async () => 
   assert.match(working.textContent, /Потребителски профили/u);
 });
 
-test("current capabilities reports GitHub Write as disabled without Copilot", async () => {
+test("current capabilities reports confirmed GitHub Write as unavailable when disconnected", async () => {
   const harness = createHarness({
     integrations: {
       tools: [
@@ -687,11 +747,11 @@ test("current capabilities reports GitHub Write as disabled without Copilot", as
           configured: true,
         },
         {
-          id: "github-write",
+          id: "github-confirmed-write",
           enabled: false,
           executable: false,
           configured: true,
-          availabilityCode: "COPILOT_AUTOMATION_DISABLED",
+          availabilityCode: "CAPABILITY_AUTH_REQUIRED",
         },
       ],
     },
@@ -702,10 +762,7 @@ test("current capabilities reports GitHub Write as disabled without Copilot", as
     '[data-capability-group="unavailable"]',
   );
 
-  assert.match(
-    unavailable.textContent,
-    /GitHub запис · изключен в режим без Copilot/u,
-  );
+  assert.match(unavailable.textContent, /GitHub запис с точно потвърждение/u);
   assert.doesNotMatch(
     harness.dom.window.document.querySelector(
       '[data-capability-group="working"]',

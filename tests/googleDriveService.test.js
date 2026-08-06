@@ -4,15 +4,21 @@ import test from "node:test";
 import {
   analyzeDriveFile,
   buildAuthorizationUrl,
+  createGmailDraft,
+  createGoogleContact,
   createGoogleCalendarEvent,
   createSession,
   decryptGoogleSession,
   downloadDriveFile,
   encryptGoogleSession,
+  findAvailableCalendarSlots,
   listGmailMessages,
   listGoogleCalendarEvents,
   listDriveFiles,
   requiresPersistentGoogleSessions,
+  searchGmailMessages,
+  searchGoogleContacts,
+  updateGoogleContact,
 } from "../src/services/googleDriveService.js";
 
 function jsonResponse(data) {
@@ -156,7 +162,7 @@ test("requests upcoming Google Calendar events", async () => {
   assert.equal(events[0].allDay, false);
 });
 
-test("requests the minimum Calendar event scope for read and write", () => {
+test("requests the explicit Drive, Gmail, Calendar and Contacts scopes", () => {
   const original = {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -171,6 +177,11 @@ test("requests the minimum Calendar event scope for read and write", () => {
     );
     assert.match(scope, /calendar\.events/u);
     assert.doesNotMatch(scope, /calendar\.readonly/u);
+    assert.match(scope, /gmail\.readonly/u);
+    assert.match(scope, /gmail\.compose/u);
+    assert.match(scope, /gmail\.modify/u);
+    assert.match(scope, /contacts\.readonly/u);
+    assert.match(scope, /\/auth\/contacts(?:\s|$)/u);
   } finally {
     if (original.clientId === undefined) delete process.env.GOOGLE_CLIENT_ID;
     else process.env.GOOGLE_CLIENT_ID = original.clientId;
@@ -181,6 +192,156 @@ test("requests the minimum Calendar event scope for read and write", () => {
       delete process.env.GOOGLE_REDIRECT_URI;
     else process.env.GOOGLE_REDIRECT_URI = original.redirectUri;
   }
+});
+
+test("searches Gmail with a bounded query and creates a reviewable draft", async () => {
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
+  const urls = [];
+  const messages = await searchGmailMessages(
+    sessionId,
+    "from:client@example.com",
+    3,
+    async (url) => {
+      urls.push(String(url));
+      if (String(url).includes("/messages?")) {
+        return jsonResponse({ messages: [{ id: "mail_1" }] });
+      }
+      return jsonResponse({
+        id: "mail_1",
+        payload: {
+          headers: [
+            { name: "From", value: "client@example.com" },
+            { name: "Subject", value: "Проект" },
+          ],
+        },
+      });
+    },
+  );
+  assert.equal(messages[0].subject, "Проект");
+  assert.equal(
+    new URL(urls[0]).searchParams.get("q"),
+    "from:client@example.com",
+  );
+
+  let request;
+  const draft = await createGmailDraft(
+    sessionId,
+    {
+      to: "client@example.com",
+      subject: "Преглед на проекта",
+      body: "Готова чернова за преглед.",
+    },
+    async (url, options) => {
+      request = { url: String(url), options };
+      return jsonResponse({
+        id: "draft_1",
+        message: { id: "message_1", threadId: "thread_1" },
+      });
+    },
+  );
+  assert.match(request.url, /users\/me\/drafts$/u);
+  assert.equal(request.options.method, "POST");
+  const encoded = JSON.parse(request.options.body).message.raw;
+  const mime = Buffer.from(encoded, "base64url").toString("utf8");
+  assert.match(mime, /^To: client@example\.com\r?$/mu);
+  assert.match(mime, /Готова чернова за преглед/u);
+  assert.equal(draft.id, "draft_1");
+});
+
+test("searches, creates and version-safely updates Google contacts", async () => {
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
+  const contacts = await searchGoogleContacts(
+    sessionId,
+    "Клиент",
+    10,
+    async (url) => {
+      assert.match(String(url), /people:searchContacts/u);
+      return jsonResponse({
+        results: [
+          {
+            person: {
+              resourceName: "people/person_1",
+              etag: "etag-1",
+              names: [{ displayName: "Клиент" }],
+              emailAddresses: [{ value: "client@example.com" }],
+            },
+          },
+        ],
+      });
+    },
+  );
+  assert.equal(contacts[0].resourceName, "people/person_1");
+
+  let createBody;
+  const created = await createGoogleContact(
+    sessionId,
+    { name: "Нов клиент", phone: "+359 88 123 4567" },
+    async (_url, options) => {
+      createBody = JSON.parse(options.body);
+      return jsonResponse({
+        resourceName: "people/person_2",
+        etag: "etag-2",
+        names: [{ displayName: "Нов клиент" }],
+        phoneNumbers: [{ value: "+359 88 123 4567" }],
+      });
+    },
+  );
+  assert.equal(createBody.phoneNumbers[0].value, "+359 88 123 4567");
+  assert.equal(created.resourceName, "people/person_2");
+
+  let updateRequest;
+  const updated = await updateGoogleContact(
+    sessionId,
+    {
+      resourceName: "people/person_2",
+      etag: "etag-2",
+      name: "Обновен клиент",
+      email: "updated@example.com",
+    },
+    async (url, options) => {
+      updateRequest = { url: String(url), body: JSON.parse(options.body) };
+      return jsonResponse({
+        resourceName: "people/person_2",
+        etag: "etag-3",
+        names: [{ displayName: "Обновен клиент" }],
+        emailAddresses: [{ value: "updated@example.com" }],
+      });
+    },
+  );
+  assert.match(updateRequest.url, /people\/person_2:updateContact/u);
+  assert.equal(updateRequest.body.etag, "etag-2");
+  assert.equal(updated.email, "updated@example.com");
+});
+
+test("suggests bounded working-hour slots without overlapping calendar events", () => {
+  const slots = findAvailableCalendarSlots(
+    [
+      {
+        start: "2026-08-06T10:00:00+03:00",
+        end: "2026-08-06T11:00:00+03:00",
+      },
+    ],
+    {
+      now: new Date("2026-08-06T05:00:00.000Z"),
+      days: 1,
+      durationMinutes: 60,
+      limit: 2,
+      timeZone: "Europe/Sofia",
+    },
+  );
+  assert.deepEqual(
+    slots.map((slot) => [slot.start, slot.end]),
+    [
+      ["2026-08-06T06:00:00.000Z", "2026-08-06T07:00:00.000Z"],
+      ["2026-08-06T08:00:00.000Z", "2026-08-06T09:00:00.000Z"],
+    ],
+  );
 });
 
 test("creates exactly one validated Google Calendar event", async () => {

@@ -19,6 +19,13 @@ test("workspace state is bounded and strips untrusted values", () => {
         name: `\u0000Проект ${index}`,
         objective: "Цел",
         status: "deleted",
+        decisions: ["Използваме потвърждение", { text: "Само HTTPS" }],
+        resources: [
+          { label: "Документ", url: "https://example.com/plan" },
+          { label: "Опасен", url: "javascript:alert(1)" },
+        ],
+        toolIds: ["github-read", "../../unsafe"],
+        conversationIds: ["thread-1", "invalid id"],
         run:
           index === 0
             ? {
@@ -50,7 +57,7 @@ test("workspace state is bounded and strips untrusted values", () => {
     { now: "2026-08-01T10:00:00.000Z" },
   );
 
-  assert.equal(state.version, 5);
+  assert.equal(state.version, 6);
   assert.equal(state.mode, "chat");
   assert.equal(state.petId, "robot");
   assert.equal(state.projects.length, 20);
@@ -60,6 +67,19 @@ test("workspace state is bounded and strips untrusted values", () => {
   assert.equal(state.projects[0].run.sequence, 2);
   assert.equal(state.projects[0].run.codeChanged, false);
   assert.equal(state.projects[0].run.needsUserDecision, true);
+  assert.deepEqual(
+    state.projects[0].decisions.map((item) => item.text),
+    ["Използваме потвърждение", "Само HTTPS"],
+  );
+  assert.deepEqual(state.projects[0].resources, [
+    {
+      label: "Документ",
+      url: "https://example.com/plan",
+      type: "link",
+    },
+  ]);
+  assert.deepEqual(state.projects[0].toolIds, ["github-read"]);
+  assert.deepEqual(state.projects[0].conversationIds, ["thread-1"]);
   assert.equal(state.agents[0].role, "general");
   assert.equal(state.agents[0].model, "auto");
   assert.equal(state.agents[0].engine, "ai-core");
@@ -108,15 +128,27 @@ test("legacy workspaces receive specialized agents with their own pets", () => {
     ],
   });
 
-  assert.equal(state.version, 5);
+  assert.equal(state.version, 6);
   assert.equal(
     state.agents.find((agent) => agent.id === "synchron-builder").petId,
     "drop",
   );
-  assert.equal(state.agents.find((agent) => agent.id === "codex-agent").petId, "spark");
-  assert.equal(state.agents.find((agent) => agent.id === "research-agent").petId, "owl");
-  assert.equal(state.agents.find((agent) => agent.id === "organizer-agent").petId, "rock");
-  assert.equal(state.agents.find((agent) => agent.id === "documents-agent").petId, "cat");
+  assert.equal(
+    state.agents.find((agent) => agent.id === "codex-agent").petId,
+    "spark",
+  );
+  assert.equal(
+    state.agents.find((agent) => agent.id === "research-agent").petId,
+    "owl",
+  );
+  assert.equal(
+    state.agents.find((agent) => agent.id === "organizer-agent").petId,
+    "rock",
+  );
+  assert.equal(
+    state.agents.find((agent) => agent.id === "documents-agent").petId,
+    "cat",
+  );
 });
 
 test("workspace state is saved in an isolated hashed document", async () => {
@@ -182,9 +214,9 @@ test("missing workspace returns a safe starter state", async () => {
 
   assert.equal(result.persisted, false);
   assert.equal(result.state.projects[0].id, "starter-project");
-  assert.equal(result.state.agents[0].name, "AI CORE");
+  assert.equal(result.state.agents[0].name, "Изпълни");
   assert.deepEqual(
     result.state.agents.map((agent) => agent.name),
-    ["AI CORE", "Изследовател", "Организатор", "Документи", "Codex"],
+    ["Изпълни", "Проучи", "Организирай", "Напиши", "Код"],
   );
 });

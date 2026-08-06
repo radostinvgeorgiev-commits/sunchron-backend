@@ -380,6 +380,17 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
   registerCoreTools();
   const copilotAutomationEnabled = isCopilotAutomationEnabled();
   const configuration = {
+    "synchron-agent-chat": {
+      configured:
+        Boolean(process.env.OPENAI_API_KEY) &&
+        hasAllProcessEnvironmentVariables(
+          "OPENSEARCH_HOST",
+          "OPENSEARCH_PORT",
+          "OPENSEARCH_USERNAME",
+          "OPENSEARCH_PASSWORD",
+        ),
+      authenticated: true,
+    },
     "synchron-integrations-status": {
       configured: true,
       authenticated: true,
@@ -402,6 +413,10 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
       availabilityReason: copilotAutomationEnabled
         ? null
         : "GitHub Write е изключен — режим без Copilot.",
+    },
+    "github-confirmed-write": {
+      configured: isGitHubOAuthConfigured(),
+      authenticated: githubAuthenticated,
     },
     "google-drive-read": {
       configured: hasAllProcessEnvironmentVariables(
@@ -434,6 +449,23 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
         "GOOGLE_REDIRECT_URI",
       ),
       authenticated: false,
+    },
+    "google-contacts": {
+      configured: hasAllProcessEnvironmentVariables(
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "GOOGLE_REDIRECT_URI",
+      ),
+      authenticated: false,
+    },
+    "synchron-tasks": {
+      configured: hasAllProcessEnvironmentVariables(
+        "OPENSEARCH_HOST",
+        "OPENSEARCH_PORT",
+        "OPENSEARCH_USERNAME",
+        "OPENSEARCH_PASSWORD",
+      ),
+      authenticated: true,
     },
     "openai-web-search": {
       configured: Boolean(process.env.OPENAI_API_KEY),

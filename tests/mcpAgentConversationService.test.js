@@ -141,3 +141,41 @@ test("MCP agent conversation rejects invalid identifiers before reading data", a
   );
   assert.equal(workspaceReads, 0);
 });
+
+test("MCP agent conversation stops after ten user questions in one session", async () => {
+  const history = Array.from({ length: 10 }, (_, index) => ({
+    role: "user",
+    content: `Въпрос ${index + 1}`,
+  }));
+  let aiCalls = 0;
+  let saveCalls = 0;
+
+  await assert.rejects(
+    () =>
+      sendMcpAgentMessage(
+        {
+          ownerId: "primary-user",
+          message: "Единадесети въпрос",
+          sessionId: "bridge-session-limit",
+        },
+        {
+          loadWorkspace: async () => workspace(),
+          listMemories: async () => [],
+          listMessages: async () => history,
+          askAi: async () => {
+            aiCalls += 1;
+            return "Не трябва да се извика";
+          },
+          saveTurn: async () => {
+            saveCalls += 1;
+          },
+        },
+      ),
+    (error) =>
+      error instanceof McpAgentConversationError &&
+      error.code === -32602 &&
+      /лимита от 10 въпроса/u.test(error.message),
+  );
+  assert.equal(aiCalls, 0);
+  assert.equal(saveCalls, 0);
+});

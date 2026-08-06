@@ -10,6 +10,7 @@ import {
 } from "../src/tools/capabilityEngine.js";
 import {
   getTool,
+  listTools,
   registerCoreTools,
   registerTool,
   resetToolRegistryForTests,
@@ -108,6 +109,28 @@ test("Calendar Write има изпълним адаптер и изисква п
   assert.equal(isToolExecutable("google-calendar-write"), true);
 });
 
+test("granular mail, contacts, tasks and GitHub writes use exact permission decisions", () => {
+  for (const [capability, action, decision] of [
+    ["mail.draft", "mail.draft", "allow"],
+    ["mail.send", "mail.send", "confirm"],
+    ["mail.delete", "mail.delete", "confirm"],
+    ["contacts.read", "contacts.read", "allow"],
+    ["contacts.create", "contacts.write", "confirm"],
+    ["tasks.draft", "tasks.draft", "allow"],
+    ["tasks.status", "tasks.update", "confirm"],
+    ["github.branch.create", "github.write", "confirm"],
+  ]) {
+    const resolved = resolveCapability(capability);
+    assert.equal(resolved.permission.action, action, capability);
+    assert.equal(resolved.permission.decision, decision, capability);
+    assert.equal(
+      resolved.requiresConfirmation,
+      decision === "confirm",
+      capability,
+    );
+  }
+});
+
 test("регистрира Supabase като изпълним инструмент само за статус", () => {
   const result = resolveCapability("database.status");
   assert.equal(result.tool.id, "supabase-status");
@@ -132,6 +155,17 @@ test("runtime availability blocks configured-looking tools without credentials",
   assert.equal(
     getToolRuntimeAvailability("openai-codex", {}, { OPENAI_API_KEY: "key" })
       .available,
+    true,
+  );
+  assert.equal(
+    getToolRuntimeAvailability(
+      "github-confirmed-write",
+      { githubSessionId: "owner-session" },
+      {
+        GITHUB_CLIENT_ID: "client",
+        GITHUB_CLIENT_SECRET: "secret",
+      },
+    ).available,
     true,
   );
   assert.equal(
@@ -384,18 +418,7 @@ test("не изпълнява способност за потвърждение
 
 test("всеки регистриран основен инструмент има изпълним адаптер", () => {
   registerCoreTools();
-  for (const id of [
-    "github-read",
-    "synchron-integrations-status",
-    "github-write",
-    "google-drive-read",
-    "google-calendar-read",
-    "google-calendar-write",
-    "gmail-read",
-    "openai-web-search",
-    "supabase-status",
-    "opensearch-memory",
-  ]) {
+  for (const { id } of listTools()) {
     assert.equal(
       isToolExecutable(id, { COPILOT_AUTOMATION_ENABLED: "true" }),
       true,

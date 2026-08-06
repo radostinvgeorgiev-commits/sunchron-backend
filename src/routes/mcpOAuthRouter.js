@@ -73,7 +73,7 @@ function consentPage(request, identity, consentToken) {
     )
     .join("");
   const callbackHost = new URL(request.redirectUri).hostname;
-  return `<!doctype html><html lang="bg"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI CORE OAuth</title><style>body{font-family:system-ui;background:#08111f;color:#eef4ff;display:grid;place-items:center;min-height:100vh;margin:0}.card{max-width:520px;background:#111e31;padding:28px;border-radius:18px}button{font-size:18px;padding:12px 18px;border:0;border-radius:10px;margin-right:8px}.allow{background:#4f8cff;color:white}.deny{background:#26364d;color:white}</style></head><body><main class="card"><h1>Свързване на ChatGPT със AI CORE</h1><p>Влязъл си като <strong>${escapeHtml(identity.displayName || identity.id)}</strong>.</p><p>Клиент: <strong>${escapeHtml(request.clientName || "ChatGPT")}</strong> · callback: <strong>${escapeHtml(callbackHost)}</strong></p><p>ChatGPT иска следните права:</p><ul>${rights}</ul><p>Всяко действие за запис продължава да изисква отделно точно потвърждение.</p><form method="post" action="/oauth/authorize">${hidden}<button class="allow" name="decision" value="allow" type="submit">Разреши</button><button class="deny" name="decision" value="deny" type="submit">Откажи</button></form></main></body></html>`;
+  return `<!doctype html><html lang="bg"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI CORE OAuth</title><style>body{font-family:system-ui;background:#08111f;color:#eef4ff;display:grid;place-items:center;min-height:100vh;margin:0}.card{max-width:520px;background:#111e31;padding:28px;border-radius:18px}button{font-size:18px;padding:12px 18px;border:0;border-radius:10px;margin-right:8px}.allow{background:#4f8cff;color:white}.deny{background:#26364d;color:white}</style></head><body><main class="card"><h1>Свързване на ChatGPT със AI CORE</h1><p>Влязъл си като <strong>${escapeHtml(identity.displayName || identity.id)}</strong>.</p><p>Клиент: <strong>${escapeHtml(request.clientName || "ChatGPT")}</strong> · callback: <strong>${escapeHtml(callbackHost)}</strong></p><p>ChatGPT иска следните права:</p><ul>${rights}</ul><p>Всяко действие за запис продължава да изисква отделно точно потвърждение.</p><p>Връзката може да се подновява, докато я използваш. Можеш да видиш правата и да спреш достъпа по всяко време от AI CORE → Разрешения.</p><form method="post" action="/oauth/authorize">${hidden}<button class="allow" name="decision" value="allow" type="submit">Разреши</button><button class="deny" name="decision" value="deny" type="submit">Откажи</button></form></main></body></html>`;
 }
 
 function loginRequiredPage() {
@@ -146,6 +146,7 @@ export function createMcpOAuthRouter({
           });
           callback.searchParams.set("error", "access_denied");
           callback.searchParams.set("state", request.state);
+          noStore(res);
           return res.redirect(callback.href);
         }
         const code = createMcpAuthorizationCode(request, identity);

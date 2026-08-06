@@ -47,11 +47,16 @@ const AUTHORIZATION_CODE_TTL_SECONDS = 5 * 60;
 const CONSENT_TOKEN_TTL_SECONDS = 10 * 60;
 const MAX_CONSUMED_TOKEN_RECORDS = 10_000;
 const REPLAY_CLEANUP_INTERVAL_SECONDS = 6 * 60 * 60;
+const MCP_GRANT_REVOKE_MAX_ATTEMPTS = 3;
 const MCP_OAUTH_REPLAY_INDEX =
   process.env.MCP_OAUTH_REPLAY_INDEX || "synchron-mcp-oauth-replay-v1";
+const MCP_OAUTH_GRANT_INDEX =
+  process.env.MCP_OAUTH_GRANT_INDEX || "synchron-mcp-oauth-grants-v1";
 const consumedAuthorizationCodes = new Map();
 const consumedRefreshTokens = new Map();
+const localMcpGrants = new Map();
 let replayIndexPromise = null;
+let grantIndexPromise = null;
 let lastReplayCleanupAt = 0;
 let activeReplayCleanup = null;
 let oauthRuntimeStatus = Object.freeze({
@@ -544,6 +549,7 @@ export function createMcpAuthorizationCode(
     {
       typ: "authorization_code",
       jti: randomBytes(18).toString("base64url"),
+      grantId: randomBytes(18).toString("base64url"),
       iss: resolveMcpIssuerUrl(env),
       aud: request.resource,
       clientId: request.clientId,
@@ -722,6 +728,543 @@ function openSearchStatus(error) {
   return error?.statusCode || error?.meta?.statusCode || 0;
 }
 
+function mcpGrantIndex(env = process.env) {
+  return env.MCP_OAUTH_GRANT_INDEX || MCP_OAUTH_GRANT_INDEX;
+}
+
+function mcpGrantUnavailable(message) {
+  return new McpOAuthError(
+    message || "MCP OAuth разрешенията временно не са достъпни.",
+    503,
+    "temporarily_unavailable",
+  );
+}
+
+function inactiveMcpGrant(errorCode = "invalid_grant") {
+  return new McpOAuthError(
+    "MCP OAuth разрешението липсва или е отнето.",
+    errorCode === "invalid_token" ? 401 : 400,
+    errorCode,
+  );
+}
+
+function normalizeGrantRecord(source, fallbackId = "") {
+  if (!source || typeof source !== "object") return null;
+  const scopes = Array.isArray(source.scopes)
+    ? [...new Set(source.scopes.map(String))]
+    : [];
+  const issuedAtMs = Date.parse(String(source.issuedAt || ""));
+  if (!Number.isFinite(issuedAtMs)) return null;
+  const expiresAtMs = source.expiresAt
+    ? Date.parse(String(source.expiresAt))
+    : issuedAtMs + REFRESH_TOKEN_TTL_SECONDS * 1_000;
+  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= issuedAtMs) return null;
+  const issuedAt = new Date(issuedAtMs).toISOString();
+  const expiresAt = new Date(expiresAtMs).toISOString();
+  const record = {
+    grantId: String(source.grantId || fallbackId),
+    subject: String(source.subject || ""),
+    memoryOwnerId: String(source.memoryOwnerId || ""),
+    role: String(source.role || ""),
+    clientId: String(source.clientId || ""),
+    scopes,
+    issuedAt,
+    expiresAt,
+    lastUsedAt: source.lastUsedAt ? String(source.lastUsedAt) : null,
+    revokedAt: source.revokedAt ? String(source.revokedAt) : null,
+  };
+  return record.grantId &&
+    record.subject &&
+    record.memoryOwnerId &&
+    record.role &&
+    record.clientId &&
+    record.scopes.length > 0 &&
+    record.issuedAt &&
+    record.expiresAt
+    ? record
+    : null;
+}
+
+function mcpGrantRecord(
+  payload,
+  issuedAt = payload.iat,
+  expiresAt = payload.exp,
+) {
+  return normalizeGrantRecord({
+    grantId: payload.grantId,
+    subject: payload.subject,
+    memoryOwnerId: payload.memoryOwnerId,
+    role: payload.role,
+    clientId: payload.clientId,
+    scopes: payload.scopes,
+    issuedAt: new Date(Number(issuedAt) * 1_000).toISOString(),
+    expiresAt: new Date(Number(expiresAt) * 1_000).toISOString(),
+    lastUsedAt: null,
+    revokedAt: null,
+  });
+}
+
+function mcpGrantMatches(record, identity) {
+  const subject = String(identity?.subject || identity?.id || "");
+  const scopes = Array.isArray(identity?.scopes)
+    ? [...new Set(identity.scopes.map(String))].sort()
+    : null;
+  return Boolean(
+    record &&
+      (!subject || record.subject === subject) &&
+      (!identity?.memoryOwnerId ||
+        record.memoryOwnerId === String(identity.memoryOwnerId)) &&
+      (!identity?.role || record.role === String(identity.role)) &&
+      (!identity?.clientId || record.clientId === String(identity.clientId)) &&
+      (!scopes ||
+        safeStringEqual(
+          JSON.stringify([...record.scopes].sort()),
+          JSON.stringify(scopes),
+        )),
+  );
+}
+
+function legacyGrantId(payload) {
+  return `legacy_${createHash("sha256")
+    .update(String(payload.iss))
+    .update("\0")
+    .update(String(payload.clientId))
+    .update("\0")
+    .update(String(payload.subject))
+    .update("\0")
+    .update(String(payload.jti))
+    .digest("base64url")}`;
+}
+
+function withMcpGrantId(payload) {
+  return payload.grantId
+    ? payload
+    : { ...payload, grantId: legacyGrantId(payload) };
+}
+
+async function ensureMcpGrantIndex(client, env = process.env) {
+  if (
+    !client?.indices ||
+    typeof client.indices.exists !== "function" ||
+    typeof client.indices.create !== "function"
+  ) {
+    return;
+  }
+  if (!grantIndexPromise) {
+    const index = mcpGrantIndex(env);
+    grantIndexPromise = (async () => {
+      const existsResponse = await client.indices.exists({ index });
+      const exists = existsResponse.body ?? existsResponse;
+      if (exists) return;
+      try {
+        await client.indices.create({
+          index,
+          body: {
+            mappings: {
+              properties: {
+                grantId: { type: "keyword" },
+                subject: { type: "keyword" },
+                memoryOwnerId: { type: "keyword" },
+                role: { type: "keyword" },
+                clientId: { type: "keyword" },
+                scopes: { type: "keyword" },
+                issuedAt: { type: "date" },
+                expiresAt: { type: "date" },
+                lastUsedAt: { type: "date" },
+                revokedAt: { type: "date" },
+              },
+            },
+          },
+        });
+      } catch (error) {
+        const status = openSearchStatus(error);
+        const type = error?.meta?.body?.error?.type;
+        if (status !== 400 || type !== "resource_already_exists_exception") {
+          throw error;
+        }
+      }
+    })().catch((error) => {
+      grantIndexPromise = null;
+      throw error;
+    });
+  }
+  await grantIndexPromise;
+}
+
+export function requiresPersistentMcpGrantStore(env = process.env) {
+  return env.NODE_ENV === "production";
+}
+
+async function loadMcpGrant(
+  grantId,
+  { env = process.env, client = getOpenSearchClient() } = {},
+) {
+  const local = localMcpGrants.get(grantId) || null;
+  if (client && typeof client.get === "function") {
+    try {
+      const response = await client.get({
+        index: mcpGrantIndex(env),
+        id: grantId,
+      });
+      const source = response.body?._source ?? response._source;
+      const record = normalizeGrantRecord(source, grantId);
+      if (source && !record) {
+        return { grantId, invalid: true, revokedAt: "invalid" };
+      }
+      if (record) localMcpGrants.set(grantId, record);
+      return record;
+    } catch (error) {
+      if (openSearchStatus(error) === 404) {
+        return requiresPersistentMcpGrantStore(env) ? null : local;
+      }
+      if (requiresPersistentMcpGrantStore(env)) {
+        throw mcpGrantUnavailable();
+      }
+    }
+  } else if (requiresPersistentMcpGrantStore(env)) {
+    throw mcpGrantUnavailable(
+      "MCP OAuth хранилището за разрешения не е конфигурирано.",
+    );
+  }
+  return local;
+}
+
+async function persistMcpGrant(
+  payload,
+  {
+    env = process.env,
+    client = getOpenSearchClient(),
+    issuedAt = payload.iat,
+    expiresAt = payload.exp,
+  } = {},
+) {
+  const record = mcpGrantRecord(payload, issuedAt, expiresAt);
+  if (!record) throw inactiveMcpGrant();
+
+  const local = localMcpGrants.get(record.grantId);
+  if (local && !requiresPersistentMcpGrantStore(env)) {
+    if (!mcpGrantMatches(local, record) || local.revokedAt) {
+      throw inactiveMcpGrant();
+    }
+    return local;
+  }
+  if (local && requiresPersistentMcpGrantStore(env)) {
+    const durable = await loadMcpGrant(record.grantId, { env, client });
+    if (!mcpGrantMatches(durable, record) || durable?.revokedAt) {
+      throw inactiveMcpGrant();
+    }
+    return durable;
+  }
+
+  if (client && typeof client.create === "function") {
+    try {
+      await ensureMcpGrantIndex(client, env);
+      await client.create({
+        index: mcpGrantIndex(env),
+        id: record.grantId,
+        body: record,
+        refresh: true,
+      });
+      localMcpGrants.set(record.grantId, record);
+      return record;
+    } catch (error) {
+      if (openSearchStatus(error) === 409) {
+        const existing = await loadMcpGrant(record.grantId, { env, client });
+        if (mcpGrantMatches(existing, record) && !existing.revokedAt) {
+          return existing;
+        }
+        throw inactiveMcpGrant();
+      }
+      if (requiresPersistentMcpGrantStore(env)) {
+        throw mcpGrantUnavailable();
+      }
+    }
+  } else if (requiresPersistentMcpGrantStore(env)) {
+    throw mcpGrantUnavailable(
+      "MCP OAuth хранилището за разрешения не е конфигурирано.",
+    );
+  }
+
+  localMcpGrants.set(record.grantId, record);
+  return record;
+}
+
+async function touchMcpGrant(
+  record,
+  {
+    env = process.env,
+    client = getOpenSearchClient(),
+    now = Date.now(),
+    expiresAt = record.expiresAt,
+  } = {},
+) {
+  const lastUsedAt = new Date(now).toISOString();
+  const updated = {
+    ...record,
+    lastUsedAt,
+    expiresAt: new Date(expiresAt).toISOString(),
+  };
+  if (client && typeof client.update === "function") {
+    try {
+      await client.update({
+        index: mcpGrantIndex(env),
+        id: record.grantId,
+        body: { doc: { lastUsedAt, expiresAt: updated.expiresAt } },
+        refresh: false,
+      });
+    } catch (error) {
+      if (openSearchStatus(error) === 404) throw inactiveMcpGrant();
+      if (requiresPersistentMcpGrantStore(env)) {
+        throw mcpGrantUnavailable();
+      }
+    }
+  } else if (requiresPersistentMcpGrantStore(env)) {
+    throw mcpGrantUnavailable(
+      "MCP OAuth хранилището за разрешения не е конфигурирано.",
+    );
+  }
+  localMcpGrants.set(record.grantId, updated);
+  return updated;
+}
+
+export async function assertMcpGrantActive(
+  identity,
+  {
+    env = process.env,
+    client = getOpenSearchClient(),
+    touch = false,
+    now = Date.now(),
+    expiresAt,
+    errorCode = "invalid_token",
+  } = {},
+) {
+  if (!identity?.grantId) {
+    // Tokens minted before grant management expire within one hour. Let those
+    // already-active access tokens finish naturally; every legacy refresh is
+    // migrated to a durable grant before new tokens are issued.
+    return {
+      grantId: null,
+      subject: String(identity?.subject || identity?.id || ""),
+      memoryOwnerId: String(identity?.memoryOwnerId || ""),
+      role: String(identity?.role || ""),
+      clientId: String(identity?.clientId || ""),
+      scopes: Array.isArray(identity?.scopes) ? [...identity.scopes] : [],
+      issuedAt: null,
+      expiresAt: null,
+      lastUsedAt: null,
+      revokedAt: null,
+      legacy: true,
+    };
+  }
+
+  let record = await loadMcpGrant(String(identity.grantId), { env, client });
+  if (!record && !requiresPersistentMcpGrantStore(env)) {
+    record = mcpGrantRecord(
+      {
+        ...identity,
+        subject: identity.subject || identity.id,
+        iat: Math.floor(now / 1_000),
+        exp: Math.floor(now / 1_000) + REFRESH_TOKEN_TTL_SECONDS,
+      },
+      Math.floor(now / 1_000),
+    );
+    if (record) localMcpGrants.set(record.grantId, record);
+  }
+  if (
+    !record ||
+    record.revokedAt ||
+    Date.parse(record.expiresAt) <= now ||
+    !mcpGrantMatches(record, identity)
+  ) {
+    throw inactiveMcpGrant(errorCode);
+  }
+  return touch
+    ? touchMcpGrant(record, { env, client, now, expiresAt })
+    : record;
+}
+
+export async function listActiveMcpGrants({
+  subject,
+  env = process.env,
+  client = getOpenSearchClient(),
+  limit = 100,
+  now = Date.now(),
+} = {}) {
+  const cleanSubject = String(subject || "").trim();
+  if (!cleanSubject) {
+    throw new McpOAuthError("Липсва собственик на MCP OAuth разрешенията.");
+  }
+  const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 100, 1), 100);
+
+  if (client && typeof client.search === "function") {
+    try {
+      const response = await client.search({
+        index: mcpGrantIndex(env),
+        body: {
+          size: safeLimit,
+          query: {
+            bool: {
+              filter: [
+                { term: { subject: cleanSubject } },
+                {
+                  range: {
+                    expiresAt: { gt: new Date(now).toISOString() },
+                  },
+                },
+              ],
+              must_not: [{ exists: { field: "revokedAt" } }],
+            },
+          },
+          sort: [{ issuedAt: { order: "desc" } }],
+        },
+      });
+      const hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
+      return hits
+        .map((hit) => normalizeGrantRecord(hit._source, hit._id))
+        .filter(Boolean);
+    } catch (error) {
+      if (openSearchStatus(error) === 404) return [];
+      if (requiresPersistentMcpGrantStore(env)) {
+        throw mcpGrantUnavailable();
+      }
+    }
+  } else if (requiresPersistentMcpGrantStore(env)) {
+    throw mcpGrantUnavailable(
+      "MCP OAuth хранилището за разрешения не е конфигурирано.",
+    );
+  }
+
+  return [...localMcpGrants.values()]
+    .filter(
+      (record) =>
+        record.subject === cleanSubject &&
+        !record.revokedAt &&
+        Date.parse(record.expiresAt) > now,
+    )
+    .sort((left, right) => String(right.issuedAt).localeCompare(left.issuedAt))
+    .slice(0, safeLimit);
+}
+
+function activeMcpGrantRevokeQuery(subject, grantId = "") {
+  const filter = [{ term: { subject } }];
+  if (grantId) filter.push({ term: { grantId } });
+  return {
+    bool: {
+      filter,
+      must_not: [{ exists: { field: "revokedAt" } }],
+    },
+  };
+}
+
+async function hasActiveMcpGrantForRevoke({ subject, grantId, env, client }) {
+  if (!client || typeof client.search !== "function") {
+    if (requiresPersistentMcpGrantStore(env)) {
+      throw mcpGrantUnavailable(
+        "MCP OAuth отнемането не може да бъде потвърдено.",
+      );
+    }
+    return null;
+  }
+  try {
+    const response = await client.search({
+      index: mcpGrantIndex(env),
+      body: {
+        size: 1,
+        _source: false,
+        query: activeMcpGrantRevokeQuery(subject, grantId),
+      },
+    });
+    const hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
+    return hits.length > 0;
+  } catch (error) {
+    if (openSearchStatus(error) === 404) return false;
+    if (requiresPersistentMcpGrantStore(env)) {
+      throw mcpGrantUnavailable(
+        "MCP OAuth отнемането не може да бъде потвърдено.",
+      );
+    }
+    return null;
+  }
+}
+
+export async function revokeMcpGrants({
+  subject,
+  grantId,
+  env = process.env,
+  client = getOpenSearchClient(),
+  now = Date.now(),
+} = {}) {
+  const cleanSubject = String(subject || "").trim();
+  const cleanGrantId = String(grantId || "").trim();
+  if (!cleanSubject) {
+    throw new McpOAuthError("Липсва собственик на MCP OAuth разрешенията.");
+  }
+  const revokedAt = new Date(now).toISOString();
+  let localRevoked = 0;
+  for (const [id, record] of localMcpGrants) {
+    if (
+      record.subject === cleanSubject &&
+      !record.revokedAt &&
+      (!cleanGrantId || id === cleanGrantId)
+    ) {
+      localMcpGrants.set(id, { ...record, revokedAt });
+      localRevoked += 1;
+    }
+  }
+
+  if (client && typeof client.updateByQuery === "function") {
+    try {
+      let updated = 0;
+      for (
+        let attempt = 1;
+        attempt <= MCP_GRANT_REVOKE_MAX_ATTEMPTS;
+        attempt += 1
+      ) {
+        const response = await client.updateByQuery({
+          index: mcpGrantIndex(env),
+          conflicts: "proceed",
+          refresh: true,
+          body: {
+            query: activeMcpGrantRevokeQuery(cleanSubject, cleanGrantId),
+            script: {
+              source: "ctx._source.revokedAt = params.revokedAt",
+              params: { revokedAt },
+            },
+          },
+        });
+        const body = response.body ?? response;
+        updated += Number(body?.updated ?? 0);
+        const versionConflicts = Number(body?.version_conflicts ?? 0);
+        const stillActive = await hasActiveMcpGrantForRevoke({
+          subject: cleanSubject,
+          grantId: cleanGrantId,
+          env,
+          client,
+        });
+        if (stillActive === false) return updated;
+        if (stillActive === null && versionConflicts === 0) return updated;
+        if (attempt === MCP_GRANT_REVOKE_MAX_ATTEMPTS) {
+          throw mcpGrantUnavailable(
+            "MCP OAuth отнемането не можа да бъде потвърдено.",
+          );
+        }
+      }
+    } catch (error) {
+      if (openSearchStatus(error) === 404) return 0;
+      if (error instanceof McpOAuthError) throw error;
+      if (requiresPersistentMcpGrantStore(env)) {
+        throw mcpGrantUnavailable();
+      }
+      return localRevoked;
+    }
+  } else if (requiresPersistentMcpGrantStore(env)) {
+    throw mcpGrantUnavailable(
+      "MCP OAuth хранилището за разрешения не е конфигурирано.",
+    );
+  }
+  return localRevoked;
+}
+
 export function requiresPersistentMcpReplayGuard(env = process.env) {
   return env.NODE_ENV === "production";
 }
@@ -822,6 +1365,7 @@ function createAccessAndRefreshTokens(payload, env, now) {
     "sx-token",
     {
       typ: "access_token",
+      grantId: payload.grantId,
       iss: payload.iss,
       aud: payload.aud,
       clientId: payload.clientId,
@@ -840,6 +1384,7 @@ function createAccessAndRefreshTokens(payload, env, now) {
     {
       typ: "refresh_token",
       jti: randomBytes(18).toString("base64url"),
+      grantId: payload.grantId,
       iss: payload.iss,
       aud: payload.aud,
       clientId: payload.clientId,
@@ -864,7 +1409,10 @@ function createAccessAndRefreshTokens(payload, env, now) {
 export async function exchangeMcpAuthorizationCode(
   input,
   env = process.env,
-  { consumeGrant = consumeMcpGrantOnce } = {},
+  {
+    consumeGrant = consumeMcpGrantOnce,
+    client = getOpenSearchClient(),
+  } = {},
 ) {
   const code = String(input?.code || "");
   const payload = decryptPayloadWithFallback(
@@ -911,11 +1459,19 @@ export async function exchangeMcpAuthorizationCode(
     );
   }
 
+  const grantPayload = withMcpGrantId(payload);
+  await persistMcpGrant(grantPayload, {
+    env,
+    client,
+    issuedAt: payload.iat,
+    expiresAt: now + REFRESH_TOKEN_TTL_SECONDS,
+  });
   const consumed = await consumeGrant({
     grantType: "authorization_code",
     tokenId: payload.jti,
     expiresAt: payload.exp,
     env,
+    client,
   });
   if (!consumed) {
     throw new McpOAuthError(
@@ -924,13 +1480,16 @@ export async function exchangeMcpAuthorizationCode(
       "invalid_grant",
     );
   }
-  return createAccessAndRefreshTokens(payload, env, now);
+  return createAccessAndRefreshTokens(grantPayload, env, now);
 }
 
 export async function exchangeMcpRefreshToken(
   input,
   env = process.env,
-  { consumeGrant = consumeMcpGrantOnce } = {},
+  {
+    consumeGrant = consumeMcpGrantOnce,
+    client = getOpenSearchClient(),
+  } = {},
 ) {
   const payload = decryptPayloadWithFallback(
     String(input?.refresh_token || ""),
@@ -953,11 +1512,32 @@ export async function exchangeMcpRefreshToken(
       "invalid_grant",
     );
   }
+  const grantPayload = withMcpGrantId(payload);
+  if (payload.grantId) {
+    await assertMcpGrantActive(payload, {
+      env,
+      client,
+      touch: true,
+      now: now * 1_000,
+      expiresAt: (now + REFRESH_TOKEN_TTL_SECONDS) * 1_000,
+      errorCode: "invalid_grant",
+    });
+  } else {
+    // Pre-grant refresh tokens get one replay-protected migration to a durable
+    // grant. The deterministic ID makes a retry idempotent.
+    await persistMcpGrant(grantPayload, {
+      env,
+      client,
+      issuedAt: payload.iat,
+      expiresAt: now + REFRESH_TOKEN_TTL_SECONDS,
+    });
+  }
   const consumed = await consumeGrant({
     grantType: "refresh_token",
     tokenId: payload.jti,
     expiresAt: payload.exp,
     env,
+    client,
   });
   if (!consumed) {
     throw new McpOAuthError(
@@ -966,7 +1546,7 @@ export async function exchangeMcpRefreshToken(
       "invalid_grant",
     );
   }
-  return createAccessAndRefreshTokens(payload, env, now);
+  return createAccessAndRefreshTokens(grantPayload, env, now);
 }
 
 export async function exchangeMcpToken(input, env = process.env) {
@@ -1073,13 +1653,16 @@ export function verifyMcpAccessToken(
     role: payload.role,
     scopes: payload.scopes,
     clientId: payload.clientId,
+    grantId: payload.grantId || null,
   };
 }
 
 export function resetMcpOAuthStateForTests() {
   consumedAuthorizationCodes.clear();
   consumedRefreshTokens.clear();
+  localMcpGrants.clear();
   replayIndexPromise = null;
+  grantIndexPromise = null;
   lastReplayCleanupAt = 0;
   activeReplayCleanup = null;
   oauthRuntimeStatus = Object.freeze({

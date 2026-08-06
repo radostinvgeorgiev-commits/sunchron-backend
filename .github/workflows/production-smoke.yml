@@ -345,16 +345,39 @@ jobs:
             exit 1
           fi
 
-          challenge_headers="$(curl --silent --show-error \
+          challenge_headers="$(mktemp)"
+          challenge_body="$(mktemp)"
+          challenge_status="$(curl --silent --show-error \
             --max-time 30 \
-            --dump-header - \
-            --output /dev/null \
+            --dump-header "${challenge_headers}" \
+            --output "${challenge_body}" \
+            --write-out '%{http_code}' \
             --header 'Content-Type: application/json' \
             --header 'Accept: application/json, text/event-stream' \
             --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_github_copilot_task_status","arguments":{"issueNumber":83}}}' \
             https://synchron.foundation/mcp)"
-          printf '%s' "${challenge_headers}" \
-            | grep -Eiq '^www-authenticate:.*Bearer.*synchron:read'
+          test "${challenge_status}" = "401"
+          grep -Eiq '^www-authenticate:.*Bearer.*synchron:read.*error="invalid_token".*error_description="' "${challenge_headers}"
+          node -e '
+            const { readFileSync } = require("node:fs");
+            const response = JSON.parse(readFileSync(process.argv[1], "utf8"));
+            const result = response.result;
+            const challenges = result?._meta?.["mcp/www_authenticate"];
+            const valid =
+              result?.isError === true &&
+              Array.isArray(result.content) &&
+              result.content.some((item) => item?.type === "text") &&
+              Array.isArray(challenges) &&
+              challenges.some(
+                (challenge) =>
+                  typeof challenge === "string" &&
+                  challenge.includes("oauth-protected-resource") &&
+                  challenge.includes("synchron:read") &&
+                  challenge.includes("error=\"invalid_token\"") &&
+                  challenge.includes("error_description=\""),
+              );
+            process.exit(valid ? 0 : 1);
+          ' "${challenge_body}"
 
       - name: Check tester auth readiness
         shell: bash

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import test from "node:test";
 
 import {
+  assertMcpGrantActive,
   cleanupExpiredMcpReplayRecords,
   consumeMcpGrantOnce,
   createMcpAuthorizationCode,
@@ -14,6 +15,7 @@ import {
   getMcpAuthorizationServerMetadata,
   getMcpProtectedResourceMetadata,
   isMcpOAuthConfigured,
+  listActiveMcpGrants,
   MCP_AGENT_CHAT_SCOPE,
   MCP_AUDIT_READ_SCOPE,
   MCP_GITHUB_WRITE_SCOPE,
@@ -25,7 +27,9 @@ import {
   MCP_READ_SCOPE,
   MCP_TASKS_WRITE_SCOPE,
   requiresPersistentMcpReplayGuard,
+  requiresPersistentMcpGrantStore,
   resetMcpOAuthStateForTests,
+  revokeMcpGrants,
   validateMcpAuthorizationRequest,
   verifyMcpAccessToken,
 } from "../src/services/mcpOAuthService.js";
@@ -41,6 +45,187 @@ const DEDICATED_ENV = {
 const CLIENT_ID = "https://chatgpt.com/oauth/synchron/client.json";
 const REDIRECT_URI = "https://chatgpt.com/connector/oauth/test-callback";
 const VERIFIER = "v".repeat(64);
+
+function openSearchError(statusCode, type) {
+  const error = new Error(`OpenSearch ${statusCode}`);
+  error.meta = {
+    statusCode,
+    ...(type ? { body: { error: { type } } } : {}),
+  };
+  return error;
+}
+
+function matchesOpenSearchQuery(source, query = {}) {
+  const bool = query.bool || {};
+  for (const clause of bool.filter || []) {
+    if (clause.term) {
+      const [field, value] = Object.entries(clause.term)[0];
+      if (source[field] !== value) return false;
+    }
+    if (clause.range) {
+      const [field, bounds] = Object.entries(clause.range)[0];
+      const value = Date.parse(source[field]);
+      if (bounds.gt && !(value > Date.parse(bounds.gt))) return false;
+      if (bounds.lte && !(value <= Date.parse(bounds.lte))) return false;
+    }
+  }
+  for (const clause of bool.must_not || []) {
+    if (clause.exists && source[clause.exists.field] != null) return false;
+  }
+  if (query.range) {
+    const [field, bounds] = Object.entries(query.range)[0];
+    const value = Date.parse(source[field]);
+    if (bounds.gt && !(value > Date.parse(bounds.gt))) return false;
+    if (bounds.lte && !(value <= Date.parse(bounds.lte))) return false;
+  }
+  return true;
+}
+
+function createFakeOpenSearch() {
+  const indexes = new Map();
+  const mappings = new Map();
+  const indexRecords = (index) => {
+    const records = indexes.get(index);
+    if (!records) throw openSearchError(404);
+    return records;
+  };
+  const client = {
+    indexes,
+    mappings,
+    indices: {
+      async exists({ index }) {
+        return { body: indexes.has(index) };
+      },
+      async create({ index, body }) {
+        if (indexes.has(index)) {
+          throw openSearchError(400, "resource_already_exists_exception");
+        }
+        indexes.set(index, new Map());
+        mappings.set(index, structuredClone(body?.mappings || {}));
+        return { body: { acknowledged: true } };
+      },
+    },
+    async create({ index, id, body }) {
+      const records = indexRecords(index);
+      if (records.has(id)) throw openSearchError(409);
+      records.set(id, structuredClone(body));
+      return { body: { result: "created" } };
+    },
+    async get({ index, id }) {
+      const record = indexRecords(index).get(id);
+      if (!record) throw openSearchError(404);
+      return { body: { _id: id, _source: structuredClone(record) } };
+    },
+    async search({ index, body }) {
+      const records = indexRecords(index);
+      const hits = [...records]
+        .filter(([, source]) => matchesOpenSearchQuery(source, body.query))
+        .map(([id, source]) => ({ _id: id, _source: structuredClone(source) }))
+        .sort((left, right) =>
+          String(right._source.issuedAt || "").localeCompare(
+            String(left._source.issuedAt || ""),
+          ),
+        )
+        .slice(0, body.size);
+      return { body: { hits: { hits } } };
+    },
+    async update({ index, id, body }) {
+      const records = indexRecords(index);
+      const record = records.get(id);
+      if (!record) throw openSearchError(404);
+      records.set(id, { ...record, ...structuredClone(body.doc || {}) });
+      return { body: { result: "updated" } };
+    },
+    async updateByQuery({ index, body }) {
+      const records = indexRecords(index);
+      let updated = 0;
+      for (const [id, source] of records) {
+        if (!matchesOpenSearchQuery(source, body.query)) continue;
+        records.set(id, { ...source, revokedAt: body.script.params.revokedAt });
+        updated += 1;
+      }
+      return { body: { updated } };
+    },
+    async deleteByQuery({ index, body }) {
+      const records = indexRecords(index);
+      let deleted = 0;
+      for (const [id, source] of records) {
+        if (!matchesOpenSearchQuery(source, body.query)) continue;
+        records.delete(id);
+        deleted += 1;
+      }
+      return { body: { deleted } };
+    },
+  };
+  return client;
+}
+
+function legacyOAuthKey(env = ENV) {
+  return createHash("sha256")
+    .update("synchron-mcp-oauth-v1\0")
+    .update(env.MCP_ACCESS_TOKEN)
+    .digest();
+}
+
+function legacyGrantKey(env = ENV) {
+  return createHash("sha256")
+    .update(legacyOAuthKey(env))
+    .update("synchron-mcp-oauth-grants-v2\0")
+    .digest();
+}
+
+function encryptLegacyToken(prefix, payload, key) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([
+    cipher.update(JSON.stringify(payload), "utf8"),
+    cipher.final(),
+  ]);
+  return `${prefix}.${Buffer.concat([
+    iv,
+    cipher.getAuthTag(),
+    ciphertext,
+  ]).toString("base64url")}`;
+}
+
+function legacyIdentityPayload(now = Math.floor(Date.now() / 1_000)) {
+  return {
+    iss: "https://synchron.foundation",
+    aud: ENV.MCP_RESOURCE_URL,
+    clientId: CLIENT_ID,
+    scopes: [MCP_READ_SCOPE],
+    subject: "owner-id",
+    memoryOwnerId: "primary-user",
+    role: "owner",
+    iat: now,
+  };
+}
+
+function createLegacyAccessToken(now = Math.floor(Date.now() / 1_000)) {
+  return encryptLegacyToken(
+    "sx-token",
+    {
+      typ: "access_token",
+      ...legacyIdentityPayload(now),
+      nbf: now - 5,
+      exp: now + 60 * 60,
+    },
+    legacyOAuthKey(),
+  );
+}
+
+function createLegacyRefreshToken(now = Math.floor(Date.now() / 1_000)) {
+  return encryptLegacyToken(
+    "sx-refresh",
+    {
+      typ: "refresh_token",
+      jti: randomBytes(18).toString("base64url"),
+      ...legacyIdentityPayload(now),
+      exp: now + 30 * 24 * 60 * 60,
+    },
+    legacyGrantKey(),
+  );
+}
 
 function authorizationInput(scopes = [MCP_READ_SCOPE]) {
   return {
@@ -70,7 +255,7 @@ function clientMetadataFetch(url) {
   );
 }
 
-async function issueTokens(env = ENV) {
+async function issueTokens(env = ENV, options = {}) {
   const request = await validateMcpAuthorizationRequest(authorizationInput(), {
     env,
     fetchImpl: clientMetadataFetch,
@@ -90,6 +275,7 @@ async function issueTokens(env = ENV) {
       resource: ENV.MCP_RESOURCE_URL,
     },
     env,
+    options,
   );
 }
 
@@ -408,18 +594,21 @@ test("exchanges a one-time PKCE code for an opaque owner-scoped token", async ()
   const token = await exchangeMcpAuthorizationCode(input, ENV);
   assert.equal(token.token_type, "Bearer");
   assert.doesNotMatch(token.access_token, /owner-id|primary-user/u);
+  const identity = verifyMcpAccessToken(
+    `Bearer ${token.access_token}`,
+    [MCP_GITHUB_WRITE_SCOPE],
+    ENV,
+  );
+  assert.match(identity.grantId, /^[A-Za-z0-9_-]+$/u);
   assert.deepEqual(
-    verifyMcpAccessToken(
-      `Bearer ${token.access_token}`,
-      [MCP_GITHUB_WRITE_SCOPE],
-      ENV,
-    ),
+    { ...identity, grantId: undefined },
     {
       id: "owner-id",
       memoryOwnerId: "primary-user",
       role: "owner",
       scopes: [MCP_READ_SCOPE, MCP_GITHUB_WRITE_SCOPE],
       clientId: CLIENT_ID,
+      grantId: undefined,
     },
   );
   const refreshed = await exchangeMcpRefreshToken(
@@ -591,6 +780,429 @@ test("refresh tokens survive a fresh application module instance", async () => {
     ENV,
   );
   assert.ok(refreshed.access_token);
+});
+
+test("persists a bounded owner grant and extends it on refresh", async () => {
+  const env = {
+    ...ENV,
+    NODE_ENV: "production",
+    MCP_OAUTH_GRANT_INDEX: "oauth-grants-persist-test",
+    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-persist-test",
+  };
+  const client = createFakeOpenSearch();
+  const realDateNow = Date.now;
+  let now = realDateNow();
+  Date.now = () => now;
+  try {
+    const token = await issueTokens(env, { client });
+    const identity = verifyMcpAccessToken(
+      `Bearer ${token.access_token}`,
+      [MCP_READ_SCOPE],
+      env,
+    );
+    const initial = await assertMcpGrantActive(identity, { env, client, now });
+
+    assert.equal(requiresPersistentMcpGrantStore(env), true);
+    assert.deepEqual(
+      {
+        grantId: initial.grantId,
+        subject: initial.subject,
+        memoryOwnerId: initial.memoryOwnerId,
+        role: initial.role,
+        clientId: initial.clientId,
+        scopes: initial.scopes,
+        lastUsedAt: initial.lastUsedAt,
+        revokedAt: initial.revokedAt,
+      },
+      {
+        grantId: identity.grantId,
+        subject: "owner-id",
+        memoryOwnerId: "primary-user",
+        role: "owner",
+        clientId: CLIENT_ID,
+        scopes: [MCP_READ_SCOPE],
+        lastUsedAt: null,
+        revokedAt: null,
+      },
+    );
+    assert.match(initial.issuedAt, /^\d{4}-\d{2}-\d{2}T/u);
+    assert.ok(Date.parse(initial.expiresAt) > now);
+    assert.deepEqual(
+      client.mappings.get(env.MCP_OAUTH_GRANT_INDEX).properties.expiresAt,
+      { type: "date" },
+    );
+    assert.deepEqual(await listActiveMcpGrants({ subject: "owner-id", env, client, now }), [
+      initial,
+    ]);
+
+    now += 60_000;
+    const refreshed = await exchangeMcpRefreshToken(
+      {
+        grant_type: "refresh_token",
+        refresh_token: token.refresh_token,
+        client_id: CLIENT_ID,
+        resource: ENV.MCP_RESOURCE_URL,
+      },
+      env,
+      { client },
+    );
+    const refreshedIdentity = verifyMcpAccessToken(
+      `Bearer ${refreshed.access_token}`,
+      [MCP_READ_SCOPE],
+      env,
+    );
+    assert.equal(refreshedIdentity.grantId, identity.grantId);
+    const [extended] = await listActiveMcpGrants({
+      subject: "owner-id",
+      env,
+      client,
+      now,
+    });
+    assert.ok(Date.parse(extended.expiresAt) > Date.parse(initial.expiresAt));
+    assert.equal(
+      extended.lastUsedAt,
+      new Date(Math.floor(now / 1_000) * 1_000).toISOString(),
+    );
+
+    client.indexes.get(env.MCP_OAUTH_GRANT_INDEX).set(identity.grantId, {
+      ...extended,
+      expiresAt: new Date(now - 1).toISOString(),
+    });
+    assert.deepEqual(
+      await listActiveMcpGrants({ subject: "owner-id", env, client, now }),
+      [],
+    );
+  } finally {
+    Date.now = realDateNow;
+  }
+});
+
+test("a transient grant update failure does not consume the refresh token", async () => {
+  const env = {
+    ...ENV,
+    NODE_ENV: "production",
+    MCP_OAUTH_GRANT_INDEX: "oauth-grants-refresh-retry-test",
+    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-refresh-retry-test",
+  };
+  const client = createFakeOpenSearch();
+  const token = await issueTokens(env, { client });
+  const update = client.update.bind(client);
+  let failUpdate = true;
+  client.update = async (input) => {
+    if (failUpdate) {
+      failUpdate = false;
+      throw openSearchError(503);
+    }
+    return update(input);
+  };
+  const refreshInput = {
+    grant_type: "refresh_token",
+    refresh_token: token.refresh_token,
+    client_id: CLIENT_ID,
+    resource: ENV.MCP_RESOURCE_URL,
+  };
+
+  await assert.rejects(
+    exchangeMcpRefreshToken(refreshInput, env, { client }),
+    (error) => error.code === "temporarily_unavailable" && error.status === 503,
+  );
+  const retried = await exchangeMcpRefreshToken(refreshInput, env, { client });
+  assert.ok(retried.access_token);
+  assert.ok(retried.refresh_token);
+});
+
+test("revokes one or all owner grants and blocks access and refresh", async () => {
+  const env = {
+    ...ENV,
+    NODE_ENV: "production",
+    MCP_OAUTH_GRANT_INDEX: "oauth-grants-revoke-test",
+    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-revoke-test",
+  };
+  const client = createFakeOpenSearch();
+  const first = await issueTokens(env, { client });
+  const second = await issueTokens(env, { client });
+  const firstIdentity = verifyMcpAccessToken(
+    `Bearer ${first.access_token}`,
+    [MCP_READ_SCOPE],
+    env,
+  );
+  const secondIdentity = verifyMcpAccessToken(
+    `Bearer ${second.access_token}`,
+    [MCP_READ_SCOPE],
+    env,
+  );
+
+  assert.equal(
+    await revokeMcpGrants({
+      subject: "owner-id",
+      grantId: firstIdentity.grantId,
+      env,
+      client,
+    }),
+    1,
+  );
+  assert.deepEqual(
+    (await listActiveMcpGrants({ subject: "owner-id", env, client })).map(
+      ({ grantId }) => grantId,
+    ),
+    [secondIdentity.grantId],
+  );
+  await assert.rejects(
+    assertMcpGrantActive(firstIdentity, { env, client }),
+    (error) => error.code === "invalid_token" && error.status === 401,
+  );
+  await assert.rejects(
+    exchangeMcpRefreshToken(
+      {
+        grant_type: "refresh_token",
+        refresh_token: first.refresh_token,
+        client_id: CLIENT_ID,
+        resource: ENV.MCP_RESOURCE_URL,
+      },
+      env,
+      { client },
+    ),
+    (error) => error.code === "invalid_grant" && error.status === 400,
+  );
+  assert.equal(
+    await revokeMcpGrants({ subject: "owner-id", env, client }),
+    1,
+  );
+  assert.deepEqual(
+    await listActiveMcpGrants({ subject: "owner-id", env, client }),
+    [],
+  );
+});
+
+test("retries and verifies a target revoke after a version conflict", async () => {
+  const env = {
+    ...ENV,
+    NODE_ENV: "production",
+    MCP_OAUTH_GRANT_INDEX: "oauth-grants-revoke-conflict-test",
+    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-revoke-conflict-test",
+  };
+  const client = createFakeOpenSearch();
+  const token = await issueTokens(env, { client });
+  const identity = verifyMcpAccessToken(
+    `Bearer ${token.access_token}`,
+    [MCP_READ_SCOPE],
+    env,
+  );
+  const updateByQuery = client.updateByQuery.bind(client);
+  let attempts = 0;
+  client.updateByQuery = async (input) => {
+    attempts += 1;
+    if (attempts === 1) {
+      return { body: { updated: 0, version_conflicts: 1 } };
+    }
+    const response = await updateByQuery(input);
+    response.body.version_conflicts = 0;
+    return response;
+  };
+
+  assert.equal(
+    await revokeMcpGrants({
+      subject: "owner-id",
+      grantId: identity.grantId,
+      env,
+      client,
+    }),
+    1,
+  );
+  assert.equal(attempts, 2);
+  assert.deepEqual(
+    await listActiveMcpGrants({ subject: "owner-id", env, client }),
+    [],
+  );
+  await assert.rejects(
+    assertMcpGrantActive(identity, { env, client }),
+    (error) => error.code === "invalid_token" && error.status === 401,
+  );
+});
+
+test("fails closed when revoke-all version conflicts remain active", async () => {
+  const env = {
+    ...ENV,
+    NODE_ENV: "production",
+    MCP_OAUTH_GRANT_INDEX: "oauth-grants-revoke-conflict-fail-test",
+    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-revoke-conflict-fail-test",
+  };
+  const client = createFakeOpenSearch();
+  await issueTokens(env, { client });
+  let attempts = 0;
+  client.updateByQuery = async () => {
+    attempts += 1;
+    return { body: { updated: 0, version_conflicts: 1 } };
+  };
+
+  await assert.rejects(
+    revokeMcpGrants({ subject: "owner-id", env, client }),
+    (error) =>
+      error.code === "temporarily_unavailable" && error.status === 503,
+  );
+  assert.equal(attempts, 3);
+});
+
+test("production grant checks fail closed for missing durable state", async () => {
+  const token = await issueTokens(ENV, {
+    client: null,
+    consumeGrant: async () => true,
+  });
+  const env = {
+    ...ENV,
+    NODE_ENV: "production",
+    MCP_OAUTH_GRANT_INDEX: "oauth-grants-missing-test",
+    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-missing-test",
+  };
+  const client = createFakeOpenSearch();
+  const identity = verifyMcpAccessToken(
+    `Bearer ${token.access_token}`,
+    [MCP_READ_SCOPE],
+    env,
+  );
+  resetMcpOAuthStateForTests();
+
+  await assert.rejects(
+    assertMcpGrantActive(identity, { env, client }),
+    (error) => error.code === "invalid_token" && error.status === 401,
+  );
+  await assert.rejects(
+    exchangeMcpRefreshToken(
+      {
+        grant_type: "refresh_token",
+        refresh_token: token.refresh_token,
+        client_id: CLIENT_ID,
+        resource: ENV.MCP_RESOURCE_URL,
+      },
+      env,
+      { client },
+    ),
+    (error) => error.code === "invalid_grant" && error.status === 400,
+  );
+  await assert.rejects(
+    assertMcpGrantActive(identity, { env, client: null }),
+    (error) => error.code === "temporarily_unavailable" && error.status === 503,
+  );
+});
+
+test("migrates pre-grant tokens without abruptly invalidating access", async () => {
+  const env = {
+    ...ENV,
+    NODE_ENV: "production",
+    MCP_OAUTH_GRANT_INDEX: "oauth-grants-legacy-test",
+    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-legacy-test",
+  };
+  const client = createFakeOpenSearch();
+  const legacyIdentity = verifyMcpAccessToken(
+    `Bearer ${createLegacyAccessToken()}`,
+    [MCP_READ_SCOPE],
+    env,
+  );
+  assert.equal(legacyIdentity.grantId, null);
+  assert.equal(
+    (await assertMcpGrantActive(legacyIdentity, { env, client })).legacy,
+    true,
+  );
+
+  const migrated = await exchangeMcpRefreshToken(
+    {
+      grant_type: "refresh_token",
+      refresh_token: createLegacyRefreshToken(),
+      client_id: CLIENT_ID,
+      resource: ENV.MCP_RESOURCE_URL,
+    },
+    env,
+    { client },
+  );
+  const migratedIdentity = verifyMcpAccessToken(
+    `Bearer ${migrated.access_token}`,
+    [MCP_READ_SCOPE],
+    env,
+  );
+  assert.match(migratedIdentity.grantId, /^legacy_[A-Za-z0-9_-]+$/u);
+  assert.deepEqual(
+    (await listActiveMcpGrants({ subject: "owner-id", env, client })).map(
+      ({ grantId }) => grantId,
+    ),
+    [migratedIdentity.grantId],
+  );
+});
+
+test("a revoked local grant stays revoked when a dev store returns 404", async () => {
+  const env = {
+    ...ENV,
+    MCP_OAUTH_GRANT_INDEX: "oauth-grants-dev-404-test",
+    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-dev-404-test",
+  };
+  const client = createFakeOpenSearch();
+  const token = await issueTokens(env, { client });
+  const identity = verifyMcpAccessToken(
+    `Bearer ${token.access_token}`,
+    [MCP_READ_SCOPE],
+    env,
+  );
+  assert.equal(
+    await revokeMcpGrants({
+      subject: "owner-id",
+      grantId: identity.grantId,
+      env,
+      client,
+    }),
+    1,
+  );
+  client.indexes.get(env.MCP_OAUTH_GRANT_INDEX).delete(identity.grantId);
+
+  await assert.rejects(
+    assertMcpGrantActive(identity, { env, client }),
+    (error) => error.code === "invalid_token" && error.status === 401,
+  );
+});
+
+test("rejects durable grants with malformed security timestamps", async () => {
+  const env = {
+    ...ENV,
+    NODE_ENV: "production",
+    MCP_OAUTH_GRANT_INDEX: "oauth-grants-invalid-time-test",
+    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-invalid-time-test",
+  };
+  const client = createFakeOpenSearch();
+
+  for (const field of ["issuedAt", "expiresAt"]) {
+    const token = await issueTokens(env, { client });
+    const identity = verifyMcpAccessToken(
+      `Bearer ${token.access_token}`,
+      [MCP_READ_SCOPE],
+      env,
+    );
+    const records = client.indexes.get(env.MCP_OAUTH_GRANT_INDEX);
+    records.set(identity.grantId, {
+      ...records.get(identity.grantId),
+      [field]: "not-a-timestamp",
+    });
+
+    await assert.rejects(
+      assertMcpGrantActive(identity, { env, client }),
+      (error) => error.code === "invalid_token" && error.status === 401,
+    );
+    await assert.rejects(
+      exchangeMcpRefreshToken(
+        {
+          grant_type: "refresh_token",
+          refresh_token: token.refresh_token,
+          client_id: CLIENT_ID,
+          resource: ENV.MCP_RESOURCE_URL,
+        },
+        env,
+        { client },
+      ),
+      (error) => error.code === "invalid_grant" && error.status === 400,
+    );
+  }
+
+  assert.deepEqual(
+    await listActiveMcpGrants({ subject: "owner-id", env, client }),
+    [],
+  );
 });
 
 test("production replay guard is atomic across local state resets", async () => {

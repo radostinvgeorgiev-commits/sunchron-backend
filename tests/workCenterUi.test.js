@@ -319,7 +319,10 @@ test("ChatGPT app card reports the live bridge and copies the exact MCP URL", as
           configured: true,
           responding: true,
           tools: 11,
-          authentication: { chatgptOAuthReady: true },
+          authentication: {
+            chatgptOAuthReady: true,
+            tokenExchange: { tokenExchange: "success" },
+          },
         },
       },
     },
@@ -330,7 +333,7 @@ test("ChatGPT app card reports the live bridge and copies the exact MCP URL", as
     '[data-work-center-action="show-chatgpt-app-setup"]',
   );
 
-  assert.match(card.textContent, /11 инструмента · OAuth е готов/u);
+  assert.match(card.textContent, /11 инструмента · OAuth е проверен/u);
   card.click();
   document.querySelector("[data-copy-mcp-url]").click();
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -698,7 +701,10 @@ test("current capabilities summary uses only live verified status", async () => 
           configured: true,
           responding: true,
           tools: 11,
-          authentication: { chatgptOAuthReady: true },
+          authentication: {
+            chatgptOAuthReady: true,
+            tokenExchange: { tokenExchange: "success" },
+          },
         },
       },
     },
@@ -734,6 +740,64 @@ test("current capabilities summary uses only live verified status", async () => 
   assert.match(working.textContent, /Gmail/u);
   assert.match(working.textContent, /Google Calendar/u);
   assert.match(working.textContent, /Потребителски профили/u);
+});
+
+test("configured MCP bridge waits for a real OAuth token exchange", async () => {
+  const harness = createHarness({
+    readiness: {
+      status: "ready",
+      checks: {
+        chatAgent: { ready: true },
+        memory: { ready: true, status: "green" },
+        bridge: {
+          configured: true,
+          responding: true,
+          tools: 50,
+          authentication: {
+            chatgptOAuthReady: true,
+            tokenExchange: { tokenExchange: "not-attempted" },
+          },
+        },
+      },
+    },
+  });
+  await openCenter(harness);
+  const { document } = harness.dom.window;
+  const card = document.querySelector(
+    '[data-work-center-action="show-chatgpt-app-setup"]',
+  );
+  const working = document.querySelector('[data-capability-group="working"]');
+  const action = document.querySelector('[data-capability-group="action"]');
+
+  assert.match(card.textContent, /50 инструмента · готов за свързване/u);
+  assert.doesNotMatch(working.textContent, /ChatGPT MCP мост/u);
+  assert.match(action.textContent, /ChatGPT MCP мост/u);
+});
+
+test("Cloudflare card does not claim success before a live check", async () => {
+  const harness = createHarness({
+    integrations: {
+      tools: [
+        {
+          id: "cloudflare-read",
+          enabled: true,
+          executable: true,
+          configured: true,
+          healthStatus: "degraded",
+          availabilityCode: "CLOUDFLARE_LIVE_CHECK_REQUIRED",
+          availabilityReason:
+            "Cloudflare е конфигуриран, но тази справка не е жива API проверка.",
+        },
+      ],
+    },
+  });
+  await openCenter(harness);
+  const card = [...harness.dom.window.document.querySelectorAll("a")].find(
+    (item) => item.textContent.includes("Cloudflare"),
+  );
+
+  assert.match(card.textContent, /конфигуриран · изисква жива проверка/u);
+  assert.doesNotMatch(card.textContent, /Cloudflare Read: работи/u);
 });
 
 test("current capabilities reports confirmed GitHub Write as unavailable when disconnected", async () => {

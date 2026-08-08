@@ -66,6 +66,7 @@ import {
   validateImageInput,
 } from "../services/imageService.js";
 import { DigitalOceanError } from "../services/digitalOceanService.js";
+import { CloudflareError } from "../services/cloudflareService.js";
 import {
   CapabilityError,
   executeCapability,
@@ -633,6 +634,9 @@ function formatCapabilityFailureMessage(error) {
       DIGITALOCEAN_UPSTREAM_ERROR: "DigitalOcean API временно не отговаря.",
     };
     return messages[error.code] || "DigitalOcean временно не е достъпен.";
+  }
+  if (error instanceof CloudflareError) {
+    return error.message;
   }
   if (
     error instanceof GitHubServiceError ||

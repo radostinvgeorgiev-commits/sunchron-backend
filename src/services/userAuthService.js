@@ -1,8 +1,6 @@
 import {
   createCipheriv,
   createDecipheriv,
-  createHash,
-  createHmac,
   randomBytes,
   scryptSync,
 } from "node:crypto";
@@ -29,35 +27,11 @@ export class UserAuthError extends Error {
 }
 
 function sessionSecret(env = process.env) {
-  const dedicated = (env.SUPABASE_SESSION_ENCRYPTION_KEY || "").trim();
-  if (dedicated) return dedicated;
-  const fallbackSecret = (
-    env.GITHUB_SESSION_ENCRYPTION_KEY ||
-    env.GITHUB_CLIENT_SECRET ||
-    env.MCP_ACCESS_TOKEN ||
-    env.SYNCHRON_TEST_INVITE_CODE ||
-    ""
-  ).trim();
-  if (fallbackSecret.length < 16) return "";
-  return createHash("sha256")
-    .update("synchron-supabase-session-v1\0")
-    .update(fallbackSecret)
-    .digest("base64url");
+  return (env.SUPABASE_SESSION_ENCRYPTION_KEY || "").trim();
 }
 
 export function getTesterInviteCode(env = process.env) {
-  const dedicated = (env.SYNCHRON_TEST_INVITE_CODE || "").trim();
-  if (dedicated) return dedicated;
-  const ownerSessionSecret = (
-    env.GITHUB_SESSION_ENCRYPTION_KEY ||
-    env.GITHUB_CLIENT_SECRET ||
-    ""
-  ).trim();
-  if (ownerSessionSecret.length < 16) return "";
-  return createHmac("sha256", ownerSessionSecret)
-    .update("synchron-tester-invite-v1")
-    .digest("base64url")
-    .slice(0, 16);
+  return (env.SYNCHRON_TEST_INVITE_CODE || "").trim();
 }
 
 function authConfig(env = process.env) {

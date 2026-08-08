@@ -1,4 +1,4 @@
-const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+const DEFAULT_OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 
 export const DEFAULT_OPENAI_CHAT_MODEL = "gpt-5.6-terra";
 export const DEFAULT_OPENAI_PLANNER_MODEL = "gpt-5.6-luna";
@@ -29,6 +29,8 @@ export function extractOpenAIOutputText(data) {
 
 export async function requestOpenAIResponse({
   apiKey = process.env.OPENAI_API_KEY,
+  responsesUrl =
+    process.env.OPENAI_RESPONSES_URL || DEFAULT_OPENAI_RESPONSES_URL,
   input,
   model = process.env.OPENAI_CHAT_MODEL || DEFAULT_OPENAI_CHAT_MODEL,
   fetchImpl = fetch,
@@ -63,7 +65,7 @@ export async function requestOpenAIResponse({
       : {}),
   };
 
-  const response = await fetchImpl(OPENAI_RESPONSES_URL, {
+  const response = await fetchImpl(responsesUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

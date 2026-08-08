@@ -865,7 +865,7 @@ export async function saveConversationTurn(
   await ensureConversationIndex();
   const client = getClientOrThrow();
   const timestamp = Date.now();
-  await client.bulk({
+  const response = await client.bulk({
     refresh: true,
     body: [
       { index: { _index: CONVERSATION_INDEX, _id: randomUUID() } },
@@ -886,6 +886,15 @@ export async function saveConversationTurn(
       },
     ],
   });
+  const result = response.body || response;
+  if (result?.errors) {
+    const error = new Error(
+      "Разговорът не можа да бъде записан изцяло в постоянната памет.",
+    );
+    error.code = "CONVERSATION_PERSISTENCE_FAILED";
+    error.status = 502;
+    throw error;
+  }
 }
 
 export function buildMemoryContext(memories, { personName = "Радко" } = {}) {

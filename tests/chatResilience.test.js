@@ -21,6 +21,26 @@ const ownerSession = await createGitHubSession(
 );
 const OWNER_COOKIE = `synchron_github_session=${ownerSession.id}`;
 
+test("chat rejects oversized messages before calling paid AI", async () => {
+  const response = await request(app)
+    .post("/chat/chat")
+    .set("Cookie", OWNER_COOKIE)
+    .send({ sessionId: "bounded-chat", message: "x".repeat(6_001) })
+    .expect(413);
+
+  assert.equal(response.body.code, "CHAT_MESSAGE_TOO_LONG");
+});
+
+test("chat rejects unsafe session identifiers before logging or storage", async () => {
+  const response = await request(app)
+    .post("/chat/chat")
+    .set("Cookie", OWNER_COOKIE)
+    .send({ sessionId: "unsafe\nsession", message: "Здравей" })
+    .expect(400);
+
+  assert.equal(response.body.code, "CHAT_INVALID_SESSION_ID");
+});
+
 test("normal AI chat continues when persistent memory is unavailable", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () =>

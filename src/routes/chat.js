@@ -105,6 +105,9 @@ import {
 const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
 const DEFAULT_AI_TIMEOUT_MS = 120000;
+const MAX_CHAT_MESSAGE_LENGTH = 6_000;
+const MAX_CHAT_SESSION_ID_LENGTH = 160;
+const SAFE_CHAT_SESSION_ID_PATTERN = /^[a-z0-9:_-]+$/iu;
 const DIGITALOCEAN_NAME_PATTERN =
   /(?:digital\s*ocean|ди[гж]итал\s*о(?:кеа|ка|ке)н|ди[гж]итъл\s*о(?:кеа|ка|ке)н)/iu;
 const DIRECT_CAPABILITY_REPLIES = new Set([
@@ -804,8 +807,23 @@ router.post("/chat", async (req, res) => {
   if (!cleanSessionId) {
     return res.status(400).json({ error: "Липсва валидна сесия." });
   }
+  if (
+    cleanSessionId.length > MAX_CHAT_SESSION_ID_LENGTH ||
+    !SAFE_CHAT_SESSION_ID_PATTERN.test(cleanSessionId)
+  ) {
+    return res.status(400).json({
+      error: "Невалиден идентификатор на сесията.",
+      code: "CHAT_INVALID_SESSION_ID",
+    });
+  }
   if (!cleanMessage) {
     return res.status(400).json({ error: "Напиши съобщение." });
+  }
+  if (cleanMessage.length > MAX_CHAT_MESSAGE_LENGTH) {
+    return res.status(413).json({
+      error: `Съобщението трябва да е до ${MAX_CHAT_MESSAGE_LENGTH} знака.`,
+      code: "CHAT_MESSAGE_TOO_LONG",
+    });
   }
   console.log(`[POST /chat] sessionId: ${cleanSessionId}`);
 

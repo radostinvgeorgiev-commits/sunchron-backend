@@ -55,6 +55,22 @@ test("OpenAI Responses request preserves local state and uses the balanced chat 
   assert.equal(result, "Работи.");
 });
 
+test("OpenAI Responses supports a dedicated endpoint override", async () => {
+  const endpoint = "https://openai-proxy.example/v1/responses";
+  await requestOpenAIText({
+    apiKey: "test-openai-key",
+    responsesUrl: endpoint,
+    input: [{ role: "user", content: "Здравей" }],
+    fetchImpl: async (url) => {
+      assert.equal(url, endpoint);
+      return new Response(JSON.stringify({ output_text: "Работи." }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+});
+
 test("allows the final conversation to request stronger reasoning and detail", async () => {
   await requestOpenAIText({
     apiKey: "test-openai-key",

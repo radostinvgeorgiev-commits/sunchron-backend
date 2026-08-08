@@ -14,6 +14,14 @@ import {
 
 const formParser = express.urlencoded({ extended: false, limit: "16kb" });
 const passThrough = (_req, _res, next) => next();
+const CHATGPT_OAUTH_CALLBACK_ORIGIN = "https://chatgpt.com";
+const MCP_OAUTH_CONTENT_SECURITY_POLICY = [
+  "default-src 'none'",
+  "base-uri 'none'",
+  `form-action 'self' ${CHATGPT_OAUTH_CALLBACK_ORIGIN}`,
+  "frame-ancestors 'none'",
+  "style-src 'unsafe-inline'",
+].join("; ");
 const SCOPE_LABELS = Object.freeze({
   "synchron:read": "Четене на разрешените данни и системни статуси",
   "synchron:agent.chat": "Разговор с AI CORE в собствения профил",
@@ -34,6 +42,10 @@ function noStore(res) {
 
 function preserveOAuthPopupHandoff(res) {
   res.set("Cross-Origin-Opener-Policy", "unsafe-none");
+  // The consent form posts to this origin, then redirects to ChatGPT's exact
+  // validated OAuth callback. The global form-action 'self' policy blocks that
+  // redirect before ChatGPT can exchange the authorization code.
+  res.set("Content-Security-Policy", MCP_OAUTH_CONTENT_SECURITY_POLICY);
 }
 
 function escapeHtml(value) {

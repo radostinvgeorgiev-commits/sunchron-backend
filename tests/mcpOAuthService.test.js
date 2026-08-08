@@ -10,6 +10,7 @@ import {
   exchangeMcpAuthorizationCode,
   exchangeMcpRefreshToken,
   exchangeMcpToken,
+  getMcpOpenAiTunnelRuntimeStatus,
   getMcpOAuthRuntimeStatus,
   getMcpOAuthSecretMode,
   getMcpAuthorizationServerMetadata,
@@ -497,6 +498,7 @@ test("validates OpenAI CIMD metadata and exact callback and resource", async () 
 });
 
 test("accepts only the configured OpenAI secure tunnel resource through the full token flow", async () => {
+  resetMcpOAuthStateForTests();
   const tunnelInput = {
     ...authorizationInput(),
     resource: TUNNEL_RESOURCE,
@@ -512,7 +514,7 @@ test("accepts only the configured OpenAI secure tunnel resource through the full
     { id: "owner-id", memoryOwnerId: "primary-user", role: "owner" },
     TUNNEL_ENV,
   );
-  const token = await exchangeMcpAuthorizationCode(
+  const token = await exchangeMcpToken(
     {
       grant_type: "authorization_code",
       code,
@@ -532,7 +534,12 @@ test("accepts only the configured OpenAI secure tunnel resource through the full
     "primary-user",
   );
 
-  const refreshed = await exchangeMcpRefreshToken(
+  assert.equal(
+    getMcpOpenAiTunnelRuntimeStatus(TUNNEL_ENV).endToEndVerified,
+    true,
+  );
+
+  const refreshed = await exchangeMcpToken(
     {
       grant_type: "refresh_token",
       refresh_token: token.refresh_token,
@@ -548,6 +555,10 @@ test("accepts only the configured OpenAI secure tunnel resource through the full
       TUNNEL_ENV,
     ).memoryOwnerId,
     "primary-user",
+  );
+  assert.equal(
+    getMcpOpenAiTunnelRuntimeStatus(TUNNEL_ENV).tokenExchange,
+    "success",
   );
 
   await assert.rejects(

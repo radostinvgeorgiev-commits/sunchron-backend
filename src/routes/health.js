@@ -13,6 +13,7 @@ import {
   createMcpRequestHandler,
 } from "../services/mcpReadService.js";
 import {
+  getMcpOpenAiTunnelRuntimeStatus,
   getMcpOAuthRuntimeStatus,
   isMcpOAuthConfigured,
 } from "../services/mcpOAuthService.js";
@@ -344,6 +345,7 @@ export async function getBridgeDiagnosticsStatus({
         chatgptOAuthReady: isMcpOAuthConfigured(env),
         discovery: "/.well-known/oauth-protected-resource",
         tokenExchange: getMcpOAuthRuntimeStatus(),
+        secureTunnel: getMcpOpenAiTunnelRuntimeStatus(env),
       },
     },
   };

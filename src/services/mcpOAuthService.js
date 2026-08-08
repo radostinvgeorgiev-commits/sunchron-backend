@@ -69,6 +69,12 @@ let oauthRuntimeStatus = Object.freeze({
   errorCode: null,
   updatedAt: null,
 });
+let openAiTunnelRuntimeStatus = Object.freeze({
+  tokenExchange: "not-attempted",
+  grantType: null,
+  errorCode: null,
+  updatedAt: null,
+});
 
 export class McpOAuthError extends Error {
   constructor(
@@ -118,6 +124,27 @@ function resolveOpenAiTunnelResourceUrl(env = process.env) {
     return "";
   }
   return resource;
+}
+
+function isOpenAiTunnelResourceUrl(resource, env = process.env) {
+  const configuredResource = resolveOpenAiTunnelResourceUrl(env);
+  return Boolean(
+    configuredResource && String(resource || "") === configuredResource,
+  );
+}
+
+function recordOpenAiTunnelTokenExchange(
+  input,
+  { tokenExchange, grantType, errorCode = null },
+  env = process.env,
+) {
+  if (!isOpenAiTunnelResourceUrl(input?.resource, env)) return;
+  openAiTunnelRuntimeStatus = Object.freeze({
+    tokenExchange,
+    grantType,
+    errorCode,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 function isAllowedMcpResourceUrl(resource, env = process.env) {
@@ -1594,6 +1621,11 @@ export async function exchangeMcpToken(input, env = process.env) {
       errorCode: null,
       updatedAt: new Date().toISOString(),
     });
+    recordOpenAiTunnelTokenExchange(
+      input,
+      { tokenExchange: "success", grantType },
+      env,
+    );
     return result;
   } catch (error) {
     oauthRuntimeStatus = Object.freeze({
@@ -1603,6 +1635,16 @@ export async function exchangeMcpToken(input, env = process.env) {
       errorCode: error instanceof McpOAuthError ? error.code : "server_error",
       updatedAt: new Date().toISOString(),
     });
+    recordOpenAiTunnelTokenExchange(
+      input,
+      {
+        tokenExchange: "failed",
+        grantType,
+        errorCode:
+          error instanceof McpOAuthError ? error.code : "server_error",
+      },
+      env,
+    );
     throw error;
   }
 }
@@ -1623,6 +1665,21 @@ export function recordMcpAuthorizationRuntimeStatus({
 
 export function getMcpOAuthRuntimeStatus() {
   return { ...oauthRuntimeStatus };
+}
+
+export function getMcpOpenAiTunnelRuntimeStatus(env = process.env) {
+  const configured = Boolean(resolveOpenAiTunnelResourceUrl(env));
+  return {
+    configured,
+    tokenExchange: configured
+      ? openAiTunnelRuntimeStatus.tokenExchange
+      : "not-configured",
+    endToEndVerified:
+      configured && openAiTunnelRuntimeStatus.tokenExchange === "success",
+    grantType: configured ? openAiTunnelRuntimeStatus.grantType : null,
+    errorCode: configured ? openAiTunnelRuntimeStatus.errorCode : null,
+    updatedAt: configured ? openAiTunnelRuntimeStatus.updatedAt : null,
+  };
 }
 
 export function verifyMcpAccessToken(
@@ -1693,6 +1750,12 @@ export function resetMcpOAuthStateForTests() {
     authorizationDecision: null,
     authorizationErrorCode: null,
     authorizationUpdatedAt: null,
+    tokenExchange: "not-attempted",
+    grantType: null,
+    errorCode: null,
+    updatedAt: null,
+  });
+  openAiTunnelRuntimeStatus = Object.freeze({
     tokenExchange: "not-attempted",
     grantType: null,
     errorCode: null,

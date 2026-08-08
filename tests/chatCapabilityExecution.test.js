@@ -15,6 +15,7 @@ import {
 import { filterCapabilityRequestsForIdentity } from "../src/services/memberCapabilityPolicy.js";
 import { extractMemoryWriteConfirmationId } from "../src/services/memoryWriteConfirmationService.js";
 import { DigitalOceanError } from "../src/services/digitalOceanService.js";
+import { CloudflareError } from "../src/services/cloudflareService.js";
 import {
   CapabilityError,
   isDigitalOceanBackupInventoryRequest,
@@ -303,6 +304,22 @@ test("DigitalOcean failures keep a safe actionable reason in chat", () => {
   ]);
   assert.match(replies[0], /няма право да прочете тези данни/u);
   assert.doesNotMatch(replies[0], /upstream payload/u);
+});
+
+test("Cloudflare failures keep the safe service reason in chat", () => {
+  const replies = buildCapabilityReplies([
+    {
+      status: "rejected",
+      request: { capability: "infrastructure.cloudflare.read" },
+      error: new CloudflareError(
+        "Cloudflare token няма право да прочете зоната.",
+        403,
+        "CLOUDFLARE_FORBIDDEN",
+      ),
+    },
+  ]);
+
+  assert.match(replies[0], /няма право да прочете зоната/u);
 });
 
 test("verified tool results bypass AI rewriting", () => {

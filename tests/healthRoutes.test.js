@@ -328,6 +328,8 @@ test("bridge diagnostics distinguish configuration, response and ChatGPT OAuth r
     env: {
       MCP_ACCESS_TOKEN: "m".repeat(48),
       APP_COMMIT_SHA: "bridge123",
+      MCP_OPENAI_TUNNEL_RESOURCE_URL:
+        "https://tunnel-service.gateway.unified-0.internal.api.openai.org/v1/mcp/tunnel_test123",
     },
     handleMcpRequest: async () => ({
       result: { serverInfo: { name: "synchron-x-memory" } },
@@ -344,6 +346,14 @@ test("bridge diagnostics distinguish configuration, response and ChatGPT OAuth r
   assert.equal(result.bridge.readOnlyTools, 27);
   assert.equal(result.bridge.destructiveTools, 8);
   assert.equal(result.bridge.authentication.chatgptOAuthReady, true);
+  assert.deepEqual(result.bridge.authentication.secureTunnel, {
+    configured: true,
+    tokenExchange: "not-attempted",
+    endToEndVerified: false,
+    grantType: null,
+    errorCode: null,
+    updatedAt: null,
+  });
   assert.equal(
     result.bridge.authentication.mode,
     "oauth2-with-legacy-static-bearer",
@@ -371,6 +381,10 @@ test("bridge diagnostics fail honestly when the token is missing", async () => {
   assert.equal(response.body.bridge.configured, false);
   assert.equal(response.body.bridge.responding, true);
   assert.equal(response.body.bridge.authentication.chatgptOAuthReady, false);
+  assert.equal(
+    response.body.bridge.authentication.secureTunnel.tokenExchange,
+    "not-configured",
+  );
 });
 
 test("bridge diagnostics stop a blocked self-check within the configured timeout", async () => {

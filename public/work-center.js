@@ -194,6 +194,18 @@
         className: "warning",
       };
     }
+    if (tool.availabilityCode === "CLOUDFLARE_LIVE_CHECK_REQUIRED") {
+      return {
+        label: "Конфигуриран · изисква жива проверка",
+        className: "warning",
+      };
+    }
+    if (tool.healthStatus === "degraded" && tool.availabilityReason) {
+      return {
+        label: tool.availabilityReason,
+        className: "warning",
+      };
+    }
     return {
       label: toolId === "github-read" ? "GitHub Read: работи" : "Работи",
       className: "internal",
@@ -224,11 +236,14 @@
       readiness?.checks?.chatAgent?.ready === true &&
       readiness?.checks?.memory?.ready === true;
     const bridge = readiness?.checks?.bridge;
-    const bridgeReady =
+    const bridgeConfigured =
       bridge?.configured === true &&
       bridge?.responding === true &&
       bridge?.tools >= 11 &&
       bridge?.authentication?.chatgptOAuthReady === true;
+    const bridgeReady =
+      bridgeConfigured &&
+      bridge?.authentication?.tokenExchange?.tokenExchange === "success";
     const testerStatus = testerAuth
       ? testerAuth.configured && testerAuth.registrationEnabled
         ? "working"
@@ -241,7 +256,11 @@
       },
       {
         label: "ChatGPT MCP мост",
-        state: bridgeReady ? "working" : "unavailable",
+        state: bridgeReady
+          ? "working"
+          : bridgeConfigured
+            ? "action"
+            : "unavailable",
       },
       {
         label: "GitHub Read",
@@ -459,9 +478,22 @@
       bridge?.authentication?.chatgptOAuthReady === true &&
       bridge?.tools >= 11
     ) {
+      const tokenExchange = bridge.authentication?.tokenExchange;
+      if (tokenExchange?.tokenExchange === "success") {
+        return {
+          label: `${bridge.tools} инструмента · OAuth е проверен`,
+          className: "internal",
+        };
+      }
+      if (tokenExchange?.tokenExchange === "failed") {
+        return {
+          label: `${bridge.tools} инструмента · OAuth тестът е неуспешен`,
+          className: "warning",
+        };
+      }
       return {
-        label: `${bridge.tools} инструмента · OAuth е готов`,
-        className: "internal",
+        label: `${bridge.tools} инструмента · готов за свързване`,
+        className: "warning",
       };
     }
     return {

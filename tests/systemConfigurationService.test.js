@@ -110,7 +110,7 @@ test("system report merges the live DigitalOcean variable inventory", async () =
   assert.equal(JSON.stringify(report).includes("configured-secret"), false);
 });
 
-test("derived tester secrets are reported as protected fallbacks, not missing", () => {
+test("unrelated integration secrets cannot satisfy tester auth requirements", () => {
   const inventory = buildEnvironmentInventory({
     env: {
       GITHUB_SESSION_ENCRYPTION_KEY:
@@ -124,8 +124,8 @@ test("derived tester secrets are reported as protected fallbacks, not missing", 
     (item) => item.key === "SYNCHRON_TEST_INVITE_CODE",
   );
 
-  assert.equal(session.status, "protected-fallback");
-  assert.equal(invite.status, "protected-fallback");
+  assert.equal(session.status, "missing-required");
+  assert.equal(invite.status, "optional-missing");
 });
 
 test("production readiness keeps only safe proof fields", async () => {

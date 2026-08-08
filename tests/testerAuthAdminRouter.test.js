@@ -225,7 +225,7 @@ test("reveals the invite code only from the owner-protected admin router", async
   assert.match(invite.headers["cache-control"], /no-store/u);
 });
 
-test("uses a stable derived invite when dedicated tester secrets are absent", async () => {
+test("does not derive tester auth secrets from the owner session key", async () => {
   const env = {
     SUPABASE_URL: BOOTSTRAP.projectUrl,
     SUPABASE_PUBLISHABLE_KEY: BOOTSTRAP.publishableKey,
@@ -235,16 +235,11 @@ test("uses a stable derived invite when dedicated tester secrets are absent", as
   const app = testApp({ env });
 
   const status = await request(app).get("/api/tester-auth/status").expect(200);
-  assert.equal(status.body.configured, true);
-  assert.equal(status.body.registrationEnabled, true);
+  assert.equal(status.body.configured, false);
+  assert.equal(status.body.registrationEnabled, false);
 
-  const first = await request(app)
+  const invite = await request(app)
     .get("/api/tester-auth/invite-code")
-    .expect(200);
-  const second = await request(app)
-    .get("/api/tester-auth/invite-code")
-    .expect(200);
-  assert.equal(first.body.inviteCode, second.body.inviteCode);
-  assert.equal(first.body.inviteCode.length, 16);
-  assert.doesNotMatch(first.body.inviteCode, /owner-session-encryption-key/u);
+    .expect(404);
+  assert.equal(invite.body.code, "TESTER_INVITE_NOT_CONFIGURED");
 });

@@ -1,5 +1,4 @@
 import express from "express";
-import dotenv from "dotenv";
 import { createOpenSearchClient } from "./src/config/opensearch.js";
 import {
   requireOwnerSession,
@@ -28,8 +27,6 @@ import workspacesRouter from "./src/routes/workspacesRouter.js";
 import tasksRouter from "./src/routes/tasksRouter.js";
 import mcpRouter, { mcpJsonParseErrorHandler } from "./src/routes/mcpRouter.js";
 import { createMcpOAuthRouter } from "./src/routes/mcpOAuthRouter.js";
-
-dotenv.config();
 
 const { oauthRateLimiter, paidAiRateLimiter, privateApiRateLimiter } =
   createRateLimiters();

@@ -61,6 +61,12 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       { hasDefault: true },
     ),
     general(
+      "OPENAI_RESPONSES_URL",
+      "AI ядро",
+      "Незадължителен адрес за Responses API заявките.",
+      { hasDefault: true },
+    ),
+    general(
       "OPENAI_API_URL",
       "AI ядро",
       "Незадължителен адрес само за стария анализ на изображения.",
@@ -172,13 +178,12 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "SUPABASE_SESSION_ENCRYPTION_KEY",
       "Тестови профили",
       "Криптира Supabase сесиите в браузъра.",
-      { requiredNow: true, hasProtectedFallback: true },
+      { requiredNow: true },
     ),
     secret(
       "SYNCHRON_TEST_INVITE_CODE",
       "Тестови профили",
-      "Частен код за разрешена регистрация.",
-      { requiredNow: true, hasProtectedFallback: true },
+      "Незадължителен оперативен код за tester-auth администрацията.",
     ),
     general(
       "SYNCHRON_PRIMARY_SUPABASE_USER_ID",

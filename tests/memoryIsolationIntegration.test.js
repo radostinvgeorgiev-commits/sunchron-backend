@@ -310,6 +310,22 @@ test("partial bulk cleanup is reported without hiding the new document", async (
   assert.equal(visible[0].fact, "Любимият ми цвят е зелен");
 });
 
+test("conversation persistence rejects partial OpenSearch bulk failures", async () => {
+  const client = createMemoryClient();
+  client.bulk = async () => ({ body: { errors: true } });
+  setOpenSearchClientForTests(client);
+
+  await assert.rejects(
+    saveConversationTurn(
+      "partial-conversation",
+      "Въпрос",
+      "Отговор",
+      "owner-partial-conversation",
+    ),
+    (error) => error.code === "CONVERSATION_PERSISTENCE_FAILED",
+  );
+});
+
 test("user A never reads user B profile or conversation memory", async () => {
   const client = createMemoryClient();
   setOpenSearchClientForTests(client);

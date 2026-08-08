@@ -87,86 +87,44 @@ test("auth resolves the Supabase URL and key as one atomic connection", () => {
   assert.equal(resolveTesterAuthConnection(ENV).connectionSource, "runtime");
 });
 
-test("derives isolated tester secrets from the existing owner session secret", () => {
+test("requires dedicated Supabase session protection", () => {
   const fallbackEnv = {
     SUPABASE_URL: ENV.SUPABASE_URL,
     SUPABASE_PUBLISHABLE_KEY: ENV.SUPABASE_PUBLISHABLE_KEY,
     GITHUB_SESSION_ENCRYPTION_KEY: "github-only-key-with-enough-entropy",
-  };
-  const expectedSession = session("derived");
-  assert.equal(isUserAuthConfigured(fallbackEnv), true);
-  assert.equal(isTesterRegistrationEnabled(fallbackEnv), true);
-  assert.equal(getTesterInviteCode(fallbackEnv).length, 16);
-  assert.notEqual(
-    getTesterInviteCode(fallbackEnv),
-    fallbackEnv.GITHUB_SESSION_ENCRYPTION_KEY,
-  );
-  assert.deepEqual(
-    decryptUserSession(
-      encryptUserSession(expectedSession, fallbackEnv),
-      fallbackEnv,
-    ),
-    expectedSession,
-  );
-});
-
-test("dedicated tester secrets override the owner-session fallback", () => {
-  assert.equal(getTesterInviteCode(ENV), ENV.SYNCHRON_TEST_INVITE_CODE);
-  assert.equal(isUserAuthConfigured(ENV), true);
-});
-
-test("the configured GitHub client secret is a safe final fallback", () => {
-  const fallbackEnv = {
-    SUPABASE_URL: ENV.SUPABASE_URL,
-    SUPABASE_PUBLISHABLE_KEY: ENV.SUPABASE_PUBLISHABLE_KEY,
     GITHUB_CLIENT_SECRET: "github-client-secret-with-enough-entropy",
-  };
-  assert.equal(isUserAuthConfigured(fallbackEnv), true);
-  assert.equal(isTesterRegistrationEnabled(fallbackEnv), true);
-  assert.equal(getTesterInviteCode(fallbackEnv).length, 16);
-});
-
-test("uses the public production Supabase connection when App Platform omits it", () => {
-  const fallbackEnv = {
-    GITHUB_SESSION_ENCRYPTION_KEY: "github-only-key-with-enough-entropy",
-  };
-  assert.equal(isUserAuthConfigured(fallbackEnv), true);
-  assert.equal(isTesterRegistrationEnabled(fallbackEnv), true);
-});
-
-test("derives session protection from the private production invite code", () => {
-  const productionLikeEnv = {
+    MCP_ACCESS_TOKEN: "mcp-access-token-with-at-least-32-characters",
     SYNCHRON_TEST_INVITE_CODE: "private-invite-code-with-enough-entropy",
   };
-  assert.equal(isUserAuthConfigured(productionLikeEnv), true);
-  assert.equal(isTesterRegistrationEnabled(productionLikeEnv), true);
+
+  assert.equal(isUserAuthConfigured(fallbackEnv), false);
+  assert.deepEqual(getUserAuthConfigurationStatus(fallbackEnv), {
+    projectConnection: true,
+    sessionProtection: false,
+  });
+  assert.throws(
+    () => encryptUserSession(session("missing-dedicated-key"), fallbackEnv),
+    (error) =>
+      error instanceof UserAuthError && error.code === "AUTH_SESSION_KEY_MISSING",
+  );
 });
 
-test("uses the operational MCP secret when the invite code is short", () => {
-  const productionLikeEnv = {
-    MCP_ACCESS_TOKEN: "mcp-access-token-with-at-least-32-characters",
-    SYNCHRON_TEST_INVITE_CODE: "short-code",
-  };
-  assert.equal(isUserAuthConfigured(productionLikeEnv), true);
-  assert.equal(isTesterRegistrationEnabled(productionLikeEnv), true);
-  assert.deepEqual(getUserAuthConfigurationStatus(productionLikeEnv), {
-    projectConnection: true,
-    sessionProtection: true,
-  });
-});
-
-test("rejects encrypted App Platform placeholders before using public bootstrap", () => {
-  const productionLikeEnv = {
-    SUPABASE_URL: "EV[1:encrypted-placeholder]",
-    SUPABASE_PUBLISHABLE_KEY: "EV[1:encrypted-placeholder]",
-    MCP_ACCESS_TOKEN: "mcp-access-token-with-at-least-32-characters",
-    SYNCHRON_TEST_INVITE_CODE: "short-code",
-  };
-  assert.deepEqual(getUserAuthConfigurationStatus(productionLikeEnv), {
-    projectConnection: true,
-    sessionProtection: true,
-  });
-  assert.equal(isUserAuthConfigured(productionLikeEnv), true);
+test("uses only the explicitly configured tester invite code", () => {
+  assert.equal(getTesterInviteCode(ENV), ENV.SYNCHRON_TEST_INVITE_CODE);
+  assert.equal(isUserAuthConfigured(ENV), true);
+  assert.equal(
+    getTesterInviteCode({
+      GITHUB_SESSION_ENCRYPTION_KEY: "github-only-key-with-enough-entropy",
+      GITHUB_CLIENT_SECRET: "github-client-secret-with-enough-entropy",
+    }),
+    "",
+  );
+  assert.equal(
+    isTesterRegistrationEnabled({
+      GITHUB_SESSION_ENCRYPTION_KEY: "github-only-key-with-enough-entropy",
+    }),
+    false,
+  );
 });
 
 test("encrypts the Supabase session and never leaves tokens in the cookie", () => {

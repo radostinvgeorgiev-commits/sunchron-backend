@@ -4,10 +4,10 @@
   const MCP_RESOURCE_URL = "https://synchron.foundation/mcp";
   const PUBLIC_REGISTRATION_URL = "https://synchron.foundation/register";
   const PUBLIC_WWW_URL = "https://www.synchron.foundation/";
+  const CHATGPT_PLUGINS_URL = "https://chatgpt.com/plugins";
   const CHATGPT_APP_GUIDE_URL =
-    "https://developers.openai.com/apps-sdk/deploy/testing";
+    "https://developers.openai.com/plugins/deploy/connect-chatgpt";
   const FALLBACK_CONFIG = Object.freeze({
-    chatgptWorkUrl: "https://chatgpt.com/",
     digitalOceanUrl: "https://cloud.digitalocean.com/",
     cloudflareUrl: "https://dash.cloudflare.com/",
   });
@@ -511,10 +511,6 @@
     publicDomain = null,
     actionCenter = null,
   ) {
-    const chatgptUrl = safeHttpsUrl(
-      config.chatgptWorkUrl,
-      FALLBACK_CONFIG.chatgptWorkUrl,
-    );
     const digitalOceanUrl = safeHttpsUrl(
       config.digitalOceanUrl,
       FALLBACK_CONFIG.digitalOceanUrl,
@@ -577,9 +573,8 @@
       icon: "fa-solid fa-plug-circle-check",
       status: chatGptAppStatus.label,
       statusClass: chatGptAppStatus.className,
-      actionLabel: "Покажи еднократните стъпки",
+      actionLabel: "Покажи адреса и точните стъпки",
     });
-    chatGptAppCard.dataset.chatgptUrl = chatgptUrl;
     const cards = [
       createInternalCard({
         title: "AI CORE — свързан разговор",
@@ -837,20 +832,26 @@
     addText(
       panel,
       "p",
-      "Мостът е готов. Създаването на приложението се прави еднократно от ChatGPT в браузър на компютър, не от приложението за iPhone.",
+      "За AI CORE се създава нов ChatGPT plugin. Не избирай готовите Google Drive, Gmail или Google Calendar — те са отделни Google връзки.",
     );
 
     const steps = document.createElement("ol");
     steps.className = "chatgpt-app-steps";
     [
-      "Отвори chatgpt.com на компютър и влез в своя профил.",
-      "В Settings отвори Apps / Connectors и включи Developer mode. За служебен workspace отвори Workspace settings → Apps.",
-      "Избери Create app, напиши име AI CORE и постави MCP адреса отдолу.",
-      "Завърши OAuth входа в AI CORE. Не изпращай парола или код в чата.",
+      "На компютър отвори ChatGPT → Settings → Security and login и включи Developer mode.",
+      "Отвори страницата Plugins и натисни бутона + за нова връзка.",
+      "Въведи име AI CORE и кратко описание. Под Connection избери public endpoint.",
+      "В полето MCP server URL постави целия адрес, показан отдолу, включително https:// и /mcp.",
+      "Създай връзката, прегледай откритите инструменти и завърши OAuth входа в AI CORE.",
     ].forEach((step) => addText(steps, "li", step));
     panel.appendChild(steps);
 
-    addText(panel, "span", "MCP адрес", "chatgpt-app-label");
+    addText(
+      panel,
+      "span",
+      "Постави точно този адрес в полето „MCP server URL“:",
+      "chatgpt-app-label",
+    );
     const endpoint = addText(
       panel,
       "code",
@@ -858,28 +859,22 @@
       "chatgpt-app-endpoint",
     );
     endpoint.dataset.mcpResourceUrl = "";
+    addText(
+      panel,
+      "p",
+      "Това е публичният MCP адрес, не парола или таен код. Завършекът /mcp е правилен и трябва да остане.",
+      "chatgpt-app-note",
+    );
 
     const actions = document.createElement("div");
     actions.className = "chatgpt-app-actions";
-    const copyButton = addText(
-      actions,
-      "button",
-      "Копирай MCP адреса",
-      "chatgpt-app-copy",
-    );
-    copyButton.type = "button";
-    copyButton.dataset.copyMcpUrl = "";
-
     const chatGptLink = addText(
       actions,
       "a",
-      "Отвори ChatGPT web",
+      "Отвори ChatGPT Plugins",
       "chatgpt-app-link",
     );
-    chatGptLink.href = safeHttpsUrl(
-      card?.dataset.chatgptUrl,
-      FALLBACK_CONFIG.chatgptWorkUrl,
-    );
+    chatGptLink.href = CHATGPT_PLUGINS_URL;
     chatGptLink.target = "_blank";
     chatGptLink.rel = "noopener noreferrer";
 
@@ -1100,12 +1095,6 @@
   body.addEventListener("click", async (event) => {
     if (event.target.closest("[data-close-work-center]")) {
       closeWorkCenter();
-      return;
-    }
-    const copyMcpUrl = event.target.closest("[data-copy-mcp-url]");
-    if (copyMcpUrl) {
-      await globalThis.navigator?.clipboard?.writeText(MCP_RESOURCE_URL);
-      copyMcpUrl.textContent = "Копирано";
       return;
     }
     const actionCard = event.target.closest("[data-work-center-action]");

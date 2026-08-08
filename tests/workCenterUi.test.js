@@ -287,7 +287,7 @@ test("work center uses safe GitHub links without duplicating the task journal", 
   });
 });
 
-test("ChatGPT app setup falls back safely and never sends the user to /plugins", async () => {
+test("ChatGPT app setup links directly to Plugins and explains the new MCP connection", async () => {
   const harness = createHarness({ fetchFails: true });
   await openCenter(harness);
   const { document } = harness.dom.window;
@@ -297,18 +297,22 @@ test("ChatGPT app setup falls back safely and never sends the user to /plugins",
   card.click();
   const setup = document.querySelector("[data-chatgpt-app-setup]");
   const chatGptLink = [...setup.querySelectorAll("a")].find((link) =>
-    link.textContent.includes("ChatGPT web"),
+    link.textContent.includes("ChatGPT Plugins"),
   );
 
-  assert.equal(chatGptLink.href, "https://chatgpt.com/");
-  assert.doesNotMatch(chatGptLink.href, /\/plugins/u);
-  assert.match(setup.textContent, /браузър на компютър/u);
-  assert.match(setup.textContent, /не от приложението за iPhone/u);
+  assert.equal(chatGptLink.href, "https://chatgpt.com/plugins");
+  assert.match(setup.textContent, /Security and login/u);
   assert.match(setup.textContent, /Developer mode/u);
+  assert.match(setup.textContent, /бутона \+/u);
+  assert.match(setup.textContent, /public endpoint/u);
+  assert.match(setup.textContent, /MCP server URL/u);
+  assert.match(setup.textContent, /Не избирай готовите Google Drive/u);
   assert.match(setup.textContent, /https:\/\/synchron\.foundation\/mcp/u);
+  assert.match(setup.textContent, /Завършекът \/mcp е правилен/u);
+  assert.equal(setup.querySelector("[data-copy-mcp-url]"), null);
 });
 
-test("ChatGPT app card reports the live bridge and copies the exact MCP URL", async () => {
+test("ChatGPT app card reports the live bridge and shows the exact MCP URL", async () => {
   const harness = createHarness({
     readiness: {
       status: "ready",
@@ -335,16 +339,11 @@ test("ChatGPT app card reports the live bridge and copies the exact MCP URL", as
 
   assert.match(card.textContent, /11 инструмента · OAuth е проверен/u);
   card.click();
-  document.querySelector("[data-copy-mcp-url]").click();
-  await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(
-    document.body.dataset.copiedText,
+    document.querySelector("[data-mcp-resource-url]").textContent,
     "https://synchron.foundation/mcp",
   );
-  assert.equal(
-    document.querySelector("[data-copy-mcp-url]").textContent,
-    "Копирано",
-  );
+  assert.equal(document.querySelector("[data-copy-mcp-url]"), null);
 });
 
 test("featured connected chat reports real core readiness and returns to chat", async () => {

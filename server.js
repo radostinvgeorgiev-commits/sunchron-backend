@@ -96,20 +96,20 @@ app.get("/assets/:version/:asset", (req, res, next) => {
   }
 
   res.setHeader("Cache-Control", "no-store, max-age=0");
-  res.sendFile(`${process.cwd()}/${assetPath}`);
+  res.sendFile(assetPath, { root: process.cwd() });
 });
 app.get(
   `/assets/${mobileLayoutAssetVersion}/synchron-vision.css`,
   (_req, res) => {
     res.setHeader("Cache-Control", "no-store, max-age=0");
-    res.sendFile(`${process.cwd()}/public/synchron-vision.css`);
+    res.sendFile("public/synchron-vision.css", { root: process.cwd() });
   },
 );
 app.get(
   `/assets/${mobileLayoutAssetVersion}/synchron-vision.js`,
   (_req, res) => {
     res.setHeader("Cache-Control", "no-store, max-age=0");
-    res.sendFile(`${process.cwd()}/public/synchron-vision.js`);
+    res.sendFile("public/synchron-vision.js", { root: process.cwd() });
   },
 );
 app.use("/", mcpOAuthRouter);
@@ -214,11 +214,11 @@ app.use(
 );
 
 app.get("/", (_req, res) => {
-  res.sendFile(`${process.cwd()}/public/index.html`);
+  res.sendFile("public/index.html", { root: process.cwd() });
 });
 
 app.get("/register", (_req, res) => {
-  res.sendFile(`${process.cwd()}/public/index.html`);
+  res.sendFile("public/index.html", { root: process.cwd() });
 });
 
 if (process.env.NODE_ENV !== "test") {

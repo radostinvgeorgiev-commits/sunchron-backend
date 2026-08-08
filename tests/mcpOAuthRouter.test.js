@@ -368,7 +368,7 @@ test("authorization consent issues a code bound to the browser profile", async (
   else process.env.MCP_ACCESS_TOKEN = previous;
 });
 
-test("authorization flow overrides global COOP so ChatGPT can complete the popup handoff", async () => {
+test("authorization flow permits only the ChatGPT callback through global browser isolation", async () => {
   resetMcpOAuthStateForTests();
   const previous = process.env.MCP_ACCESS_TOKEN;
   process.env.MCP_ACCESS_TOKEN = SECRET;
@@ -384,6 +384,10 @@ test("authorization flow overrides global COOP so ChatGPT can complete the popup
     };
     const app = express();
     app.use((_req, res, next) => {
+      res.setHeader(
+        "Content-Security-Policy",
+        "default-src 'self'; form-action 'self'; frame-ancestors 'none'",
+      );
       res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
       res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
       next();
@@ -406,6 +410,14 @@ test("authorization flow overrides global COOP so ChatGPT can complete the popup
     )?.[1];
     assert.ok(consentToken);
     assert.equal(consent.headers["cross-origin-opener-policy"], "unsafe-none");
+    assert.match(
+      consent.headers["content-security-policy"],
+      /form-action 'self' https:\/\/chatgpt\.com/u,
+    );
+    assert.doesNotMatch(
+      consent.headers["content-security-policy"],
+      /attacker\.example/u,
+    );
 
     const approved = await request(app)
       .post("/oauth/authorize")
@@ -418,6 +430,10 @@ test("authorization flow overrides global COOP so ChatGPT can complete the popup
     assert.equal(callback.searchParams.get("state"), oauthRequest.state);
     assert.match(callback.searchParams.get("code"), /^sx-code\./u);
     assert.equal(approved.headers["cross-origin-opener-policy"], "unsafe-none");
+    assert.match(
+      approved.headers["content-security-policy"],
+      /form-action 'self' https:\/\/chatgpt\.com/u,
+    );
     assert.equal(
       approved.headers["cross-origin-resource-policy"],
       "same-origin",

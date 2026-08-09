@@ -6,7 +6,7 @@ import {
   sendMcpAgentMessage,
 } from "../src/services/mcpAgentConversationService.js";
 
-function workspace(engine = "ai-core") {
+function workspace(engine = "ai-core", model = "auto") {
   return {
     state: {
       activeProjectId: "project-1",
@@ -24,7 +24,7 @@ function workspace(engine = "ai-core") {
           id: "agent-1",
           name: engine === "codex" ? "Codex" : "AI CORE",
           role: engine === "codex" ? "coder" : "builder",
-          model: "auto",
+          model,
           purpose: "Върни проверим отговор",
           engine,
           petId: "robot",
@@ -91,6 +91,34 @@ test("MCP agent conversation reuses the owner workspace, memory and session", as
       "primary-user",
     ],
   ]);
+});
+
+
+test("MCP agent conversation forwards the explicit Anthropic model", async () => {
+  let selected;
+  const result = await sendMcpAgentMessage(
+    { ownerId: "primary-user", message: "Провери Claude" },
+    {
+      loadWorkspace: async () => workspace("ai-core", "claude-sonnet-5"),
+      listMemories: async () => [],
+      listMessages: async () => [],
+      askAi: async (options) => {
+        selected = {
+          provider: options.provider,
+          model: options.model,
+        };
+        return "Anthropic маршрутът е избран.";
+      },
+      saveTurn: async () => {},
+      createSessionId: () => "mcp-anthropic-session",
+    },
+  );
+
+  assert.deepEqual(selected, {
+    provider: "anthropic",
+    model: "claude-sonnet-5",
+  });
+  assert.equal(result.response, "Anthropic маршрутът е избран.");
 });
 
 test("MCP agent conversation creates a new safe session when none is supplied", async () => {

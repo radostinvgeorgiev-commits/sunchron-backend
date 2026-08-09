@@ -326,6 +326,12 @@ export function isAiCoreConfigured(env = process.env) {
   return Boolean(provider && isAiProviderConfigured(provider, env));
 }
 
+export function hasConfiguredAiProvider(env = process.env) {
+  return ["openai", "gemini", "grok"].some((provider) =>
+    isAiProviderConfigured(provider, env),
+  );
+}
+
 export function getAiProviderStatus(env = process.env) {
   const selectedProvider = getConfiguredAiProvider(env);
   const providers = ["openai", "gemini", "grok"].map((id) => ({

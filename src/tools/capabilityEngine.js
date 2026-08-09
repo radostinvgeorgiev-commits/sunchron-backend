@@ -3,7 +3,10 @@ import {
   listAuditEvents,
 } from "../services/permissionService.js";
 import { isCopilotAutomationEnabled } from "../config/featureFlags.js";
-import { isMemoryBackendConfigured } from "../config/memoryBackend.js";
+import {
+  isMemoryBackendConfigured,
+  isPersistenceBackendConfigured,
+} from "../config/memoryBackend.js";
 import {
   hasConfiguredAiProvider,
   isAiCoreConfigured,
@@ -200,15 +203,7 @@ export function getToolRuntimeAvailability(
         "CAPABILITY_AUTH_REQUIRED",
       );
     case "synchron-tasks":
-      if (
-        !hasEnvironment(
-          env,
-          "OPENSEARCH_HOST",
-          "OPENSEARCH_PORT",
-          "OPENSEARCH_USERNAME",
-          "OPENSEARCH_PASSWORD",
-        )
-      ) {
+      if (!isPersistenceBackendConfigured(env)) {
         return configured(false, "Задачите не са конфигурирани.");
       }
       return configured(

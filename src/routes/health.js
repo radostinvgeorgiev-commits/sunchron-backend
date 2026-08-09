@@ -2,6 +2,7 @@ import express from "express";
 import { getOpenSearchClient } from "../config/opensearch.js";
 import {
   isMemoryBackendConfigured,
+  isPersistenceBackendConfigured,
   resolveMemoryBackend,
 } from "../config/memoryBackend.js";
 import { resolveRuntimeVersion } from "../config/runtimeVersion.js";
@@ -491,12 +492,7 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
       authenticated: false,
     },
     "synchron-tasks": {
-      configured: hasAllProcessEnvironmentVariables(
-        "OPENSEARCH_HOST",
-        "OPENSEARCH_PORT",
-        "OPENSEARCH_USERNAME",
-        "OPENSEARCH_PASSWORD",
-      ),
+      configured: isPersistenceBackendConfigured(process.env),
       authenticated: true,
     },
     "openai-web-search": {

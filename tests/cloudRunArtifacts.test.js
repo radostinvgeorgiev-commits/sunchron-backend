@@ -35,6 +35,8 @@ test("Cloud Run template uses liveness without dependency-heavy readiness", asyn
   assert.match(template, /name: MEMORY_BACKEND\s+value: firestore/u);
   assert.match(template, /name: PERSISTENCE_BACKEND\s+value: firestore/u);
   assert.match(template, /name: FIRESTORE_DATABASE_ID\s+value: "\(default\)"/u);
+  assert.match(template, /name: FIRESTORE_WORKSPACE_COLLECTION/u);
+  assert.match(template, /name: FIRESTORE_TASK_COLLECTION/u);
   assert.match(template, /name: AUTH_BACKEND\s+value: identity-platform/u);
   assert.match(template, /name: IDENTITY_PLATFORM_PROJECT_ID/u);
   assert.match(

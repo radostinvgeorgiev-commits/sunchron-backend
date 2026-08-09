@@ -114,6 +114,9 @@ test("integration status reports Firestore memory without exposing project detai
     const memory = status.tools.find((tool) => tool.id === "opensearch-memory");
     assert.equal(memory.configured, true);
     assert.equal(memory.executable, true);
+    const tasks = status.tools.find((tool) => tool.id === "synchron-tasks");
+    assert.equal(tasks.configured, true);
+    assert.equal(tasks.executable, true);
     assert.doesNotMatch(
       JSON.stringify(status),
       /handy-boulevard-479120-q9|openai-secret/u,

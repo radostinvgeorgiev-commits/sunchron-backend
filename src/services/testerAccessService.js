@@ -90,7 +90,15 @@ function getFirestoreStore(env = process.env) {
 }
 
 async function saveAccessDocument(id, body, { client, env }) {
-  if (resolvePersistenceBackend(env) === "firestore") {
+  const backend = resolvePersistenceBackend(env);
+  if (!backend) {
+    throw new TesterAccessError(
+      "Проверката на одобрените тестови профили има невалидна storage конфигурация.",
+      503,
+      "TESTER_ACCESS_UNAVAILABLE",
+    );
+  }
+  if (backend === "firestore") {
     await getFirestoreStore(env).set(id, body);
     return;
   }
@@ -106,7 +114,15 @@ async function saveAccessDocument(id, body, { client, env }) {
 }
 
 async function loadAccessDocument(id, { client, env }) {
-  if (resolvePersistenceBackend(env) === "firestore") {
+  const backend = resolvePersistenceBackend(env);
+  if (!backend) {
+    throw new TesterAccessError(
+      "Проверката на одобрените тестови профили има невалидна storage конфигурация.",
+      503,
+      "TESTER_ACCESS_UNAVAILABLE",
+    );
+  }
+  if (backend === "firestore") {
     return (await getFirestoreStore(env).get(id))?.data || null;
   }
   const response = await requireClient(client).get(

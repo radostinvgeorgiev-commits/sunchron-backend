@@ -11,9 +11,10 @@ secret стойности и не променя текущия production deplo
 - Supabase остава authoritative за текущите тестови профили и сесии.
 - Google Cloud project `handy-boulevard-479120-q9` има частен Cloud Run staging,
   runtime service account и Firestore `(default)` в `europe-west1`.
-- Firestore runtime adapter-ът за памет, разговори, еднократни потвърждения и
-  audit journal е изпълним в отделен branch, но още няма exact-SHA staging
-  acceptance или мигрирани production данни.
+- Firestore runtime adapter-ът обхваща памет, разговори, еднократни
+  потвърждения, audit journal, работни области и задачи чрез изпълними модули в
+  отделни stacked branches, но още няма exact-SHA staging acceptance или
+  мигрирани production данни.
 - Съществуващият `GOOGLE_CLIENT_*` поток е Google OAuth за Drive/Calendar/Gmail,
   а не Identity Platform migration.
 - Identity Platform REST adapter-ът, потвърждението на имейл, криптираните
@@ -76,11 +77,14 @@ not-ready, а не да активира fallback с друг secret.
 | `FIRESTORE_CONFIRMATION_COLLECTION`  | Потвърждения            | Криптирани и еднократни; delete-before-execute.                       |
 | `FIRESTORE_AUDIT_COLLECTION`         | Audit journal           | Durable intent/outcome записи без raw confirmation ID.                |
 | `FIRESTORE_TESTER_ACCESS_COLLECTION` | Tester approvals        | Provider-qualified user IDs и HMAC email approvals.                   |
+| `FIRESTORE_WORKSPACE_COLLECTION`     | Работни области         | Един хеширан документ за всеки проверен owner.                        |
+| `FIRESTORE_TASK_COLLECTION`          | Задачи                  | Owner hash, bounded notes и потвърждавани status промени.             |
 
 Unit/integration тестовете трябва да доказват owner isolation, атомично
 create/update/delete, деветстъпковия memory acceptance, fail-closed readiness и
 липса на secret стойности в грешки. Реалният staging тест използва само изолиран
-owner; production import и OpenSearch cutover са забранени преди backup/rollback.
+owner; production import, включително workspace/task данни, и OpenSearch
+cutover са забранени преди backup/rollback.
 
 ## Identity Platform — изпълним auth pilot
 

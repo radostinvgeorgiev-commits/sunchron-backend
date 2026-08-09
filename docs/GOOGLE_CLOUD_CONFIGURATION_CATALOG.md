@@ -45,7 +45,7 @@ secret стойност в image, YAML или Git.
 например:
 
 - OpenSearch host/port/username/password и memory owner;
-- OpenAI, Gemini, Grok и Anthropic API keys;
+- OpenAI, Gemini и Grok API keys;
 - Supabase session encryption key и tester invite code;
 - GitHub/Google OAuth secrets и session encryption keys;
 - MCP и само разрешените infrastructure diagnostics secrets.
@@ -90,7 +90,7 @@ Supabase users, sessions или лични профили, няма промян
 Vertex AI не се добавя директно в AI Core и не става fallback. Реален provider
 трябва първо да има provider adapter, Capability Engine/Tool Registry boundary,
 rate/cost limit, isolated smoke и изрично owner acceptance. До тогава текущият
-OpenAI/Gemini/Grok/Anthropic contract остава непроменен.
+OpenAI/Gemini/Grok contract остава непроменен.
 
 ## Cloud Run health contract
 

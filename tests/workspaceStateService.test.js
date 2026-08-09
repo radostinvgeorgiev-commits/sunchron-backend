@@ -107,6 +107,17 @@ test("workspace keeps a supported personal pet", () => {
   assert.equal(state.petId, "drop");
 });
 
+test("workspace preserves supported Gemini and Grok model choices", () => {
+  const state = normalizeWorkspaceState({
+    agents: [
+      { id: "gemini", name: "Gemini", role: "researcher", model: "gemini-2.5-flash" },
+      { id: "grok", name: "Grok", role: "researcher", model: "grok-3-mini" },
+    ],
+  });
+  assert.equal(state.agents[0].model, "gemini-2.5-flash");
+  assert.equal(state.agents[1].model, "grok-3-mini");
+});
+
 test("legacy workspaces receive specialized agents with their own pets", () => {
   const state = normalizeWorkspaceState({
     version: 4,
@@ -220,3 +231,4 @@ test("missing workspace returns a safe starter state", async () => {
     ["Изпълни", "Проучи", "Организирай", "Напиши", "Код"],
   );
 });
+

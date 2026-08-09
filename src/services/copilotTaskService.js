@@ -373,31 +373,34 @@ export async function getCopilotTaskStatus({
         $issueNumber: Int!
       ) {
         repository(owner: $owner, name: $name) {
-          issue(number: $issueNumber) {
-            number
-            title
-            url
-            state
-            assignees(first: 10) { nodes { login } }
-            closedByPullRequestsReferences(first: 20) {
-              nodes {
-                ...CopilotPullRequestStatus
+          issueOrPullRequest(number: $issueNumber) {
+            __typename
+            ... on Issue {
+              number
+              title
+              url
+              state
+              assignees(first: 10) { nodes { login } }
+              closedByPullRequestsReferences(first: 20) {
+                nodes {
+                  ...CopilotPullRequestStatus
+                }
               }
-            }
-            timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT]) {
-              nodes {
-                ... on CrossReferencedEvent {
-                  source {
-                    ... on PullRequest {
-                      ...CopilotPullRequestStatus
+              timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT]) {
+                nodes {
+                  ... on CrossReferencedEvent {
+                    source {
+                      ... on PullRequest {
+                        ...CopilotPullRequestStatus
+                      }
                     }
                   }
                 }
               }
             }
-          }
-          pullRequest(number: $issueNumber) {
-            ...CopilotPullRequestStatus
+            ... on PullRequest {
+              ...CopilotPullRequestStatus
+            }
           }
         }
       }
@@ -459,8 +462,10 @@ export async function getCopilotTaskStatus({
     { owner, name, issueNumber: cleanIssueNumber },
     fetchImpl,
   );
-  const issue = data?.repository?.issue || null;
-  const directPullRequest = data?.repository?.pullRequest || null;
+  const trackedResource = data?.repository?.issueOrPullRequest || null;
+  const issue = trackedResource?.__typename === "Issue" ? trackedResource : null;
+  const directPullRequest =
+    trackedResource?.__typename === "PullRequest" ? trackedResource : null;
   if (
     (!issue?.number || !issue?.url) &&
     (!directPullRequest?.number || !directPullRequest?.url)

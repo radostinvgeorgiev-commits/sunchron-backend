@@ -159,6 +159,32 @@ test("runtime availability blocks configured-looking tools without credentials",
   );
   assert.equal(
     getToolRuntimeAvailability(
+      "synchron-agent-chat",
+      { ownerId: "member-1" },
+      {
+        AI_CORE_PROVIDER: "anthropic",
+        ANTHROPIC_API_KEY: "key",
+        OPENSEARCH_HOST: "host",
+        OPENSEARCH_PORT: "25060",
+        OPENSEARCH_USERNAME: "user",
+        OPENSEARCH_PASSWORD: "password",
+      },
+    ).available,
+    true,
+  );
+  assert.equal(
+    getToolRuntimeAvailability(
+      "openai-web-search",
+      {},
+      {
+        AI_CORE_PROVIDER: "anthropic",
+        ANTHROPIC_API_KEY: "key",
+      },
+    ).available,
+    false,
+  );
+  assert.equal(
+    getToolRuntimeAvailability(
       "github-confirmed-write",
       { githubSessionId: "owner-session" },
       {
@@ -306,7 +332,8 @@ test("връща общ статус само след реални провер
       checkDigitalOcean: async () => ({ app: { id: "app-1" } }),
       checkCloudflare: async () => ({ status: "active" }),
       env: {
-        OPENAI_API_KEY: "configured",
+        AI_CORE_PROVIDER: "anthropic",
+        ANTHROPIC_API_KEY: "configured",
         COPILOT_AUTOMATION_ENABLED: "true",
       },
     },
@@ -318,6 +345,8 @@ test("връща общ статус само след реални провер
   assert.match(report, /Supabase Status/u);
   assert.match(report, /DigitalOcean Read/u);
   assert.match(report, /Cloudflare Read/u);
+  assert.match(report, /AI CORE разговор/u);
+  assert.match(report, /OpenAI Web Search — реалната проверка е неуспешна/u);
   assert.match(report, /Google Drive — изисква Google вход/u);
   assert.match(report, /GitHub Write — свързан; изисква потвърждение/u);
 });

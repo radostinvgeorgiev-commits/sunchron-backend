@@ -35,7 +35,9 @@ function parseBoundedInteger(value, fallback, minimum, maximum) {
 
 function normalizeAnthropicEffort(value) {
   const effort = typeof value === "string" ? value.trim().toLowerCase() : "";
-  return ["low", "medium", "high", "max"].includes(effort) ? effort : "low";
+  return ["low", "medium", "high", "max", "xhigh"].includes(effort)
+    ? effort
+    : "low";
 }
 
 function safeTokenCount(value) {
@@ -343,6 +345,17 @@ export async function requestAnthropicResponse({
     );
   }
 
+  if (
+    typeof model !== "string" ||
+    model.trim() !== DEFAULT_ANTHROPIC_CHAT_MODEL
+  ) {
+    throw new AiCoreError(
+      "Anthropic моделът не е разрешен.",
+      "ANTHROPIC_MODEL_UNSUPPORTED",
+      503,
+    );
+  }
+  const selectedModel = model.trim();
   const normalized = normalizeChatMessages(input);
   const system = normalized
     .filter((item) => item.role === "system")
@@ -384,7 +397,7 @@ export async function requestAnthropicResponse({
       "anthropic-version": apiVersion,
     },
     body: JSON.stringify({
-      model,
+      model: selectedModel,
       max_tokens: boundedMaxTokens,
       ...(system ? { system } : {}),
       messages,
@@ -445,7 +458,7 @@ export async function requestAnthropicResponse({
     model:
       typeof data?.model === "string" && data.model.trim()
         ? data.model.trim()
-        : model,
+        : selectedModel,
     stopReason,
     requestId: requestId || null,
     usage: {
@@ -490,6 +503,12 @@ export function isAiProviderConfigured(provider, env = process.env) {
     default:
       return false;
   }
+}
+
+export function hasConfiguredAiProvider(env = process.env) {
+  return [...AI_PROVIDERS].some((provider) =>
+    isAiProviderConfigured(provider, env),
+  );
 }
 
 export function isAiCoreConfigured(env = process.env) {

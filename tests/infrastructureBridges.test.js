@@ -515,7 +515,10 @@ test("Cloudflare bridge reads zone and DNS without writes", async () => {
     });
   };
   const status = await getCloudflareZoneStatus({
-    env: { CLOUDFLARE_API_TOKEN: "secret", CLOUDFLARE_ZONE_ID: "zone-1" },
+    env: {
+      CLOUDFLARE_API_TOKEN: "  Bearer secret  ",
+      CLOUDFLARE_ZONE_ID: "zone-1",
+    },
     fetchImpl,
   });
   assert.equal(status.status, "active");
@@ -524,6 +527,11 @@ test("Cloudflare bridge reads zone and DNS without writes", async () => {
   assert.ok(
     calls.every(
       (call) => !call.options.method || call.options.method === "GET",
+    ),
+  );
+  assert.ok(
+    calls.every(
+      (call) => call.options.headers.Authorization === "Bearer secret",
     ),
   );
   assert.doesNotMatch(JSON.stringify(status), /secret/u);

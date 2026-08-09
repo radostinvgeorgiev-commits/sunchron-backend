@@ -25,7 +25,10 @@ function normalizeZoneName(value) {
 }
 
 function requiredConfig(env = process.env) {
-  const token = env.CLOUDFLARE_API_TOKEN;
+  const token = String(env.CLOUDFLARE_API_TOKEN || "")
+    .trim()
+    .replace(/^(?:Bearer\s+)+/iu, "")
+    .trim();
   const zoneId = String(env.CLOUDFLARE_ZONE_ID || "").trim() || null;
   const zoneName = normalizeZoneName(
     env.CLOUDFLARE_ZONE_NAME || DEFAULT_ZONE_NAME,

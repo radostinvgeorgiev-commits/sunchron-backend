@@ -25,6 +25,8 @@ const VALID_MODELS = new Set([
   "gpt-5.6-sol",
   "gpt-5.6-terra",
   "gpt-5.6-luna",
+  "gemini-2.5-flash",
+  "grok-3-mini",
 ]);
 const VALID_PETS = new Set(["robot", "drop", "spark", "owl", "rock", "cat"]);
 const VALID_MEMORY_MODES = new Set(["confirm", "disabled"]);
@@ -396,3 +398,4 @@ export async function saveWorkspaceState(
   }
   return { state, persisted: true, updatedAt };
 }
+

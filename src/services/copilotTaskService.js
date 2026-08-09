@@ -396,6 +396,9 @@ export async function getCopilotTaskStatus({
               }
             }
           }
+          pullRequest(number: $issueNumber) {
+            ...CopilotPullRequestStatus
+          }
         }
       }
 
@@ -456,17 +459,31 @@ export async function getCopilotTaskStatus({
     { owner, name, issueNumber: cleanIssueNumber },
     fetchImpl,
   );
-  const issue = data?.repository?.issue;
-  if (!issue?.number || !issue?.url) {
+  const issue = data?.repository?.issue || null;
+  const directPullRequest = data?.repository?.pullRequest || null;
+  if (
+    (!issue?.number || !issue?.url) &&
+    (!directPullRequest?.number || !directPullRequest?.url)
+  ) {
     throw new CopilotTaskError(
-      "GitHub задачата не е намерена в разрешеното хранилище.",
+      "GitHub задачата или Pull Request-ът не е намерен в разрешеното хранилище.",
       404,
       "COPILOT_TASK_NOT_FOUND",
     );
   }
+  const trackedItem =
+    issue ||
+    Object.freeze({
+      number: directPullRequest.number,
+      title: directPullRequest.title,
+      url: directPullRequest.url,
+      state: directPullRequest.state === "OPEN" ? "OPEN" : "CLOSED",
+      assignees: { nodes: [] },
+    });
   const pullRequests = [
-    ...(issue.closedByPullRequestsReferences?.nodes || []),
-    ...(issue.timelineItems?.nodes || [])
+    ...(directPullRequest ? [directPullRequest] : []),
+    ...(issue?.closedByPullRequestsReferences?.nodes || []),
+    ...(issue?.timelineItems?.nodes || [])
       .map((event) => event?.source)
       .filter(Boolean),
   ].filter(
@@ -484,12 +501,13 @@ export async function getCopilotTaskStatus({
   );
   return Object.freeze({
     repository,
+    resourceType: issue ? "issue" : "pull-request",
     issue: {
-      number: issue.number,
-      title: issue.title,
-      url: issue.url,
-      state: issue.state,
-      copilotAssigned: hasConfirmedCopilotAssignee(issue),
+      number: trackedItem.number,
+      title: trackedItem.title,
+      url: trackedItem.url,
+      state: trackedItem.state,
+      copilotAssigned: hasConfirmedCopilotAssignee(trackedItem),
     },
     pullRequest: pullRequest
       ? {
@@ -507,7 +525,7 @@ export async function getCopilotTaskStatus({
         }
       : null,
     checks,
-    status: classifyCopilotTask(issue, pullRequest),
+    status: classifyCopilotTask(trackedItem, pullRequest),
   });
 }
 
@@ -528,15 +546,18 @@ export function formatCopilotTaskStatus(result) {
   const failedChecks = result.checks.filter((check) =>
     ["ERROR", "FAILURE", "CANCELLED", "TIMED_OUT"].includes(check.state),
   );
+  const isDirectPullRequest = result.resourceType === "pull-request";
   return [
-    `GitHub задача #${result.issue.number}: ${result.issue.title}`,
+    `${isDirectPullRequest ? "GitHub Pull Request" : "GitHub задача"} #${result.issue.number}: ${result.issue.title}`,
     `Състояние: ${labels[result.status] || result.status}.`,
-    `Задача: ${result.issue.url}`,
-    ...(result.pullRequest
+    `${isDirectPullRequest ? "Pull Request" : "Задача"}: ${result.issue.url}`,
+    ...(result.pullRequest && !isDirectPullRequest
       ? [
           `Pull Request: #${result.pullRequest.number} — ${result.pullRequest.url}`,
-          `Клон: ${result.pullRequest.headRef} → ${result.pullRequest.baseRef}`,
         ]
+      : []),
+    ...(result.pullRequest
+      ? [`Клон: ${result.pullRequest.headRef} → ${result.pullRequest.baseRef}`]
       : []),
     ...(failedChecks.length
       ? [

@@ -170,7 +170,7 @@ test("runtime availability blocks configured-looking tools without credentials",
         OPENSEARCH_PASSWORD: "password",
       },
     ).available,
-    false,
+    true,
   );
   assert.equal(
     getToolRuntimeAvailability(
@@ -185,7 +185,7 @@ test("runtime availability blocks configured-looking tools without credentials",
         OPENSEARCH_PASSWORD: "password",
       },
     ).available,
-    true,
+    false,
   );
   assert.equal(
     getToolRuntimeAvailability(

@@ -220,6 +220,21 @@ test("runtime availability blocks configured-looking tools without credentials",
   );
 });
 
+test("AI CORE chat availability accepts a configured non-OpenAI provider", () => {
+  const result = getToolRuntimeAvailability(
+    "synchron-agent-chat",
+    { ownerId: "supabase:test" },
+    {
+      GEMINI_API_KEY: "key",
+      OPENSEARCH_HOST: "https://search.example",
+      OPENSEARCH_PORT: "443",
+      OPENSEARCH_USERNAME: "user",
+      OPENSEARCH_PASSWORD: "password",
+    },
+  );
+  assert.equal(result.available, true);
+});
+
 test("code.write спира преди Copilot flow в изключен режим", async () => {
   await assert.rejects(
     () =>
@@ -462,3 +477,4 @@ test("изпълнява интернет търсене през OpenAI инс�
     else process.env.OPENAI_API_KEY = originalKey;
   }
 });
+

@@ -8,6 +8,13 @@ const METADATA_TOKEN_URL =
   "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token";
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_COMMIT_WRITES = 500;
+const FIRESTORE_FILTER_OPERATORS = new Set([
+  "EQUAL",
+  "LESS_THAN",
+  "LESS_THAN_OR_EQUAL",
+  "GREATER_THAN",
+  "GREATER_THAN_OR_EQUAL",
+]);
 
 function configurationError(message, code = "FIRESTORE_NOT_CONFIGURED") {
   const error = new Error(message);
@@ -86,13 +93,27 @@ function documentIdFromName(name) {
   );
 }
 
-function firestoreError(response, fallbackCode) {
+function documentResult(document, { includeMetadata = false } = {}) {
+  const result = {
+    id: documentIdFromName(document.name),
+    data: decodeFirestoreFields(document.fields),
+  };
+  if (!includeMetadata) return result;
+  return {
+    ...result,
+    createTime: document.createTime || null,
+    updateTime: document.updateTime || null,
+  };
+}
+
+function firestoreError(response, fallbackCode, upstreamErrorStatus = null) {
   const error = new Error(
     `Firestore заявката е неуспешна (${response.status}).`,
   );
   error.code = fallbackCode;
   error.status = 503;
   error.upstreamStatus = response.status;
+  error.upstreamErrorStatus = upstreamErrorStatus;
   return error;
 }
 
@@ -194,7 +215,19 @@ export function createFirestoreDocumentStore({
       }
       if (allow404 && response.status === 404) return null;
       if (!response.ok) {
-        throw firestoreError(response, "FIRESTORE_UNAVAILABLE");
+        let upstreamErrorStatus = null;
+        try {
+          const payload = await response.json();
+          upstreamErrorStatus =
+            String(payload?.error?.status || "").trim() || null;
+        } catch {
+          // Error bodies are intentionally not retained or exposed.
+        }
+        throw firestoreError(
+          response,
+          "FIRESTORE_UNAVAILABLE",
+          upstreamErrorStatus,
+        );
       }
       if (response.status === 204) return null;
       return response.json();
@@ -232,6 +265,23 @@ export function createFirestoreDocumentStore({
     };
   }
 
+  function writePrecondition(options = {}, { deleteOperation = false } = {}) {
+    const updateTime = String(options.updateTime || "").trim();
+    if (updateTime) {
+      const parsed = Date.parse(updateTime);
+      if (!Number.isFinite(parsed)) {
+        throw configurationError(
+          "Невалиден Firestore updateTime precondition.",
+          "FIRESTORE_INVALID_PRECONDITION",
+        );
+      }
+      return { updateTime };
+    }
+    if (options.createOnly) return { exists: false };
+    if (deleteOperation && options.mustExist) return { exists: true };
+    return null;
+  }
+
   function deleteWrite(collection, id, precondition = null) {
     return {
       delete: documentName(collection, id),
@@ -257,7 +307,10 @@ export function createFirestoreDocumentStore({
     backend: "firestore",
     projectId,
     databaseId,
-    async query(collection, { filters = [], limit = 200, orderBy } = {}) {
+    async query(
+      collection,
+      { filters = [], limit = 200, orderBy, includeMetadata = false } = {},
+    ) {
       const safeLimit = Math.min(Math.max(Number(limit) || 1, 1), 1_000);
       if (!Array.isArray(filters) || filters.length < 1) {
         throw configurationError(
@@ -265,13 +318,22 @@ export function createFirestoreDocumentStore({
           "FIRESTORE_INVALID_QUERY",
         );
       }
-      const fieldFilters = filters.map((filter) => ({
-        fieldFilter: {
-          field: { fieldPath: String(filter.field) },
-          op: "EQUAL",
-          value: encodeFirestoreValue(filter.value),
-        },
-      }));
+      const fieldFilters = filters.map((filter) => {
+        const operator = String(filter.op || "EQUAL").toUpperCase();
+        if (!FIRESTORE_FILTER_OPERATORS.has(operator)) {
+          throw configurationError(
+            "Неподдържан Firestore query operator.",
+            "FIRESTORE_INVALID_QUERY",
+          );
+        }
+        return {
+          fieldFilter: {
+            field: { fieldPath: String(filter.field) },
+            op: operator,
+            value: encodeFirestoreValue(filter.value),
+          },
+        };
+      });
       const orderField = String(orderBy?.field || "").trim();
       const direction =
         String(orderBy?.direction || "ASCENDING").toUpperCase() === "DESCENDING"
@@ -308,35 +370,32 @@ export function createFirestoreDocumentStore({
       return (Array.isArray(result) ? result : [])
         .map((item) => item?.document)
         .filter(Boolean)
-        .map((document) => ({
-          id: documentIdFromName(document.name),
-          data: decodeFirestoreFields(document.fields),
-        }));
+        .map((document) => documentResult(document, { includeMetadata }));
     },
     queryEqual(collection, field, value, limit = 200, options = {}) {
       return this.query(collection, {
         filters: [{ field, value }],
         limit,
         orderBy: options.orderBy,
+        includeMetadata: options.includeMetadata,
       });
     },
-    async get(collection, id) {
+    async get(collection, id, options = {}) {
       const result = await request(
         `${FIRESTORE_API_ORIGIN}/v1/${documentName(collection, id)}`,
         { allow404: true },
       );
       if (!result) return null;
-      return {
-        id: documentIdFromName(result.name),
-        data: decodeFirestoreFields(result.fields),
-      };
+      return documentResult(result, options);
     },
     set(collection, id, data, options = {}) {
-      const precondition = options.createOnly ? { exists: false } : null;
+      const precondition = writePrecondition(options);
       return commit([updateWrite(collection, id, data, precondition)]);
     },
     delete(collection, id, options = {}) {
-      const precondition = options.mustExist ? { exists: true } : null;
+      const precondition = writePrecondition(options, {
+        deleteOperation: true,
+      });
       return commit([deleteWrite(collection, id, precondition)]);
     },
     commitOperations(operations) {
@@ -347,14 +406,14 @@ export function createFirestoreDocumentStore({
               operation.collection,
               operation.id,
               operation.data,
-              operation.createOnly ? { exists: false } : null,
+              writePrecondition(operation),
             );
           }
           if (operation.type === "delete") {
             return deleteWrite(
               operation.collection,
               operation.id,
-              operation.mustExist ? { exists: true } : null,
+              writePrecondition(operation, { deleteOperation: true }),
             );
           }
           throw configurationError(

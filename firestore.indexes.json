@@ -45,6 +45,34 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "synchron-github-sessions-v1",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "firestoreProvider",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "synchron-google-sessions-v1",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "firestoreProvider",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

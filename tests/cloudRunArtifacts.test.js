@@ -37,6 +37,10 @@ test("Cloud Run template uses liveness without dependency-heavy readiness", asyn
   assert.match(template, /name: FIRESTORE_DATABASE_ID\s+value: "\(default\)"/u);
   assert.match(template, /name: FIRESTORE_WORKSPACE_COLLECTION/u);
   assert.match(template, /name: FIRESTORE_TASK_COLLECTION/u);
+  assert.match(template, /name: FIRESTORE_GITHUB_SESSION_COLLECTION/u);
+  assert.match(template, /name: FIRESTORE_GOOGLE_SESSION_COLLECTION/u);
+  assert.match(template, /name: FIRESTORE_MCP_GRANT_COLLECTION/u);
+  assert.match(template, /name: FIRESTORE_MCP_REPLAY_COLLECTION/u);
   assert.match(template, /name: AUTH_BACKEND\s+value: identity-platform/u);
   assert.match(template, /name: IDENTITY_PLATFORM_PROJECT_ID/u);
   assert.match(
@@ -91,4 +95,22 @@ test("Google Cloud catalog preserves data, secret and deployment boundaries", as
         ),
     ),
   );
+  for (const collectionGroup of [
+    "synchron-github-sessions-v1",
+    "synchron-google-sessions-v1",
+  ]) {
+    assert.ok(
+      indexConfiguration.indexes.some(
+        (index) =>
+          index.collectionGroup === collectionGroup &&
+          index.fields.some(
+            (field) => field.fieldPath === "firestoreProvider",
+          ) &&
+          index.fields.some(
+            (field) =>
+              field.fieldPath === "updatedAt" && field.order === "DESCENDING",
+          ),
+      ),
+    );
+  }
 });

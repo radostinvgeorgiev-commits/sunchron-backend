@@ -67,24 +67,34 @@ not-ready, а не да активира fallback с друг secret.
 
 ## Firestore — изпълним staging data plane
 
-| Поле                                 | Предназначение          | Приемателна граница                                                   |
-| ------------------------------------ | ----------------------- | --------------------------------------------------------------------- |
-| `MEMORY_BACKEND`                     | Избор на memory adapter | `firestore` само в GCP staging; DigitalOcean остава `opensearch`.     |
-| `PERSISTENCE_BACKEND`                | Потвърждения и audit    | `firestore` само в GCP staging.                                       |
-| `FIRESTORE_DATABASE_ID`              | Database идентификатор  | `(default)`, Firestore Native, Standard.                              |
-| `FIRESTORE_PROFILE_COLLECTION`       | Лична/проектна памет    | Owner-isolated документи със стабилен хеширан ID.                     |
-| `FIRESTORE_CONVERSATION_COLLECTION`  | Разговори               | Owner и session isolation; атомичен запис на двата message документа. |
-| `FIRESTORE_CONFIRMATION_COLLECTION`  | Потвърждения            | Криптирани и еднократни; delete-before-execute.                       |
-| `FIRESTORE_AUDIT_COLLECTION`         | Audit journal           | Durable intent/outcome записи без raw confirmation ID.                |
-| `FIRESTORE_TESTER_ACCESS_COLLECTION` | Tester approvals        | Provider-qualified user IDs и HMAC email approvals.                   |
-| `FIRESTORE_WORKSPACE_COLLECTION`     | Работни области         | Един хеширан документ за всеки проверен owner.                        |
-| `FIRESTORE_TASK_COLLECTION`          | Задачи                  | Owner hash, bounded notes и потвърждавани status промени.             |
+| Поле                                  | Предназначение          | Приемателна граница                                                   |
+| ------------------------------------- | ----------------------- | --------------------------------------------------------------------- |
+| `MEMORY_BACKEND`                      | Избор на memory adapter | `firestore` само в GCP staging; DigitalOcean остава `opensearch`.     |
+| `PERSISTENCE_BACKEND`                 | Потвърждения и audit    | `firestore` само в GCP staging.                                       |
+| `FIRESTORE_DATABASE_ID`               | Database идентификатор  | `(default)`, Firestore Native, Standard.                              |
+| `FIRESTORE_PROFILE_COLLECTION`        | Лична/проектна памет    | Owner-isolated документи със стабилен хеширан ID.                     |
+| `FIRESTORE_CONVERSATION_COLLECTION`   | Разговори               | Owner и session isolation; атомичен запис на двата message документа. |
+| `FIRESTORE_CONFIRMATION_COLLECTION`   | Потвърждения            | Криптирани и еднократни; delete-before-execute.                       |
+| `FIRESTORE_AUDIT_COLLECTION`          | Audit journal           | Durable intent/outcome записи без raw confirmation ID.                |
+| `FIRESTORE_TESTER_ACCESS_COLLECTION`  | Tester approvals        | Provider-qualified user IDs и HMAC email approvals.                   |
+| `FIRESTORE_WORKSPACE_COLLECTION`      | Работни области         | Един хеширан документ за всеки проверен owner.                        |
+| `FIRESTORE_TASK_COLLECTION`           | Задачи                  | Owner hash, bounded notes и потвърждавани status промени.             |
+| `FIRESTORE_GITHUB_SESSION_COLLECTION` | GitHub OAuth            | AES-256-GCM payload; server-side provider marker и подредба.          |
+| `FIRESTORE_GOOGLE_SESSION_COLLECTION` | Google OAuth            | AES-256-GCM access/refresh payload; без plaintext token полета.       |
+| `FIRESTORE_MCP_GRANT_COLLECTION`      | MCP grants              | Subject isolation, expiry, refresh touch и проверено revoke.          |
+| `FIRESTORE_MCP_REPLAY_COLLECTION`     | MCP replay guard        | Атомичен create-only запис и bounded cleanup по expiry epoch.         |
 
 Unit/integration тестовете трябва да доказват owner isolation, атомично
 create/update/delete, деветстъпковия memory acceptance, fail-closed readiness и
 липса на secret стойности в грешки. Реалният staging тест използва само изолиран
 owner; production import, включително workspace/task данни, и OpenSearch
 cutover са забранени преди backup/rollback.
+
+GitHub и Google OAuth сесиите се записват във Firestore само като криптирани
+payload-и. MCP grants използват Firestore `updateTime` preconditions при refresh
+и revoke, а authorization codes и refresh tokens се консумират чрез атомичен
+create-only replay запис. Това е code-level кандидат; не доказва прехвърлени
+production сесии или успешен ChatGPT/Google/GitHub owner acceptance.
 
 ## Identity Platform — изпълним auth pilot
 

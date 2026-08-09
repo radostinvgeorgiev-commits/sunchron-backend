@@ -1,6 +1,12 @@
 import crypto from "node:crypto";
+import {
+  resolveFirestoreDatabaseId,
+  resolveFirestoreProjectId,
+  resolvePersistenceBackend,
+} from "../config/memoryBackend.js";
 import { getOpenSearchClient } from "../config/opensearch.js";
 import { logSafeError } from "../utils/safeLogging.js";
+import { createFirestoreOAuthSessionStore } from "./firestoreOAuthSessionStore.js";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -30,12 +36,41 @@ const SUPPORTED_MIME_TYPES = new Set([
   "image/webp",
 ]);
 const sessions = new Map();
+let firestoreSessionStore = null;
+let firestoreSessionConfiguration = null;
+let firestoreSessionStoreOverride = null;
+
+export function setFirestoreGoogleSessionStoreForTests(store) {
+  firestoreSessionStoreOverride = store || null;
+  firestoreSessionStore = null;
+  firestoreSessionConfiguration = null;
+}
 
 function sessionEncryptionKey() {
   const secret =
     process.env.GOOGLE_SESSION_ENCRYPTION_KEY ||
     process.env.GOOGLE_CLIENT_SECRET;
   return secret ? crypto.createHash("sha256").update(secret).digest() : null;
+}
+
+function getFirestoreSessionStore(env = process.env) {
+  if (firestoreSessionStoreOverride) return firestoreSessionStoreOverride;
+  const configuration = [
+    resolveFirestoreProjectId(env),
+    resolveFirestoreDatabaseId(env),
+    env.FIRESTORE_GOOGLE_SESSION_COLLECTION || "",
+  ].join("\0");
+  if (
+    !firestoreSessionStore ||
+    firestoreSessionConfiguration !== configuration
+  ) {
+    firestoreSessionStore = createFirestoreOAuthSessionStore({
+      provider: "google",
+      env,
+    });
+    firestoreSessionConfiguration = configuration;
+  }
+  return firestoreSessionStore;
 }
 
 export function encryptGoogleSession(session) {
@@ -92,7 +127,13 @@ export function decryptGoogleSession(payload) {
   }
 }
 
-async function persistSession(id, session) {
+async function persistSession(id, session, env = process.env) {
+  const backend = resolvePersistenceBackend(env);
+  if (backend === "firestore") {
+    await getFirestoreSessionStore(env).set(id, encryptGoogleSession(session));
+    return true;
+  }
+  if (backend !== "opensearch") return false;
   const client = getOpenSearchClient();
   if (!client) return false;
   await client.index({
@@ -104,24 +145,34 @@ async function persistSession(id, session) {
   return true;
 }
 
-async function loadSession(id) {
+async function loadSession(id, env = process.env) {
   if (!id) return null;
   const cached = sessions.get(id);
   if (cached) return cached;
 
-  const client = getOpenSearchClient();
-  if (!client) return null;
   try {
-    const response = await client.get({
-      index: GOOGLE_SESSION_INDEX,
-      id,
-    });
-    const payload = response.body?._source ?? response._source;
+    const backend = resolvePersistenceBackend(env);
+    let payload = null;
+    if (backend === "firestore") {
+      payload = await getFirestoreSessionStore(env).get(id);
+    } else if (backend === "opensearch") {
+      const client = getOpenSearchClient();
+      if (!client) return null;
+      const response = await client.get({
+        index: GOOGLE_SESSION_INDEX,
+        id,
+      });
+      payload = response.body?._source ?? response._source;
+    } else {
+      return null;
+    }
+    if (!payload) return null;
     const session = decryptGoogleSession(payload);
     sessions.set(id, session);
     return session;
   } catch (error) {
-    const status = error?.statusCode || error?.meta?.statusCode;
+    const status =
+      error?.statusCode || error?.meta?.statusCode || error?.upstreamStatus;
     if (status !== 404) {
       logSafeError("[Google session] Restore failure", error);
     }
@@ -251,6 +302,12 @@ export async function createSession(tokens) {
 
 export async function disconnectSession(id) {
   if (id) sessions.delete(id);
+  const backend = resolvePersistenceBackend(process.env);
+  if (backend === "firestore") {
+    if (id) await getFirestoreSessionStore().delete(id);
+    return;
+  }
+  if (backend !== "opensearch") return;
   const client = getOpenSearchClient();
   if (!id || !client) return;
   try {
@@ -312,6 +369,13 @@ async function refreshSession(id, fetchImpl = fetch) {
     await persistSession(id, session);
   } catch (error) {
     logSafeError("[Google session] Refresh persistence failure", error);
+    if (requiresPersistentGoogleSessions()) {
+      throw new GoogleDriveError(
+        "Google връзката не можа да бъде обновена защитено.",
+        503,
+        "GOOGLE_SESSION_PERSISTENCE_FAILED",
+      );
+    }
   }
   return session.access_token;
 }
@@ -411,14 +475,24 @@ export async function getLatestGoogleSessionId() {
     if (await hasSession(id)) return id;
   }
 
-  const client = getOpenSearchClient();
-  if (!client) return null;
+  const backend = resolvePersistenceBackend(process.env);
   try {
-    const response = await client.search({
-      index: GOOGLE_SESSION_INDEX,
-      body: { size: 20, sort: [{ updatedAt: { order: "desc" } }] },
-    });
-    const hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
+    let hits = [];
+    if (backend === "firestore") {
+      hits = (await getFirestoreSessionStore().listLatest(100)).map(
+        ({ id, payload }) => ({ _id: id, _source: payload }),
+      );
+    } else if (backend === "opensearch") {
+      const client = getOpenSearchClient();
+      if (!client) return null;
+      const response = await client.search({
+        index: GOOGLE_SESSION_INDEX,
+        body: { size: 20, sort: [{ updatedAt: { order: "desc" } }] },
+      });
+      hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
+    } else {
+      return null;
+    }
     for (const hit of hits) {
       try {
         const session = decryptGoogleSession(hit._source);
@@ -437,6 +511,11 @@ export async function getLatestGoogleSessionId() {
     }
   }
   return null;
+}
+
+export function resetGoogleSessionsForTests() {
+  sessions.clear();
+  setFirestoreGoogleSessionStoreForTests(null);
 }
 
 export async function listDriveFiles(id, fetchImpl = fetch) {

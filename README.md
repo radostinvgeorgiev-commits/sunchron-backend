@@ -68,6 +68,7 @@ npm test
 
 Google Cloud migration се изпълнява поетапно, без да променя текущия production
 канал преди отделен cutover. Firestore има server-side adapter кандидати за
-памет, operational state, workspaces и tasks, а Identity Platform — за профили;
-това още не е data/user migration. Каталогът, Cloud Run health contract-ът и migration gates са в
+памет, operational state, workspaces, tasks, криптирани GitHub/Google OAuth
+сесии и MCP grants/replay, а Identity Platform — за профили; това още не е
+data/user/session migration. Каталогът, Cloud Run health contract-ът и migration gates са в
 [`docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md`](docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md).

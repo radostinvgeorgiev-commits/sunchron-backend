@@ -4,9 +4,10 @@ import {
 } from "../services/permissionService.js";
 import { isCopilotAutomationEnabled } from "../config/featureFlags.js";
 import {
-  hasConfiguredAiProvider,
   isAiCoreConfigured,
+  isAiProviderConfigured,
 } from "../services/aiCoreService.js";
+import { resolveWorkAgentProvider } from "../services/workModeService.js";
 import { answerGitHubReadRequest } from "../services/githubService.js";
 import {
   createGmailDraft,
@@ -117,6 +118,15 @@ function hasEnvironment(env, ...names) {
   );
 }
 
+function isChatProviderConfigured(input, env) {
+  const explicitProvider = resolveWorkAgentProvider(
+    input?.workContext?.agent?.model,
+  );
+  return explicitProvider
+    ? isAiProviderConfigured(explicitProvider, env)
+    : isAiCoreConfigured(env);
+}
+
 export function getToolRuntimeAvailability(
   toolId,
   input = {},
@@ -128,7 +138,7 @@ export function getToolRuntimeAvailability(
   switch (toolId) {
     case "synchron-agent-chat":
       if (
-        !hasConfiguredAiProvider(env) ||
+        !isChatProviderConfigured(input, env) ||
         !hasEnvironment(
           env,
           "OPENSEARCH_HOST",

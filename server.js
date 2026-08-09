@@ -7,7 +7,6 @@ import {
 import { createRateLimiters } from "./src/middleware/rateLimits.js";
 import { startMemoryStartupVerification } from "./src/services/memoryStartupVerificationService.js";
 import { executeCapability } from "./src/tools/capabilityEngine.js";
-import { getAiProviderStatus } from "./src/services/aiCoreService.js";
 
 import chatRouter from "./src/routes/chat.js";
 import healthRouter from "./src/routes/health.js";
@@ -33,10 +32,9 @@ const { oauthRateLimiter, paidAiRateLimiter, privateApiRateLimiter } =
   createRateLimiters();
 const mcpOAuthRouter = createMcpOAuthRouter({ oauthRateLimiter });
 
-const aiProviderStatus = getAiProviderStatus(process.env);
-if (!aiProviderStatus.configured) {
+if (!process.env.OPENAI_API_KEY) {
   console.warn(
-    `⚠️  AI CORE provider ${aiProviderStatus.selectedProvider ?? "unknown"} is not configured. Direct AI conversation is unavailable; independent tools can still run.`,
+    "⚠️  OPENAI_API_KEY is not configured. Direct AI conversation is unavailable; independent tools can still run.",
   );
 }
 
@@ -254,10 +252,3 @@ function startServer() {
 }
 
 export default app;
-[31;1mMethodException: [0m
-[31;1m[36;1mLine |[0m
-[31;1m[36;1m[36;1m   2 | [0m … Path 'server.js'; [36;1m$c=$c.Replace(([char]13+[char]10),[char]10)[0m; [Conso …[0m
-[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot convert argument "oldChar", with value: "[0m
-[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m", for "Replace" to type "System.Char": "Cannot convert value "[0m
-[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m" to type "System.Char". Error: "String must be exactly one character long.""[0m

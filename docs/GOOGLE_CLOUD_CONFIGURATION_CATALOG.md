@@ -21,9 +21,11 @@ secret стойности и не променя текущия production deplo
   сесии и Firestore tester approvals са изпълним code-level кандидат. Няма
   user import, Supabase cutover или реален Identity staging acceptance.
 - Vertex AI остава planning-only.
-- Cloud Run template-ът е нарочно непълен: има placeholders и само versioned
-  Secret Manager references за Identity API/session настройките; няма IAM
-  binding, public invoker или DNS промяна.
+- Cloud Run template-ът остава непълен до локално render-ване с проверен
+  config. Той изисква immutable image digest, exact commit, numeric Secret
+  Manager версии, min=0/max=2 и отделна runtime identity. Staging ingress е
+  `all` само за authenticated `run.app` acceptance; публичен invoker, DNS и
+  production traffic не се добавят.
 
 ## Non-secret configuration catalog
 
@@ -64,6 +66,11 @@ references не се приемат за готови само защото им
 всеки staging deploy всеки reference трябва да има owner, IAM scope, rotation plan и
 rollback plan. Липсващ или невалиден reference трябва да остави системата
 not-ready, а не да активира fallback с друг secret.
+
+Cloud Run v1 изисква едновременно `run.googleapis.com/secrets` mapping към
+project number/secret name и съответния `secretKeyRef`. Renderer-ът допуска само
+фиксирани numeric версии; `latest`, secret стойности и JSON service-account key
+са забранени.
 
 ## Firestore — изпълним staging data plane
 
@@ -135,8 +142,28 @@ Cloud Run template-ът е в
   memory acceptance и bridge. Cloud Run не го използва като liveness probe.
 - Readiness се приема чрез post-deploy smoke: exact image/commit, `/health`
   `200`, `/health/ready` `200` и съвпадащи runtime проверки.
-- Няма `readinessProbe`, публичен invoker или ingress policy в този template;
-  тези решения изискват отделен IAM, cost, edge и rollback review.
+- Няма `readinessProbe` или публичен invoker. Staging допуска мрежов ingress до
+  `run.app`, но IAM остава private, за да може exact-SHA acceptance с Google ID
+  token. При Google edge cutover ingress се затваря на
+  `internal-and-cloud-load-balancing`, след като load balancer е готов.
+
+## Изпълними staging артефакти
+
+1. Копирай `deploy/cloud-run/staging.config.example.json` като игнорирания
+   `deploy/cloud-run/staging.config.json` и попълни само resource имена,
+   immutable image digest и numeric secret версии — никога secret стойности.
+2. Render-ни проверения manifest:
+
+   `npm run gcp:render:staging -- --config deploy/cloud-run/staging.config.json`
+
+3. След отделно одобрен deploy провери revision-а read-only:
+
+   `npm run gcp:verify:staging -- --project handy-boulevard-479120-q9 --region europe-west1 --service synchron-backend-staging --expected-sha <FULL_SHA>`
+
+Verifier-ът отказва mutable image, floating secret version, public invoker,
+грешен commit, backend различен от Firestore, memory acceptance под 9/9 или
+неработеща Identity Platform конфигурация. Той не чете и не отпечатва secret
+стойности или ID token.
 
 ## Migration gates
 

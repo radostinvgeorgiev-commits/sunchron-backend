@@ -72,3 +72,6 @@ Google Cloud migration се изпълнява поетапно, без да п�
 сесии и MCP grants/replay, а Identity Platform — за профили; това още не е
 data/user/session migration. Каталогът, Cloud Run health contract-ът и migration gates са в
 [`docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md`](docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md).
+Staging manifest се render-ва само от immutable image digest и фиксирани Secret
+Manager версии чрез `npm run gcp:render:staging`; след deploy read-only
+acceptance се изпълнява с `npm run gcp:verify:staging`.

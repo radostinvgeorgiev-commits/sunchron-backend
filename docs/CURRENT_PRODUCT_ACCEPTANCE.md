@@ -70,8 +70,9 @@ production проверките винаги се установяват по
    Firestore adapter-ите за памет, разговори, потвърждения, audit, работни
    области, задачи, криптирани GitHub/Google OAuth сесии и MCP grants/replay,
    както и Identity Platform adapter-ът за signup/login/refresh, са code-level
-   кандидати. Няма exact-SHA staging acceptance, data/user/session import или
-   production cutover.
+   кандидати. Има fail-closed renderer за immutable Cloud Run manifest и
+   read-only exact-SHA verifier, но те още не са изпълнени срещу authenticated
+   staging revision. Няма data/user/session import или production cutover.
 
 ## Следващи стъпки
 

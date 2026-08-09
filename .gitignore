@@ -1,5 +1,7 @@
 node_modules/
 .env
+deploy/cloud-run/staging.config.json
+deploy/cloud-run/staging.rendered.yaml
 runtime-build-info.json
 *.log
 services/logic-core/venv/

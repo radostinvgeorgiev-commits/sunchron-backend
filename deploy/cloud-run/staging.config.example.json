@@ -1,0 +1,41 @@
+{
+  "projectId": "handy-boulevard-479120-q9",
+  "projectNumber": "975434100844",
+  "region": "europe-west1",
+  "serviceName": "synchron-backend-staging",
+  "serviceAccount": "__REPLACE_RUNTIME_SERVICE_ACCOUNT__",
+  "imageUri": "__REPLACE_IMMUTABLE_ARTIFACT_REGISTRY_IMAGE_DIGEST__",
+  "commitSha": "__REPLACE_EXACT_40_CHARACTER_COMMIT_SHA__",
+  "memoryOwnerId": "synchron-gcp-staging-owner",
+  "mcpResourceUrl": "__REPLACE_HTTPS_CLOUD_RUN_URL__/mcp",
+  "secrets": {
+    "OPENAI_API_KEY": {
+      "name": "synchron-openai-api-key",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    },
+    "IDENTITY_PLATFORM_API_KEY": {
+      "name": "synchron-identity-platform-api-key",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    },
+    "USER_SESSION_ENCRYPTION_KEY": {
+      "name": "synchron-user-session-encryption-key",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    },
+    "GITHUB_SESSION_ENCRYPTION_KEY": {
+      "name": "synchron-github-session-encryption-key",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    },
+    "TESTER_INVITE_CODE": {
+      "name": "synchron-tester-invite-code",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    },
+    "MCP_ACCESS_TOKEN": {
+      "name": "synchron-mcp-access-token",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    },
+    "MCP_OAUTH_SECRET": {
+      "name": "synchron-mcp-oauth-secret",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    }
+  }
+}

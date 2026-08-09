@@ -80,7 +80,9 @@ function activateCommand(command) {
 
 function forwardClick(targetId, command) {
   const target = document.getElementById(targetId);
-  if (!target) return;
+  if (!target || target.hidden || target.getAttribute("aria-hidden") === "true") {
+    return;
+  }
   target.click();
   activateCommand(command);
 }

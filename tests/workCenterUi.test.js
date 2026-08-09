@@ -420,7 +420,7 @@ test("Tools card reuses the existing live tools drawer action", async () => {
   assert.equal(clicks, 1);
 });
 
-test("mobile Connections command opens the Work Center", () => {
+test("mobile Connections opens the visible owner Work Center and guards hidden targets", () => {
   assert.match(
     mobileCommandSource,
     /command === "connections"[\s\S]{0,120}forwardClick\("workCenterBtn", "connections"\)/u,
@@ -429,6 +429,7 @@ test("mobile Connections command opens the Work Center", () => {
     mobileCommandSource,
     /command === "connections"[\s\S]{0,120}forwardClick\("toolsBtn", "connections"\)/u,
   );
+  assert.match(mobileCommandSource, /!target \|\| target\.hidden/u);
 });
 
 test("work center shows real connection state instead of claiming everything works", async () => {

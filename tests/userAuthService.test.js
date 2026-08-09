@@ -54,7 +54,7 @@ test("detects complete auth and closed/open tester registration", () => {
       ...ENV,
       SYNCHRON_TEST_INVITE_CODE: "",
     }),
-    true,
+    false,
   );
 });
 
@@ -237,6 +237,7 @@ test("normal registration creates the application approval", async () => {
       email: "friend@example.com",
       password: "strong-pass-123",
       displayName: "Приятел",
+      inviteCode: ENV.SYNCHRON_TEST_INVITE_CODE,
     },
     {
       env: ENV,
@@ -250,6 +251,35 @@ test("normal registration creates the application approval", async () => {
   assert.equal(approvedUser.id, "registered-user");
   assert.equal(result.user.id, "registered-user");
   assert.deepEqual(result.session, fakeSession);
+});
+
+test("registration rejects an invalid invite before contacting Supabase", async () => {
+  let signUpCalls = 0;
+  const client = {
+    auth: {
+      async signUp() {
+        signUpCalls += 1;
+        return { data: null, error: null };
+      },
+    },
+  };
+
+  await assert.rejects(
+    registerUser(
+      {
+        email: "unknown@example.com",
+        password: "strong-pass-123",
+        displayName: "Непознат",
+        inviteCode: "wrong-invite-code",
+      },
+      { env: ENV, client },
+    ),
+    (error) =>
+      error instanceof UserAuthError &&
+      error.code === "AUTH_INVITE_INVALID" &&
+      error.status === 403,
+  );
+  assert.equal(signUpCalls, 0);
 });
 
 test("registration approves access after Supabase creates the user", async () => {
@@ -274,6 +304,7 @@ test("registration approves access after Supabase creates the user", async () =>
       email: "friend@example.com",
       password: "strong-pass-123",
       displayName: "Приятел",
+      inviteCode: ENV.SYNCHRON_TEST_INVITE_CODE,
     },
     {
       env: ENV,
@@ -317,6 +348,7 @@ test("registration recovers an existing invited user with the same password", as
       email: "friend@example.com",
       password: "strong-pass-123",
       displayName: "Приятел",
+      inviteCode: ENV.SYNCHRON_TEST_INVITE_CODE,
     },
     {
       env: ENV,
@@ -368,6 +400,7 @@ test("registration recovers an existing invited user from an obfuscated signup r
       email: "friend@example.com",
       password: "strong-pass-123",
       displayName: "Приятел",
+      inviteCode: ENV.SYNCHRON_TEST_INVITE_CODE,
     },
     {
       env: ENV,
@@ -412,6 +445,7 @@ test("registration never approves an obfuscated existing user when recovery fail
         email: "friend@example.com",
         password: "wrong-pass-123",
         displayName: "Приятел",
+        inviteCode: ENV.SYNCHRON_TEST_INVITE_CODE,
       },
       {
         env: ENV,
@@ -456,6 +490,7 @@ test("registration keeps a new unconfirmed user when immediate sign in is unavai
       email: "new@example.com",
       password: "strong-pass-123",
       displayName: "Нов тестер",
+      inviteCode: ENV.SYNCHRON_TEST_INVITE_CODE,
     },
     {
       env: ENV,

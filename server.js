@@ -117,7 +117,7 @@ app.get("/", (req, res, next) => {
     return;
   }
 
-  res.redirect(302, "/register");
+  res.redirect(302, "https://synchron.foundation/");
 });
 
 app.use(

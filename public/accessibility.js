@@ -1,6 +1,6 @@
 (() => {
   const STORAGE_KEY = "synchron.ui.fontScale";
-  const DEFAULT_MODE = "max";
+  const DEFAULT_MODE = "standard";
   const MODE_ORDER = Object.freeze(["standard", "large", "max", "ultra"]);
   const MODES = Object.freeze({
     standard: {

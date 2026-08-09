@@ -27,6 +27,9 @@ let statusReturnFocus = null;
 
 const elements = {
   authGate: document.getElementById("authGate"),
+  authCard: document.getElementById("authCard"),
+  authTitle: document.getElementById("authTitle"),
+  authIntro: document.getElementById("authIntro"),
   appShell: document.getElementById("appShell"),
   loginForm: document.getElementById("loginForm"),
   loginEmail: document.getElementById("loginEmail"),
@@ -37,6 +40,7 @@ const elements = {
   registerName: document.getElementById("registerName"),
   registerEmail: document.getElementById("registerEmail"),
   registerPassword: document.getElementById("registerPassword"),
+  registerInviteCode: document.getElementById("registerInviteCode"),
   registerBtn: document.getElementById("registerBtn"),
   backToLoginBtn: document.getElementById("backToLoginBtn"),
   authMessage: document.getElementById("authMessage"),
@@ -104,11 +108,27 @@ function createSessionId() {
 }
 
 function getOrCreateSessionId() {
-  const stored = localStorage.getItem("synchronSessionId");
+  const stored = readLocalStorage("synchronSessionId");
   if (stored?.startsWith("sess-")) return stored;
   const sessionId = createSessionId();
-  localStorage.setItem("synchronSessionId", sessionId);
+  writeLocalStorage("synchronSessionId", sessionId);
   return sessionId;
+}
+
+function readLocalStorage(key) {
+  try {
+    return globalThis.localStorage?.getItem(key) || null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalStorage(key, value) {
+  try {
+    globalThis.localStorage?.setItem(key, value);
+  } catch {
+    // The app remains usable when storage is blocked by the browser.
+  }
 }
 
 function setAuthMessage(message = "", success = false) {
@@ -119,20 +139,41 @@ function setAuthMessage(message = "", success = false) {
 function setAuthBusy(isBusy) {
   elements.loginBtn.disabled = isBusy;
   elements.registerBtn.disabled = isBusy;
+  elements.authCard?.setAttribute("aria-busy", String(isBusy));
+  elements.loginBtn.textContent = isBusy ? "Влизане…" : "Влез";
+  elements.registerBtn.textContent = isBusy ? "Създаване…" : "Създай профил";
 }
 
-function showLoginForm() {
+function replaceAuthPath(path) {
+  if (globalThis.location?.pathname === path) return;
+  globalThis.history?.replaceState?.({}, "", path);
+}
+
+function showLoginForm(event) {
+  event?.preventDefault?.();
   elements.loginForm.hidden = false;
   elements.registerForm.hidden = true;
   elements.showRegisterBtn.hidden = !state.registrationEnabled;
+  elements.authTitle.textContent = "Вход в AI CORE";
+  elements.authIntro.textContent =
+    "Продължи към личното си работно пространство.";
+  document.title = "Вход · SYNCHRON-X";
+  replaceAuthPath("/");
   setAuthMessage();
   elements.loginEmail.focus();
 }
 
-function showRegisterForm() {
+function showRegisterForm(event) {
+  event?.preventDefault?.();
+  if (!state.registrationEnabled) return;
   elements.loginForm.hidden = true;
   elements.registerForm.hidden = false;
   elements.showRegisterBtn.hidden = true;
+  elements.authTitle.textContent = "Създай профил";
+  elements.authIntro.textContent =
+    "Всеки одобрен профил има отделни разговори, проекти и контролирана памет.";
+  document.title = "Създай профил · SYNCHRON-X";
+  replaceAuthPath(REGISTRATION_PATH);
   setAuthMessage();
   elements.registerName.focus();
 }
@@ -202,8 +243,10 @@ async function handleRegistration(event) {
       displayName: elements.registerName.value,
       email: elements.registerEmail.value,
       password: elements.registerPassword.value,
+      inviteCode: elements.registerInviteCode.value,
     });
     elements.registerPassword.value = "";
+    elements.registerInviteCode.value = "";
     if (result.confirmationRequired) {
       showLoginForm();
       elements.loginEmail.value = result.user?.email || "";
@@ -266,7 +309,10 @@ async function init() {
     elements.appShell.hidden = true;
     if (state.registrationEnabled && isDirectRegistrationPage()) {
       showRegisterForm();
-      setAuthMessage("Създай профил с име, имейл и парола.", true);
+      setAuthMessage(
+        "Създай профил с име, имейл, парола и код за ранен достъп.",
+        true,
+      );
       return;
     }
     if (!session.configured) {
@@ -396,7 +442,7 @@ async function startNewChat() {
   closeSidebar();
   clearPendingImage();
   state.sessionId = createSessionId();
-  localStorage.setItem("synchronSessionId", state.sessionId);
+  writeLocalStorage("synchronSessionId", state.sessionId);
   state.lastActions = [];
   elements.chatMessages.replaceChildren();
   updateSessionDisplay();

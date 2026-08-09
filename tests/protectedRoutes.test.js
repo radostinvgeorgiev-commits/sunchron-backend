@@ -18,7 +18,7 @@ test("keeps liveness and sign-in routes public", async () => {
     .get("/")
     .set("Host", "www.synchron.foundation")
     .expect(302);
-  assert.equal(publicEntry.headers.location, "/register");
+  assert.equal(publicEntry.headers.location, "https://synchron.foundation/");
   await request(app).get("/").set("Host", "synchron.foundation").expect(200);
   const registration = await request(app).get("/register").expect(200);
   assert.match(registration.text, /id="registerForm"/u);

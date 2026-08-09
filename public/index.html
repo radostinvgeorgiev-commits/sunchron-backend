@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="bg" data-font-scale="max">
+<html lang="bg" data-font-scale="standard">
   <head>
     <meta charset="UTF-8" />
     <meta
@@ -9,9 +9,18 @@
     <meta name="theme-color" content="#0f5f47" />
     <meta
       name="description"
-      content="AI CORE — лична AI операционна система с контролирана памет и разрешени инструменти."
+      content="SYNCHRON-X е лична AI операционна система за разговори, контролирана памет и изпълнение на разрешени задачи чрез AI CORE."
     />
-    <title>AI CORE · Лична AI операционна система</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="bg_BG" />
+    <meta property="og:title" content="SYNCHRON-X · Твоята лична AI система" />
+    <meta
+      property="og:description"
+      content="Един AI център за разговори, памет и реална работа под твой контрол."
+    />
+    <meta property="og:url" content="https://synchron.foundation/" />
+    <link rel="canonical" href="https://synchron.foundation/" />
+    <title>SYNCHRON-X · Твоята лична AI система</title>
     <link rel="icon" type="image/png" href="/ai-core-mark.png" />
     <link rel="apple-touch-icon" href="/ai-core-mark.png" />
     <link rel="stylesheet" href="/styles.css?v=20260727-connection-actions" />
@@ -35,18 +44,47 @@
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.12/dist/purify.min.js"></script>
   </head>
   <body>
-    <section class="auth-gate" id="authGate" aria-labelledby="authTitle">
-      <div class="auth-card">
-        <div class="auth-brand" aria-hidden="true">
-          <img src="/ai-core-mark.png" alt="" />
-        </div>
-        <p class="auth-kicker">ЛИЧНА AI СИСТЕМА</p>
-        <h1 id="authTitle">Вход в AI CORE</h1>
-        <p class="auth-intro">
-          Всеки потребител има собствен профил, разговори и памет.
-        </p>
+    <section class="auth-gate" id="authGate" aria-labelledby="publicTitle">
+      <div class="auth-shell">
+        <header class="auth-story">
+          <a class="auth-wordmark" href="/" aria-label="SYNCHRON-X — начало">
+            <img src="/ai-core-mark.png" alt="" />
+            <span>
+              <strong>SYNCHRON-X</strong>
+              <small>AI CORE</small>
+            </span>
+          </a>
+          <p class="auth-kicker">ЛИЧНА AI ОПЕРАЦИОННА СИСТЕМА</p>
+          <h1 id="publicTitle">
+            Един AI център за разговори, памет и реална работа.
+          </h1>
+          <p class="auth-lead">
+            AI CORE подрежда контекста ти, запазва само позволеното и подготвя
+            действията, преди ти да ги одобриш.
+          </p>
+          <div class="auth-trust" aria-label="Основни принципи">
+            <span><i class="fa-solid fa-shield-halved"></i> Ти даваш правата</span>
+            <span><i class="fa-solid fa-brain"></i> Ти контролираш паметта</span>
+            <span><i class="fa-solid fa-check-double"></i> Ти одобряваш действията</span>
+          </div>
+          <p class="auth-stage">
+            Ранен достъп за малка група реални потребители.
+          </p>
+        </header>
 
-        <form id="loginForm" class="auth-form">
+        <div class="auth-card" id="authCard">
+          <p class="auth-card-kicker">СИГУРЕН ДОСТЪП</p>
+          <h2 id="authTitle">Вход в AI CORE</h2>
+          <p class="auth-intro" id="authIntro">
+            Продължи към личното си работно пространство.
+          </p>
+
+        <form
+          id="loginForm"
+          class="auth-form"
+          method="post"
+          action="/api/auth/login"
+        >
           <label for="loginEmail">Имейл</label>
           <input
             id="loginEmail"
@@ -69,10 +107,16 @@
           <button id="loginBtn" class="auth-primary" type="submit">Влез</button>
         </form>
 
-        <button id="showRegisterBtn" class="auth-link" type="button" hidden>
-          Създай профил
-        </button>
-        <form id="registerForm" class="auth-form" hidden>
+        <a id="showRegisterBtn" class="auth-link" href="/register">
+          Кандидатствай за ранен достъп
+        </a>
+        <form
+          id="registerForm"
+          class="auth-form"
+          method="post"
+          action="/api/auth/register"
+          hidden
+        >
           <label for="registerName">Име</label>
           <input
             id="registerName"
@@ -101,6 +145,20 @@
             maxlength="128"
             required
           />
+          <label for="registerInviteCode">Код за ранен достъп</label>
+          <input
+            id="registerInviteCode"
+            name="inviteCode"
+            type="password"
+            autocomplete="off"
+            minlength="8"
+            maxlength="128"
+            aria-describedby="registerInviteHelp"
+            required
+          />
+          <small id="registerInviteHelp" class="auth-field-help">
+            Получаваш кода лично от собственика на SYNCHRON-X.
+          </small>
           <button id="registerBtn" class="auth-primary" type="submit">
             Създай профил
           </button>
@@ -109,13 +167,47 @@
           </button>
         </form>
 
-        <p id="authMessage" class="auth-message" role="alert"></p>
-        <div class="auth-owner">
-          <span>Вход за собственика</span>
-          <a href="/api/github/connect">
-            <i class="fa-brands fa-github"></i>
-            Влез с GitHub
-          </a>
+          <p id="authMessage" class="auth-message" role="alert" aria-live="polite"></p>
+          <p class="auth-privacy">
+            Профилът, разговорите и паметта са отделени за всеки потребител.
+          </p>
+          <details class="auth-owner">
+            <summary>Вход за собственик</summary>
+            <a href="/api/github/connect">
+              <i class="fa-brands fa-github"></i>
+              Продължи с GitHub
+            </a>
+          </details>
+          <noscript>
+            <p class="auth-noscript">
+              За защитения вход и приложението е нужен JavaScript. Формите
+              никога не изпращат парола чрез адреса на страницата.
+            </p>
+          </noscript>
+        </div>
+
+        <div class="auth-features" aria-label="Какво предлага SYNCHRON-X">
+          <article>
+            <i class="fa-regular fa-message"></i>
+            <div>
+              <h2>Стабилен разговор</h2>
+              <p>Един AI CORE запазва контекста на работата ти.</p>
+            </div>
+          </article>
+          <article>
+            <i class="fa-solid fa-layer-group"></i>
+            <div>
+              <h2>Проекти с памет</h2>
+              <p>Цели, решения, файлове и следващи стъпки на едно място.</p>
+            </div>
+          </article>
+          <article>
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <div>
+              <h2>Действия с контрол</h2>
+              <p>AI предлага, ти одобряваш, системата изпълнява.</p>
+            </div>
+          </article>
         </div>
       </div>
     </section>
@@ -197,7 +289,7 @@
                 <i class="fa-solid fa-minus"></i>
               </button>
               <output id="fontSizeLabel" aria-live="polite">
-                Много едър · 48 px
+                Обикновен · 16 px
               </output>
               <button
                 id="fontSizeIncreaseBtn"
@@ -484,7 +576,7 @@
           <i class="fa-solid fa-brain"></i>
           <span>Памет</span>
         </button>
-        <button type="button" data-command="connections">
+        <button type="button" data-command="connections" data-owner-only>
           <i class="fa-solid fa-plug"></i>
           <span>Връзки</span>
         </button>

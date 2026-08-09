@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("the personal AI interface keeps chat primary and exposes four truthful mobile destinations", async () => {
+test("the personal AI interface keeps chat primary and makes owner mobile actions role-aware", async () => {
   const [html, css, script, server] = await Promise.all([
     readFile(new URL("../public/index.html", import.meta.url), "utf8"),
     readFile(new URL("../public/synchron-vision.css", import.meta.url), "utf8"),
@@ -17,13 +17,19 @@ test("the personal AI interface keeps chat primary and exposes four truthful mob
   assert.match(html, /data-command="chat"/u);
   assert.match(html, /data-command="memory"/u);
   assert.match(html, /data-command="connections"/u);
+  assert.match(
+    html,
+    /data-command="connections"[^>]*data-owner-only/u,
+  );
   assert.match(html, /data-command="status"/u);
   assert.doesNotMatch(html, /data-command="(?:work|tasks)"/u);
   assert.match(css, /\.mobile-command-bar/u);
-  assert.match(css, /repeat\(4, minmax\(0, 1fr\)\)/u);
+  assert.match(css, /repeat\(auto-fit, minmax\(0, 1fr\)\)/u);
+  assert.match(css, /\.mobile-command-bar button\[hidden\]/u);
   assert.match(css, /bottom:\s*calc\(70px \+ env\(safe-area-inset-bottom\)\)/u);
   assert.match(script, /forwardClick\("memoryBtn", "memory"\)/u);
   assert.match(script, /forwardClick\("workCenterBtn", "connections"\)/u);
+  assert.match(script, /!target \|\| target\.hidden/u);
   assert.match(script, /forwardClick\("profileStatusBtn", "status"\)/u);
   assert.match(script, /setAttribute\("aria-current", "page"\)/u);
 });

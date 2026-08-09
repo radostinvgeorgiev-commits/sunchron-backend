@@ -1,8 +1,10 @@
 import {
+  createHash,
   createCipheriv,
   createDecipheriv,
   randomBytes,
   scryptSync,
+  timingSafeEqual,
 } from "node:crypto";
 import { resolveTesterAuthConnection } from "../config/testerAuthBootstrap.js";
 import {
@@ -61,7 +63,27 @@ export function isTesterRegistrationEnabled(env = process.env) {
 }
 
 export function isUserRegistrationEnabled(env = process.env) {
-  return isUserAuthConfigured(env);
+  return isUserAuthConfigured(env) && isTesterRegistrationEnabled(env);
+}
+
+function assertTesterInviteCode(value, env = process.env) {
+  const expected = getTesterInviteCode(env);
+  if (expected.length < 8) {
+    throw new UserAuthError(
+      "Регистрацията за нови профили временно е затворена.",
+      503,
+      "AUTH_REGISTRATION_CLOSED",
+    );
+  }
+  const supplied = typeof value === "string" ? value.trim() : "";
+  const digest = (input) => createHash("sha256").update(input).digest();
+  if (!timingSafeEqual(digest(supplied), digest(expected))) {
+    throw new UserAuthError(
+      "Кодът за ранен достъп е невалиден.",
+      403,
+      "AUTH_INVITE_INVALID",
+    );
+  }
 }
 
 function requireAuthConfig(env = process.env) {
@@ -396,13 +418,14 @@ export async function signInUser(
 }
 
 export async function registerUser(
-  { email, password, displayName },
+  { email, password, displayName, inviteCode },
   { env = process.env, client, approveAccess = approveTesterAccess } = {},
 ) {
   const cleanCredentials = {
     email: cleanEmail(email),
     password: cleanPassword(password),
   };
+  assertTesterInviteCode(inviteCode, env);
   const authClient = client || createAuthClient(env);
 
   let { data, error } = await authClient.auth.signUp({

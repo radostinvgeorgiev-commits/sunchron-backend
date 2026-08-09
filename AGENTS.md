@@ -35,9 +35,10 @@ AI аватарът е интерфейсът на SYNCHRON-X — лицето, 
 - приложението е Node.js/Express;
 - клиентът е в `public`;
 - чат маршрутът е в `src/routes/chat.js`;
-- OpenAI Responses API е разговорният доставчик по подразбиране; Gemini и Grok
-  от xAI са опционални директни адаптери с изрична конфигурация. Старият
-  DigitalOcean Agent е премахнат и не се използва като резервен;
+- OpenAI Responses API е разговорният доставчик по подразбиране; Gemini, Grok
+  от xAI и Anthropic са опционални директни адаптери с изрична конфигурация и
+  без автоматичен fallback. Старият DigitalOcean Agent е премахнат и не се
+  използва като резервен;
 - OpenSearch се използва/предвижда за постоянната памет;
 - Cloudflare обслужва домейна;
 - `Tool Registry` и `Capability Engine` са добавени;

@@ -132,7 +132,7 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general(
       "ANTHROPIC_MODEL",
       "AI ядро",
-      "Модел за Claude разговори от Anthropic.",
+      "Заключен поддържан модел за Anthropic разговори: claude-sonnet-5.",
       { hasDefault: true },
     ),
     general(

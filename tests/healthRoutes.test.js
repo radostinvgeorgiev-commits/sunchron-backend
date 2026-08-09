@@ -215,6 +215,26 @@ test("backup health exposes status without counts, dates or resource ids", async
   );
 });
 
+test("backup health turns a stalled loader into a safe 503 response", async () => {
+  const app = express();
+  app.get(
+    "/health/backups",
+    createStorageBackupsHandler({
+      timeoutMs: 5,
+      loadStatus: () => new Promise(() => {}),
+    }),
+  );
+
+  const response = await request(app).get("/health/backups").expect(503);
+  assert.equal(response.headers["cache-control"], "no-store, max-age=0");
+  assert.equal(response.body.status, "unavailable");
+  assert.equal(
+    response.body.checks.opensearch.errorCode,
+    "STORAGE_BACKUP_REPORT_FAILED",
+  );
+  assert.equal(response.body.checks.opensearch.provesRestore, false);
+});
+
 test("storage report keeps partial evidence readable without changing health semantics", async () => {
   const app = express();
   app.get(

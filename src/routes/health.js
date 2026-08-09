@@ -29,6 +29,7 @@ import { listTools, registerCoreTools } from "../tools/toolRegistry.js";
 
 const router = express.Router();
 const DEFAULT_READINESS_TIMEOUT_MS = 2_000;
+const DEFAULT_BACKUP_ROUTE_TIMEOUT_MS = 10_000;
 const DEFAULT_OPENSEARCH_BACKUP_MAX_AGE_HOURS = 48;
 const MAX_VERIFIED_BACKUP_CACHE_TTL_MS = 6 * 60 * 60_000;
 const FAILED_BACKUP_CACHE_TTL_MS = 15_000;
@@ -89,10 +90,10 @@ export function resolveStorageBackupCacheTtlMs(
   );
 }
 
-async function withTimeout(promise, timeoutMs) {
+async function withTimeout(promise, timeoutMs, code = "READINESS_TIMEOUT") {
   let timer;
   const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error("READINESS_TIMEOUT")), timeoutMs);
+    timer = setTimeout(() => reject(new Error(code)), timeoutMs);
   });
 
   try {
@@ -217,10 +218,20 @@ function publicBackupStatus(report) {
 
 export function createStorageBackupsHandler({
   loadStatus = loadStorageBackups,
+  timeoutMs = DEFAULT_BACKUP_ROUTE_TIMEOUT_MS,
 } = {}) {
   return async function storageBackupsHandler(_req, res) {
     setPrivateHealthHeaders(res);
-    const report = await loadStatus();
+    let report;
+    try {
+      report = await withTimeout(
+        loadStatus(),
+        timeoutMs,
+        "BACKUP_HEALTH_TIMEOUT",
+      );
+    } catch {
+      report = unavailableBackupReport();
+    }
     const result = publicBackupStatus(report);
     res.status(result.status === "verified" ? 200 : 503).json(result);
   };

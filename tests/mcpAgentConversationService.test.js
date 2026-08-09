@@ -121,6 +121,54 @@ test("MCP agent conversation forwards the explicit Anthropic model", async () =>
   assert.equal(result.response, "Anthropic маршрутът е избран.");
 });
 
+test("MCP agent conversation aborts a timed-out provider without persisting", async () => {
+  let observedSignal;
+  let scheduledDelay;
+  let cancelledHandle;
+  let saveCalls = 0;
+
+  await assert.rejects(
+    () =>
+      sendMcpAgentMessage(
+        { ownerId: "primary-user", message: "Изчакай Claude" },
+        {
+          loadWorkspace: async () => workspace("ai-core", "claude-sonnet-5"),
+          listMemories: async () => [],
+          listMessages: async () => [],
+          askAi: async ({ signal }) => {
+            observedSignal = signal;
+            assert.equal(signal.aborted, true);
+            const error = new Error("upstream aborted");
+            error.name = "AbortError";
+            throw error;
+          },
+          saveTurn: async () => {
+            saveCalls += 1;
+          },
+          createSessionId: () => "mcp-timeout-session",
+          getProviderTimeoutMs: (provider) => {
+            assert.equal(provider, "anthropic");
+            return 37;
+          },
+          scheduleTimeout: (callback, delay) => {
+            scheduledDelay = delay;
+            callback();
+            return "mcp-timeout-handle";
+          },
+          cancelTimeout: (handle) => {
+            cancelledHandle = handle;
+          },
+        },
+      ),
+    (error) => error?.name === "AbortError",
+  );
+
+  assert.equal(observedSignal.aborted, true);
+  assert.equal(scheduledDelay, 37);
+  assert.equal(cancelledHandle, "mcp-timeout-handle");
+  assert.equal(saveCalls, 0);
+});
+
 test("MCP agent conversation creates a new safe session when none is supplied", async () => {
   const result = await sendMcpAgentMessage(
     { ownerId: "member-1", message: "Здравей" },

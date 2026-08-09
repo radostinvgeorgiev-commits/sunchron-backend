@@ -33,6 +33,7 @@ test("Cloud Run template uses liveness without dependency-heavy readiness", asyn
   assert.match(template, /__GCP_PROJECT_ID__/u);
   assert.match(template, /__GCP_PROJECT_NUMBER__/u);
   assert.match(template, /containerPort: 8080/u);
+  assert.doesNotMatch(template, /name: PORT/u);
   assert.match(template, /name: MEMORY_BACKEND\s+value: firestore/u);
   assert.match(template, /name: PERSISTENCE_BACKEND\s+value: firestore/u);
   assert.match(template, /name: FIRESTORE_DATABASE_ID\s+value: "\(default\)"/u);

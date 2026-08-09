@@ -1,8 +1,8 @@
 # SYNCHRON-X — Google Cloud configuration catalog и migration gates
 
 Този документ е planning-only граница за бъдещ Cloud Run migration. Той не
-доказва създаден Google Cloud ресурс, не добавя secret и не променя текущия
-production deployment.
+доказва създаден Google Cloud ресурс, няма secret стойност и не променя
+текущия production deployment.
 
 ## Текуща authoritative граница
 
@@ -12,7 +12,8 @@ production deployment.
 - Съществуващият `GOOGLE_CLIENT_*` поток е Google OAuth за Drive/Calendar/Gmail,
   а не Identity Platform migration.
 - Firestore, Identity Platform и Vertex AI са planning-only. Няма runtime
-  adapter, data import, user import или provider selection в този слой.
+  adapter, data import, data migration, user import или provider selection в този
+  слой.
 - Cloud Run template-ът е нарочно непълен: има placeholders и няма secret
   references, IAM binding, public invoker или DNS промяна.
 

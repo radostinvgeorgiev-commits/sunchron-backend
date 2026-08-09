@@ -128,6 +128,27 @@ test("unrelated integration secrets cannot satisfy tester auth requirements", ()
   assert.equal(invite.status, "optional-missing");
 });
 
+test("Identity Platform inventory follows the selected backend and Google project fallback", () => {
+  const inventory = buildEnvironmentInventory({
+    env: {
+      AUTH_BACKEND: "identity-platform",
+      GOOGLE_CLOUD_PROJECT: "handy-boulevard-479120-q9",
+      IDENTITY_PLATFORM_API_KEY: "identity-api-key-1234567890",
+      USER_SESSION_ENCRYPTION_KEY:
+        "identity-session-encryption-key-with-enough-entropy",
+    },
+  });
+  const byKey = (key) => inventory.find((item) => item.key === key);
+
+  assert.equal(
+    byKey("IDENTITY_PLATFORM_PROJECT_ID").status,
+    "protected-fallback",
+  );
+  assert.equal(byKey("IDENTITY_PLATFORM_API_KEY").status, "configured");
+  assert.equal(byKey("USER_SESSION_ENCRYPTION_KEY").status, "configured");
+  assert.equal(byKey("SUPABASE_SESSION_ENCRYPTION_KEY").status, "not-needed");
+});
+
 test("production readiness keeps only safe proof fields", async () => {
   const report = await getProductionReadinessStatus({
     fetchImpl: async () => ({

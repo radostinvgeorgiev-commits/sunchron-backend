@@ -12,7 +12,8 @@ SYNCHRON-X обединява:
 
 - стабилен AI разговор;
 - контролиран личен и проектен контекст;
-- постоянна памет в OpenSearch;
+- постоянна памет чрез избираем server-side adapter; production още е
+  OpenSearch, а Google staging кандидатът е Firestore;
 - AI аватар като слой за общуване;
 - разрешени инструменти за реални задачи;
 - потвърждение преди рискови действия.
@@ -32,7 +33,9 @@ DigitalOcean App Platform хоства приложението, но не е р
 ## Конфигурация
 
 Имената на нужните променливи са в `.env.example`. Реалните ключове се пазят
-само като криптирани променливи в DigitalOcean и не се записват в GitHub.
+само в управляваните secret хранилища на активната среда — DigitalOcean за
+текущия production и Secret Manager за Google staging — и не се записват в
+GitHub.
 
 Безопасният статус на връзките е достъпен на:
 
@@ -64,5 +67,7 @@ npm test
 документ не означава внедрена или работеща production интеграция.
 
 Google Cloud migration се изпълнява поетапно, без да променя текущия production
-канал преди отделен cutover. Каталогът, Cloud Run health contract-ът и migration gates са в
+канал преди отделен cutover. Firestore и Identity Platform имат отделни
+server-side adapter кандидати; това още не е data/user migration. Каталогът,
+Cloud Run health contract-ът и migration gates са в
 [`docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md`](docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md).

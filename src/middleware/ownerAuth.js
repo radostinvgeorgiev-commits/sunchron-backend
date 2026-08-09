@@ -60,7 +60,7 @@ export async function resolveRequestIdentity(
       email: userSession.user.email,
       displayName: userSession.user.displayName,
       role: userSession.user.role,
-      authProvider: "supabase",
+      authProvider: userSession.user.authProvider || "supabase",
       memoryOwnerId: userSession.user.memoryOwnerId,
     };
   }

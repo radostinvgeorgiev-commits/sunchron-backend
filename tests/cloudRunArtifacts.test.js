@@ -35,12 +35,19 @@ test("Cloud Run template uses liveness without dependency-heavy readiness", asyn
   assert.match(template, /name: MEMORY_BACKEND\s+value: firestore/u);
   assert.match(template, /name: PERSISTENCE_BACKEND\s+value: firestore/u);
   assert.match(template, /name: FIRESTORE_DATABASE_ID\s+value: "\(default\)"/u);
+  assert.match(template, /name: AUTH_BACKEND\s+value: identity-platform/u);
+  assert.match(template, /name: IDENTITY_PLATFORM_PROJECT_ID/u);
+  assert.match(
+    template,
+    /name: IDENTITY_PLATFORM_REQUIRE_EMAIL_VERIFICATION\s+value: "true"/u,
+  );
+  assert.match(template, /__IDENTITY_PLATFORM_API_KEY_SECRET__/u);
+  assert.match(template, /__USER_SESSION_ENCRYPTION_KEY_SECRET__/u);
   assert.equal((template.match(/path: \/health/gu) || []).length, 2);
   assert.match(template, /startupProbe:/u);
   assert.match(template, /livenessProbe:/u);
   assert.doesNotMatch(template, /readinessProbe:/u);
-  assert.doesNotMatch(template, /valueFrom:/u);
-  assert.doesNotMatch(template, /secretKeyRef:/u);
+  assert.equal((template.match(/secretKeyRef:/gu) || []).length, 2);
   assert.doesNotMatch(template, /gcloud\s+(run|secrets)/iu);
 });
 

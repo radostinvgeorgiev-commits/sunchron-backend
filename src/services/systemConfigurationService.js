@@ -2,6 +2,7 @@ import { getEnvironmentCatalog } from "../config/environmentCatalog.js";
 import { getDigitalOceanAppStatus } from "./digitalOceanService.js";
 import {
   getUserAuthConfigurationStatus,
+  getUserAuthProvider,
   isTesterRegistrationEnabled,
 } from "./userAuthService.js";
 
@@ -16,9 +17,10 @@ function statusFor(
   runtimeConfigured,
   digitalOceanDeclared,
   protectedFallback,
+  requiredForSelectedAuth,
 ) {
   if (item.state === "unused") return "unused";
-  if (item.state === "compatibility") {
+  if (item.state === "compatibility" && !requiredForSelectedAuth) {
     return runtimeConfigured || digitalOceanDeclared
       ? "compatibility"
       : "not-needed";
@@ -26,7 +28,7 @@ function statusFor(
   if (runtimeConfigured) return "configured";
   if (protectedFallback) return "protected-fallback";
   if (item.managed || item.hasDefault) return "defaulted";
-  if (item.requiredNow) return "missing-required";
+  if (item.requiredNow || requiredForSelectedAuth) return "missing-required";
   return "optional-missing";
 }
 
@@ -34,9 +36,33 @@ export function buildEnvironmentInventory({
   env = process.env,
   digitalOceanVariables = [],
 } = {}) {
+  const authProvider = getUserAuthProvider(env);
+  const requiredAuthKeys = new Set(
+    authProvider === "identity-platform"
+      ? [
+          "IDENTITY_PLATFORM_PROJECT_ID",
+          "IDENTITY_PLATFORM_API_KEY",
+          "USER_SESSION_ENCRYPTION_KEY",
+        ]
+      : [
+          "SUPABASE_URL",
+          "SUPABASE_PUBLISHABLE_KEY",
+          "SUPABASE_SESSION_ENCRYPTION_KEY",
+        ],
+  );
   const protectedFallbacks = new Set();
+  if (
+    authProvider === "identity-platform" &&
+    !isConfigured(env, "IDENTITY_PLATFORM_PROJECT_ID") &&
+    (isConfigured(env, "GOOGLE_CLOUD_PROJECT") ||
+      isConfigured(env, "GCLOUD_PROJECT") ||
+      isConfigured(env, "GCP_PROJECT_ID"))
+  ) {
+    protectedFallbacks.add("IDENTITY_PLATFORM_PROJECT_ID");
+  }
   if (getUserAuthConfigurationStatus(env).sessionProtection) {
     protectedFallbacks.add("SUPABASE_SESSION_ENCRYPTION_KEY");
+    protectedFallbacks.add("USER_SESSION_ENCRYPTION_KEY");
   }
   if (isTesterRegistrationEnabled(env)) {
     protectedFallbacks.add("SYNCHRON_TEST_INVITE_CODE");
@@ -67,6 +93,7 @@ export function buildEnvironmentInventory({
         runtimeConfigured,
         digitalOceanDeclared,
         protectedFallback,
+        requiredAuthKeys.has(item.key),
       ),
     });
   });

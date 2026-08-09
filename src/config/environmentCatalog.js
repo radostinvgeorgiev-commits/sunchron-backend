@@ -167,6 +167,12 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       { hasDefault: true },
     ),
     general(
+      "FIRESTORE_TESTER_ACCESS_COLLECTION",
+      "Памет",
+      "Firestore колекция за одобрените тестови профили.",
+      { hasDefault: true },
+    ),
+    general(
       "FIRESTORE_REQUEST_TIMEOUT_MS",
       "Памет",
       "Максимално време за Firestore REST заявка.",
@@ -252,22 +258,62 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     ),
 
     general(
+      "AUTH_BACKEND",
+      "Тестови профили",
+      "Активен auth adapter: supabase или identity-platform.",
+      { hasDefault: true },
+    ),
+    general(
+      "IDENTITY_PLATFORM_PROJECT_ID",
+      "Тестови профили",
+      "Google Cloud project ID за Identity Platform.",
+      { hasProtectedFallback: true },
+    ),
+    secret(
+      "IDENTITY_PLATFORM_API_KEY",
+      "Тестови профили",
+      "Ограничен API ключ за Identity Platform REST заявките.",
+    ),
+    general(
+      "IDENTITY_PLATFORM_TIMEOUT_MS",
+      "Тестови профили",
+      "Максимално време за Identity Platform заявка.",
+      { hasDefault: true },
+    ),
+    general(
+      "IDENTITY_PLATFORM_REQUIRE_EMAIL_VERIFICATION",
+      "Тестови профили",
+      "Изисква потвърден имейл преди Identity Platform вход.",
+      { hasDefault: true },
+    ),
+    secret(
+      "USER_SESSION_ENCRYPTION_KEY",
+      "Тестови профили",
+      "Криптира потребителските сесии независимо от auth доставчика.",
+      { hasProtectedFallback: true },
+    ),
+    general(
+      "SYNCHRON_PRIMARY_USER_ID",
+      "Тестови профили",
+      "Свързва един потребител от активния auth доставчик с основния собственик.",
+    ),
+    general(
       "SUPABASE_URL",
       "Тестови профили",
-      "Адрес на Supabase Auth проекта.",
-      { requiredNow: true },
+      "Legacy адрес на Supabase Auth проекта.",
+      { state: "compatibility" },
     ),
     general(
       "SUPABASE_PUBLISHABLE_KEY",
       "Тестови профили",
-      "Публичен ключ за Supabase Auth.",
-      { requiredNow: true },
+      "Legacy публичен ключ за Supabase Auth.",
+      { state: "compatibility" },
     ),
     secret(
       "SUPABASE_SESSION_ENCRYPTION_KEY",
       "Тестови профили",
-      "Криптира Supabase сесиите в браузъра.",
-      { requiredNow: true },
+      "Legacy ключ за Supabase сесиите в браузъра.",
+      { state: "compatibility", hasProtectedFallback: true },
     ),
     secret(
       "SYNCHRON_TEST_INVITE_CODE",
@@ -278,6 +324,7 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "SYNCHRON_PRIMARY_SUPABASE_USER_ID",
       "Тестови профили",
       "Незадължително свързва един Supabase профил с основния собственик.",
+      { state: "compatibility" },
     ),
     general(
       "SUPABASE_TIMEOUT_MS",

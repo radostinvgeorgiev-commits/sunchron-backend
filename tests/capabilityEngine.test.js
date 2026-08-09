@@ -477,4 +477,10 @@ test("изпълнява интернет търсене през OpenAI инс�
     else process.env.OPENAI_API_KEY = originalKey;
   }
 });
-
+[31;1mMethodException: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m … yEngine.test.js'; [36;1m$c=$c.Replace(([char]13+[char]10),[char]10)[0m; [Conso …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot convert argument "oldChar", with value: "[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m", for "Replace" to type "System.Char": "Cannot convert value "[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m" to type "System.Char". Error: "String must be exactly one character long.""[0m

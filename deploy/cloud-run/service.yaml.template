@@ -7,8 +7,8 @@ metadata:
   annotations:
     run.googleapis.com/ingress: all
   labels:
-    app.kubernetes.io/name: synchron-backend
-    synchron.foundation/migration-stage: foundation-only
+    app: synchron-backend
+    synchron-migration-stage: foundation-only
 spec:
   template:
     metadata:
@@ -19,7 +19,7 @@ spec:
         run.googleapis.com/cpu-throttling: "true"
         run.googleapis.com/secrets: "openai-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__OPENAI_API_KEY_SECRET__,identity-platform-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__IDENTITY_PLATFORM_API_KEY_SECRET__,user-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__USER_SESSION_ENCRYPTION_KEY_SECRET__,github-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GITHUB_SESSION_ENCRYPTION_KEY_SECRET__,google-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GOOGLE_SESSION_ENCRYPTION_KEY_SECRET__,tester-invite-code:projects/__GCP_PROJECT_NUMBER__/secrets/__SYNCHRON_TEST_INVITE_CODE_SECRET__,mcp-access-token:projects/__GCP_PROJECT_NUMBER__/secrets/__MCP_ACCESS_TOKEN_SECRET__,mcp-oauth-secret:projects/__GCP_PROJECT_NUMBER__/secrets/__MCP_OAUTH_SECRET_NAME__"
       labels:
-        app.kubernetes.io/name: synchron-backend
+        app: synchron-backend
     spec:
       serviceAccountName: "__CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT__"
       containerConcurrency: 20

@@ -52,6 +52,8 @@ test("Cloud Run template uses liveness without dependency-heavy readiness", asyn
   assert.match(template, /__USER_SESSION_ENCRYPTION_KEY_SECRET__/u);
   assert.match(template, /run\.googleapis\.com\/secrets:/u);
   assert.match(template, /run\.googleapis\.com\/ingress: all/u);
+  assert.match(template, /synchron-migration-stage: foundation-only/u);
+  assert.doesNotMatch(template, /app\.kubernetes\.io|synchron\.foundation\//u);
   assert.match(template, /autoscaling\.knative\.dev\/minScale: "0"/u);
   assert.match(template, /autoscaling\.knative\.dev\/maxScale: "2"/u);
   assert.equal((template.match(/path: \/health/gu) || []).length, 2);

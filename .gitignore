@@ -2,6 +2,8 @@ node_modules/
 .env
 deploy/cloud-run/staging.config.json
 deploy/cloud-run/staging.rendered.yaml
+*.migration-map.json
+migration-private/
 runtime-build-info.json
 *.log
 services/logic-core/venv/

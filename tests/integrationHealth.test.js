@@ -175,7 +175,8 @@ test("removed DigitalOcean AI Agent is not required by production configuration"
 
   assert.doesNotMatch(appSpec, /key:\s*AGENT_(?:URL|KEY)/u);
   assert.doesNotMatch(server, /if\s*\(!process\.env\.AGENT_KEY\)/u);
-  assert.match(server, /if\s*\(!process\.env\.OPENAI_API_KEY\)/u);
+  assert.match(server, /if\s*\(!isAiCoreConfigured\(\)\)/u);
+  assert.match(server, /selected AI CORE provider is not configured/u);
   assert.doesNotMatch(identity, /DigitalOcean Agent е резервният AI/u);
   assert.match(identity, /DigitalOcean Agent е премахнат/u);
   assert.doesNotMatch(envExample, /^AGENT_(?:URL|KEY)=/mu);

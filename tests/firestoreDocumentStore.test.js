@@ -149,6 +149,44 @@ test("Firestore commit is bounded and supports atomic set plus delete", async ()
   assert.match(body.writes[1].delete, /\/memory\/legacy-id$/u);
 });
 
+test("Firestore keeps document resource names raw and URL-encodes provider-prefixed ids only for GET", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    if (String(url).includes("metadata.google.internal")) {
+      return jsonResponse({ access_token: "runtime-token", expires_in: 3600 });
+    }
+    if (String(url).endsWith("documents:commit")) {
+      return jsonResponse({ writeResults: [{}] });
+    }
+    return jsonResponse({
+      name: `${ENV.GOOGLE_CLOUD_PROJECT}/databases/(default)/documents/access/identity-platform:user-a`,
+      fields: encodeFirestoreFields({ status: "approved" }),
+    });
+  };
+  const store = createFirestoreDocumentStore({ env: ENV, fetchImpl });
+
+  await store.set("access", "identity-platform:user-a", {
+    status: "approved",
+  });
+  const document = await store.get("access", "identity-platform:user-a");
+
+  const commitCall = calls.find(({ url }) => url.endsWith("documents:commit"));
+  const commitBody = JSON.parse(commitCall.options.body);
+  assert.match(
+    commitBody.writes[0].update.name,
+    /\/access\/identity-platform:user-a$/u,
+  );
+  const getCall = calls.find(({ url }) =>
+    url.endsWith("/access/identity-platform%3Auser-a"),
+  );
+  assert.ok(getCall);
+  assert.deepEqual(document, {
+    id: "identity-platform:user-a",
+    data: { status: "approved" },
+  });
+});
+
 test("Firestore exposes opt-in version metadata and applies range plus updateTime preconditions", async () => {
   const calls = [];
   const updateTime = "2026-08-10T10:11:12.123456Z";

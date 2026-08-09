@@ -71,6 +71,7 @@ const CONVERSATION_ANNOTATIONS = Object.freeze({
   idempotentHint: false,
 });
 const SAFE_MCP_ERROR_NAMES = new Set([
+  "CloudflareError",
   "GitHubActionError",
   "GitHubServiceError",
   "GoogleActionError",

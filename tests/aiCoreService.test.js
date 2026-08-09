@@ -272,7 +272,7 @@ test("Anthropic Messages maps system context and returns only text blocks", asyn
       { role: "user", content: "Провери системата." },
     ],
     maxTokens: 2_048,
-    effort: "low",
+    effort: "xhigh",
     fetchImpl: async (url, options) => {
       assert.equal(url, "https://api.anthropic.com/v1/messages");
       assert.equal(options.headers["x-api-key"], "test-anthropic-key");
@@ -287,7 +287,7 @@ test("Anthropic Messages maps system context and returns only text blocks", asyn
           { role: "assistant", content: "Здравей!" },
           { role: "user", content: "Провери системата." },
         ],
-        output_config: { effort: "low" },
+        output_config: { effort: "xhigh" },
         service_tier: "standard_only",
         stream: false,
       });
@@ -333,6 +333,24 @@ test("Anthropic Messages maps system context and returns only text blocks", asyn
       thinkingTokens: 1,
     },
   });
+});
+
+test("Anthropic rejects unsupported model before sending data", async () => {
+  let called = false;
+  await assert.rejects(
+    requestAnthropicResponse({
+      apiKey: "test-anthropic-key",
+      model: "claude-unsupported",
+      input: [{ role: "user", content: "Не изпращай" }],
+      fetchImpl: async () => {
+        called = true;
+      },
+    }),
+    (error) =>
+      error?.code === "ANTHROPIC_MODEL_UNSUPPORTED" &&
+      error?.status === 503,
+  );
+  assert.equal(called, false);
 });
 
 test("Anthropic fails closed without a key or a complete response", async () => {

@@ -6,9 +6,12 @@ import {
   listProfileMemories,
   saveConversationTurn,
 } from "./memoryService.js";
-import { requestOpenAIText } from "./aiCoreService.js";
+import { requestAiText } from "./aiCoreService.js";
 import { loadWorkspaceState } from "./workspaceStateService.js";
-import { resolveWorkAgentModel } from "./workModeService.js";
+import {
+  resolveWorkAgentModel,
+  resolveWorkAgentProvider,
+} from "./workModeService.js";
 
 const MAX_MESSAGE_LENGTH = 6_000;
 const MAX_SESSION_QUESTIONS = 10;
@@ -96,7 +99,7 @@ export async function sendMcpAgentMessage(
     loadWorkspace = loadWorkspaceState,
     listMemories = listProfileMemories,
     listMessages = listConversationMessages,
-    askAi = requestOpenAIText,
+    askAi = requestAiText,
     saveTurn = saveConversationTurn,
     createSessionId = () => `mcp-${randomUUID()}`,
   } = {},
@@ -147,6 +150,7 @@ export async function sendMcpAgentMessage(
       : item,
   );
   const response = await askAi({
+    provider: resolveWorkAgentProvider(agent.model),
     input,
     model: resolveWorkAgentModel(agent.model),
     reasoningEffort: "low",

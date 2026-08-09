@@ -24,6 +24,12 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "Разговор, планиране, търсене и анализ.",
       { requiredNow: true },
     ),
+    general(
+      "AI_CORE_PROVIDER",
+      "AI ядро",
+      "Разговорен доставчик: openai, gemini или grok. По подразбиране е openai.",
+      { hasDefault: true },
+    ),
     general("OPENAI_CHAT_MODEL", "AI ядро", "Модел за основния разговор.", {
       hasDefault: true,
     }),
@@ -71,6 +77,52 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "AI ядро",
       "Незадължителен адрес само за стария анализ на изображения.",
       { hasDefault: true, state: "compatibility" },
+    ),
+    secret(
+      "GEMINI_API_KEY",
+      "AI ядро",
+      "Незадължителен ключ за Gemini разговори.",
+    ),
+    general(
+      "GEMINI_MODEL",
+      "AI ядро",
+      "Модел за Gemini разговори.",
+      { hasDefault: true },
+    ),
+    general(
+      "GEMINI_API_URL",
+      "AI ядро",
+      "Незадължителен базов адрес за Gemini API.",
+      { hasDefault: true },
+    ),
+    general(
+      "GEMINI_TIMEOUT_MS",
+      "AI ядро",
+      "Максимално време за Gemini разговор.",
+      { hasDefault: true },
+    ),
+    secret(
+      "GROK_API_KEY",
+      "AI ядро",
+      "Незадължителен ключ за Grok разговори от xAI.",
+    ),
+    general(
+      "GROK_MODEL",
+      "AI ядро",
+      "Модел за Grok разговори от xAI.",
+      { hasDefault: true },
+    ),
+    general(
+      "GROK_API_URL",
+      "AI ядро",
+      "Незадължителен адрес за xAI Chat Completions API.",
+      { hasDefault: true },
+    ),
+    general(
+      "GROK_TIMEOUT_MS",
+      "AI ядро",
+      "Максимално време за Grok разговор.",
+      { hasDefault: true },
     ),
 
     secret(

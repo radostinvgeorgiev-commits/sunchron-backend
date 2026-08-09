@@ -10,6 +10,7 @@ import {
   listWorkAgentEngines,
   listWorkAgentRoles,
   normalizeInteractionMode,
+  resolveWorkAgentProvider,
   resolveWorkAgentModel,
   routeSelectedWorkAgentCapabilities,
   sanitizeWorkContext,
@@ -89,10 +90,23 @@ test("work prompt keeps user context below permissions and real execution", () =
 test("the available personal-agent models are explicit and server-owned", () => {
   assert.deepEqual(
     listWorkAgentModels().map(({ id }) => id),
-    ["auto", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"],
+    [
+      "auto",
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "gemini-2.5-flash",
+      "grok-3-mini",
+    ],
   );
   assert.equal(resolveWorkAgentModel("gpt-5.6-sol"), "gpt-5.6-sol");
   assert.equal(resolveWorkAgentModel("gpt-5.6-terra"), "gpt-5.6-terra");
+  assert.equal(resolveWorkAgentModel("gemini-2.5-flash"), "gemini-2.5-flash");
+  assert.equal(resolveWorkAgentModel("grok-3-mini"), "grok-3-mini");
+  assert.equal(resolveWorkAgentProvider("gpt-5.6-sol"), "openai");
+  assert.equal(resolveWorkAgentProvider("gemini-2.5-flash"), "gemini");
+  assert.equal(resolveWorkAgentProvider("grok-3-mini"), "grok");
+  assert.equal(resolveWorkAgentProvider("auto"), undefined);
   assert.equal(resolveWorkAgentModel("unknown"), undefined);
   assert.equal(resolveWorkAgentModel("auto"), undefined);
 });

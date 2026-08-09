@@ -10,8 +10,11 @@ production проверките винаги се установяват по
 
 - Сайтът се публикува от `main` чрез DigitalOcean App Platform; Cloudflare
   обслужва DNS и edge proxy, без отделен Cloudflare Tunnel.
-- Разговорният AI използва само OpenAI Responses API. DigitalOcean е hosting,
-  а не резервен разговорен AI доставчик.
+- Разговорният AI използва OpenAI Responses API по подразбиране. Gemini и Grok
+  от xAI са добавени като опционални адаптери, но production използването им
+  остава непотвърдено, докато не бъдат добавени secrets и не се изпълни реален
+  provider smoke тест. DigitalOcean е hosting, а не резервен разговорен AI
+  доставчик.
 - `/health` и `/health/ready` проверяват текущата версия и readiness.
 - OpenSearch cluster health е зелен, а production memory acceptance изпълнява
   9 от 9 изолирани стъпки, почиства тестовите данни и не променя личната памет.

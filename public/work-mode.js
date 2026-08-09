@@ -56,6 +56,8 @@
     "gpt-5.6-sol": "GPT-5.6 Sol · най-високо качество",
     "gpt-5.6-terra": "GPT-5.6 Terra · балансиран",
     "gpt-5.6-luna": "GPT-5.6 Luna · бърз",
+    "gemini-2.5-flash": "Gemini 2.5 Flash",
+    "grok-3-mini": "Grok 3 Mini · xAI",
   });
   const PROJECT_TOOL_OPTIONS = Object.freeze([
     Object.freeze({ id: "synchron-agent-chat", label: "AI разговор" }),

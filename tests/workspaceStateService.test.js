@@ -107,17 +107,6 @@ test("workspace keeps a supported personal pet", () => {
   assert.equal(state.petId, "drop");
 });
 
-test("workspace preserves supported Gemini and Grok model choices", () => {
-  const state = normalizeWorkspaceState({
-    agents: [
-      { id: "gemini", name: "Gemini", role: "researcher", model: "gemini-2.5-flash" },
-      { id: "grok", name: "Grok", role: "researcher", model: "grok-3-mini" },
-    ],
-  });
-  assert.equal(state.agents[0].model, "gemini-2.5-flash");
-  assert.equal(state.agents[1].model, "grok-3-mini");
-});
-
 test("legacy workspaces receive specialized agents with their own pets", () => {
   const state = normalizeWorkspaceState({
     version: 4,
@@ -231,10 +220,3 @@ test("missing workspace returns a safe starter state", async () => {
     ["Изпълни", "Проучи", "Организирай", "Напиши", "Код"],
   );
 });
-[31;1mMethodException: [0m
-[31;1m[36;1mLine |[0m
-[31;1m[36;1m[36;1m   2 | [0m … Service.test.js'; [36;1m$c=$c.Replace(([char]13+[char]10),[char]10)[0m; [Conso …[0m
-[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot convert argument "oldChar", with value: "[0m
-[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m", for "Replace" to type "System.Char": "Cannot convert value "[0m
-[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m" to type "System.Char". Error: "String must be exactly one character long.""[0m

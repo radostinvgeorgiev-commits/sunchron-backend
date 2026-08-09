@@ -27,7 +27,7 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general(
       "AI_CORE_PROVIDER",
       "AI ядро",
-      "Разговорен доставчик: openai, gemini или grok. По подразбиране е openai.",
+      "Разговорен доставчик: openai, gemini, grok или anthropic. По подразбиране е openai.",
       { hasDefault: true },
     ),
     general("OPENAI_CHAT_MODEL", "AI ядро", "Модел за основния разговор.", {
@@ -122,6 +122,35 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "GROK_TIMEOUT_MS",
       "AI ядро",
       "Максимално време за Grok разговор.",
+      { hasDefault: true },
+    ),
+    secret(
+      "ANTHROPIC_API_KEY",
+      "AI ядро",
+      "Незадължителен ключ за Claude разговори от Anthropic.",
+    ),
+    general(
+      "ANTHROPIC_MODEL",
+      "AI ядро",
+      "Модел за Claude разговори от Anthropic.",
+      { hasDefault: true },
+    ),
+    general(
+      "ANTHROPIC_TIMEOUT_MS",
+      "AI ядро",
+      "Максимално време за Anthropic разговор.",
+      { hasDefault: true },
+    ),
+    general(
+      "ANTHROPIC_MAX_TOKENS",
+      "AI ядро",
+      "Твърд таван на изходните токени за Anthropic.",
+      { hasDefault: true },
+    ),
+    general(
+      "ANTHROPIC_EFFORT",
+      "AI ядро",
+      "Ниво на усилие за Anthropic: low, medium, high или max.",
       { hasDefault: true },
     ),
 

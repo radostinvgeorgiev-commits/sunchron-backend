@@ -170,7 +170,7 @@ test("runtime availability blocks configured-looking tools without credentials",
         OPENSEARCH_PASSWORD: "password",
       },
     ).available,
-    true,
+    false,
   );
   assert.equal(
     getToolRuntimeAvailability(
@@ -259,6 +259,28 @@ test("runtime availability blocks configured-looking tools without credentials",
     ).code,
     "CAPABILITY_AUTH_REQUIRED",
   );
+});
+
+test("allows an explicitly configured work-mode chat provider", () => {
+  const runtime = getToolRuntimeAvailability(
+    "synchron-agent-chat",
+    {
+      ownerId: "member-1",
+      workContext: {
+        agent: { model: "claude-sonnet-5" },
+      },
+    },
+    {
+      AI_CORE_PROVIDER: "openai",
+      ANTHROPIC_API_KEY: "key",
+      OPENSEARCH_HOST: "host",
+      OPENSEARCH_PORT: "25060",
+      OPENSEARCH_USERNAME: "user",
+      OPENSEARCH_PASSWORD: "password",
+    },
+  );
+
+  assert.equal(runtime.available, true);
 });
 
 test("code.write спира преди Copilot flow в изключен режим", async () => {

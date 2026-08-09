@@ -60,7 +60,7 @@ test("production smoke publishes a readable commit status without a custom secre
   assert.match(workflow, /deployment-check=\$\{GITHUB_RUN_ID\}-\$\{attempt\}/u);
   assert.match(workflow, /Cache-Control: no-cache/u);
   assert.match(workflow, /Check AI CORE public shell/u);
-  assert.match(workflow, /<title>AI CORE/u);
+  assert.match(workflow, /<title>SYNCHRON-X/u);
   assert.match(workflow, /ai-core-mark\.png/u);
   assert.match(workflow, /Check MCP tool catalog and OAuth challenge/u);
   assert.match(workflow, /Check OpenSearch and Supabase dependencies/u);

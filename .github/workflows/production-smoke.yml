@@ -74,7 +74,7 @@ jobs:
             --retry 3 --retry-delay 10 --retry-all-errors \
             --max-time 30 \
             https://synchron.foundation/)"
-          grep -q '<title>AI CORE' <<< "${page}"
+          grep -q '<title>SYNCHRON-X' <<< "${page}"
           grep -q 'href="/ai-core-mark.png"' <<< "${page}"
           grep -q 'src="/work-mode.js?' <<< "${page}"
 

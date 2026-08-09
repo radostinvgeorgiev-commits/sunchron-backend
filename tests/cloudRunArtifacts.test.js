@@ -20,6 +20,7 @@ test("Cloud Run container foundation is production-safe and commit-aware", async
   assert.match(dockerignore, /^\.env\.\*$/mu);
   assert.match(dockerignore, /^node_modules$/mu);
   assert.match(dockerignore, /^runtime-build-info\.json$/mu);
+  assert.match(dockerignore, /^firestore\.indexes\.json$/mu);
   assert.match(dockerignore, /^\.git$/mu);
 });
 
@@ -29,7 +30,11 @@ test("Cloud Run template uses liveness without dependency-heavy readiness", asyn
   assert.match(template, /__CLOUD_RUN_SERVICE_NAME__/u);
   assert.match(template, /__ARTIFACT_REGISTRY_IMAGE_URI__/u);
   assert.match(template, /__COMMIT_SHA__/u);
+  assert.match(template, /__GCP_PROJECT_ID__/u);
   assert.match(template, /containerPort: 8080/u);
+  assert.match(template, /name: MEMORY_BACKEND\s+value: firestore/u);
+  assert.match(template, /name: PERSISTENCE_BACKEND\s+value: firestore/u);
+  assert.match(template, /name: FIRESTORE_DATABASE_ID\s+value: "\(default\)"/u);
   assert.equal((template.match(/path: \/health/gu) || []).length, 2);
   assert.match(template, /startupProbe:/u);
   assert.match(template, /livenessProbe:/u);
@@ -40,7 +45,10 @@ test("Cloud Run template uses liveness without dependency-heavy readiness", asyn
 });
 
 test("Google Cloud catalog preserves data, secret and deployment boundaries", async () => {
-  const catalog = await read("../docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md");
+  const [catalog, firestoreIndexes] = await Promise.all([
+    read("../docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md"),
+    read("../firestore.indexes.json"),
+  ]);
 
   for (const marker of [
     "OpenSearch остава authoritative",
@@ -50,14 +58,28 @@ test("Google Cloud catalog preserves data, secret and deployment boundaries", as
     "Vertex AI",
     "Secret Manager",
     "DNS",
-    "data migration",
+    "production import",
     "Cloud Run health contract",
     "Migration gates",
   ]) {
     assert.match(catalog, new RegExp(marker, "u"));
   }
 
-  assert.match(catalog, /Няма runtime\s+adapter/u);
+  assert.match(catalog, /Firestore runtime\s+adapter-ът/u);
+  assert.match(catalog, /PERSISTENCE_BACKEND/u);
+  assert.match(catalog, /owner isolation/u);
   assert.match(catalog, /Няма миграция на\s+Supabase users/u);
-  assert.match(catalog, /няма secret\s+стойност/u);
+  assert.match(catalog, /няма\s+secret\s+стойност/u);
+  const indexConfiguration = JSON.parse(firestoreIndexes);
+  assert.ok(
+    indexConfiguration.indexes.some(
+      (index) =>
+        index.collectionGroup === "synchron-conversation-memory-v1" &&
+        index.fields.some((field) => field.fieldPath === "sessionId") &&
+        index.fields.some(
+          (field) =>
+            field.fieldPath === "createdAt" && field.order === "DESCENDING",
+        ),
+    ),
+  );
 });

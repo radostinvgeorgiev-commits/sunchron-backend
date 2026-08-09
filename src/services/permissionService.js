@@ -1,9 +1,20 @@
 import { createHash, randomUUID } from "node:crypto";
 import { getOpenSearchClient } from "../config/opensearch.js";
+import { resolvePersistenceBackend } from "../config/memoryBackend.js";
+import { createFirestoreOperationalStore } from "./firestoreOperationalStore.js";
 
 const AUDIT_INDEX = process.env.AUDIT_INDEX || "synchron-action-audit";
 const MAX_FALLBACK_EVENTS = 500;
 const fallbackEvents = [];
+let firestoreOperationalStore = null;
+let firestoreOperationalConfiguration = null;
+let firestoreOperationalStoreOverride = null;
+
+export function setFirestoreAuditStoreForTests(store) {
+  firestoreOperationalStoreOverride = store || null;
+  firestoreOperationalStore = null;
+  firestoreOperationalConfiguration = null;
+}
 
 const POLICY = Object.freeze({
   "github.read": Object.freeze({
@@ -191,13 +202,49 @@ function buildAuditEntry(event) {
   };
 }
 
-async function persistAuditEntry(client, entry) {
+async function persistOpenSearchAuditEntry(client, entry) {
   await client.index({
     index: AUDIT_INDEX,
     id: entry.id,
     body: entry,
     refresh: true,
   });
+}
+
+function getFirestoreOperationalStoreOrThrow() {
+  if (firestoreOperationalStoreOverride) {
+    return firestoreOperationalStoreOverride;
+  }
+  const configuration = [
+    process.env.GOOGLE_CLOUD_PROJECT,
+    process.env.GCLOUD_PROJECT,
+    process.env.GCP_PROJECT_ID,
+    process.env.FIRESTORE_DATABASE_ID,
+    process.env.FIRESTORE_AUDIT_COLLECTION,
+  ].join("\0");
+  if (
+    !firestoreOperationalStore ||
+    firestoreOperationalConfiguration !== configuration
+  ) {
+    firestoreOperationalStore = createFirestoreOperationalStore({
+      env: process.env,
+    });
+    firestoreOperationalConfiguration = configuration;
+  }
+  return firestoreOperationalStore;
+}
+
+async function persistConfiguredAuditEntry(entry) {
+  const backend = resolvePersistenceBackend(process.env);
+  if (backend === "firestore") {
+    await getFirestoreOperationalStoreOrThrow().saveAuditEntry(entry.id, entry);
+    return true;
+  }
+  if (backend !== "opensearch") return false;
+  const client = getOpenSearchClient();
+  if (!client) return false;
+  await persistOpenSearchAuditEntry(client, entry);
+  return true;
 }
 
 export class AuditSafetyError extends Error {
@@ -217,10 +264,8 @@ export function isAuditSafetyError(error) {
 
 export async function recordAuditEvent(event) {
   const entry = buildAuditEntry(event);
-  const client = getOpenSearchClient();
-  if (client) {
-    await persistAuditEntry(client, entry);
-  } else {
+  const persisted = await persistConfiguredAuditEntry(entry);
+  if (!persisted) {
     fallbackEvents.unshift(entry);
     if (fallbackEvents.length > MAX_FALLBACK_EVENTS) fallbackEvents.pop();
   }
@@ -229,16 +274,11 @@ export async function recordAuditEvent(event) {
 
 export async function recordDurableAuditEvent(event) {
   const entry = buildAuditEntry(event);
-  const client = getOpenSearchClient();
-  if (!client) {
-    throw new AuditSafetyError(
-      "Устойчивият журнал не е достъпен.",
-      "AUDIT_UNAVAILABLE",
-      503,
-    );
-  }
   try {
-    await persistAuditEntry(client, entry);
+    const persisted = await persistConfiguredAuditEntry(entry);
+    if (!persisted) {
+      throw new Error("persistent audit backend unavailable");
+    }
   } catch (error) {
     throw new AuditSafetyError(
       "Устойчивият журнал не е достъпен.",
@@ -337,6 +377,9 @@ export async function executeAuditedWriteAction({
 
 export async function listAuditEvents(limit = 50) {
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
+  if (resolvePersistenceBackend(process.env) === "firestore") {
+    return getFirestoreOperationalStoreOrThrow().listAuditEntries(safeLimit);
+  }
   const client = getOpenSearchClient();
   if (!client) return fallbackEvents.slice(0, safeLimit);
 
@@ -353,4 +396,5 @@ export async function listAuditEvents(limit = 50) {
 
 export function resetAuditFallbackForTests() {
   fallbackEvents.length = 0;
+  setFirestoreAuditStoreForTests(null);
 }

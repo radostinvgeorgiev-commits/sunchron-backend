@@ -110,12 +110,9 @@ test("current acceptance separates verified state, blockers and explicit approva
   assert.match(currentAcceptance, /PRODUCT_DIRECTION\.md/u);
 });
 
-test("Google Cloud foundation stays planning-only and preserves production boundaries", () => {
+test("Google Cloud migration documents executable Firestore and production boundaries", () => {
   for (const document of [readme, runbook, currentAcceptance]) {
-    assert.match(
-      document,
-      /GOOGLE_CLOUD_CONFIGURATION_CATALOG\.md/u,
-    );
+    assert.match(document, /GOOGLE_CLOUD_CONFIGURATION_CATALOG\.md/u);
   }
 
   for (const marker of [
@@ -127,19 +124,16 @@ test("Google Cloud foundation stays planning-only and preserves production bound
     "Vertex AI",
     "няма secret",
     "DNS",
-    "data migration",
+    "production import",
+    "MEMORY_BACKEND",
+    "PERSISTENCE_BACKEND",
+    "owner isolation",
   ]) {
     assert.match(googleCloudCatalog, new RegExp(marker, "u"));
   }
 
-  assert.match(
-    googleCloudCatalog,
-    /Не се provision-ва и не заменя OpenSearch/u,
-  );
-  assert.match(
-    googleCloudCatalog,
-    /Няма миграция на\s+Supabase users/u,
-  );
+  assert.match(googleCloudCatalog, /Firestore runtime adapter-ът/u);
+  assert.match(googleCloudCatalog, /Няма миграция на\s+Supabase users/u);
 });
 
 test("product direction keeps UX ambition separate from verified tools", () => {

@@ -1,5 +1,9 @@
 import express from "express";
 import { getOpenSearchClient } from "../config/opensearch.js";
+import {
+  isMemoryBackendConfigured,
+  resolveMemoryBackend,
+} from "../config/memoryBackend.js";
 import { resolveRuntimeVersion } from "../config/runtimeVersion.js";
 import { getMemoryStartupVerificationStatus } from "../services/memoryStartupVerificationService.js";
 import {
@@ -30,6 +34,7 @@ import {
   getAiProviderStatus,
   isAiCoreConfigured,
 } from "../services/aiCoreService.js";
+import { createFirestoreMemoryStore } from "../services/firestoreMemoryStore.js";
 
 const router = express.Router();
 const DEFAULT_READINESS_TIMEOUT_MS = 2_000;
@@ -110,6 +115,7 @@ async function withTimeout(promise, timeoutMs, code = "READINESS_TIMEOUT") {
 export async function getReadinessStatus({
   env = process.env,
   loadOpenSearchClient = getOpenSearchClient,
+  loadFirestoreMemoryStore = createFirestoreMemoryStore,
   loadMemoryVerificationStatus = getMemoryStartupVerificationStatus,
   timeoutMs = DEFAULT_READINESS_TIMEOUT_MS,
 } = {}) {
@@ -117,24 +123,38 @@ export async function getReadinessStatus({
   const chatAgentReady = aiProviderStatus.configured;
   let memory = { ready: false, status: "unavailable" };
 
+  const memoryBackend = resolveMemoryBackend(env);
   try {
-    const client = loadOpenSearchClient();
-    if (client) {
+    if (memoryBackend === "firestore") {
+      const store = loadFirestoreMemoryStore({ env });
+      const response = await withTimeout(store.probe(), timeoutMs);
+      memory = {
+        ready: response?.status === "green",
+        status: response?.status || "unknown",
+        backend: "firestore",
+      };
+    } else if (memoryBackend === "opensearch") {
+      const client = loadOpenSearchClient();
+      if (!client) throw new Error("OpenSearch is unavailable");
       const response = await withTimeout(
-        client.cluster.health(
-          {},
-          { requestTimeout: timeoutMs, maxRetries: 0 },
-        ),
+        client.cluster.health({}, { requestTimeout: timeoutMs, maxRetries: 0 }),
         timeoutMs,
       );
       const clusterStatus = response?.body?.status || response?.status;
       memory = {
         ready: Boolean(clusterStatus) && clusterStatus !== "red",
         status: clusterStatus || "unknown",
+        backend: "opensearch",
       };
+    } else {
+      memory = { ready: false, status: "invalid-backend", backend: null };
     }
   } catch {
-    memory = { ready: false, status: "unavailable" };
+    memory = {
+      ready: false,
+      status: "unavailable",
+      backend: memoryBackend,
+    };
   }
 
   const bridge = (await getBridgeDiagnosticsStatus({ env, timeoutMs })).bridge;
@@ -400,13 +420,7 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
   const configuration = {
     "synchron-agent-chat": {
       configured:
-        isAiCoreConfigured() &&
-        hasAllProcessEnvironmentVariables(
-          "OPENSEARCH_HOST",
-          "OPENSEARCH_PORT",
-          "OPENSEARCH_USERNAME",
-          "OPENSEARCH_PASSWORD",
-        ),
+        isAiCoreConfigured() && isMemoryBackendConfigured(process.env),
       authenticated: true,
     },
     "synchron-integrations-status": {
@@ -524,12 +538,7 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
         : null,
     },
     "opensearch-memory": {
-      configured: hasAllProcessEnvironmentVariables(
-        "OPENSEARCH_HOST",
-        "OPENSEARCH_PORT",
-        "OPENSEARCH_USERNAME",
-        "OPENSEARCH_PASSWORD",
-      ),
+      configured: isMemoryBackendConfigured(process.env),
     },
   };
 
@@ -544,7 +553,10 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
       openai: {
         configured: Boolean(process.env.OPENAI_API_KEY),
       },
-      memory: configuration["opensearch-memory"],
+      memory: {
+        ...configuration["opensearch-memory"],
+        backend: resolveMemoryBackend(process.env),
+      },
     },
     tools: listTools().map((tool) => {
       const toolConfiguration = configuration[tool.id] || {};

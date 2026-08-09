@@ -5,6 +5,7 @@
 .env.*
 node_modules
 runtime-build-info.json
+firestore.indexes.json
 *.log
 docs
 tests

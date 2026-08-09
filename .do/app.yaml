@@ -89,6 +89,12 @@ services:
       - key: MEMORY_OWNER_ID
         scope: RUN_TIME
         type: SECRET
+      - key: MEMORY_BACKEND
+        value: opensearch
+        scope: RUN_TIME
+      - key: PERSISTENCE_BACKEND
+        value: opensearch
+        scope: RUN_TIME
       - key: MEMORY_INDEX
         value: synchron-profile-memory-v1
         scope: RUN_TIME

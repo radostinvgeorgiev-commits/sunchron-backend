@@ -25,14 +25,14 @@ readiness и production smoke трябва да сочат една и съща 
 
 ## Google Cloud migration boundary
 
-Cloud Run container/template foundation-ът е отделен от текущия DigitalOcean
+Частният Cloud Run staging и Firestore са отделени от текущия DigitalOcean
 production канал. Конфигурационният каталог и migration gates са в
 [`GOOGLE_CLOUD_CONFIGURATION_CATALOG.md`](./GOOGLE_CLOUD_CONFIGURATION_CATALOG.md).
-Докато всички gates не са приети, не създавай GCP resource, secret, IAM binding,
-DNS промяна или data migration.
+Докато всички gates не са приети, не прави production import, DNS cutover или
+изключване на DigitalOcean, OpenSearch, Supabase или Cloudflare.
 
 Cloud Run използва `/health` само за startup/liveness. `/health/ready` остава
-deployment acceptance проверка, защото включва AI, OpenSearch, memory acceptance
+deployment acceptance проверка, защото включва AI, избрания memory backend, memory acceptance
 и bridge. Не използвай readiness endpoint като liveness probe и не приемай
 подготвен YAML или image като deployed/accepted.
 

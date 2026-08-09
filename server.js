@@ -1,5 +1,6 @@
 import express from "express";
 import { createOpenSearchClient } from "./src/config/opensearch.js";
+import { isOpenSearchMemoryConfigured } from "./src/config/memoryBackend.js";
 import {
   requireOwnerSession,
   requirePrimaryOwner,
@@ -221,7 +222,7 @@ app.get("/register", (_req, res) => {
 });
 
 if (process.env.NODE_ENV !== "test") {
-  createOpenSearchClient();
+  if (isOpenSearchMemoryConfigured(process.env)) createOpenSearchClient();
   startServer();
 }
 

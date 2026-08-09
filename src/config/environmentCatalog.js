@@ -83,12 +83,9 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "AI ядро",
       "Незадължителен ключ за Gemini разговори.",
     ),
-    general(
-      "GEMINI_MODEL",
-      "AI ядро",
-      "Модел за Gemini разговори.",
-      { hasDefault: true },
-    ),
+    general("GEMINI_MODEL", "AI ядро", "Модел за Gemini разговори.", {
+      hasDefault: true,
+    }),
     general(
       "GEMINI_API_URL",
       "AI ядро",
@@ -106,12 +103,9 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "AI ядро",
       "Незадължителен ключ за Grok разговори от xAI.",
     ),
-    general(
-      "GROK_MODEL",
-      "AI ядро",
-      "Модел за Grok разговори от xAI.",
-      { hasDefault: true },
-    ),
+    general("GROK_MODEL", "AI ядро", "Модел за Grok разговори от xAI.", {
+      hasDefault: true,
+    }),
     general(
       "GROK_API_URL",
       "AI ядро",
@@ -125,26 +119,69 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       { hasDefault: true },
     ),
 
-    secret(
-      "OPENSEARCH_HOST",
+    general(
+      "MEMORY_BACKEND",
       "Памет",
-      "Адрес на постоянната OpenSearch памет.",
-      { requiredNow: true },
+      "Активен backend за паметта: opensearch или firestore.",
+      { hasDefault: true },
     ),
-    secret("OPENSEARCH_PORT", "Памет", "Порт на OpenSearch.", {
-      requiredNow: true,
-    }),
+    general(
+      "PERSISTENCE_BACKEND",
+      "Памет",
+      "Backend за потвърждения и audit: opensearch или firestore.",
+      { hasDefault: true },
+    ),
+    general(
+      "GOOGLE_CLOUD_PROJECT",
+      "Google Cloud",
+      "Project ID за Cloud Run service identity и Firestore.",
+    ),
+    general(
+      "FIRESTORE_DATABASE_ID",
+      "Памет",
+      "Firestore database ID; по подразбиране е (default).",
+      { hasDefault: true },
+    ),
+    general(
+      "FIRESTORE_PROFILE_COLLECTION",
+      "Памет",
+      "Колекция за личната и проектната памет.",
+      { hasDefault: true },
+    ),
+    general(
+      "FIRESTORE_CONVERSATION_COLLECTION",
+      "Памет",
+      "Колекция за историята на разговорите.",
+      { hasDefault: true },
+    ),
+    general(
+      "FIRESTORE_CONFIRMATION_COLLECTION",
+      "Памет",
+      "Колекция за еднократните потвърждения.",
+      { hasDefault: true },
+    ),
+    general(
+      "FIRESTORE_AUDIT_COLLECTION",
+      "Памет",
+      "Колекция за неизтриваемия журнал на действията.",
+      { hasDefault: true },
+    ),
+    general(
+      "FIRESTORE_REQUEST_TIMEOUT_MS",
+      "Памет",
+      "Максимално време за Firestore REST заявка.",
+      { hasDefault: true },
+    ),
+
+    secret("OPENSEARCH_HOST", "Памет", "Адрес на legacy OpenSearch паметта."),
+    secret("OPENSEARCH_PORT", "Памет", "Порт на OpenSearch.", {}),
     general(
       "OPENSEARCH_DATABASE_ID",
       "Памет",
       "Незадължително точно обвързване на backup проверката с DigitalOcean cluster.",
     ),
-    secret("OPENSEARCH_USERNAME", "Памет", "Потребител за OpenSearch.", {
-      requiredNow: true,
-    }),
-    secret("OPENSEARCH_PASSWORD", "Памет", "Парола за OpenSearch.", {
-      requiredNow: true,
-    }),
+    secret("OPENSEARCH_USERNAME", "Памет", "Потребител за OpenSearch.", {}),
+    secret("OPENSEARCH_PASSWORD", "Памет", "Парола за OpenSearch.", {}),
     general(
       "OPENSEARCH_TLS_REJECT_UNAUTHORIZED",
       "Памет",

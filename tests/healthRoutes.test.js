@@ -47,10 +47,64 @@ test("readiness requires the selected AI provider and a healthy OpenSearch clust
   assert.equal(result.status, "ready");
   assert.equal(result.commit, "abc123");
   assert.equal(result.checks.memory.status, "green");
+  assert.equal(result.checks.memory.backend, "opensearch");
   assert.equal(result.checks.chatAgent.primaryProvider, "openai");
   assert.equal(result.checks.chatAgent.removedProvider, "digitalocean-agent");
   assert.equal(result.checks.bridge.configured, true);
   assert.equal(result.checks.bridge.responding, true);
+});
+
+test("readiness accepts Firestore through the Cloud Run service identity", async () => {
+  let receivedEnvironment;
+  const result = await getReadinessStatus({
+    env: {
+      OPENAI_API_KEY: "secret",
+      MEMORY_BACKEND: "firestore",
+      GOOGLE_CLOUD_PROJECT: "handy-boulevard-479120-q9",
+      FIRESTORE_DATABASE_ID: "(default)",
+      APP_COMMIT_SHA: "firestore123",
+    },
+    loadFirestoreMemoryStore: ({ env }) => {
+      receivedEnvironment = env;
+      return {
+        probe: async () => ({ status: "green", backend: "firestore" }),
+      };
+    },
+    loadOpenSearchClient: () => {
+      throw new Error("OpenSearch must not be loaded for Firestore readiness");
+    },
+  });
+
+  assert.equal(receivedEnvironment.MEMORY_BACKEND, "firestore");
+  assert.equal(result.status, "ready");
+  assert.equal(result.commit, "firestore123");
+  assert.deepEqual(result.checks.memory, {
+    ready: true,
+    status: "green",
+    backend: "firestore",
+  });
+});
+
+test("readiness fails closed when the configured Firestore probe fails", async () => {
+  const result = await getReadinessStatus({
+    env: {
+      OPENAI_API_KEY: "secret",
+      MEMORY_BACKEND: "firestore",
+      GOOGLE_CLOUD_PROJECT: "handy-boulevard-479120-q9",
+    },
+    loadFirestoreMemoryStore: () => ({
+      probe: async () => {
+        throw new Error("permission denied");
+      },
+    }),
+  });
+
+  assert.equal(result.status, "not-ready");
+  assert.deepEqual(result.checks.memory, {
+    ready: false,
+    status: "unavailable",
+    backend: "firestore",
+  });
 });
 
 test("readiness accepts OpenAI as the primary chat provider", async () => {

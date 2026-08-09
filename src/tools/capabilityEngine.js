@@ -3,7 +3,11 @@ import {
   listAuditEvents,
 } from "../services/permissionService.js";
 import { isCopilotAutomationEnabled } from "../config/featureFlags.js";
-import { hasConfiguredAiProvider, isAiCoreConfigured } from "../services/aiCoreService.js";
+import { isMemoryBackendConfigured } from "../config/memoryBackend.js";
+import {
+  hasConfiguredAiProvider,
+  isAiCoreConfigured,
+} from "../services/aiCoreService.js";
 import { answerGitHubReadRequest } from "../services/githubService.js";
 import {
   createGmailDraft,
@@ -124,16 +128,7 @@ export function getToolRuntimeAvailability(
 
   switch (toolId) {
     case "synchron-agent-chat":
-      if (
-        !hasConfiguredAiProvider(env) ||
-        !hasEnvironment(
-          env,
-          "OPENSEARCH_HOST",
-          "OPENSEARCH_PORT",
-          "OPENSEARCH_USERNAME",
-          "OPENSEARCH_PASSWORD",
-        )
-      ) {
+      if (!hasConfiguredAiProvider(env) || !isMemoryBackendConfigured(env)) {
         return configured(
           false,
           "AI CORE разговорът или постоянната история не са конфигурирани.",
@@ -252,13 +247,7 @@ export function getToolRuntimeAvailability(
       );
     case "opensearch-memory":
       return configured(
-        hasEnvironment(
-          env,
-          "OPENSEARCH_HOST",
-          "OPENSEARCH_PORT",
-          "OPENSEARCH_USERNAME",
-          "OPENSEARCH_PASSWORD",
-        ),
+        isMemoryBackendConfigured(env),
         "Постоянната памет не е конфигурирана.",
       );
     default:

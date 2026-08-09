@@ -428,7 +428,7 @@ export function registerCoreTools() {
     },
     {
       id: "opensearch-memory",
-      provider: "opensearch",
+      provider: "synchron",
       name: "Synchron Memory",
       version: "1.0.0",
       category: "memory",

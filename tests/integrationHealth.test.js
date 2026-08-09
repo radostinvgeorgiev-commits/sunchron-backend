@@ -11,6 +11,10 @@ const ENV_NAMES = [
   "GEMINI_API_KEY",
   "GROK_API_KEY",
   "CODEX_AGENT_ENABLED",
+  "MEMORY_BACKEND",
+  "PERSISTENCE_BACKEND",
+  "GOOGLE_CLOUD_PROJECT",
+  "FIRESTORE_DATABASE_ID",
   "OPENSEARCH_HOST",
   "OPENSEARCH_PORT",
   "OPENSEARCH_USERNAME",
@@ -36,6 +40,8 @@ test("integration status reports configuration without exposing secret values", 
   );
   for (const name of ENV_NAMES) process.env[name] = `secret-${name}`;
   process.env.AI_CORE_PROVIDER = "openai";
+  process.env.MEMORY_BACKEND = "opensearch";
+  process.env.PERSISTENCE_BACKEND = "opensearch";
   process.env.COPILOT_AUTOMATION_ENABLED = "true";
   resetToolRegistryForTests();
 
@@ -45,6 +51,7 @@ test("integration status reports configuration without exposing secret values", 
     assert.equal(status.core.chatAgent.primaryProvider, "openai");
     assert.equal(status.core.chatAgent.removedProvider, "digitalocean-agent");
     assert.equal(status.core.openai.configured, true);
+    assert.equal(status.core.memory.backend, "opensearch");
     assert.equal(status.tools.length, 18);
     assert.equal(
       status.tools
@@ -72,6 +79,45 @@ test("integration status reports configuration without exposing secret values", 
     assert.equal(cloudflare.healthStatus, "degraded");
     assert.equal(cloudflare.availabilityCode, "CLOUDFLARE_LIVE_CHECK_REQUIRED");
     assert.doesNotMatch(JSON.stringify(status), /secret-/u);
+  } finally {
+    for (const [name, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    resetToolRegistryForTests();
+  }
+});
+
+test("integration status reports Firestore memory without exposing project details", () => {
+  const original = Object.fromEntries(
+    ENV_NAMES.map((name) => [name, process.env[name]]),
+  );
+  process.env.OPENAI_API_KEY = "openai-secret";
+  process.env.MEMORY_BACKEND = "firestore";
+  process.env.PERSISTENCE_BACKEND = "firestore";
+  process.env.GOOGLE_CLOUD_PROJECT = "handy-boulevard-479120-q9";
+  process.env.FIRESTORE_DATABASE_ID = "(default)";
+  for (const name of [
+    "OPENSEARCH_HOST",
+    "OPENSEARCH_PORT",
+    "OPENSEARCH_USERNAME",
+    "OPENSEARCH_PASSWORD",
+  ]) {
+    delete process.env[name];
+  }
+  resetToolRegistryForTests();
+
+  try {
+    const status = getIntegrationStatus();
+    assert.equal(status.core.memory.configured, true);
+    assert.equal(status.core.memory.backend, "firestore");
+    const memory = status.tools.find((tool) => tool.id === "opensearch-memory");
+    assert.equal(memory.configured, true);
+    assert.equal(memory.executable, true);
+    assert.doesNotMatch(
+      JSON.stringify(status),
+      /handy-boulevard-479120-q9|openai-secret/u,
+    );
   } finally {
     for (const [name, value] of Object.entries(original)) {
       if (value === undefined) delete process.env[name];

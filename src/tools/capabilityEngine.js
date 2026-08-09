@@ -3,7 +3,10 @@ import {
   listAuditEvents,
 } from "../services/permissionService.js";
 import { isCopilotAutomationEnabled } from "../config/featureFlags.js";
-import { isAiCoreConfigured } from "../services/aiCoreService.js";
+import {
+  hasConfiguredAiProvider,
+  isAiCoreConfigured,
+} from "../services/aiCoreService.js";
 import { answerGitHubReadRequest } from "../services/githubService.js";
 import {
   createGmailDraft,
@@ -125,7 +128,7 @@ export function getToolRuntimeAvailability(
   switch (toolId) {
     case "synchron-agent-chat":
       if (
-        !isAiCoreConfigured(env) ||
+        !hasConfiguredAiProvider(env) ||
         !hasEnvironment(
           env,
           "OPENSEARCH_HOST",

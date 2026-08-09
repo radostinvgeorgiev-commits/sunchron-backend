@@ -107,6 +107,28 @@ test("workspace keeps a supported personal pet", () => {
   assert.equal(state.petId, "drop");
 });
 
+
+test("workspace preserves every explicitly supported AI provider model", () => {
+  for (const model of [
+    "gemini-2.5-flash",
+    "grok-3-mini",
+    "claude-sonnet-5",
+  ]) {
+    const state = normalizeWorkspaceState({
+      agents: [
+        {
+          id: `agent-${model}`,
+          name: model,
+          role: "general",
+          model,
+          engine: "ai-core",
+        },
+      ],
+    });
+    assert.equal(state.agents[0].model, model);
+  }
+});
+
 test("legacy workspaces receive specialized agents with their own pets", () => {
   const state = normalizeWorkspaceState({
     version: 4,

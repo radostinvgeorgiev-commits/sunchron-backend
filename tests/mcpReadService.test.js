@@ -5,6 +5,7 @@ import {
   createMcpRequestHandler,
   isValidMcpToken,
 } from "../src/services/mcpReadService.js";
+import { CloudflareError } from "../src/services/cloudflareService.js";
 
 test("MCP token validation is fail-closed and timing-safe compatible", () => {
   const token = "a".repeat(48);
@@ -561,5 +562,33 @@ test("MCP exposes only controlled capability errors with a safe diagnostic code"
   assert.equal(response.error.code, -32000);
   assert.equal(response.error.data.code, "NOT_CONNECTED");
   assert.match(response.error.message, /Google не е свързан/u);
+  assert.doesNotMatch(JSON.stringify(response), /token|password|secret/iu);
+});
+
+test("MCP exposes Cloudflare service errors with a safe diagnostic code", async () => {
+  const handler = createMcpRequestHandler({
+    getCloudflareStatus: async () => {
+      throw new CloudflareError(
+        "Cloudflare API върна грешка 403.",
+        401,
+        "CLOUDFLARE_UPSTREAM_ERROR",
+      );
+    },
+    audit: async () => {},
+  });
+  const response = await handler(
+    {
+      jsonrpc: "2.0",
+      id: 91,
+      method: "tools/call",
+      params: { name: "get_cloudflare_zone_status", arguments: {} },
+    },
+    "primary-user",
+    { role: "owner" },
+  );
+
+  assert.equal(response.error.code, -32000);
+  assert.equal(response.error.data.code, "CLOUDFLARE_UPSTREAM_ERROR");
+  assert.equal(response.error.message, "Cloudflare API върна грешка 403.");
   assert.doesNotMatch(JSON.stringify(response), /token|password|secret/iu);
 });

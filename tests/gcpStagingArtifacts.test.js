@@ -197,9 +197,12 @@ test("read-only staging verifier requires private IAM and exact GCP readiness", 
   assert.equal(
     verifyAuthSessionPayload({
       configured: true,
-      projectConnection: true,
-      sessionProtection: true,
+      configuration: {
+        projectConnection: true,
+        sessionProtection: true,
+      },
       registrationEnabled: true,
+      authProvider: "identity-platform",
       authenticated: false,
     }),
     true,

@@ -171,9 +171,10 @@ export function verifyReadinessPayload(payload, expectedSha) {
 export function verifyAuthSessionPayload(payload) {
   if (
     payload?.configured !== true ||
-    payload?.projectConnection !== true ||
-    payload?.sessionProtection !== true ||
+    payload?.configuration?.projectConnection !== true ||
+    payload?.configuration?.sessionProtection !== true ||
     payload?.registrationEnabled !== true ||
+    payload?.authProvider !== "identity-platform" ||
     payload?.authenticated !== false
   ) {
     throw verificationError("Identity Platform staging readiness липсва.");

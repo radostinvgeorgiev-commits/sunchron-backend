@@ -20,10 +20,10 @@ const html = await readFile(
 
 function createHarness(storedMode = null) {
   const dom = new JSDOM(`<!doctype html>
-    <html data-font-scale="max">
+    <html data-font-scale="standard">
       <body>
         <button id="fontSizeDecreaseBtn">Намали</button>
-        <output id="fontSizeLabel">Много едър · 48 px</output>
+        <output id="fontSizeLabel">Обикновен · 16 px</output>
         <button id="fontSizeIncreaseBtn">Увеличи</button>
       </body>
     </html>`);
@@ -42,21 +42,21 @@ function createHarness(storedMode = null) {
   return { context, dom, values };
 }
 
-test("very large text is the permanent default", () => {
+test("standard text is the default for new users", () => {
   const harness = createHarness();
   const { document } = harness.dom.window;
 
-  assert.equal(document.documentElement.dataset.fontScale, "max");
-  assert.equal(document.documentElement.dataset.fontLevel, "max");
-  assert.equal(harness.values.get("synchron.ui.fontScale"), "max");
+  assert.equal(document.documentElement.dataset.fontScale, "standard");
+  assert.equal(document.documentElement.dataset.fontLevel, "standard");
+  assert.equal(harness.values.get("synchron.ui.fontScale"), "standard");
   assert.equal(
     document.getElementById("fontSizeLabel").textContent,
-    "Много едър · 48 px",
+    "Обикновен · 16 px",
   );
 });
 
 test("plus and minus controls change one level and remember it", () => {
-  const harness = createHarness();
+  const harness = createHarness("max");
   const { document } = harness.dom.window;
   const decrease = document.getElementById("fontSizeDecreaseBtn");
   const increase = document.getElementById("fontSizeIncreaseBtn");
@@ -122,7 +122,7 @@ test("accessibility assets load after the ordinary interface styles", () => {
   assert.ok(appShellPosition >= 0);
   assert.ok(accessibilityPosition > appShellPosition);
   assert.ok(accessibilityScriptPosition > appPosition);
-  assert.match(html, /<html lang="bg" data-font-scale="max">/u);
+  assert.match(html, /<html lang="bg" data-font-scale="standard">/u);
   assert.match(html, /id="fontSizeDecreaseBtn"/u);
   assert.match(html, /id="fontSizeIncreaseBtn"/u);
 });

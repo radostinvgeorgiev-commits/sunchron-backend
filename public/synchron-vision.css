@@ -565,7 +565,7 @@ textarea:focus-visible {
     min-height: calc(70px + env(safe-area-inset-bottom));
     padding: 7px 8px max(7px, env(safe-area-inset-bottom));
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
     gap: 4px;
     border-top: 1px solid var(--sx-line);
     background: rgba(248, 252, 250, 0.95);
@@ -589,6 +589,10 @@ textarea:focus-visible {
     background: transparent;
     font-size: 12px;
     font-weight: 800;
+  }
+
+  .mobile-command-bar button[hidden] {
+    display: none !important;
   }
 
   .mobile-command-bar button i {

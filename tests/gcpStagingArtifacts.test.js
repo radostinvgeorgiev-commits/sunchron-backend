@@ -32,10 +32,17 @@ function stagingConfiguration() {
     secrets: Object.fromEntries(
       [
         "OPENAI_API_KEY",
+        "GEMINI_API_KEY",
+        "GROK_API_KEY",
         "IDENTITY_PLATFORM_API_KEY",
         "USER_SESSION_ENCRYPTION_KEY",
+        "GITHUB_CLIENT_ID",
+        "GITHUB_CLIENT_SECRET",
         "GITHUB_SESSION_ENCRYPTION_KEY",
-        "TESTER_INVITE_CODE",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "GOOGLE_SESSION_ENCRYPTION_KEY",
+        "SYNCHRON_TEST_INVITE_CODE",
         "MCP_ACCESS_TOKEN",
         "MCP_OAUTH_SECRET",
       ].map((name, index) => [
@@ -52,19 +59,33 @@ function stagingConfiguration() {
 function cloudRunDescription() {
   const aliases = {
     OPENAI_API_KEY: "openai-api-key",
+    GEMINI_API_KEY: "gemini-api-key",
+    GROK_API_KEY: "grok-api-key",
     IDENTITY_PLATFORM_API_KEY: "identity-platform-api-key",
     USER_SESSION_ENCRYPTION_KEY: "user-session-key",
+    GITHUB_CLIENT_ID: "github-client-id",
+    GITHUB_CLIENT_SECRET: "github-client-secret",
     GITHUB_SESSION_ENCRYPTION_KEY: "github-session-key",
-    TESTER_INVITE_CODE: "tester-invite-code",
+    GOOGLE_CLIENT_ID: "google-client-id",
+    GOOGLE_CLIENT_SECRET: "google-client-secret",
+    GOOGLE_SESSION_ENCRYPTION_KEY: "google-session-key",
+    SYNCHRON_TEST_INVITE_CODE: "tester-invite-code",
     MCP_ACCESS_TOKEN: "mcp-access-token",
     MCP_OAUTH_SECRET: "mcp-oauth-secret",
   };
   const secretEnv = [
     "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "GROK_API_KEY",
     "IDENTITY_PLATFORM_API_KEY",
     "USER_SESSION_ENCRYPTION_KEY",
+    "GITHUB_CLIENT_ID",
+    "GITHUB_CLIENT_SECRET",
     "GITHUB_SESSION_ENCRYPTION_KEY",
-    "TESTER_INVITE_CODE",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "GOOGLE_SESSION_ENCRYPTION_KEY",
+    "SYNCHRON_TEST_INVITE_CODE",
     "MCP_ACCESS_TOKEN",
     "MCP_OAUTH_SECRET",
   ].map((name) => ({
@@ -128,6 +149,8 @@ test("Cloud Run staging renderer pins image, secrets, scaling and service identi
   assert.match(rendered, /run\.googleapis\.com\/ingress: all/u);
   assert.match(rendered, /name: MEMORY_BACKEND\s+value: firestore/u);
   assert.match(rendered, /name: AUTH_BACKEND\s+value: identity-platform/u);
+  assert.match(rendered, /name: SYNCHRON_TEST_INVITE_CODE/u);
+  assert.doesNotMatch(rendered, /name: TESTER_INVITE_CODE/u);
   assert.doesNotMatch(rendered, /\bkey:\s*["']?latest\b/iu);
 });
 

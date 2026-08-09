@@ -13,6 +13,14 @@
       "name": "synchron-openai-api-key",
       "version": "__FIXED_NUMERIC_VERSION__"
     },
+    "GEMINI_API_KEY": {
+      "name": "synchron-gemini-api-key",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    },
+    "GROK_API_KEY": {
+      "name": "synchron-grok-api-key",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    },
     "IDENTITY_PLATFORM_API_KEY": {
       "name": "synchron-identity-platform-api-key",
       "version": "__FIXED_NUMERIC_VERSION__"
@@ -21,12 +29,32 @@
       "name": "synchron-user-session-encryption-key",
       "version": "__FIXED_NUMERIC_VERSION__"
     },
-    "GITHUB_SESSION_ENCRYPTION_KEY": {
-      "name": "synchron-github-session-encryption-key",
+    "GITHUB_CLIENT_ID": {
+      "name": "synchron-github-client-id",
       "version": "__FIXED_NUMERIC_VERSION__"
     },
-    "TESTER_INVITE_CODE": {
-      "name": "synchron-tester-invite-code",
+    "GITHUB_CLIENT_SECRET": {
+      "name": "synchron-github-client-secret",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    },
+    "GITHUB_SESSION_ENCRYPTION_KEY": {
+      "name": "synchron-github-session-encryption",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    },
+    "GOOGLE_CLIENT_ID": {
+      "name": "synchron-google-client-id",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    },
+    "GOOGLE_CLIENT_SECRET": {
+      "name": "synchron-google-client-secret",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    },
+    "GOOGLE_SESSION_ENCRYPTION_KEY": {
+      "name": "synchron-google-session-encryption",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    },
+    "SYNCHRON_TEST_INVITE_CODE": {
+      "name": "synchron-test-invite-code",
       "version": "__FIXED_NUMERIC_VERSION__"
     },
     "MCP_ACCESS_TOKEN": {

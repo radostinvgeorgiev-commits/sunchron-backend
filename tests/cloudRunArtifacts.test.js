@@ -58,7 +58,9 @@ test("Cloud Run template uses liveness without dependency-heavy readiness", asyn
   assert.match(template, /startupProbe:/u);
   assert.match(template, /livenessProbe:/u);
   assert.doesNotMatch(template, /readinessProbe:/u);
-  assert.equal((template.match(/secretKeyRef:/gu) || []).length, 7);
+  assert.match(template, /name: SYNCHRON_TEST_INVITE_CODE/u);
+  assert.doesNotMatch(template, /name: TESTER_INVITE_CODE/u);
+  assert.equal((template.match(/secretKeyRef:/gu) || []).length, 14);
   assert.doesNotMatch(template, /gcloud\s+(run|secrets)/iu);
 });
 

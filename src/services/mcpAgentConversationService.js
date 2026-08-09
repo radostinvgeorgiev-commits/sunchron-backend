@@ -8,6 +8,7 @@ import {
 } from "./memoryService.js";
 import {
   getAiProviderTimeoutMs,
+  getConfiguredAiProvider,
   requestAiText,
 } from "./aiCoreService.js";
 import { loadWorkspaceState } from "./workspaceStateService.js";
@@ -106,6 +107,7 @@ export async function sendMcpAgentMessage(
     saveTurn = saveConversationTurn,
     createSessionId = () => `mcp-${randomUUID()}`,
     getProviderTimeoutMs = getAiProviderTimeoutMs,
+    getConfiguredProvider = getConfiguredAiProvider,
     scheduleTimeout = setTimeout,
     cancelTimeout = clearTimeout,
   } = {},
@@ -155,7 +157,8 @@ export async function sendMcpAgentMessage(
       ? { ...item, content: `${item.content}\n\n${BRIDGE_BOUNDARY}` }
       : item,
   );
-  const provider = resolveWorkAgentProvider(agent.model);
+  const provider =
+    resolveWorkAgentProvider(agent.model) || getConfiguredProvider();
   const abortController = new AbortController();
   const timeoutHandle = scheduleTimeout(
     () => abortController.abort(),

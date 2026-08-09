@@ -26,6 +26,10 @@ import {
 } from "../services/storageHealthService.js";
 import { isToolExecutable } from "../tools/capabilityEngine.js";
 import { listTools, registerCoreTools } from "../tools/toolRegistry.js";
+import {
+  getAiProviderStatus,
+  isAiCoreConfigured,
+} from "../services/aiCoreService.js";
 
 const router = express.Router();
 const DEFAULT_READINESS_TIMEOUT_MS = 2_000;
@@ -109,8 +113,8 @@ export async function getReadinessStatus({
   loadMemoryVerificationStatus = getMemoryStartupVerificationStatus,
   timeoutMs = DEFAULT_READINESS_TIMEOUT_MS,
 } = {}) {
-  const openAiReady = Boolean(env.OPENAI_API_KEY);
-  const chatAgentReady = openAiReady;
+  const aiProviderStatus = getAiProviderStatus(env);
+  const chatAgentReady = aiProviderStatus.configured;
   let memory = { ready: false, status: "unavailable" };
 
   try {
@@ -146,7 +150,8 @@ export async function getReadinessStatus({
       chatAgent: {
         ready: chatAgentReady,
         status: chatAgentReady ? "configured" : "not-configured",
-        primaryProvider: openAiReady ? "openai" : null,
+        primaryProvider: aiProviderStatus.selectedProvider,
+        providers: aiProviderStatus.providers,
         removedProvider: "digitalocean-agent",
       },
       memory,
@@ -395,7 +400,7 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
   const configuration = {
     "synchron-agent-chat": {
       configured:
-        Boolean(process.env.OPENAI_API_KEY) &&
+        isAiCoreConfigured() &&
         hasAllProcessEnvironmentVariables(
           "OPENSEARCH_HOST",
           "OPENSEARCH_PORT",
@@ -533,8 +538,7 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
     ...getRuntimeVersion(),
     core: {
       chatAgent: {
-        configured: Boolean(process.env.OPENAI_API_KEY),
-        primaryProvider: process.env.OPENAI_API_KEY ? "openai" : null,
+        ...getAiProviderStatus(),
         removedProvider: "digitalocean-agent",
       },
       openai: {

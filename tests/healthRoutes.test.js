@@ -25,7 +25,7 @@ test("liveness version exposes the deployed commit without exposing secrets", ()
   );
 });
 
-test("readiness requires OpenAI and a healthy OpenSearch cluster", async () => {
+test("readiness requires the selected AI provider and a healthy OpenSearch cluster", async () => {
   let requestOptions;
   const result = await getReadinessStatus({
     env: {
@@ -69,6 +69,42 @@ test("readiness accepts OpenAI as the primary chat provider", async () => {
   assert.equal(result.status, "ready");
   assert.equal(result.checks.chatAgent.primaryProvider, "openai");
   assert.equal(result.checks.chatAgent.removedProvider, "digitalocean-agent");
+});
+
+test("readiness accepts Gemini when it is explicitly selected", async () => {
+  const result = await getReadinessStatus({
+    env: {
+      AI_CORE_PROVIDER: "gemini",
+      GEMINI_API_KEY: "secret",
+    },
+    loadOpenSearchClient: () => ({
+      cluster: {
+        health: async () => ({ body: { status: "green" } }),
+      },
+    }),
+  });
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.checks.chatAgent.primaryProvider, "gemini");
+  assert.equal(result.checks.chatAgent.providers[1].configured, true);
+});
+
+test("readiness fails closed for an invalid AI provider selection", async () => {
+  const result = await getReadinessStatus({
+    env: {
+      AI_CORE_PROVIDER: "unknown-provider",
+      OPENAI_API_KEY: "secret",
+    },
+    loadOpenSearchClient: () => ({
+      cluster: {
+        health: async () => ({ body: { status: "green" } }),
+      },
+    }),
+  });
+
+  assert.equal(result.status, "not-ready");
+  assert.equal(result.checks.chatAgent.ready, false);
+  assert.equal(result.checks.chatAgent.primaryProvider, null);
 });
 
 test("production readiness requires the isolated memory acceptance proof", async () => {

@@ -7,6 +7,9 @@ import { resetToolRegistryForTests } from "../src/tools/toolRegistry.js";
 
 const ENV_NAMES = [
   "OPENAI_API_KEY",
+  "AI_CORE_PROVIDER",
+  "GEMINI_API_KEY",
+  "GROK_API_KEY",
   "CODEX_AGENT_ENABLED",
   "OPENSEARCH_HOST",
   "OPENSEARCH_PORT",
@@ -32,6 +35,7 @@ test("integration status reports configuration without exposing secret values", 
     ENV_NAMES.map((name) => [name, process.env[name]]),
   );
   for (const name of ENV_NAMES) process.env[name] = `secret-${name}`;
+  process.env.AI_CORE_PROVIDER = "openai";
   process.env.COPILOT_AUTOMATION_ENABLED = "true";
   resetToolRegistryForTests();
 

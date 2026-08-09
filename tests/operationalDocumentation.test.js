@@ -11,6 +11,9 @@ const currentAcceptance = read("../docs/CURRENT_PRODUCT_ACCEPTANCE.md");
 const productDirection = read("../docs/PRODUCT_DIRECTION.md");
 const architecture = read("../docs/SYNCHRON-X-V3-ARCHITECTURE.md");
 const bridgeRunbook = read("../docs/BRIDGE_AND_DIAGNOSTICS.md");
+const googleCloudCatalog = read(
+  "../docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md",
+);
 const historicalAudit = read("../docs/archive/TECHNICAL_AUDIT_2026-07.md");
 const historicalShortAudit = read(
   "../docs/archive/TECHNICAL_AUDIT_2026-07-31.md",
@@ -23,8 +26,9 @@ test("current documentation names the real chat provider and operations source",
   assert.match(readme, /docs\/CURRENT_PRODUCT_ACCEPTANCE\.md/u);
   assert.match(
     architecture,
-    /OpenAI Responses API е единственият разговорен AI/u,
+    /OpenAI Responses API е доставчикът по подразбиране/u,
   );
+  assert.match(architecture, /Gemini и Grok от xAI/u);
   assert.match(architecture, /DigitalOcean App Platform само хоства/u);
   assert.doesNotMatch(
     architecture,
@@ -104,6 +108,38 @@ test("current acceptance separates verified state, blockers and explicit approva
   assert.match(currentAcceptance, /Supabase backup.*няма/su);
   assert.match(currentAcceptance, /merge в `main` и production deployment/u);
   assert.match(currentAcceptance, /PRODUCT_DIRECTION\.md/u);
+});
+
+test("Google Cloud foundation stays planning-only and preserves production boundaries", () => {
+  for (const document of [readme, runbook, currentAcceptance]) {
+    assert.match(
+      document,
+      /GOOGLE_CLOUD_CONFIGURATION_CATALOG\.md/u,
+    );
+  }
+
+  for (const marker of [
+    "OpenSearch остава authoritative",
+    "Supabase остава authoritative",
+    "Cloud Run",
+    "Firestore",
+    "Identity Platform",
+    "Vertex AI",
+    "няма secret",
+    "DNS",
+    "data migration",
+  ]) {
+    assert.match(googleCloudCatalog, new RegExp(marker, "u"));
+  }
+
+  assert.match(
+    googleCloudCatalog,
+    /Не се provision-ва и не заменя OpenSearch/u,
+  );
+  assert.match(
+    googleCloudCatalog,
+    /Няма миграция на\s+Supabase users/u,
+  );
 });
 
 test("product direction keeps UX ambition separate from verified tools", () => {

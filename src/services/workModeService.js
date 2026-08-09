@@ -54,9 +54,31 @@ const PROJECT_RUN_STATUSES = new Set([
 
 const AGENT_MODELS = Object.freeze({
   auto: { label: "Автоматичен", apiModel: null },
-  "gpt-5.6-sol": { label: "GPT-5.6 Sol", apiModel: "gpt-5.6-sol" },
-  "gpt-5.6-terra": { label: "GPT-5.6 Terra", apiModel: "gpt-5.6-terra" },
-  "gpt-5.6-luna": { label: "GPT-5.6 Luna", apiModel: "gpt-5.6-luna" },
+  "gpt-5.6-sol": {
+    label: "GPT-5.6 Sol",
+    provider: "openai",
+    apiModel: "gpt-5.6-sol",
+  },
+  "gpt-5.6-terra": {
+    label: "GPT-5.6 Terra",
+    provider: "openai",
+    apiModel: "gpt-5.6-terra",
+  },
+  "gpt-5.6-luna": {
+    label: "GPT-5.6 Luna",
+    provider: "openai",
+    apiModel: "gpt-5.6-luna",
+  },
+  "gemini-2.5-flash": {
+    label: "Gemini 2.5 Flash",
+    provider: "gemini",
+    apiModel: "gemini-2.5-flash",
+  },
+  "grok-3-mini": {
+    label: "Grok 3 Mini",
+    provider: "grok",
+    apiModel: "grok-3-mini",
+  },
 });
 
 function cleanText(value, maxLength) {
@@ -293,5 +315,12 @@ export function resolveWorkAgentModel(value) {
   const id = cleanText(value, 40);
   return Object.hasOwn(AGENT_MODELS, id)
     ? AGENT_MODELS[id].apiModel || undefined
+    : undefined;
+}
+
+export function resolveWorkAgentProvider(value) {
+  const id = cleanText(value, 40);
+  return Object.hasOwn(AGENT_MODELS, id)
+    ? AGENT_MODELS[id].provider || undefined
     : undefined;
 }

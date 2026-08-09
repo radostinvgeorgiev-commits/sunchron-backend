@@ -128,6 +128,9 @@ services:
       - key: OPENAI_API_KEY
         scope: RUN_TIME
         type: SECRET
+      - key: AI_CORE_PROVIDER
+        value: openai
+        scope: RUN_TIME
       - key: OPENAI_CHAT_MODEL
         value: gpt-5.6-terra
         scope: RUN_TIME
@@ -147,6 +150,30 @@ services:
         value: "30000"
         scope: RUN_TIME
       - key: OPENAI_PLANNER_TIMEOUT_MS
+        value: "30000"
+        scope: RUN_TIME
+      - key: GEMINI_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+        scope: RUN_TIME
+      - key: GEMINI_API_URL
+        value: https://generativelanguage.googleapis.com/v1beta
+        scope: RUN_TIME
+      - key: GEMINI_TIMEOUT_MS
+        value: "30000"
+        scope: RUN_TIME
+      - key: GROK_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: GROK_MODEL
+        value: grok-3-mini
+        scope: RUN_TIME
+      - key: GROK_API_URL
+        value: https://api.x.ai/v1/chat/completions
+        scope: RUN_TIME
+      - key: GROK_TIMEOUT_MS
         value: "30000"
         scope: RUN_TIME
       - key: CODEX_AGENT_ENABLED

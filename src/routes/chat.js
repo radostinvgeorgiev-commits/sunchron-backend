@@ -76,7 +76,12 @@ import {
   planCapabilities,
   shouldUseAgentPlanner,
 } from "../services/agentPlannerService.js";
-import { requestOpenAIResponse } from "../services/aiCoreService.js";
+import {
+  getAiProviderTimeoutMs,
+  getConfiguredAiProvider,
+  isAiProviderConfigured,
+  requestAiResponse,
+} from "../services/aiCoreService.js";
 import { executeTaskPlan } from "../services/taskExecutionService.js";
 import { CodexAgentError } from "../services/codexAgentService.js";
 import {
@@ -98,6 +103,7 @@ import {
   isRuntimeAiIdentityRequest,
   isWorkContextStatusRequest,
   normalizeInteractionMode,
+  resolveWorkAgentProvider,
   resolveWorkAgentModel,
   routeSelectedWorkAgentCapabilities,
   sanitizeWorkContext,
@@ -253,11 +259,6 @@ export function buildAvatarMessages(
         .join("\n\n"),
     },
   ];
-}
-
-function parsePositiveInteger(value, fallback) {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 export function isOverviewQuestion(message, subject) {
@@ -790,10 +791,6 @@ function projectRunFromCapabilityResults(capabilityResults, workContext) {
 
 router.post("/chat", async (req, res) => {
   const openAiApiKey = process.env.OPENAI_API_KEY;
-  const aiTimeoutMs = parsePositiveInteger(
-    process.env.OPENAI_TIMEOUT_MS,
-    DEFAULT_AI_TIMEOUT_MS,
-  );
   const { sessionId, message, image, mode, workContext } = req.body || {};
   const googleSessionId =
     parseCookies(req.headers.cookie).synchron_google_session || "";
@@ -807,6 +804,17 @@ router.post("/chat", async (req, res) => {
   const interactionMode = normalizeInteractionMode(mode);
   const cleanWorkContext =
     interactionMode === "work" ? sanitizeWorkContext(workContext) : null;
+  const aiProvider =
+    resolveWorkAgentProvider(cleanWorkContext?.agent?.model) ||
+    getConfiguredAiProvider();
+  const aiProviderConfigured = Boolean(
+    aiProvider && isAiProviderConfigured(aiProvider),
+  );
+  const aiTimeoutMs = getAiProviderTimeoutMs(
+    aiProvider,
+    process.env,
+    DEFAULT_AI_TIMEOUT_MS,
+  );
 
   if (!cleanSessionId) {
     return res.status(400).json({ error: "Липсва валидна сесия." });
@@ -1441,7 +1449,7 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
-  if (!openAiApiKey) {
+  if (!aiProviderConfigured) {
     if (capabilityReplies.length) {
       const fullReply = [...capabilityReplies, memoryReply]
         .filter(Boolean)
@@ -1525,8 +1533,8 @@ router.post("/chat", async (req, res) => {
   }, aiTimeoutMs);
 
   try {
-    const aiResponse = await requestOpenAIResponse({
-      apiKey: openAiApiKey,
+    const aiResponse = await requestAiResponse({
+      provider: aiProvider,
       input: messages,
       model: resolveWorkAgentModel(cleanWorkContext?.agent?.model),
       signal: abortController.signal,
@@ -1560,7 +1568,9 @@ router.post("/chat", async (req, res) => {
       ...(projectRun ? { projectRun } : {}),
       ...getConversationPersistenceMetadata(conversationPersisted),
     });
-    console.log(`[AI Core] openai success for ${cleanSessionId}`);
+    console.log(
+      `[AI Core] ${aiResponse.provider} success for ${cleanSessionId}`,
+    );
     console.info(
       `[Chat] Response completed (agent stream) for ${cleanSessionId}`,
     );

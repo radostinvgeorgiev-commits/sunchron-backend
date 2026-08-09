@@ -19,11 +19,12 @@ SYNCHRON-X обединява:
 
 ## Основен поток
 
-`Сайт → SYNCHRON-X server → OpenAI Responses API → отговор`
+`Сайт → SYNCHRON-X server → избран AI provider → отговор`
 
-Паметта и разрешените инструменти се добавят към този поток през сървърните
-адаптери. DigitalOcean App Platform хоства приложението, но не е разговорен AI
-доставчик.
+OpenAI Responses API е доставчикът по подразбиране. Gemini и Grok от xAI могат
+да се изберат чрез `AI_CORE_PROVIDER` и собствените им secrets. Паметта и
+разрешените инструменти се добавят към този поток през сървърните адаптери.
+DigitalOcean App Platform хоства приложението, но не е разговорен AI доставчик.
 
 Инструментите се избират през `Capability Engine` и `Tool Registry`. Регистрация
 без изпълним адаптер и конфигурация не се счита за работеща интеграция.
@@ -61,3 +62,7 @@ npm test
 оценка на външни инструменти са в
 [`docs/PRODUCT_DIRECTION.md`](docs/PRODUCT_DIRECTION.md). Кандидат в този
 документ не означава внедрена или работеща production интеграция.
+
+Планираната Google Cloud foundation е отделна и не променя текущия production
+канал. Каталогът, Cloud Run health contract-ът и migration gates са в
+[`docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md`](docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md).

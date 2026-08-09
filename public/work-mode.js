@@ -58,6 +58,7 @@
     "gpt-5.6-luna": "GPT-5.6 Luna · бърз",
     "gemini-2.5-flash": "Gemini 2.5 Flash",
     "grok-3-mini": "Grok 3 Mini · xAI",
+    "claude-sonnet-5": "Claude Sonnet 5 · Anthropic",
   });
   const PROJECT_TOOL_OPTIONS = Object.freeze([
     Object.freeze({ id: "synchron-agent-chat", label: "AI разговор" }),

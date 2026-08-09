@@ -6,7 +6,11 @@ import {
   listProfileMemories,
   saveConversationTurn,
 } from "./memoryService.js";
-import { requestAiText } from "./aiCoreService.js";
+import {
+  getAiProviderTimeoutMs,
+  getConfiguredAiProvider,
+  requestAiText,
+} from "./aiCoreService.js";
 import { loadWorkspaceState } from "./workspaceStateService.js";
 import {
   resolveWorkAgentModel,
@@ -102,6 +106,10 @@ export async function sendMcpAgentMessage(
     askAi = requestAiText,
     saveTurn = saveConversationTurn,
     createSessionId = () => `mcp-${randomUUID()}`,
+    getProviderTimeoutMs = getAiProviderTimeoutMs,
+    getConfiguredProvider = getConfiguredAiProvider,
+    scheduleTimeout = setTimeout,
+    cancelTimeout = clearTimeout,
   } = {},
 ) {
   const cleanOwnerId = cleanRequiredText(ownerId, 200, "проверен профил");
@@ -149,13 +157,26 @@ export async function sendMcpAgentMessage(
       ? { ...item, content: `${item.content}\n\n${BRIDGE_BOUNDARY}` }
       : item,
   );
-  const response = await askAi({
-    provider: resolveWorkAgentProvider(agent.model),
-    input,
-    model: resolveWorkAgentModel(agent.model),
-    reasoningEffort: "low",
-    verbosity: "medium",
-  });
+  const provider =
+    resolveWorkAgentProvider(agent.model) || getConfiguredProvider();
+  const abortController = new AbortController();
+  const timeoutHandle = scheduleTimeout(
+    () => abortController.abort(),
+    getProviderTimeoutMs(provider),
+  );
+  let response;
+  try {
+    response = await askAi({
+      provider,
+      input,
+      model: resolveWorkAgentModel(agent.model),
+      reasoningEffort: "low",
+      verbosity: "medium",
+      signal: abortController.signal,
+    });
+  } finally {
+    cancelTimeout(timeoutHandle);
+  }
   await saveTurn(cleanSessionId, cleanMessage, response, cleanOwnerId);
 
   return Object.freeze({

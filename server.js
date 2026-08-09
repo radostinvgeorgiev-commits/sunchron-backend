@@ -6,6 +6,7 @@ import {
 } from "./src/middleware/ownerAuth.js";
 import { createRateLimiters } from "./src/middleware/rateLimits.js";
 import { startMemoryStartupVerification } from "./src/services/memoryStartupVerificationService.js";
+import { isAiCoreConfigured } from "./src/services/aiCoreService.js";
 import { executeCapability } from "./src/tools/capabilityEngine.js";
 
 import chatRouter from "./src/routes/chat.js";
@@ -32,9 +33,9 @@ const { oauthRateLimiter, paidAiRateLimiter, privateApiRateLimiter } =
   createRateLimiters();
 const mcpOAuthRouter = createMcpOAuthRouter({ oauthRateLimiter });
 
-if (!process.env.OPENAI_API_KEY) {
+if (!isAiCoreConfigured()) {
   console.warn(
-    "⚠️  OPENAI_API_KEY is not configured. Direct AI conversation is unavailable; independent tools can still run.",
+    "⚠️  The selected AI CORE provider is not configured. Direct AI conversation is unavailable; independent tools can still run.",
   );
 }
 

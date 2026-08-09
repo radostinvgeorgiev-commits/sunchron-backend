@@ -79,6 +79,11 @@ const AGENT_MODELS = Object.freeze({
     provider: "grok",
     apiModel: "grok-3-mini",
   },
+  "claude-sonnet-5": {
+    label: "Claude Sonnet 5",
+    provider: "anthropic",
+    apiModel: "claude-sonnet-5",
+  },
 });
 
 function cleanText(value, maxLength) {

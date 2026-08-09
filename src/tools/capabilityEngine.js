@@ -3,6 +3,10 @@ import {
   listAuditEvents,
 } from "../services/permissionService.js";
 import { isCopilotAutomationEnabled } from "../config/featureFlags.js";
+import {
+  hasConfiguredAiProvider,
+  isAiCoreConfigured,
+} from "../services/aiCoreService.js";
 import { answerGitHubReadRequest } from "../services/githubService.js";
 import {
   createGmailDraft,
@@ -124,9 +128,9 @@ export function getToolRuntimeAvailability(
   switch (toolId) {
     case "synchron-agent-chat":
       if (
+        !hasConfiguredAiProvider(env) ||
         !hasEnvironment(
           env,
-          "OPENAI_API_KEY",
           "OPENSEARCH_HOST",
           "OPENSEARCH_PORT",
           "OPENSEARCH_USERNAME",
@@ -335,7 +339,7 @@ export async function buildIntegrationStatusReport(
     ["Supabase Status", supabase],
     ["DigitalOcean Read", digitalOcean],
     ["Cloudflare Read", cloudflare],
-    ["OpenAI разговор", Boolean(env.OPENAI_API_KEY)],
+    ["AI CORE разговор", isAiCoreConfigured(env)],
     ["OpenAI Web Search", Boolean(env.OPENAI_API_KEY)],
     ["Codex", isCodexAgentConfigured(env)],
   ];

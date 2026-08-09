@@ -1,13 +1,17 @@
 const DEFAULT_OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_GROK_API_URL = "https://api.x.ai/v1/chat/completions";
+const DEFAULT_ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
+const DEFAULT_ANTHROPIC_API_VERSION = "2023-06-01";
 const DEFAULT_AI_TIMEOUT_MS = 120_000;
-const AI_PROVIDERS = new Set(["openai", "gemini", "grok"]);
+const AI_PROVIDERS = new Set(["openai", "gemini", "grok", "anthropic"]);
 
 export const DEFAULT_OPENAI_CHAT_MODEL = "gpt-5.6-terra";
 export const DEFAULT_OPENAI_PLANNER_MODEL = "gpt-5.6-luna";
 export const DEFAULT_GEMINI_CHAT_MODEL = "gemini-2.5-flash";
 export const DEFAULT_GROK_CHAT_MODEL = "grok-3-mini";
+export const DEFAULT_ANTHROPIC_CHAT_MODEL = "claude-sonnet-5";
+export const DEFAULT_ANTHROPIC_MAX_TOKENS = 2_048;
 
 export class AiCoreError extends Error {
   constructor(message, code = "AI_CORE_ERROR", status = 502) {
@@ -21,6 +25,24 @@ export class AiCoreError extends Error {
 function parsePositiveInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseBoundedInteger(value, fallback, minimum, maximum) {
+  const parsed = Number.parseInt(value, 10);
+  const selected = Number.isFinite(parsed) ? parsed : fallback;
+  return Math.max(minimum, Math.min(maximum, selected));
+}
+
+function normalizeAnthropicEffort(value) {
+  const effort = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return ["low", "medium", "high", "max", "xhigh"].includes(effort)
+    ? effort
+    : "low";
+}
+
+function safeTokenCount(value) {
+  const count = Number(value);
+  return Number.isFinite(count) && count >= 0 ? count : 0;
 }
 
 function extractTextContent(content) {
@@ -78,6 +100,13 @@ export function extractGeminiOutputText(data) {
 export function extractGrokOutputText(data) {
   return (Array.isArray(data?.choices) ? data.choices : [])
     .map((choice) => extractTextContent(choice?.message?.content))
+    .join("");
+}
+
+export function extractAnthropicOutputText(data) {
+  return (Array.isArray(data?.content) ? data.content : [])
+    .filter((part) => part?.type === "text")
+    .map((part) => (typeof part?.text === "string" ? part.text : ""))
     .join("");
 }
 
@@ -295,6 +324,159 @@ export async function requestGrokResponse({
   };
 }
 
+
+export async function requestAnthropicResponse({
+  apiKey = process.env.ANTHROPIC_API_KEY,
+  apiUrl = DEFAULT_ANTHROPIC_MESSAGES_URL,
+  apiVersion = DEFAULT_ANTHROPIC_API_VERSION,
+  input,
+  model = process.env.ANTHROPIC_MODEL || DEFAULT_ANTHROPIC_CHAT_MODEL,
+  maxTokens =
+    process.env.ANTHROPIC_MAX_TOKENS || DEFAULT_ANTHROPIC_MAX_TOKENS,
+  effort = process.env.ANTHROPIC_EFFORT || "low",
+  fetchImpl = fetch,
+  signal,
+}) {
+  if (!apiKey) {
+    throw new AiCoreError(
+      "Anthropic не е конфигуриран.",
+      "ANTHROPIC_NOT_CONFIGURED",
+      503,
+    );
+  }
+
+  if (
+    typeof model !== "string" ||
+    model.trim() !== DEFAULT_ANTHROPIC_CHAT_MODEL
+  ) {
+    throw new AiCoreError(
+      "Anthropic моделът не е разрешен.",
+      "ANTHROPIC_MODEL_UNSUPPORTED",
+      503,
+    );
+  }
+  const selectedModel = model.trim();
+  const normalized = normalizeChatMessages(input);
+  const system = normalized
+    .filter((item) => item.role === "system")
+    .map((item) => item.content)
+    .join("\n\n");
+  const messages = normalized
+    .filter((item) => item.role !== "system")
+    .map((item) => ({
+      role: item.role === "assistant" ? "assistant" : "user",
+      content: item.content,
+    }));
+  if (!messages.some((item) => item.role === "user")) {
+    throw new AiCoreError(
+      "Anthropic изисква потребителско съобщение.",
+      "ANTHROPIC_INVALID_INPUT",
+      400,
+    );
+  }
+  if (messages.at(-1)?.role === "assistant") {
+    throw new AiCoreError(
+      "Anthropic не приема assistant prefill в този разговорен режим.",
+      "ANTHROPIC_ASSISTANT_PREFILL_UNSUPPORTED",
+      400,
+    );
+  }
+
+  const boundedMaxTokens = parseBoundedInteger(
+    maxTokens,
+    DEFAULT_ANTHROPIC_MAX_TOKENS,
+    256,
+    8_192,
+  );
+  const response = await fetchImpl(apiUrl, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": apiVersion,
+    },
+    body: JSON.stringify({
+      model: selectedModel,
+      max_tokens: boundedMaxTokens,
+      ...(system ? { system } : {}),
+      messages,
+      output_config: { effort: normalizeAnthropicEffort(effort) },
+      service_tier: "standard_only",
+      stream: false,
+    }),
+    signal,
+  });
+
+  const requestId = response.headers.get("request-id");
+  if (!response.ok) {
+    console.error(
+      `[Anthropic] Upstream request failed: ${response.status}` +
+        (requestId ? ` request-id=${requestId}` : ""),
+    );
+    throw new AiCoreError(
+      `Anthropic върна грешка ${response.status}.`,
+      "ANTHROPIC_UPSTREAM_ERROR",
+      response.status,
+    );
+  }
+
+  const data = await response.json();
+  const stopReason =
+    typeof data?.stop_reason === "string" ? data.stop_reason : null;
+  if (stopReason === "refusal") {
+    throw new AiCoreError(
+      "Anthropic отказа заявката.",
+      "ANTHROPIC_REFUSAL",
+      422,
+    );
+  }
+  if (stopReason === "model_context_window_exceeded") {
+    throw new AiCoreError(
+      "Контекстът е прекалено голям за Anthropic.",
+      "ANTHROPIC_CONTEXT_TOO_LARGE",
+      413,
+    );
+  }
+  if (stopReason !== "end_turn") {
+    throw new AiCoreError(
+      "Anthropic не завърши отговора.",
+      "ANTHROPIC_INCOMPLETE_RESPONSE",
+    );
+  }
+
+  const text = extractAnthropicOutputText(data);
+  if (!text.trim()) {
+    throw new AiCoreError(
+      "Anthropic не върна текстов отговор.",
+      "ANTHROPIC_EMPTY_RESPONSE",
+    );
+  }
+  return {
+    text,
+    provider: "anthropic",
+    model:
+      typeof data?.model === "string" && data.model.trim()
+        ? data.model.trim()
+        : selectedModel,
+    stopReason,
+    requestId: requestId || null,
+    usage: {
+      inputTokens: safeTokenCount(data?.usage?.input_tokens),
+      outputTokens: safeTokenCount(data?.usage?.output_tokens),
+      cacheCreationInputTokens: safeTokenCount(
+        data?.usage?.cache_creation_input_tokens,
+      ),
+      cacheReadInputTokens: safeTokenCount(
+        data?.usage?.cache_read_input_tokens,
+      ),
+      thinkingTokens: safeTokenCount(
+        data?.usage?.output_tokens_details?.thinking_tokens,
+      ),
+    },
+  };
+}
+
 export function normalizeAiProvider(value) {
   const provider = typeof value === "string" ? value.trim().toLowerCase() : "";
   return AI_PROVIDERS.has(provider) ? provider : null;
@@ -316,9 +498,17 @@ export function isAiProviderConfigured(provider, env = process.env) {
       return Boolean(env.GEMINI_API_KEY);
     case "grok":
       return Boolean(env.GROK_API_KEY);
+    case "anthropic":
+      return Boolean(env.ANTHROPIC_API_KEY);
     default:
       return false;
   }
+}
+
+export function hasConfiguredAiProvider(env = process.env) {
+  return [...AI_PROVIDERS].some((provider) =>
+    isAiProviderConfigured(provider, env),
+  );
 }
 
 export function isAiCoreConfigured(env = process.env) {
@@ -328,7 +518,7 @@ export function isAiCoreConfigured(env = process.env) {
 
 export function getAiProviderStatus(env = process.env) {
   const selectedProvider = getConfiguredAiProvider(env);
-  const providers = ["openai", "gemini", "grok"].map((id) => ({
+  const providers = ["openai", "gemini", "grok", "anthropic"].map((id) => ({
     id,
     configured: isAiProviderConfigured(id, env),
   }));
@@ -351,6 +541,7 @@ export function getAiProviderTimeoutMs(
     openai: "OPENAI_TIMEOUT_MS",
     gemini: "GEMINI_TIMEOUT_MS",
     grok: "GROK_TIMEOUT_MS",
+    anthropic: "ANTHROPIC_TIMEOUT_MS",
   }[normalizeAiProvider(provider)];
   return parsePositiveInteger(timeoutKey ? env[timeoutKey] : undefined, fallback);
 }
@@ -378,6 +569,8 @@ export async function requestAiResponse({
       return requestGeminiResponse(options);
     case "grok":
       return requestGrokResponse(options);
+    case "anthropic":
+      return requestAnthropicResponse(options);
     default:
       throw new AiCoreError(
         "AI доставчикът не е разрешен.",

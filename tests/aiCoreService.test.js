@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  DEFAULT_ANTHROPIC_CHAT_MODEL,
   DEFAULT_OPENAI_CHAT_MODEL,
+  extractAnthropicOutputText,
   extractGeminiOutputText,
   extractGrokOutputText,
   extractOpenAIOutputText,
   getAiProviderStatus,
   requestAiResponse,
+  requestAnthropicResponse,
   requestGeminiResponse,
   requestGrokResponse,
   requestOpenAIResponse,
@@ -247,12 +250,150 @@ test("Grok uses the xAI-compatible chat completion contract", async () => {
   });
 });
 
+
+test("Anthropic Messages maps system context and returns only text blocks", async () => {
+  assert.equal(
+    extractAnthropicOutputText({
+      content: [
+        { type: "thinking", thinking: "private" },
+        { type: "text", text: "Първа част. " },
+        { type: "text", text: "Втора част." },
+      ],
+    }),
+    "Първа част. Втора част.",
+  );
+
+  const result = await requestAnthropicResponse({
+    apiKey: "test-anthropic-key",
+    input: [
+      { role: "system", content: "Говори кратко." },
+      { role: "user", content: "Здравей" },
+      { role: "assistant", content: "Здравей!" },
+      { role: "user", content: "Провери системата." },
+    ],
+    maxTokens: 2_048,
+    effort: "xhigh",
+    fetchImpl: async (url, options) => {
+      assert.equal(url, "https://api.anthropic.com/v1/messages");
+      assert.equal(options.headers["x-api-key"], "test-anthropic-key");
+      assert.equal(options.headers["anthropic-version"], "2023-06-01");
+      const body = JSON.parse(options.body);
+      assert.deepEqual(body, {
+        model: DEFAULT_ANTHROPIC_CHAT_MODEL,
+        max_tokens: 2_048,
+        system: "Говори кратко.",
+        messages: [
+          { role: "user", content: "Здравей" },
+          { role: "assistant", content: "Здравей!" },
+          { role: "user", content: "Провери системата." },
+        ],
+        output_config: { effort: "xhigh" },
+        service_tier: "standard_only",
+        stream: false,
+      });
+      return new Response(
+        JSON.stringify({
+          id: "msg_123",
+          model: "claude-sonnet-5",
+          stop_reason: "end_turn",
+          content: [
+            { type: "thinking", thinking: "private" },
+            { type: "text", text: "Работи." },
+          ],
+          usage: {
+            input_tokens: 12,
+            output_tokens: 4,
+            cache_creation_input_tokens: 2,
+            cache_read_input_tokens: 3,
+            output_tokens_details: { thinking_tokens: 1 },
+          },
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+            "request-id": "req_123",
+          },
+        },
+      );
+    },
+  });
+
+  assert.deepEqual(result, {
+    text: "Работи.",
+    provider: "anthropic",
+    model: "claude-sonnet-5",
+    stopReason: "end_turn",
+    requestId: "req_123",
+    usage: {
+      inputTokens: 12,
+      outputTokens: 4,
+      cacheCreationInputTokens: 2,
+      cacheReadInputTokens: 3,
+      thinkingTokens: 1,
+    },
+  });
+});
+
+test("Anthropic rejects unsupported model before sending data", async () => {
+  let called = false;
+  await assert.rejects(
+    requestAnthropicResponse({
+      apiKey: "test-anthropic-key",
+      model: "claude-unsupported",
+      input: [{ role: "user", content: "Не изпращай" }],
+      fetchImpl: async () => {
+        called = true;
+      },
+    }),
+    (error) =>
+      error?.code === "ANTHROPIC_MODEL_UNSUPPORTED" &&
+      error?.status === 503,
+  );
+  assert.equal(called, false);
+});
+
+test("Anthropic fails closed without a key or a complete response", async () => {
+  let called = false;
+  await assert.rejects(
+    requestAiResponse({
+      provider: "anthropic",
+      apiKey: "",
+      input: [{ role: "user", content: "Здравей" }],
+      fetchImpl: async () => {
+        called = true;
+      },
+    }),
+    (error) =>
+      error?.code === "ANTHROPIC_NOT_CONFIGURED" && error?.status === 503,
+  );
+  assert.equal(called, false);
+
+  await assert.rejects(
+    requestAnthropicResponse({
+      apiKey: "test-anthropic-key",
+      input: [{ role: "user", content: "Провери" }],
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            model: "claude-sonnet-5",
+            stop_reason: "max_tokens",
+            content: [{ type: "text", text: "Частичен отговор" }],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    }),
+    (error) => error?.code === "ANTHROPIC_INCOMPLETE_RESPONSE",
+  );
+});
+
 test("generic AI dispatch and status are explicit without exposing keys", async () => {
   const status = getAiProviderStatus({
     AI_CORE_PROVIDER: "grok",
     OPENAI_API_KEY: "openai-secret",
     GEMINI_API_KEY: "",
     GROK_API_KEY: "grok-secret",
+    ANTHROPIC_API_KEY: "anthropic-secret",
   });
   assert.equal(status.selectedProvider, "grok");
   assert.equal(status.configured, true);
@@ -260,6 +401,7 @@ test("generic AI dispatch and status are explicit without exposing keys", async 
     { id: "openai", configured: true },
     { id: "gemini", configured: false },
     { id: "grok", configured: true },
+    { id: "anthropic", configured: true },
   ]);
   assert.doesNotMatch(JSON.stringify(status), /secret/u);
 

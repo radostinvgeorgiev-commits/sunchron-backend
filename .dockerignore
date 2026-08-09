@@ -1,0 +1,11 @@
+.git
+.github
+.do
+.env
+.env.*
+node_modules
+runtime-build-info.json
+*.log
+docs
+tests
+deploy

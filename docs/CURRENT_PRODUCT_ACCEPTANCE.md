@@ -66,6 +66,9 @@ production проверките винаги се установяват по
 5. Supabase backup и възстановяване. При текущия Free Plan project backup няма;
    dashboard посочва до 7 дни scheduled backups при платен Pro plan, но upgrade
    не е разрешен и не е включван.
+6. Google Cloud migration. Cloud Run template-ът и конфигурационният каталог са
+   planning-only; няма приет GCP deployment, Firestore data plane, Identity
+   Platform user migration или Vertex AI production provider.
 
 ## Следващи стъпки
 
@@ -84,6 +87,13 @@ production проверките винаги се установяват по
    съхранение и restore тест; не е включен. Преди решение се показват актуалната
    цена и пълният план; upgrade или нов secret не се добавят автоматично.
 6. Restore drill само след отделното одобрение по-долу.
+
+Google Cloud migration има отделен ред в
+[`GOOGLE_CLOUD_CONFIGURATION_CATALOG.md`](./GOOGLE_CLOUD_CONFIGURATION_CATALOG.md).
+Той не променя DigitalOcean baseline, OpenSearch memory или Supabase identity.
+Няма приети Cloud Run resources, secrets, DNS промени или прехвърлени лични
+данни, докато exact-SHA runtime, cost/IAM, data/identity, provider и rollback
+gates не бъдат доказани поотделно.
 
 ## Посока след текущото приемане
 

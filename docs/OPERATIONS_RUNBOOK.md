@@ -23,6 +23,19 @@ rollback. Историческите audit документи пазят кон�
 Не обявявай deployment за успешен само защото `/health` отговаря. Exact SHA,
 readiness и production smoke трябва да сочат една и съща версия.
 
+## Google Cloud migration boundary
+
+Cloud Run container/template foundation-ът е отделен от текущия DigitalOcean
+production канал. Конфигурационният каталог и migration gates са в
+[`GOOGLE_CLOUD_CONFIGURATION_CATALOG.md`](./GOOGLE_CLOUD_CONFIGURATION_CATALOG.md).
+Докато всички gates не са приети, не създавай GCP resource, secret, IAM binding,
+DNS промяна или data migration.
+
+Cloud Run използва `/health` само за startup/liveness. `/health/ready` остава
+deployment acceptance проверка, защото включва AI, OpenSearch, memory acceptance
+и bridge. Не използвай readiness endpoint като liveness probe и не приемай
+подготвен YAML или image като deployed/accepted.
+
 Флаговете `configured`, `registrationEnabled`, `projectConnection` и
 `sessionProtection` доказват само runtime конфигурация. Те не доказват, че нов
 потребител реално може да се регистрира, да излезе и да влезе отново. Това се

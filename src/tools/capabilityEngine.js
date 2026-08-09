@@ -991,4 +991,10 @@ export function isToolExecutable(toolId, env = process.env) {
   }
   return typeof executors[toolId] === "function";
 }
-
+[31;1mMethodException: [0m
+[31;1m[36;1mLine |[0m
+[31;1m[36;1m[36;1m   2 | [0m … bilityEngine.js'; [36;1m$c=$c.Replace(([char]13+[char]10),[char]10)[0m; [Conso …[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot convert argument "oldChar", with value: "[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m", for "Replace" to type "System.Char": "Cannot convert value "[0m
+[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m" to type "System.Char". Error: "String must be exactly one character long.""[0m

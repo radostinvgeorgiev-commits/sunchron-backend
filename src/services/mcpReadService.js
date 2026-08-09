@@ -248,13 +248,17 @@ export const MCP_TOOLS = Object.freeze([
   },
   {
     name: "get_github_copilot_task_status",
-    title: "Проследи GitHub Copilot задача",
+    title: "Проследи GitHub Copilot задача или Pull Request",
     description:
-      "Проверява реалното състояние на конкретна GitHub задача, свързания Pull Request, CI проверките и production smoke статуса. Не променя нищо.",
+      "Проверява реалното състояние на конкретна GitHub задача или директен Pull Request, CI проверките и production smoke статуса. Не променя нищо.",
     inputSchema: {
       type: "object",
       properties: {
-        issueNumber: { type: "integer", minimum: 1 },
+        issueNumber: {
+          type: "integer",
+          minimum: 1,
+          description: "Номер на GitHub issue или Pull Request.",
+        },
       },
       required: ["issueNumber"],
       additionalProperties: false,
@@ -547,9 +551,12 @@ export function createMcpRequestHandler({
     } else if (name === "get_github_copilot_task_status") {
       const issueNumber = Number(args?.issueNumber);
       if (!Number.isSafeInteger(issueNumber) || issueNumber <= 0) {
-        throw Object.assign(new Error("Невалиден номер на GitHub задача."), {
-          code: -32602,
-        });
+        throw Object.assign(
+          new Error("Невалиден номер на GitHub задача или Pull Request."),
+          {
+            code: -32602,
+          },
+        );
       }
       const githubSession = await getLatestGitHubSession();
       const status = await getGitHubTaskStatus({

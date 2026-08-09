@@ -417,6 +417,72 @@ test("tracks a Copilot issue through a green production status", async () => {
   assert.match(formatCopilotTaskStatus(result), /pull\/146/u);
 });
 
+test("tracks a direct Pull Request number through production status", async () => {
+  const session = await connectedSession();
+  const result = await getCopilotTaskStatus({
+    githubSessionId: session.id,
+    issueNumber: 302,
+    repository: REPOSITORY,
+    fetchImpl: async (_url, options) => {
+      const request = JSON.parse(options.body);
+      assert.match(request.query, /pullRequest\(number: \$issueNumber\)/u);
+      return new Response(
+        JSON.stringify({
+          data: {
+            repository: {
+              issue: null,
+              pullRequest: {
+                number: 302,
+                title: "Подобри GitHub status",
+                url: "https://github.com/example/repo/pull/302",
+                state: "MERGED",
+                isDraft: false,
+                merged: true,
+                mergedAt: "2026-08-09T01:00:00Z",
+                baseRefName: "main",
+                headRefName: "codex/github-status",
+                headRefOid: "head302",
+                statusCheckRollup: {
+                  state: "SUCCESS",
+                  contexts: { nodes: [] },
+                },
+                mergeCommit: {
+                  oid: "merge302",
+                  statusCheckRollup: {
+                    state: "SUCCESS",
+                    contexts: {
+                      nodes: [
+                        {
+                          __typename: "StatusContext",
+                          context: "synchron/production-smoke",
+                          state: "SUCCESS",
+                          targetUrl: "https://github.com/example/run/302",
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          },
+        }),
+        { status: 200 },
+      );
+    },
+  });
+
+  assert.equal(result.resourceType, "pull-request");
+  assert.equal(result.issue.number, 302);
+  assert.equal(result.pullRequest.number, 302);
+  assert.equal(result.pullRequest.mergeSha, "merge302");
+  assert.equal(result.status, "real-tested");
+  assert.match(formatCopilotTaskStatus(result), /GitHub Pull Request #302/u);
+  assert.doesNotMatch(
+    formatCopilotTaskStatus(result),
+    /Pull Request: #302/u,
+  );
+});
+
 test("requires an exact one-time confirmation before starting Copilot", async () => {
   const session = await connectedSession();
   const prepared = await prepareCopilotTask({

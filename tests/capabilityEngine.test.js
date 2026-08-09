@@ -174,6 +174,21 @@ test("runtime availability blocks configured-looking tools without credentials",
   );
   assert.equal(
     getToolRuntimeAvailability(
+      "synchron-agent-chat",
+      { ownerId: "member-1" },
+      {
+        AI_CORE_PROVIDER: "openai",
+        ANTHROPIC_API_KEY: "key",
+        OPENSEARCH_HOST: "host",
+        OPENSEARCH_PORT: "25060",
+        OPENSEARCH_USERNAME: "user",
+        OPENSEARCH_PASSWORD: "password",
+      },
+    ).available,
+    true,
+  );
+  assert.equal(
+    getToolRuntimeAvailability(
       "openai-web-search",
       {},
       {

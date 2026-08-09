@@ -121,7 +121,7 @@ test("MCP agent conversation forwards the explicit Anthropic model", async () =>
   assert.equal(result.response, "Anthropic маршрутът е избран.");
 });
 
-test("MCP agent conversation aborts a timed-out provider without persisting", async () => {
+test("MCP auto model uses selected provider timeout and never persists after abort", async () => {
   let observedSignal;
   let scheduledDelay;
   let cancelledHandle;
@@ -132,7 +132,7 @@ test("MCP agent conversation aborts a timed-out provider without persisting", as
       sendMcpAgentMessage(
         { ownerId: "primary-user", message: "Изчакай Claude" },
         {
-          loadWorkspace: async () => workspace("ai-core", "claude-sonnet-5"),
+          loadWorkspace: async () => workspace("ai-core", "auto"),
           listMemories: async () => [],
           listMessages: async () => [],
           askAi: async ({ signal }) => {
@@ -146,6 +146,7 @@ test("MCP agent conversation aborts a timed-out provider without persisting", as
             saveCalls += 1;
           },
           createSessionId: () => "mcp-timeout-session",
+          getConfiguredProvider: () => "anthropic",
           getProviderTimeoutMs: (provider) => {
             assert.equal(provider, "anthropic");
             return 37;

@@ -354,11 +354,13 @@ test("tracks a Copilot issue through a green production status", async () => {
     fetchImpl: async (_url, options) => {
       const request = JSON.parse(options.body);
       assert.match(request.query, /CopilotTaskStatus/u);
+      assert.match(request.query, /issueOrPullRequest/u);
       return new Response(
         JSON.stringify({
           data: {
             repository: {
-              issue: {
+              issueOrPullRequest: {
+                __typename: "Issue",
                 number: 83,
                 title: "Проследи Copilot",
                 url: "https://github.com/example/repo/issues/83",
@@ -425,13 +427,16 @@ test("tracks a direct Pull Request number through production status", async () =
     repository: REPOSITORY,
     fetchImpl: async (_url, options) => {
       const request = JSON.parse(options.body);
-      assert.match(request.query, /pullRequest\(number: \$issueNumber\)/u);
+      assert.match(
+        request.query,
+        /issueOrPullRequest\(number: \$issueNumber\)/u,
+      );
       return new Response(
         JSON.stringify({
           data: {
             repository: {
-              issue: null,
-              pullRequest: {
+              issueOrPullRequest: {
+                __typename: "PullRequest",
                 number: 302,
                 title: "Подобри GitHub status",
                 url: "https://github.com/example/repo/pull/302",

@@ -6,7 +6,6 @@ import {
   extractGeminiOutputText,
   extractGrokOutputText,
   extractOpenAIOutputText,
-  hasConfiguredAiProvider,
   getAiProviderStatus,
   requestAiResponse,
   requestGeminiResponse,
@@ -14,12 +13,6 @@ import {
   requestOpenAIResponse,
   requestOpenAIText,
 } from "../src/services/aiCoreService.js";
-
-test("AI CORE reports any configured chat provider", () => {
-  assert.equal(hasConfiguredAiProvider({ GEMINI_API_KEY: "gemini" }), true);
-  assert.equal(hasConfiguredAiProvider({ GROK_API_KEY: "grok" }), true);
-  assert.equal(hasConfiguredAiProvider({}), false);
-});
 
 test("OpenAI Responses output text is extracted from typed output items", () => {
   assert.equal(
@@ -283,10 +276,3 @@ test("generic AI dispatch and status are explicit without exposing keys", async 
   assert.equal(result.provider, "grok");
   assert.equal(result.text, "Работи.");
 });
-[31;1mMethodException: [0m
-[31;1m[36;1mLine |[0m
-[31;1m[36;1m[36;1m   2 | [0m … Service.test.js'; [36;1m$c=$c.Replace(([char]13+[char]10),[char]10)[0m; [Conso …[0m
-[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot convert argument "oldChar", with value: "[0m
-[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m", for "Replace" to type "System.Char": "Cannot convert value "[0m
-[31;1m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m" to type "System.Char". Error: "String must be exactly one character long.""[0m

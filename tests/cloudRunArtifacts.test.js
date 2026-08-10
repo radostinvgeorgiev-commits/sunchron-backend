@@ -31,7 +31,9 @@ test("Cloud Run template uses liveness without dependency-heavy readiness", asyn
   assert.match(template, /__ARTIFACT_REGISTRY_IMAGE_URI__/u);
   assert.match(template, /__COMMIT_SHA__/u);
   assert.match(template, /__GCP_PROJECT_ID__/u);
+  assert.match(template, /__GCP_PROJECT_NUMBER__/u);
   assert.match(template, /containerPort: 8080/u);
+  assert.doesNotMatch(template, /name: PORT/u);
   assert.match(template, /name: MEMORY_BACKEND\s+value: firestore/u);
   assert.match(template, /name: PERSISTENCE_BACKEND\s+value: firestore/u);
   assert.match(template, /name: FIRESTORE_DATABASE_ID\s+value: "\(default\)"/u);
@@ -49,11 +51,19 @@ test("Cloud Run template uses liveness without dependency-heavy readiness", asyn
   );
   assert.match(template, /__IDENTITY_PLATFORM_API_KEY_SECRET__/u);
   assert.match(template, /__USER_SESSION_ENCRYPTION_KEY_SECRET__/u);
+  assert.match(template, /run\.googleapis\.com\/secrets:/u);
+  assert.match(template, /run\.googleapis\.com\/ingress: all/u);
+  assert.match(template, /synchron-migration-stage: foundation-only/u);
+  assert.doesNotMatch(template, /app\.kubernetes\.io|synchron\.foundation\//u);
+  assert.match(template, /autoscaling\.knative\.dev\/minScale: "0"/u);
+  assert.match(template, /autoscaling\.knative\.dev\/maxScale: "2"/u);
   assert.equal((template.match(/path: \/health/gu) || []).length, 2);
   assert.match(template, /startupProbe:/u);
   assert.match(template, /livenessProbe:/u);
   assert.doesNotMatch(template, /readinessProbe:/u);
-  assert.equal((template.match(/secretKeyRef:/gu) || []).length, 2);
+  assert.match(template, /name: SYNCHRON_TEST_INVITE_CODE/u);
+  assert.doesNotMatch(template, /name: TESTER_INVITE_CODE/u);
+  assert.equal((template.match(/secretKeyRef:/gu) || []).length, 8);
   assert.doesNotMatch(template, /gcloud\s+(run|secrets)/iu);
 });
 

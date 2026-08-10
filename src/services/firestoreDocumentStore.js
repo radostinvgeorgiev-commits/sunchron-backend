@@ -246,13 +246,20 @@ export function createFirestoreDocumentStore({
     );
   }
 
-  function documentName(collection, id) {
-    const cleanId = cleanIdentifier(
+  function cleanDocumentId(id) {
+    return cleanIdentifier(
       id,
       "Firestore document ID",
       /^[^/]{1,500}$/u,
     );
-    return `${databasePath}/documents/${cleanCollection(collection)}/${encodeURIComponent(cleanId)}`;
+  }
+
+  function documentName(collection, id) {
+    return `${databasePath}/documents/${cleanCollection(collection)}/${cleanDocumentId(id)}`;
+  }
+
+  function documentUrl(collection, id) {
+    return `${FIRESTORE_API_ORIGIN}/v1/${databasePath}/documents/${cleanCollection(collection)}/${encodeURIComponent(cleanDocumentId(id))}`;
   }
 
   function updateWrite(collection, id, data, precondition = null) {
@@ -382,7 +389,7 @@ export function createFirestoreDocumentStore({
     },
     async get(collection, id, options = {}) {
       const result = await request(
-        `${FIRESTORE_API_ORIGIN}/v1/${documentName(collection, id)}`,
+        documentUrl(collection, id),
         { allow404: true },
       );
       if (!result) return null;

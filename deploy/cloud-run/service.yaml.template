@@ -1,17 +1,25 @@
-# Шаблонът е непълен нарочно. Замени всички __PLACEHOLDER__ стойности,
+# Шаблонът е непълен нарочно. Замени всички означени placeholder стойности,
 # прегледай migration gates и не го прилагай без изрично одобрение.
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   name: "__CLOUD_RUN_SERVICE_NAME__"
+  annotations:
+    run.googleapis.com/ingress: all
   labels:
-    app.kubernetes.io/name: synchron-backend
-    synchron.foundation/migration-stage: foundation-only
+    app: synchron-backend
+    synchron-migration-stage: foundation-only
 spec:
   template:
     metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "2"
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/cpu-throttling: "true"
+        run.googleapis.com/secrets: "openai-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__OPENAI_API_KEY_SECRET__,identity-platform-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__IDENTITY_PLATFORM_API_KEY_SECRET__,user-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__USER_SESSION_ENCRYPTION_KEY_SECRET__,github-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GITHUB_SESSION_ENCRYPTION_KEY_SECRET__,google-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GOOGLE_SESSION_ENCRYPTION_KEY_SECRET__,tester-invite-code:projects/__GCP_PROJECT_NUMBER__/secrets/__SYNCHRON_TEST_INVITE_CODE_SECRET__,mcp-access-token:projects/__GCP_PROJECT_NUMBER__/secrets/__MCP_ACCESS_TOKEN_SECRET__,mcp-oauth-secret:projects/__GCP_PROJECT_NUMBER__/secrets/__MCP_OAUTH_SECRET_NAME__"
       labels:
-        app.kubernetes.io/name: synchron-backend
+        app: synchron-backend
     spec:
       serviceAccountName: "__CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT__"
       containerConcurrency: 20
@@ -25,18 +33,35 @@ spec:
           env:
             - name: NODE_ENV
               value: production
-            - name: PORT
-              value: "8080"
             - name: APP_COMMIT_SHA
               value: "__COMMIT_SHA__"
+            - name: AI_CORE_PROVIDER
+              value: openai
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: openai-api-key
+                  key: "__OPENAI_API_KEY_VERSION__"
             - name: MEMORY_BACKEND
               value: firestore
             - name: PERSISTENCE_BACKEND
               value: firestore
+            - name: MEMORY_OWNER_ID
+              value: "__MEMORY_OWNER_ID__"
             - name: GOOGLE_CLOUD_PROJECT
               value: "__GCP_PROJECT_ID__"
             - name: FIRESTORE_DATABASE_ID
               value: "(default)"
+            - name: FIRESTORE_PROFILE_COLLECTION
+              value: synchron-profile-memory-v1
+            - name: FIRESTORE_CONVERSATION_COLLECTION
+              value: synchron-conversation-memory-v1
+            - name: FIRESTORE_CONFIRMATION_COLLECTION
+              value: synchron-confirmations-v1
+            - name: FIRESTORE_AUDIT_COLLECTION
+              value: synchron-action-audit-v1
+            - name: FIRESTORE_TESTER_ACCESS_COLLECTION
+              value: synchron-tester-access-v1
             - name: FIRESTORE_WORKSPACE_COLLECTION
               value: synchron-workspaces-v1
             - name: FIRESTORE_TASK_COLLECTION
@@ -55,16 +80,55 @@ spec:
               value: "__GCP_PROJECT_ID__"
             - name: IDENTITY_PLATFORM_REQUIRE_EMAIL_VERIFICATION
               value: "true"
+            - name: TESTER_REGISTRATION_ENABLED
+              value: "true"
             - name: IDENTITY_PLATFORM_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: "__IDENTITY_PLATFORM_API_KEY_SECRET__"
+                  name: identity-platform-api-key
                   key: "__IDENTITY_PLATFORM_API_KEY_VERSION__"
             - name: USER_SESSION_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
-                  name: "__USER_SESSION_ENCRYPTION_KEY_SECRET__"
+                  name: user-session-key
                   key: "__USER_SESSION_ENCRYPTION_KEY_VERSION__"
+            - name: GITHUB_SESSION_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: github-session-key
+                  key: "__GITHUB_SESSION_ENCRYPTION_KEY_VERSION__"
+            - name: GITHUB_REPOSITORY
+              value: radostinvgeorgiev-commits/sunchron-backend
+            - name: SYNCHRON_OWNER_GITHUB_LOGIN
+              value: radostinvgeorgiev-commits
+            - name: GOOGLE_SESSION_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: google-session-key
+                  key: "__GOOGLE_SESSION_ENCRYPTION_KEY_VERSION__"
+            - name: SYNCHRON_TEST_INVITE_CODE
+              valueFrom:
+                secretKeyRef:
+                  name: tester-invite-code
+                  key: "__SYNCHRON_TEST_INVITE_CODE_VERSION__"
+            - name: MCP_RESOURCE_URL
+              value: "__MCP_RESOURCE_URL__"
+            - name: MCP_ISSUER_URL
+              value: "__MCP_ISSUER_URL__"
+            - name: MCP_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: mcp-access-token
+                  key: "__MCP_ACCESS_TOKEN_VERSION__"
+            - name: MCP_OAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: mcp-oauth-secret
+                  key: "__MCP_OAUTH_SECRET_VERSION__"
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
           startupProbe:
             httpGet:
               path: /health

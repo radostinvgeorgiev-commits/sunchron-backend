@@ -159,7 +159,7 @@ test("MCP OAuth challenge validator is valid and executable bash", async (t) => 
     new URL("../.github/workflows/production-smoke.yml", import.meta.url),
     "utf8",
   );
-  const step = extractMcpChallengeStep(workflow);
+  const step = extractMcpChallengeStep(workflow).replace(/\r\n?/gu, "\n");
   const probe = runBash("command -v node >/dev/null 2>&1\n");
   if (probe.error?.code === "ENOENT" || probe.status !== 0) {
     t.skip("bash with Node.js is unavailable in this environment");

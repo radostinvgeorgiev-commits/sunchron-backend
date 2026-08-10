@@ -235,6 +235,27 @@ test("AI CORE chat availability accepts a configured non-OpenAI provider", () =>
   assert.equal(result.available, true);
 });
 
+test("AI CORE chat and memory availability accept Firestore without OpenSearch", () => {
+  const env = {
+    OPENAI_API_KEY: "key",
+    MEMORY_BACKEND: "firestore",
+    GOOGLE_CLOUD_PROJECT: "handy-boulevard-479120-q9",
+    FIRESTORE_DATABASE_ID: "(default)",
+  };
+  assert.equal(
+    getToolRuntimeAvailability(
+      "synchron-agent-chat",
+      { ownerId: "identity-platform:user-a" },
+      env,
+    ).available,
+    true,
+  );
+  assert.equal(
+    getToolRuntimeAvailability("opensearch-memory", {}, env).available,
+    true,
+  );
+});
+
 test("code.write спира преди Copilot flow в изключен режим", async () => {
   await assert.rejects(
     () =>

@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { getOpenSearchClient } from "../config/opensearch.js";
+import { resolvePersistenceBackend } from "../config/memoryBackend.js";
 import { logSafeError } from "../utils/safeLogging.js";
 import {
   decryptGitHubSession,
   encryptGitHubSession,
 } from "./githubOAuthService.js";
+import { createFirestoreOperationalStore } from "./firestoreOperationalStore.js";
 
 const CONFIRMATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const CONFIRMATION_INDEX =
@@ -45,6 +47,15 @@ const SENSITIVE_PARAM_KEYS = new Set([
 ]);
 
 const pendingConfirmations = new Map();
+let firestoreOperationalStore = null;
+let firestoreOperationalConfiguration = null;
+let firestoreOperationalStoreOverride = null;
+
+export function setFirestoreConfirmationStoreForTests(store) {
+  firestoreOperationalStoreOverride = store || null;
+  firestoreOperationalStore = null;
+  firestoreOperationalConfiguration = null;
+}
 
 function persistenceError() {
   const error = new Error(
@@ -58,7 +69,43 @@ export function requiresPersistentConfirmations(env = process.env) {
   return env.NODE_ENV === "production";
 }
 
+function persistenceBackendOrThrow() {
+  const backend = resolvePersistenceBackend(process.env);
+  if (!backend) throw persistenceError();
+  return backend;
+}
+
+function getFirestoreOperationalStoreOrThrow() {
+  if (firestoreOperationalStoreOverride) {
+    return firestoreOperationalStoreOverride;
+  }
+  const configuration = [
+    process.env.GOOGLE_CLOUD_PROJECT,
+    process.env.GCLOUD_PROJECT,
+    process.env.GCP_PROJECT_ID,
+    process.env.FIRESTORE_DATABASE_ID,
+    process.env.FIRESTORE_CONFIRMATION_COLLECTION,
+  ].join("\0");
+  if (
+    !firestoreOperationalStore ||
+    firestoreOperationalConfiguration !== configuration
+  ) {
+    firestoreOperationalStore = createFirestoreOperationalStore({
+      env: process.env,
+    });
+    firestoreOperationalConfiguration = configuration;
+  }
+  return firestoreOperationalStore;
+}
+
 async function persistConfirmation(confirmation) {
+  if (persistenceBackendOrThrow() === "firestore") {
+    await getFirestoreOperationalStoreOrThrow().saveConfirmation(
+      confirmation.id,
+      encryptGitHubSession(confirmation),
+    );
+    return true;
+  }
   const client = getOpenSearchClient();
   if (!client) return false;
   await client.index({
@@ -71,6 +118,15 @@ async function persistConfirmation(confirmation) {
 }
 
 async function loadStoredConfirmation(id) {
+  if (persistenceBackendOrThrow() === "firestore") {
+    try {
+      const document =
+        await getFirestoreOperationalStoreOrThrow().getConfirmation(id);
+      return document ? decryptGitHubSession(document.data) : null;
+    } catch {
+      throw persistenceError();
+    }
+  }
   const client = getOpenSearchClient();
   if (!client) return null;
   try {
@@ -87,6 +143,13 @@ async function loadStoredConfirmation(id) {
 }
 
 async function removeStoredConfirmation(id) {
+  if (persistenceBackendOrThrow() === "firestore") {
+    try {
+      return await getFirestoreOperationalStoreOrThrow().deleteConfirmation(id);
+    } catch {
+      throw persistenceError();
+    }
+  }
   const client = getOpenSearchClient();
   if (!client) return false;
   try {
@@ -288,4 +351,5 @@ export function denyConfirmation(confirmationId, sessionId) {
 /** Test helper — clears all pending confirmations. */
 export function resetConfirmationsForTests() {
   pendingConfirmations.clear();
+  setFirestoreConfirmationStoreForTests(null);
 }

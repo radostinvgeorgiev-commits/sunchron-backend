@@ -63,6 +63,6 @@ npm test
 [`docs/PRODUCT_DIRECTION.md`](docs/PRODUCT_DIRECTION.md). Кандидат в този
 документ не означава внедрена или работеща production интеграция.
 
-Планираната Google Cloud foundation е отделна и не променя текущия production
-канал. Каталогът, Cloud Run health contract-ът и migration gates са в
+Google Cloud migration се изпълнява поетапно, без да променя текущия production
+канал преди отделен cutover. Каталогът, Cloud Run health contract-ът и migration gates са в
 [`docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md`](docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md).

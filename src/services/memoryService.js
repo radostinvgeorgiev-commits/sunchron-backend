@@ -1,10 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { getOpenSearchClient } from "../config/opensearch.js";
+import { resolveMemoryBackend } from "../config/memoryBackend.js";
 import {
   CANONICAL_PROJECT_MEMORY_ID,
   PROJECT_DEFINITION,
   isSupersededProjectDefinition,
 } from "../config/projectIdentity.js";
+import { createFirestoreMemoryStore } from "./firestoreMemoryStore.js";
 
 const PROFILE_INDEX = process.env.MEMORY_INDEX || "synchron-profile-memory-v1";
 const CONVERSATION_INDEX =
@@ -15,6 +17,15 @@ const MAX_CONVERSATION_MESSAGES = 20;
 const MAX_CONVERSATIONS = 50;
 const VALID_SCOPES = new Set(["personal", "project"]);
 const indexPromises = new Map();
+let firestoreStore = null;
+let firestoreStoreConfiguration = null;
+let firestoreStoreOverride = null;
+
+export function setFirestoreMemoryStoreForTests(store) {
+  firestoreStoreOverride = store || null;
+  firestoreStore = null;
+  firestoreStoreConfiguration = null;
+}
 
 export function profileMemoryDocumentId(ownerId, memoryKey) {
   const owner = String(ownerId || "").trim();
@@ -40,7 +51,39 @@ function getClientOrThrow() {
   return client;
 }
 
+function getMemoryBackendOrThrow() {
+  const backend = resolveMemoryBackend(process.env);
+  if (!backend) {
+    const error = new Error("Невалиден MEMORY_BACKEND.");
+    error.code = "MEMORY_UNAVAILABLE";
+    throw error;
+  }
+  return backend;
+}
+
+function usesFirestoreMemory() {
+  return getMemoryBackendOrThrow() === "firestore";
+}
+
+function getFirestoreStoreOrThrow() {
+  if (firestoreStoreOverride) return firestoreStoreOverride;
+  const configuration = [
+    process.env.GOOGLE_CLOUD_PROJECT,
+    process.env.GCLOUD_PROJECT,
+    process.env.GCP_PROJECT_ID,
+    process.env.FIRESTORE_DATABASE_ID,
+    process.env.FIRESTORE_PROFILE_COLLECTION,
+    process.env.FIRESTORE_CONVERSATION_COLLECTION,
+  ].join("\0");
+  if (!firestoreStore || firestoreStoreConfiguration !== configuration) {
+    firestoreStore = createFirestoreMemoryStore({ env: process.env });
+    firestoreStoreConfiguration = configuration;
+  }
+  return firestoreStore;
+}
+
 async function ensureIndex(index, mappings) {
+  if (usesFirestoreMemory()) return;
   if (!indexPromises.has(index)) {
     const promise = (async () => {
       const client = getClientOrThrow();
@@ -375,6 +418,19 @@ export function isConfirmedForgetAllCommand(message) {
 }
 
 async function fetchProfileHits(ownerId = OWNER_ID) {
+  if (usesFirestoreMemory()) {
+    const documents = await getFirestoreStoreOrThrow().listProfileDocuments(
+      ownerId,
+      MAX_MEMORIES,
+    );
+    return documents
+      .sort((a, b) =>
+        String(b.data?.updatedAt || "").localeCompare(
+          String(a.data?.updatedAt || ""),
+        ),
+      )
+      .map((document) => ({ _id: document.id, _source: document.data }));
+  }
   const response = await getClientOrThrow().search({
     index: PROFILE_INDEX,
     body: {
@@ -560,7 +616,8 @@ export async function saveProfileMemory(
   );
 
   await ensureProfileIndex();
-  const client = getClientOrThrow();
+  const firestore = usesFirestoreMemory();
+  const client = firestore ? null : getClientOrThrow();
   const normalizedFact = normalizeFact(cleanFact);
   const metadata = deriveMemoryMetadata(cleanFact, scope);
   const hits = await fetchProfileHits(ownerId);
@@ -580,23 +637,33 @@ export async function saveProfileMemory(
     .filter((memory) => memory.id !== id)
     .map((memory) => memory.id);
 
-  await client.index({
-    index: PROFILE_INDEX,
-    id,
-    refresh: true,
-    body: {
-      ownerId,
-      fact: cleanFact,
-      normalizedFact,
-      ...metadata,
-      createdAt: existing?.createdAt || now,
-      updatedAt: now,
-      source,
-    },
-  });
+  const document = {
+    ownerId,
+    fact: cleanFact,
+    normalizedFact,
+    ...metadata,
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+    source,
+  };
+
+  if (firestore) {
+    await getFirestoreStoreOrThrow().commitProfileDocument({
+      id,
+      data: document,
+      deleteIds: duplicateIds,
+    });
+  } else {
+    await client.index({
+      index: PROFILE_INDEX,
+      id,
+      refresh: true,
+      body: document,
+    });
+  }
 
   let cleanupCompleted = true;
-  if (duplicateIds.length) {
+  if (!firestore && duplicateIds.length) {
     try {
       const cleanupResponse = await client.bulk({
         refresh: true,
@@ -647,20 +714,31 @@ export async function updateProfileMemoryById(
     requestedScope,
   );
   await ensureProfileIndex();
-  const client = getClientOrThrow();
   let existing;
-  try {
-    const response = await client.get({ index: PROFILE_INDEX, id: cleanId });
-    existing = response.body?._source ?? response._source;
-  } catch (error) {
-    const status = error?.statusCode || error?.meta?.statusCode;
-    if (status === 404) {
+  if (usesFirestoreMemory()) {
+    existing = (await getFirestoreStoreOrThrow().getProfileDocument(cleanId))
+      ?.data;
+    if (!existing) {
       const missing = new Error("Споменът не е намерен.");
       missing.code = "MEMORY_NOT_FOUND";
       missing.status = 404;
       throw missing;
     }
-    throw error;
+  } else {
+    const client = getClientOrThrow();
+    try {
+      const response = await client.get({ index: PROFILE_INDEX, id: cleanId });
+      existing = response.body?._source ?? response._source;
+    } catch (error) {
+      const status = error?.statusCode || error?.meta?.statusCode;
+      if (status === 404) {
+        const missing = new Error("Споменът не е намерен.");
+        missing.code = "MEMORY_NOT_FOUND";
+        missing.status = 404;
+        throw missing;
+      }
+      throw error;
+    }
   }
   if (existing?.ownerId !== ownerId) {
     const missing = new Error("Споменът не е намерен.");
@@ -682,19 +760,31 @@ export async function updateProfileMemoryById(
     updatedAt: now,
     source: "confirmed-memory-update",
   };
-  const operations = [{ index: { _index: PROFILE_INDEX, _id: nextId } }, body];
-  if (nextId !== cleanId) {
-    operations.push({ delete: { _index: PROFILE_INDEX, _id: cleanId } });
-  }
-  const response = await client.bulk({ refresh: true, body: operations });
-  const result = response.body || response;
-  if (result?.errors) {
-    const error = new Error(
-      "Промяната на спомена не можа да бъде завършена еднозначно.",
-    );
-    error.code = "MEMORY_UPDATE_UNCERTAIN";
-    error.status = 502;
-    throw error;
+  if (usesFirestoreMemory()) {
+    await getFirestoreStoreOrThrow().commitProfileDocument({
+      id: nextId,
+      data: body,
+      deleteIds: nextId === cleanId ? [] : [cleanId],
+    });
+  } else {
+    const client = getClientOrThrow();
+    const operations = [
+      { index: { _index: PROFILE_INDEX, _id: nextId } },
+      body,
+    ];
+    if (nextId !== cleanId) {
+      operations.push({ delete: { _index: PROFILE_INDEX, _id: cleanId } });
+    }
+    const response = await client.bulk({ refresh: true, body: operations });
+    const result = response.body || response;
+    if (result?.errors) {
+      const error = new Error(
+        "Промяната на спомена не можа да бъде завършена еднозначно.",
+      );
+      error.code = "MEMORY_UPDATE_UNCERTAIN";
+      error.status = 502;
+      throw error;
+    }
   }
   return {
     id: nextId,
@@ -730,6 +820,11 @@ export async function deleteProfileMemoryByFact(
     .map((memory) => memory.id);
   if (!matchingIds.length) return 0;
 
+  if (usesFirestoreMemory()) {
+    await getFirestoreStoreOrThrow().deleteProfileDocuments(matchingIds);
+    return matchingIds.length;
+  }
+
   const response = await getClientOrThrow().deleteByQuery({
     index: PROFILE_INDEX,
     refresh: true,
@@ -746,6 +841,12 @@ export async function deleteProfileMemoryByFact(
 
 export async function deleteProfileMemory(id, ownerId = OWNER_ID) {
   await ensureProfileIndex();
+  if (usesFirestoreMemory()) {
+    const document = await getFirestoreStoreOrThrow().getProfileDocument(id);
+    if (!document || document.data?.ownerId !== ownerId) return false;
+    await getFirestoreStoreOrThrow().deleteProfileDocuments([id]);
+    return true;
+  }
   const response = await getClientOrThrow().deleteByQuery({
     index: PROFILE_INDEX,
     refresh: true,
@@ -762,6 +863,15 @@ export async function deleteProfileMemory(id, ownerId = OWNER_ID) {
 
 export async function clearProfileMemories(scope, ownerId = OWNER_ID) {
   await ensureProfileIndex();
+  if (usesFirestoreMemory()) {
+    const hits = await fetchProfileHits(ownerId);
+    const ids = hits
+      .filter((hit) => !VALID_SCOPES.has(scope) || hit._source?.scope === scope)
+      .map((hit) => hit._id);
+    if (!ids.length) return 0;
+    await getFirestoreStoreOrThrow().deleteProfileDocuments(ids);
+    return ids.length;
+  }
   const filters = [{ term: { ownerId } }];
   if (VALID_SCOPES.has(scope)) filters.push({ term: { scope } });
   const response = await getClientOrThrow().deleteByQuery({
@@ -778,6 +888,23 @@ export async function listConversationMessages(
   ownerId = OWNER_ID,
 ) {
   await ensureConversationIndex();
+  if (usesFirestoreMemory()) {
+    const safeLimit = Math.min(Math.max(limit, 1), MAX_CONVERSATION_MESSAGES);
+    const documents =
+      await getFirestoreStoreOrThrow().listConversationSessionDocuments(
+        ownerId,
+        sessionId,
+        safeLimit,
+      );
+    return documents
+      .sort((a, b) =>
+        String(a.data?.createdAt || "").localeCompare(
+          String(b.data?.createdAt || ""),
+        ),
+      )
+      .slice(-safeLimit)
+      .map((document) => ({ id: document.id, ...document.data }));
+  }
   const response = await getClientOrThrow().search({
     index: CONVERSATION_INDEX,
     body: {
@@ -810,6 +937,33 @@ export async function listConversationSummaries(
   ownerId = OWNER_ID,
 ) {
   await ensureConversationIndex();
+  if (usesFirestoreMemory()) {
+    const documents =
+      await getFirestoreStoreOrThrow().listConversationDocuments(ownerId);
+    const grouped = new Map();
+    for (const document of documents) {
+      const sessionId = document.data?.sessionId;
+      if (!sessionId) continue;
+      if (!grouped.has(sessionId)) grouped.set(sessionId, []);
+      grouped.get(sessionId).push(document.data);
+    }
+    return [...grouped.entries()]
+      .map(([sessionId, messages]) => {
+        messages.sort((a, b) =>
+          String(a.createdAt || "").localeCompare(String(b.createdAt || "")),
+        );
+        return {
+          sessionId,
+          title: conversationTitleFromMessages(messages),
+          updatedAt: messages.at(-1)?.createdAt || null,
+          messageCount: messages.length,
+        };
+      })
+      .sort((a, b) =>
+        String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")),
+      )
+      .slice(0, Math.min(Math.max(limit, 1), MAX_CONVERSATIONS));
+  }
   const response = await getClientOrThrow().search({
     index: CONVERSATION_INDEX,
     body: {
@@ -863,27 +1017,41 @@ export async function saveConversationTurn(
   ownerId = OWNER_ID,
 ) {
   await ensureConversationIndex();
-  const client = getClientOrThrow();
   const timestamp = Date.now();
-  const response = await client.bulk({
-    refresh: true,
-    body: [
-      { index: { _index: CONVERSATION_INDEX, _id: randomUUID() } },
-      {
+  const documents = [
+    {
+      id: randomUUID(),
+      data: {
         ownerId,
         sessionId,
         role: "user",
         content: userText,
         createdAt: new Date(timestamp).toISOString(),
       },
-      { index: { _index: CONVERSATION_INDEX, _id: randomUUID() } },
-      {
+    },
+    {
+      id: randomUUID(),
+      data: {
         ownerId,
         sessionId,
         role: "assistant",
         content: replyText,
         createdAt: new Date(timestamp + 1).toISOString(),
       },
+    },
+  ];
+  if (usesFirestoreMemory()) {
+    await getFirestoreStoreOrThrow().commitConversationDocuments(documents);
+    return;
+  }
+  const client = getClientOrThrow();
+  const response = await client.bulk({
+    refresh: true,
+    body: [
+      { index: { _index: CONVERSATION_INDEX, _id: documents[0].id } },
+      documents[0].data,
+      { index: { _index: CONVERSATION_INDEX, _id: documents[1].id } },
+      documents[1].data,
     ],
   });
   const result = response.body || response;

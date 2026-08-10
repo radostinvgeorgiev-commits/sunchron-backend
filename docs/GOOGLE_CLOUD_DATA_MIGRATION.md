@@ -22,6 +22,62 @@ OpenSearch и Supabase са само временни източници за е
 7. Едва след това се прави Google edge cutover.
 8. Старите услуги и адаптери се премахват след изрично потвърждение.
 
+## Supabase Auth → Identity Platform
+
+Профилите се пренасят преди останалите данни. Supabase `auth.users` export
+остава private файл извън Git, Cloud Logging и чата. Не се използва
+`raw_user_meta_data` за права; от него се взема само display name.
+
+Точният read-only export е:
+
+```sql
+select
+  id::text,
+  lower(email) as email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_user_meta_data,
+  created_at,
+  updated_at,
+  last_sign_in_at,
+  banned_until,
+  deleted_at
+from auth.users
+order by id;
+```
+
+Резултатът се записва като JSON array директно в private migration storage.
+Не се копира в terminal output, issue, PR, chat или Git.
+
+Планът се създава в private Cloud Run Job:
+
+```bash
+node scripts/migrateSupabaseUsersToIdentityPlatform.js \
+  --plan \
+  --source-users /private/supabase-users.json
+```
+
+Apply запазва Supabase UUID като Identity Platform `localId` и внася
+BCRYPT password hash без plain-text парола. `sanityCheck=true` и
+`allowOverwrite=false` спират email/ID конфликти. След import всеки профил и
+hash се прочита обратно и сравнява.
+
+```bash
+node scripts/migrateSupabaseUsersToIdentityPlatform.js \
+  --apply \
+  --source-users /private/supabase-users.json \
+  --confirmation MIGRATE_SUPABASE_USERS_TO_IDENTITY_PLATFORM:<exact-sha256> \
+  --identity-map-out /private/users.migration-map.json
+```
+
+Migration Job използва отделен service account с временна Identity Platform
+Admin роля. Ролята се премахва след acceptance. Runtime Cloud Run service
+account не получава права за batch user import.
+
+Identity Platform поддържа BCRYPT import до 1000 профила на заявка:
+[Migrate users](https://docs.cloud.google.com/identity-platform/docs/migrating-users),
+[accounts:batchCreate](https://docs.cloud.google.com/identity-platform/docs/reference/rest/v1/projects.accounts/batchCreate).
+
 ## Команди
 
 Само inventory:

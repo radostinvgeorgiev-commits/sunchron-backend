@@ -182,6 +182,69 @@ test("migration fails closed when a Supabase owner has no Identity Platform mapp
   );
 });
 
+test("migration derives the current profile key for legacy memory documents", () => {
+  const targetOwner = "identity-platform:new-user";
+  const transformed = transformGcpMigrationDocument(
+    { transform: "profile" },
+    {
+      _id: "legacy-profile-id",
+      _source: {
+        ownerId: "supabase:old-user",
+        fact: "Живея в София",
+        normalizedFact: "живея в софия",
+        source: "legacy",
+      },
+    },
+    normalizeMigrationIdentityMap({ "old-user": "new-user" }),
+  );
+
+  assert.equal(
+    transformed.targetId,
+    profileMemoryDocumentId(targetOwner, "personal:location:residence"),
+  );
+  assert.deepEqual(transformed.targetData, {
+    ownerId: targetOwner,
+    fact: "Живея в София",
+    normalizedFact: "живея в софия",
+    source: "legacy",
+    memoryKey: "personal:location:residence",
+    category: "location",
+    scope: "personal",
+  });
+});
+
+test("migration converts legacy MCP replay ISO expiry to epoch seconds", () => {
+  const transformed = transformGcpMigrationDocument(
+    { transform: "mcp-replay" },
+    {
+      _id: "replay-one",
+      _source: {
+        grantType: "authorization_code",
+        expiresAt: "2026-08-10T12:34:56.000Z",
+      },
+    },
+  );
+
+  assert.equal(
+    transformed.targetData.expiresAtEpoch,
+    Date.parse("2026-08-10T12:34:56.000Z") / 1_000,
+  );
+  assert.throws(
+    () =>
+      transformGcpMigrationDocument(
+        { transform: "mcp-replay" },
+        {
+          _id: "replay-invalid",
+          _source: {
+            grantType: "refresh_token",
+            expiresAt: "not-a-date",
+          },
+        },
+      ),
+    (error) => error.code === "GCP_DATA_MIGRATION_SOURCE_INVALID",
+  );
+});
+
 test("migration adds required Firestore markers and skips unsafe session-bound records", () => {
   const audit = transformGcpMigrationDocument(
     { transform: "audit" },

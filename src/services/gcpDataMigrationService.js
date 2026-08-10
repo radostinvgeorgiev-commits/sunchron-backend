@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 
-import { profileMemoryDocumentId } from "./memoryService.js";
+import {
+  deriveMemoryMetadata,
+  profileMemoryDocumentId,
+} from "./memoryService.js";
 import { workspaceDocumentId } from "./workspaceStateService.js";
 
 const DEFAULT_PAGE_SIZE = 200;
@@ -291,7 +294,13 @@ export function transformGcpMigrationDocument(
   switch (dataset.transform) {
     case "profile": {
       const ownerId = mappedOwnerId(data.ownerId, context);
-      const memoryKey = String(data.memoryKey || "").trim();
+      const storedMemoryKey = String(data.memoryKey || "").trim();
+      const fact = String(data.fact || "").trim();
+      const inferred =
+        !storedMemoryKey && fact
+          ? deriveMemoryMetadata(fact, data.scope || "personal")
+          : null;
+      const memoryKey = storedMemoryKey || inferred?.memoryKey || "";
       if (!ownerId || !memoryKey) {
         throw migrationError(
           "Profile memory документът няма ownerId/memoryKey.",
@@ -299,7 +308,17 @@ export function transformGcpMigrationDocument(
         );
       }
       targetId = profileMemoryDocumentId(ownerId, memoryKey);
-      targetData = { ...data, ownerId };
+      targetData = {
+        ...data,
+        ownerId,
+        ...(inferred
+          ? {
+              memoryKey: inferred.memoryKey,
+              category: inferred.category,
+              scope: inferred.scope,
+            }
+          : {}),
+      };
       break;
     }
     case "conversation": {
@@ -364,8 +383,17 @@ export function transformGcpMigrationDocument(
       targetData = { ...data, firestoreProvider: "google" };
       break;
     case "mcp-replay": {
-      const expiresAtEpoch = Number(data.expiresAtEpoch);
-      if (!Number.isFinite(expiresAtEpoch)) {
+      const directExpiry =
+        data.expiresAtEpoch === undefined ||
+        data.expiresAtEpoch === null ||
+        data.expiresAtEpoch === ""
+          ? NaN
+          : Number(data.expiresAtEpoch);
+      const legacyExpiry = Date.parse(String(data.expiresAt || ""));
+      const expiresAtEpoch = Number.isFinite(directExpiry)
+        ? Math.floor(directExpiry)
+        : Math.floor(legacyExpiry / 1_000);
+      if (!Number.isSafeInteger(expiresAtEpoch) || expiresAtEpoch <= 0) {
         throw migrationError(
           "MCP replay документът няма валиден expiresAtEpoch.",
           "GCP_DATA_MIGRATION_SOURCE_INVALID",

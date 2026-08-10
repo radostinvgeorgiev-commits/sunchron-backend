@@ -379,7 +379,7 @@ jobs:
             process.exit(valid ? 0 : 1);
           ' "${challenge_body}"
 
-      - name: Check tester auth readiness
+      - name: Check tester auth policy
         shell: bash
         run: |
           set -euo pipefail
@@ -393,20 +393,20 @@ jobs:
             process.stdin.on("end", () => {
               const status = JSON.parse(input);
               const configuration = status.configuration || {};
+              const configured = status.configured;
+              const projectConnection = configuration.projectConnection;
+              const sessionProtection = configuration.sessionProtection;
+              const registrationEnabled = status.registrationEnabled;
               console.log(JSON.stringify({
-                configured: Boolean(status.configured),
-                registrationEnabled: Boolean(status.registrationEnabled),
-                projectConnection: Boolean(configuration.projectConnection),
-                sessionProtection: Boolean(configuration.sessionProtection),
+                configured,
+                registrationEnabled,
+                projectConnection,
+                sessionProtection,
               }));
-              if (
-                !status.configured ||
-                !status.registrationEnabled ||
-                !configuration.projectConnection ||
-                !configuration.sessionProtection
-              ) {
-                process.exit(1);
-              }
+              if (configured !== true) process.exit(1);
+              if (projectConnection !== true) process.exit(1);
+              if (sessionProtection !== true) process.exit(1);
+              if (registrationEnabled !== false) process.exit(1);
             });
           '
 
@@ -474,3 +474,4 @@ jobs:
             --header "X-GitHub-Api-Version: 2022-11-28" \
             --data "${payload}" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"
+

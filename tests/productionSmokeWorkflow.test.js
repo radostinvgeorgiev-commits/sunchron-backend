@@ -41,6 +41,28 @@ function extractChallengeValidator(step) {
   return step.slice(start, end + endMarker.length);
 }
 
+function extractTesterAuthPolicyValidator(workflow) {
+  const namedStep = workflow.split("- name: Check tester auth policy")[1];
+  assert.ok(namedStep, "tester auth policy step is missing");
+  const block = namedStep.split(/^      - name:/mu)[0];
+  const run = block.split(/        run: \|\r?\n/u)[1];
+  assert.ok(run, "tester auth policy bash block is missing");
+  const step = run.replace(/^ {10}/gmu, "").trimEnd();
+  const marker = "node -e '";
+  const start = step.indexOf(marker);
+  const end = step.indexOf("\n'", start + marker.length);
+  assert.notEqual(start, -1, "tester auth policy validator is missing");
+  assert.notEqual(end, -1, "tester auth policy validator is not terminated");
+  return step.slice(start + marker.length, end);
+}
+
+function runTesterAuthPolicyValidator(validator, status) {
+  return spawnSync(process.execPath, ["-e", validator], {
+    input: JSON.stringify(status),
+    encoding: "utf8",
+  });
+}
+
 test("production smoke publishes a readable commit status without a custom secret", async () => {
   const workflow = await readFile(
     new URL("../.github/workflows/production-smoke.yml", import.meta.url),
@@ -137,7 +159,7 @@ test("MCP OAuth challenge validator is valid and executable bash", async (t) => 
     new URL("../.github/workflows/production-smoke.yml", import.meta.url),
     "utf8",
   );
-  const step = extractMcpChallengeStep(workflow);
+  const step = extractMcpChallengeStep(workflow).replace(/\r\n?/gu, "\n");
   const probe = runBash("command -v node >/dev/null 2>&1\n");
   if (probe.error?.code === "ENOENT" || probe.status !== 0) {
     t.skip("bash with Node.js is unavailable in this environment");
@@ -191,6 +213,85 @@ ${validator}
   );
 });
 
+test("production smoke enforces tester auth policy with registration disabled", async () => {
+  const workflow = await readFile(
+    new URL("../.github/workflows/production-smoke.yml", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(workflow, /Check tester auth policy/u);
+  assert.match(workflow, /const configured = status\.configured;/u);
+  assert.match(
+    workflow,
+    /const projectConnection = configuration\.projectConnection;/u,
+  );
+  assert.match(
+    workflow,
+    /const sessionProtection = configuration\.sessionProtection;/u,
+  );
+  assert.match(
+    workflow,
+    /const registrationEnabled = status\.registrationEnabled;/u,
+  );
+  assert.match(workflow, /configured !== true/u);
+  assert.match(workflow, /projectConnection !== true/u);
+  assert.match(workflow, /sessionProtection !== true/u);
+  assert.match(workflow, /registrationEnabled !== false/u);
+  assert.doesNotMatch(workflow, /Boolean\(status\.registrationEnabled\)/u);
+});
+
+test("tester auth policy rejects missing or coerced readiness values", async () => {
+  const workflow = await readFile(
+    new URL("../.github/workflows/production-smoke.yml", import.meta.url),
+    "utf8",
+  );
+  const validator = extractTesterAuthPolicyValidator(workflow);
+  const validStatus = {
+    configured: true,
+    registrationEnabled: false,
+    configuration: {
+      projectConnection: true,
+      sessionProtection: true,
+    },
+  };
+
+  const valid = runTesterAuthPolicyValidator(validator, validStatus);
+  assert.equal(valid.status, 0, valid.stderr);
+
+  const requiredTrueFields = [
+    ["configured"],
+    ["configuration", "projectConnection"],
+    ["configuration", "sessionProtection"],
+  ];
+  for (const path of requiredTrueFields) {
+    for (const value of [false, null, "true", "false", 1, undefined]) {
+      const status = structuredClone(validStatus);
+      const owner = path.length === 1 ? status : status[path[0]];
+      const key = path.at(-1);
+      if (value === undefined) delete owner[key];
+      else owner[key] = value;
+      const result = runTesterAuthPolicyValidator(validator, status);
+      assert.notEqual(
+        result.status,
+        0,
+        `${path.join(".")} accepted ${String(value)}`,
+      );
+    }
+  }
+
+  for (const value of [true, null, "false", 0, undefined]) {
+    const status = structuredClone(validStatus);
+    if (value === undefined) delete status.registrationEnabled;
+    else status.registrationEnabled = value;
+    const result = runTesterAuthPolicyValidator(validator, status);
+    assert.notEqual(
+      result.status,
+      0,
+      `registrationEnabled accepted ${String(value)}`,
+    );
+  }
+});
+
 test("DigitalOcean remains the only production deployment channel", async () => {
   const workflowDirectory = new URL("../.github/workflows/", import.meta.url);
   const workflowNames = await readdir(workflowDirectory);
@@ -205,3 +306,4 @@ test("DigitalOcean remains the only production deployment channel", async () => 
   assert.doesNotMatch(combined, /actions\/upload-pages-artifact/u);
   assert.doesNotMatch(combined, /^\s*pages:\s*write\s*$/mu);
 });
+

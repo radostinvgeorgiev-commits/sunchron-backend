@@ -174,7 +174,7 @@ services:
         scope: RUN_TIME
         type: SECRET
       - key: GROK_MODEL
-        value: grok-4.5
+        value: grok-3-mini
         scope: RUN_TIME
       - key: GROK_API_URL
         value: https://api.x.ai/v1/chat/completions

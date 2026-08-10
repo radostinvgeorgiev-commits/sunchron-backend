@@ -41,6 +41,14 @@ spec:
               value: synchron-workspaces-v1
             - name: FIRESTORE_TASK_COLLECTION
               value: synchron-tasks-v1
+            - name: FIRESTORE_GITHUB_SESSION_COLLECTION
+              value: synchron-github-sessions-v1
+            - name: FIRESTORE_GOOGLE_SESSION_COLLECTION
+              value: synchron-google-sessions-v1
+            - name: FIRESTORE_MCP_GRANT_COLLECTION
+              value: synchron-mcp-oauth-grants-v1
+            - name: FIRESTORE_MCP_REPLAY_COLLECTION
+              value: synchron-mcp-oauth-replay-v1
             - name: AUTH_BACKEND
               value: identity-platform
             - name: IDENTITY_PLATFORM_PROJECT_ID

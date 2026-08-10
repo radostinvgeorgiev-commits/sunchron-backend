@@ -1,6 +1,12 @@
 import crypto from "node:crypto";
+import {
+  resolveFirestoreDatabaseId,
+  resolveFirestoreProjectId,
+  resolvePersistenceBackend,
+} from "../config/memoryBackend.js";
 import { getOpenSearchClient } from "../config/opensearch.js";
 import { logSafeError } from "../utils/safeLogging.js";
+import { createFirestoreOAuthSessionStore } from "./firestoreOAuthSessionStore.js";
 
 const GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
@@ -8,11 +14,19 @@ const GITHUB_USER_URL = "https://api.github.com/user";
 const GITHUB_OAUTH_SCOPE = "public_repo";
 export const DEFAULT_GITHUB_REDIRECT_URI =
   "https://synchron.foundation/api/github/callback";
-const DEFAULT_GITHUB_REPOSITORY =
-  "radostinvgeorgiev-commits/sunchron-backend";
+const DEFAULT_GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 const GITHUB_SESSION_INDEX =
   process.env.GITHUB_SESSION_INDEX || "synchron-github-sessions-v1";
 const sessions = new Map();
+let firestoreSessionStore = null;
+let firestoreSessionConfiguration = null;
+let firestoreSessionStoreOverride = null;
+
+export function setFirestoreGitHubSessionStoreForTests(store) {
+  firestoreSessionStoreOverride = store || null;
+  firestoreSessionStore = null;
+  firestoreSessionConfiguration = null;
+}
 
 export class GitHubOAuthError extends Error {
   constructor(message, status = 502, code = "GITHUB_OAUTH_ERROR") {
@@ -87,6 +101,26 @@ function sessionEncryptionKey() {
     process.env.GITHUB_SESSION_ENCRYPTION_KEY ||
     process.env.GITHUB_CLIENT_SECRET;
   return secret ? crypto.createHash("sha256").update(secret).digest() : null;
+}
+
+function getFirestoreSessionStore(env = process.env) {
+  if (firestoreSessionStoreOverride) return firestoreSessionStoreOverride;
+  const configuration = [
+    resolveFirestoreProjectId(env),
+    resolveFirestoreDatabaseId(env),
+    env.FIRESTORE_GITHUB_SESSION_COLLECTION || "",
+  ].join("\0");
+  if (
+    !firestoreSessionStore ||
+    firestoreSessionConfiguration !== configuration
+  ) {
+    firestoreSessionStore = createFirestoreOAuthSessionStore({
+      provider: "github",
+      env,
+    });
+    firestoreSessionConfiguration = configuration;
+  }
+  return firestoreSessionStore;
 }
 
 export function createGitHubNonce() {
@@ -219,7 +253,17 @@ export function decryptGitHubSession(payload) {
   }
 }
 
-async function persistSession(id, session) {
+export function requiresPersistentGitHubSessions(env = process.env) {
+  return env.NODE_ENV === "production";
+}
+
+async function persistSession(id, session, env = process.env) {
+  const backend = resolvePersistenceBackend(env);
+  if (backend === "firestore") {
+    await getFirestoreSessionStore(env).set(id, encryptGitHubSession(session));
+    return true;
+  }
+  if (backend !== "opensearch") return false;
   const client = getOpenSearchClient();
   if (!client) return false;
   await client.index({
@@ -231,24 +275,34 @@ async function persistSession(id, session) {
   return true;
 }
 
-async function loadSession(id) {
+async function loadSession(id, env = process.env) {
   if (!id) return null;
   const cached = sessions.get(id);
   if (cached) return cached;
 
-  const client = getOpenSearchClient();
-  if (!client) return null;
   try {
-    const response = await client.get({
-      index: GITHUB_SESSION_INDEX,
-      id,
-    });
-    const payload = response.body?._source ?? response._source;
+    const backend = resolvePersistenceBackend(env);
+    let payload = null;
+    if (backend === "firestore") {
+      payload = await getFirestoreSessionStore(env).get(id);
+    } else if (backend === "opensearch") {
+      const client = getOpenSearchClient();
+      if (!client) return null;
+      const response = await client.get({
+        index: GITHUB_SESSION_INDEX,
+        id,
+      });
+      payload = response.body?._source ?? response._source;
+    } else {
+      return null;
+    }
+    if (!payload) return null;
     const session = decryptGitHubSession(payload);
     sessions.set(id, session);
     return session;
   } catch (error) {
-    const status = error?.statusCode || error?.meta?.statusCode;
+    const status =
+      error?.statusCode || error?.meta?.statusCode || error?.upstreamStatus;
     if (status !== 404) {
       logSafeError("[GitHub session] Restore failure", error);
     }
@@ -269,10 +323,17 @@ export async function createGitHubSession(tokens, fetchImpl = fetch) {
       ? Date.now() + Number(tokens.refresh_token_expires_in) * 1000
       : null,
     login,
+    createdAt: Date.now(),
   };
-  sessions.set(id, session);
   try {
-    await persistSession(id, session);
+    const persisted = await persistSession(id, session);
+    if (!persisted && requiresPersistentGitHubSessions()) {
+      throw new GitHubOAuthError(
+        "GitHub OAuth session storage не е конфигурирано.",
+        503,
+        "GITHUB_SESSION_PERSISTENCE_FAILED",
+      );
+    }
   } catch (error) {
     sessions.delete(id);
     logSafeError("[GitHub session] Persistence failure", error);
@@ -282,6 +343,7 @@ export async function createGitHubSession(tokens, fetchImpl = fetch) {
       "GITHUB_SESSION_PERSISTENCE_FAILED",
     );
   }
+  sessions.set(id, session);
   return { id, login };
 }
 
@@ -302,13 +364,23 @@ export async function getLatestAuthorizedGitHubSession() {
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
   if (cached?.accessToken) return cached;
 
-  const client = getOpenSearchClient();
-  if (!client) return null;
-  const response = await client.search({
-    index: GITHUB_SESSION_INDEX,
-    body: { size: 20, sort: [{ updatedAt: { order: "desc" } }] },
-  });
-  const hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
+  const backend = resolvePersistenceBackend(process.env);
+  let hits = [];
+  if (backend === "firestore") {
+    hits = (await getFirestoreSessionStore().listLatest(100)).map(
+      ({ id, payload }) => ({ _id: id, _source: payload }),
+    );
+  } else if (backend === "opensearch") {
+    const client = getOpenSearchClient();
+    if (!client) return null;
+    const response = await client.search({
+      index: GITHUB_SESSION_INDEX,
+      body: { size: 20, sort: [{ updatedAt: { order: "desc" } }] },
+    });
+    hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
+  } else {
+    return null;
+  }
   for (const hit of hits) {
     try {
       const session = decryptGitHubSession(hit._source);
@@ -325,6 +397,12 @@ export async function getLatestAuthorizedGitHubSession() {
 
 export async function disconnectGitHubSession(id) {
   if (id) sessions.delete(id);
+  const backend = resolvePersistenceBackend(process.env);
+  if (backend === "firestore") {
+    if (id) await getFirestoreSessionStore().delete(id);
+    return;
+  }
+  if (backend !== "opensearch") return;
   const client = getOpenSearchClient();
   if (!id || !client) return;
   try {
@@ -341,4 +419,5 @@ export async function disconnectGitHubSession(id) {
 
 export function resetGitHubSessionsForTests() {
   sessions.clear();
+  setFirestoreGitHubSessionStoreForTests(null);
 }

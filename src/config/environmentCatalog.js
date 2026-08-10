@@ -185,6 +185,30 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       { hasDefault: true },
     ),
     general(
+      "FIRESTORE_GITHUB_SESSION_COLLECTION",
+      "GitHub",
+      "Firestore колекция за криптираните GitHub OAuth сесии.",
+      { hasDefault: true },
+    ),
+    general(
+      "FIRESTORE_GOOGLE_SESSION_COLLECTION",
+      "Google",
+      "Firestore колекция за криптираните Google OAuth сесии.",
+      { hasDefault: true },
+    ),
+    general(
+      "FIRESTORE_MCP_GRANT_COLLECTION",
+      "ChatGPT / MCP",
+      "Firestore колекция за durable MCP grants.",
+      { hasDefault: true },
+    ),
+    general(
+      "FIRESTORE_MCP_REPLAY_COLLECTION",
+      "ChatGPT / MCP",
+      "Firestore колекция за атомичната MCP replay защита.",
+      { hasDefault: true },
+    ),
+    general(
       "FIRESTORE_REQUEST_TIMEOUT_MS",
       "Памет",
       "Максимално време за Firestore REST заявка.",

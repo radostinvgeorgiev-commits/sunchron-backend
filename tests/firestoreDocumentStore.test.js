@@ -149,6 +149,78 @@ test("Firestore commit is bounded and supports atomic set plus delete", async ()
   assert.match(body.writes[1].delete, /\/memory\/legacy-id$/u);
 });
 
+test("Firestore exposes opt-in version metadata and applies range plus updateTime preconditions", async () => {
+  const calls = [];
+  const updateTime = "2026-08-10T10:11:12.123456Z";
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    if (String(url).includes("metadata.google.internal")) {
+      return jsonResponse({ access_token: "runtime-token", expires_in: 3600 });
+    }
+    if (String(url).endsWith("documents:runQuery")) {
+      return jsonResponse([
+        {
+          document: {
+            name: `${ENV.GOOGLE_CLOUD_PROJECT}/databases/(default)/documents/replay/one`,
+            fields: encodeFirestoreFields({ expiresAtEpoch: 100 }),
+            createTime: "2026-08-10T10:00:00Z",
+            updateTime,
+          },
+        },
+      ]);
+    }
+    return jsonResponse({ writeResults: [{}] });
+  };
+  const store = createFirestoreDocumentStore({ env: ENV, fetchImpl });
+
+  const [document] = await store.query("replay", {
+    filters: [
+      { field: "expiresAtEpoch", op: "LESS_THAN_OR_EQUAL", value: 100 },
+    ],
+    includeMetadata: true,
+    limit: 1,
+  });
+  assert.equal(document.updateTime, updateTime);
+
+  await store.set("replay", "one", { expiresAtEpoch: 200 }, { updateTime });
+  const queryCall = calls.find(({ url }) => url.endsWith("documents:runQuery"));
+  const queryBody = JSON.parse(queryCall.options.body);
+  assert.equal(
+    queryBody.structuredQuery.where.fieldFilter.op,
+    "LESS_THAN_OR_EQUAL",
+  );
+  const commitCall = calls.find(({ url }) => url.endsWith("documents:commit"));
+  const commitBody = JSON.parse(commitCall.options.body);
+  assert.equal(commitBody.writes[0].currentDocument.updateTime, updateTime);
+});
+
+test("Firestore normalizes only the upstream status code without exposing its message", async () => {
+  const fetchImpl = async (url) => {
+    if (String(url).includes("metadata.google.internal")) {
+      return jsonResponse({ access_token: "runtime-token", expires_in: 3600 });
+    }
+    return jsonResponse(
+      {
+        error: {
+          status: "FAILED_PRECONDITION",
+          message: "private document detail",
+        },
+      },
+      400,
+    );
+  };
+  const store = createFirestoreDocumentStore({ env: ENV, fetchImpl });
+
+  await assert.rejects(
+    () => store.set("memory", "one", { value: true }),
+    (error) => {
+      assert.equal(error.upstreamErrorStatus, "FAILED_PRECONDITION");
+      assert.doesNotMatch(error.message, /private document detail/u);
+      return true;
+    },
+  );
+});
+
 test("Firestore failures do not expose upstream bodies or credentials", async () => {
   const fetchImpl = async (url) => {
     if (String(url).includes("metadata.google.internal")) {

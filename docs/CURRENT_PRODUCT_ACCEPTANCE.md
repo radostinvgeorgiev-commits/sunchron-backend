@@ -68,9 +68,10 @@ production проверките винаги се установяват по
    не е разрешен и не е включван.
 6. Google Cloud migration. Има частен Cloud Run staging и Firestore ресурс.
    Firestore adapter-ите за памет, разговори, потвърждения, audit, работни
-   области и задачи, както и Identity Platform adapter-ът за signup/login/refresh,
-   са code-level кандидати. Няма exact-SHA staging acceptance, data/user import
-   или production cutover.
+   области, задачи, криптирани GitHub/Google OAuth сесии и MCP grants/replay,
+   както и Identity Platform adapter-ът за signup/login/refresh, са code-level
+   кандидати. Няма exact-SHA staging acceptance, data/user/session import или
+   production cutover.
 
 ## Следващи стъпки
 

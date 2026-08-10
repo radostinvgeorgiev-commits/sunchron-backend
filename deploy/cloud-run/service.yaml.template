@@ -48,7 +48,7 @@ spec:
                   name: grok-api-key
                   key: "__GROK_API_KEY_VERSION__"
             - name: GROK_MODEL
-              value: grok-3-mini
+              value: grok-4.5
             - name: GROK_API_URL
               value: https://api.x.ai/v1/chat/completions
             - name: GROK_TIMEOUT_MS

@@ -51,7 +51,7 @@ test("Cloud Run template uses liveness without dependency-heavy readiness", asyn
   );
   assert.match(template, /__IDENTITY_PLATFORM_API_KEY_SECRET__/u);
   assert.match(template, /__GROK_API_KEY_SECRET__/u);
-  assert.match(template, /name: GROK_MODEL\s+value: grok-3-mini/u);
+  assert.match(template, /name: GROK_MODEL\s+value: grok-4\.5/u);
   assert.match(
     template,
     /name: GROK_API_URL\s+value: https:\/\/api\.x\.ai\/v1\/chat\/completions/u,

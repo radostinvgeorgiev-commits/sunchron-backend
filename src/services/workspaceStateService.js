@@ -1,8 +1,19 @@
 import { createHash } from "node:crypto";
 
 import { getOpenSearchClient } from "../config/opensearch.js";
+import { resolvePersistenceBackend } from "../config/memoryBackend.js";
+import { createFirestoreWorkspaceStore } from "./firestoreWorkspaceStore.js";
 
 const DEFAULT_INDEX = "synchron-workspaces-v1";
+let firestoreStore = null;
+let firestoreConfiguration = null;
+let firestoreStoreOverride = null;
+
+export function setFirestoreWorkspaceStoreForTests(store) {
+  firestoreStoreOverride = store || null;
+  firestoreStore = null;
+  firestoreConfiguration = null;
+}
 const WORKSPACE_VERSION = 6;
 const VALID_MODES = new Set(["chat", "work"]);
 const VALID_STATUSES = new Set(["ready", "running", "needs-input", "blocked"]);
@@ -332,6 +343,34 @@ function requireClient(client = getOpenSearchClient()) {
   return client;
 }
 
+function getFirestoreStore(env = process.env) {
+  if (firestoreStoreOverride) return firestoreStoreOverride;
+  const configuration = [
+    env.GOOGLE_CLOUD_PROJECT,
+    env.GCLOUD_PROJECT,
+    env.GCP_PROJECT_ID,
+    env.FIRESTORE_DATABASE_ID,
+    env.FIRESTORE_WORKSPACE_COLLECTION,
+  ].join("\0");
+  if (!firestoreStore || firestoreConfiguration !== configuration) {
+    firestoreStore = createFirestoreWorkspaceStore({ env });
+    firestoreConfiguration = configuration;
+  }
+  return firestoreStore;
+}
+
+function persistenceBackend(env = process.env) {
+  const backend = resolvePersistenceBackend(env);
+  if (!backend) {
+    throw new WorkspaceStateError(
+      "Работната област има невалидна storage конфигурация.",
+      503,
+      "WORKSPACE_STORAGE_UNAVAILABLE",
+    );
+  }
+  return backend;
+}
+
 function statusCode(error) {
   return error?.statusCode || error?.meta?.statusCode || error?.status;
 }
@@ -342,6 +381,21 @@ export async function loadWorkspaceState(
 ) {
   const documentId = workspaceDocumentId(ownerId);
   try {
+    if (persistenceBackend(env) === "firestore") {
+      const document = await getFirestoreStore(env).get(documentId);
+      if (!document) {
+        return {
+          state: normalizeWorkspaceState(null),
+          persisted: false,
+          updatedAt: null,
+        };
+      }
+      return {
+        state: normalizeWorkspaceState(document.data?.state),
+        persisted: true,
+        updatedAt: document.data?.updatedAt || null,
+      };
+    }
     const response = await requireClient(client).get({
       index: indexName(env),
       id: documentId,
@@ -377,6 +431,15 @@ export async function saveWorkspaceState(
   const updatedAt = now || new Date().toISOString();
   const state = normalizeWorkspaceState(value, { now: updatedAt });
   try {
+    if (persistenceBackend(env) === "firestore") {
+      await getFirestoreStore(env).set(documentId, {
+        schemaVersion: 2,
+        ownerHash: documentId,
+        state,
+        updatedAt,
+      });
+      return { state, persisted: true, updatedAt };
+    }
     await requireClient(client).index({
       index: indexName(env),
       id: documentId,

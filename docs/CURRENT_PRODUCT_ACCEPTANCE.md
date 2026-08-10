@@ -67,9 +67,10 @@ production проверките винаги се установяват по
    dashboard посочва до 7 дни scheduled backups при платен Pro plan, но upgrade
    не е разрешен и не е включван.
 6. Google Cloud migration. Има частен Cloud Run staging и Firestore ресурс.
-   Firestore adapter-ът за памет/разговори/потвърждения/audit и Identity
-   Platform adapter-ът за signup/login/refresh са code-level кандидати. Няма
-   exact-SHA staging acceptance, Identity user import или production cutover.
+   Firestore adapter-ите за памет, разговори, потвърждения, audit, работни
+   области и задачи, както и Identity Platform adapter-ът за signup/login/refresh,
+   са code-level кандидати. Няма exact-SHA staging acceptance, data/user import
+   или production cutover.
 
 ## Следващи стъпки
 

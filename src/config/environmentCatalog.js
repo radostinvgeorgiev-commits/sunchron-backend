@@ -173,6 +173,18 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       { hasDefault: true },
     ),
     general(
+      "FIRESTORE_WORKSPACE_COLLECTION",
+      "Работна област",
+      "Firestore колекция за owner-isolated workspace state.",
+      { hasDefault: true },
+    ),
+    general(
+      "FIRESTORE_TASK_COLLECTION",
+      "Задачи",
+      "Firestore колекция за owner-isolated задачи.",
+      { hasDefault: true },
+    ),
+    general(
       "FIRESTORE_REQUEST_TIMEOUT_MS",
       "Памет",
       "Максимално време за Firestore REST заявка.",

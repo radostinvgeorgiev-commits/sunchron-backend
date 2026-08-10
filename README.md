@@ -67,7 +67,7 @@ npm test
 документ не означава внедрена или работеща production интеграция.
 
 Google Cloud migration се изпълнява поетапно, без да променя текущия production
-канал преди отделен cutover. Firestore и Identity Platform имат отделни
-server-side adapter кандидати; това още не е data/user migration. Каталогът,
-Cloud Run health contract-ът и migration gates са в
+канал преди отделен cutover. Firestore има server-side adapter кандидати за
+памет, operational state, workspaces и tasks, а Identity Platform — за профили;
+това още не е data/user migration. Каталогът, Cloud Run health contract-ът и migration gates са в
 [`docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md`](docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md).

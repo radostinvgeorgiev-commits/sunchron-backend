@@ -37,6 +37,22 @@ spec:
               value: "__GCP_PROJECT_ID__"
             - name: FIRESTORE_DATABASE_ID
               value: "(default)"
+            - name: AUTH_BACKEND
+              value: identity-platform
+            - name: IDENTITY_PLATFORM_PROJECT_ID
+              value: "__GCP_PROJECT_ID__"
+            - name: IDENTITY_PLATFORM_REQUIRE_EMAIL_VERIFICATION
+              value: "true"
+            - name: IDENTITY_PLATFORM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: "__IDENTITY_PLATFORM_API_KEY_SECRET__"
+                  key: "__IDENTITY_PLATFORM_API_KEY_VERSION__"
+            - name: USER_SESSION_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: "__USER_SESSION_ENCRYPTION_KEY_SECRET__"
+                  key: "__USER_SESSION_ENCRYPTION_KEY_VERSION__"
           startupProbe:
             httpGet:
               path: /health

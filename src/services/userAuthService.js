@@ -8,10 +8,15 @@ import {
 } from "node:crypto";
 import { resolveTesterAuthConnection } from "../config/testerAuthBootstrap.js";
 import {
+  isIdentityPlatformConfigured,
+  resolveAuthBackend,
+} from "../config/authBackend.js";
+import {
   approveTesterAccess,
   assertTesterAccess,
   TesterAccessError,
 } from "./testerAccessService.js";
+import { createIdentityPlatformAuthClient } from "./identityPlatformAuthClient.js";
 
 export const USER_SESSION_COOKIE = "synchron_user_session";
 const SESSION_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
@@ -29,7 +34,12 @@ export class UserAuthError extends Error {
 }
 
 function sessionSecret(env = process.env) {
-  return (env.SUPABASE_SESSION_ENCRYPTION_KEY || "").trim();
+  const backend = resolveAuthBackend(env);
+  return String(
+    env.USER_SESSION_ENCRYPTION_KEY ||
+      (backend === "supabase" ? env.SUPABASE_SESSION_ENCRYPTION_KEY : "") ||
+      "",
+  ).trim();
 }
 
 export function getTesterInviteCode(env = process.env) {
@@ -37,10 +47,20 @@ export function getTesterInviteCode(env = process.env) {
 }
 
 function authConfig(env = process.env) {
+  const backend = resolveAuthBackend(env);
+  if (backend === "identity-platform") {
+    return {
+      backend,
+      projectConnection: isIdentityPlatformConfigured(env),
+      encryptionSecret: sessionSecret(env),
+    };
+  }
   const { projectUrl, publishableKey } = resolveTesterAuthConnection(env);
   return {
+    backend,
     projectUrl,
     publishableKey,
+    projectConnection: Boolean(projectUrl && publishableKey),
     encryptionSecret: sessionSecret(env),
   };
 }
@@ -48,9 +68,13 @@ function authConfig(env = process.env) {
 export function getUserAuthConfigurationStatus(env = process.env) {
   const config = authConfig(env);
   return {
-    projectConnection: Boolean(config.projectUrl && config.publishableKey),
+    projectConnection: Boolean(config.backend && config.projectConnection),
     sessionProtection: config.encryptionSecret.length >= 16,
   };
+}
+
+export function getUserAuthProvider(env = process.env) {
+  return resolveAuthBackend(env);
 }
 
 export function isUserAuthConfigured(env = process.env) {
@@ -88,7 +112,7 @@ function assertTesterInviteCode(value, env = process.env) {
 
 function requireAuthConfig(env = process.env) {
   const config = authConfig(env);
-  if (!config.projectUrl || !config.publishableKey) {
+  if (!config.backend || !config.projectConnection) {
     throw new UserAuthError(
       "Входът с потребителски профил още не е конфигуриран.",
       503,
@@ -151,7 +175,11 @@ function normalizeRemoteSession(payload) {
 
 function createAuthClient(env = process.env) {
   const config = requireAuthConfig(env);
+  if (config.backend === "identity-platform") {
+    return createIdentityPlatformAuthClient({ env });
+  }
   return {
+    provider: "supabase",
     auth: {
       async signInWithPassword(credentials) {
         try {
@@ -162,7 +190,9 @@ function createAuthClient(env = process.env) {
           );
           return {
             data: {
-              user: payload.user,
+              user: payload.user
+                ? { ...payload.user, authProvider: "supabase" }
+                : null,
               session: normalizeRemoteSession(payload),
             },
             error: null,
@@ -179,7 +209,9 @@ function createAuthClient(env = process.env) {
           });
           return {
             data: {
-              user: payload.user,
+              user: payload.user
+                ? { ...payload.user, authProvider: "supabase" }
+                : null,
               session: normalizeRemoteSession(payload),
             },
             error: null,
@@ -193,7 +225,10 @@ function createAuthClient(env = process.env) {
           const user = await supabaseAuthRequest(config, "/user", {
             accessToken,
           });
-          return { data: { user }, error: null };
+          return {
+            data: { user: { ...user, authProvider: "supabase" } },
+            error: null,
+          };
         } catch (error) {
           return { data: null, error };
         }
@@ -207,7 +242,9 @@ function createAuthClient(env = process.env) {
           );
           return {
             data: {
-              user: payload.user,
+              user: payload.user
+                ? { ...payload.user, authProvider: "supabase" }
+                : null,
               session: normalizeRemoteSession(payload),
             },
             error: null,
@@ -246,7 +283,7 @@ function sessionPayload(session) {
     typeof session?.refresh_token !== "string"
   ) {
     throw new UserAuthError(
-      "Supabase не върна валидна потребителска сесия.",
+      "Auth доставчикът не върна валидна потребителска сесия.",
       502,
       "AUTH_INVALID_SESSION",
     );
@@ -396,6 +433,13 @@ function mapTesterAccessError(error) {
   );
 }
 
+function requiresVerifiedIdentityEmail(env = process.env) {
+  return (
+    resolveAuthBackend(env) === "identity-platform" &&
+    env.IDENTITY_PLATFORM_REQUIRE_EMAIL_VERIFICATION !== "false"
+  );
+}
+
 export async function signInUser(
   { email, password },
   { env = process.env, client, requireTesterAccess = assertTesterAccess } = {},
@@ -408,6 +452,13 @@ export async function signInUser(
   const { data, error } = await authClient.auth.signInWithPassword(credentials);
   if (error || !data?.user || !data?.session) {
     throw mapAuthError(error, "Имейлът или паролата са неправилни.");
+  }
+  if (requiresVerifiedIdentityEmail(env) && !data.user.emailVerified) {
+    throw new UserAuthError(
+      "Потвърди имейла си, преди да влезеш.",
+      403,
+      "AUTH_EMAIL_NOT_VERIFIED",
+    );
   }
   try {
     await requireTesterAccess(data.user, { env });
@@ -437,11 +488,35 @@ export async function registerUser(
     },
   });
 
-  if (error || !data?.user || !data?.session) {
+  if (
+    error ||
+    !data?.user ||
+    (!data?.session && data?.confirmationRequired !== true)
+  ) {
     const recovered =
       await authClient.auth.signInWithPassword(cleanCredentials);
     if (!recovered.error && recovered.data?.user && recovered.data?.session) {
-      data = recovered.data;
+      if (
+        requiresVerifiedIdentityEmail(env) &&
+        !recovered.data.user.emailVerified
+      ) {
+        const verification = await authClient.auth.sendVerificationEmail?.(
+          recovered.data.session.access_token,
+        );
+        if (verification?.error) {
+          throw mapAuthError(
+            verification.error,
+            "Имейлът за потвърждение не можа да бъде изпратен.",
+          );
+        }
+        data = {
+          user: recovered.data.user,
+          session: null,
+          confirmationRequired: true,
+        };
+      } else {
+        data = recovered.data;
+      }
       error = null;
     }
   }
@@ -472,30 +547,35 @@ export async function registerUser(
   return {
     user: data.user,
     session: data.session ? sessionPayload(data.session) : null,
-    confirmationRequired: !data.session,
+    confirmationRequired: data.confirmationRequired === true || !data.session,
   };
 }
 
 function publicUser(user, env = process.env) {
-  const primaryUserId =
-    typeof env.SYNCHRON_PRIMARY_SUPABASE_USER_ID === "string"
-      ? env.SYNCHRON_PRIMARY_SUPABASE_USER_ID.trim()
-      : "";
+  const provider = user.authProvider || resolveAuthBackend(env) || "supabase";
+  const primaryUserId = String(
+    env.SYNCHRON_PRIMARY_USER_ID ||
+      (provider === "supabase" ? env.SYNCHRON_PRIMARY_SUPABASE_USER_ID : "") ||
+      "",
+  ).trim();
   const isPrimary = Boolean(primaryUserId && user.id === primaryUserId);
   const email = typeof user.email === "string" ? user.email : "";
   const metadataName =
-    typeof user.user_metadata?.display_name === "string"
-      ? user.user_metadata.display_name.trim()
-      : "";
+    typeof user.displayName === "string"
+      ? user.displayName.trim()
+      : typeof user.user_metadata?.display_name === "string"
+        ? user.user_metadata.display_name.trim()
+        : "";
 
   return {
     id: user.id,
     email,
     displayName: metadataName || email.split("@")[0] || "Потребител",
+    authProvider: provider,
     role: isPrimary ? "owner" : "member",
     memoryOwnerId: isPrimary
       ? env.MEMORY_OWNER_ID || "primary-user"
-      : `supabase:${user.id}`,
+      : `${provider}:${user.id}`,
   };
 }
 

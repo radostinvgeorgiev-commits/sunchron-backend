@@ -1,12 +1,24 @@
 import { createHash, createHmac } from "node:crypto";
 
 import { getOpenSearchClient } from "../config/opensearch.js";
+import { resolveAuthBackend } from "../config/authBackend.js";
+import { resolvePersistenceBackend } from "../config/memoryBackend.js";
+import { createFirestoreTesterAccessStore } from "./firestoreTesterAccessStore.js";
 
 const DEFAULT_INDEX = "synchron-tester-access-v1";
 const ACCESS_REQUEST_OPTIONS = Object.freeze({
   requestTimeout: 5_000,
   maxRetries: 0,
 });
+let firestoreStore = null;
+let firestoreConfiguration = null;
+let firestoreStoreOverride = null;
+
+export function setFirestoreTesterAccessStoreForTests(store) {
+  firestoreStoreOverride = store || null;
+  firestoreStore = null;
+  firestoreConfiguration = null;
+}
 
 export class TesterAccessError extends Error {
   constructor(message, status, code) {
@@ -21,7 +33,7 @@ function cleanUserId(user) {
   const userId = typeof user?.id === "string" ? user.id.trim() : "";
   if (!userId) {
     throw new TesterAccessError(
-      "Supabase не върна валиден потребител.",
+      "Auth доставчикът не върна валиден потребител.",
       502,
       "AUTH_INVALID_USER",
     );
@@ -29,8 +41,19 @@ function cleanUserId(user) {
   return userId;
 }
 
+function authProvider(user, env = process.env) {
+  return user?.authProvider || resolveAuthBackend(env) || "supabase";
+}
+
+function accessDocumentId(user, env = process.env) {
+  const userId = cleanUserId(user);
+  const provider = authProvider(user, env);
+  return provider === "supabase" ? userId : `${provider}:${userId}`;
+}
+
 function emailApprovalKey(env = process.env) {
   const secret = (
+    env.USER_SESSION_ENCRYPTION_KEY ||
     env.SUPABASE_SESSION_ENCRYPTION_KEY ||
     env.GITHUB_SESSION_ENCRYPTION_KEY ||
     env.MCP_ACCESS_TOKEN ||
@@ -48,6 +71,49 @@ function emailApprovalKey(env = process.env) {
     .update("synchron-tester-email-approval-v1\0")
     .update(secret)
     .digest();
+}
+
+function getFirestoreStore(env = process.env) {
+  if (firestoreStoreOverride) return firestoreStoreOverride;
+  const configuration = [
+    env.GOOGLE_CLOUD_PROJECT,
+    env.GCLOUD_PROJECT,
+    env.GCP_PROJECT_ID,
+    env.FIRESTORE_DATABASE_ID,
+    env.FIRESTORE_TESTER_ACCESS_COLLECTION,
+  ].join("\0");
+  if (!firestoreStore || firestoreConfiguration !== configuration) {
+    firestoreStore = createFirestoreTesterAccessStore({ env });
+    firestoreConfiguration = configuration;
+  }
+  return firestoreStore;
+}
+
+async function saveAccessDocument(id, body, { client, env }) {
+  if (resolvePersistenceBackend(env) === "firestore") {
+    await getFirestoreStore(env).set(id, body);
+    return;
+  }
+  await requireClient(client).index(
+    {
+      index: accessIndex(env),
+      id,
+      body,
+      refresh: true,
+    },
+    ACCESS_REQUEST_OPTIONS,
+  );
+}
+
+async function loadAccessDocument(id, { client, env }) {
+  if (resolvePersistenceBackend(env) === "firestore") {
+    return (await getFirestoreStore(env).get(id))?.data || null;
+  }
+  const response = await requireClient(client).get(
+    { index: accessIndex(env), id },
+    ACCESS_REQUEST_OPTIONS,
+  );
+  return response.body?._source ?? response._source;
 }
 
 function cleanEmailHash(value, env = process.env) {
@@ -90,20 +156,19 @@ export async function approveTesterAccess(
   { client, env = process.env } = {},
 ) {
   const userId = cleanUserId(user);
+  const documentId = accessDocumentId(user, env);
+  const provider = authProvider(user, env);
   const approvedAt = new Date().toISOString();
   try {
-    await requireClient(client).index(
+    await saveAccessDocument(
+      documentId,
       {
-        index: accessIndex(env),
-        id: userId,
-        body: {
-          userId,
-          status: "approved",
-          approvedAt,
-        },
-        refresh: true,
+        userId,
+        ...(provider === "supabase" ? {} : { authProvider: provider }),
+        status: "approved",
+        approvedAt,
       },
-      ACCESS_REQUEST_OPTIONS,
+      { client, env },
     );
   } catch (error) {
     if (error instanceof TesterAccessError) throw error;
@@ -130,18 +195,10 @@ export async function approveTesterEmail(
   }
   const approvedAt = new Date().toISOString();
   try {
-    await requireClient(client).index(
-      {
-        index: accessIndex(env),
-        id: emailApprovalId(emailHash),
-        body: {
-          emailHash,
-          status: "approved",
-          approvedAt,
-        },
-        refresh: true,
-      },
-      ACCESS_REQUEST_OPTIONS,
+    await saveAccessDocument(
+      emailApprovalId(emailHash),
+      { emailHash, status: "approved", approvedAt },
+      { client, env },
     );
   } catch (error) {
     if (error instanceof TesterAccessError) throw error;
@@ -159,23 +216,24 @@ export async function assertTesterAccess(
   { client, env = process.env } = {},
 ) {
   const userId = cleanUserId(user);
-  const primaryUserId =
-    typeof env.SYNCHRON_PRIMARY_SUPABASE_USER_ID === "string"
-      ? env.SYNCHRON_PRIMARY_SUPABASE_USER_ID.trim()
-      : "";
+  const provider = authProvider(user, env);
+  const primaryUserId = String(
+    env.SYNCHRON_PRIMARY_USER_ID ||
+      (provider === "supabase" ? env.SYNCHRON_PRIMARY_SUPABASE_USER_ID : "") ||
+      "",
+  ).trim();
   if (primaryUserId && userId === primaryUserId) return true;
 
-  const accessClient = requireClient(client);
   try {
-    const response = await accessClient.get(
-      {
-        index: accessIndex(env),
-        id: userId,
-      },
-      ACCESS_REQUEST_OPTIONS,
-    );
-    const source = response.body?._source ?? response._source;
-    if (source?.userId === userId && source?.status === "approved") {
+    const source = await loadAccessDocument(accessDocumentId(user, env), {
+      client,
+      env,
+    });
+    if (
+      source?.userId === userId &&
+      source?.status === "approved" &&
+      (!source.authProvider || source.authProvider === provider)
+    ) {
       return true;
     }
   } catch (error) {
@@ -192,14 +250,10 @@ export async function assertTesterAccess(
   const emailHash = cleanEmailHash(user?.email, env);
   if (emailHash) {
     try {
-      const response = await accessClient.get(
-        {
-          index: accessIndex(env),
-          id: emailApprovalId(emailHash),
-        },
-        ACCESS_REQUEST_OPTIONS,
-      );
-      const source = response.body?._source ?? response._source;
+      const source = await loadAccessDocument(emailApprovalId(emailHash), {
+        client,
+        env,
+      });
       if (source?.emailHash === emailHash && source?.status === "approved") {
         return true;
       }

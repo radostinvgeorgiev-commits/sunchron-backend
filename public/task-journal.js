@@ -74,7 +74,7 @@
       id: "first-integration",
       title: "Реални интеграции през Capability Engine",
       detail:
-        "GitHub, Google, DigitalOcean, Cloudflare, Supabase, web search и MCP имат изпълними защитени пътища.",
+        "GitHub, Google, потребителските профили, инфраструктурата, web search и MCP имат изпълними защитени пътища.",
       status: "done",
       priority: "Проверено",
     },

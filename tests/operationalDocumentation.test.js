@@ -122,7 +122,7 @@ test("Google Cloud migration documents executable Firestore and production bound
     "Firestore",
     "Identity Platform",
     "Vertex AI",
-    "няма secret",
+    "secret стойности",
     "DNS",
     "production import",
     "MEMORY_BACKEND",

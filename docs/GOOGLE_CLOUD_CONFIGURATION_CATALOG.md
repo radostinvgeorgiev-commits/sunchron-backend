@@ -16,10 +16,13 @@ secret стойности и не променя текущия production deplo
   acceptance или мигрирани production данни.
 - Съществуващият `GOOGLE_CLIENT_*` поток е Google OAuth за Drive/Calendar/Gmail,
   а не Identity Platform migration.
-- Identity Platform и Vertex AI остават planning-only. Няма user import,
-  Supabase cutover или Vertex provider acceptance.
-- Cloud Run template-ът е нарочно непълен: има placeholders и няма secret
-  references, IAM binding, public invoker или DNS промяна.
+- Identity Platform REST adapter-ът, потвърждението на имейл, криптираните
+  сесии и Firestore tester approvals са изпълним code-level кандидат. Няма
+  user import, Supabase cutover или реален Identity staging acceptance.
+- Vertex AI остава planning-only.
+- Cloud Run template-ът е нарочно непълен: има placeholders и само versioned
+  Secret Manager references за Identity API/session настройките; няма IAM
+  binding, public invoker или DNS промяна.
 
 ## Non-secret configuration catalog
 
@@ -50,7 +53,8 @@ Secret Manager mapping може да съдържа само одобрени и
 
 - OpenSearch host/port/username/password и memory owner;
 - OpenAI, Gemini и Grok API keys;
-- Supabase session encryption key и tester invite code;
+- Identity Platform API key, user-session encryption key и tester invite code;
+- legacy Supabase session encryption key само до auth cutover;
 - GitHub/Google OAuth secrets и session encryption keys;
 - MCP и само разрешените infrastructure diagnostics secrets.
 
@@ -62,32 +66,37 @@ not-ready, а не да активира fallback с друг secret.
 
 ## Firestore — изпълним staging data plane
 
-| Поле                                | Предназначение          | Приемателна граница                                                   |
-| ----------------------------------- | ----------------------- | --------------------------------------------------------------------- |
-| `MEMORY_BACKEND`                    | Избор на memory adapter | `firestore` само в GCP staging; DigitalOcean остава `opensearch`.     |
-| `PERSISTENCE_BACKEND`               | Потвърждения и audit    | `firestore` само в GCP staging.                                       |
-| `FIRESTORE_DATABASE_ID`             | Database идентификатор  | `(default)`, Firestore Native, Standard.                              |
-| `FIRESTORE_PROFILE_COLLECTION`      | Лична/проектна памет    | Owner-isolated документи със стабилен хеширан ID.                     |
-| `FIRESTORE_CONVERSATION_COLLECTION` | Разговори               | Owner и session isolation; атомичен запис на двата message документа. |
-| `FIRESTORE_CONFIRMATION_COLLECTION` | Потвърждения            | Криптирани и еднократни; delete-before-execute.                       |
-| `FIRESTORE_AUDIT_COLLECTION`        | Audit journal           | Durable intent/outcome записи без raw confirmation ID.                |
+| Поле                                 | Предназначение          | Приемателна граница                                                   |
+| ------------------------------------ | ----------------------- | --------------------------------------------------------------------- |
+| `MEMORY_BACKEND`                     | Избор на memory adapter | `firestore` само в GCP staging; DigitalOcean остава `opensearch`.     |
+| `PERSISTENCE_BACKEND`                | Потвърждения и audit    | `firestore` само в GCP staging.                                       |
+| `FIRESTORE_DATABASE_ID`              | Database идентификатор  | `(default)`, Firestore Native, Standard.                              |
+| `FIRESTORE_PROFILE_COLLECTION`       | Лична/проектна памет    | Owner-isolated документи със стабилен хеширан ID.                     |
+| `FIRESTORE_CONVERSATION_COLLECTION`  | Разговори               | Owner и session isolation; атомичен запис на двата message документа. |
+| `FIRESTORE_CONFIRMATION_COLLECTION`  | Потвърждения            | Криптирани и еднократни; delete-before-execute.                       |
+| `FIRESTORE_AUDIT_COLLECTION`         | Audit journal           | Durable intent/outcome записи без raw confirmation ID.                |
+| `FIRESTORE_TESTER_ACCESS_COLLECTION` | Tester approvals        | Provider-qualified user IDs и HMAC email approvals.                   |
 
 Unit/integration тестовете трябва да доказват owner isolation, атомично
 create/update/delete, деветстъпковия memory acceptance, fail-closed readiness и
 липса на secret стойности в грешки. Реалният staging тест използва само изолиран
 owner; production import и OpenSearch cutover са забранени преди backup/rollback.
 
-## Identity Platform — бъдещ auth pilot
+## Identity Platform — изпълним auth pilot
 
-Бъдещият каталог може да съдържа `IDENTITY_PLATFORM_TENANT_ID`,
-`IDENTITY_PLATFORM_PROJECT_ID`, provider IDs, authorized domains, redirect URI,
-email verification, MFA и session policy. Това са configuration boundaries, не
-готова интеграция.
+`AUTH_BACKEND=identity-platform` избира server-side REST adapter с
+`IDENTITY_PLATFORM_PROJECT_ID`, ограничен `IDENTITY_PLATFORM_API_KEY` и отделен
+`USER_SESSION_ENCRYPTION_KEY`. Signup/login/lookup/refresh използват само
+официалните Google endpoints. Email verification е fail-closed по подразбиране;
+приложението не създава сесия преди потвърждението. Browser cookie остава
+AES-256-GCM, HttpOnly, Secure и SameSite=Lax. Tester approvals се пазят във
+Firestore, а не в OpenSearch.
 
-Приемането започва само с изолиран тестов tenant/account и проверка на
-signup → logout → login, session protection и rollback. Няма миграция на
-Supabase users, sessions или лични профили, няма промяна на текущия Google OAuth
-поток и няма DNS/authorized-domain промяна в този PR.
+Cloud Run references не са доказателство за работещ Identity проект. Приемането
+изисква включен Email/Password provider, одобрен authorized domain и един
+изолиран signup → email verification → logout → login тест. Няма миграция на
+Supabase users, password hashes, sessions или лични профили и няма промяна на
+текущия Google OAuth поток в този PR.
 
 ## Vertex AI — бъдещ provider pilot
 
@@ -124,7 +133,7 @@ Cloud Run template-ът е в
 | 2. Изолиран GCP staging | Избран project/region, показана цена, Artifact Registry, runtime service account и Secret Manager references с least privilege. | Нова платена услуга, IAM write или secret без изрично owner одобрение.                 |
 | 3. Runtime acceptance   | Cloud Run revision сочи exact immutable image; `/health`, `/health/ready` и безопасният smoke contract са зелени.               | Readiness failure, dependency fallback, неочакван публичен достъп или неясен rollback. |
 | 4. Data pilot           | Firestore adapter tests + реален изолиран owner acceptance + backup/restore план.                                               | Import на production данни, OpenSearch cutover, изтриване или липсващ cleanup.         |
-| 5. Identity pilot       | Тестов Identity Platform account с signup/logout/login и owner isolation.                                                       | Supabase cutover или user import без rollback.                                         |
+| 5. Identity pilot       | Тестов Identity Platform account със signup/email verification/logout/login, Firestore approval и owner isolation.              | Supabase cutover или user import без rollback.                                         |
 | 6. Vertex pilot         | Изолиран provider smoke, cost/quota ceiling, service-account scope и проверка през одобрен AI Core boundary.                    | Директен обход на Capability Engine, автоматичен fallback или production secret.       |
 | 7. Cutover/rollback     | Отделно owner решение, доказан rollback към DigitalOcean и повторен exact-SHA acceptance; DNS се разглежда отделно.             | DNS промяна, production migration или deploy без изрично разрешение.                   |
 

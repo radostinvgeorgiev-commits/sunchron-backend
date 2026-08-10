@@ -67,9 +67,9 @@ production проверките винаги се установяват по
    dashboard посочва до 7 дни scheduled backups при платен Pro plan, но upgrade
    не е разрешен и не е включван.
 6. Google Cloud migration. Има частен Cloud Run staging и Firestore ресурс.
-   Firestore adapter-ът за памет, разговори, потвърждения и audit е code-level
-   кандидат; няма exact-SHA staging acceptance, Identity Platform user migration
-   или production cutover.
+   Firestore adapter-ът за памет/разговори/потвърждения/audit и Identity
+   Platform adapter-ът за signup/login/refresh са code-level кандидати. Няма
+   exact-SHA staging acceptance, Identity user import или production cutover.
 
 ## Следващи стъпки
 
@@ -92,7 +92,8 @@ production проверките винаги се установяват по
 Google Cloud migration има отделен ред в
 [`GOOGLE_CLOUD_CONFIGURATION_CATALOG.md`](./GOOGLE_CLOUD_CONFIGURATION_CATALOG.md).
 Той не променя DigitalOcean baseline, OpenSearch memory или Supabase identity
-преди отделен cutover. Няма DNS промени или прехвърлени лични данни, докато
+преди отделен cutover. Identity adapter в branch не е user migration. Няма DNS
+промени или прехвърлени лични данни, докато
 exact-SHA runtime, Firestore owner acceptance, data/identity и rollback gates не
 бъдат доказани поотделно.
 

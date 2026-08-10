@@ -31,6 +31,11 @@ production канал. Конфигурационният каталог и migr
 Докато всички gates не са приети, не прави production import, DNS cutover или
 изключване на DigitalOcean, OpenSearch, Supabase или Cloudflare.
 
+Firestore memory/persistence и Identity Platform auth са отделни code-level
+кандидати. Identity acceptance изисква signup, email verification, logout,
+повторен login, Firestore tester approval и различен memory owner за два
+профила. Наличен Secret Manager reference или зелен unit test не е user import.
+
 Cloud Run използва `/health` само за startup/liveness. `/health/ready` остава
 deployment acceptance проверка, защото включва AI, избрания memory backend, memory acceptance
 и bridge. Не използвай readiness endpoint като liveness probe и не приемай

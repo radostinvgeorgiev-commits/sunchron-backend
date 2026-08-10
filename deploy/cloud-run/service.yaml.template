@@ -17,7 +17,7 @@ spec:
         autoscaling.knative.dev/maxScale: "2"
         run.googleapis.com/execution-environment: gen2
         run.googleapis.com/cpu-throttling: "true"
-        run.googleapis.com/secrets: "openai-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__OPENAI_API_KEY_SECRET__,identity-platform-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__IDENTITY_PLATFORM_API_KEY_SECRET__,user-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__USER_SESSION_ENCRYPTION_KEY_SECRET__,github-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GITHUB_SESSION_ENCRYPTION_KEY_SECRET__,google-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GOOGLE_SESSION_ENCRYPTION_KEY_SECRET__,tester-invite-code:projects/__GCP_PROJECT_NUMBER__/secrets/__SYNCHRON_TEST_INVITE_CODE_SECRET__,mcp-access-token:projects/__GCP_PROJECT_NUMBER__/secrets/__MCP_ACCESS_TOKEN_SECRET__,mcp-oauth-secret:projects/__GCP_PROJECT_NUMBER__/secrets/__MCP_OAUTH_SECRET_NAME__"
+        run.googleapis.com/secrets: "openai-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__OPENAI_API_KEY_SECRET__,grok-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GROK_API_KEY_SECRET__,identity-platform-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__IDENTITY_PLATFORM_API_KEY_SECRET__,user-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__USER_SESSION_ENCRYPTION_KEY_SECRET__,github-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GITHUB_SESSION_ENCRYPTION_KEY_SECRET__,google-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GOOGLE_SESSION_ENCRYPTION_KEY_SECRET__,tester-invite-code:projects/__GCP_PROJECT_NUMBER__/secrets/__SYNCHRON_TEST_INVITE_CODE_SECRET__,mcp-access-token:projects/__GCP_PROJECT_NUMBER__/secrets/__MCP_ACCESS_TOKEN_SECRET__,mcp-oauth-secret:projects/__GCP_PROJECT_NUMBER__/secrets/__MCP_OAUTH_SECRET_NAME__"
       labels:
         app: synchron-backend
     spec:
@@ -42,6 +42,17 @@ spec:
                 secretKeyRef:
                   name: openai-api-key
                   key: "__OPENAI_API_KEY_VERSION__"
+            - name: GROK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: grok-api-key
+                  key: "__GROK_API_KEY_VERSION__"
+            - name: GROK_MODEL
+              value: grok-4.5
+            - name: GROK_API_URL
+              value: https://api.x.ai/v1/chat/completions
+            - name: GROK_TIMEOUT_MS
+              value: "30000"
             - name: MEMORY_BACKEND
               value: firestore
             - name: PERSISTENCE_BACKEND

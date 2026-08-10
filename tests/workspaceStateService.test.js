@@ -115,7 +115,7 @@ test("workspace preserves supported Gemini and Grok model choices", () => {
     ],
   });
   assert.equal(state.agents[0].model, "gemini-2.5-flash");
-  assert.equal(state.agents[1].model, "grok-3-mini");
+  assert.equal(state.agents[1].model, "grok-4.5");
 });
 
 test("legacy workspaces receive specialized agents with their own pets", () => {

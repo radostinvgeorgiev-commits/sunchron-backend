@@ -13,6 +13,10 @@
       "name": "synchron-openai-api-key",
       "version": "__FIXED_NUMERIC_VERSION__"
     },
+    "GROK_API_KEY": {
+      "name": "synchron-grok-api-key",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    },
     "IDENTITY_PLATFORM_API_KEY": {
       "name": "synchron-identity-platform-api-key",
       "version": "__FIXED_NUMERIC_VERSION__"

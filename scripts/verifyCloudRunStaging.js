@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 
 const REQUIRED_SECRET_ENV = Object.freeze([
   "OPENAI_API_KEY",
+  "GROK_API_KEY",
   "IDENTITY_PLATFORM_API_KEY",
   "USER_SESSION_ENCRYPTION_KEY",
   "GITHUB_SESSION_ENCRYPTION_KEY",
@@ -14,6 +15,7 @@ const REQUIRED_SECRET_ENV = Object.freeze([
 ]);
 const SECRET_ALIASES = Object.freeze({
   OPENAI_API_KEY: "openai-api-key",
+  GROK_API_KEY: "grok-api-key",
   IDENTITY_PLATFORM_API_KEY: "identity-platform-api-key",
   USER_SESSION_ENCRYPTION_KEY: "user-session-key",
   GITHUB_SESSION_ENCRYPTION_KEY: "github-session-key",

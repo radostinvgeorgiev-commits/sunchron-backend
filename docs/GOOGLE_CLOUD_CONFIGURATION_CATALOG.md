@@ -51,6 +51,12 @@ Cloud Run трябва да използва Application Default Credentials ч�
 service account. Не се добавя `GOOGLE_APPLICATION_CREDENTIALS`, JSON key или
 secret стойност в image, YAML или Git.
 
+Grok е външен разговорен AI доставчик, а не Google Cloud оператор. На Grok не
+се предоставят Google IAM роли, service-account JSON key, GitHub PAT или пряк
+достъп до Secret Manager. Единствено Cloud Run runtime identity чете точно
+`synchron-grok-api-key` на ниво secret и приложението изпраща към xAI само
+контекста на изрично избрания Grok разговор.
+
 Secret Manager mapping може да съдържа само одобрени имена/reference-и,
 например:
 

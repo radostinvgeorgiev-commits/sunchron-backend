@@ -7,7 +7,7 @@ const AI_PROVIDERS = new Set(["openai", "gemini", "grok"]);
 export const DEFAULT_OPENAI_CHAT_MODEL = "gpt-5.6-terra";
 export const DEFAULT_OPENAI_PLANNER_MODEL = "gpt-5.6-luna";
 export const DEFAULT_GEMINI_CHAT_MODEL = "gemini-2.5-flash";
-export const DEFAULT_GROK_CHAT_MODEL = "grok-3-mini";
+export const DEFAULT_GROK_CHAT_MODEL = "grok-4.5";
 
 export class AiCoreError extends Error {
   constructor(message, code = "AI_CORE_ERROR", status = 502) {

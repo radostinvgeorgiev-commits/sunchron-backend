@@ -37,8 +37,9 @@ const VALID_MODELS = new Set([
   "gpt-5.6-terra",
   "gpt-5.6-luna",
   "gemini-2.5-flash",
-  "grok-3-mini",
+  "grok-4.5",
 ]);
+const LEGACY_MODEL_MIGRATIONS = new Map([["grok-3-mini", "grok-4.5"]]);
 const VALID_PETS = new Set(["robot", "drop", "spark", "owl", "rock", "cat"]);
 const VALID_MEMORY_MODES = new Set(["confirm", "disabled"]);
 
@@ -113,6 +114,11 @@ function cleanText(value, maxLength) {
     .replace(/[\u0000-\u001f\u007f]/gu, " ")
     .trim()
     .slice(0, maxLength);
+}
+
+function normalizeAgentModel(value) {
+  const migrated = LEGACY_MODEL_MIGRATIONS.get(value) || value;
+  return VALID_MODELS.has(migrated) ? migrated : "auto";
 }
 
 function cleanId(value, fallback) {
@@ -239,7 +245,7 @@ export function normalizeWorkspaceState(value, { now } = {}) {
         id: cleanId(agent?.id, `agent-${index + 1}`),
         name: cleanText(agent?.name, 50) || "Личен агент",
         role: VALID_ROLES.has(agent?.role) ? agent.role : "general",
-        model: VALID_MODELS.has(agent?.model) ? agent.model : "auto",
+        model: normalizeAgentModel(agent?.model),
         purpose: cleanText(agent?.purpose, 400),
         engine: VALID_ENGINES.has(agent?.engine) ? agent.engine : "ai-core",
         petId: agentPetId(agent),

@@ -74,10 +74,10 @@ const AGENT_MODELS = Object.freeze({
     provider: "gemini",
     apiModel: "gemini-2.5-flash",
   },
-  "grok-3-mini": {
-    label: "Grok 3 Mini",
+  "grok-4.5": {
+    label: "Grok 4.5",
     provider: "grok",
-    apiModel: "grok-3-mini",
+    apiModel: "grok-4.5",
   },
 });
 

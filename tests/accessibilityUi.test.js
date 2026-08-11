@@ -21,11 +21,7 @@ const html = await readFile(
 function createHarness(storedMode = null) {
   const dom = new JSDOM(`<!doctype html>
     <html data-font-scale="standard">
-      <body>
-        <button id="fontSizeDecreaseBtn">Намали</button>
-        <output id="fontSizeLabel">Обикновен · 16 px</output>
-        <button id="fontSizeIncreaseBtn">Увеличи</button>
-      </body>
+      <body></body>
     </html>`);
   const values = new Map();
   if (storedMode) values.set("synchron.ui.fontScale", storedMode);
@@ -49,47 +45,31 @@ test("standard text is the default for new users", () => {
   assert.equal(document.documentElement.dataset.fontScale, "standard");
   assert.equal(document.documentElement.dataset.fontLevel, "standard");
   assert.equal(harness.values.get("synchron.ui.fontScale"), "standard");
-  assert.equal(
-    document.getElementById("fontSizeLabel").textContent,
-    "Обикновен · 16 px",
-  );
 });
 
-test("plus and minus controls change one level and remember it", () => {
+test("programmatic increase and decrease change one level and remember it", () => {
   const harness = createHarness("max");
   const { document } = harness.dom.window;
-  const decrease = document.getElementById("fontSizeDecreaseBtn");
-  const increase = document.getElementById("fontSizeIncreaseBtn");
+  const api = harness.context.SynchronAccessibility;
 
-  increase.click();
+  api.increase();
   assert.equal(document.documentElement.dataset.fontScale, "max");
   assert.equal(document.documentElement.dataset.fontLevel, "ultra");
   assert.equal(harness.values.get("synchron.ui.fontScale"), "ultra");
-  assert.equal(
-    document.getElementById("fontSizeLabel").textContent,
-    "Огромен · 60 px",
-  );
-  assert.equal(increase.disabled, true);
 
-  decrease.click();
+  api.decrease();
   assert.equal(document.documentElement.dataset.fontLevel, "max");
-  decrease.click();
+  api.decrease();
   assert.equal(document.documentElement.dataset.fontLevel, "large");
   assert.equal(harness.values.get("synchron.ui.fontScale"), "large");
 });
 
-test("saved level is restored and controls stop at the safe limits", () => {
+test("saved level is restored without visible controls", () => {
   const harness = createHarness("standard");
   const { document } = harness.dom.window;
-  const decrease = document.getElementById("fontSizeDecreaseBtn");
 
   assert.equal(document.documentElement.dataset.fontScale, "standard");
   assert.equal(document.documentElement.dataset.fontLevel, "standard");
-  assert.equal(decrease.disabled, true);
-  assert.equal(
-    document.getElementById("fontSizeLabel").textContent,
-    "Обикновен · 16 px",
-  );
 
   harness.context.SynchronAccessibility.increase();
   assert.equal(document.documentElement.dataset.fontScale, "max");
@@ -113,7 +93,7 @@ test("chat offers four readable sizes including 48px and 60px", () => {
   );
 });
 
-test("accessibility assets load after the ordinary interface styles", () => {
+test("accessibility assets load and public UI has no font-size controls", () => {
   const appShellPosition = html.indexOf("/appshell.css");
   const accessibilityPosition = html.indexOf("/accessibility.css");
   const appPosition = html.indexOf("/app.js");
@@ -123,8 +103,11 @@ test("accessibility assets load after the ordinary interface styles", () => {
   assert.ok(accessibilityPosition > appShellPosition);
   assert.ok(accessibilityScriptPosition > appPosition);
   assert.match(html, /<html lang="bg" data-font-scale="standard">/u);
-  assert.match(html, /id="fontSizeDecreaseBtn"/u);
-  assert.match(html, /id="fontSizeIncreaseBtn"/u);
+  assert.doesNotMatch(html, /id="fontSizeDecreaseBtn"/u);
+  assert.doesNotMatch(html, /id="fontSizeIncreaseBtn"/u);
+  assert.doesNotMatch(html, /id="fontSizeLabel"/u);
+  assert.doesNotMatch(html, /class="font-size-control"/u);
+  assert.doesNotMatch(html, /aria-label="Размер на текста"/u);
 });
 
 test("mobile large-text layout keeps cards and drawers inside the viewport", () => {

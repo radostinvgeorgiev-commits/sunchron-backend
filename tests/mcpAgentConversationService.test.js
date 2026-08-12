@@ -50,7 +50,7 @@ test("MCP agent conversation reuses the owner workspace, memory and session", as
       },
       listMemories: async (options) => {
         calls.push(["memory", options]);
-        return [{ fact: "Проектът се казва SYNCHRON-X", scope: "project" }];
+        return [{ fact: "Проектът се казва AI CORE", scope: "project" }];
       },
       listMessages: async (...args) => {
         calls.push(["history", args]);

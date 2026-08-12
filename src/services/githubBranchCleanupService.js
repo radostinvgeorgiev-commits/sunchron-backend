@@ -30,7 +30,7 @@ async function requestGitHub(path, { accessToken, method = "GET" }, fetchImpl) {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${accessToken}`,
-      "User-Agent": "Synchron-X",
+    "User-Agent": "AI CORE",
       "X-GitHub-Api-Version": "2022-11-28",
     },
   });

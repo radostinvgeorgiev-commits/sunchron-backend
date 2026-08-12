@@ -124,7 +124,7 @@ export function registerCoreTools() {
     {
       id: "synchron-integrations-status",
       provider: "synchron",
-      name: "SYNCHRON-X Status",
+      name: "AI CORE Status",
       version: "1.0.0",
       category: "system",
       capabilities: [

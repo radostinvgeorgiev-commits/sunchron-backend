@@ -53,7 +53,7 @@ test("returns a repository summary in read-only mode", async () => {
       full_name: "radostinvgeorgiev-commits/sunchron-backend",
       default_branch: "main",
       private: false,
-      description: "Synchron-X",
+      description: "AI CORE",
       updated_at: "2026-07-25T00:00:00Z",
       html_url: "https://github.com/radostinvgeorgiev-commits/sunchron-backend",
     });

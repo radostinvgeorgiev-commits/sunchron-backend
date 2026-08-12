@@ -75,7 +75,7 @@ test("Codex analysis uses a bounded source request without local command executi
   const result = await runCodexProjectAnalysis({
     message: "Провери маршрута за чат.",
     projectId: "project-1",
-    projectName: "SYNCHRON-X",
+    projectName: "AI CORE",
     previousRun: {
       sequence: 2,
       summary: "Преди това беше проверен work mode.",

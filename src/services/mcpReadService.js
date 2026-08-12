@@ -93,7 +93,7 @@ export const MCP_TOOLS = Object.freeze([
     name: "get_personal_context",
     title: "Прочети личния контекст",
     description:
-      "Прочита проверените лични факти за Радко от постоянната памет на SYNCHRON-X. Използвай само когато са нужни за текущия въпрос.",
+      "Прочита проверените лични факти за Радко от постоянната памет на AI CORE. Използвай само когато са нужни за текущия въпрос.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -106,7 +106,7 @@ export const MCP_TOOLS = Object.freeze([
     name: "get_project_context",
     title: "Прочети контекста на проекта",
     description:
-      "Прочита проверените факти за NOVARIUM / SYNCHRON-X. Не ги смесвай с личните факти за Радко.",
+      "Прочита проверените факти за AI CORE. Не ги смесвай с личните факти за Радко.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -117,9 +117,9 @@ export const MCP_TOOLS = Object.freeze([
   },
   {
     name: "list_synchron_conversations",
-    title: "Покажи разговорите в SYNCHRON-X",
+    title: "Покажи разговорите в AI CORE",
     description:
-      "Показва списък със запазените разговори в собствения чат на SYNCHRON-X.",
+      "Показва списък със запазените разговори в собствения чат на AI CORE.",
     inputSchema: {
       type: "object",
       properties: {
@@ -132,9 +132,9 @@ export const MCP_TOOLS = Object.freeze([
   },
   {
     name: "get_synchron_conversation",
-    title: "Прочети разговор от SYNCHRON-X",
+    title: "Прочети разговор от AI CORE",
     description:
-      "Прочита избран разговор от собствения чат на SYNCHRON-X по неговия sessionId.",
+      "Прочита избран разговор от собствения чат на AI CORE по неговия sessionId.",
     inputSchema: {
       type: "object",
       properties: {
@@ -169,7 +169,7 @@ export const MCP_TOOLS = Object.freeze([
     name: "get_digitalocean_app_status",
     title: "Провери DigitalOcean приложението",
     description:
-      "Показва статуса на SYNCHRON-X в DigitalOcean App Platform и последните деплои. Не променя нищо.",
+      "Показва статуса на AI CORE в DigitalOcean App Platform и последните деплои. Не променя нищо.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -346,7 +346,7 @@ function publicDigitalOceanStatus(status = {}, oauth = {}) {
         }
       : null;
   return {
-    name: status.name || "SYNCHRON-X",
+    name: status.name || "AI CORE",
     liveUrl: status.liveUrl || null,
     activeDeployment: publicDeployment(status.activeDeployment),
     inProgressDeployment: publicDeployment(status.inProgressDeployment),
@@ -413,19 +413,19 @@ export function createMcpRequestHandler({
       const items = await listMemories({ scope: "personal", ownerId });
       result = textResult(
         { scope: "personal", items },
-        `Прочетени са ${items.length} лични записа от SYNCHRON-X.`,
+        `Прочетени са ${items.length} лични записа от AI CORE.`,
       );
     } else if (name === "get_project_context") {
       const items = await listMemories({ scope: "project", ownerId });
       result = textResult(
         { scope: "project", items },
-        `Прочетени са ${items.length} проектни записа от SYNCHRON-X.`,
+        `Прочетени са ${items.length} проектни записа от AI CORE.`,
       );
     } else if (name === "list_synchron_conversations") {
       const items = await listConversations(safeLimit(args?.limit), ownerId);
       result = textResult(
         { items },
-        `Намерени са ${items.length} разговора в SYNCHRON-X.`,
+        `Намерени са ${items.length} разговора в AI CORE.`,
       );
     } else if (name === "get_synchron_conversation") {
       const sessionId =

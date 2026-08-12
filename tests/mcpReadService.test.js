@@ -142,7 +142,7 @@ test("anonymous production status omits identifiers and configuration names", as
   const handle = createMcpRequestHandler({
     getDigitalOceanStatus: async () => ({
       id: "private-app-id",
-      name: "SYNCHRON-X",
+      name: "AI CORE",
       liveUrl: "https://synchron.foundation",
       activeDeployment: {
         id: "private-deployment-id",
@@ -184,7 +184,7 @@ test("anonymous production status omits identifiers and configuration names", as
     null,
     { role: "anonymous" },
   );
-  assert.equal(response.result.structuredContent.name, "SYNCHRON-X");
+  assert.equal(response.result.structuredContent.name, "AI CORE");
   assert.equal(response.result.structuredContent.id, undefined);
   assert.equal(
     response.result.structuredContent.activeDeployment.id,
@@ -220,7 +220,7 @@ test("MCP sends one owner-scoped message to AI CORE and audits it", async () => 
       return {
         sessionId: "bridge-session",
         response: "Провери разговора през MCP.",
-        project: { id: "project-1", name: "SYNCHRON-X" },
+        project: { id: "project-1", name: "AI CORE" },
         agent: { id: "agent-1", name: "AI CORE", role: "builder" },
         conversationPersisted: true,
         externalActionsExecuted: false,

@@ -618,7 +618,7 @@ export function createMcpAuthorizationCode(
   env = process.env,
 ) {
   if (!identity?.id || !identity?.memoryOwnerId || !identity?.role) {
-    throw new McpOAuthError("Липсва валиден SYNCHRON-X профил.", 401);
+    throw new McpOAuthError("Липсва валиден AI CORE профил.", 401);
   }
   if (requiresOwnerRole(request.scopes) && identity.role !== "owner") {
     throw new McpOAuthError(
@@ -675,7 +675,7 @@ export function createMcpConsentToken(
   now = Math.floor(Date.now() / 1_000),
 ) {
   if (!identity?.id) {
-    throw new McpOAuthError("Липсва валиден SYNCHRON-X профил.", 401);
+    throw new McpOAuthError("Липсва валиден AI CORE профил.", 401);
   }
   return encryptPayload(
     "sx-consent",

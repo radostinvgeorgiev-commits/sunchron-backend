@@ -137,7 +137,7 @@ test("the available agent engines are explicit and Codex replaces code writes wi
       { capability: "web.search", action: "web.read" },
     ],
     {
-      project: { name: "SYNCHRON-X" },
+      project: { name: "AI CORE" },
       agent: {
         name: "Codex",
         role: "coder",
@@ -210,7 +210,7 @@ test("runtime provider and model questions do not launch Codex code analysis", (
       routeSelectedWorkAgentCapabilities(
         [{ capability: "code.read", action: "github.read" }],
         {
-          project: { name: "SYNCHRON-X" },
+          project: { name: "AI CORE" },
           agent: {
             name: "Codex",
             role: "coder",

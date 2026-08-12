@@ -20,10 +20,10 @@ test("chat model selection is explicit, provider-safe, and fail-closed", () => {
   };
 
   assert.deepEqual(
-    resolveChatAiSelection({ requestedModel: "gemini-2.5-flash", env }),
+    resolveChatAiSelection({ requestedModel: "gemini-3-flash-preview", env }),
     {
       provider: "gemini",
-      model: "gemini-2.5-flash",
+      model: "gemini-3-flash-preview",
       configured: true,
       workContext: null,
     },
@@ -39,7 +39,7 @@ test("chat model selection is explicit, provider-safe, and fail-closed", () => {
   );
   assert.equal(
     resolveChatAiSelection({
-      requestedModel: "gemini-2.5-flash",
+      requestedModel: "gemini-3-flash-preview",
       env: { AI_CORE_PROVIDER: "grok", GROK_API_KEY: "grok-test" },
     }).configured,
     false,
@@ -55,7 +55,7 @@ test("explicit chat model selection overrides the work agent model", () => {
 
   const selection = resolveChatAiSelection({
     interactionMode: "work",
-    requestedModel: "gemini-2.5-flash",
+    requestedModel: "gemini-3-flash-preview",
     workContext: {
       project: { name: "Тестов проект" },
       agent: { model: "grok-4.5", purpose: "Тестов агент" },
@@ -64,7 +64,7 @@ test("explicit chat model selection overrides the work agent model", () => {
   });
 
   assert.equal(selection.provider, "gemini");
-  assert.equal(selection.model, "gemini-2.5-flash");
+  assert.equal(selection.model, "gemini-3-flash-preview");
   assert.equal(selection.configured, true);
   assert.equal(selection.workContext?.agent.model, "grok-4.5");
 });

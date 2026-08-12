@@ -69,10 +69,10 @@ const AGENT_MODELS = Object.freeze({
     provider: "openai",
     apiModel: "gpt-5.6-luna",
   },
-  "gemini-2.5-flash": {
-    label: "Gemini 2.5 Flash",
+  "gemini-3-flash-preview": {
+    label: "Gemini 3 Flash Preview",
     provider: "gemini",
-    apiModel: "gemini-2.5-flash",
+    apiModel: "gemini-3-flash-preview",
   },
   "grok-4.5": {
     label: "Grok 4.5",

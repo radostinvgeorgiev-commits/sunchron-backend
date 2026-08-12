@@ -56,7 +56,7 @@
     "gpt-5.6-sol": "GPT-5.6 Sol · най-високо качество",
     "gpt-5.6-terra": "GPT-5.6 Terra · балансиран",
     "gpt-5.6-luna": "GPT-5.6 Luna · бърз",
-    "gemini-2.5-flash": "Gemini 2.5 Flash",
+    "gemini-3-flash-preview": "Gemini 3 Flash Preview",
     "grok-4.5": "Grok 4.5 · xAI",
   });
   const PROJECT_TOOL_OPTIONS = Object.freeze([

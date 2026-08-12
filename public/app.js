@@ -24,7 +24,7 @@ const REGISTRATION_PATH = "/register";
 const MAX_CHAT_INPUT_HEIGHT = 160;
 const CHAT_MODEL_STORAGE_KEY = "synchronChatModel";
 const CHAT_MODEL_OPTIONS = Object.freeze(
-  new Set(["auto", "grok-4.5", "gemini-2.5-flash", "gpt-5.6-terra"]),
+  new Set(["auto", "grok-4.5", "gemini-3-flash-preview", "gpt-5.6-terra"]),
 );
 let statusReturnFocus = null;
 

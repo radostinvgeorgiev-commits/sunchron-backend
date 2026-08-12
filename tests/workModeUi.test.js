@@ -41,7 +41,7 @@ test("Chat and Work are available with projects, agents, and pet state", async (
   assert.match(html, /id="workPetBtn"/u);
   assert.match(html, /id="workContextBtn"/u);
   assert.match(html, /id="aiModelSelector"/u);
-  assert.match(html, /Gemini 2\.5 Flash · Google/u);
+  assert.match(html, /Gemini 3 Flash Preview · Google/u);
   assert.match(html, /id="workPet"/u);
   assert.match(html, /\/work-mode\.js\?v=/u);
   assert.ok(

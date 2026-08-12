@@ -6,9 +6,45 @@ import {
   detectCapabilityRequests,
   extractConfirmedMemoryDeleteCommand,
   mergeMemoryTaskStatus,
+  resolveChatAiSelection,
   shouldReplyWithVerifiedToolOutput,
 } from "../src/routes/chat.js";
 import { filterCapabilityRequestsForIdentity } from "../src/services/memberCapabilityPolicy.js";
+
+test("chat model selection is explicit, provider-safe, and fail-closed", () => {
+  const env = {
+    AI_CORE_PROVIDER: "grok",
+    OPENAI_API_KEY: "openai-test",
+    GEMINI_API_KEY: "gemini-test",
+    GROK_API_KEY: "grok-test",
+  };
+
+  assert.deepEqual(
+    resolveChatAiSelection({ requestedModel: "gemini-2.5-flash", env }),
+    {
+      provider: "gemini",
+      model: "gemini-2.5-flash",
+      configured: true,
+      workContext: null,
+    },
+  );
+  assert.deepEqual(
+    resolveChatAiSelection({ requestedModel: "grok-4.5", env }),
+    {
+      provider: "grok",
+      model: "grok-4.5",
+      configured: true,
+      workContext: null,
+    },
+  );
+  assert.equal(
+    resolveChatAiSelection({
+      requestedModel: "gemini-2.5-flash",
+      env: { AI_CORE_PROVIDER: "grok", GROK_API_KEY: "grok-test" },
+    }).configured,
+    false,
+  );
+});
 
 test("chat routes memory, calendar and GitHub requests through current capabilities", () => {
   assert.deepEqual(

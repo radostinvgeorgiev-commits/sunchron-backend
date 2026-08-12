@@ -121,6 +121,32 @@ const DIRECT_CAPABILITY_REPLIES = new Set([
   "code.write",
 ]);
 
+export function resolveChatAiSelection({
+  interactionMode = "chat",
+  requestedModel,
+  workContext,
+  env = process.env,
+} = {}) {
+  const cleanMode = normalizeInteractionMode(interactionMode);
+  const cleanWorkContext =
+    cleanMode === "work" ? sanitizeWorkContext(workContext) : null;
+  const selectedModelId =
+    cleanMode === "chat"
+      ? typeof requestedModel === "string"
+        ? requestedModel
+        : "auto"
+      : cleanWorkContext?.agent?.model;
+  const provider =
+    resolveWorkAgentProvider(selectedModelId) || getConfiguredAiProvider(env);
+  const model = resolveWorkAgentModel(selectedModelId);
+  return {
+    provider,
+    model,
+    configured: Boolean(provider && isAiProviderConfigured(provider, env)),
+    workContext: cleanWorkContext,
+  };
+}
+
 async function auditAction(event) {
   try {
     await recordAuditEvent(event);
@@ -733,7 +759,8 @@ function projectRunFromCapabilityResults(capabilityResults, workContext) {
 
 router.post("/chat", async (req, res) => {
   const openAiApiKey = process.env.OPENAI_API_KEY;
-  const { sessionId, message, image, mode, workContext } = req.body || {};
+  const { sessionId, message, image, mode, workContext, requestedModel } =
+    req.body || {};
   const googleSessionId =
     parseCookies(req.headers.cookie).synchron_google_session || "";
   const githubSessionId =
@@ -744,14 +771,16 @@ router.post("/chat", async (req, res) => {
   const cleanSessionId = typeof sessionId === "string" ? sessionId.trim() : "";
   const cleanMessage = typeof message === "string" ? message.trim() : "";
   const interactionMode = normalizeInteractionMode(mode);
-  const cleanWorkContext =
-    interactionMode === "work" ? sanitizeWorkContext(workContext) : null;
-  const aiProvider =
-    resolveWorkAgentProvider(cleanWorkContext?.agent?.model) ||
-    getConfiguredAiProvider();
-  const aiProviderConfigured = Boolean(
-    aiProvider && isAiProviderConfigured(aiProvider),
-  );
+  const aiSelection = resolveChatAiSelection({
+    interactionMode,
+    requestedModel,
+    workContext,
+    env: process.env,
+  });
+  const cleanWorkContext = aiSelection.workContext;
+  const aiProvider = aiSelection.provider;
+  const aiModel = aiSelection.model;
+  const aiProviderConfigured = aiSelection.configured;
   const aiTimeoutMs = getAiProviderTimeoutMs(
     aiProvider,
     process.env,
@@ -1478,7 +1507,7 @@ router.post("/chat", async (req, res) => {
     const aiResponse = await requestAiResponse({
       provider: aiProvider,
       input: messages,
-      model: resolveWorkAgentModel(cleanWorkContext?.agent?.model),
+      model: aiModel,
       signal: abortController.signal,
       reasoningEffort: "low",
       verbosity: "medium",

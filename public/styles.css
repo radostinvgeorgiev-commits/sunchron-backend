@@ -205,6 +205,28 @@
     font-size: 10px;
 }
 
+.chat-model-selector {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    margin-left: auto;
+    color: var(--muted, #737373);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.chat-model-selector select {
+    max-width: 210px;
+    min-height: 32px;
+    padding: 4px 28px 4px 9px;
+    border: 1px solid var(--border, #d7d7d7);
+    border-radius: 8px;
+    background: #fff;
+    color: inherit;
+    font: inherit;
+}
+
 .mobile-menu {
     display: none;
     border: 0;
@@ -350,6 +372,20 @@
     }
 
     .model-title small {
+        font-size: 10px;
+    }
+
+    .chat-model-selector {
+        gap: 4px;
+    }
+
+    .chat-model-selector > span {
+        display: none;
+    }
+
+    .chat-model-selector select {
+        max-width: 156px;
+        min-height: 30px;
         font-size: 10px;
     }
 

@@ -22,6 +22,10 @@ const state = {
 
 const REGISTRATION_PATH = "/register";
 const MAX_CHAT_INPUT_HEIGHT = 160;
+const CHAT_MODEL_STORAGE_KEY = "synchronChatModel";
+const CHAT_MODEL_OPTIONS = Object.freeze(
+  new Set(["auto", "grok-4.5", "gemini-2.5-flash", "gpt-5.6-terra"]),
+);
 let statusReturnFocus = null;
 
 const elements = {
@@ -52,6 +56,7 @@ const elements = {
   attachmentImage: document.getElementById("attachmentImage"),
   attachmentName: document.getElementById("attachmentName"),
   removeAttachmentBtn: document.getElementById("removeAttachmentBtn"),
+  aiModelSelector: document.getElementById("aiModelSelector"),
   newChatBtn: document.getElementById("newChatBtn"),
   toggleStatusBtn: document.getElementById("toggleStatusBtn"),
   profileActions: document.getElementById("profileActions"),
@@ -122,6 +127,17 @@ function writeLocalStorage(key, value) {
   } catch {
     // The app remains usable when storage is blocked by the browser.
   }
+}
+
+function normalizeChatModel(value) {
+  return CHAT_MODEL_OPTIONS.has(value) ? value : "auto";
+}
+
+function restoreChatModelSelection() {
+  if (!elements.aiModelSelector) return;
+  elements.aiModelSelector.value = normalizeChatModel(
+    readLocalStorage(CHAT_MODEL_STORAGE_KEY),
+  );
 }
 
 function setAuthMessage(message = "", success = false) {
@@ -328,6 +344,12 @@ async function startApplication(user) {
   updateSessionDisplay();
 
   elements.sendBtn.addEventListener("click", sendMessage);
+  restoreChatModelSelection();
+  elements.aiModelSelector?.addEventListener("change", () => {
+    const model = normalizeChatModel(elements.aiModelSelector.value);
+    elements.aiModelSelector.value = model;
+    writeLocalStorage(CHAT_MODEL_STORAGE_KEY, model);
+  });
   elements.attachBtn.addEventListener("click", () =>
     elements.imageInput.click(),
   );
@@ -1792,6 +1814,7 @@ async function sendMessage() {
         sessionId: state.sessionId,
         message: messageText,
         image,
+        requestedModel: normalizeChatModel(elements.aiModelSelector?.value),
         ...globalThis.SynchronWorkMode?.getRequestPayload(),
       }),
     });

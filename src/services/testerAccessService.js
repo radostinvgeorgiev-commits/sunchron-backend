@@ -1,15 +1,9 @@
 import { createHash, createHmac } from "node:crypto";
 
-import { getOpenSearchClient } from "../config/opensearch.js";
 import { resolveAuthBackend } from "../config/authBackend.js";
 import { resolvePersistenceBackend } from "../config/memoryBackend.js";
 import { createFirestoreTesterAccessStore } from "./firestoreTesterAccessStore.js";
 
-const DEFAULT_INDEX = "synchron-tester-access-v1";
-const ACCESS_REQUEST_OPTIONS = Object.freeze({
-  requestTimeout: 5_000,
-  maxRetries: 0,
-});
 let firestoreStore = null;
 let firestoreConfiguration = null;
 let firestoreStoreOverride = null;
@@ -42,19 +36,18 @@ function cleanUserId(user) {
 }
 
 function authProvider(user, env = process.env) {
-  return user?.authProvider || resolveAuthBackend(env) || "supabase";
+  return user?.authProvider || resolveAuthBackend(env) || "identity-platform";
 }
 
 function accessDocumentId(user, env = process.env) {
   const userId = cleanUserId(user);
   const provider = authProvider(user, env);
-  return provider === "supabase" ? userId : `${provider}:${userId}`;
+  return `${provider}:${userId}`;
 }
 
 function emailApprovalKey(env = process.env) {
   const secret = (
     env.USER_SESSION_ENCRYPTION_KEY ||
-    env.SUPABASE_SESSION_ENCRYPTION_KEY ||
     env.GITHUB_SESSION_ENCRYPTION_KEY ||
     env.MCP_ACCESS_TOKEN ||
     env.SYNCHRON_TEST_INVITE_CODE ||
@@ -91,45 +84,26 @@ function getFirestoreStore(env = process.env) {
 
 async function saveAccessDocument(id, body, { client, env }) {
   const backend = resolvePersistenceBackend(env);
-  if (!backend) {
+  if (backend !== "firestore") {
     throw new TesterAccessError(
       "Проверката на одобрените тестови профили има невалидна storage конфигурация.",
       503,
       "TESTER_ACCESS_UNAVAILABLE",
     );
   }
-  if (backend === "firestore") {
-    await getFirestoreStore(env).set(id, body);
-    return;
-  }
-  await requireClient(client).index(
-    {
-      index: accessIndex(env),
-      id,
-      body,
-      refresh: true,
-    },
-    ACCESS_REQUEST_OPTIONS,
-  );
+  await getFirestoreStore(env).set(id, body);
 }
 
 async function loadAccessDocument(id, { client, env }) {
   const backend = resolvePersistenceBackend(env);
-  if (!backend) {
+  if (backend !== "firestore") {
     throw new TesterAccessError(
       "Проверката на одобрените тестови профили има невалидна storage конфигурация.",
       503,
       "TESTER_ACCESS_UNAVAILABLE",
     );
   }
-  if (backend === "firestore") {
-    return (await getFirestoreStore(env).get(id))?.data || null;
-  }
-  const response = await requireClient(client).get(
-    { index: accessIndex(env), id },
-    ACCESS_REQUEST_OPTIONS,
-  );
-  return response.body?._source ?? response._source;
+  return (await getFirestoreStore(env).get(id))?.data || null;
 }
 
 function cleanEmailHash(value, env = process.env) {
@@ -142,25 +116,6 @@ function cleanEmailHash(value, env = process.env) {
 
 function emailApprovalId(emailHash) {
   return `email:${emailHash}`;
-}
-
-function accessIndex(env = process.env) {
-  const configured =
-    typeof env.TESTER_ACCESS_INDEX === "string"
-      ? env.TESTER_ACCESS_INDEX.trim()
-      : "";
-  return configured || DEFAULT_INDEX;
-}
-
-function requireClient(client = getOpenSearchClient()) {
-  if (!client) {
-    throw new TesterAccessError(
-      "Проверката на одобрените тестови профили временно не е достъпна.",
-      503,
-      "TESTER_ACCESS_UNAVAILABLE",
-    );
-  }
-  return client;
 }
 
 function statusCode(error) {
@@ -180,7 +135,7 @@ export async function approveTesterAccess(
       documentId,
       {
         userId,
-        ...(provider === "supabase" ? {} : { authProvider: provider }),
+        authProvider: provider,
         status: "approved",
         approvedAt,
       },
@@ -235,7 +190,6 @@ export async function assertTesterAccess(
   const provider = authProvider(user, env);
   const primaryUserId = String(
     env.SYNCHRON_PRIMARY_USER_ID ||
-      (provider === "supabase" ? env.SYNCHRON_PRIMARY_SUPABASE_USER_ID : "") ||
       "",
   ).trim();
   if (primaryUserId && userId === primaryUserId) return true;

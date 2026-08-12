@@ -8,9 +8,9 @@ import {
   resolvePersistenceBackend,
 } from "../src/config/memoryBackend.js";
 
-test("legacy runtime defaults to OpenSearch until GCP is selected explicitly", () => {
-  assert.equal(resolveMemoryBackend({}), "opensearch");
-  assert.equal(resolvePersistenceBackend({}), "opensearch");
+test("Google Cloud runtime defaults to Firestore", () => {
+  assert.equal(resolveMemoryBackend({}), "firestore");
+  assert.equal(resolvePersistenceBackend({}), "firestore");
 });
 
 test("Firestore requires an explicit project and valid database selection", () => {

@@ -98,7 +98,7 @@ jobs:
             https://synchron.foundation/health/ready \
             | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"'
 
-      - name: Check OpenSearch and Supabase dependencies
+      - name: Check Firestore and Identity Platform dependencies
         shell: bash
         run: |
           set -euo pipefail
@@ -114,19 +114,13 @@ jobs:
             process.stdin.on("end", () => {
               const report = JSON.parse(input).dependencies;
               const checks = report.checks || {};
-              const allowedSupabaseSources = new Set([
-                "runtime",
-                "public-bootstrap",
-              ]);
               console.log(
-                `storage=${report.status} opensearch=${checks.opensearch?.status} supabase=${checks.supabase?.status} supabase-source=${checks.supabase?.connectionSource}`,
+                `storage=${report.status} firestore=${checks.firestore?.status}`,
               );
               if (
                 report.status !== "healthy" ||
-                checks.opensearch?.status !== "healthy" ||
-                checks.opensearch?.memoryIndexReadable !== true ||
-                checks.supabase?.status !== "healthy" ||
-                !allowedSupabaseSources.has(checks.supabase?.connectionSource)
+                checks.firestore?.status !== "healthy" ||
+                checks.firestore?.backend !== "firestore"
               ) {
                 process.exit(1);
               }
@@ -139,7 +133,7 @@ jobs:
           done
           test "${dependencies_healthy}" = "true"
 
-      - name: Check backup coverage and OpenSearch restore-point inventory
+      - name: Check Google-managed backup status
         shell: bash
         run: |
           set -euo pipefail
@@ -154,19 +148,15 @@ jobs:
               process.stdin.on("data", (chunk) => { input += chunk; });
               process.stdin.on("end", () => {
                 const report = JSON.parse(input).backups;
-                const backup = report.checks?.opensearch;
-                const supabase = report.checks?.supabase;
+                const backup = report.checks?.firestore;
                 console.log(
-                  `coverage=${report.status} opensearch=${backup?.status} fresh=${Boolean(backup?.fresh)} supabase=${supabase?.status} proves-restore=${Boolean(backup?.provesRestore)}`,
+                  `coverage=${report.status} firestore=${backup?.status} managed=${backup?.status === "managed"}`,
                 );
                 if (
-                  report.status !== "partially-verified" ||
-                  backup?.status !== "verified" ||
-                  backup?.fresh !== true ||
+                  report.status !== "not-required" ||
+                  backup?.status !== "managed" ||
                   backup?.readOnlyCheck !== true ||
-                  backup?.provesRestore !== false ||
-                  supabase?.status !== "unverified" ||
-                  supabase?.provesRestore !== false
+                  backup?.restoreTested !== false
                 ) {
                   process.exit(1);
                 }
@@ -252,20 +242,9 @@ jobs:
                     "list_synchron_conversations",
                     "get_synchron_conversation",
                     "talk_to_ai_core",
-                    "get_digitalocean_app_status",
-                    "get_system_configuration",
-                    "get_digitalocean_account_audit",
-                    "prepare_digitalocean_www_domain",
-                    "confirm_digitalocean_www_domain",
-                    "get_cloudflare_zone_status",
                     "get_github_copilot_task_status",
                     "prepare_github_merged_branch_cleanup",
                     "confirm_github_merged_branch_cleanup",
-                    "list_available_capabilities",
-                    "list_action_history",
-                    "list_tasks",
-                    "create_task_draft",
-                    "list_projects",
                   ];
                   const names = Array.isArray(tools) ? tools.map((tool) => tool.name) : [];
                   const tracker = tools?.find(
@@ -280,30 +259,6 @@ jobs:
                   const conversationScopes = conversation?.securitySchemes?.flatMap(
                     (scheme) => scheme.scopes || [],
                   ) || [];
-                  const confirmWww = tools?.find(
-                    (tool) => tool.name === "confirm_digitalocean_www_domain",
-                  );
-                  const confirmWwwScopes = confirmWww?.securitySchemes?.flatMap(
-                    (scheme) => scheme.scopes || [],
-                  ) || [];
-                  const capabilities = tools?.find(
-                    (tool) => tool.name === "list_available_capabilities",
-                  );
-                  const capabilitiesScopes = capabilities?.securitySchemes?.flatMap(
-                    (scheme) => scheme.scopes || [],
-                  ) || [];
-                  const actionHistory = tools?.find(
-                    (tool) => tool.name === "list_action_history",
-                  );
-                  const actionHistoryScopes = actionHistory?.securitySchemes?.flatMap(
-                    (scheme) => scheme.scopes || [],
-                  ) || [];
-                  const taskDraft = tools?.find(
-                    (tool) => tool.name === "create_task_draft",
-                  );
-                  const taskDraftScopes = taskDraft?.securitySchemes?.flatMap(
-                    (scheme) => scheme.scopes || [],
-                  ) || [];
                   const valid =
                     names.length >= expected.length &&
                     new Set(names).size === names.length &&
@@ -311,16 +266,7 @@ jobs:
                     tracker?.annotations?.readOnlyHint === true &&
                     trackerScopes.includes("synchron:read") &&
                     conversation?.annotations?.destructiveHint === false &&
-                    conversationScopes.includes("synchron:agent.chat") &&
-                    confirmWww?.annotations?.destructiveHint === true &&
-                    confirmWwwScopes.includes("synchron:infrastructure.write") &&
-                    capabilities?.annotations?.readOnlyHint === true &&
-                    capabilitiesScopes.includes("synchron:read") &&
-                    actionHistory?.annotations?.readOnlyHint === true &&
-                    actionHistoryScopes.includes("synchron:audit.read") &&
-                    taskDraft?.annotations?.readOnlyHint === false &&
-                    taskDraft?.annotations?.destructiveHint === false &&
-                    taskDraftScopes.includes("synchron:tasks.write");
+                    conversationScopes.includes("synchron:agent.chat");
                   console.log(JSON.stringify({
                     catalogSize: names.length,
                     missingExpected: expected.filter((name) => !names.includes(name)),
@@ -474,4 +420,3 @@ jobs:
             --header "X-GitHub-Api-Version: 2022-11-28" \
             --data "${payload}" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"
-

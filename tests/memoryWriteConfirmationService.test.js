@@ -19,13 +19,30 @@ import {
   listAuditEvents,
   recordAuditEvent,
   resetAuditFallbackForTests,
+  setFirestoreAuditStoreForTests,
 } from "../src/services/permissionService.js";
+
+function auditStoreDouble() {
+  const entries = new Map();
+  return {
+    entries,
+    async saveAuditEntry(id, data) {
+      entries.set(id, structuredClone(data));
+    },
+    async listAuditEntries(limit = 100) {
+      return [...entries.values()].slice(-limit).reverse().map((entry) => structuredClone(entry));
+    },
+  };
+}
 
 const executeWithoutAudit = async ({ execute }) => execute();
 
 test.beforeEach(() => {
+  process.env.PERSISTENCE_BACKEND = "firestore";
+  process.env.GOOGLE_CLOUD_PROJECT = "handy-boulevard-479120-q9";
   resetConfirmationsForTests();
   resetAuditFallbackForTests();
+  setFirestoreAuditStoreForTests(auditStoreDouble());
 });
 
 test("prepares the exact fact without writing or storing the raw owner id", async () => {

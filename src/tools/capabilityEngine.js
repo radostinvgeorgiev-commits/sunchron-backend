@@ -73,19 +73,6 @@ import {
   prepareGitHubChange,
 } from "../services/githubActionService.js";
 import { getGitHubSession } from "../services/githubOAuthService.js";
-import { checkSupabaseStatus } from "../services/supabaseService.js";
-import {
-  formatDigitalOceanAudit,
-  formatDigitalOceanOpenSearchBackupAudit,
-  formatDigitalOceanStatus,
-  getDigitalOceanAccountAudit,
-  getDigitalOceanAppStatus,
-  getDigitalOceanOpenSearchBackupAudit,
-} from "../services/digitalOceanService.js";
-import {
-  formatCloudflareStatus,
-  getCloudflareZoneStatus,
-} from "../services/cloudflareService.js";
 import {
   formatSystemConfigurationReport,
   getSystemConfigurationReport,
@@ -107,12 +94,6 @@ export class CapabilityError extends Error {
     this.code = code;
     this.status = status;
   }
-}
-
-export function isDigitalOceanBackupInventoryRequest(message = "") {
-  return /(?:opensearch|open\s*search|опен\s*сърч|backup|backups|архив|restore\s*точ)/iu.test(
-    message,
-  );
 }
 
 function hasEnvironment(env, ...names) {
@@ -222,25 +203,7 @@ export function getToolRuntimeAvailability(
         "Codex агентът не е конфигуриран.",
         "CODEX_AGENT_NOT_CONFIGURED",
       );
-    case "supabase-status":
-      return configured(
-        hasEnvironment(env, "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY"),
-        "Supabase Status не е конфигуриран.",
-      );
-    case "digitalocean-read":
-      return configured(
-        Boolean(
-          (env.DIGITALOCEAN_API_TOKEN || env.DIGITALOCEAN_TOKEN) &&
-          env.DIGITALOCEAN_APP_ID,
-        ),
-        "DigitalOcean Read не е конфигуриран.",
-      );
-    case "cloudflare-read":
-      return configured(
-        hasEnvironment(env, "CLOUDFLARE_API_TOKEN"),
-        "Cloudflare Read не е конфигуриран.",
-      );
-    case "opensearch-memory":
+    case "firestore-memory":
       return configured(
         isMemoryBackendConfigured(env),
         "Постоянната памет не е конфигурирана.",
@@ -270,9 +233,6 @@ export async function buildIntegrationStatusReport(
       answerGitHubReadRequest("Покажи последния commit в GitHub."),
     checkMemory = () =>
       listProfileMemories({ ownerId: input.ownerId, limit: 1 }),
-    checkSupabase = checkSupabaseStatus,
-    checkDigitalOcean = getDigitalOceanAppStatus,
-    checkCloudflare = getCloudflareZoneStatus,
     checkGoogleSession = hasSession,
     checkGitHubWriteBridge = getCopilotBridgeStatus,
     env = process.env,
@@ -296,19 +256,10 @@ export async function buildIntegrationStatusReport(
   const [
     githubRead,
     memory,
-    supabase,
-    digitalOcean,
-    cloudflare,
     googleConnected,
   ] = await Promise.all([
     checkedStatus(checkGitHub),
     checkedStatus(checkMemory),
-    checkedStatus(checkSupabase),
-    checkedStatus(checkDigitalOcean),
-    checkedStatus(
-      checkCloudflare,
-      (status) => status?.status === "active" && status?.paused !== true,
-    ),
     input.googleSessionId
       ? checkedStatus(() => checkGoogleSession(input.googleSessionId))
       : false,
@@ -317,9 +268,6 @@ export async function buildIntegrationStatusReport(
   const working = [
     ["GitHub Read", githubRead],
     ["Synchron Memory", memory],
-    ["Supabase Status", supabase],
-    ["DigitalOcean Read", digitalOcean],
-    ["Cloudflare Read", cloudflare],
     ["AI CORE разговор", isAiCoreConfigured(env)],
     ["OpenAI Web Search", Boolean(env.OPENAI_API_KEY)],
     ["Codex", isCodexAgentConfigured(env)],
@@ -785,32 +733,7 @@ const executors = Object.freeze({
   },
   "openai-web-search": async ({ input }) =>
     formatWebSearchResult(await searchWeb(input.message)),
-  "supabase-status": async () => {
-    const status = await checkSupabaseStatus();
-    return [
-      "Supabase е свързан и отговаря.",
-      `Услуга: ${status.service}.`,
-      `Време за отговор: ${status.responseTimeMs} ms.`,
-      "OpenSearch остава постоянната AI памет.",
-    ].join("\n");
-  },
-  "digitalocean-read": async ({ input }) => {
-    if (isDigitalOceanBackupInventoryRequest(input.message)) {
-      return formatDigitalOceanOpenSearchBackupAudit(
-        await getDigitalOceanOpenSearchBackupAudit(),
-      );
-    }
-    const wantsFullAudit =
-      /(?:пълен|цял|одит|акаунт|ресурс|droplet|сървър|баз|мреж|firewall|защит|разход|billing|storage|volume|snapshot|kubernetes)/iu.test(
-        input.message || "",
-      );
-    return wantsFullAudit
-      ? formatDigitalOceanAudit(await getDigitalOceanAccountAudit())
-      : formatDigitalOceanStatus(await getDigitalOceanAppStatus());
-  },
-  "cloudflare-read": async () =>
-    formatCloudflareStatus(await getCloudflareZoneStatus()),
-  "opensearch-memory": async ({ capability, input }) => {
+  "firestore-memory": async ({ capability, input }) => {
     if (capability === "memory.verify") {
       const report = await runMemoryAcceptanceTest({
         ownerId: input.ownerId,

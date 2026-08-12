@@ -11,9 +11,9 @@ import {
 
 test.beforeEach(() => resetToolRegistryForTests());
 
-test("регистрира съществуващите интеграции с пълни метаданни", () => {
+test("регистрира само Google Cloud и одобрените външни инструменти", () => {
   registerCoreTools();
-  assert.equal(listTools().length, 18);
+  assert.equal(listTools().some(({ id }) => /supabase|digitalocean|cloudflare|opensearch/u.test(id)), false);
   assert.deepEqual(getTool("synchron-integrations-status").capabilities, [
     "system.integrations.status",
     "system.tools.read",
@@ -53,14 +53,13 @@ test("регистрира съществуващите интеграции с 
   assert.deepEqual(getTool("google-calendar-write").capabilities, [
     "calendar.write",
   ]);
-  assert.deepEqual(getTool("supabase-status").capabilities, [
-    "database.status",
-  ]);
-  assert.deepEqual(getTool("digitalocean-read").capabilities, [
-    "infrastructure.digitalocean.read",
-  ]);
-  assert.deepEqual(getTool("cloudflare-read").capabilities, [
-    "infrastructure.cloudflare.read",
+  assert.deepEqual(getTool("firestore-memory").capabilities, [
+    "memory.read",
+    "memory.search",
+    "memory.verify",
+    "memory.save",
+    "memory.update",
+    "memory.delete",
   ]);
   assert.deepEqual(getTool("synchron-agent-chat").capabilities, [
     "chat.send_message",

@@ -39,10 +39,10 @@
       priority: "Изисква owner вход",
     },
     {
-      id: "opensearch-backup",
-      title: "OpenSearch backup инвентар",
+      id: "firestore-backup",
+      title: "Firestore managed backup проверка",
       detail:
-        "На 1 август 2026 owner проверката потвърди 3 restore точки. Не е създаван restore или fork и не са променяни данни.",
+        "Паметта и operational state са в Firestore; backup политиката се управлява от Google Cloud без legacy storage adapter.",
       status: "done",
       priority: "Проверено",
     },

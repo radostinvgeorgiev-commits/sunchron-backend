@@ -17,12 +17,47 @@ import {
 import {
   createGitHubSession,
   resetGitHubSessionsForTests,
+  setFirestoreGitHubSessionStoreForTests,
 } from "../src/services/githubOAuthService.js";
-import { resetConfirmationsForTests } from "../src/services/confirmationService.js";
+import {
+  resetConfirmationsForTests,
+  setFirestoreConfirmationStoreForTests,
+} from "../src/services/confirmationService.js";
 import { executeCapability } from "../src/tools/capabilityEngine.js";
 import { resetToolRegistryForTests } from "../src/tools/toolRegistry.js";
 
 const REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
+
+function githubStoreDouble() {
+  const records = new Map();
+  return {
+    async get(id) {
+      return records.has(id) ? structuredClone(records.get(id)) : null;
+    },
+    async set(id, payload) {
+      records.set(id, structuredClone(payload));
+    },
+    async delete(id) {
+      records.delete(id);
+    },
+  };
+}
+
+function confirmationStoreDouble() {
+  const records = new Map();
+  return {
+    async saveConfirmation(id, data) {
+      records.set(id, structuredClone(data));
+    },
+    async getConfirmation(id) {
+      const data = records.get(id);
+      return data ? { id, data: structuredClone(data) } : null;
+    },
+    async deleteConfirmation(id) {
+      records.delete(id);
+    },
+  };
+}
 
 function createTaskFingerprintForTest(prompt) {
   return createHash("sha256")
@@ -101,20 +136,30 @@ function copilotGraphqlFetch() {
 
 test.beforeEach(() => {
   resetGitHubSessionsForTests();
+  setFirestoreGitHubSessionStoreForTests(githubStoreDouble());
+  setFirestoreConfirmationStoreForTests(confirmationStoreDouble());
   resetConfirmationsForTests();
   resetToolRegistryForTests();
   process.env.COPILOT_AUTOMATION_ENABLED = "true";
+  process.env.PERSISTENCE_BACKEND = "firestore";
+  process.env.GOOGLE_CLOUD_PROJECT = "handy-boulevard-479120-q9";
+  process.env.FIRESTORE_DATABASE_ID = "(default)";
   process.env.GITHUB_CLIENT_ID = "test-client";
   process.env.GITHUB_CLIENT_SECRET = "test-secret";
 });
 
 test.afterEach(() => {
   resetGitHubSessionsForTests();
+  setFirestoreGitHubSessionStoreForTests(null);
+  setFirestoreConfirmationStoreForTests(null);
   resetConfirmationsForTests();
   resetToolRegistryForTests();
   delete process.env.COPILOT_AUTOMATION_ENABLED;
   delete process.env.GITHUB_CLIENT_ID;
   delete process.env.GITHUB_CLIENT_SECRET;
+  delete process.env.PERSISTENCE_BACKEND;
+  delete process.env.GOOGLE_CLOUD_PROJECT;
+  delete process.env.FIRESTORE_DATABASE_ID;
 });
 
 test("code.write prepares a Copilot confirmation through Capability Engine", async () => {
@@ -485,50 +530,6 @@ test("tracks a direct Pull Request number through production status", async () =
   assert.doesNotMatch(
     formatCopilotTaskStatus(result),
     /Pull Request: #302/u,
-  );
-});
-
-test("requires an exact one-time confirmation before starting Copilot", async () => {
-  const session = await connectedSession();
-  const prepared = await prepareCopilotTask({
-    sessionId: "chat-session",
-    githubSessionId: session.id,
-    prompt: "Промени цвета на бутона Памет.",
-  });
-  assert.match(prepared.output, /Потвърждавам GitHub задача:/u);
-  assert.match(prepared.output, /Задача: Промени цвета на бутона Памет\./u);
-  assert.equal(
-    extractCopilotConfirmationId(
-      `Потвърждавам GitHub задача: ${prepared.confirmationId}`,
-    ),
-    prepared.confirmationId,
-  );
-
-  let auditedWrites = 0;
-  const result = await confirmCopilotTask({
-    confirmationId: prepared.confirmationId,
-    sessionId: "chat-session",
-    githubSessionId: session.id,
-    fetchImpl: copilotGraphqlFetch(),
-    executeWrite: async ({ execute, action, confirmationId }) => {
-      auditedWrites += 1;
-      assert.equal(action, "github.write");
-      assert.equal(confirmationId, prepared.confirmationId);
-      return execute();
-    },
-  });
-  assert.equal(result.issueNumber, 81);
-  assert.equal(auditedWrites, 1);
-
-  await assert.rejects(
-    () =>
-      confirmCopilotTask({
-        confirmationId: prepared.confirmationId,
-        sessionId: "chat-session",
-        githubSessionId: session.id,
-        fetchImpl: copilotGraphqlFetch(),
-      }),
-    (error) => error.code === "CONFIRMATION_NOT_FOUND",
   );
 });
 

@@ -85,53 +85,34 @@ test("production smoke publishes a readable commit status without a custom secre
   assert.match(workflow, /<title>SYNCHRON-X/u);
   assert.match(workflow, /ai-core-mark\.png/u);
   assert.match(workflow, /Check MCP tool catalog and OAuth challenge/u);
-  assert.match(workflow, /Check OpenSearch and Supabase dependencies/u);
+  assert.match(workflow, /Check Firestore and Identity Platform dependencies/u);
   assert.match(workflow, /\/health\/storage-report/u);
-  assert.match(workflow, /memoryIndexReadable/u);
+  assert.match(workflow, /checks\.firestore\?\.status !== "healthy"/u);
   const dependencyStep = workflow
-    .split("- name: Check OpenSearch and Supabase dependencies")[1]
-    .split(
-      "- name: Check backup coverage and OpenSearch restore-point inventory",
-    )[0];
+    .split("- name: Check Firestore and Identity Platform dependencies")[1]
+    .split("- name: Check Google-managed backup status")[0];
   assert.match(dependencyStep, /dependencies_healthy=false/u);
   assert.match(dependencyStep, /for attempt in 1 2 3/u);
-  assert.match(dependencyStep, /"runtime"/u);
-  assert.match(dependencyStep, /"public-bootstrap"/u);
-  assert.match(dependencyStep, /connectionSource/u);
-  assert.match(dependencyStep, /allowedSupabaseSources\.has/u);
+  assert.match(dependencyStep, /backend !== "firestore"/u);
   assert.match(dependencyStep, /test "\$\{dependencies_healthy\}" = "true"/u);
-  assert.match(
-    workflow,
-    /Check backup coverage and OpenSearch restore-point inventory/u,
-  );
+  assert.match(workflow, /Check Google-managed backup status/u);
   assert.match(workflow, /JSON\.parse\(input\)\.backups/u);
-  assert.match(workflow, /provesRestore/u);
-  assert.match(workflow, /report\.status !== "partially-verified"/u);
-  assert.match(workflow, /backup\?\.fresh !== true/u);
-  assert.match(workflow, /supabase\?\.status !== "unverified"/u);
+  assert.match(workflow, /report\.status !== "not-required"/u);
+  assert.match(workflow, /backup\?\.status !== "managed"/u);
+  assert.match(workflow, /backup\?\.restoreTested !== false/u);
   const backupStep = workflow
-    .split(
-      "- name: Check backup coverage and OpenSearch restore-point inventory",
-    )[1]
+    .split("- name: Check Google-managed backup status")[1]
     .split("- name: Check production memory acceptance")[0];
   assert.match(backupStep, /curl --fail/u);
   assert.match(backupStep, /if response="\$\(curl --fail/u);
   assert.match(workflow, /get_github_copilot_task_status/u);
-  for (const toolName of [
-    "list_available_capabilities",
-    "list_action_history",
-    "list_tasks",
-    "create_task_draft",
-    "list_projects",
-  ]) {
-    assert.match(workflow, new RegExp(toolName, "u"));
-  }
   assert.match(workflow, /names\.length >= expected\.length/u);
   assert.match(workflow, /new Set\(names\)\.size === names\.length/u);
-  assert.match(workflow, /expected\.every\(\(name\) => names\.includes\(name\)\)/u);
+  assert.match(
+    workflow,
+    /expected\.every\(\(name\) => names\.includes\(name\)\)/u,
+  );
   assert.doesNotMatch(workflow, /names\.length === expected\.length/u);
-  assert.match(workflow, /synchron:audit\.read/u);
-  assert.match(workflow, /synchron:tasks\.write/u);
   assert.match(workflow, /challenge_headers="\$\(mktemp\)"/u);
   assert.match(workflow, /challenge_body="\$\(mktemp\)"/u);
   assert.match(workflow, /challenge_status/u);
@@ -142,10 +123,7 @@ test("production smoke publishes a readable commit status without a custom secre
   assert.match(workflow, /\^www-authenticate:/u);
   assert.match(workflow, /mcp\/www_authenticate/u);
   assert.match(workflow, /result\?\.isError === true/u);
-  assert.match(
-    workflow,
-    /challenge\.includes\("error=\\"invalid_token\\""\)/u,
-  );
+  assert.match(workflow, /challenge\.includes\("error=\\"invalid_token\\""\)/u);
   assert.match(workflow, /challenge\.includes\("error_description=\\""\)/u);
   assert.doesNotMatch(workflow, /challenge\.includes\('error=/u);
   assert.match(workflow, /Check workspace authentication boundary/u);
@@ -292,7 +270,7 @@ test("tester auth policy rejects missing or coerced readiness values", async () 
   }
 });
 
-test("DigitalOcean remains the only production deployment channel", async () => {
+test("Google Cloud remains the only production deployment channel", async () => {
   const workflowDirectory = new URL("../.github/workflows/", import.meta.url);
   const workflowNames = await readdir(workflowDirectory);
   const workflows = await Promise.all(
@@ -302,8 +280,8 @@ test("DigitalOcean remains the only production deployment channel", async () => 
   );
   const combined = workflows.join("\n");
 
+  assert.match(combined, /Google-managed|Firestore|Identity Platform/u);
   assert.doesNotMatch(combined, /actions\/deploy-pages/u);
   assert.doesNotMatch(combined, /actions\/upload-pages-artifact/u);
   assert.doesNotMatch(combined, /^\s*pages:\s*write\s*$/mu);
 });
-

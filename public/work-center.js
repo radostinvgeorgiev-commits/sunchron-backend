@@ -2,15 +2,9 @@
   const REPOSITORY_URL =
     "https://github.com/radostinvgeorgiev-commits/sunchron-backend";
   const MCP_RESOURCE_URL = "https://synchron.foundation/mcp";
-  const PUBLIC_REGISTRATION_URL = "https://synchron.foundation/register";
-  const PUBLIC_WWW_URL = "https://www.synchron.foundation/";
   const CHATGPT_PLUGINS_URL = "https://chatgpt.com/plugins";
   const CHATGPT_APP_GUIDE_URL =
     "https://developers.openai.com/plugins/deploy/connect-chatgpt";
-  const FALLBACK_CONFIG = Object.freeze({
-    digitalOceanUrl: "https://cloud.digitalocean.com/",
-    cloudflareUrl: "https://dash.cloudflare.com/",
-  });
 
   const button = document.getElementById("workCenterBtn");
   const drawer = document.getElementById("dataDrawer");
@@ -194,12 +188,6 @@
         className: "warning",
       };
     }
-    if (tool.availabilityCode === "CLOUDFLARE_LIVE_CHECK_REQUIRED") {
-      return {
-        label: "Конфигуриран · изисква жива проверка",
-        className: "warning",
-      };
-    }
     if (tool.healthStatus === "degraded" && tool.availabilityReason) {
       return {
         label: tool.availabilityReason,
@@ -229,7 +217,6 @@
     readiness,
     integrations,
     sessions,
-    testerAuth,
   ) {
     const coreReady =
       readiness?.status === "ready" &&
@@ -244,11 +231,6 @@
     const bridgeReady =
       bridgeConfigured &&
       bridge?.authentication?.tokenExchange?.tokenExchange === "success";
-    const testerStatus = testerAuth
-      ? testerAuth.configured && testerAuth.registrationEnabled
-        ? "working"
-        : "action"
-      : "unavailable";
     return [
       {
         label: "AI разговор и постоянна памет",
@@ -290,7 +272,6 @@
           connected: Boolean(sessions.googleConnected),
         }),
       },
-      { label: "Потребителски профили", state: testerStatus },
     ];
   }
 
@@ -298,7 +279,6 @@
     readiness,
     integrations,
     sessions,
-    testerAuth,
   ) {
     const section = document.createElement("section");
     section.className = "work-center-capabilities";
@@ -322,7 +302,6 @@
       readiness,
       integrations,
       sessions,
-      testerAuth,
     );
     const groups = [
       { state: "working", title: "Работи сега" },
@@ -507,19 +486,8 @@
     readiness = null,
     integrations = null,
     sessions = {},
-    testerAuth = null,
-    publicDomain = null,
     actionCenter = null,
   ) {
-    const digitalOceanUrl = safeHttpsUrl(
-      config.digitalOceanUrl,
-      FALLBACK_CONFIG.digitalOceanUrl,
-    );
-    const cloudflareUrl = safeHttpsUrl(
-      config.cloudflareUrl,
-      FALLBACK_CONFIG.cloudflareUrl,
-    );
-
     body.replaceChildren();
     const intro = document.createElement("div");
     intro.className = "work-center-intro";
@@ -531,7 +499,7 @@
     body.appendChild(intro);
     body.appendChild(renderActionCenter(actionCenter || {}));
     body.appendChild(
-      renderCurrentCapabilities(readiness, integrations, sessions, testerAuth),
+      renderCurrentCapabilities(readiness, integrations, sessions),
     );
 
     const grid = document.createElement("section");
@@ -539,11 +507,6 @@
     grid.setAttribute("aria-label", "Услуги на проекта");
     const coreStatus = resolveCoreStatus(readiness);
     const githubReadStatus = resolveToolStatus(integrations, "github-read");
-    const digitalOceanStatus = resolveToolStatus(
-      integrations,
-      "digitalocean-read",
-    );
-    const cloudflareStatus = resolveToolStatus(integrations, "cloudflare-read");
     const googleDriveStatus = resolveToolStatus(
       integrations,
       "google-drive-read",
@@ -613,31 +576,10 @@
         url: `${REPOSITORY_URL}/actions`,
         icon: "fa-solid fa-rocket",
       }),
-      createExternalCard({
-        title: "DigitalOcean",
-        description: "Облачната услуга, която публикува сайта.",
-        url: digitalOceanUrl,
-        icon: "fa-brands fa-digital-ocean",
-        status: `DigitalOcean Read: ${digitalOceanStatus.label.toLocaleLowerCase("bg-BG")}`,
-      }),
-      createActionCard({
-        title: "Публичен www адрес",
-        description:
-          "Отваря AI CORE директно от www.synchron.foundation за всеки посетител.",
-        action: "activate-www-domain",
-        icon: "fa-solid fa-globe",
-        status: publicDomain?.configured
-          ? "Конфигуриран в DigitalOcean"
-          : "Изисква точно потвърждение",
-        statusClass: publicDomain?.configured ? "internal" : "warning",
-        actionLabel: publicDomain?.configured
-          ? "Провери публичния адрес"
-          : "Добави www адреса",
-      }),
       createInternalCard({
         title: "Системен контрол",
         description:
-          "Ядро, инструменти и DigitalOcean променливи без показване на тайни.",
+          "Ядро, инструменти и Google Cloud променливи без показване на тайни.",
         targetId: "systemConfigurationBtn",
         icon: "fa-solid fa-sliders",
         status: "Защитено · Само за собственика",
@@ -649,40 +591,6 @@
         targetId: "toolsBtn",
         icon: "fa-solid fa-toolbox",
         status: "Вградено · Показва живото състояние",
-      }),
-      createActionCard({
-        title:
-          testerAuth?.configured && testerAuth?.registrationEnabled
-            ? "Потребителски профили"
-            : "Активирай потребителски профили",
-        description:
-          testerAuth?.configured && testerAuth?.registrationEnabled
-            ? "Нормална регистрация с име, имейл и парола."
-            : "Добавя четирите защитени production настройки чрез DigitalOcean моста.",
-        action:
-          testerAuth?.configured && testerAuth?.registrationEnabled
-            ? "copy-registration-link"
-            : "activate-tester-auth",
-        icon: "fa-solid fa-user-plus",
-        status:
-          testerAuth?.configured && testerAuth?.registrationEnabled
-            ? "Работи · Нормална регистрация"
-            : "Изисква точно потвърждение",
-        statusClass:
-          testerAuth?.configured && testerAuth?.registrationEnabled
-            ? "internal"
-            : "warning",
-        actionLabel:
-          testerAuth?.configured && testerAuth?.registrationEnabled
-            ? "Копирай адреса за регистрация"
-            : "Натисни за активиране",
-      }),
-      createExternalCard({
-        title: "Cloudflare",
-        description: "Домейн, защита и мрежови настройки.",
-        url: cloudflareUrl,
-        icon: "fa-brands fa-cloudflare",
-        status: `Cloudflare Read: ${cloudflareStatus.label.toLocaleLowerCase("bg-BG")}`,
       }),
       createInternalCard({
         title: "Google Drive",
@@ -718,109 +626,6 @@
     closeButton.dataset.closeWorkCenter = "";
     closeButton.textContent = "Назад към чата";
     body.appendChild(closeButton);
-  }
-
-  function showTesterAuthResult({ title: resultTitle, message, anchor }) {
-    const panel = document.createElement("section");
-    panel.className = "work-center-intro";
-    panel.dataset.testerAuthResult = "";
-    addText(panel, "strong", resultTitle);
-    addText(panel, "p", message);
-    body.querySelector("[data-tester-auth-result]")?.remove();
-    if (anchor?.parentNode) {
-      anchor.insertAdjacentElement("afterend", panel);
-    } else {
-      body.prepend(panel);
-    }
-    panel.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
-  }
-
-  function showPublicWwwError(error, card) {
-    if (error.code === "AUTH_REQUIRED") {
-      showTesterAuthResult({
-        title: "Необходим е вход на собственика",
-        message:
-          "Отварям защитения GitHub вход. След връщането натисни картата отново.",
-        anchor: card,
-      });
-      globalThis.location?.assign?.("/api/github/connect");
-      return;
-    }
-    showTesterAuthResult({
-      title: "Настройването на www адреса не успя",
-      message: error.code
-        ? `${error.message}\nКод: ${error.code}`
-        : error.message,
-      anchor: card,
-    });
-  }
-
-  function showPublicWwwConfirmation({ card, prepared }) {
-    body.querySelector("[data-www-domain-confirmation]")?.remove();
-
-    const panel = document.createElement("section");
-    panel.className = "work-center-intro";
-    panel.dataset.wwwDomainConfirmation = "";
-    addText(panel, "strong", "Потвърди добавянето на www адреса");
-    addText(panel, "p", prepared.message);
-    addText(panel, "p", `Адрес: ${prepared.domain}`);
-
-    const actions = document.createElement("div");
-    actions.className = "chatgpt-app-actions";
-    const confirmButton = addText(
-      actions,
-      "button",
-      "Потвърди добавянето",
-      "chatgpt-app-copy",
-    );
-    confirmButton.type = "button";
-    confirmButton.dataset.confirmWwwDomain = "";
-    const cancelButton = addText(
-      actions,
-      "button",
-      "Отказ",
-      "chatgpt-app-copy secondary",
-    );
-    cancelButton.type = "button";
-    cancelButton.dataset.cancelWwwDomain = "";
-    panel.appendChild(actions);
-
-    const finish = () => {
-      delete card.dataset.awaitingWwwConfirmation;
-      card.disabled = false;
-      panel.remove();
-    };
-
-    cancelButton.addEventListener("click", finish);
-    confirmButton.addEventListener("click", async () => {
-      confirmButton.disabled = true;
-      cancelButton.disabled = true;
-      try {
-        const result = await readJson(
-          await fetch("/api/digitalocean-domain/confirm", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              confirmationId: prepared.confirmationId,
-            }),
-          }),
-        );
-        finish();
-        showTesterAuthResult({
-          title: "www адресът се активира",
-          message: `${result.domain} е добавен. DigitalOcean започва deployment; след публикуването адресът ще бъде проверен отново.`,
-          anchor: card,
-        });
-      } catch (error) {
-        finish();
-        showPublicWwwError(error, card);
-      }
-    });
-
-    card.dataset.awaitingWwwConfirmation = "true";
-    card.disabled = true;
-    card.insertAdjacentElement("afterend", panel);
-    panel.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
   }
 
   function showChatGptAppSetup(card) {
@@ -904,91 +709,6 @@
     return payload;
   }
 
-  async function activateTesterAuth(card) {
-    card.disabled = true;
-    try {
-      const prepared = await readJson(
-        await fetch("/api/tester-auth/prepare", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: "{}",
-        }),
-      );
-      if (prepared.configured) {
-        showTesterAuthResult({
-          title: "Потребителските профили са активни",
-          message: "Регистрацията с име, имейл и парола работи.",
-          anchor: card,
-        });
-        return;
-      }
-      const approved = globalThis.confirm(
-        `${prepared.message}\n\nНастройки: ${prepared.missingKeys.join(", ")}\n\nПродължаваме ли?`,
-      );
-      if (!approved) return;
-      const result = await readJson(
-        await fetch("/api/tester-auth/confirm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            confirmationId: prepared.confirmationId,
-          }),
-        }),
-      );
-      showTesterAuthResult({
-        title: "Потребителските профили се активират",
-        message:
-          "DigitalOcean започва нов deployment. След публикуването нормалната регистрация ще бъде достъпна.",
-        anchor: card,
-      });
-    } catch (error) {
-      if (error.code === "AUTH_REQUIRED") {
-        showTesterAuthResult({
-          title: "Необходим е вход на собственика",
-          message:
-            "Отварям защитения GitHub вход. След връщането натисни картата отново.",
-          anchor: card,
-        });
-        globalThis.location?.assign?.("/api/github/connect");
-        return;
-      }
-      showTesterAuthResult({
-        title: "Активирането не успя",
-        message: error.message,
-        anchor: card,
-      });
-    } finally {
-      card.disabled = false;
-    }
-  }
-
-  async function activatePublicWwwDomain(card) {
-    if (card.dataset.awaitingWwwConfirmation === "true") return;
-    card.disabled = true;
-    try {
-      const prepared = await readJson(
-        await fetch("/api/digitalocean-domain/prepare", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: "{}",
-        }),
-      );
-      if (prepared.configured) {
-        showTesterAuthResult({
-          title: "www адресът е конфигуриран",
-          message: `${prepared.domain} е добавен в DigitalOcean. Отвори ${PUBLIC_WWW_URL} за крайна проверка.`,
-          anchor: card,
-        });
-        return;
-      }
-      showPublicWwwConfirmation({ card, prepared });
-    } catch (error) {
-      showPublicWwwError(error, card);
-    } finally {
-      card.disabled = card.dataset.awaitingWwwConfirmation === "true";
-    }
-  }
-
   async function openWorkCenter() {
     title.textContent = "Работен център";
     drawer.hidden = false;
@@ -1003,8 +723,6 @@
       integrationsResult,
       googleResult,
       githubResult,
-      testerAuthResult,
-      publicDomainResult,
       tasksResult,
       workspaceResult,
       auditResult,
@@ -1015,17 +733,15 @@
       fetch("/health/integrations", { cache: "no-store" }),
       fetch("/api/google/status", { cache: "no-store" }),
       fetch("/api/github/status", { cache: "no-store" }),
-      fetch("/api/tester-auth/status", { cache: "no-store" }),
-      fetch("/api/digitalocean-domain/status", { cache: "no-store" }),
       fetch("/api/tasks?unfinished=true&limit=20", { cache: "no-store" }),
       fetch("/api/workspaces", { cache: "no-store" }),
       fetch("/permissions/audit?limit=30", { cache: "no-store" }),
       fetch("/memory/profile", { cache: "no-store" }),
     ]);
 
-    let config = FALLBACK_CONFIG;
+    let config = {};
     if (configResult.status === "fulfilled" && configResult.value.ok) {
-      config = (await configResult.value.json()) || FALLBACK_CONFIG;
+      config = (await configResult.value.json()) || {};
     }
 
     let readiness = null;
@@ -1048,17 +764,6 @@
     if (githubResult.status === "fulfilled" && githubResult.value.ok) {
       const github = await githubResult.value.json();
       githubConnected = Boolean(github.connected);
-    }
-    let testerAuth = null;
-    if (testerAuthResult.status === "fulfilled" && testerAuthResult.value.ok) {
-      testerAuth = await testerAuthResult.value.json();
-    }
-    let publicDomain = null;
-    if (
-      publicDomainResult.status === "fulfilled" &&
-      publicDomainResult.value.ok
-    ) {
-      publicDomain = await publicDomainResult.value.json();
     }
     const actionCenter = {
       tasks:
@@ -1086,8 +791,6 @@
         googleConnected,
         githubConnected,
       },
-      testerAuth,
-      publicDomain,
       actionCenter,
     );
   }
@@ -1100,24 +803,6 @@
     const actionCard = event.target.closest("[data-work-center-action]");
     if (actionCard?.dataset.workCenterAction === "show-chatgpt-app-setup") {
       showChatGptAppSetup(actionCard);
-      return;
-    }
-    if (actionCard?.dataset.workCenterAction === "activate-tester-auth") {
-      await activateTesterAuth(actionCard);
-      return;
-    }
-    if (actionCard?.dataset.workCenterAction === "activate-www-domain") {
-      await activatePublicWwwDomain(actionCard);
-      return;
-    }
-    if (actionCard?.dataset.workCenterAction === "copy-registration-link") {
-      await globalThis.navigator?.clipboard?.writeText(PUBLIC_REGISTRATION_URL);
-      showTesterAuthResult({
-        title: "Адресът за регистрация е копиран",
-        message:
-          "Изпрати го на човека, който иска да създаде профил. Адресът отваря директно регистрацията.",
-        anchor: actionCard,
-      });
       return;
     }
     const internalCard = event.target.closest("[data-work-center-target]");

@@ -36,17 +36,6 @@ test("rejects unknown actions", () => {
   assert.equal(isAllowedAction(""), false);
 });
 
-test("allows only the exact confirmed DigitalOcean www domain action", () => {
-  assert.equal(
-    isAllowedAction("infrastructure.digitalocean:add_www_domain"),
-    true,
-  );
-  assert.equal(
-    isAllowedAction("infrastructure.digitalocean:add_other_domain"),
-    false,
-  );
-});
-
 test("allows only the exact bounded direct GitHub write actions", () => {
   for (const action of [
     "github.write:create_file",

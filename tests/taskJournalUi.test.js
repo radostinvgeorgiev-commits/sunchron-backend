@@ -86,7 +86,7 @@ test("старият roadmap се обновява без загуба на ли
     "now",
   );
   assert.equal(
-    migrated.find((task) => task.id === "opensearch-backup").status,
+    migrated.find((task) => task.id === "firestore-backup").status,
     "done",
   );
   assert.equal(
@@ -114,7 +114,7 @@ test("нова инсталация записва актуалния roadmap", 
     true,
   );
   assert.equal(
-    tasks.find((task) => task.id === "opensearch-backup").status,
+    tasks.find((task) => task.id === "firestore-backup").status,
     "done",
   );
   assert.equal(

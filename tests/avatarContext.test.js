@@ -21,11 +21,8 @@ test("avatar sends identity rules and verified memory as agent-compatible contex
   assert.match(messages[0].content, /личната AI операционна система/u);
   assert.match(messages[0].content, /AI аватарът е интерфейсът/u);
   assert.match(messages[0].content, /избира най-подходящия AI модел/u);
-  assert.match(messages[0].content, /OpenSearch е постоянната AI памет/u);
-  assert.match(
-    messages[0].content,
-    /Supabase е предвиден за потребители, настройки, разрешения, задачи и журнал/u,
-  );
+  assert.match(messages[0].content, /Firestore е постоянната AI памет/u);
+  assert.match(messages[0].content, /Identity Platform управлява потребителите и сесиите/u);
   assert.match(
     messages[0].content,
     /Не се изграждат токен, фондация, корпорация или масова платформа/u,

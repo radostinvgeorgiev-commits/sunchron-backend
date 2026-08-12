@@ -43,7 +43,8 @@ test("application exposes working memory and permission controls", async () => {
   assert.match(script, /item\.readOnly/u);
   assert.match(script, /fetch\(["']\/health\/ready["']/u);
   assert.match(script, /markMemoryOperational\(\)/u);
-  assert.match(script, /state\.opensearchFailures >= 3/u);
+  assert.match(script, /function updateFirestoreUI\(status\)/u);
+  assert.doesNotMatch(script, /opensearchFailures|storageOpenSearch/u);
   assert.match(script, /Свързан · работи/u);
   assert.match(script, /Изключено · режим без Copilot/u);
   assert.match(script, /COPILOT_AUTOMATION_DISABLED/u);

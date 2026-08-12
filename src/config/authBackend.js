@@ -1,7 +1,7 @@
-const AUTH_BACKENDS = new Set(["supabase", "identity-platform"]);
+const AUTH_BACKENDS = new Set(["identity-platform"]);
 
 export function resolveAuthBackend(env = process.env) {
-  const requested = String(env.AUTH_BACKEND || "supabase")
+  const requested = String(env.AUTH_BACKEND || "identity-platform")
     .trim()
     .toLowerCase();
   return AUTH_BACKENDS.has(requested) ? requested : null;

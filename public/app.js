@@ -1,8 +1,7 @@
 const state = {
   sessionId: getOrCreateSessionId(),
   serverOnline: false,
-  opensearchStatus: "unknown",
-  opensearchFailures: 0,
+  firestoreStatus: "unknown",
   lastMemorySuccessAt: 0,
   lastActions: [],
   chatBusy: false,
@@ -18,7 +17,7 @@ const state = {
   registrationEnabled: false,
   applicationStarted: false,
   storageStatusLoading: false,
-  storageOpenSearchHealthy: null,
+  storageFirestoreHealthy: null,
 };
 
 const REGISTRATION_PATH = "/register";
@@ -64,14 +63,8 @@ const elements = {
   agentStatusText: document.getElementById("agentStatusText"),
   sessionIdDisplay: document.getElementById("sessionIdDisplay"),
   serverStatusDisplay: document.getElementById("serverStatusDisplay"),
-  opensearchStatusDisplay: document.getElementById("opensearchStatusDisplay"),
-  supabaseStatusDisplay: document.getElementById("supabaseStatusDisplay"),
-  opensearchBackupStatusDisplay: document.getElementById(
-    "opensearchBackupStatusDisplay",
-  ),
-  supabaseBackupStatusDisplay: document.getElementById(
-    "supabaseBackupStatusDisplay",
-  ),
+  firestoreStatusDisplay: document.getElementById("firestoreStatusDisplay"),
+  firestoreBackupStatusDisplay: document.getElementById("firestoreBackupStatusDisplay"),
   storageStatusCheckedAt: document.getElementById("storageStatusCheckedAt"),
   actionsLog: document.getElementById("actionsLog"),
   conversationList: document.getElementById("conversationList"),
@@ -375,10 +368,10 @@ async function startApplication(user) {
   prepareVoiceInput();
 
   checkHealth();
-  checkOpenSearch();
+  checkFirestore();
   checkStorageStatus();
   setInterval(checkHealth, 10000);
-  setInterval(checkOpenSearch, 20000);
+  setInterval(checkFirestore, 20000);
   setInterval(checkStorageStatus, 60000);
   resizeChatInput();
 
@@ -918,9 +911,9 @@ async function openToolsDrawer() {
       "synchron-agent-chat":
         "Разговаря с AI CORE до 10 последователни въпроса в една MCP нишка.",
       "openai-web-search": "Търси актуална информация в интернет.",
-      "opensearch-memory": "Пази лична и проектна памет под твой контрол.",
+      "firestore-memory": "Пази лична и проектна памет под твой контрол в Firestore.",
       "synchron-system-inspector":
-        "Проверява ядрото и всички runtime/DigitalOcean настройки без техните стойности.",
+        "Проверява ядрото и всички Google Cloud настройки без техните стойности.",
     };
     elements.dataDrawerBody.innerHTML = `
       <div class="permission-default">
@@ -1006,7 +999,7 @@ function renderEnvironmentGroup(area, items) {
                   <p>${escapeHtml(item.purpose)}</p>
                   <small>
                     ${item.sensitivity === "secret" ? "Тайна стойност · никога не се показва" : "Обща настройка"}
-                    · DigitalOcean: ${item.digitalOceanDeclared ? "декларирана" : "не е декларирана"}
+                    · Google Cloud runtime: ${item.runtimeConfigured ? "декларирана" : "не е декларирана"}
                   </small>
                 </div>
                 <span class="permission-badge ${status.className}">${status.label}</span>
@@ -1050,7 +1043,7 @@ async function openSystemConfigurationDrawer() {
         <p>${workingTools} от ${tools.length} инструмента са конфигурирани и изпълними.</p>
         <p>${configuration.summary.configured} настройки са налични; ${configuration.summary.protectedFallback || 0} използват защитен заместител; ${configuration.summary.missingRequired} задължителни липсват.</p>
         <p>Production: ${configuration.production?.status === "ready" ? `готово · commit ${escapeHtml(configuration.production.commit)}` : "не е потвърдено"}.</p>
-        <p>DigitalOcean самопроверка (API): ${configuration.digitalOcean.connected ? "работи" : "не е достъпна"}.</p>
+        <p>Google Cloud runtime: Firestore и Identity Platform.</p>
         <small>Тук няма стойности на ключове, пароли или token-и.</small>
       </div>
       <section class="drawer-section">
@@ -1988,21 +1981,23 @@ async function checkHealth() {
   }
 }
 
-async function checkOpenSearch() {
+async function checkFirestore() {
   try {
     const response = await fetch("/health/ready", { cache: "no-store" });
     const data = await response.json();
     const memory = data?.checks?.memory;
 
     if (memory?.ready) {
-      state.opensearchFailures = 0;
-      updateStorageAwareOpenSearchUI(memory.status || "operational");
+      state.storageFirestoreHealthy = true;
+      updateFirestoreUI(memory.status || "operational");
       return;
     }
 
-    handleOpenSearchProbeFailure(memory?.status || "unavailable");
+    state.storageFirestoreHealthy = false;
+    updateFirestoreUI(memory?.status || "unavailable");
   } catch {
-    handleOpenSearchProbeFailure("unreachable");
+    state.storageFirestoreHealthy = false;
+    updateFirestoreUI("unreachable");
   }
 }
 
@@ -2020,64 +2015,33 @@ function setStorageStatus(element, text, tone) {
 
 function renderDependencyHealth(result) {
   if (result.status !== "fulfilled") {
-    state.storageOpenSearchHealthy = false;
-    updateOpenSearchUI("unavailable");
-    setStorageStatus(
-      elements.supabaseStatusDisplay,
-      "Реалната проверка е недостъпна",
-      "red",
-    );
+    state.storageFirestoreHealthy = false;
+    updateFirestoreUI("unavailable");
     return null;
   }
 
   const { report } = result.value;
-  const opensearch = report?.checks?.opensearch;
-  const supabase = report?.checks?.supabase;
-  state.storageOpenSearchHealthy = opensearch?.status === "healthy";
-  updateOpenSearchUI(
-    state.storageOpenSearchHealthy
-      ? opensearch.clusterStatus || "operational"
-      : opensearch?.status || "unavailable",
-  );
-  setStorageStatus(
-    elements.supabaseStatusDisplay,
-    supabase?.status === "healthy"
-      ? "Проверено с реална заявка · работи"
-      : "Реалната заявка е неуспешна",
-    supabase?.status === "healthy" ? "green" : "red",
-  );
+  const firestore = report?.checks?.firestore;
+  state.storageFirestoreHealthy = firestore?.status === "healthy";
+  updateFirestoreUI(firestore?.status || "unavailable");
   return report?.checkedAt || null;
 }
 
 function renderBackupHealth(result) {
   if (result.status !== "fulfilled") {
     setStorageStatus(
-      elements.opensearchBackupStatusDisplay,
-      "Инвентарът не е достъпен · restore не е тестван",
+      elements.firestoreBackupStatusDisplay,
+      "Backup проверката не е достъпна",
       "red",
-    );
-    setStorageStatus(
-      elements.supabaseBackupStatusDisplay,
-      "Непроверен · backup политиката не е видима",
-      "yellow",
     );
     return null;
   }
 
   const { report } = result.value;
-  const opensearch = report?.checks?.opensearch;
-  const inventoryVerified = opensearch?.status === "verified";
   setStorageStatus(
-    elements.opensearchBackupStatusDisplay,
-    inventoryVerified
-      ? "Инвентарът е проверен · restore не е тестван"
-      : "Инвентарът не е потвърден · restore не е тестван",
-    inventoryVerified ? "yellow" : "red",
-  );
-  setStorageStatus(
-    elements.supabaseBackupStatusDisplay,
-    "Непроверен · backup политиката не е видима",
-    "yellow",
+    elements.firestoreBackupStatusDisplay,
+    "Firestore е управляван от Google Cloud",
+    "green",
   );
   return report?.checkedAt || null;
 }
@@ -2110,28 +2074,16 @@ async function checkStorageStatus() {
 
 function markMemoryOperational() {
   state.lastMemorySuccessAt = Date.now();
-  state.opensearchFailures = 0;
-  updateStorageAwareOpenSearchUI("operational");
+  updateFirestoreUI("operational");
 }
 
-function handleOpenSearchProbeFailure(status) {
-  const memoryWorkedRecently = Date.now() - state.lastMemorySuccessAt < 60_000;
-
-  if (memoryWorkedRecently) {
-    updateStorageAwareOpenSearchUI("operational");
-    return;
-  }
-
-  state.opensearchFailures += 1;
-  updateStorageAwareOpenSearchUI(
-    state.opensearchFailures >= 3 ? status : "checking",
-  );
-}
-
-function updateStorageAwareOpenSearchUI(status) {
-  updateOpenSearchUI(
-    state.storageOpenSearchHealthy === false ? "unavailable" : status,
-  );
+function updateFirestoreUI(status) {
+  state.firestoreStatus = status;
+  if (!elements.firestoreStatusDisplay) return;
+  elements.firestoreStatusDisplay.className = "context-value";
+  const healthy = status === "green" || status === "operational" || status === "healthy";
+  elements.firestoreStatusDisplay.textContent = healthy ? "Свързан · работи" : status === "checking" ? "Проверка…" : "Временно недостъпен";
+  elements.firestoreStatusDisplay.classList.add(healthy ? "status-green" : "status-red");
 }
 
 function setServerStatus(isOnline) {
@@ -2142,34 +2094,6 @@ function setServerStatus(isOnline) {
     : "Сървър офлайн";
   elements.serverStatusDisplay.textContent = isOnline ? "Онлайн" : "Офлайн";
   elements.serverStatusDisplay.className = `context-value ${isOnline ? "status-green" : "status-red"}`;
-}
-
-function updateOpenSearchUI(status) {
-  state.opensearchStatus = status;
-  elements.opensearchStatusDisplay.className = "context-value";
-
-  if (status === "green" || status === "operational") {
-    elements.opensearchStatusDisplay.textContent = "Свързан · работи";
-    elements.opensearchStatusDisplay.classList.add("status-green");
-  } else if (status === "yellow") {
-    elements.opensearchStatusDisplay.textContent = "Работи · ограничен резерв";
-    elements.opensearchStatusDisplay.classList.add("status-yellow");
-  } else if (
-    status === "red" ||
-    status === "error" ||
-    status === "unreachable" ||
-    status === "unavailable"
-  ) {
-    elements.opensearchStatusDisplay.textContent =
-      status === "red" ? "Проблем в паметта" : "Временно недостъпен";
-    elements.opensearchStatusDisplay.classList.add("status-red");
-  } else if (status === "not-configured") {
-    elements.opensearchStatusDisplay.textContent = "Не е настроен";
-    elements.opensearchStatusDisplay.classList.add("status-red");
-  } else {
-    elements.opensearchStatusDisplay.textContent = "Проверка…";
-    elements.opensearchStatusDisplay.classList.add("status-yellow");
-  }
 }
 
 function logAction(actionName) {

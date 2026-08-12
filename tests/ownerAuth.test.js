@@ -133,40 +133,6 @@ test("verified GitHub owner takes priority over a stale tester session", async (
   assert.match(response.headers["Set-Cookie"][0], /^synchron_user_session=;/u);
 });
 
-test("allows a Supabase member with a separate memory namespace", async () => {
-  const middleware = createRequireOwnerSession({
-    getUserSession: async () => ({
-      user: {
-        id: "11111111-1111-4111-8111-111111111111",
-        email: "friend@example.com",
-        displayName: "Приятел",
-        role: "member",
-        memoryOwnerId: "supabase:11111111-1111-4111-8111-111111111111",
-      },
-      refreshed: false,
-    }),
-    getSession: async () =>
-      assert.fail("GitHub fallback must not run for a valid user session"),
-  });
-  const request = { headers: {} };
-  const response = responseRecorder();
-  let continued = false;
-
-  await middleware(request, response, () => {
-    continued = true;
-  });
-
-  assert.equal(continued, true);
-  assert.deepEqual(request.owner, {
-    id: "11111111-1111-4111-8111-111111111111",
-    email: "friend@example.com",
-    displayName: "Приятел",
-    role: "member",
-    authProvider: "supabase",
-    memoryOwnerId: "supabase:11111111-1111-4111-8111-111111111111",
-  });
-});
-
 test("owner-only middleware blocks testers and allows the owner", () => {
   const testerResponse = responseRecorder();
   requirePrimaryOwner({ owner: { role: "tester" } }, testerResponse, () =>

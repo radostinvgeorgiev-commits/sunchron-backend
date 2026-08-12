@@ -1,9 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { getOpenSearchClient } from "../config/opensearch.js";
 import { resolvePersistenceBackend } from "../config/memoryBackend.js";
 import { createFirestoreOperationalStore } from "./firestoreOperationalStore.js";
 
-const AUDIT_INDEX = process.env.AUDIT_INDEX || "synchron-action-audit";
 const MAX_FALLBACK_EVENTS = 500;
 const fallbackEvents = [];
 let firestoreOperationalStore = null;
@@ -98,16 +96,11 @@ const POLICY = Object.freeze({
     risk: "low",
     reason: "Интернет търсенето е само за четене.",
   }),
-  "database.read": Object.freeze({
-    decision: "allow",
-    risk: "low",
-    reason: "Supabase достъпът е ограничен само до проверка на статуса.",
-  }),
   "infrastructure.read": Object.freeze({
     decision: "allow",
     risk: "low",
     reason:
-      "Инфраструктурният достъп е ограничен само до статус и диагностика.",
+      "Google Cloud достъпът е ограничен само до статус и диагностика.",
   }),
   "image.read": Object.freeze({
     decision: "allow",
@@ -202,15 +195,6 @@ function buildAuditEntry(event) {
   };
 }
 
-async function persistOpenSearchAuditEntry(client, entry) {
-  await client.index({
-    index: AUDIT_INDEX,
-    id: entry.id,
-    body: entry,
-    refresh: true,
-  });
-}
-
 function getFirestoreOperationalStoreOrThrow() {
   if (firestoreOperationalStoreOverride) {
     return firestoreOperationalStoreOverride;
@@ -236,14 +220,8 @@ function getFirestoreOperationalStoreOrThrow() {
 
 async function persistConfiguredAuditEntry(entry) {
   const backend = resolvePersistenceBackend(process.env);
-  if (backend === "firestore") {
-    await getFirestoreOperationalStoreOrThrow().saveAuditEntry(entry.id, entry);
-    return true;
-  }
-  if (backend !== "opensearch") return false;
-  const client = getOpenSearchClient();
-  if (!client) return false;
-  await persistOpenSearchAuditEntry(client, entry);
+  if (backend !== "firestore") return false;
+  await getFirestoreOperationalStoreOrThrow().saveAuditEntry(entry.id, entry);
   return true;
 }
 
@@ -377,21 +355,10 @@ export async function executeAuditedWriteAction({
 
 export async function listAuditEvents(limit = 50) {
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
-  if (resolvePersistenceBackend(process.env) === "firestore") {
-    return getFirestoreOperationalStoreOrThrow().listAuditEntries(safeLimit);
+  if (resolvePersistenceBackend(process.env) !== "firestore") {
+    return fallbackEvents.slice(0, safeLimit);
   }
-  const client = getOpenSearchClient();
-  if (!client) return fallbackEvents.slice(0, safeLimit);
-
-  const response = await client.search({
-    index: AUDIT_INDEX,
-    body: {
-      size: safeLimit,
-      sort: [{ timestamp: { order: "desc" } }],
-      query: { match_all: {} },
-    },
-  });
-  return (response.body?.hits?.hits || []).map((hit) => hit._source);
+  return getFirestoreOperationalStoreOrThrow().listAuditEntries(safeLimit);
 }
 
 export function resetAuditFallbackForTests() {

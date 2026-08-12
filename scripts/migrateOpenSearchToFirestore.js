@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { getOpenSearchClient } from "../src/config/opensearch.js";
+import { getMigrationOpenSearchClient } from "./migrationOpenSearchClient.js";
 import {
   applyOpenSearchToFirestoreMigration,
   createOpenSearchMigrationInventory,
@@ -55,7 +55,7 @@ async function main() {
       "GCP_DATA_MIGRATION_CONFIGURATION_INVALID",
     );
   }
-  const client = getOpenSearchClient();
+  const client = getMigrationOpenSearchClient();
   if (!client) {
     throw new GcpDataMigrationError(
       "OpenSearch source не е конфигуриран. Задай OPENSEARCH_HOST, OPENSEARCH_PORT, OPENSEARCH_USERNAME, OPENSEARCH_PASSWORD (и OPENSEARCH_PROTOCOL ако е нужно).",

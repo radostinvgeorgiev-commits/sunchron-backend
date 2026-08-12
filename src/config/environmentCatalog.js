@@ -122,13 +122,13 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general(
       "MEMORY_BACKEND",
       "Памет",
-      "Активен backend за паметта: opensearch или firestore.",
+      "Активен backend за паметта: Firestore.",
       { hasDefault: true },
     ),
     general(
       "PERSISTENCE_BACKEND",
       "Памет",
-      "Backend за потвърждения и audit: opensearch или firestore.",
+      "Backend за потвърждения и audit: Firestore.",
       { hasDefault: true },
     ),
     general(
@@ -215,52 +215,10 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       { hasDefault: true },
     ),
 
-    secret("OPENSEARCH_HOST", "Памет", "Адрес на legacy OpenSearch паметта."),
-    secret("OPENSEARCH_PORT", "Памет", "Порт на OpenSearch.", {}),
-    general(
-      "OPENSEARCH_DATABASE_ID",
-      "Памет",
-      "Незадължително точно обвързване на backup проверката с DigitalOcean cluster.",
-    ),
-    secret("OPENSEARCH_USERNAME", "Памет", "Потребител за OpenSearch.", {}),
-    secret("OPENSEARCH_PASSWORD", "Памет", "Парола за OpenSearch.", {}),
-    general(
-      "OPENSEARCH_TLS_REJECT_UNAUTHORIZED",
-      "Памет",
-      "Задължителна проверка на TLS сертификата.",
-      { hasDefault: true },
-    ),
     secret(
       "MEMORY_OWNER_ID",
       "Памет",
       "Стабилен собственик на основната лична памет.",
-      { hasDefault: true },
-    ),
-    general(
-      "MEMORY_INDEX",
-      "Памет",
-      "Име на индекса за лични и проектни факти.",
-      { hasDefault: true },
-    ),
-    general("CONVERSATION_INDEX", "Памет", "Име на индекса за разговорите.", {
-      hasDefault: true,
-    }),
-    general(
-      "AUDIT_INDEX",
-      "Памет",
-      "Име на неизтриваемия дневник на действията.",
-      { hasDefault: true },
-    ),
-    general(
-      "CONFIRMATION_INDEX",
-      "Памет",
-      "Индекс за еднократни потвърждения.",
-      { hasDefault: true },
-    ),
-    general(
-      "TESTER_ACCESS_INDEX",
-      "Памет",
-      "Индекс за одобрени тестови профили.",
       { hasDefault: true },
     ),
 
@@ -296,7 +254,7 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general(
       "AUTH_BACKEND",
       "Тестови профили",
-      "Активен auth adapter: supabase или identity-platform.",
+      "Активен auth adapter: Identity Platform.",
       { hasDefault: true },
     ),
     general(
@@ -333,40 +291,10 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "Тестови профили",
       "Свързва един потребител от активния auth доставчик с основния собственик.",
     ),
-    general(
-      "SUPABASE_URL",
-      "Тестови профили",
-      "Legacy адрес на Supabase Auth проекта.",
-      { state: "compatibility" },
-    ),
-    general(
-      "SUPABASE_PUBLISHABLE_KEY",
-      "Тестови профили",
-      "Legacy публичен ключ за Supabase Auth.",
-      { state: "compatibility" },
-    ),
-    secret(
-      "SUPABASE_SESSION_ENCRYPTION_KEY",
-      "Тестови профили",
-      "Legacy ключ за Supabase сесиите в браузъра.",
-      { state: "compatibility", hasProtectedFallback: true },
-    ),
     secret(
       "SYNCHRON_TEST_INVITE_CODE",
       "Тестови профили",
       "Незадължителен оперативен код за tester-auth администрацията.",
-    ),
-    general(
-      "SYNCHRON_PRIMARY_SUPABASE_USER_ID",
-      "Тестови профили",
-      "Незадължително свързва един Supabase профил с основния собственик.",
-      { state: "compatibility" },
-    ),
-    general(
-      "SUPABASE_TIMEOUT_MS",
-      "Тестови профили",
-      "Максимално време за Supabase заявка.",
-      { hasDefault: true },
     ),
 
     secret(
@@ -408,12 +336,6 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "Единственият GitHub собственик с администраторски права.",
       { hasDefault: true },
     ),
-    general(
-      "GITHUB_SESSION_INDEX",
-      "GitHub",
-      "OpenSearch индекс за защитени GitHub сесии.",
-      { hasDefault: true },
-    ),
     general("GITHUB_API_URL", "GitHub", "Незадължителен GitHub API адрес.", {
       hasDefault: true,
     }),
@@ -441,67 +363,9 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "Криптира Google сесиите.",
     ),
     general(
-      "GOOGLE_SESSION_INDEX",
-      "Google",
-      "OpenSearch индекс за защитени Google сесии.",
-      { hasDefault: true },
-    ),
-    general(
       "GOOGLE_CONNECT_URL",
       "Google",
       "Незадължителен външен адрес за Google свързване.",
-      { hasDefault: true },
-    ),
-
-    secret(
-      "DIGITALOCEAN_API_TOKEN",
-      "DigitalOcean",
-      "Самопроверка на App Platform и облачните ресурси.",
-    ),
-    secret(
-      "DIGITALOCEAN_TOKEN",
-      "DigitalOcean",
-      "Старо име на DigitalOcean token; използва се само ако новото липсва.",
-      { state: "compatibility" },
-    ),
-    general(
-      "DIGITALOCEAN_APP_ID",
-      "DigitalOcean",
-      "Идентификатор на работещото App Platform приложение.",
-    ),
-    general("DIGITALOCEAN_API_URL", "DigitalOcean", "DigitalOcean API адрес.", {
-      hasDefault: true,
-    }),
-    general(
-      "DIGITALOCEAN_DASHBOARD_URL",
-      "DigitalOcean",
-      "Адрес към таблото в Работния център.",
-      { hasDefault: true },
-    ),
-
-    secret(
-      "CLOUDFLARE_API_TOKEN",
-      "Cloudflare",
-      "Проверка само за четене на зоната и DNS.",
-    ),
-    general(
-      "CLOUDFLARE_ZONE_ID",
-      "Cloudflare",
-      "Незадължителен директен идентификатор на Cloudflare зоната.",
-    ),
-    general(
-      "CLOUDFLARE_ZONE_NAME",
-      "Cloudflare",
-      "Име за автоматично откриване на Cloudflare зоната.",
-      { hasDefault: true },
-    ),
-    general("CLOUDFLARE_API_URL", "Cloudflare", "Cloudflare API адрес.", {
-      hasDefault: true,
-    }),
-    general(
-      "CLOUDFLARE_DASHBOARD_URL",
-      "Cloudflare",
-      "Адрес към таблото в Работния център.",
       { hasDefault: true },
     ),
 
@@ -536,37 +400,13 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general(
       "STORAGE_HEALTH_TIMEOUT_MS",
       "Наблюдение",
-      "Максимално време за OpenSearch и Supabase здравна проверка.",
+      "Максимално време за Firestore здравна проверка.",
       { hasDefault: true },
     ),
     general(
       "BACKUP_HEALTH_TIMEOUT_MS",
       "Наблюдение",
       "Максимално време за read-only проверка на restore точките.",
-      { hasDefault: true },
-    ),
-    general(
-      "OPENSEARCH_BACKUP_MAX_AGE_HOURS",
-      "Наблюдение",
-      "Максимална възраст на последната OpenSearch restore точка.",
-      { hasDefault: true },
-    ),
-    general(
-      "OPENSEARCH_REQUEST_TIMEOUT_MS",
-      "Наблюдение",
-      "Максимално време за OpenSearch заявка.",
-      { hasDefault: true },
-    ),
-    general(
-      "DIGITALOCEAN_REQUEST_TIMEOUT_MS",
-      "Наблюдение",
-      "Максимално време за DigitalOcean API заявка.",
-      { hasDefault: true },
-    ),
-    general(
-      "CLOUDFLARE_REQUEST_TIMEOUT_MS",
-      "Наблюдение",
-      "Максимално време за Cloudflare API заявка.",
       { hasDefault: true },
     ),
   ].map((item) => Object.freeze(item)),

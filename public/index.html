@@ -36,10 +36,6 @@
       rel="stylesheet"
       href="/assets/20260806-green-chat-v1/synchron-vision.css"
     />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
     <script src="https://cdn.jsdelivr.net/npm/marked@18.0.7/lib/marked.umd.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.12/dist/purify.min.js"></script>
   </head>
@@ -468,34 +464,12 @@
             <div class="context-value" id="serverStatusDisplay">Проверка…</div>
           </div>
           <div class="context-box">
-            <div class="context-label">OpenSearch</div>
-            <div class="context-value" id="opensearchStatusDisplay">
-              Проверка…
-            </div>
+            <div class="context-label">Firestore</div>
+            <div class="context-value" id="firestoreStatusDisplay">Проверка…</div>
           </div>
           <div class="context-box">
-            <div class="context-label">Supabase Auth</div>
-            <div class="context-value" id="supabaseStatusDisplay">
-              Проверка с реална заявка…
-            </div>
-          </div>
-          <div class="context-box">
-            <div class="context-label">OpenSearch backup</div>
-            <div class="context-value" id="opensearchBackupStatusDisplay">
-              Проверка на инвентара…
-            </div>
-            <small class="status-evidence">
-              Наличният инвентар не доказва успешно възстановяване.
-            </small>
-          </div>
-          <div class="context-box">
-            <div class="context-label">Supabase backup</div>
-            <div class="context-value" id="supabaseBackupStatusDisplay">
-              Непроверен
-            </div>
-            <small class="status-evidence">
-              Runtime ключът не вижда backup политиката на доставчика.
-            </small>
+            <div class="context-label">Firestore backup</div>
+            <div class="context-value" id="firestoreBackupStatusDisplay">Проверка…</div>
           </div>
           <p class="status-checked-at" id="storageStatusCheckedAt">
             Последна проверка: предстои

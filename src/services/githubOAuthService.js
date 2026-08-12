@@ -4,7 +4,6 @@ import {
   resolveFirestoreProjectId,
   resolvePersistenceBackend,
 } from "../config/memoryBackend.js";
-import { getOpenSearchClient } from "../config/opensearch.js";
 import { logSafeError } from "../utils/safeLogging.js";
 import { createFirestoreOAuthSessionStore } from "./firestoreOAuthSessionStore.js";
 
@@ -15,8 +14,6 @@ const GITHUB_OAUTH_SCOPE = "public_repo";
 export const DEFAULT_GITHUB_REDIRECT_URI =
   "https://synchron.foundation/api/github/callback";
 const DEFAULT_GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
-const GITHUB_SESSION_INDEX =
-  process.env.GITHUB_SESSION_INDEX || "synchron-github-sessions-v1";
 const sessions = new Map();
 let firestoreSessionStore = null;
 let firestoreSessionConfiguration = null;
@@ -259,19 +256,8 @@ export function requiresPersistentGitHubSessions(env = process.env) {
 
 async function persistSession(id, session, env = process.env) {
   const backend = resolvePersistenceBackend(env);
-  if (backend === "firestore") {
-    await getFirestoreSessionStore(env).set(id, encryptGitHubSession(session));
-    return true;
-  }
-  if (backend !== "opensearch") return false;
-  const client = getOpenSearchClient();
-  if (!client) return false;
-  await client.index({
-    index: GITHUB_SESSION_INDEX,
-    id,
-    body: encryptGitHubSession(session),
-    refresh: true,
-  });
+  if (backend !== "firestore") return false;
+  await getFirestoreSessionStore(env).set(id, encryptGitHubSession(session));
   return true;
 }
 
@@ -282,20 +268,8 @@ async function loadSession(id, env = process.env) {
 
   try {
     const backend = resolvePersistenceBackend(env);
-    let payload = null;
-    if (backend === "firestore") {
-      payload = await getFirestoreSessionStore(env).get(id);
-    } else if (backend === "opensearch") {
-      const client = getOpenSearchClient();
-      if (!client) return null;
-      const response = await client.get({
-        index: GITHUB_SESSION_INDEX,
-        id,
-      });
-      payload = response.body?._source ?? response._source;
-    } else {
-      return null;
-    }
+    if (backend !== "firestore") return null;
+    const payload = await getFirestoreSessionStore(env).get(id);
     if (!payload) return null;
     const session = decryptGitHubSession(payload);
     sessions.set(id, session);
@@ -365,22 +339,10 @@ export async function getLatestAuthorizedGitHubSession() {
   if (cached?.accessToken) return cached;
 
   const backend = resolvePersistenceBackend(process.env);
-  let hits = [];
-  if (backend === "firestore") {
-    hits = (await getFirestoreSessionStore().listLatest(100)).map(
-      ({ id, payload }) => ({ _id: id, _source: payload }),
-    );
-  } else if (backend === "opensearch") {
-    const client = getOpenSearchClient();
-    if (!client) return null;
-    const response = await client.search({
-      index: GITHUB_SESSION_INDEX,
-      body: { size: 20, sort: [{ updatedAt: { order: "desc" } }] },
-    });
-    hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
-  } else {
-    return null;
-  }
+  if (backend !== "firestore") return null;
+  const hits = (await getFirestoreSessionStore().listLatest(100)).map(
+    ({ id, payload }) => ({ _id: id, _source: payload }),
+  );
   for (const hit of hits) {
     try {
       const session = decryptGitHubSession(hit._source);
@@ -398,19 +360,9 @@ export async function getLatestAuthorizedGitHubSession() {
 export async function disconnectGitHubSession(id) {
   if (id) sessions.delete(id);
   const backend = resolvePersistenceBackend(process.env);
-  if (backend === "firestore") {
-    if (id) await getFirestoreSessionStore().delete(id);
-    return;
-  }
-  if (backend !== "opensearch") return;
-  const client = getOpenSearchClient();
-  if (!id || !client) return;
+  if (backend !== "firestore" || !id) return;
   try {
-    await client.delete({
-      index: GITHUB_SESSION_INDEX,
-      id,
-      refresh: true,
-    });
+    await getFirestoreSessionStore().delete(id);
   } catch (error) {
     const status = error?.statusCode || error?.meta?.statusCode;
     if (status !== 404) throw error;

@@ -126,7 +126,7 @@ const TASK_ALIASES = Object.freeze([
   [/(?:мост|тунел|bridge|tunnel|mcp)/iu, ["bridge", "tunnel", "mcp"]],
   [/(?:github|гитхъб)/iu, ["github"]],
   [/(?:google|гугъл)/iu, ["google"]],
-  [/(?:deploy|production|продукц)/iu, ["digitalocean", "health"]],
+  [/(?:deploy|production|продукц)/iu, ["google-cloud", "health"]],
   [/(?:codex|кодекс)/iu, ["codex"]],
 ]);
 

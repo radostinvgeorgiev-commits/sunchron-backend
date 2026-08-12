@@ -1,10 +1,8 @@
 import { createHash } from "node:crypto";
 
-import { getOpenSearchClient } from "../config/opensearch.js";
 import { resolvePersistenceBackend } from "../config/memoryBackend.js";
 import { createFirestoreWorkspaceStore } from "./firestoreWorkspaceStore.js";
 
-const DEFAULT_INDEX = "synchron-workspaces-v1";
 let firestoreStore = null;
 let firestoreConfiguration = null;
 let firestoreStoreOverride = null;
@@ -338,17 +336,6 @@ export function workspaceDocumentId(ownerId) {
     .digest("hex");
 }
 
-function indexName(env = process.env) {
-  return cleanText(env.WORKSPACE_STATE_INDEX, 120) || DEFAULT_INDEX;
-}
-
-function requireClient(client = getOpenSearchClient()) {
-  if (!client) {
-    throw new WorkspaceStateError("Работната област временно не е достъпна.");
-  }
-  return client;
-}
-
 function getFirestoreStore(env = process.env) {
   if (firestoreStoreOverride) return firestoreStoreOverride;
   const configuration = [
@@ -383,33 +370,25 @@ function statusCode(error) {
 
 export async function loadWorkspaceState(
   ownerId,
-  { client, env = process.env } = {},
+  { env = process.env } = {},
 ) {
   const documentId = workspaceDocumentId(ownerId);
   try {
-    if (persistenceBackend(env) === "firestore") {
-      const document = await getFirestoreStore(env).get(documentId);
-      if (!document) {
-        return {
-          state: normalizeWorkspaceState(null),
-          persisted: false,
-          updatedAt: null,
-        };
-      }
+    if (persistenceBackend(env) !== "firestore") {
+      throw new WorkspaceStateError("Работната област изисква Firestore.", 503, "WORKSPACE_STORAGE_UNAVAILABLE");
+    }
+    const document = await getFirestoreStore(env).get(documentId);
+    if (!document) {
       return {
-        state: normalizeWorkspaceState(document.data?.state),
-        persisted: true,
-        updatedAt: document.data?.updatedAt || null,
+        state: normalizeWorkspaceState(null),
+        persisted: false,
+        updatedAt: null,
       };
     }
-    const response = await requireClient(client).get({
-      index: indexName(env),
-      id: documentId,
-    });
     return {
-      state: normalizeWorkspaceState(response.body?._source?.state),
+      state: normalizeWorkspaceState(document.data?.state),
       persisted: true,
-      updatedAt: response.body?._source?.updatedAt || null,
+      updatedAt: document.data?.updatedAt || null,
     };
   } catch (error) {
     if (statusCode(error) === 404) {
@@ -431,31 +410,20 @@ export async function loadWorkspaceState(
 export async function saveWorkspaceState(
   ownerId,
   value,
-  { client, env = process.env, now } = {},
+  { env = process.env, now } = {},
 ) {
   const documentId = workspaceDocumentId(ownerId);
   const updatedAt = now || new Date().toISOString();
   const state = normalizeWorkspaceState(value, { now: updatedAt });
   try {
-    if (persistenceBackend(env) === "firestore") {
-      await getFirestoreStore(env).set(documentId, {
-        schemaVersion: 2,
-        ownerHash: documentId,
-        state,
-        updatedAt,
-      });
-      return { state, persisted: true, updatedAt };
+    if (persistenceBackend(env) !== "firestore") {
+      throw new WorkspaceStateError("Работната област изисква Firestore.", 503, "WORKSPACE_STORAGE_UNAVAILABLE");
     }
-    await requireClient(client).index({
-      index: indexName(env),
-      id: documentId,
-      body: {
-        schemaVersion: 2,
-        ownerHash: documentId,
-        state,
-        updatedAt,
-      },
-      refresh: false,
+    await getFirestoreStore(env).set(documentId, {
+      schemaVersion: 2,
+      ownerHash: documentId,
+      state,
+      updatedAt,
     });
   } catch (error) {
     if (error instanceof WorkspaceStateError) throw error;

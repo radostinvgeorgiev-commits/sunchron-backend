@@ -10,7 +10,6 @@ import {
   resolveFirestoreProjectId,
   resolvePersistenceBackend,
 } from "../config/memoryBackend.js";
-import { getOpenSearchClient } from "../config/opensearch.js";
 import {
   createFirestoreMcpOAuthStore,
   isFirestoreAlreadyExists,
@@ -57,15 +56,9 @@ const CONSENT_TOKEN_TTL_SECONDS = 10 * 60;
 const MAX_CONSUMED_TOKEN_RECORDS = 10_000;
 const REPLAY_CLEANUP_INTERVAL_SECONDS = 6 * 60 * 60;
 const MCP_GRANT_REVOKE_MAX_ATTEMPTS = 3;
-const MCP_OAUTH_REPLAY_INDEX =
-  process.env.MCP_OAUTH_REPLAY_INDEX || "synchron-mcp-oauth-replay-v1";
-const MCP_OAUTH_GRANT_INDEX =
-  process.env.MCP_OAUTH_GRANT_INDEX || "synchron-mcp-oauth-grants-v1";
 const consumedAuthorizationCodes = new Map();
 const consumedRefreshTokens = new Map();
 const localMcpGrants = new Map();
-let replayIndexPromise = null;
-let grantIndexPromise = null;
 let lastReplayCleanupAt = 0;
 let activeReplayCleanup = null;
 let firestoreMcpStore = null;
@@ -372,12 +365,6 @@ export function requiredScopesForMcpTool(name) {
   if (["prepare_github_change", "confirm_github_change"].includes(name)) {
     return [MCP_GITHUB_WRITE_SCOPE];
   }
-  if (
-    name === "prepare_digitalocean_www_domain" ||
-    name === "confirm_digitalocean_www_domain"
-  ) {
-    return [MCP_INFRASTRUCTURE_WRITE_SCOPE];
-  }
   return name === "prepare_github_merged_branch_cleanup" ||
     name === "confirm_github_merged_branch_cleanup"
     ? [MCP_GITHUB_WRITE_SCOPE]
@@ -385,7 +372,7 @@ export function requiredScopesForMcpTool(name) {
 }
 
 export function allowsAnonymousMcpTool(name) {
-  return name === "get_digitalocean_app_status";
+  return false;
 }
 
 export function mcpToolSecuritySchemes(name) {
@@ -767,55 +754,6 @@ function replayRecordId(grantType, tokenId) {
     .digest("hex");
 }
 
-async function ensureMcpReplayIndex(client, env = process.env) {
-  if (
-    !client?.indices ||
-    typeof client.indices.exists !== "function" ||
-    typeof client.indices.create !== "function"
-  ) {
-    return;
-  }
-  if (!replayIndexPromise) {
-    const index = env.MCP_OAUTH_REPLAY_INDEX || MCP_OAUTH_REPLAY_INDEX;
-    replayIndexPromise = (async () => {
-      const existsResponse = await client.indices.exists({ index });
-      const exists = existsResponse.body ?? existsResponse;
-      if (exists) return;
-      try {
-        await client.indices.create({
-          index,
-          body: {
-            mappings: {
-              properties: {
-                grantType: { type: "keyword" },
-                expiresAt: { type: "date" },
-              },
-            },
-          },
-        });
-      } catch (error) {
-        const status = openSearchStatus(error);
-        const type = error?.meta?.body?.error?.type;
-        if (status !== 400 || type !== "resource_already_exists_exception") {
-          throw error;
-        }
-      }
-    })().catch((error) => {
-      replayIndexPromise = null;
-      throw error;
-    });
-  }
-  await replayIndexPromise;
-}
-
-function openSearchStatus(error) {
-  return error?.statusCode || error?.meta?.statusCode || 0;
-}
-
-function mcpGrantIndex(env = process.env) {
-  return env.MCP_OAUTH_GRANT_INDEX || MCP_OAUTH_GRANT_INDEX;
-}
-
 function mcpGrantUnavailable(message) {
   return new McpOAuthError(
     message || "MCP OAuth разрешенията временно не са достъпни.",
@@ -926,55 +864,6 @@ function withMcpGrantId(payload) {
     : { ...payload, grantId: legacyGrantId(payload) };
 }
 
-async function ensureMcpGrantIndex(client, env = process.env) {
-  if (
-    !client?.indices ||
-    typeof client.indices.exists !== "function" ||
-    typeof client.indices.create !== "function"
-  ) {
-    return;
-  }
-  if (!grantIndexPromise) {
-    const index = mcpGrantIndex(env);
-    grantIndexPromise = (async () => {
-      const existsResponse = await client.indices.exists({ index });
-      const exists = existsResponse.body ?? existsResponse;
-      if (exists) return;
-      try {
-        await client.indices.create({
-          index,
-          body: {
-            mappings: {
-              properties: {
-                grantId: { type: "keyword" },
-                subject: { type: "keyword" },
-                memoryOwnerId: { type: "keyword" },
-                role: { type: "keyword" },
-                clientId: { type: "keyword" },
-                scopes: { type: "keyword" },
-                issuedAt: { type: "date" },
-                expiresAt: { type: "date" },
-                lastUsedAt: { type: "date" },
-                revokedAt: { type: "date" },
-              },
-            },
-          },
-        });
-      } catch (error) {
-        const status = openSearchStatus(error);
-        const type = error?.meta?.body?.error?.type;
-        if (status !== 400 || type !== "resource_already_exists_exception") {
-          throw error;
-        }
-      }
-    })().catch((error) => {
-      grantIndexPromise = null;
-      throw error;
-    });
-  }
-  await grantIndexPromise;
-}
-
 export function requiresPersistentMcpGrantStore(env = process.env) {
   return env.NODE_ENV === "production";
 }
@@ -983,7 +872,6 @@ async function loadMcpGrant(
   grantId,
   {
     env = process.env,
-    client = getOpenSearchClient(),
     firestoreStore = null,
   } = {},
 ) {
@@ -1008,28 +896,7 @@ async function loadMcpGrant(
     }
     return local;
   }
-  if (backend === "opensearch" && client && typeof client.get === "function") {
-    try {
-      const response = await client.get({
-        index: mcpGrantIndex(env),
-        id: grantId,
-      });
-      const source = response.body?._source ?? response._source;
-      const record = normalizeGrantRecord(source, grantId);
-      if (source && !record) {
-        return { grantId, invalid: true, revokedAt: "invalid" };
-      }
-      if (record) localMcpGrants.set(grantId, record);
-      return record;
-    } catch (error) {
-      if (openSearchStatus(error) === 404) {
-        return requiresPersistentMcpGrantStore(env) ? null : local;
-      }
-      if (requiresPersistentMcpGrantStore(env)) {
-        throw mcpGrantUnavailable();
-      }
-    }
-  } else if (requiresPersistentMcpGrantStore(env)) {
+  if (requiresPersistentMcpGrantStore(env)) {
     throw mcpGrantUnavailable(
       "MCP OAuth хранилището за разрешения не е конфигурирано.",
     );
@@ -1041,7 +908,6 @@ async function persistMcpGrant(
   payload,
   {
     env = process.env,
-    client = getOpenSearchClient(),
     firestoreStore = null,
     issuedAt = payload.iat,
     expiresAt = payload.exp,
@@ -1060,7 +926,6 @@ async function persistMcpGrant(
   if (local && requiresPersistentMcpGrantStore(env)) {
     const durable = await loadMcpGrant(record.grantId, {
       env,
-      client,
       firestoreStore,
     });
     if (!mcpGrantMatches(durable, record) || durable?.revokedAt) {
@@ -1082,38 +947,6 @@ async function persistMcpGrant(
       if (isFirestoreAlreadyExists(error)) {
         const existing = await loadMcpGrant(record.grantId, {
           env,
-          client,
-          firestoreStore,
-        });
-        if (mcpGrantMatches(existing, record) && !existing.revokedAt) {
-          return existing;
-        }
-        throw inactiveMcpGrant();
-      }
-      if (requiresPersistentMcpGrantStore(env)) {
-        throw mcpGrantUnavailable();
-      }
-    }
-  } else if (
-    backend === "opensearch" &&
-    client &&
-    typeof client.create === "function"
-  ) {
-    try {
-      await ensureMcpGrantIndex(client, env);
-      await client.create({
-        index: mcpGrantIndex(env),
-        id: record.grantId,
-        body: record,
-        refresh: true,
-      });
-      localMcpGrants.set(record.grantId, record);
-      return record;
-    } catch (error) {
-      if (openSearchStatus(error) === 409) {
-        const existing = await loadMcpGrant(record.grantId, {
-          env,
-          client,
           firestoreStore,
         });
         if (mcpGrantMatches(existing, record) && !existing.revokedAt) {
@@ -1139,7 +972,6 @@ async function touchMcpGrant(
   record,
   {
     env = process.env,
-    client = getOpenSearchClient(),
     firestoreStore = null,
     now = Date.now(),
     expiresAt = record.expiresAt,
@@ -1171,24 +1003,6 @@ async function touchMcpGrant(
         throw mcpGrantUnavailable();
       }
     }
-  } else if (
-    backend === "opensearch" &&
-    client &&
-    typeof client.update === "function"
-  ) {
-    try {
-      await client.update({
-        index: mcpGrantIndex(env),
-        id: record.grantId,
-        body: { doc: { lastUsedAt, expiresAt: updated.expiresAt } },
-        refresh: false,
-      });
-    } catch (error) {
-      if (openSearchStatus(error) === 404) throw inactiveMcpGrant();
-      if (requiresPersistentMcpGrantStore(env)) {
-        throw mcpGrantUnavailable();
-      }
-    }
   } else if (requiresPersistentMcpGrantStore(env)) {
     throw mcpGrantUnavailable(
       "MCP OAuth хранилището за разрешения не е конфигурирано.",
@@ -1202,7 +1016,6 @@ export async function assertMcpGrantActive(
   identity,
   {
     env = process.env,
-    client = getOpenSearchClient(),
     firestoreStore = null,
     touch = false,
     now = Date.now(),
@@ -1231,7 +1044,6 @@ export async function assertMcpGrantActive(
 
   let record = await loadMcpGrant(String(identity.grantId), {
     env,
-    client,
     firestoreStore,
   });
   if (!record && !requiresPersistentMcpGrantStore(env)) {
@@ -1255,9 +1067,8 @@ export async function assertMcpGrantActive(
     throw inactiveMcpGrant(errorCode);
   }
   return touch
-    ? touchMcpGrant(record, {
+      ? touchMcpGrant(record, {
         env,
-        client,
         firestoreStore,
         now,
         expiresAt,
@@ -1268,7 +1079,6 @@ export async function assertMcpGrantActive(
 export async function listActiveMcpGrants({
   subject,
   env = process.env,
-  client = getOpenSearchClient(),
   firestoreStore = null,
   limit = 100,
   now = Date.now(),
@@ -1304,42 +1114,6 @@ export async function listActiveMcpGrants({
         throw mcpGrantUnavailable();
       }
     }
-  } else if (
-    backend === "opensearch" &&
-    client &&
-    typeof client.search === "function"
-  ) {
-    try {
-      const response = await client.search({
-        index: mcpGrantIndex(env),
-        body: {
-          size: safeLimit,
-          query: {
-            bool: {
-              filter: [
-                { term: { subject: cleanSubject } },
-                {
-                  range: {
-                    expiresAt: { gt: new Date(now).toISOString() },
-                  },
-                },
-              ],
-              must_not: [{ exists: { field: "revokedAt" } }],
-            },
-          },
-          sort: [{ issuedAt: { order: "desc" } }],
-        },
-      });
-      const hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
-      return hits
-        .map((hit) => normalizeGrantRecord(hit._source, hit._id))
-        .filter(Boolean);
-    } catch (error) {
-      if (openSearchStatus(error) === 404) return [];
-      if (requiresPersistentMcpGrantStore(env)) {
-        throw mcpGrantUnavailable();
-      }
-    }
   } else if (requiresPersistentMcpGrantStore(env)) {
     throw mcpGrantUnavailable(
       "MCP OAuth хранилището за разрешения не е конфигурирано.",
@@ -1368,42 +1142,10 @@ function activeMcpGrantRevokeQuery(subject, grantId = "") {
   };
 }
 
-async function hasActiveMcpGrantForRevoke({ subject, grantId, env, client }) {
-  if (!client || typeof client.search !== "function") {
-    if (requiresPersistentMcpGrantStore(env)) {
-      throw mcpGrantUnavailable(
-        "MCP OAuth отнемането не може да бъде потвърдено.",
-      );
-    }
-    return null;
-  }
-  try {
-    const response = await client.search({
-      index: mcpGrantIndex(env),
-      body: {
-        size: 1,
-        _source: false,
-        query: activeMcpGrantRevokeQuery(subject, grantId),
-      },
-    });
-    const hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
-    return hits.length > 0;
-  } catch (error) {
-    if (openSearchStatus(error) === 404) return false;
-    if (requiresPersistentMcpGrantStore(env)) {
-      throw mcpGrantUnavailable(
-        "MCP OAuth отнемането не може да бъде потвърдено.",
-      );
-    }
-    return null;
-  }
-}
-
 export async function revokeMcpGrants({
   subject,
   grantId,
   env = process.env,
-  client = getOpenSearchClient(),
   firestoreStore = null,
   now = Date.now(),
 } = {}) {
@@ -1442,56 +1184,7 @@ export async function revokeMcpGrants({
       return localRevoked;
     }
   }
-  if (
-    backend === "opensearch" &&
-    client &&
-    typeof client.updateByQuery === "function"
-  ) {
-    try {
-      let updated = 0;
-      for (
-        let attempt = 1;
-        attempt <= MCP_GRANT_REVOKE_MAX_ATTEMPTS;
-        attempt += 1
-      ) {
-        const response = await client.updateByQuery({
-          index: mcpGrantIndex(env),
-          conflicts: "proceed",
-          refresh: true,
-          body: {
-            query: activeMcpGrantRevokeQuery(cleanSubject, cleanGrantId),
-            script: {
-              source: "ctx._source.revokedAt = params.revokedAt",
-              params: { revokedAt },
-            },
-          },
-        });
-        const body = response.body ?? response;
-        updated += Number(body?.updated ?? 0);
-        const versionConflicts = Number(body?.version_conflicts ?? 0);
-        const stillActive = await hasActiveMcpGrantForRevoke({
-          subject: cleanSubject,
-          grantId: cleanGrantId,
-          env,
-          client,
-        });
-        if (stillActive === false) return updated;
-        if (stillActive === null && versionConflicts === 0) return updated;
-        if (attempt === MCP_GRANT_REVOKE_MAX_ATTEMPTS) {
-          throw mcpGrantUnavailable(
-            "MCP OAuth отнемането не можа да бъде потвърдено.",
-          );
-        }
-      }
-    } catch (error) {
-      if (openSearchStatus(error) === 404) return 0;
-      if (error instanceof McpOAuthError) throw error;
-      if (requiresPersistentMcpGrantStore(env)) {
-        throw mcpGrantUnavailable();
-      }
-      return localRevoked;
-    }
-  } else if (requiresPersistentMcpGrantStore(env)) {
+  if (backend !== "firestore" && requiresPersistentMcpGrantStore(env)) {
     throw mcpGrantUnavailable(
       "MCP OAuth хранилището за разрешения не е конфигурирано.",
     );
@@ -1504,19 +1197,13 @@ export function requiresPersistentMcpReplayGuard(env = process.env) {
 }
 
 export async function cleanupExpiredMcpReplayRecords({
-  client = getOpenSearchClient(),
   firestoreStore = null,
   env = process.env,
   now = Math.floor(Date.now() / 1_000),
   force = false,
 } = {}) {
   const backend = resolvePersistenceBackend(env);
-  if (
-    backend !== "firestore" &&
-    (!client || typeof client.deleteByQuery !== "function")
-  ) {
-    return false;
-  }
+  if (backend !== "firestore") return false;
   if (activeReplayCleanup) return activeReplayCleanup;
   if (
     !force &&
@@ -1541,31 +1228,7 @@ export async function cleanupExpiredMcpReplayRecords({
     return activeReplayCleanup;
   }
 
-  activeReplayCleanup = client
-    .deleteByQuery({
-      index: env.MCP_OAUTH_REPLAY_INDEX || MCP_OAUTH_REPLAY_INDEX,
-      conflicts: "proceed",
-      refresh: false,
-      body: {
-        query: {
-          range: {
-            expiresAt: { lte: new Date(now * 1_000).toISOString() },
-          },
-        },
-      },
-    })
-    .then(() => true)
-    .catch((error) => {
-      if (openSearchStatus(error) !== 404) {
-        console.error("[MCP OAuth replay] Expired-record cleanup failed.");
-      }
-      return openSearchStatus(error) === 404;
-    })
-    .finally(() => {
-      activeReplayCleanup = null;
-    });
-
-  return activeReplayCleanup;
+  return false;
 }
 
 export async function consumeMcpGrantOnce({
@@ -1573,7 +1236,6 @@ export async function consumeMcpGrantOnce({
   tokenId,
   expiresAt,
   env = process.env,
-  client = getOpenSearchClient(),
   firestoreStore = null,
 }) {
   const store = replayStore(grantType);
@@ -1620,30 +1282,6 @@ export async function consumeMcpGrantOnce({
         env,
         now,
       });
-    }
-  } else if (backend === "opensearch" && client) {
-    try {
-      const replayIndex = env.MCP_OAUTH_REPLAY_INDEX || MCP_OAUTH_REPLAY_INDEX;
-      await ensureMcpReplayIndex(client, env);
-      await client.create({
-        index: replayIndex,
-        id: replayRecordId(grantType, tokenId),
-        body: {
-          grantType,
-          expiresAt: new Date(expiresAt * 1_000).toISOString(),
-        },
-        refresh: true,
-      });
-      await cleanupExpiredMcpReplayRecords({ client, env, now });
-    } catch (error) {
-      if (openSearchStatus(error) === 409) return false;
-      if (requiresPersistentMcpReplayGuard(env)) {
-        throw new McpOAuthError(
-          "MCP OAuth еднократната защита временно не е достъпна.",
-          503,
-          "temporarily_unavailable",
-        );
-      }
     }
   } else if (requiresPersistentMcpReplayGuard(env)) {
     throw new McpOAuthError(
@@ -1708,7 +1346,6 @@ export async function exchangeMcpAuthorizationCode(
   env = process.env,
   {
     consumeGrant = consumeMcpGrantOnce,
-    client = getOpenSearchClient(),
     firestoreStore = null,
   } = {},
 ) {
@@ -1760,7 +1397,6 @@ export async function exchangeMcpAuthorizationCode(
   const grantPayload = withMcpGrantId(payload);
   await persistMcpGrant(grantPayload, {
     env,
-    client,
     firestoreStore,
     issuedAt: payload.iat,
     expiresAt: now + REFRESH_TOKEN_TTL_SECONDS,
@@ -1770,7 +1406,6 @@ export async function exchangeMcpAuthorizationCode(
     tokenId: payload.jti,
     expiresAt: payload.exp,
     env,
-    client,
     firestoreStore,
   });
   if (!consumed) {
@@ -1788,7 +1423,6 @@ export async function exchangeMcpRefreshToken(
   env = process.env,
   {
     consumeGrant = consumeMcpGrantOnce,
-    client = getOpenSearchClient(),
     firestoreStore = null,
   } = {},
 ) {
@@ -1817,7 +1451,6 @@ export async function exchangeMcpRefreshToken(
   if (payload.grantId) {
     await assertMcpGrantActive(payload, {
       env,
-      client,
       firestoreStore,
       touch: true,
       now: now * 1_000,
@@ -1829,7 +1462,6 @@ export async function exchangeMcpRefreshToken(
     // grant. The deterministic ID makes a retry idempotent.
     await persistMcpGrant(grantPayload, {
       env,
-      client,
       firestoreStore,
       issuedAt: payload.iat,
       expiresAt: now + REFRESH_TOKEN_TTL_SECONDS,
@@ -1840,7 +1472,6 @@ export async function exchangeMcpRefreshToken(
     tokenId: payload.jti,
     expiresAt: payload.exp,
     env,
-    client,
     firestoreStore,
   });
   if (!consumed) {
@@ -1994,8 +1625,6 @@ export function resetMcpOAuthStateForTests() {
   consumedAuthorizationCodes.clear();
   consumedRefreshTokens.clear();
   localMcpGrants.clear();
-  replayIndexPromise = null;
-  grantIndexPromise = null;
   setFirestoreMcpOAuthStoreForTests(null);
   lastReplayCleanupAt = 0;
   activeReplayCleanup = null;

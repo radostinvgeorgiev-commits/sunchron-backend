@@ -1,5 +1,4 @@
 import { createHash, randomUUID } from "node:crypto";
-import { getOpenSearchClient } from "../config/opensearch.js";
 import { resolveMemoryBackend } from "../config/memoryBackend.js";
 import {
   CANONICAL_PROJECT_MEMORY_ID,
@@ -8,15 +7,11 @@ import {
 } from "../config/projectIdentity.js";
 import { createFirestoreMemoryStore } from "./firestoreMemoryStore.js";
 
-const PROFILE_INDEX = process.env.MEMORY_INDEX || "synchron-profile-memory-v1";
-const CONVERSATION_INDEX =
-  process.env.CONVERSATION_INDEX || "synchron-conversation-memory-v1";
 const OWNER_ID = process.env.MEMORY_OWNER_ID || "primary-user";
 const MAX_MEMORIES = 200;
 const MAX_CONVERSATION_MESSAGES = 20;
 const MAX_CONVERSATIONS = 50;
 const VALID_SCOPES = new Set(["personal", "project"]);
-const indexPromises = new Map();
 let firestoreStore = null;
 let firestoreStoreConfiguration = null;
 let firestoreStoreOverride = null;
@@ -41,28 +36,19 @@ export function profileMemoryDocumentId(ownerId, memoryKey) {
     .digest("hex")}`;
 }
 
-function getClientOrThrow() {
-  const client = getOpenSearchClient();
-  if (!client) {
-    const error = new Error("OpenSearch не е конфигуриран.");
-    error.code = "MEMORY_UNAVAILABLE";
-    throw error;
-  }
-  return client;
-}
-
 function getMemoryBackendOrThrow() {
   const backend = resolveMemoryBackend(process.env);
-  if (!backend) {
-    const error = new Error("Невалиден MEMORY_BACKEND.");
+  if (backend !== "firestore") {
+    const error = new Error("Паметта изисква Firestore.");
     error.code = "MEMORY_UNAVAILABLE";
     throw error;
   }
-  return backend;
+  return "firestore";
 }
 
 function usesFirestoreMemory() {
-  return getMemoryBackendOrThrow() === "firestore";
+  getMemoryBackendOrThrow();
+  return true;
 }
 
 function getFirestoreStoreOrThrow() {
@@ -82,59 +68,12 @@ function getFirestoreStoreOrThrow() {
   return firestoreStore;
 }
 
-async function ensureIndex(index, mappings) {
-  if (usesFirestoreMemory()) return;
-  if (!indexPromises.has(index)) {
-    const promise = (async () => {
-      const client = getClientOrThrow();
-      const existsResponse = await client.indices.exists({ index });
-      const exists = existsResponse.body ?? existsResponse;
-
-      if (!exists) {
-        await client.indices.create({
-          index,
-          body: { mappings: { properties: mappings } },
-        });
-        return;
-      }
-
-      // Existing v1 indexes are upgraded in place. OpenSearch ignores fields
-      // that already have the same mapping and adds the structured fields.
-      await client.indices.putMapping({
-        index,
-        body: { properties: mappings },
-      });
-    })().catch((error) => {
-      indexPromises.delete(index);
-      throw error;
-    });
-    indexPromises.set(index, promise);
-  }
-  return indexPromises.get(index);
+async function ensureProfileIndex() {
+  getMemoryBackendOrThrow();
 }
 
-function ensureProfileIndex() {
-  return ensureIndex(PROFILE_INDEX, {
-    ownerId: { type: "keyword" },
-    fact: { type: "text" },
-    normalizedFact: { type: "keyword" },
-    memoryKey: { type: "keyword" },
-    category: { type: "keyword" },
-    scope: { type: "keyword" },
-    createdAt: { type: "date" },
-    updatedAt: { type: "date" },
-    source: { type: "keyword" },
-  });
-}
-
-function ensureConversationIndex() {
-  return ensureIndex(CONVERSATION_INDEX, {
-    ownerId: { type: "keyword" },
-    sessionId: { type: "keyword" },
-    role: { type: "keyword" },
-    content: { type: "text", index: false },
-    createdAt: { type: "date" },
-  });
+async function ensureConversationIndex() {
+  getMemoryBackendOrThrow();
 }
 
 function normalizeFact(fact) {
@@ -209,7 +148,7 @@ export function deriveMemoryMetadata(fact, requestedScope = "personal") {
       return { memoryKey: "project:goal:current", category: "goal", scope };
     }
     if (
-      /(?:инфраструктура|digitalocean|github|opensearch|cloudflare)/u.test(
+      /(?:инфраструктура|github)/u.test(
         normalized,
       )
     ) {
@@ -418,38 +357,17 @@ export function isConfirmedForgetAllCommand(message) {
 }
 
 async function fetchProfileHits(ownerId = OWNER_ID) {
-  if (usesFirestoreMemory()) {
-    const documents = await getFirestoreStoreOrThrow().listProfileDocuments(
-      ownerId,
-      MAX_MEMORIES,
-    );
-    return documents
-      .sort((a, b) =>
-        String(b.data?.updatedAt || "").localeCompare(
-          String(a.data?.updatedAt || ""),
-        ),
-      )
-      .map((document) => ({ _id: document.id, _source: document.data }));
-  }
-  const response = await getClientOrThrow().search({
-    index: PROFILE_INDEX,
-    body: {
-      size: MAX_MEMORIES,
-      sort: [{ updatedAt: { order: "desc" } }],
-      query: { term: { ownerId } },
-      _source: [
-        "fact",
-        "normalizedFact",
-        "memoryKey",
-        "category",
-        "scope",
-        "createdAt",
-        "updatedAt",
-        "source",
-      ],
-    },
-  });
-  return response.body?.hits?.hits ?? response.hits?.hits ?? [];
+  const documents = await getFirestoreStoreOrThrow().listProfileDocuments(
+    ownerId,
+    MAX_MEMORIES,
+  );
+  return documents
+    .sort((a, b) =>
+      String(b.data?.updatedAt || "").localeCompare(
+        String(a.data?.updatedAt || ""),
+      ),
+    )
+    .map((document) => ({ _id: document.id, _source: document.data }));
 }
 
 function hydrateMemory(hit) {
@@ -616,8 +534,6 @@ export async function saveProfileMemory(
   );
 
   await ensureProfileIndex();
-  const firestore = usesFirestoreMemory();
-  const client = firestore ? null : getClientOrThrow();
   const normalizedFact = normalizeFact(cleanFact);
   const metadata = deriveMemoryMetadata(cleanFact, scope);
   const hits = await fetchProfileHits(ownerId);
@@ -647,39 +563,13 @@ export async function saveProfileMemory(
     source,
   };
 
-  if (firestore) {
-    await getFirestoreStoreOrThrow().commitProfileDocument({
-      id,
-      data: document,
-      deleteIds: duplicateIds,
-    });
-  } else {
-    await client.index({
-      index: PROFILE_INDEX,
-      id,
-      refresh: true,
-      body: document,
-    });
-  }
+  await getFirestoreStoreOrThrow().commitProfileDocument({
+    id,
+    data: document,
+    deleteIds: duplicateIds,
+  });
 
-  let cleanupCompleted = true;
-  if (!firestore && duplicateIds.length) {
-    try {
-      const cleanupResponse = await client.bulk({
-        refresh: true,
-        body: duplicateIds.map((duplicateId) => ({
-          delete: { _index: PROFILE_INDEX, _id: duplicateId },
-        })),
-      });
-      const cleanupResult = cleanupResponse?.body || cleanupResponse;
-      if (cleanupResult?.errors) {
-        throw new Error("Legacy duplicate cleanup was only partially applied.");
-      }
-    } catch {
-      cleanupCompleted = false;
-      console.error("[Memory] Legacy duplicate cleanup failed after save.");
-    }
-  }
+  const cleanupCompleted = true;
 
   return {
     id,
@@ -714,31 +604,13 @@ export async function updateProfileMemoryById(
     requestedScope,
   );
   await ensureProfileIndex();
-  let existing;
-  if (usesFirestoreMemory()) {
-    existing = (await getFirestoreStoreOrThrow().getProfileDocument(cleanId))
-      ?.data;
-    if (!existing) {
-      const missing = new Error("Споменът не е намерен.");
-      missing.code = "MEMORY_NOT_FOUND";
-      missing.status = 404;
-      throw missing;
-    }
-  } else {
-    const client = getClientOrThrow();
-    try {
-      const response = await client.get({ index: PROFILE_INDEX, id: cleanId });
-      existing = response.body?._source ?? response._source;
-    } catch (error) {
-      const status = error?.statusCode || error?.meta?.statusCode;
-      if (status === 404) {
-        const missing = new Error("Споменът не е намерен.");
-        missing.code = "MEMORY_NOT_FOUND";
-        missing.status = 404;
-        throw missing;
-      }
-      throw error;
-    }
+  const existing = (await getFirestoreStoreOrThrow().getProfileDocument(cleanId))
+    ?.data;
+  if (!existing) {
+    const missing = new Error("Споменът не е намерен.");
+    missing.code = "MEMORY_NOT_FOUND";
+    missing.status = 404;
+    throw missing;
   }
   if (existing?.ownerId !== ownerId) {
     const missing = new Error("Споменът не е намерен.");
@@ -760,32 +632,11 @@ export async function updateProfileMemoryById(
     updatedAt: now,
     source: "confirmed-memory-update",
   };
-  if (usesFirestoreMemory()) {
-    await getFirestoreStoreOrThrow().commitProfileDocument({
-      id: nextId,
-      data: body,
-      deleteIds: nextId === cleanId ? [] : [cleanId],
-    });
-  } else {
-    const client = getClientOrThrow();
-    const operations = [
-      { index: { _index: PROFILE_INDEX, _id: nextId } },
-      body,
-    ];
-    if (nextId !== cleanId) {
-      operations.push({ delete: { _index: PROFILE_INDEX, _id: cleanId } });
-    }
-    const response = await client.bulk({ refresh: true, body: operations });
-    const result = response.body || response;
-    if (result?.errors) {
-      const error = new Error(
-        "Промяната на спомена не можа да бъде завършена еднозначно.",
-      );
-      error.code = "MEMORY_UPDATE_UNCERTAIN";
-      error.status = 502;
-      throw error;
-    }
-  }
+  await getFirestoreStoreOrThrow().commitProfileDocument({
+    id: nextId,
+    data: body,
+    deleteIds: nextId === cleanId ? [] : [cleanId],
+  });
   return {
     id: nextId,
     fact: cleanFact,
@@ -820,66 +671,27 @@ export async function deleteProfileMemoryByFact(
     .map((memory) => memory.id);
   if (!matchingIds.length) return 0;
 
-  if (usesFirestoreMemory()) {
-    await getFirestoreStoreOrThrow().deleteProfileDocuments(matchingIds);
-    return matchingIds.length;
-  }
-
-  const response = await getClientOrThrow().deleteByQuery({
-    index: PROFILE_INDEX,
-    refresh: true,
-    body: {
-      query: {
-        bool: {
-          filter: [{ term: { ownerId } }, { terms: { _id: matchingIds } }],
-        },
-      },
-    },
-  });
-  return response.body?.deleted ?? response.deleted ?? 0;
+  await getFirestoreStoreOrThrow().deleteProfileDocuments(matchingIds);
+  return matchingIds.length;
 }
 
 export async function deleteProfileMemory(id, ownerId = OWNER_ID) {
   await ensureProfileIndex();
-  if (usesFirestoreMemory()) {
-    const document = await getFirestoreStoreOrThrow().getProfileDocument(id);
-    if (!document || document.data?.ownerId !== ownerId) return false;
-    await getFirestoreStoreOrThrow().deleteProfileDocuments([id]);
-    return true;
-  }
-  const response = await getClientOrThrow().deleteByQuery({
-    index: PROFILE_INDEX,
-    refresh: true,
-    body: {
-      query: {
-        bool: {
-          filter: [{ term: { ownerId } }, { term: { _id: id } }],
-        },
-      },
-    },
-  });
-  return (response.body?.deleted ?? response.deleted ?? 0) > 0;
+  const document = await getFirestoreStoreOrThrow().getProfileDocument(id);
+  if (!document || document.data?.ownerId !== ownerId) return false;
+  await getFirestoreStoreOrThrow().deleteProfileDocuments([id]);
+  return true;
 }
 
 export async function clearProfileMemories(scope, ownerId = OWNER_ID) {
   await ensureProfileIndex();
-  if (usesFirestoreMemory()) {
-    const hits = await fetchProfileHits(ownerId);
-    const ids = hits
-      .filter((hit) => !VALID_SCOPES.has(scope) || hit._source?.scope === scope)
-      .map((hit) => hit._id);
-    if (!ids.length) return 0;
-    await getFirestoreStoreOrThrow().deleteProfileDocuments(ids);
-    return ids.length;
-  }
-  const filters = [{ term: { ownerId } }];
-  if (VALID_SCOPES.has(scope)) filters.push({ term: { scope } });
-  const response = await getClientOrThrow().deleteByQuery({
-    index: PROFILE_INDEX,
-    refresh: true,
-    body: { query: { bool: { filter: filters } } },
-  });
-  return response.body?.deleted ?? response.deleted ?? 0;
+  const hits = await fetchProfileHits(ownerId);
+  const ids = hits
+    .filter((hit) => !VALID_SCOPES.has(scope) || hit._source?.scope === scope)
+    .map((hit) => hit._id);
+  if (!ids.length) return 0;
+  await getFirestoreStoreOrThrow().deleteProfileDocuments(ids);
+  return ids.length;
 }
 
 export async function listConversationMessages(
@@ -888,38 +700,21 @@ export async function listConversationMessages(
   ownerId = OWNER_ID,
 ) {
   await ensureConversationIndex();
-  if (usesFirestoreMemory()) {
-    const safeLimit = Math.min(Math.max(limit, 1), MAX_CONVERSATION_MESSAGES);
-    const documents =
-      await getFirestoreStoreOrThrow().listConversationSessionDocuments(
-        ownerId,
-        sessionId,
-        safeLimit,
-      );
-    return documents
-      .sort((a, b) =>
-        String(a.data?.createdAt || "").localeCompare(
-          String(b.data?.createdAt || ""),
-        ),
-      )
-      .slice(-safeLimit)
-      .map((document) => ({ id: document.id, ...document.data }));
-  }
-  const response = await getClientOrThrow().search({
-    index: CONVERSATION_INDEX,
-    body: {
-      size: Math.min(Math.max(limit, 1), MAX_CONVERSATION_MESSAGES),
-      sort: [{ createdAt: { order: "desc" } }],
-      query: {
-        bool: {
-          filter: [{ term: { ownerId } }, { term: { sessionId } }],
-        },
-      },
-      _source: ["role", "content", "createdAt"],
-    },
-  });
-  const hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
-  return hits.map((hit) => ({ id: hit._id, ...hit._source })).reverse();
+  const safeLimit = Math.min(Math.max(limit, 1), MAX_CONVERSATION_MESSAGES);
+  const documents =
+    await getFirestoreStoreOrThrow().listConversationSessionDocuments(
+      ownerId,
+      sessionId,
+      safeLimit,
+    );
+  return documents
+    .sort((a, b) =>
+      String(a.data?.createdAt || "").localeCompare(
+        String(b.data?.createdAt || ""),
+      ),
+    )
+    .slice(-safeLimit)
+    .map((document) => ({ id: document.id, ...document.data }));
 }
 
 export function conversationTitleFromMessages(messages) {
@@ -937,77 +732,31 @@ export async function listConversationSummaries(
   ownerId = OWNER_ID,
 ) {
   await ensureConversationIndex();
-  if (usesFirestoreMemory()) {
-    const documents =
-      await getFirestoreStoreOrThrow().listConversationDocuments(ownerId);
-    const grouped = new Map();
-    for (const document of documents) {
-      const sessionId = document.data?.sessionId;
-      if (!sessionId) continue;
-      if (!grouped.has(sessionId)) grouped.set(sessionId, []);
-      grouped.get(sessionId).push(document.data);
-    }
-    return [...grouped.entries()]
-      .map(([sessionId, messages]) => {
-        messages.sort((a, b) =>
-          String(a.createdAt || "").localeCompare(String(b.createdAt || "")),
-        );
-        return {
-          sessionId,
-          title: conversationTitleFromMessages(messages),
-          updatedAt: messages.at(-1)?.createdAt || null,
-          messageCount: messages.length,
-        };
-      })
-      .sort((a, b) =>
-        String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")),
-      )
-      .slice(0, Math.min(Math.max(limit, 1), MAX_CONVERSATIONS));
+  const documents =
+    await getFirestoreStoreOrThrow().listConversationDocuments(ownerId);
+  const grouped = new Map();
+  for (const document of documents) {
+    const sessionId = document.data?.sessionId;
+    if (!sessionId) continue;
+    if (!grouped.has(sessionId)) grouped.set(sessionId, []);
+    grouped.get(sessionId).push(document.data);
   }
-  const response = await getClientOrThrow().search({
-    index: CONVERSATION_INDEX,
-    body: {
-      size: 0,
-      query: { term: { ownerId } },
-      aggs: {
-        conversations: {
-          terms: {
-            field: "sessionId",
-            size: Math.min(Math.max(limit, 1), MAX_CONVERSATIONS),
-            order: { last_message: "desc" },
-          },
-          aggs: {
-            last_message: { max: { field: "createdAt" } },
-            messages: {
-              top_hits: {
-                size: MAX_CONVERSATION_MESSAGES,
-                sort: [{ createdAt: { order: "asc" } }],
-                _source: ["role", "content", "createdAt"],
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-  const buckets =
-    response.body?.aggregations?.conversations?.buckets ??
-    response.aggregations?.conversations?.buckets ??
-    [];
-
-  return buckets.map((bucket) => {
-    const hits = bucket.messages?.hits?.hits ?? [];
-    const messages = hits.map((hit) => hit._source);
-    return {
-      sessionId: bucket.key,
-      title: conversationTitleFromMessages(messages),
-      updatedAt:
-        bucket.last_message?.value_as_string ??
-        messages.at(-1)?.createdAt ??
-        null,
-      messageCount: bucket.doc_count ?? messages.length,
-    };
-  });
+  return [...grouped.entries()]
+    .map(([sessionId, messages]) => {
+      messages.sort((a, b) =>
+        String(a.createdAt || "").localeCompare(String(b.createdAt || "")),
+      );
+      return {
+        sessionId,
+        title: conversationTitleFromMessages(messages),
+        updatedAt: messages.at(-1)?.createdAt || null,
+        messageCount: messages.length,
+      };
+    })
+    .sort((a, b) =>
+      String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")),
+    )
+    .slice(0, Math.min(Math.max(limit, 1), MAX_CONVERSATIONS));
 }
 
 export async function saveConversationTurn(
@@ -1040,29 +789,7 @@ export async function saveConversationTurn(
       },
     },
   ];
-  if (usesFirestoreMemory()) {
-    await getFirestoreStoreOrThrow().commitConversationDocuments(documents);
-    return;
-  }
-  const client = getClientOrThrow();
-  const response = await client.bulk({
-    refresh: true,
-    body: [
-      { index: { _index: CONVERSATION_INDEX, _id: documents[0].id } },
-      documents[0].data,
-      { index: { _index: CONVERSATION_INDEX, _id: documents[1].id } },
-      documents[1].data,
-    ],
-  });
-  const result = response.body || response;
-  if (result?.errors) {
-    const error = new Error(
-      "Разговорът не можа да бъде записан изцяло в постоянната памет.",
-    );
-    error.code = "CONVERSATION_PERSISTENCE_FAILED";
-    error.status = 502;
-    throw error;
-  }
+  await getFirestoreStoreOrThrow().commitConversationDocuments(documents);
 }
 
 export function buildMemoryContext(memories, { personName = "Радко" } = {}) {

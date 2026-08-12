@@ -31,22 +31,21 @@ AI аватарът е интерфейсът на AI CORE — лицето, г�
 
 - основно хранилище: `radostinvgeorgiev-commits/sunchron-backend`;
 - основен клон: `main`;
-- DigitalOcean App Platform публикува `main`;
+- Google Cloud Run публикува `main`;
 - приложението е Node.js/Express;
 - клиентът е в `public`;
 - чат маршрутът е в `src/routes/chat.js`;
 - OpenAI Responses API е разговорният доставчик по подразбиране; Gemini и Grok
-  от xAI са опционални директни адаптери с изрична конфигурация. Старият
-  DigitalOcean Agent е премахнат и не се използва като резервен;
-- OpenSearch се използва/предвижда за постоянната памет;
-- Cloudflare обслужва домейна;
+  от xAI са опционални директни адаптери с изрична конфигурация;
+- Firestore е единственият runtime backend за памет и постоянни състояния;
+- Identity Platform управлява потребителите и сесиите;
 - `Tool Registry` и `Capability Engine` са добавени;
 - GitHub, Calendar, Drive, Gmail, Web Search и Memory минават през
   `Capability Engine`;
 - GitHub четенето е изпълнимо; GitHub записът има защитен адаптер, но изисква
   валидна собственическа GitHub OAuth сесия и точно потвърждение;
-- Supabase е свързан за тестови профили, сесии и отделни потребителски
-  пространства; OpenSearch остава постоянната AI памет;
+- Старите OpenSearch/Supabase източници съществуват само в изолирани еднократни
+  migration scripts и не се зареждат от production runtime;
 - тестовите профили са потвърдени в production с `configured: true`,
   `registrationEnabled: true`, `projectConnection: true` и
   `sessionProtection: true`;
@@ -88,7 +87,7 @@ AI Core не трябва да зависи пряко от конкретен �
 - Logic Core;
 - Chat;
 - Memory;
-- OpenSearch.
+- Firestore.
 
 Опасни действия като запис в GitHub, изпращане на съобщения, резервации, изтриване на памет или финансови операции изискват изрично потвърждение от потребителя.
 
@@ -136,8 +135,7 @@ AI Core не трябва да зависи пряко от конкретен �
 
 ## Следваща незавършена задача
 
-Потвърдени са 3 реални OpenSearch restore точки чрез read-only owner проверка.
-Production memory acceptance изпълнява 9 от 9 изолирани стъпки срещу реалния
+Production memory acceptance изпълнява 9 от 9 изолирани стъпки срещу Firestore
 memory service и оставя личната памет непроменена.
 
 1. Провери регистрация и вход с един изолиран тестов профил.

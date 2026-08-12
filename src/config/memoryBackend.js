@@ -1,6 +1,6 @@
-const MEMORY_BACKENDS = new Set(["opensearch", "firestore"]);
+const MEMORY_BACKENDS = new Set(["firestore"]);
 
-function resolveBackend(value, fallback = "opensearch") {
+function resolveBackend(value, fallback = "firestore") {
   const requested = String(value || fallback)
     .trim()
     .toLowerCase();
@@ -25,15 +25,6 @@ export function resolveFirestoreDatabaseId(env = process.env) {
   return String(env.FIRESTORE_DATABASE_ID || "(default)").trim();
 }
 
-export function isOpenSearchMemoryConfigured(env = process.env) {
-  return [
-    "OPENSEARCH_HOST",
-    "OPENSEARCH_PORT",
-    "OPENSEARCH_USERNAME",
-    "OPENSEARCH_PASSWORD",
-  ].every((name) => Boolean(String(env[name] || "").trim()));
-}
-
 export function isFirestoreMemoryConfigured(env = process.env) {
   return (
     /^[a-z][a-z0-9-]{4,61}[a-z0-9]$/u.test(resolveFirestoreProjectId(env)) &&
@@ -46,13 +37,11 @@ export function isFirestoreMemoryConfigured(env = process.env) {
 export function isMemoryBackendConfigured(env = process.env) {
   const backend = resolveMemoryBackend(env);
   if (backend === "firestore") return isFirestoreMemoryConfigured(env);
-  if (backend === "opensearch") return isOpenSearchMemoryConfigured(env);
   return false;
 }
 
 export function isPersistenceBackendConfigured(env = process.env) {
   const backend = resolvePersistenceBackend(env);
   if (backend === "firestore") return isFirestoreMemoryConfigured(env);
-  if (backend === "opensearch") return isOpenSearchMemoryConfigured(env);
   return false;
 }

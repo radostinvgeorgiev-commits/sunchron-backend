@@ -18,20 +18,6 @@ import {
   executeMergedBranchCleanup,
 } from "./githubBranchCleanupService.js";
 import {
-  activateDigitalOceanDomainAlias,
-  DIGITALOCEAN_DOMAIN_ACTION,
-  formatDigitalOceanAudit,
-  formatDigitalOceanStatus,
-  getDigitalOceanAccountAudit,
-  getDigitalOceanAppStatus,
-  inspectDigitalOceanDomainAlias,
-  PUBLIC_WWW_DOMAIN,
-} from "./digitalOceanService.js";
-import {
-  formatCloudflareStatus,
-  getCloudflareZoneStatus,
-} from "./cloudflareService.js";
-import {
   formatSystemConfigurationReport,
   getSystemConfigurationReport,
 } from "./systemConfigurationService.js";
@@ -71,7 +57,6 @@ const CONVERSATION_ANNOTATIONS = Object.freeze({
   idempotentHint: false,
 });
 const SAFE_MCP_ERROR_NAMES = new Set([
-  "CloudflareError",
   "GitHubActionError",
   "GitHubServiceError",
   "GoogleActionError",
@@ -166,87 +151,6 @@ export const MCP_TOOLS = Object.freeze([
     annotations: CONVERSATION_ANNOTATIONS,
   },
   {
-    name: "get_digitalocean_app_status",
-    title: "Провери DigitalOcean приложението",
-    description:
-      "Показва статуса на AI CORE в DigitalOcean App Platform и последните деплои. Не променя нищо.",
-    inputSchema: {
-      type: "object",
-      properties: {},
-      additionalProperties: false,
-    },
-    securitySchemes: mcpToolSecuritySchemes("get_digitalocean_app_status"),
-    annotations: READ_ONLY_ANNOTATIONS,
-  },
-  {
-    name: "get_system_configuration",
-    title: "Провери системната конфигурация",
-    description:
-      "Показва предназначението и състоянието на runtime и DigitalOcean променливите, ядрото и връзките, без стойности на ключове, пароли или token-и. Не променя нищо.",
-    inputSchema: {
-      type: "object",
-      properties: {},
-      additionalProperties: false,
-    },
-    securitySchemes: mcpToolSecuritySchemes("get_system_configuration"),
-    annotations: READ_ONLY_ANNOTATIONS,
-  },
-  {
-    name: "get_digitalocean_account_audit",
-    title: "Направи пълен DigitalOcean одит",
-    description:
-      "Проверява само за четене приложения, Droplets, бази, storage, мрежи, firewalls, домейни, разходи и последни действия. Не връща тайни и не променя нищо.",
-    inputSchema: {
-      type: "object",
-      properties: {},
-      additionalProperties: false,
-    },
-    securitySchemes: mcpToolSecuritySchemes("get_digitalocean_account_audit"),
-    annotations: READ_ONLY_ANNOTATIONS,
-  },
-  {
-    name: "prepare_digitalocean_www_domain",
-    title: "Подготви добавянето на www адреса",
-    description:
-      "Проверява DigitalOcean приложението и подготвя еднократно потвърждение само за www.synchron.foundation. Не променя домейни и не стартира deployment.",
-    inputSchema: {
-      type: "object",
-      properties: {},
-      additionalProperties: false,
-    },
-    securitySchemes: mcpToolSecuritySchemes("prepare_digitalocean_www_domain"),
-    annotations: READ_ONLY_ANNOTATIONS,
-  },
-  {
-    name: "confirm_digitalocean_www_domain",
-    title: "Потвърди добавянето на www адреса",
-    description:
-      "Добавя единствено www.synchron.foundation към предварително провереното DigitalOcean приложение след валидно еднократно потвърждение и устойчив журнал.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        confirmationId: { type: "string", minLength: 1, maxLength: 100 },
-      },
-      required: ["confirmationId"],
-      additionalProperties: false,
-    },
-    securitySchemes: mcpToolSecuritySchemes("confirm_digitalocean_www_domain"),
-    annotations: DESTRUCTIVE_ANNOTATIONS,
-  },
-  {
-    name: "get_cloudflare_zone_status",
-    title: "Провери Cloudflare и DNS",
-    description:
-      "Показва статуса на Cloudflare зоната и DNS записите. Не променя нищо.",
-    inputSchema: {
-      type: "object",
-      properties: {},
-      additionalProperties: false,
-    },
-    securitySchemes: mcpToolSecuritySchemes("get_cloudflare_zone_status"),
-    annotations: READ_ONLY_ANNOTATIONS,
-  },
-  {
     name: "get_github_copilot_task_status",
     title: "Проследи GitHub Copilot задача или Pull Request",
     description:
@@ -336,36 +240,6 @@ function safeMcpError(error) {
   };
 }
 
-function publicDigitalOceanStatus(status = {}, oauth = {}) {
-  const publicDeployment = (deployment) =>
-    deployment
-      ? {
-          phase: deployment.phase || null,
-          createdAt: deployment.createdAt || null,
-          updatedAt: deployment.updatedAt || null,
-        }
-      : null;
-  return {
-    name: status.name || "AI CORE",
-    liveUrl: status.liveUrl || null,
-    activeDeployment: publicDeployment(status.activeDeployment),
-    inProgressDeployment: publicDeployment(status.inProgressDeployment),
-    deploymentsAvailable: status.deploymentsAvailable !== false,
-    deployments: (Array.isArray(status.deployments) ? status.deployments : [])
-      .slice(0, 5)
-      .map(publicDeployment),
-    oauth: {
-      authorization: oauth.authorization || "not-attempted",
-      authorizationDecision: oauth.authorizationDecision || null,
-      authorizationErrorCode: oauth.authorizationErrorCode || null,
-      tokenExchange: oauth.tokenExchange || "not-attempted",
-      grantType: oauth.grantType || null,
-      errorCode: oauth.errorCode || null,
-      updatedAt: oauth.updatedAt || oauth.authorizationUpdatedAt || null,
-    },
-  };
-}
-
 export function isValidMcpToken(header, expectedToken) {
   if (typeof expectedToken !== "string" || expectedToken.length < 32)
     return false;
@@ -387,12 +261,7 @@ export function createMcpRequestHandler({
   createConfirmation = createDurableConfirmation,
   validateConfirmation = validateDurableConfirmation,
   consumeConfirmation = markDurableConfirmationUsed,
-  getDigitalOceanStatus = getDigitalOceanAppStatus,
   getOAuthRuntimeStatus = getMcpOAuthRuntimeStatus,
-  getDigitalOceanAudit = getDigitalOceanAccountAudit,
-  inspectDigitalOceanDomain = inspectDigitalOceanDomainAlias,
-  activateDigitalOceanDomain = activateDigitalOceanDomainAlias,
-  getCloudflareStatus = getCloudflareZoneStatus,
   getSystemConfiguration = getSystemConfigurationReport,
   getLatestGitHubSession = getLatestAuthorizedGitHubSession,
   getGitHubTaskStatus = getCopilotTaskStatus,
@@ -450,104 +319,12 @@ export function createMcpRequestHandler({
         identity,
       });
       result = textResult(conversation, conversation.response);
-    } else if (name === "get_digitalocean_app_status") {
-      const status = await getDigitalOceanStatus();
-      const visibleStatus =
-        identity?.role === "anonymous"
-          ? publicDigitalOceanStatus(status, getOAuthRuntimeStatus())
-          : status;
-      result = textResult(
-        visibleStatus,
-        formatDigitalOceanStatus(visibleStatus),
-      );
-    } else if (name === "get_digitalocean_account_audit") {
-      const auditReport = await getDigitalOceanAudit();
-      result = textResult(auditReport, formatDigitalOceanAudit(auditReport));
-    } else if (name === "prepare_digitalocean_www_domain") {
-      const status = await inspectDigitalOceanDomain({
-        domain: PUBLIC_WWW_DOMAIN,
-      });
-      if (status.configured) {
-        result = textResult(
-          {
-            configured: true,
-            domain: status.domain,
-            readAccessVerified: status.readAccessVerified,
-          },
-          `${status.domain} вече е конфигуриран в DigitalOcean.`,
-        );
-      } else {
-        const confirmation = await createConfirmation({
-          sessionId: ownerId,
-          action: DIGITALOCEAN_DOMAIN_ACTION,
-          resource: {
-            appId: status.appId,
-            domain: status.domain,
-          },
-          params: { domain: status.domain },
-        });
-        result = textResult(
-          {
-            configured: false,
-            confirmationId: confirmation.id,
-            expiresAt: new Date(confirmation.expiresAt).toISOString(),
-            domain: status.domain,
-            readAccessVerified: status.readAccessVerified,
-            requiredWriteScope: status.requiredWriteScope,
-          },
-          `DigitalOcean проверката е успешна. Нужно е точно потвърждение за добавяне само на ${status.domain}.`,
-        );
-      }
-    } else if (name === "confirm_digitalocean_www_domain") {
-      const confirmationId =
-        typeof args?.confirmationId === "string"
-          ? args.confirmationId.trim()
-          : "";
-      if (!confirmationId) {
-        throw Object.assign(new Error("Липсва confirmationId."), {
-          code: -32602,
-        });
-      }
-      const confirmation = await validateConfirmation(confirmationId, ownerId);
-      if (
-        confirmation.action !== DIGITALOCEAN_DOMAIN_ACTION ||
-        confirmation.resource?.domain !== PUBLIC_WWW_DOMAIN
-      ) {
-        throw Object.assign(
-          new Error("Потвърждението не е за www.synchron.foundation."),
-          { code: -32602 },
-        );
-      }
-      await consumeConfirmation(confirmationId);
-      const activation = await executeWrite({
-        action: DIGITALOCEAN_DOMAIN_ACTION,
-        capability: "infrastructure.write",
-        actor: "chatgpt-mcp",
-        sessionId: ownerId,
-        confirmationId,
-        resource: confirmation.resource.domain,
-        details: "add_www_domain_alias",
-        execute: () =>
-          activateDigitalOceanDomain({
-            domain: confirmation.resource.domain,
-            expectedAppId: confirmation.resource.appId,
-          }),
-      });
-      result = textResult(
-        activation,
-        activation.updated
-          ? `${activation.domain} е добавен и DigitalOcean стартира deployment.`
-          : `${activation.domain} вече е конфигуриран; не е направена повторна промяна.`,
-      );
     } else if (name === "get_system_configuration") {
       const configuration = await getSystemConfiguration();
       result = textResult(
         configuration,
         formatSystemConfigurationReport(configuration),
       );
-    } else if (name === "get_cloudflare_zone_status") {
-      const status = await getCloudflareStatus();
-      result = textResult(status, formatCloudflareStatus(status));
     } else if (name === "get_github_copilot_task_status") {
       const issueNumber = Number(args?.issueNumber);
       if (!Number.isSafeInteger(issueNumber) || issueNumber <= 0) {
@@ -621,15 +398,11 @@ export function createMcpRequestHandler({
       action:
         name === "talk_to_ai_core"
           ? "agent.chat"
-          : name === "confirm_digitalocean_www_domain"
-            ? DIGITALOCEAN_DOMAIN_ACTION
-            : name === "get_github_copilot_task_status"
+          : name === "get_github_copilot_task_status"
               ? "github.read"
               : name.includes("github")
                 ? "github.write"
-                : name.includes("digitalocean") ||
-                    name.includes("cloudflare") ||
-                    name.includes("system_configuration")
+                : name.includes("system_configuration")
                   ? "infrastructure.read"
                   : "memory.read",
       decision: "allow",

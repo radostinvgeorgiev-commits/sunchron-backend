@@ -94,7 +94,7 @@ test("planner creates a single GitHub read and write plan for one implementation
 test("planner uses OpenAI Responses as the primary provider", async () => {
   const requests = await planCapabilities({
     openAiApiKey: "openai-key",
-    message: "Провери Supabase.",
+    message: "Провери Firestore паметта.",
     fetchImpl: async (url, options) => {
       assert.equal(url, "https://api.openai.com/v1/responses");
       const body = JSON.parse(options.body);
@@ -107,7 +107,7 @@ test("planner uses OpenAI Responses as the primary provider", async () => {
               content: [
                 {
                   type: "output_text",
-                  text: '{"calls":[{"capability":"database.status","request":"Провери статуса на Supabase."}]}',
+                  text: '{"calls":[{"capability":"memory.read","request":"Провери Firestore паметта."}]}',
                 },
               ],
             },
@@ -118,7 +118,7 @@ test("planner uses OpenAI Responses as the primary provider", async () => {
     },
   });
 
-  assert.equal(requests[0].capability, "database.status");
+  assert.equal(requests[0].capability, "memory.read");
 });
 
 test("planner does not call the removed DigitalOcean agent when OpenAI is unavailable", async () => {
@@ -126,7 +126,7 @@ test("planner does not call the removed DigitalOcean agent when OpenAI is unavai
   await assert.rejects(
     planCapabilities({
       openAiApiKey: "openai-key",
-      message: "Провери Supabase.",
+      message: "Провери Firestore паметта.",
       fetchImpl: async (url) => {
         calledUrls.push(String(url));
         return new Response("temporary failure", { status: 503 });
@@ -162,29 +162,6 @@ test("sanitizer rejects unknown capabilities and keeps valid scopes", () => {
       scope: "project",
     },
   ]);
-});
-
-test("planner accepts the read-only Supabase status capability", () => {
-  assert.deepEqual(
-    sanitizeCapabilityPlan(
-      {
-        calls: [
-          {
-            capability: "database.status",
-            request: "Провери статуса на Supabase.",
-          },
-        ],
-      },
-      "Провери Supabase.",
-    ),
-    [
-      {
-        capability: "database.status",
-        action: "database.read",
-        message: "Провери статуса на Supabase.",
-      },
-    ],
-  );
 });
 
 test("planner accepts the read-only Copilot task status capability", () => {

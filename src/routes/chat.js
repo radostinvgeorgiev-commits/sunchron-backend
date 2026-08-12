@@ -65,8 +65,6 @@ import {
   ImageServiceError,
   validateImageInput,
 } from "../services/imageService.js";
-import { DigitalOceanError } from "../services/digitalOceanService.js";
-import { CloudflareError } from "../services/cloudflareService.js";
 import {
   CapabilityError,
   executeCapability,
@@ -115,16 +113,12 @@ const DEFAULT_AI_TIMEOUT_MS = 120000;
 const MAX_CHAT_MESSAGE_LENGTH = 6_000;
 const MAX_CHAT_SESSION_ID_LENGTH = 160;
 const SAFE_CHAT_SESSION_ID_PATTERN = /^[a-z0-9:_-]+$/iu;
-const DIGITALOCEAN_NAME_PATTERN =
-  /(?:digital\s*ocean|ди[гж]итал\s*о(?:кеа|ка|ке)н|ди[гж]итъл\s*о(?:кеа|ка|ке)н)/iu;
 const DIRECT_CAPABILITY_REPLIES = new Set([
   "system.integrations.status",
   "calendar.write",
   "code.read",
   "code.task-status",
   "code.write",
-  "infrastructure.digitalocean.read",
-  "infrastructure.cloudflare.read",
 ]);
 
 async function auditAction(event) {
@@ -343,7 +337,7 @@ export function detectCapabilityRequests(message) {
     const copilotBridgeStatusRequest = isCopilotBridgeStatusRequest(subtask);
     const copilotTaskStatusRequest = isCopilotTaskStatusRequest(subtask);
     const systemConfigurationRequest =
-      /(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите)).{0,60}(?:сървър|ядро|агент|digitalocean|дигитал\s*океан|дижитал\s*окен|система)|(?:сървър|ядро|агент|digitalocean|дигитал\s*океан|дижитал\s*окен|система).{0,60}(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите))/iu.test(
+      /(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите)).{0,60}(?:сървър|ядро|агент|google\s*cloud|гугъл\s*клауд|система)|(?:сървър|ядро|агент|google\s*cloud|гугъл\s*клауд|система).{0,60}(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите))/iu.test(
         subtask,
       );
     if (
@@ -458,41 +452,6 @@ export function detectCapabilityRequests(message) {
       requests.push({
         capability: "web.search",
         action: "web.read",
-        message: subtask,
-      });
-    }
-    if (
-      /(?:supabase|супабейс)/iu.test(subtask) &&
-      /(?:провери|покажи|статус|свързан|работи|достъпен|check|status)/iu.test(
-        subtask,
-      )
-    ) {
-      requests.push({
-        capability: "database.status",
-        action: "database.read",
-        message: subtask,
-      });
-    }
-    if (
-      !systemConfigurationRequest &&
-      DIGITALOCEAN_NAME_PATTERN.test(subtask) &&
-      /(?:провери|покажи|статус|работи|деплой|deployment|публикуван|последн|направи|одит|акаунт|ресурс|droplet|сървър|баз|мреж|firewall|защит|разход|billing|storage|volume|snapshot|kubernetes)/iu.test(
-        subtask,
-      )
-    ) {
-      requests.push({
-        capability: "infrastructure.digitalocean.read",
-        action: "infrastructure.read",
-        message: subtask,
-      });
-    }
-    if (
-      /(?:cloudflare|клаудфлеър|клауф\s*фаер)/iu.test(subtask) &&
-      /(?:провери|покажи|статус|работи|dns|домейн|зона|запис)/iu.test(subtask)
-    ) {
-      requests.push({
-        capability: "infrastructure.cloudflare.read",
-        action: "infrastructure.read",
         message: subtask,
       });
     }
@@ -618,27 +577,10 @@ function capabilityLabel(capability) {
   if (capability === "memory.read") return "памет";
   if (capability === "memory.verify") return "автоматичен тест на паметта";
   if (capability === "web.search") return "интернет търсене";
-  if (capability === "infrastructure.digitalocean.read") return "DigitalOcean";
-  if (capability === "infrastructure.cloudflare.read") return "Cloudflare";
   return capability;
 }
 
 function formatCapabilityFailureMessage(error) {
-  if (error instanceof DigitalOceanError) {
-    const messages = {
-      DIGITALOCEAN_TOKEN_INVALID:
-        "DigitalOcean token-ът е невалиден, изтекъл или отнет.",
-      DIGITALOCEAN_FORBIDDEN:
-        "DigitalOcean връзката няма право да прочете тези данни.",
-      DIGITALOCEAN_NOT_CONFIGURED: "DigitalOcean Read не е конфигуриран.",
-      DIGITALOCEAN_APP_NOT_CONFIGURED: "DigitalOcean App ID не е конфигуриран.",
-      DIGITALOCEAN_UPSTREAM_ERROR: "DigitalOcean API временно не отговаря.",
-    };
-    return messages[error.code] || "DigitalOcean временно не е достъпен.";
-  }
-  if (error instanceof CloudflareError) {
-    return error.message;
-  }
   if (
     error instanceof GitHubServiceError ||
     error instanceof GitHubOAuthError ||

@@ -12,7 +12,23 @@ import {
   resolveGitHubRedirectUri,
   resolveOwnerGitHubLogin,
   resetGitHubSessionsForTests,
+  setFirestoreGitHubSessionStoreForTests,
 } from "../src/services/githubOAuthService.js";
+
+function githubStoreDouble() {
+  const records = new Map();
+  return {
+    async get(id) {
+      return records.has(id) ? structuredClone(records.get(id)) : null;
+    },
+    async set(id, payload) {
+      records.set(id, structuredClone(payload));
+    },
+    async delete(id) {
+      records.delete(id);
+    },
+  };
+}
 
 const ENV_NAMES = [
   "GITHUB_CLIENT_ID",
@@ -25,6 +41,7 @@ const ENV_NAMES = [
 
 test.beforeEach(() => {
   resetGitHubSessionsForTests();
+  setFirestoreGitHubSessionStoreForTests(githubStoreDouble());
   process.env.GITHUB_CLIENT_ID = "client-id";
   process.env.GITHUB_CLIENT_SECRET = "client-secret";
   process.env.GITHUB_REDIRECT_URI =
@@ -34,6 +51,7 @@ test.beforeEach(() => {
 
 test.afterEach(() => {
   resetGitHubSessionsForTests();
+  setFirestoreGitHubSessionStoreForTests(null);
   for (const name of ENV_NAMES) delete process.env[name];
 });
 

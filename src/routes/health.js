@@ -1,5 +1,4 @@
 import express from "express";
-import { getOpenSearchClient } from "../config/opensearch.js";
 import {
   isMemoryBackendConfigured,
   isPersistenceBackendConfigured,
@@ -39,16 +38,12 @@ import { createFirestoreMemoryStore } from "../services/firestoreMemoryStore.js"
 
 const router = express.Router();
 const DEFAULT_READINESS_TIMEOUT_MS = 2_000;
-const DEFAULT_BACKUP_ROUTE_TIMEOUT_MS = 10_000;
-const DEFAULT_OPENSEARCH_BACKUP_MAX_AGE_HOURS = 48;
-const MAX_VERIFIED_BACKUP_CACHE_TTL_MS = 6 * 60 * 60_000;
-const FAILED_BACKUP_CACHE_TTL_MS = 15_000;
 const loadStorageDependencies = createSingleFlightCache(
   inspectStorageDependencies,
   { ttlMs: 30_000 },
 );
 const loadStorageBackups = createSingleFlightCache(inspectStorageBackups, {
-  ttlMs: resolveStorageBackupCacheTtlMs,
+  ttlMs: 30_000,
 });
 
 router.use((_req, res, next) => {
@@ -72,34 +67,6 @@ function hasAllEnvironmentVariables(env, ...names) {
   return names.every((name) => Boolean(env[name]));
 }
 
-export function resolveStorageBackupCacheTtlMs(
-  report,
-  {
-    now = () => Date.now(),
-    maxAgeHours = process.env.OPENSEARCH_BACKUP_MAX_AGE_HOURS,
-  } = {},
-) {
-  const backup = report?.checks?.opensearch;
-  if (backup?.status !== "verified" || backup?.fresh !== true) {
-    return FAILED_BACKUP_CACHE_TTL_MS;
-  }
-
-  const newestTimestamp = Date.parse(backup.newestCreatedAt);
-  const parsedMaxAgeHours = Number.parseInt(maxAgeHours, 10);
-  const boundedMaxAgeHours =
-    Number.isFinite(parsedMaxAgeHours) && parsedMaxAgeHours > 0
-      ? parsedMaxAgeHours
-      : DEFAULT_OPENSEARCH_BACKUP_MAX_AGE_HOURS;
-  if (!Number.isFinite(newestTimestamp)) return FAILED_BACKUP_CACHE_TTL_MS;
-
-  const remainingFreshnessMs =
-    newestTimestamp + boundedMaxAgeHours * 60 * 60_000 - now();
-  return Math.max(
-    1,
-    Math.min(MAX_VERIFIED_BACKUP_CACHE_TTL_MS, remainingFreshnessMs),
-  );
-}
-
 async function withTimeout(promise, timeoutMs, code = "READINESS_TIMEOUT") {
   let timer;
   const timeout = new Promise((_, reject) => {
@@ -115,7 +82,6 @@ async function withTimeout(promise, timeoutMs, code = "READINESS_TIMEOUT") {
 
 export async function getReadinessStatus({
   env = process.env,
-  loadOpenSearchClient = getOpenSearchClient,
   loadFirestoreMemoryStore = createFirestoreMemoryStore,
   loadMemoryVerificationStatus = getMemoryStartupVerificationStatus,
   timeoutMs = DEFAULT_READINESS_TIMEOUT_MS,
@@ -133,19 +99,6 @@ export async function getReadinessStatus({
         ready: response?.status === "green",
         status: response?.status || "unknown",
         backend: "firestore",
-      };
-    } else if (memoryBackend === "opensearch") {
-      const client = loadOpenSearchClient();
-      if (!client) throw new Error("OpenSearch is unavailable");
-      const response = await withTimeout(
-        client.cluster.health({}, { requestTimeout: timeoutMs, maxRetries: 0 }),
-        timeoutMs,
-      );
-      const clusterStatus = response?.body?.status || response?.status;
-      memory = {
-        ready: Boolean(clusterStatus) && clusterStatus !== "red",
-        status: clusterStatus || "unknown",
-        backend: "opensearch",
       };
     } else {
       memory = { ready: false, status: "invalid-backend", backend: null };
@@ -173,7 +126,6 @@ export async function getReadinessStatus({
         status: chatAgentReady ? "configured" : "not-configured",
         primaryProvider: aiProviderStatus.selectedProvider,
         providers: aiProviderStatus.providers,
-        removedProvider: "digitalocean-agent",
       },
       memory,
       memoryAcceptance: {
@@ -223,18 +175,9 @@ function publicBackupStatus(report) {
     status: report.status,
     checkedAt: report.checkedAt,
     checks: {
-      opensearch: {
-        status: report.checks?.opensearch?.status || "unverified",
-        errorCode: report.checks?.opensearch?.errorCode || null,
-        fresh: report.checks?.opensearch?.fresh === true,
-        readOnlyCheck: true,
-        provesRestore: false,
-      },
-      supabase: {
-        status: report.checks?.supabase?.status || "unverified",
-        errorCode:
-          report.checks?.supabase?.errorCode ||
-          "SUPABASE_BACKUP_STATUS_NOT_VISIBLE_TO_RUNTIME",
+      firestore: {
+        status: report.checks?.firestore?.status || "not-required",
+        errorCode: report.checks?.firestore?.errorCode || null,
         readOnlyCheck: true,
         provesRestore: false,
       },
@@ -244,7 +187,7 @@ function publicBackupStatus(report) {
 
 export function createStorageBackupsHandler({
   loadStatus = loadStorageBackups,
-  timeoutMs = DEFAULT_BACKUP_ROUTE_TIMEOUT_MS,
+  timeoutMs = 10_000,
 } = {}) {
   return async function storageBackupsHandler(_req, res) {
     setPrivateHealthHeaders(res);
@@ -259,7 +202,7 @@ export function createStorageBackupsHandler({
       report = unavailableBackupReport();
     }
     const result = publicBackupStatus(report);
-    res.status(result.status === "verified" ? 200 : 503).json(result);
+    res.status(200).json(result);
   };
 }
 
@@ -268,11 +211,7 @@ function unavailableDependencyReport() {
     status: "unavailable",
     checkedAt: new Date().toISOString(),
     checks: {
-      opensearch: {
-        status: "unavailable",
-        errorCode: "STORAGE_DEPENDENCY_REPORT_FAILED",
-      },
-      supabase: {
+      firestore: {
         status: "unavailable",
         errorCode: "STORAGE_DEPENDENCY_REPORT_FAILED",
       },
@@ -285,16 +224,9 @@ function unavailableBackupReport() {
     status: "unavailable",
     checkedAt: new Date().toISOString(),
     checks: {
-      opensearch: {
-        status: "unverified",
+      firestore: {
+        status: "not-required",
         errorCode: "STORAGE_BACKUP_REPORT_FAILED",
-        fresh: false,
-        readOnlyCheck: true,
-        provesRestore: false,
-      },
-      supabase: {
-        status: "unverified",
-        errorCode: "SUPABASE_BACKUP_STATUS_NOT_VISIBLE_TO_RUNTIME",
         readOnlyCheck: true,
         provesRestore: false,
       },
@@ -511,29 +443,7 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
           ? "Codex агентът е изключен от конфигурацията."
           : null,
     },
-    "supabase-status": {
-      configured: hasAllProcessEnvironmentVariables(
-        "SUPABASE_URL",
-        "SUPABASE_PUBLISHABLE_KEY",
-      ),
-    },
-    "digitalocean-read": {
-      configured:
-        Boolean(
-          process.env.DIGITALOCEAN_API_TOKEN || process.env.DIGITALOCEAN_TOKEN,
-        ) && Boolean(process.env.DIGITALOCEAN_APP_ID),
-    },
-    "cloudflare-read": {
-      configured: Boolean(process.env.CLOUDFLARE_API_TOKEN),
-      liveVerified: false,
-      availabilityCode: process.env.CLOUDFLARE_API_TOKEN
-        ? "CLOUDFLARE_LIVE_CHECK_REQUIRED"
-        : null,
-      availabilityReason: process.env.CLOUDFLARE_API_TOKEN
-        ? "Cloudflare е конфигуриран, но тази справка не е жива API проверка."
-        : null,
-    },
-    "opensearch-memory": {
+    "firestore-memory": {
       configured: isMemoryBackendConfigured(process.env),
     },
   };
@@ -544,13 +454,12 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
     core: {
       chatAgent: {
         ...getAiProviderStatus(),
-        removedProvider: "digitalocean-agent",
       },
       openai: {
         configured: Boolean(process.env.OPENAI_API_KEY),
       },
       memory: {
-        ...configuration["opensearch-memory"],
+        ...configuration["firestore-memory"],
         backend: resolveMemoryBackend(process.env),
       },
     },

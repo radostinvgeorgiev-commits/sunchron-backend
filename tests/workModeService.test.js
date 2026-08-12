@@ -97,6 +97,7 @@ test("the available personal-agent models are explicit and server-owned", () => 
       "gpt-5.6-luna",
       "gemini-2.5-flash",
       "grok-4.5",
+      "claude-sonnet-5",
     ],
   );
   assert.equal(resolveWorkAgentModel("gpt-5.6-sol"), "gpt-5.6-sol");
@@ -106,6 +107,8 @@ test("the available personal-agent models are explicit and server-owned", () => 
   assert.equal(resolveWorkAgentProvider("gpt-5.6-sol"), "openai");
   assert.equal(resolveWorkAgentProvider("gemini-2.5-flash"), "gemini");
   assert.equal(resolveWorkAgentProvider("grok-4.5"), "grok");
+  assert.equal(resolveWorkAgentModel("claude-sonnet-5"), "claude-sonnet-5");
+  assert.equal(resolveWorkAgentProvider("claude-sonnet-5"), "anthropic");
   assert.equal(resolveWorkAgentProvider("auto"), undefined);
   assert.equal(resolveWorkAgentModel("unknown"), undefined);
   assert.equal(resolveWorkAgentModel("auto"), undefined);

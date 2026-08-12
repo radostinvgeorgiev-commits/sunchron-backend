@@ -28,7 +28,7 @@ test("current documentation names the real chat provider and operations source",
     architecture,
     /OpenAI Responses API е доставчикът по подразбиране/u,
   );
-  assert.match(architecture, /Gemini и Grok от xAI/u);
+  assert.match(architecture, /Gemini, Grok от xAI и Anthropic/u);
   assert.match(architecture, /DigitalOcean App Platform само хоства/u);
   assert.doesNotMatch(
     architecture,

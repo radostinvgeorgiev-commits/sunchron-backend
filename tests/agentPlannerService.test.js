@@ -244,3 +244,15 @@ test("planner is used for likely tool requests but not ordinary conversation", (
   );
   assert.equal(shouldUseAgentPlanner("Как си днес?", []), false);
 });
+
+test("planner recognizes natural Bulgarian and Latin-transliterated tool requests", () => {
+  assert.equal(
+    shouldUseAgentPlanner("Искам AI CORE сам да избере правилния инструмент за GitHub.", []),
+    true,
+  );
+  assert.equal(
+    shouldUseAgentPlanner("Grok da proveri GitHub i da napravi deploy.", []),
+    true,
+  );
+  assert.equal(shouldUseAgentPlanner("Ок, благодаря.", []), false);
+});

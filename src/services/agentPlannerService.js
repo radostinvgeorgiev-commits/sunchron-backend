@@ -24,6 +24,7 @@ const CAPABILITY_ACTIONS = Object.freeze({
 
 const PLANNER_INSTRUCTIONS = [
   "Ти си планировчикът на AI CORE.",
+  "Заявката може да е на български, на латиница или смесено; разбери смисъла ѝ, преди да избираш способности.",
   "Определи кои реални способности трябва да бъдат извикани, за да се изпълни последната заявка.",
   "Не отговаряй на потребителя и не обяснявай решението си.",
   "Върни само валиден JSON във формат:",
@@ -150,14 +151,21 @@ export function shouldUseAgentPlanner(message, fallbackRequests = []) {
   }
   const text = typeof message === "string" ? message.trim() : "";
   if (!text) return false;
-  return (
-    /(?:^|\s)(?:изпълни|направи|провери|покажи|намери|прочети|потърси|обнови|промени|редактирай|създай|свържи|изпрати|резервирай|напомни)(?=\s|:|$)/iu.test(
+  const hasActionIntent =
+    /(?:^|\s)(?:изпълни|направи|провери|покажи|намери|прочети|потърси|обнови|промени|редактирай|създай|свържи|изпрати|резервирай|напомни|искам|трябва|можеш|липсва|не\s+работи|къде|какво|защо|дай|давай|отвори|довърши|продължи|избери|изпълнява|ползваш|използва)(?=\s|:|$)/iu.test(
       text,
-    ) &&
-    /(?:github|ги[тд][\s-]*хъб|хъб(?:ът|а)?|хранилищ|репозитор|код|календар|calendar|напомни|напомнян|drive|драйв|gmail|имейл|поща|памет|интернет|web|сайт|google\s*cloud|гугъл\s*клауд)/iu.test(
+    ) ||
+    /(?:^|\s)(?:izpulni|izp[ъл]ni|napravi|proveri|pokazhi|namери|namеri|procheti|potursi|obnovi|promeni|suzdai|svurji|izprati|napomni|iskam|trqbva|mozhesh|lipсva|ne\s+raboti|kude|kakwo|zashto|dai|davaj|otwori|dovurshi|produlzhi|izberi|polzva)(?=\s|:|$)/iu.test(
       text,
-    )
-  );
+    );
+  const hasToolContext =
+    /(?:github|ги[тд][\s-]*хъб|хъб(?:ът|а)?|хранилищ|репозитор|код|code|календар|calendar|напомни|напомнян|drive|драйв|gmail|имейл|поща|памет|memory|интернет|web|сайт|site|google\s*cloud|гугъл\s*клауд|gcloud|cloud\s*shell|grok|claude|anthropic|mcp|инструмент|интеграц|връзк|tool|deploy|deployment|cloud\s*run)/iu.test(
+      text,
+    ) ||
+    /(?:github|git\s*hub|kod|code|kalendar|calendar|napomni|drive|drajv|gmail|email|pamет|pamet|internet|sait|site|google|gcloud|cloud\s*shell|grok|claude|anthropic|mcp|instrument|vr[ъu]zka|tool|deploy|deployment)/iu.test(
+      text,
+    );
+  return hasActionIntent && hasToolContext;
 }
 
 export async function planCapabilities({

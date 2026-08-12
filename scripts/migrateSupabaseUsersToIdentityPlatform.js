@@ -21,11 +21,21 @@ function hasArgument(name) {
   return process.argv.includes(name);
 }
 
+function envValue(...names) {
+  for (const name of names) {
+    const value = String(process.env[name] || "").trim();
+    if (value) return value;
+  }
+  return null;
+}
+
 async function loadSourceRows() {
-  const sourcePath = argumentValue("--source-users");
+  const sourcePath =
+    argumentValue("--source-users") ||
+    envValue("SUPABASE_USERS_EXPORT_PATH", "IDENTITY_USER_MIGRATION_SOURCE");
   if (!sourcePath) {
     throw new IdentityPlatformUserMigrationError(
-      "Липсва private Supabase user export.",
+      "Липсва private Supabase user export. Подай --source-users или SUPABASE_USERS_EXPORT_PATH.",
       "IDENTITY_USER_MIGRATION_SOURCE_REQUIRED",
     );
   }
@@ -114,7 +124,9 @@ if (
   import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
 ) {
   main().catch((error) => {
-    console.error(error?.code || "IDENTITY_USER_MIGRATION_FAILED");
+    const code = error?.code || "IDENTITY_USER_MIGRATION_FAILED";
+    const message = String(error?.message || "").trim();
+    console.error(message ? `${code}: ${message}` : code);
     process.exitCode = 1;
   });
 }

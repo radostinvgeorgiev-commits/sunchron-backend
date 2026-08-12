@@ -58,7 +58,7 @@ async function main() {
   const client = getOpenSearchClient();
   if (!client) {
     throw new GcpDataMigrationError(
-      "OpenSearch source не е конфигуриран.",
+      "OpenSearch source не е конфигуриран. Задай OPENSEARCH_HOST, OPENSEARCH_PORT, OPENSEARCH_USERNAME, OPENSEARCH_PASSWORD (и OPENSEARCH_PROTOCOL ако е нужно).",
       "GCP_DATA_MIGRATION_SOURCE_UNAVAILABLE",
     );
   }
@@ -91,7 +91,9 @@ if (
   import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
 ) {
   main().catch((error) => {
-    console.error(error?.code || "GCP_DATA_MIGRATION_FAILED");
+    const code = error?.code || "GCP_DATA_MIGRATION_FAILED";
+    const message = String(error?.message || "").trim();
+    console.error(message ? `${code}: ${message}` : code);
     process.exitCode = 1;
   });
 }

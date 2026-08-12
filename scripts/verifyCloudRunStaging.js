@@ -37,6 +37,23 @@ function requireValue(value, label) {
   return clean;
 }
 
+function envValue(...names) {
+  for (const name of names) {
+    const value = String(process.env[name] || "").trim();
+    if (value) return value;
+  }
+  return null;
+}
+
+function argumentValue(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : null;
+}
+
+function resolveCliOrEnv(flag, ...envNames) {
+  return argumentValue(flag) || envValue(...envNames);
+}
+
 function containerEnvironment(description) {
   return new Map(
     (description?.spec?.template?.spec?.containers?.[0]?.env || []).map(
@@ -238,15 +255,19 @@ async function fetchJson(url, token, timeoutMs = 30_000) {
   return response.json();
 }
 
-function argumentValue(name) {
-  const index = process.argv.indexOf(name);
-  return index >= 0 ? process.argv[index + 1] : null;
-}
-
 async function main() {
-  const project = requireValue(argumentValue("--project"), "project");
-  const region = requireValue(argumentValue("--region"), "region");
-  const service = requireValue(argumentValue("--service"), "service");
+  const project = requireValue(
+    resolveCliOrEnv("--project", "GCP_PROJECT_ID", "GOOGLE_CLOUD_PROJECT"),
+    "project (--project или GCP_PROJECT_ID)",
+  );
+  const region = requireValue(
+    resolveCliOrEnv("--region", "GCP_REGION", "CLOUD_RUN_REGION"),
+    "region (--region или GCP_REGION)",
+  );
+  const service = requireValue(
+    resolveCliOrEnv("--service", "CLOUD_RUN_SERVICE", "GCP_CLOUD_RUN_SERVICE"),
+    "service (--service или CLOUD_RUN_SERVICE)",
+  );
   if (!/^[a-z][a-z0-9-]{4,61}[a-z0-9]$/u.test(project)) {
     throw verificationError("Project ID е невалиден.");
   }
@@ -257,8 +278,8 @@ async function main() {
     throw verificationError("Service name е невалидно.");
   }
   const expectedSha = requireValue(
-    argumentValue("--expected-sha"),
-    "expected SHA",
+    resolveCliOrEnv("--expected-sha", "EXPECTED_SHA", "APP_COMMIT_SHA"),
+    "expected SHA (--expected-sha или EXPECTED_SHA)",
   );
   if (!/^[a-f0-9]{40}$/u.test(expectedSha)) {
     throw verificationError("Expected SHA трябва да е пълен commit SHA.");
@@ -339,7 +360,9 @@ if (
   import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
 ) {
   main().catch((error) => {
-    console.error(error?.code || "GCP_STAGING_VERIFICATION_FAILED");
+    const code = error?.code || "GCP_STAGING_VERIFICATION_FAILED";
+    const message = String(error?.message || "").trim();
+    console.error(message ? `${code}: ${message}` : code);
     process.exitCode = 1;
   });
 }

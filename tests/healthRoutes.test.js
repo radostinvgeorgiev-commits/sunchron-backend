@@ -143,6 +143,28 @@ test("readiness accepts Gemini when it is explicitly selected", async () => {
   assert.equal(result.checks.chatAgent.providers[1].configured, true);
 });
 
+test("readiness accepts Anthropic when it is explicitly selected", async () => {
+  const result = await getReadinessStatus({
+    env: {
+      AI_CORE_PROVIDER: "anthropic",
+      ANTHROPIC_API_KEY: "test-anthropic-key",
+    },
+    loadOpenSearchClient: () => ({
+      cluster: {
+        health: async () => ({ body: { status: "green" } }),
+      },
+    }),
+  });
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.checks.chatAgent.primaryProvider, "anthropic");
+  assert.equal(
+    result.checks.chatAgent.providers.find((item) => item.id === "anthropic")
+      ?.configured,
+    true,
+  );
+});
+
 test("readiness fails closed for an invalid AI provider selection", async () => {
   const result = await getReadinessStatus({
     env: {

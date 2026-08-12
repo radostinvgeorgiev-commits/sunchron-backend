@@ -22,7 +22,7 @@ SYNCHRON-X обединява:
 
 `Сайт → SYNCHRON-X server → избран AI provider → отговор`
 
-OpenAI Responses API е доставчикът по подразбиране. Gemini и Grok от xAI могат
+OpenAI Responses API е доставчикът по подразбиране. Gemini, Grok от xAI и Anthropic могат
 да се изберат чрез `AI_CORE_PROVIDER` и собствените им secrets. Паметта и
 разрешените инструменти се добавят към този поток през сървърните адаптери.
 DigitalOcean App Platform хоства приложението, но не е разговорен AI доставчик.

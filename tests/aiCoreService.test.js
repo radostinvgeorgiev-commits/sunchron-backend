@@ -2,13 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  DEFAULT_ANTHROPIC_CHAT_MODEL,
   DEFAULT_OPENAI_CHAT_MODEL,
+  extractAnthropicOutputText,
   extractGeminiOutputText,
   extractGrokOutputText,
   extractOpenAIOutputText,
   hasConfiguredAiProvider,
   getAiProviderStatus,
   requestAiResponse,
+  requestAnthropicResponse,
   requestGeminiResponse,
   requestGrokResponse,
   requestOpenAIResponse,
@@ -254,12 +257,106 @@ test("Grok uses the xAI-compatible chat completion contract", async () => {
   });
 });
 
+
+test("Anthropic Messages maps system context and rejects incomplete output", async () => {
+  assert.equal(
+    extractAnthropicOutputText({
+      content: [
+        { type: "thinking", thinking: "private" },
+        { type: "text", text: "Първа част. " },
+        { type: "text", text: "Втора част." },
+      ],
+    }),
+    "Първа част. Втора част.",
+  );
+
+  const result = await requestAnthropicResponse({
+    apiKey: "test-anthropic-key",
+    input: [
+      { role: "system", content: "Говори кратко." },
+      { role: "user", content: "Здравей" },
+      { role: "assistant", content: "Здравей!" },
+      { role: "user", content: "Провери системата." },
+    ],
+    maxTokens: 2048,
+    effort: "xhigh",
+    fetchImpl: async (url, options) => {
+      assert.equal(url, "https://api.anthropic.com/v1/messages");
+      assert.equal(options.headers["x-api-key"], "test-anthropic-key");
+      assert.equal(options.headers["anthropic-version"], "2023-06-01");
+      const body = JSON.parse(options.body);
+      assert.deepEqual(body, {
+        model: DEFAULT_ANTHROPIC_CHAT_MODEL,
+        max_tokens: 2048,
+        system: "Говори кратко.",
+        messages: [
+          { role: "user", content: "Здравей" },
+          { role: "assistant", content: "Здравей!" },
+          { role: "user", content: "Провери системата." },
+        ],
+        output_config: { effort: "xhigh" },
+        service_tier: "standard_only",
+        stream: false,
+      });
+      return new Response(
+        JSON.stringify({
+          model: "claude-sonnet-5",
+          stop_reason: "end_turn",
+          content: [
+            { type: "thinking", thinking: "private" },
+            { type: "text", text: "Работи." },
+          ],
+          usage: {
+            input_tokens: 12,
+            output_tokens: 4,
+            output_tokens_details: { thinking_tokens: 1 },
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    },
+  });
+
+  assert.equal(result.text, "Работи.");
+  assert.equal(result.provider, "anthropic");
+  assert.equal(result.model, "claude-sonnet-5");
+  assert.equal(result.stopReason, "end_turn");
+  assert.equal(result.usage.inputTokens, 12);
+  assert.equal(result.usage.outputTokens, 4);
+});
+
+test("Anthropic fails closed without a key or unsupported model", async () => {
+  await assert.rejects(
+    requestAiResponse({
+      provider: "anthropic",
+      apiKey: "",
+      input: [{ role: "user", content: "Здравей" }],
+      fetchImpl: async () => {
+        throw new Error("must not call upstream");
+      },
+    }),
+    (error) => error?.code === "ANTHROPIC_NOT_CONFIGURED",
+  );
+  await assert.rejects(
+    requestAnthropicResponse({
+      apiKey: "test-anthropic-key",
+      model: "claude-unsupported",
+      input: [{ role: "user", content: "Не изпращай" }],
+      fetchImpl: async () => {
+        throw new Error("must not call upstream");
+      },
+    }),
+    (error) => error?.code === "ANTHROPIC_MODEL_UNSUPPORTED",
+  );
+});
+
 test("generic AI dispatch and status are explicit without exposing keys", async () => {
   const status = getAiProviderStatus({
     AI_CORE_PROVIDER: "grok",
     OPENAI_API_KEY: "openai-secret",
     GEMINI_API_KEY: "",
     GROK_API_KEY: "grok-secret",
+    ANTHROPIC_API_KEY: "anthropic-secret",
   });
   assert.equal(status.selectedProvider, "grok");
   assert.equal(status.configured, true);
@@ -267,6 +364,7 @@ test("generic AI dispatch and status are explicit without exposing keys", async 
     { id: "openai", configured: true },
     { id: "gemini", configured: false },
     { id: "grok", configured: true },
+    { id: "anthropic", configured: true },
   ]);
   assert.doesNotMatch(JSON.stringify(status), /secret/u);
 

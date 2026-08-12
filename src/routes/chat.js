@@ -130,12 +130,14 @@ export function resolveChatAiSelection({
   const cleanMode = normalizeInteractionMode(interactionMode);
   const cleanWorkContext =
     cleanMode === "work" ? sanitizeWorkContext(workContext) : null;
+  const explicitRequestedModel =
+    typeof requestedModel === "string" &&
+    resolveWorkAgentProvider(requestedModel)
+      ? requestedModel
+      : null;
   const selectedModelId =
-    cleanMode === "chat"
-      ? typeof requestedModel === "string"
-        ? requestedModel
-        : "auto"
-      : cleanWorkContext?.agent?.model;
+    explicitRequestedModel ||
+    (cleanMode === "work" ? cleanWorkContext?.agent?.model : "auto");
   const provider =
     resolveWorkAgentProvider(selectedModelId) || getConfiguredAiProvider(env);
   const model = resolveWorkAgentModel(selectedModelId);

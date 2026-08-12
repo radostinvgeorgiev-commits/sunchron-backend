@@ -46,6 +46,29 @@ test("chat model selection is explicit, provider-safe, and fail-closed", () => {
   );
 });
 
+test("explicit chat model selection overrides the work agent model", () => {
+  const env = {
+    AI_CORE_PROVIDER: "grok",
+    GROK_API_KEY: "grok-test",
+    GEMINI_API_KEY: "gemini-test",
+  };
+
+  const selection = resolveChatAiSelection({
+    interactionMode: "work",
+    requestedModel: "gemini-2.5-flash",
+    workContext: {
+      project: { name: "Тестов проект" },
+      agent: { model: "grok-4.5", purpose: "Тестов агент" },
+    },
+    env,
+  });
+
+  assert.equal(selection.provider, "gemini");
+  assert.equal(selection.model, "gemini-2.5-flash");
+  assert.equal(selection.configured, true);
+  assert.equal(selection.workContext?.agent.model, "grok-4.5");
+});
+
 test("chat routes memory, calendar and GitHub requests through current capabilities", () => {
   assert.deepEqual(
     detectCapabilityRequests("Провери календара и GitHub commit-ите от днес.").map(({ capability }) => capability),

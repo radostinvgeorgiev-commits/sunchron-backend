@@ -693,7 +693,7 @@ export async function getDigitalOceanAppStatus(options = {}) {
   const deployments = (deploymentsData.deployments || []).slice(0, 5);
   return {
     id: app.id || appId,
-    name: app.spec?.name || app.name || "SYNCHRON-X",
+    name: app.spec?.name || app.name || "AI CORE",
     liveUrl: app.live_url || null,
     activeDeployment: app.active_deployment
       ? {

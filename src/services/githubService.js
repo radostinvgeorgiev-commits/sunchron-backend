@@ -29,7 +29,7 @@ function assertAllowedRepository(repository) {
 function githubHeaders() {
   const headers = {
     Accept: "application/vnd.github+json",
-    "User-Agent": "Synchron-X",
+    "User-Agent": "AI CORE",
     "X-GitHub-Api-Version": "2022-11-28",
   };
   if (process.env.GITHUB_TOKEN) {

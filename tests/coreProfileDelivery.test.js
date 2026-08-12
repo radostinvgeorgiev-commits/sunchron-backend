@@ -116,7 +116,7 @@ test("every real chat request sends Core Profile and owner memory to OpenAI", as
 
   try {
     for (const [sessionId, message] of [
-      ["core-profile-first", "Какво е SYNCHRON-X?"],
+      ["core-profile-first", "Какво е AI CORE?"],
       ["core-profile-second", "Как работим по техническа задача?"],
     ]) {
       const response = await request(app)
@@ -153,7 +153,7 @@ test("every real chat request sends Core Profile and owner memory to OpenAI", as
       input[0].content,
       new RegExp(
         index === 0
-          ? "Какво е SYNCHRON-X\\?"
+          ? "Какво е AI CORE\\?"
           : "Как работим по техническа задача\\?",
         "u",
       ),

@@ -1,8 +1,8 @@
-# SYNCHRON-X Bridge & Diagnostics
+# AI CORE Bridge & Diagnostics
 
 ## Какво работи
 
-SYNCHRON-X има MCP Streamable HTTP адрес `/mcp` и 14 инструмента: 11 само за
+AI CORE има MCP Streamable HTTP адрес `/mcp` и 14 инструмента: 11 само за
 четене, един ограничен разговор с AI CORE и два двустъпкови потвърждавани
 write flow-а. Разговорният инструмент пази нишката в собствения профил, но не
 стартира Capability Engine, външни действия или промени по код. Основните read

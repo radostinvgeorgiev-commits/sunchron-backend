@@ -1,4 +1,4 @@
-# SYNCHRON-X operations runbook
+# AI CORE operations runbook
 
 Това е единният безопасен ред за проверка на production, triage на инцидент и
 rollback. Историческите audit документи пазят контекст, но не са източник за

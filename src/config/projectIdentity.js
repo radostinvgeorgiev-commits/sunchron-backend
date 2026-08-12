@@ -1,9 +1,11 @@
 export const PRODUCT_NAME = "AI CORE";
-export const TECHNICAL_PROJECT_NAME = "NOVARIUM / SYNCHRON-X";
-export const PROJECT_NAME = `${PRODUCT_NAME} (${TECHNICAL_PROJECT_NAME})`;
+// Keep the export for callers that still import the legacy symbol, but expose
+// the public product name consistently as AI CORE.
+export const TECHNICAL_PROJECT_NAME = PRODUCT_NAME;
+export const PROJECT_NAME = PRODUCT_NAME;
 
 export const PROJECT_DEFINITION =
-  "AI CORE е лична AI операционна система, която познава човека, има постоянна контролирана памет и използва разрешени инструменти за изпълнение на реални задачи. За всяка задача тя може да избира най-подходящия AI модел, вместо да зависи от един-единствен AI. SYNCHRON-X остава техническото име на текущото ядро и домейна.";
+  "AI CORE е лична AI операционна система, която познава човека, има постоянна контролирана памет и използва разрешени инструменти за изпълнение на реални задачи. За всяка задача тя може да избира най-подходящия AI модел, вместо да зависи от един-единствен AI.";
 
 export const AVATAR_DEFINITION =
   "AI аватарът е интерфейсът на AI CORE — лицето, гласът, характерът и начинът на общуване.";

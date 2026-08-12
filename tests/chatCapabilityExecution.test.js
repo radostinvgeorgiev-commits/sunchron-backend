@@ -559,7 +559,7 @@ test("accepts only the exact one-time memory-write confirmation", () => {
   );
   assert.equal(
     extractMemoryWriteConfirmationId(
-      "Потвърждавам запис в постоянната памет: проектът е SYNCHRON-X",
+      "Потвърждавам запис в постоянната памет: проектът е AI CORE",
     ),
     null,
   );
@@ -647,7 +647,7 @@ test("detects a combined personal-OS tool check without duplicate GitHub tasks",
   const message = [
     "Провери последния commit в GitHub.",
     "Покажи събитията ми в календара за утре.",
-    "Провери какво помниш за проекта SYNCHRON-X.",
+    "Провери какво помниш за проекта AI CORE.",
     "Провери актуалното време във Варна.",
     "Кажи кои инструменти използва успешно и кои не са достъпни.",
   ].join(" ");

@@ -449,7 +449,7 @@ export function detectCapabilityRequests(message) {
         capability: "memory.read",
         action: "memory.read",
         message: subtask,
-        scope: /(?:проекта|synchron-x|novarium)/iu.test(subtask)
+        scope: /(?:проекта|ai\s*core|synchron-x|novarium)/iu.test(subtask)
           ? "project"
           : undefined,
       });
@@ -1274,7 +1274,7 @@ router.post("/chat", async (req, res) => {
   const isProfileOverviewQuestion = isOverviewQuestion(cleanMessage, "мен");
   const isProjectOverviewQuestion = isOverviewQuestion(
     cleanMessage,
-    "(?:проекта|synchron-x)",
+    "(?:проекта|ai\\s*core|synchron-x)",
   );
   if (isProfileOverviewQuestion || isProjectOverviewQuestion) {
     const requestedScope = isProjectOverviewQuestion ? "project" : "personal";

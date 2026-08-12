@@ -38,7 +38,7 @@ function githubWriteHeaders(accessToken) {
   const token = requireToken(accessToken);
   return {
     Accept: "application/vnd.github+json",
-    "User-Agent": "Synchron-X",
+    "User-Agent": "AI CORE",
     "X-GitHub-Api-Version": "2022-11-28",
     "Content-Type": "application/json",
     Authorization: `token ${token}`,

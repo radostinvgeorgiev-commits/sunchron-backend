@@ -61,7 +61,7 @@ function taskTitle(prompt) {
   const clean = String(prompt || "")
     .replace(/\s+/gu, " ")
     .trim();
-  if (!clean) return "SYNCHRON-X кодова задача";
+  if (!clean) return "AI CORE кодова задача";
   const firstSentence = clean.split(/(?<=[.!?])\s/u)[0];
   return firstSentence.slice(0, 80);
 }
@@ -161,7 +161,7 @@ async function githubGraphql(accessToken, query, variables, fetchImpl = fetch) {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         "GraphQL-Features": GITHUB_FEATURES,
-        "User-Agent": "Synchron-X",
+        "User-Agent": "AI CORE",
         "X-GitHub-Api-Version": "2022-11-28",
       },
       body: JSON.stringify({ query, variables }),
@@ -672,7 +672,7 @@ export function formatCopilotBridgeStatus(status) {
   return [
     "Проверих GitHub Write моста реално: работи.",
     `Хранилище: ${status.repository}.`,
-    "След конкретна кодова задача SYNCHRON-X подготвя еднократно потвърждение.",
+        "След конкретна кодова задача AI CORE подготвя еднократно потвърждение.",
     "След потвърждението GitHub Copilot работи в отделен клон, прави commit-и и създава Pull Request.",
     "Не слива автоматично в main и не публикува без отделно изрично потвърждение.",
   ].join("\n");
@@ -775,7 +775,7 @@ export async function startCopilotTask({
       copilotId,
       title: taskTitle(cleanPrompt),
       body: [
-        "Задача, потвърдена от потребителя в SYNCHRON-X:",
+        "Задача, потвърдена от потребителя в AI CORE:",
         "",
         cleanPrompt,
         "",

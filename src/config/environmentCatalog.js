@@ -399,7 +399,7 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general(
       "GITHUB_REPOSITORY",
       "GitHub",
-      "Разрешеното хранилище на SYNCHRON-X.",
+      "Разрешеното хранилище на AI CORE.",
       { hasDefault: true },
     ),
     general(

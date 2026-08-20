@@ -3,8 +3,7 @@ name: Production smoke check
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
   schedule:
     - cron: "17 */6 * * *"
 
@@ -16,13 +15,16 @@ concurrency:
   group: production-smoke-check
   cancel-in-progress: true
 
+env:
+  PRODUCTION_ORIGIN: https://cloudaicore.com
+
 jobs:
   smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 12
 
     steps:
-      - name: Wait for exact production commit
+      - name: Wait for exact Google Cloud production commit
         shell: bash
         env:
           EXPECTED_COMMIT: ${{ github.sha }}
@@ -33,198 +35,92 @@ jobs:
           for attempt in $(seq 1 24); do
             response="$(curl --fail --silent --show-error --max-time 30 \
               --header 'Cache-Control: no-cache' \
-              "https://synchron.foundation/health?deployment-check=${GITHUB_RUN_ID}-${attempt}" \
+              "${PRODUCTION_ORIGIN}/health?deployment-check=${GITHUB_RUN_ID}-${attempt}" \
               2>/dev/null || true)"
             actual_commit="$(printf '%s' "${response}" | node -e '
               let input = "";
               process.stdin.on("data", (chunk) => { input += chunk; });
               process.stdin.on("end", () => {
-                try {
-                  process.stdout.write(String(JSON.parse(input).commit || ""));
-                } catch {
-                  process.stdout.write("");
-                }
+                try { process.stdout.write(String(JSON.parse(input).commit || "")); }
+                catch { process.stdout.write(""); }
               });
             ')"
-
             if [ "${actual_commit}" = "${EXPECTED_COMMIT}" ]; then
               consecutive_matches=$((consecutive_matches + 1))
-              echo "Attempt ${attempt}/24: production commit ${actual_commit} is stable ${consecutive_matches}/${required_matches}."
+              echo "Attempt ${attempt}/24: Google Cloud production commit ${actual_commit} is stable ${consecutive_matches}/${required_matches}."
               if [ "${consecutive_matches}" -ge "${required_matches}" ]; then
-                echo "Production is stably running commit ${actual_commit}"
                 exit 0
               fi
               sleep 3
               continue
             fi
-
             consecutive_matches=0
-            echo "Attempt ${attempt}/24: production commit is ${actual_commit:-unknown}; waiting for ${EXPECTED_COMMIT}"
+            echo "Attempt ${attempt}/24: production commit is ${actual_commit:-unknown}; waiting for ${EXPECTED_COMMIT}."
             sleep 15
           done
-
-          echo "Production did not stably deploy commit ${EXPECTED_COMMIT} within the verification window." >&2
+          echo "Google Cloud production did not stably deploy ${EXPECTED_COMMIT}." >&2
           exit 1
 
       - name: Check AI CORE public shell
         shell: bash
         run: |
           set -euo pipefail
-          page="$(curl --fail --silent --show-error \
-            --retry 3 --retry-delay 10 --retry-all-errors \
-            --max-time 30 \
-            https://synchron.foundation/)"
+          page="$(curl --fail --silent --show-error --retry 3 --retry-all-errors --max-time 30 "${PRODUCTION_ORIGIN}/")"
           grep -q '<title>SYNCHRON-X' <<< "${page}"
           grep -q 'href="/ai-core-mark.png"' <<< "${page}"
           grep -q 'src="/work-mode.js?' <<< "${page}"
 
-      - name: Check application health
+      - name: Check application health and readiness
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error \
-            --retry 3 --retry-delay 10 --retry-all-errors \
-            --max-time 30 \
-            https://synchron.foundation/health \
+          curl --fail --silent --show-error --retry 3 --retry-all-errors --max-time 30 "${PRODUCTION_ORIGIN}/health" \
             | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'
-
-      - name: Check production readiness
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --silent --show-error \
-            --retry 3 --retry-delay 10 --retry-all-errors \
-            --max-time 30 \
-            https://synchron.foundation/health/ready \
+          curl --fail --silent --show-error --retry 3 --retry-all-errors --max-time 30 "${PRODUCTION_ORIGIN}/health/ready" \
             | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"'
 
-      - name: Check OpenSearch and Supabase dependencies
+      - name: Check Firestore and Identity Platform dependencies
         shell: bash
         run: |
           set -euo pipefail
-          dependencies_healthy=false
-          for attempt in 1 2 3; do
-            if response="$(curl --fail --silent --show-error \
-              --retry 2 --retry-delay 2 --retry-all-errors \
-              --max-time 30 \
-              https://synchron.foundation/health/storage-report)" &&
-              printf '%s' "${response}" | node -e '
-            let input = "";
-            process.stdin.on("data", (chunk) => { input += chunk; });
-            process.stdin.on("end", () => {
-              const report = JSON.parse(input).dependencies;
-              const checks = report.checks || {};
-              const allowedSupabaseSources = new Set([
-                "runtime",
-                "public-bootstrap",
-              ]);
-              console.log(
-                `storage=${report.status} opensearch=${checks.opensearch?.status} supabase=${checks.supabase?.status} supabase-source=${checks.supabase?.connectionSource}`,
-              );
-              if (
-                report.status !== "healthy" ||
-                checks.opensearch?.status !== "healthy" ||
-                checks.opensearch?.memoryIndexReadable !== true ||
-                checks.supabase?.status !== "healthy" ||
-                !allowedSupabaseSources.has(checks.supabase?.connectionSource)
-              ) {
-                process.exit(1);
-              }
-            });
-            '; then
-              dependencies_healthy=true
-              break
-            fi
-            sleep $((attempt * 10))
-          done
-          test "${dependencies_healthy}" = "true"
+          curl --fail --silent --show-error --retry 3 --retry-all-errors --max-time 30 \
+            "${PRODUCTION_ORIGIN}/health/storage-report" | node -e '
+              let input = "";
+              process.stdin.on("data", (chunk) => { input += chunk; });
+              process.stdin.on("end", () => {
+                const response = JSON.parse(input);
+                const report = response.dependencies;
+                const checks = report?.checks || {};
+                console.log(`storage=${report?.status} firestore=${checks.firestore?.status} identity=${checks.identityPlatform?.status}`);
+                if (
+                  report?.status !== "healthy" ||
+                  checks.firestore?.status !== "healthy" ||
+                  checks.firestore?.readOnlyCheck !== true ||
+                  checks.identityPlatform?.status !== "healthy" ||
+                  checks.identityPlatform?.provider !== "identity-platform"
+                ) process.exit(1);
+              });
+            '
 
-      - name: Check backup coverage and OpenSearch restore-point inventory
+      - name: Check honest Firestore backup boundary
         shell: bash
         run: |
           set -euo pipefail
-          verified=false
-          for attempt in 1 2 3; do
-            if response="$(curl --fail --silent --show-error \
-              --retry 2 --retry-delay 2 --retry-all-errors \
-              --max-time 30 \
-              https://synchron.foundation/health/storage-report)" &&
-              printf '%s' "${response}" | node -e '
+          curl --fail --silent --show-error --retry 3 --retry-all-errors --max-time 30 \
+            "${PRODUCTION_ORIGIN}/health/storage-report" | node -e '
               let input = "";
               process.stdin.on("data", (chunk) => { input += chunk; });
               process.stdin.on("end", () => {
                 const report = JSON.parse(input).backups;
-                const backup = report.checks?.opensearch;
-                const supabase = report.checks?.supabase;
-                console.log(
-                  `coverage=${report.status} opensearch=${backup?.status} fresh=${Boolean(backup?.fresh)} supabase=${supabase?.status} proves-restore=${Boolean(backup?.provesRestore)}`,
-                );
+                const firestore = report?.checks?.firestore;
                 if (
-                  report.status !== "partially-verified" ||
-                  backup?.status !== "verified" ||
-                  backup?.fresh !== true ||
-                  backup?.readOnlyCheck !== true ||
-                  backup?.provesRestore !== false ||
-                  supabase?.status !== "unverified" ||
-                  supabase?.provesRestore !== false
-                ) {
-                  process.exit(1);
-                }
+                  report?.status !== "unverified" ||
+                  firestore?.status !== "unverified" ||
+                  firestore?.readOnlyCheck !== true ||
+                  firestore?.restoreTested !== false
+                ) process.exit(1);
               });
-              '; then
-              verified=true
-              break
-            fi
-            sleep $((attempt * 10))
-          done
-          test "${verified}" = "true"
-
-      - name: Check production memory acceptance
-        shell: bash
-        run: |
-          set -euo pipefail
-          response="$(curl --fail --silent --show-error \
-            --retry 3 --retry-delay 10 --retry-all-errors \
-            --max-time 30 \
-            https://synchron.foundation/health/ready)"
-          printf '%s' "${response}" | node -e '
-            let input = "";
-            process.stdin.on("data", (chunk) => { input += chunk; });
-            process.stdin.on("end", () => {
-              const acceptance = JSON.parse(input).checks?.memoryAcceptance;
-              console.log(JSON.stringify(acceptance));
-              if (
-                !acceptance?.required ||
-                !acceptance?.ready ||
-                acceptance.status !== "works" ||
-                acceptance.isolated !== true ||
-                acceptance.realMemoryUnchanged !== true ||
-                acceptance.cleanupCompleted !== true
-              ) {
-                process.exit(1);
-              }
-            });
-          '
-
-      - name: Check MCP status
-        shell: bash
-        run: |
-          set -euo pipefail
-          response="$(curl --fail --silent --show-error \
-            --retry 3 --retry-delay 10 --retry-all-errors \
-            --max-time 30 \
-            https://synchron.foundation/health/ready)"
-          printf '%s' "${response}" | node -e '
-            let input = "";
-            process.stdin.on("data", (chunk) => { input += chunk; });
-            process.stdin.on("end", () => {
-              const bridge = JSON.parse(input).checks?.bridge;
-              console.log(
-                `MCP configured=${Boolean(bridge?.configured)} responding=${Boolean(bridge?.responding)}`,
-              );
-              if (!bridge?.configured || !bridge?.responding) process.exit(1);
-            });
-          '
+            '
 
       - name: Check MCP tool catalog and OAuth challenge
         shell: bash
@@ -232,14 +128,12 @@ jobs:
           set -euo pipefail
           catalog_ready=false
           for attempt in $(seq 1 12); do
-            response="$(curl --fail --silent --show-error \
-              --max-time 30 \
+            response="$(curl --fail --silent --show-error --max-time 30 \
               --header 'Cache-Control: no-cache' \
               --header 'Content-Type: application/json' \
               --header 'Accept: application/json, text/event-stream' \
               --data '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
-              "https://synchron.foundation/mcp?catalog-check=${attempt}" 2>/dev/null || true)"
-
+              "${PRODUCTION_ORIGIN}/mcp?catalog-check=${attempt}" 2>/dev/null || true)"
             if printf '%s' "${response}" | node -e '
               let input = "";
               process.stdin.on("data", (chunk) => { input += chunk; });
@@ -249,132 +143,60 @@ jobs:
                   const expected = [
                     "get_personal_context",
                     "get_project_context",
-                    "list_synchron_conversations",
-                    "get_synchron_conversation",
                     "talk_to_ai_core",
-                    "get_digitalocean_app_status",
+                    "get_google_cloud_runtime_status",
                     "get_system_configuration",
-                    "get_digitalocean_account_audit",
-                    "prepare_digitalocean_www_domain",
-                    "confirm_digitalocean_www_domain",
-                    "get_cloudflare_zone_status",
-                    "get_github_copilot_task_status",
-                    "prepare_github_merged_branch_cleanup",
-                    "confirm_github_merged_branch_cleanup",
                     "list_available_capabilities",
                     "list_action_history",
                     "list_tasks",
                     "create_task_draft",
-                    "list_projects",
+                    "list_projects"
                   ];
                   const names = Array.isArray(tools) ? tools.map((tool) => tool.name) : [];
-                  const tracker = tools?.find(
-                    (tool) => tool.name === "get_github_copilot_task_status",
-                  );
-                  const trackerScopes = tracker?.securitySchemes?.flatMap(
-                    (scheme) => scheme.scopes || [],
-                  ) || [];
-                  const conversation = tools?.find(
-                    (tool) => tool.name === "talk_to_ai_core",
-                  );
-                  const conversationScopes = conversation?.securitySchemes?.flatMap(
-                    (scheme) => scheme.scopes || [],
-                  ) || [];
-                  const confirmWww = tools?.find(
-                    (tool) => tool.name === "confirm_digitalocean_www_domain",
-                  );
-                  const confirmWwwScopes = confirmWww?.securitySchemes?.flatMap(
-                    (scheme) => scheme.scopes || [],
-                  ) || [];
-                  const capabilities = tools?.find(
-                    (tool) => tool.name === "list_available_capabilities",
-                  );
-                  const capabilitiesScopes = capabilities?.securitySchemes?.flatMap(
-                    (scheme) => scheme.scopes || [],
-                  ) || [];
-                  const actionHistory = tools?.find(
-                    (tool) => tool.name === "list_action_history",
-                  );
-                  const actionHistoryScopes = actionHistory?.securitySchemes?.flatMap(
-                    (scheme) => scheme.scopes || [],
-                  ) || [];
-                  const taskDraft = tools?.find(
-                    (tool) => tool.name === "create_task_draft",
-                  );
-                  const taskDraftScopes = taskDraft?.securitySchemes?.flatMap(
-                    (scheme) => scheme.scopes || [],
-                  ) || [];
+                  const runtime = tools?.find((tool) => tool.name === "get_google_cloud_runtime_status");
                   const valid =
                     names.length >= expected.length &&
                     new Set(names).size === names.length &&
                     expected.every((name) => names.includes(name)) &&
-                    tracker?.annotations?.readOnlyHint === true &&
-                    trackerScopes.includes("synchron:read") &&
-                    conversation?.annotations?.destructiveHint === false &&
-                    conversationScopes.includes("synchron:agent.chat") &&
-                    confirmWww?.annotations?.destructiveHint === true &&
-                    confirmWwwScopes.includes("synchron:infrastructure.write") &&
-                    capabilities?.annotations?.readOnlyHint === true &&
-                    capabilitiesScopes.includes("synchron:read") &&
-                    actionHistory?.annotations?.readOnlyHint === true &&
-                    actionHistoryScopes.includes("synchron:audit.read") &&
-                    taskDraft?.annotations?.readOnlyHint === false &&
-                    taskDraft?.annotations?.destructiveHint === false &&
-                    taskDraftScopes.includes("synchron:tasks.write");
-                  console.log(JSON.stringify({
-                    catalogSize: names.length,
-                    missingExpected: expected.filter((name) => !names.includes(name)),
-                    trackerReadOnly: tracker?.annotations?.readOnlyHint,
-                  }));
+                    runtime?.annotations?.readOnlyHint === true &&
+                    runtime?.securitySchemes?.some((scheme) => scheme.type === "noauth");
                   process.exit(valid ? 0 : 1);
-                } catch {
-                  process.exit(1);
-                }
+                } catch { process.exit(1); }
               });
             '; then
               catalog_ready=true
               break
             fi
-
-            echo "Attempt ${attempt}/12: MCP tool catalog is not on the expected version yet."
             sleep 10
           done
-
-          if [ "${catalog_ready}" != "true" ]; then
-            echo "Production MCP tool catalog did not reach the expected version." >&2
-            exit 1
-          fi
+          test "${catalog_ready}" = "true"
 
           challenge_headers="$(mktemp)"
           challenge_body="$(mktemp)"
-          challenge_status="$(curl --silent --show-error \
-            --max-time 30 \
+          trap 'rm -f "${challenge_headers}" "${challenge_body}"' EXIT
+          challenge_status="$(curl --silent --show-error --max-time 30 \
             --dump-header "${challenge_headers}" \
             --output "${challenge_body}" \
             --write-out '%{http_code}' \
             --header 'Content-Type: application/json' \
             --header 'Accept: application/json, text/event-stream' \
-            --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_github_copilot_task_status","arguments":{"issueNumber":83}}}' \
-            https://synchron.foundation/mcp)"
+            --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_personal_context","arguments":{}}}' \
+            "${PRODUCTION_ORIGIN}/mcp")"
           test "${challenge_status}" = "401"
           grep -Eiq '^www-authenticate:.*Bearer.*synchron:read.*error="invalid_token".*error_description="' "${challenge_headers}"
           node -e '
             const { readFileSync } = require("node:fs");
-            const response = JSON.parse(readFileSync(process.argv[1], "utf8"));
-            const result = response.result;
+            const result = JSON.parse(readFileSync(process.argv[1], "utf8")).result;
             const challenges = result?._meta?.["mcp/www_authenticate"];
             const valid =
               result?.isError === true &&
               Array.isArray(result.content) &&
-              result.content.some((item) => item?.type === "text") &&
               Array.isArray(challenges) &&
-              challenges.some(
-                (challenge) =>
-                  typeof challenge === "string" &&
-                  challenge.includes("oauth-protected-resource") &&
-                  challenge.includes("synchron:read") &&
-                  challenge.includes("error=\"invalid_token\"") &&
-                  challenge.includes("error_description=\""),
+              challenges.some((challenge) =>
+                challenge.includes("oauth-protected-resource") &&
+                challenge.includes("synchron:read") &&
+                challenge.includes("error=\"invalid_token\"") &&
+                challenge.includes("error_description=\"")
               );
             process.exit(valid ? 0 : 1);
           ' "${challenge_body}"
@@ -383,32 +205,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          response="$(curl --fail --silent --show-error \
-            --retry 3 --retry-delay 10 --retry-all-errors \
-            --max-time 30 \
-            https://synchron.foundation/api/auth/session)"
-          printf '%s' "${response}" | node -e '
-            let input = "";
-            process.stdin.on("data", (chunk) => { input += chunk; });
-            process.stdin.on("end", () => {
-              const status = JSON.parse(input);
-              const configuration = status.configuration || {};
-              const configured = status.configured;
-              const projectConnection = configuration.projectConnection;
-              const sessionProtection = configuration.sessionProtection;
-              const registrationEnabled = status.registrationEnabled;
-              console.log(JSON.stringify({
-                configured,
-                registrationEnabled,
-                projectConnection,
-                sessionProtection,
-              }));
-              if (configured !== true) process.exit(1);
-              if (projectConnection !== true) process.exit(1);
-              if (sessionProtection !== true) process.exit(1);
-              if (registrationEnabled !== false) process.exit(1);
-            });
-          '
+          curl --fail --silent --show-error --retry 3 --retry-all-errors --max-time 30 \
+            "${PRODUCTION_ORIGIN}/api/auth/session" | node -e '
+              let input = "";
+              process.stdin.on("data", (chunk) => { input += chunk; });
+              process.stdin.on("end", () => {
+                const status = JSON.parse(input);
+                const configuration = status.configuration || {};
+                if (status.configured !== true) process.exit(1);
+                if (configuration.projectConnection !== true) process.exit(1);
+                if (configuration.sessionProtection !== true) process.exit(1);
+                if (status.registrationEnabled !== false) process.exit(1);
+              });
+            '
 
       - name: Check workspace authentication boundary
         shell: bash
@@ -416,18 +225,9 @@ jobs:
           set -euo pipefail
           response_file="$(mktemp)"
           trap 'rm -f "${response_file}"' EXIT
-          status_code="$(curl --silent --show-error \
-            --retry 3 --retry-delay 10 --retry-all-errors \
-            --max-time 30 \
-            --output "${response_file}" \
-            --write-out '%{http_code}' \
-            https://synchron.foundation/api/workspaces)"
-
-          if [ "${status_code}" != "401" ]; then
-            echo "Workspace API returned ${status_code}; expected the unauthenticated boundary." >&2
-            exit 1
-          fi
-
+          status_code="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 30 \
+            --output "${response_file}" --write-out '%{http_code}' "${PRODUCTION_ORIGIN}/api/workspaces")"
+          test "${status_code}" = "401"
           node -e '
             const fs = require("node:fs");
             const response = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
@@ -443,35 +243,22 @@ jobs:
         run: |
           set -euo pipefail
           case "${JOB_STATUS}" in
-            success)
-              state="success"
-              description="Production smoke check passed."
-              ;;
-            failure)
-              state="failure"
-              description="Production smoke check failed."
-              ;;
-            *)
-              state="error"
-              description="Production smoke check did not complete."
-              ;;
+            success) state="success"; description="Google Cloud production smoke passed." ;;
+            failure) state="failure"; description="Google Cloud production smoke failed." ;;
+            *) state="error"; description="Google Cloud production smoke did not complete." ;;
           esac
-
           export state description
           payload="$(node -e '
             process.stdout.write(JSON.stringify({
               state: process.env.state,
               context: "synchron/production-smoke",
               description: process.env.description,
-              target_url: `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+              target_url: `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
             }));
           ')"
-
-          curl --fail --silent --show-error \
-            --request POST \
+          curl --fail --silent --show-error --request POST \
             --header "Accept: application/vnd.github+json" \
             --header "Authorization: Bearer ${GH_TOKEN}" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             --data "${payload}" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"
-

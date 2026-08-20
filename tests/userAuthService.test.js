@@ -21,6 +21,7 @@ import {
 } from "../src/config/testerAuthBootstrap.js";
 
 const ENV = {
+  AUTH_BACKEND: "supabase",
   SUPABASE_URL: "https://project.supabase.co",
   SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
   SUPABASE_SESSION_ENCRYPTION_KEY:
@@ -76,6 +77,7 @@ test("auth resolves the Supabase URL and key as one atomic connection", () => {
     });
     assert.equal(
       getUserAuthConfigurationStatus({
+        AUTH_BACKEND: "supabase",
         ...partialRuntime,
         SUPABASE_SESSION_ENCRYPTION_KEY:
           ENV.SUPABASE_SESSION_ENCRYPTION_KEY,
@@ -89,6 +91,7 @@ test("auth resolves the Supabase URL and key as one atomic connection", () => {
 
 test("requires dedicated Supabase session protection", () => {
   const fallbackEnv = {
+    AUTH_BACKEND: "supabase",
     SUPABASE_URL: ENV.SUPABASE_URL,
     SUPABASE_PUBLISHABLE_KEY: ENV.SUPABASE_PUBLISHABLE_KEY,
     GITHUB_SESSION_ENCRYPTION_KEY: "github-only-key-with-enough-entropy",

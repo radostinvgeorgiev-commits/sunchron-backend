@@ -22,11 +22,11 @@ test("connection and permission controls lead to real setup actions", async () =
   assert.match(app, /data-disconnect-service/u);
   assert.match(app, /\/api\/google\/disconnect/u);
   assert.match(app, /\/api\/github\/disconnect/u);
-  assert.match(app, /GitHub Read работи/u);
-  assert.match(app, /GitHub Write е изключен в текущия режим без Copilot/u);
+  assert.match(app, /GitHub Read проверява/u);
+  assert.match(app, /AI CORE Code Write подготвя отделен branch/u);
   assert.match(
     app,
-    /Не са нужни нов GitHub App, App ID, Installation ID, private key, token или production secret/u,
+    /Не поставяй token или private key в чата/u,
   );
   assert.doesNotMatch(app, /GITHUB_CLIENT_ID/u);
   assert.doesNotMatch(app, /GITHUB_CLIENT_SECRET/u);

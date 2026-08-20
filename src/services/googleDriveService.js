@@ -393,7 +393,7 @@ async function driveFetch(id, path, options = {}, fetchImpl = fetch) {
 function googleConnectLink(label = "Свържи Google") {
   const url =
     process.env.GOOGLE_CONNECT_URL ||
-    "https://synchron.foundation/api/google/connect";
+    "https://cloudaicore.com/api/google/connect";
   return `[${label}](${url})`;
 }
 

@@ -15,7 +15,7 @@ test("renders a real login gate before the private application", () => {
   assert.match(html, /Един AI център за разговори, памет и реална работа/u);
   assert.match(html, /Ти контролираш паметта/u);
   assert.match(html, /AI предлага, ти одобряваш/u);
-  assert.match(html, /rel="canonical" href="https:\/\/synchron\.foundation\/"/u);
+  assert.match(html, /rel="canonical" href="https:\/\/cloudaicore\.com\/"/u);
   assert.match(html, /property="og:title"/u);
   assert.match(
     html,

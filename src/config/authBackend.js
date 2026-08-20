@@ -1,7 +1,16 @@
-const AUTH_BACKENDS = new Set(["supabase", "identity-platform"]);
+const AUTH_BACKENDS = new Set(["identity-platform", "supabase"]);
 
 export function resolveAuthBackend(env = process.env) {
-  const requested = String(env.AUTH_BACKEND || "supabase")
+  const fallback = String(
+    env.IDENTITY_PLATFORM_PROJECT_ID ||
+      env.GOOGLE_CLOUD_PROJECT ||
+      env.GCLOUD_PROJECT ||
+      env.GCP_PROJECT_ID ||
+      "",
+  ).trim()
+    ? "identity-platform"
+    : "supabase";
+  const requested = String(env.AUTH_BACKEND || fallback)
     .trim()
     .toLowerCase();
   return AUTH_BACKENDS.has(requested) ? requested : null;

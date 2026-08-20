@@ -32,6 +32,7 @@ function stagingConfiguration() {
     secrets: Object.fromEntries(
       [
         "OPENAI_API_KEY",
+        "GEMINI_API_KEY",
         "GROK_API_KEY",
         "IDENTITY_PLATFORM_API_KEY",
         "USER_SESSION_ENCRYPTION_KEY",
@@ -54,6 +55,7 @@ function stagingConfiguration() {
 function cloudRunDescription() {
   const aliases = {
     OPENAI_API_KEY: "openai-api-key",
+    GEMINI_API_KEY: "gemini-api-key",
     GROK_API_KEY: "grok-api-key",
     IDENTITY_PLATFORM_API_KEY: "identity-platform-api-key",
     USER_SESSION_ENCRYPTION_KEY: "user-session-key",
@@ -65,6 +67,7 @@ function cloudRunDescription() {
   };
   const secretEnv = [
     "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
     "GROK_API_KEY",
     "IDENTITY_PLATFORM_API_KEY",
     "USER_SESSION_ENCRYPTION_KEY",
@@ -129,6 +132,11 @@ test("Cloud Run staging renderer pins image, secrets, scaling and service identi
     rendered,
     /openai-api-key:projects\/975434100844\/secrets\/synchron-openai-api-key/u,
   );
+  assert.match(
+    rendered,
+    /gemini-api-key:projects\/975434100844\/secrets\/synchron-gemini-api-key/u,
+  );
+  assert.match(rendered, /name: GEMINI_API_KEY\s+valueFrom:/u);
   assert.match(
     rendered,
     /grok-api-key:projects\/975434100844\/secrets\/synchron-grok-api-key/u,

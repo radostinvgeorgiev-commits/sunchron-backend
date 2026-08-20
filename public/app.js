@@ -719,9 +719,6 @@ function isGoogleTool(tool) {
 }
 
 function toolState(tool, googleConnected, githubConnected) {
-  if (tool.availabilityCode === "COPILOT_AUTOMATION_DISABLED") {
-    return { label: "Изключено · режим без Copilot", className: "confirm" };
-  }
   if (!tool.enabled || !tool.executable) {
     return { label: "Не е свързан", className: "deny" };
   }
@@ -742,9 +739,7 @@ function toolState(tool, googleConnected, githubConnected) {
 
 function toolStatusActions(tool, status, googleConnected, githubConnected) {
   let action = "";
-  if (tool.availabilityCode === "COPILOT_AUTOMATION_DISABLED") {
-    action = "";
-  } else if (isGoogleTool(tool) && !googleConnected && tool.configured) {
+  if (isGoogleTool(tool) && !googleConnected && tool.configured) {
     action =
       '<button type="button" class="tool-connect-btn" data-connect-service="google">Свържи Google</button>';
   } else if (
@@ -787,12 +782,6 @@ function permissionAction(item, toolMap, googleConnected, githubConnected) {
 
   const githubWrite =
     toolMap.get("github-confirmed-write") || toolMap.get("github-write");
-  if (
-    item.action === "github.write" &&
-    githubWrite?.availabilityCode === "COPILOT_AUTOMATION_DISABLED"
-  ) {
-    return "";
-  }
   if (
     item.action === "github.write" &&
     githubWrite?.configured &&
@@ -904,7 +893,7 @@ async function openToolsDrawer() {
     const descriptions = {
       "github-read": "Проверява commit-и и файлове. Само за четене.",
       "github-write":
-        "Copilot мост: отделен клон, commit-и и Pull Request след точно потвърждение. Без автоматично сливане.",
+        "AI CORE генерира ограничена кодова промяна и след точно потвърждение създава отделен branch, атомарен commit и Pull Request.",
       "github-confirmed-write":
         "Създава отделен branch, файл, commit или Pull Request само след точно потвърждение. Merge, secrets и production deployment са забранени.",
       "google-drive-read": "Чете разрешени файлове от Google Drive.",
@@ -920,7 +909,9 @@ async function openToolsDrawer() {
       "openai-web-search": "Търси актуална информация в интернет.",
       "opensearch-memory": "Пази лична и проектна памет под твой контрол.",
       "synchron-system-inspector":
-        "Проверява ядрото и всички runtime/DigitalOcean настройки без техните стойности.",
+        "Проверява ядрото и Google Cloud runtime настройките без техните стойности.",
+      "google-cloud-read":
+        "Проверява текущия Cloud Run runtime, Firestore режима и активната revision без стойности на secrets.",
     };
     elements.dataDrawerBody.innerHTML = `
       <div class="permission-default">
@@ -951,10 +942,7 @@ async function openToolsDrawer() {
               Boolean(githubData.connected),
             );
             const description =
-              tool.id === "github-write" &&
-              tool.availabilityCode === "COPILOT_AUTOMATION_DISABLED"
-                ? "Кодовият мост е запазен, но е изключен в текущия режим без Copilot."
-                : descriptions[tool.id] || "Инструмент на AI CORE.";
+              descriptions[tool.id] || "Инструмент на AI CORE.";
             return `
               <article class="permission-card tool-status-card">
                 <div>
@@ -1006,7 +994,7 @@ function renderEnvironmentGroup(area, items) {
                   <p>${escapeHtml(item.purpose)}</p>
                   <small>
                     ${item.sensitivity === "secret" ? "Тайна стойност · никога не се показва" : "Обща настройка"}
-                    · DigitalOcean: ${item.digitalOceanDeclared ? "декларирана" : "не е декларирана"}
+                    · Източник: ${escapeHtml(item.source || "не е наличен")}
                   </small>
                 </div>
                 <span class="permission-badge ${status.className}">${status.label}</span>
@@ -1050,7 +1038,7 @@ async function openSystemConfigurationDrawer() {
         <p>${workingTools} от ${tools.length} инструмента са конфигурирани и изпълними.</p>
         <p>${configuration.summary.configured} настройки са налични; ${configuration.summary.protectedFallback || 0} използват защитен заместител; ${configuration.summary.missingRequired} задължителни липсват.</p>
         <p>Production: ${configuration.production?.status === "ready" ? `готово · commit ${escapeHtml(configuration.production.commit)}` : "не е потвърдено"}.</p>
-        <p>DigitalOcean самопроверка (API): ${configuration.digitalOcean.connected ? "работи" : "не е достъпна"}.</p>
+        <p>Google Cloud runtime: ${configuration.googleCloud?.cloudRunDetected ? "Cloud Run е потвърден" : configuration.googleCloud?.configured ? "проектът е конфигуриран" : "не е достъпен"}.</p>
         <small>Тук няма стойности на ключове, пароли или token-и.</small>
       </div>
       <section class="drawer-section">
@@ -1270,7 +1258,7 @@ function showGitHubSetup() {
   elements.dataDrawerBody.innerHTML = `
     <section class="setup-guide">
       <div class="permission-default">
-        GitHub Read работи. GitHub Write е изключен в текущия режим без Copilot.
+        GitHub Read проверява хранилището. AI CORE Code Write подготвя отделен branch, commit и Pull Request след точно потвърждение.
       </div>
       <article class="setup-step">
         <span><i class="fa-solid fa-check"></i></span>
@@ -1282,12 +1270,12 @@ function showGitHubSetup() {
       <article class="setup-step">
         <span><i class="fa-solid fa-lock"></i></span>
         <div>
-          <strong>Писането е изключено</strong>
-          <p>От този екран не се създават branch, commit или Pull Request.</p>
+          <strong>Писането е защитено</strong>
+          <p>Първо виждаш точните файлове. Едва след потвърждение AI CORE създава отделен branch, commit и Pull Request към main.</p>
         </div>
       </article>
       <div class="setup-note">
-        Не са нужни нов GitHub App, App ID, Installation ID, private key, token или production secret.
+        Използва се свързаният GitHub OAuth профил. Не поставяй token или private key в чата.
       </div>
       <button type="button" class="permission-info-btn" data-back-tools>Назад към инструментите</button>
     </section>`;

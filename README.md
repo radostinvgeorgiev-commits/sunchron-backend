@@ -1,77 +1,52 @@
-# AI CORE
+# SYNCHRON-X AI CORE
 
-AI CORE е лична AI операционна система, която познава човека, има
-постоянна контролирана памет и използва разрешени инструменти за изпълнение
-на реални задачи. За всяка задача тя може да избира най-подходящия AI модел,
-вместо да зависи от един-единствен AI.
+Лична AI операционна система, достъпна на
+[cloudaicore.com](https://cloudaicore.com). AI CORE разговаря, пази изолирана
+памет и изпълнява само разрешени инструменти.
 
-AI аватарът е интерфейсът на системата — лицето, гласът, характерът и начинът
-на общуване. Той не е цялата система.
+## Архитектура
 
-AI CORE обединява:
+- Node.js 22 + Express;
+- Google Cloud Run production runtime;
+- Firestore за памет, задачи, workspace, OAuth сесии, потвърждения и audit;
+- Google Identity Platform за вход и тестови профили;
+- OpenAI Responses API за основния разговор и coding ролята;
+- Gemini и Grok за независими предложения в multi-engine задачи;
+- GitHub OAuth за read и защитени branch/commit/PR операции;
+- Google OAuth за Drive, Gmail и Calendar;
+- OAuth-защитен MCP адрес: `https://cloudaicore.com/mcp`.
 
-- стабилен AI разговор;
-- контролиран личен и проектен контекст;
-- постоянна памет чрез избираем server-side adapter; production още е
-  OpenSearch, а Google staging кандидатът е Firestore;
-- AI аватар като слой за общуване;
-- разрешени инструменти за реални задачи;
-- потвърждение преди рискови действия.
+Task Orchestrator разделя заявката на стъпки, избира capability и изпълнява
+реалния адаптер. При кодова задача трите AI двигателя първо предлагат решения.
+OpenAI coding моделът синтезира ограничен набор от цели файлове, а записът
+започва само след точно еднократно потвърждение. `main` никога не се променя
+директно от задачата.
 
-## Основен поток
+## Локално стартиране
 
-`Сайт → AI CORE server → избран AI provider → отговор`
+```bash
+npm ci
+cp .env.example .env
+npm start
+```
 
-OpenAI Responses API е доставчикът по подразбиране. Gemini и Grok от xAI могат
-да се изберат чрез `AI_CORE_PROVIDER` и собствените им secrets. Паметта и
-разрешените инструменти се добавят към този поток през сървърните адаптери.
-DigitalOcean App Platform хоства приложението, но не е разговорен AI доставчик.
-
-Инструментите се избират през `Capability Engine` и `Tool Registry`. Регистрация
-без изпълним адаптер и конфигурация не се счита за работеща интеграция.
-
-## Конфигурация
-
-Имената на нужните променливи са в `.env.example`. Реалните ключове се пазят
-само в управляваните secret хранилища на активната среда — DigitalOcean за
-текущия production и Secret Manager за Google staging — и не се записват в
-GitHub.
-
-Безопасният статус на връзките е достъпен на:
-
-`GET /health/integrations`
-
-Той показва само дали конфигурацията е налична, без стойности на ключове.
+Попълни тайните само в локалния `.env` или Google Secret Manager. Не ги
+commit-вай и не ги изпращай в чат.
 
 ## Проверка
 
 ```bash
-npm ci
 npm test
 ```
 
-Всеки push и pull request към `main` стартира автоматичните проверки.
+Production acceptance изисква exact-SHA `/health`, зелено `/health/ready`,
+Firestore + Identity Platform проверки, актуален MCP каталог и успешен
+`synchron/production-smoke`.
 
-За проверка на точния production commit, readiness, MCP, memory acceptance и
-безопасен incident/rollback ред използвай
-[`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md). Не приемай стара
-тестова бройка или commit от исторически audit за текущо състояние.
+Виж:
 
-Актуалното разделение между потвърдено, release candidate и още неприето е в
-[`docs/CURRENT_PRODUCT_ACCEPTANCE.md`](docs/CURRENT_PRODUCT_ACCEPTANCE.md).
-Този документ е текущият roadmap; старите технически одити са само архив.
-
-Приетата по-дългосрочна продуктова посока, UX изискванията и безопасният ред за
-оценка на външни инструменти са в
-[`docs/PRODUCT_DIRECTION.md`](docs/PRODUCT_DIRECTION.md). Кандидат в този
-документ не означава внедрена или работеща production интеграция.
-
-Google Cloud migration се изпълнява поетапно, без да променя текущия production
-канал преди отделен cutover. Firestore има server-side adapter кандидати за
-памет, operational state, workspaces, tasks, криптирани GitHub/Google OAuth
-сесии и MCP grants/replay, а Identity Platform — за профили; това още не е
-data/user/session migration. Каталогът, Cloud Run health contract-ът и migration gates са в
-[`docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md`](docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md).
-Staging manifest се render-ва само от immutable image digest и фиксирани Secret
-Manager версии чрез `npm run gcp:render:staging`; след deploy read-only
-acceptance се изпълнява с `npm run gcp:verify:staging`.
+- `docs/OPERATIONS_RUNBOOK.md`
+- `docs/CURRENT_PRODUCT_ACCEPTANCE.md`
+- `docs/OWNER_ACCEPTANCE_RUNBOOK.md`
+- `docs/PRODUCT_DIRECTION.md`
+- `docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md`

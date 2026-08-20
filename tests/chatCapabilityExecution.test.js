@@ -14,12 +14,8 @@ import {
 } from "../src/routes/chat.js";
 import { filterCapabilityRequestsForIdentity } from "../src/services/memberCapabilityPolicy.js";
 import { extractMemoryWriteConfirmationId } from "../src/services/memoryWriteConfirmationService.js";
-import { DigitalOceanError } from "../src/services/digitalOceanService.js";
-import { CloudflareError } from "../src/services/cloudflareService.js";
-import {
-  CapabilityError,
-  isDigitalOceanBackupInventoryRequest,
-} from "../src/tools/capabilityEngine.js";
+import { CodeTaskError } from "../src/services/codeTaskService.js";
+import { CapabilityError } from "../src/tools/capabilityEngine.js";
 
 test("memory confirmation keeps the overall task waiting", () => {
   const task = {
@@ -198,7 +194,7 @@ test("общ въпрос за инструментите задейства р�
 test("проверка на сървърните променливи използва защитения системен контрол", () => {
   for (const message of [
     "Провери всички променливи на сървъра.",
-    "Покажи конфигурацията на ядрото и DigitalOcean.",
+    "Покажи конфигурацията на ядрото и Google Cloud.",
     "Виж environment настройките на системата.",
   ]) {
     assert.deepEqual(
@@ -208,7 +204,7 @@ test("проверка на сървърните променливи изпол
   }
 });
 
-test("въпрос дали GitHub може да пише минава през реалния статус на Copilot моста", () => {
+test("въпрос дали GitHub може да пише минава през реалния статус на AI CORE Code Write", () => {
   for (const message of [
     "Демек вече може да пише в хъба и да комитва?",
     "Работи ли GitHub Write мостът за branch, commit и Pull Request?",
@@ -221,10 +217,10 @@ test("въпрос дали GitHub може да пише минава през 
   }
 });
 
-test("конкретна Copilot задача се проследява през отделна read-only способност", () => {
+test("конкретна GitHub задача се проследява през отделна read-only способност", () => {
   for (const message of [
     "Провери статуса на GitHub задача #83.",
-    "Докъде е Copilot issue 83?",
+    "Докъде е GitHub issue 83?",
     "Какво става с PR #146?",
   ]) {
     assert.deepEqual(
@@ -266,60 +262,31 @@ test("разпознава изрична проверка на Supabase", () =>
   );
 });
 
-test("recognizes common Bulgarian DigitalOcean spellings as real tool requests", () => {
+test("recognizes Google Cloud runtime requests", () => {
   for (const message of [
-    "Направи реален одит на Дигитал Океан.",
-    "Провери целия Дижитал Океан акаунт.",
-    "Направи одит на Дижитал Окан.",
-    "Покажи ресурсите в Digital Ocean.",
+    "Провери Google Cloud runtime.",
+    "Покажи статуса на Cloud Run deployment.",
   ]) {
     assert.deepEqual(
       detectCapabilityRequests(message).map(({ capability }) => capability),
-      ["infrastructure.digitalocean.read"],
+      ["infrastructure.googlecloud.read"],
     );
   }
 });
 
-test("routes the exact OpenSearch backup request to the focused read-only audit", () => {
-  const message =
-    "Направи само read-only проверка на DigitalOcean и покажи OpenSearch backup инвентара: брой restore точки, най-стара и най-нова дата. Не създавай restore или fork и не променяй данни.";
-  assert.deepEqual(
-    detectCapabilityRequests(message).map(({ capability }) => capability),
-    ["infrastructure.digitalocean.read"],
-  );
-  assert.equal(isDigitalOceanBackupInventoryRequest(message), true);
-});
-
-test("DigitalOcean failures keep a safe actionable reason in chat", () => {
+test("AI CORE code task failures keep a safe actionable reason in chat", () => {
   const replies = buildCapabilityReplies([
     {
       status: "rejected",
-      request: { capability: "infrastructure.digitalocean.read" },
-      error: new DigitalOceanError(
-        "upstream payload must stay hidden",
-        403,
-        "DIGITALOCEAN_FORBIDDEN",
+      request: { capability: "code.write" },
+      error: new CodeTaskError(
+        "Трите AI двигателя не са свързани.",
+        503,
+        "CODE_TASK_COUNCIL_NOT_CONFIGURED",
       ),
     },
   ]);
-  assert.match(replies[0], /няма право да прочете тези данни/u);
-  assert.doesNotMatch(replies[0], /upstream payload/u);
-});
-
-test("Cloudflare failures keep the safe service reason in chat", () => {
-  const replies = buildCapabilityReplies([
-    {
-      status: "rejected",
-      request: { capability: "infrastructure.cloudflare.read" },
-      error: new CloudflareError(
-        "Cloudflare token няма право да прочете зоната.",
-        403,
-        "CLOUDFLARE_FORBIDDEN",
-      ),
-    },
-  ]);
-
-  assert.match(replies[0], /няма право да прочете зоната/u);
+  assert.match(replies[0], /Трите AI двигателя не са свързани/u);
 });
 
 test("verified tool results bypass AI rewriting", () => {
@@ -337,8 +304,8 @@ test("verified tool results bypass AI rewriting", () => {
     shouldReplyWithVerifiedToolOutput([
       {
         status: "fulfilled",
-        request: { capability: "infrastructure.digitalocean.read" },
-        result: { output: "Проверен DigitalOcean доклад." },
+        request: { capability: "infrastructure.googlecloud.read" },
+        result: { output: "Проверен Google Cloud доклад." },
       },
     ]),
     true,
@@ -363,7 +330,7 @@ test("verified tool results bypass AI rewriting", () => {
       status: "rejected",
       request: { capability: "code.write" },
       error: new CapabilityError(
-        "GitHub Write е изключен — режим без Copilot.",
+        "AI CORE Code Write изисква активни OpenAI, Gemini и Grok връзки.",
         "CAPABILITY_UNAVAILABLE",
       ),
     },
@@ -383,8 +350,7 @@ test("verified tool results bypass AI rewriting", () => {
   const githubStatusReply =
     buildCapabilityReplies(githubStatusResults).join("\n");
   assert.match(githubStatusReply, /GitHub Read работи/u);
-  assert.match(githubStatusReply, /GitHub Write е изключен/u);
-  assert.match(githubStatusReply, /режим без Copilot/u);
+  assert.match(githubStatusReply, /AI CORE Code Write изисква/u);
   assert.doesNotMatch(
     githubStatusReply,
     /App ID|Installation ID|private key|installation token/u,
@@ -695,6 +661,16 @@ test("a GitHub implementation task creates one read check and one honest write a
   assert.equal(
     requests.filter(({ capability }) => capability === "code.read").length,
     1,
+  );
+  assert.equal(
+    requests.filter(({ capability }) => capability === "code.write").length,
+    1,
+  );
+});
+
+test("an avatar interface improvement routes directly to the code executor", () => {
+  const requests = detectCapabilityRequests(
+    "Подобри интерфейса за избор на аватар и добави тест.",
   );
   assert.equal(
     requests.filter(({ capability }) => capability === "code.write").length,

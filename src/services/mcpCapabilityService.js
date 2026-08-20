@@ -621,7 +621,7 @@ async function requireGoogleSession(resolveLatestGoogleSession) {
   const id = await resolveLatestGoogleSession();
   if (!id) {
     throw new GoogleDriveError(
-      "Google не е свързан. Отвори https://synchron.foundation/api/google/connect.",
+      "Google не е свързан. Отвори https://cloudaicore.com/api/google/connect.",
       401,
       "NOT_CONNECTED",
     );

@@ -16,10 +16,9 @@ test("keeps liveness and sign-in routes public", async () => {
   await request(app).get("/health").expect(200);
   const publicEntry = await request(app)
     .get("/")
-    .set("Host", "www.synchron.foundation")
-    .expect(302);
-  assert.equal(publicEntry.headers.location, "https://synchron.foundation/");
-  await request(app).get("/").set("Host", "synchron.foundation").expect(200);
+    .set("Host", "cloudaicore.com")
+    .expect(200);
+  assert.match(publicEntry.text, /AI CORE/u);
   const registration = await request(app).get("/register").expect(200);
   assert.match(registration.text, /id="registerForm"/u);
   const config = await request(app).get("/api/public-config").expect(200);
@@ -35,7 +34,6 @@ test("blocks personal data and paid AI routes without owner sign-in", async () =
     ["get", "/memory/conversations"],
     ["get", "/calendar/events"],
     ["get", "/api/tester-auth/status"],
-    ["get", "/api/digitalocean-domain/status"],
     ["get", "/api/system/configuration"],
     ["get", "/api/workspaces"],
     ["put", "/api/workspaces"],

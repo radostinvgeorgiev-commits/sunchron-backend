@@ -12,7 +12,7 @@ test("owner interface exposes a protected system configuration panel", () => {
   assert.match(index, /id="systemConfigurationBtn"/u);
   assert.match(app, /\/api\/system\/configuration/u);
   assert.match(app, /Тайна стойност · никога не се показва/u);
-  assert.match(app, /DigitalOcean самопроверка/u);
+  assert.match(app, /Google Cloud runtime/u);
   assert.match(app, /Защитен заместител/u);
   assert.match(app, /configuration\.production/u);
   assert.match(styles, /\.configuration-group/u);

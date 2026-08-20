@@ -209,7 +209,7 @@ export function deriveMemoryMetadata(fact, requestedScope = "personal") {
       return { memoryKey: "project:goal:current", category: "goal", scope };
     }
     if (
-      /(?:инфраструктура|digitalocean|github|opensearch|cloudflare)/u.test(
+      /(?:инфраструктура|google\s*cloud|cloud\s*run|github|firestore)/u.test(
         normalized,
       )
     ) {

@@ -337,3 +337,123 @@ export async function closeIssue({ repository, issueNumber, accessToken }) {
     unchanged: false,
   };
 }
+
+export async function createCodeTaskPullRequest({
+  repository,
+  branchName,
+  base = "main",
+  changes,
+  commitMessage,
+  title,
+  body = "",
+  accessToken,
+}) {
+  const repo = repository ?? configuredRepository();
+  assertAllowedRepository(repo);
+  const branch = assertWritableBranch(branchName);
+  if (base !== "main") {
+    throw new GitHubServiceError(
+      "Кодовата задача може да започне само от защитения main.",
+      403,
+      "PROTECTED_BRANCH",
+    );
+  }
+  if (!Array.isArray(changes) || changes.length < 1 || changes.length > 4) {
+    throw new GitHubServiceError(
+      "Кодовата задача трябва да съдържа между 1 и 4 файла.",
+      400,
+      "INVALID_CODE_TASK_CHANGES",
+    );
+  }
+  const tree = changes.map((change) => {
+    assertValidPath(change?.path);
+    if (
+      typeof change?.content !== "string" ||
+      change.content.length > 100_000
+    ) {
+      throw new GitHubServiceError(
+        "Невалидно съдържание в кодовата задача.",
+        400,
+        "INVALID_CODE_TASK_CONTENT",
+      );
+    }
+    return {
+      path: change.path,
+      mode: "100644",
+      type: "blob",
+      content: change.content,
+    };
+  });
+
+  const baseRef = await githubWriteRequest(
+    `/repos/${repo}/git/ref/heads/${encodeURIComponent(base)}`,
+    {},
+    accessToken,
+  );
+  const baseSha = baseRef.object?.sha;
+  if (!baseSha) {
+    throw new GitHubServiceError(
+      "GitHub не върна SHA на main.",
+      502,
+      "GITHUB_BASE_SHA_MISSING",
+    );
+  }
+  const baseCommit = await githubWriteRequest(
+    `/repos/${repo}/git/commits/${encodeURIComponent(baseSha)}`,
+    {},
+    accessToken,
+  );
+  const baseTreeSha = baseCommit.tree?.sha;
+  if (!baseTreeSha) {
+    throw new GitHubServiceError(
+      "GitHub не върна дървото на main.",
+      502,
+      "GITHUB_BASE_TREE_MISSING",
+    );
+  }
+  const createdTree = await githubWriteRequest(
+    `/repos/${repo}/git/trees`,
+    {
+      method: "POST",
+      body: JSON.stringify({ base_tree: baseTreeSha, tree }),
+    },
+    accessToken,
+  );
+  const commit = await githubWriteRequest(
+    `/repos/${repo}/git/commits`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        message: commitMessage || "AI CORE code task",
+        tree: createdTree.sha,
+        parents: [baseSha],
+      }),
+    },
+    accessToken,
+  );
+  await githubWriteRequest(
+    `/repos/${repo}/git/refs`,
+    {
+      method: "POST",
+      body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: commit.sha }),
+    },
+    accessToken,
+  );
+  const pullRequest = await createPullRequest({
+    repository: repo,
+    title,
+    body,
+    head: branch,
+    base,
+    accessToken,
+  });
+  return Object.freeze({
+    repository: repo,
+    branch,
+    base,
+    commitSha: commit.sha,
+    pullRequestNumber: pullRequest.number,
+    url: pullRequest.html_url,
+    changedFiles: Object.freeze(tree.map(({ path }) => path)),
+  });
+}

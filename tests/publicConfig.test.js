@@ -10,13 +10,11 @@ test("public client config uses safe HTTPS values", () => {
   assert.deepEqual(
     getPublicClientConfig({
       CHATGPT_WORK_URL: "https://chatgpt.com/g/g-example",
-      DIGITALOCEAN_DASHBOARD_URL: "https://cloud.digitalocean.com/apps",
-      CLOUDFLARE_DASHBOARD_URL: "https://dash.cloudflare.com/",
+      GOOGLE_CLOUD_CONSOLE_URL: "https://console.cloud.google.com/run?project=example",
     }),
     {
       chatgptWorkUrl: "https://chatgpt.com/g/g-example",
-      digitalOceanUrl: "https://cloud.digitalocean.com/apps",
-      cloudflareUrl: "https://dash.cloudflare.com/",
+      googleCloudConsoleUrl: "https://console.cloud.google.com/run?project=example",
     },
   );
 });
@@ -25,13 +23,11 @@ test("public client config falls back without exposing unsafe URLs", () => {
   assert.deepEqual(
     getPublicClientConfig({
       CHATGPT_WORK_URL: "javascript:alert(1)",
-      DIGITALOCEAN_DASHBOARD_URL: "http://insecure.example",
-      CLOUDFLARE_DASHBOARD_URL: "not a url",
+      GOOGLE_CLOUD_CONSOLE_URL: "http://insecure.example",
     }),
     {
       chatgptWorkUrl: "https://chatgpt.com/",
-      digitalOceanUrl: "https://cloud.digitalocean.com/",
-      cloudflareUrl: "https://dash.cloudflare.com/",
+      googleCloudConsoleUrl: "https://console.cloud.google.com/run",
     },
   );
   assert.equal(

@@ -23,7 +23,6 @@ import webSearchRouter from "./src/routes/webSearchRouter.js";
 import publicConfigRouter from "./src/routes/publicConfigRouter.js";
 import userAuthRouter from "./src/routes/userAuthRouter.js";
 import testerAuthAdminRouter from "./src/routes/testerAuthAdminRouter.js";
-import digitalOceanDomainAdminRouter from "./src/routes/digitalOceanDomainAdminRouter.js";
 import systemRouter from "./src/routes/systemRouter.js";
 import workspacesRouter from "./src/routes/workspacesRouter.js";
 import tasksRouter from "./src/routes/tasksRouter.js";
@@ -55,10 +54,10 @@ app.use((_req, res, next) => {
       "frame-ancestors 'none'",
       "object-src 'none'",
       "script-src 'self' https://cdn.jsdelivr.net",
-      "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
+      "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
       "img-src 'self' data: https:",
       "connect-src 'self'",
-      "font-src 'self' data: https://cdnjs.cloudflare.com",
+      "font-src 'self' data: https://cdn.jsdelivr.net",
       "media-src 'self'",
       "worker-src 'self'",
       "manifest-src 'self'",
@@ -114,15 +113,6 @@ app.get(
 );
 app.use("/", mcpOAuthRouter);
 
-app.get("/", (req, res, next) => {
-  if (req.hostname.toLowerCase() !== "www.synchron.foundation") {
-    next();
-    return;
-  }
-
-  res.redirect(302, "https://synchron.foundation/");
-});
-
 app.use(
   express.static("public", {
     maxAge: 0,
@@ -155,13 +145,6 @@ app.use(
   requirePrimaryOwner,
   privateApiRateLimiter,
   testerAuthAdminRouter,
-);
-app.use(
-  "/api/digitalocean-domain",
-  requireOwnerSession,
-  requirePrimaryOwner,
-  privateApiRateLimiter,
-  digitalOceanDomainAdminRouter,
 );
 app.use(
   "/api/system",

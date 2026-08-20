@@ -17,7 +17,7 @@ function createWorkModeDom(script, fetchImpl) {
       <nav id="sidebar"></nav><div id="sidebarBackdrop" hidden></div>
       <nav class="mobile-command-bar"><button data-command="chat"></button><button data-command="work"></button></nav>
     </body>`,
-    { runScripts: "dangerously", url: "https://synchron.foundation/" },
+    { runScripts: "dangerously", url: "https://cloudaicore.com/" },
   );
   if (fetchImpl) dom.window.fetch = fetchImpl;
   dom.window.eval(script);
@@ -125,7 +125,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
       <nav id="sidebar"></nav><div id="sidebarBackdrop" hidden></div>
       <nav class="mobile-command-bar"><button data-command="chat"></button><button data-command="work"></button></nav>
     </body>`,
-    { runScripts: "dangerously", url: "https://synchron.foundation/" },
+    { runScripts: "dangerously", url: "https://cloudaicore.com/" },
   );
 
   dom.window.eval(script);

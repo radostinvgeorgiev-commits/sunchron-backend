@@ -50,6 +50,7 @@ test("Cloud Run template uses liveness without dependency-heavy readiness", asyn
     /name: IDENTITY_PLATFORM_REQUIRE_EMAIL_VERIFICATION\s+value: "true"/u,
   );
   assert.match(template, /__IDENTITY_PLATFORM_API_KEY_SECRET__/u);
+  assert.match(template, /__GEMINI_API_KEY_SECRET__/u);
   assert.match(template, /__GROK_API_KEY_SECRET__/u);
   assert.match(template, /name: GROK_MODEL\s+value: grok-4\.5/u);
   assert.match(
@@ -59,7 +60,7 @@ test("Cloud Run template uses liveness without dependency-heavy readiness", asyn
   assert.match(template, /__USER_SESSION_ENCRYPTION_KEY_SECRET__/u);
   assert.match(template, /run\.googleapis\.com\/secrets:/u);
   assert.match(template, /run\.googleapis\.com\/ingress: all/u);
-  assert.match(template, /synchron-migration-stage: foundation-only/u);
+  assert.match(template, /synchron-runtime-stage: production/u);
   assert.doesNotMatch(template, /app\.kubernetes\.io|synchron\.foundation\//u);
   assert.match(template, /autoscaling\.knative\.dev\/minScale: "0"/u);
   assert.match(template, /autoscaling\.knative\.dev\/maxScale: "2"/u);
@@ -69,7 +70,7 @@ test("Cloud Run template uses liveness without dependency-heavy readiness", asyn
   assert.doesNotMatch(template, /readinessProbe:/u);
   assert.match(template, /name: SYNCHRON_TEST_INVITE_CODE/u);
   assert.doesNotMatch(template, /name: TESTER_INVITE_CODE/u);
-  assert.equal((template.match(/secretKeyRef:/gu) || []).length, 9);
+  assert.equal((template.match(/secretKeyRef:/gu) || []).length, 10);
   assert.doesNotMatch(template, /gcloud\s+(run|secrets)/iu);
 });
 
@@ -80,16 +81,14 @@ test("Google Cloud catalog preserves data, secret and deployment boundaries", as
   ]);
 
   for (const marker of [
-    "OpenSearch остава authoritative",
-    "Supabase остава authoritative",
+    "Cloud Run",
     "Firestore",
     "Identity Platform",
-    "Vertex AI",
     "Secret Manager",
     "DNS",
     "production import",
     "Cloud Run health contract",
-    "Migration gates",
+    "Deployment gates",
   ]) {
     assert.match(catalog, new RegExp(marker, "u"));
   }
@@ -97,8 +96,8 @@ test("Google Cloud catalog preserves data, secret and deployment boundaries", as
   assert.match(catalog, /Firestore runtime\s+adapter-ът/u);
   assert.match(catalog, /PERSISTENCE_BACKEND/u);
   assert.match(catalog, /owner isolation/u);
-  assert.match(catalog, /Няма миграция на\s+Supabase users/u);
-  assert.match(catalog, /няма\s+secret\s+стойност/u);
+  assert.match(catalog, /няма директен production import/iu);
+  assert.match(catalog, /без\s+secret\s+стойност/u);
   const indexConfiguration = JSON.parse(firestoreIndexes);
   assert.ok(
     indexConfiguration.indexes.some(

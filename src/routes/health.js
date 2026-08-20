@@ -1,5 +1,4 @@
 import express from "express";
-import { getOpenSearchClient } from "../config/opensearch.js";
 import {
   isMemoryBackendConfigured,
   isPersistenceBackendConfigured,
@@ -22,7 +21,6 @@ import {
   getMcpOAuthRuntimeStatus,
   isMcpOAuthConfigured,
 } from "../services/mcpOAuthService.js";
-import { isCopilotAutomationEnabled } from "../config/featureFlags.js";
 import { isCodexAgentConfigured } from "../services/codexAgentService.js";
 import {
   createSingleFlightCache,
@@ -36,12 +34,11 @@ import {
   isAiCoreConfigured,
 } from "../services/aiCoreService.js";
 import { createFirestoreMemoryStore } from "../services/firestoreMemoryStore.js";
+import { getGoogleCloudRuntimeStatus } from "../services/googleCloudService.js";
 
 const router = express.Router();
 const DEFAULT_READINESS_TIMEOUT_MS = 2_000;
 const DEFAULT_BACKUP_ROUTE_TIMEOUT_MS = 10_000;
-const DEFAULT_OPENSEARCH_BACKUP_MAX_AGE_HOURS = 48;
-const MAX_VERIFIED_BACKUP_CACHE_TTL_MS = 6 * 60 * 60_000;
 const FAILED_BACKUP_CACHE_TTL_MS = 15_000;
 const loadStorageDependencies = createSingleFlightCache(
   inspectStorageDependencies,
@@ -73,31 +70,9 @@ function hasAllEnvironmentVariables(env, ...names) {
 }
 
 export function resolveStorageBackupCacheTtlMs(
-  report,
-  {
-    now = () => Date.now(),
-    maxAgeHours = process.env.OPENSEARCH_BACKUP_MAX_AGE_HOURS,
-  } = {},
+  _report,
 ) {
-  const backup = report?.checks?.opensearch;
-  if (backup?.status !== "verified" || backup?.fresh !== true) {
-    return FAILED_BACKUP_CACHE_TTL_MS;
-  }
-
-  const newestTimestamp = Date.parse(backup.newestCreatedAt);
-  const parsedMaxAgeHours = Number.parseInt(maxAgeHours, 10);
-  const boundedMaxAgeHours =
-    Number.isFinite(parsedMaxAgeHours) && parsedMaxAgeHours > 0
-      ? parsedMaxAgeHours
-      : DEFAULT_OPENSEARCH_BACKUP_MAX_AGE_HOURS;
-  if (!Number.isFinite(newestTimestamp)) return FAILED_BACKUP_CACHE_TTL_MS;
-
-  const remainingFreshnessMs =
-    newestTimestamp + boundedMaxAgeHours * 60 * 60_000 - now();
-  return Math.max(
-    1,
-    Math.min(MAX_VERIFIED_BACKUP_CACHE_TTL_MS, remainingFreshnessMs),
-  );
+  return FAILED_BACKUP_CACHE_TTL_MS;
 }
 
 async function withTimeout(promise, timeoutMs, code = "READINESS_TIMEOUT") {
@@ -115,7 +90,6 @@ async function withTimeout(promise, timeoutMs, code = "READINESS_TIMEOUT") {
 
 export async function getReadinessStatus({
   env = process.env,
-  loadOpenSearchClient = getOpenSearchClient,
   loadFirestoreMemoryStore = createFirestoreMemoryStore,
   loadMemoryVerificationStatus = getMemoryStartupVerificationStatus,
   timeoutMs = DEFAULT_READINESS_TIMEOUT_MS,
@@ -133,19 +107,6 @@ export async function getReadinessStatus({
         ready: response?.status === "green",
         status: response?.status || "unknown",
         backend: "firestore",
-      };
-    } else if (memoryBackend === "opensearch") {
-      const client = loadOpenSearchClient();
-      if (!client) throw new Error("OpenSearch is unavailable");
-      const response = await withTimeout(
-        client.cluster.health({}, { requestTimeout: timeoutMs, maxRetries: 0 }),
-        timeoutMs,
-      );
-      const clusterStatus = response?.body?.status || response?.status;
-      memory = {
-        ready: Boolean(clusterStatus) && clusterStatus !== "red",
-        status: clusterStatus || "unknown",
-        backend: "opensearch",
       };
     } else {
       memory = { ready: false, status: "invalid-backend", backend: null };
@@ -173,7 +134,6 @@ export async function getReadinessStatus({
         status: chatAgentReady ? "configured" : "not-configured",
         primaryProvider: aiProviderStatus.selectedProvider,
         providers: aiProviderStatus.providers,
-        removedProvider: "digitalocean-agent",
       },
       memory,
       memoryAcceptance: {
@@ -223,18 +183,11 @@ function publicBackupStatus(report) {
     status: report.status,
     checkedAt: report.checkedAt,
     checks: {
-      opensearch: {
-        status: report.checks?.opensearch?.status || "unverified",
-        errorCode: report.checks?.opensearch?.errorCode || null,
-        fresh: report.checks?.opensearch?.fresh === true,
-        readOnlyCheck: true,
-        provesRestore: false,
-      },
-      supabase: {
-        status: report.checks?.supabase?.status || "unverified",
+      firestore: {
+        status: report.checks?.firestore?.status || "unverified",
         errorCode:
-          report.checks?.supabase?.errorCode ||
-          "SUPABASE_BACKUP_STATUS_NOT_VISIBLE_TO_RUNTIME",
+          report.checks?.firestore?.errorCode ||
+          "FIRESTORE_BACKUP_STATUS_NOT_VISIBLE_TO_RUNTIME",
         readOnlyCheck: true,
         provesRestore: false,
       },
@@ -285,16 +238,9 @@ function unavailableBackupReport() {
     status: "unavailable",
     checkedAt: new Date().toISOString(),
     checks: {
-      opensearch: {
+      firestore: {
         status: "unverified",
-        errorCode: "STORAGE_BACKUP_REPORT_FAILED",
-        fresh: false,
-        readOnlyCheck: true,
-        provesRestore: false,
-      },
-      supabase: {
-        status: "unverified",
-        errorCode: "SUPABASE_BACKUP_STATUS_NOT_VISIBLE_TO_RUNTIME",
+        errorCode: "FIRESTORE_BACKUP_STATUS_NOT_VISIBLE_TO_RUNTIME",
         readOnlyCheck: true,
         provesRestore: false,
       },
@@ -417,7 +363,7 @@ function resolveToolHealthStatus(tool, configuration = {}) {
 
 export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
   registerCoreTools();
-  const copilotAutomationEnabled = isCopilotAutomationEnabled();
+  const googleCloud = getGoogleCloudRuntimeStatus();
   const configuration = {
     "synchron-agent-chat": {
       configured:
@@ -437,15 +383,17 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
       authenticated: true,
     },
     "github-write": {
-      configured: isGitHubOAuthConfigured(),
+      configured:
+        isGitHubOAuthConfigured() &&
+        Boolean(
+          process.env.OPENAI_API_KEY &&
+            process.env.GEMINI_API_KEY &&
+            process.env.GROK_API_KEY,
+        ),
       authenticated: githubAuthenticated,
-      runtimeEnabled: copilotAutomationEnabled,
-      availabilityCode: copilotAutomationEnabled
-        ? null
-        : "COPILOT_AUTOMATION_DISABLED",
-      availabilityReason: copilotAutomationEnabled
-        ? null
-        : "GitHub Write е изключен — режим без Copilot.",
+      runtimeEnabled: true,
+      availabilityCode: null,
+      availabilityReason: null,
     },
     "github-confirmed-write": {
       configured: isGitHubOAuthConfigured(),
@@ -517,21 +465,19 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
         "SUPABASE_PUBLISHABLE_KEY",
       ),
     },
-    "digitalocean-read": {
-      configured:
-        Boolean(
-          process.env.DIGITALOCEAN_API_TOKEN || process.env.DIGITALOCEAN_TOKEN,
-        ) && Boolean(process.env.DIGITALOCEAN_APP_ID),
-    },
-    "cloudflare-read": {
-      configured: Boolean(process.env.CLOUDFLARE_API_TOKEN),
-      liveVerified: false,
-      availabilityCode: process.env.CLOUDFLARE_API_TOKEN
-        ? "CLOUDFLARE_LIVE_CHECK_REQUIRED"
-        : null,
-      availabilityReason: process.env.CLOUDFLARE_API_TOKEN
-        ? "Cloudflare е конфигуриран, но тази справка не е жива API проверка."
-        : null,
+    "google-cloud-read": {
+      configured: googleCloud.configured,
+      authenticated: true,
+      liveVerified: googleCloud.cloudRunDetected,
+      availabilityCode: googleCloud.configured
+        ? googleCloud.cloudRunDetected
+          ? null
+          : "GOOGLE_CLOUD_RUNTIME_NOT_DETECTED"
+        : "GOOGLE_CLOUD_NOT_CONFIGURED",
+      availabilityReason:
+        googleCloud.configured && !googleCloud.cloudRunDetected
+          ? "Google Cloud project е конфигуриран, но процесът не е потвърден като Cloud Run runtime."
+          : null,
     },
     "opensearch-memory": {
       configured: isMemoryBackendConfigured(process.env),
@@ -544,7 +490,6 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
     core: {
       chatAgent: {
         ...getAiProviderStatus(),
-        removedProvider: "digitalocean-agent",
       },
       openai: {
         configured: Boolean(process.env.OPENAI_API_KEY),

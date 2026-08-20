@@ -28,7 +28,7 @@ test.beforeEach(() => {
   process.env.GITHUB_CLIENT_ID = "client-id";
   process.env.GITHUB_CLIENT_SECRET = "client-secret";
   process.env.GITHUB_REDIRECT_URI =
-    "https://synchron.foundation/api/github/callback";
+    "https://cloudaicore.com/api/github/callback";
   process.env.GITHUB_SESSION_ENCRYPTION_KEY = "session-encryption-key";
 });
 
@@ -55,7 +55,7 @@ test("uses the production callback when no redirect variable is set", () => {
   const url = new URL(buildGitHubAuthorizationUrl("state-123"));
   assert.equal(
     url.searchParams.get("redirect_uri"),
-    "https://synchron.foundation/api/github/callback",
+    "https://cloudaicore.com/api/github/callback",
   );
 });
 
@@ -63,13 +63,13 @@ test("falls back to the production callback when the redirect variable is invali
   process.env.GITHUB_REDIRECT_URI = process.env.GITHUB_CLIENT_ID;
   assert.equal(
     resolveGitHubRedirectUri(),
-    "https://synchron.foundation/api/github/callback",
+    "https://cloudaicore.com/api/github/callback",
   );
 
   const url = new URL(buildGitHubAuthorizationUrl("state-123"));
   assert.equal(
     url.searchParams.get("redirect_uri"),
-    "https://synchron.foundation/api/github/callback",
+    "https://cloudaicore.com/api/github/callback",
   );
 });
 

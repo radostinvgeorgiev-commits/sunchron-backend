@@ -26,7 +26,7 @@
       id: "autonomous-delivery",
       title: "Автономно безопасно развитие",
       detail:
-        "Асистентът работи без Copilot чрез отделен клон, тестове, PR, CI и точна production проверка.",
+        "AI CORE работи чрез отделен клон, тестове, PR, CI и точна production проверка.",
       status: "now",
       priority: "Текущ режим",
     },
@@ -97,7 +97,7 @@
       id: "github-bridge",
       title: "GitHub read, PR, CI и production delivery",
       detail:
-        "Промените минават през точен Git tree, независими тестове и production smoke. Copilot не се използва.",
+        "Промените минават през точен Git tree, независими тестове и production smoke.",
       status: "done",
       priority: "Завършено",
     },

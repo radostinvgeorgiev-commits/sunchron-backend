@@ -18,7 +18,7 @@ project workflow and safety policy.
 - Keep each task narrow. Preserve unrelated user changes and existing behavior.
 - Do not modify personal memory, OpenSearch data, AI Core architecture,
   production secrets or paid resources unless the issue explicitly requires it.
-- Treat GitHub, DigitalOcean, Google and memory writes as external side effects.
+- Treat GitHub, Google Cloud, Google Workspace and memory writes as external side effects.
   Keep the existing permission and confirmation boundaries.
 - Never claim that an external action, assignment, check, merge or deployment
   happened without reading the real provider response.

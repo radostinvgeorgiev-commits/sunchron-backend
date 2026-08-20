@@ -340,7 +340,7 @@ test("MCP authorization, refresh, replay and revoke use Firestore only", async (
     ...GCP_ENV,
     NODE_ENV: "production",
     MCP_ACCESS_TOKEN: "mcp-firestore-test-secret-with-more-than-32-characters",
-    MCP_RESOURCE_URL: "https://synchron.foundation/mcp",
+    MCP_RESOURCE_URL: "https://cloudaicore.com/mcp",
   };
   const clientId = "https://chatgpt.com/oauth/firestore/client.json";
   const redirectUri = "https://chatgpt.com/connector/oauth/firestore";

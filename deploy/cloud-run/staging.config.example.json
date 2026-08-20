@@ -13,6 +13,10 @@
       "name": "synchron-openai-api-key",
       "version": "__FIXED_NUMERIC_VERSION__"
     },
+    "GEMINI_API_KEY": {
+      "name": "synchron-gemini-api-key",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    },
     "GROK_API_KEY": {
       "name": "synchron-grok-api-key",
       "version": "__FIXED_NUMERIC_VERSION__"

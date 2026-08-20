@@ -13,7 +13,7 @@ const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const GITHUB_USER_URL = "https://api.github.com/user";
 const GITHUB_OAUTH_SCOPE = "public_repo";
 export const DEFAULT_GITHUB_REDIRECT_URI =
-  "https://synchron.foundation/api/github/callback";
+  "https://cloudaicore.com/api/github/callback";
 const DEFAULT_GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 const GITHUB_SESSION_INDEX =
   process.env.GITHUB_SESSION_INDEX || "synchron-github-sessions-v1";

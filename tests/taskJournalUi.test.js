@@ -18,7 +18,7 @@ function createHarness({ tasks, version } = {}) {
       <main id="dataDrawerBody"></main>
       <nav id="sidebar"></nav>
     </body>`,
-    { url: "https://synchron.foundation", runScripts: "outside-only" },
+    { url: "https://cloudaicore.com", runScripts: "outside-only" },
   );
   if (tasks !== undefined) {
     dom.window.localStorage.setItem(

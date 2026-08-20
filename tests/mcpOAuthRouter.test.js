@@ -38,13 +38,13 @@ test("OAuth discovery is public and describes the exact MCP resource", async () 
   const resource = await request(app)
     .get("/.well-known/oauth-protected-resource")
     .expect(200);
-  assert.equal(resource.body.resource, "https://synchron.foundation/mcp");
+  assert.equal(resource.body.resource, "https://cloudaicore.com/mcp");
   const authorization = await request(app)
     .get("/.well-known/oauth-authorization-server")
     .expect(200);
   assert.equal(
     authorization.body.token_endpoint,
-    "https://synchron.foundation/oauth/token",
+    "https://cloudaicore.com/oauth/token",
   );
   assert.ok(authorization.body.scopes_supported.includes("offline_access"));
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
@@ -64,12 +64,12 @@ test("MCP initialize and tool discovery work without credentials", async () => {
     .post("/mcp")
     .send({ jsonrpc: "2.0", id: 2, method: "tools/list" })
     .expect(200);
-  assert.equal(listed.body.result.tools.length, 50);
+  assert.equal(listed.body.result.tools.length, 45);
   assert.deepEqual(listed.body.result.tools[0].securitySchemes, [
     { type: "oauth2", scopes: ["synchron:read"] },
   ]);
   const publicStatus = listed.body.result.tools.find(
-    (tool) => tool.name === "get_digitalocean_app_status",
+    (tool) => tool.name === "get_google_cloud_runtime_status",
   );
   assert.deepEqual(publicStatus.securitySchemes, [
     { type: "noauth" },
@@ -100,7 +100,7 @@ test("only the redacted production status can pass without credentials", async (
       jsonrpc: "2.0",
       id: 23,
       method: "tools/call",
-      params: { name: "get_digitalocean_app_status", arguments: {} },
+      params: { name: "get_google_cloud_runtime_status", arguments: {} },
     })
     .expect(200);
   assert.equal(publicStatus.body.authentication.mode, "noauth");
@@ -242,7 +242,7 @@ test("authorization consent issues a code bound to the browser profile", async (
     redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
     state: "state-123",
     codeChallenge: createHash("sha256").update(verifier).digest("base64url"),
-    resource: "https://synchron.foundation/mcp",
+    resource: "https://cloudaicore.com/mcp",
     scopes: ["synchron:read"],
   };
   const app = express();
@@ -379,7 +379,7 @@ test("authorization flow permits only the ChatGPT callback through global browse
       redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
       state: "state-popup-handoff",
       codeChallenge: "c".repeat(43),
-      resource: "https://synchron.foundation/mcp",
+      resource: "https://cloudaicore.com/mcp",
       scopes: ["synchron:read"],
     };
     const app = express();
@@ -455,7 +455,7 @@ test("authorization denial returns a no-store error to the exact ChatGPT callbac
       redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
       state: "state-denied",
       codeChallenge: "c".repeat(43),
-      resource: "https://synchron.foundation/mcp",
+      resource: "https://cloudaicore.com/mcp",
       scopes: ["synchron:read"],
     };
     const app = express();
@@ -505,7 +505,7 @@ test("authorization consent rejects a modified browser-independent token", async
       redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
       state: "state-tampered-consent",
       codeChallenge: "c".repeat(43),
-      resource: "https://synchron.foundation/mcp",
+      resource: "https://cloudaicore.com/mcp",
       scopes: ["synchron:read"],
     };
     const app = express();
@@ -550,7 +550,7 @@ test("authorization consent ignores altered repeated OAuth form fields", async (
       redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
       state: "state-browser-round-trip",
       codeChallenge: "c".repeat(43),
-      resource: "https://synchron.foundation/mcp",
+      resource: "https://cloudaicore.com/mcp",
       scopes: ["synchron:read"],
     };
     const app = express();
@@ -609,7 +609,7 @@ test("authorization consent names the AI CORE conversation permission", async ()
         redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
         state: "state-agent-chat",
         codeChallenge: "challenge",
-        resource: "https://synchron.foundation/mcp",
+        resource: "https://cloudaicore.com/mcp",
         scopes: ["synchron:agent.chat"],
       }),
     }),

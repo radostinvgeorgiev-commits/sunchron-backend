@@ -16,7 +16,7 @@ import {
   isFirestoreAlreadyExists,
 } from "./firestoreMcpOAuthStore.js";
 
-export const DEFAULT_MCP_RESOURCE_URL = "https://synchron.foundation/mcp";
+export const DEFAULT_MCP_RESOURCE_URL = "https://cloudaicore.com/mcp";
 export const MCP_READ_SCOPE = "synchron:read";
 export const MCP_AGENT_CHAT_SCOPE = "synchron:agent.chat";
 export const MCP_MEMORY_WRITE_SCOPE = "synchron:memory.write";
@@ -372,12 +372,6 @@ export function requiredScopesForMcpTool(name) {
   if (["prepare_github_change", "confirm_github_change"].includes(name)) {
     return [MCP_GITHUB_WRITE_SCOPE];
   }
-  if (
-    name === "prepare_digitalocean_www_domain" ||
-    name === "confirm_digitalocean_www_domain"
-  ) {
-    return [MCP_INFRASTRUCTURE_WRITE_SCOPE];
-  }
   return name === "prepare_github_merged_branch_cleanup" ||
     name === "confirm_github_merged_branch_cleanup"
     ? [MCP_GITHUB_WRITE_SCOPE]
@@ -385,7 +379,7 @@ export function requiredScopesForMcpTool(name) {
 }
 
 export function allowsAnonymousMcpTool(name) {
-  return name === "get_digitalocean_app_status";
+  return name === "get_google_cloud_runtime_status";
 }
 
 export function mcpToolSecuritySchemes(name) {

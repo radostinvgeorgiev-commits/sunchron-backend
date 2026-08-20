@@ -21,10 +21,10 @@ test("avatar sends identity rules and verified memory as agent-compatible contex
   assert.match(messages[0].content, /личната AI операционна система/u);
   assert.match(messages[0].content, /AI аватарът е интерфейсът/u);
   assert.match(messages[0].content, /избира най-подходящия AI модел/u);
-  assert.match(messages[0].content, /OpenSearch е постоянната AI памет/u);
+  assert.match(messages[0].content, /Firestore е постоянната AI памет/u);
   assert.match(
     messages[0].content,
-    /Supabase е предвиден за потребители, настройки, разрешения, задачи и журнал/u,
+    /Firestore е постоянната AI памет и хранилището за потребители, настройки, разрешения, задачи и журнал/u,
   );
   assert.match(
     messages[0].content,
@@ -82,7 +82,7 @@ test("member context uses the member identity and safe personal tools", () => {
   assert.doesNotMatch(messages[0].content, /Радко/u);
   assert.doesNotMatch(
     messages[0].content,
-    /radostinvgeorgiev-commits|DigitalOcean/u,
+    /radostinvgeorgiev-commits|Google Cloud project/u,
   );
   assert.match(messages[0].content, /интернет търсене/u);
   assert.match(messages[0].content, /памет само на този профил/u);

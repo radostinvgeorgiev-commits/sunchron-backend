@@ -232,7 +232,7 @@ export async function prepareCalendarEvent({
 }) {
   if (!(await checkSession(googleSessionId))) {
     throw new GoogleDriveError(
-      "Google Calendar не е свързан. [Свържи Google](https://synchron.foundation/api/google/connect).",
+      "Google Calendar не е свързан. [Свържи Google](https://cloudaicore.com/api/google/connect).",
       401,
       "NOT_CONNECTED",
     );

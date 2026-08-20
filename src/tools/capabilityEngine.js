@@ -2,7 +2,6 @@ import {
   evaluatePermission,
   listAuditEvents,
 } from "../services/permissionService.js";
-import { isCopilotAutomationEnabled } from "../config/featureFlags.js";
 import {
   isMemoryBackendConfigured,
   isPersistenceBackendConfigured,
@@ -55,15 +54,7 @@ import {
   formatWebSearchResult,
   searchWeb,
 } from "../services/webSearchService.js";
-import {
-  extractCopilotTaskNumber,
-  formatCopilotTaskStatus,
-  formatCopilotBridgeStatus,
-  getCopilotTaskStatus,
-  getCopilotBridgeStatus,
-  isCopilotBridgeStatusRequest,
-  prepareCopilotTask,
-} from "../services/copilotTaskService.js";
+import { prepareCodeTask } from "../services/codeTaskService.js";
 import {
   isMergedBranchCleanupPlanRequest,
   prepareMergedBranchCleanup,
@@ -75,17 +66,9 @@ import {
 import { getGitHubSession } from "../services/githubOAuthService.js";
 import { checkSupabaseStatus } from "../services/supabaseService.js";
 import {
-  formatDigitalOceanAudit,
-  formatDigitalOceanOpenSearchBackupAudit,
-  formatDigitalOceanStatus,
-  getDigitalOceanAccountAudit,
-  getDigitalOceanAppStatus,
-  getDigitalOceanOpenSearchBackupAudit,
-} from "../services/digitalOceanService.js";
-import {
-  formatCloudflareStatus,
-  getCloudflareZoneStatus,
-} from "../services/cloudflareService.js";
+  formatGoogleCloudRuntimeStatus,
+  getGoogleCloudRuntimeStatus,
+} from "../services/googleCloudService.js";
 import {
   formatSystemConfigurationReport,
   getSystemConfigurationReport,
@@ -107,12 +90,6 @@ export class CapabilityError extends Error {
     this.code = code;
     this.status = status;
   }
-}
-
-export function isDigitalOceanBackupInventoryRequest(message = "") {
-  return /(?:opensearch|open\s*search|опен\s*сърч|backup|backups|архив|restore\s*точ)/iu.test(
-    message,
-  );
 }
 
 function hasEnvironment(env, ...names) {
@@ -147,17 +124,19 @@ export function getToolRuntimeAvailability(
     case "github-read":
       return configured(true, null);
     case "github-write":
-      if (!isCopilotAutomationEnabled(env)) {
+      if (
+        !hasEnvironment(
+          env,
+          "OPENAI_API_KEY",
+          "GEMINI_API_KEY",
+          "GROK_API_KEY",
+          "GITHUB_CLIENT_ID",
+          "GITHUB_CLIENT_SECRET",
+        )
+      ) {
         return configured(
           false,
-          "GitHub Write е изключен — режим без Copilot.",
-          "COPILOT_AUTOMATION_DISABLED",
-        );
-      }
-      if (!hasEnvironment(env, "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET")) {
-        return configured(
-          false,
-          "GitHub Write не е конфигуриран.",
+          "AI CORE Code Write не е конфигуриран.",
           "CAPABILITY_NOT_CONFIGURED",
         );
       }
@@ -227,18 +206,10 @@ export function getToolRuntimeAvailability(
         hasEnvironment(env, "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY"),
         "Supabase Status не е конфигуриран.",
       );
-    case "digitalocean-read":
+    case "google-cloud-read":
       return configured(
-        Boolean(
-          (env.DIGITALOCEAN_API_TOKEN || env.DIGITALOCEAN_TOKEN) &&
-          env.DIGITALOCEAN_APP_ID,
-        ),
-        "DigitalOcean Read не е конфигуриран.",
-      );
-    case "cloudflare-read":
-      return configured(
-        hasEnvironment(env, "CLOUDFLARE_API_TOKEN"),
-        "Cloudflare Read не е конфигуриран.",
+        Boolean(env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT || env.GCP_PROJECT_ID),
+        "Google Cloud runtime не е конфигуриран.",
       );
     case "opensearch-memory":
       return configured(
@@ -271,44 +242,30 @@ export async function buildIntegrationStatusReport(
     checkMemory = () =>
       listProfileMemories({ ownerId: input.ownerId, limit: 1 }),
     checkSupabase = checkSupabaseStatus,
-    checkDigitalOcean = getDigitalOceanAppStatus,
-    checkCloudflare = getCloudflareZoneStatus,
+    checkGoogleCloud = getGoogleCloudRuntimeStatus,
     checkGoogleSession = hasSession,
-    checkGitHubWriteBridge = getCopilotBridgeStatus,
     env = process.env,
   } = {},
 ) {
-  const copilotAutomationEnabled = isCopilotAutomationEnabled(env);
-  if (isCopilotBridgeStatusRequest(input.message)) {
-    if (!copilotAutomationEnabled) {
-      return [
-        "Проверих текущия режим за GitHub Write.",
-        "Резултат: изключен е — работим без Copilot.",
-        "GitHub Read остава активен; кодовият мост не прави assignment, branch, commit или Pull Request.",
-      ].join("\n");
-    }
-    const bridge = await checkGitHubWriteBridge({
-      githubSessionId: input.githubSessionId,
-    });
-    return formatCopilotBridgeStatus(bridge);
+  if (isGitHubWriteStatusRequest(input.message)) {
+    return [
+      "Проверих текущия режим за GitHub Write.",
+      "Резултат: AI CORE подготвя директна и ограничена кодова промяна.",
+      "След точно потвърждение създава отделен branch, атомарен commit и Pull Request; main не се променя директно.",
+    ].join("\n");
   }
 
   const [
     githubRead,
     memory,
     supabase,
-    digitalOcean,
-    cloudflare,
+    googleCloud,
     googleConnected,
   ] = await Promise.all([
     checkedStatus(checkGitHub),
     checkedStatus(checkMemory),
     checkedStatus(checkSupabase),
-    checkedStatus(checkDigitalOcean),
-    checkedStatus(
-      checkCloudflare,
-      (status) => status?.status === "active" && status?.paused !== true,
-    ),
+    checkedStatus(checkGoogleCloud, (status) => status?.configured === true),
     input.googleSessionId
       ? checkedStatus(() => checkGoogleSession(input.googleSessionId))
       : false,
@@ -318,8 +275,7 @@ export async function buildIntegrationStatusReport(
     ["GitHub Read", githubRead],
     ["Synchron Memory", memory],
     ["Supabase Status", supabase],
-    ["DigitalOcean Read", digitalOcean],
-    ["Cloudflare Read", cloudflare],
+    ["Google Cloud Read", googleCloud],
     ["AI CORE разговор", isAiCoreConfigured(env)],
     ["OpenAI Web Search", Boolean(env.OPENAI_API_KEY)],
     ["Codex", isCodexAgentConfigured(env)],
@@ -327,10 +283,16 @@ export async function buildIntegrationStatusReport(
   const sessionTools = [
     [
       "GitHub Write",
-      copilotAutomationEnabled && Boolean(input.githubSessionId),
-      copilotAutomationEnabled
-        ? "изисква потвърждение"
-        : "изключен — режим без Copilot",
+      Boolean(input.githubSessionId) &&
+        hasEnvironment(
+          env,
+          "OPENAI_API_KEY",
+          "GEMINI_API_KEY",
+          "GROK_API_KEY",
+          "GITHUB_CLIENT_ID",
+          "GITHUB_CLIENT_SECRET",
+        ),
+      "изисква потвърждение",
     ],
     ["Google Drive", googleConnected, "изисква Google вход"],
     ["Google Calendar", googleConnected, "изисква Google вход"],
@@ -517,19 +479,14 @@ const executors = Object.freeze({
     formatSystemConfigurationReport(await getSystemConfigurationReport()),
   "github-read": async ({ capability, input }) => {
     if (capability === "code.task-status") {
-      const issueNumber = extractCopilotTaskNumber(input.message);
+      const issueNumber = extractGitHubTaskNumber(input.message);
       if (!issueNumber) {
         throw new CapabilityError(
           "Липсва номер на GitHub задача за проследяване.",
           "MISSING_ISSUE_NUMBER",
         );
       }
-      return formatCopilotTaskStatus(
-        await getCopilotTaskStatus({
-          githubSessionId: input.githubSessionId,
-          issueNumber,
-        }),
-      );
+      return answerGitHubReadRequest(input.message);
     }
     if (isMergedBranchCleanupPlanRequest(input.message)) {
       return prepareMergedBranchCleanup({ ownerId: input.ownerId });
@@ -537,10 +494,11 @@ const executors = Object.freeze({
     return answerGitHubReadRequest(input.message);
   },
   "github-write": async ({ input }) => {
-    const prepared = await prepareCopilotTask({
+    const prepared = await prepareCodeTask({
+      ownerId: input.ownerId,
       sessionId: input.sessionId,
       githubSessionId: input.githubSessionId,
-      prompt: input.message,
+      message: input.message,
     });
     return prepared.output;
   },
@@ -592,7 +550,7 @@ const executors = Object.freeze({
   "google-calendar-read": async ({ input }) => {
     if (!(await hasSession(input.googleSessionId))) {
       throw new GoogleDriveError(
-        "Google Calendar не е свързан. [Свържи Google](https://synchron.foundation/api/google/connect).",
+        "Google Calendar не е свързан. [Свържи Google](https://cloudaicore.com/api/google/connect).",
         401,
         "NOT_CONNECTED",
       );
@@ -794,22 +752,8 @@ const executors = Object.freeze({
       "OpenSearch остава постоянната AI памет.",
     ].join("\n");
   },
-  "digitalocean-read": async ({ input }) => {
-    if (isDigitalOceanBackupInventoryRequest(input.message)) {
-      return formatDigitalOceanOpenSearchBackupAudit(
-        await getDigitalOceanOpenSearchBackupAudit(),
-      );
-    }
-    const wantsFullAudit =
-      /(?:пълен|цял|одит|акаунт|ресурс|droplet|сървър|баз|мреж|firewall|защит|разход|billing|storage|volume|snapshot|kubernetes)/iu.test(
-        input.message || "",
-      );
-    return wantsFullAudit
-      ? formatDigitalOceanAudit(await getDigitalOceanAccountAudit())
-      : formatDigitalOceanStatus(await getDigitalOceanAppStatus());
-  },
-  "cloudflare-read": async () =>
-    formatCloudflareStatus(await getCloudflareZoneStatus()),
+  "google-cloud-read": async () =>
+    formatGoogleCloudRuntimeStatus(getGoogleCloudRuntimeStatus()),
   "opensearch-memory": async ({ capability, input }) => {
     if (capability === "memory.verify") {
       const report = await runMemoryAcceptanceTest({
@@ -892,18 +836,6 @@ const executors = Object.freeze({
 export async function executeCapability(capability, input = {}, options = {}) {
   const resolved = resolveCapability(capability, options);
   const runtimeEnvironment = options.env || process.env;
-  if (
-    resolved.tool.id === "github-write" &&
-    !isCopilotAutomationEnabled(runtimeEnvironment)
-  ) {
-    const runtime = getToolRuntimeAvailability(
-      resolved.tool.id,
-      input,
-      runtimeEnvironment,
-    );
-    throw new CapabilityError(runtime.reason, runtime.code, 503);
-  }
-
   if (resolved.requiresConfirmation && options.confirmed !== true) {
     const canPrepareConfirmation =
       options.prepareConfirmation === true &&
@@ -970,8 +902,46 @@ export async function executeCapability(capability, input = {}, options = {}) {
 }
 
 export function isToolExecutable(toolId, env = process.env) {
-  if (toolId === "github-write" && !isCopilotAutomationEnabled(env)) {
-    return false;
-  }
   return typeof executors[toolId] === "function";
+}
+
+export function extractGitHubTaskNumber(message) {
+  const text = typeof message === "string" ? message.trim() : "";
+  if (
+    !/(?:статус|състояние|какво\s+става|докъде|прослед|провери|готов|ci|checks?|проверки|deployment|деплой)/iu.test(
+      text,
+    ) ||
+    !/(?:github|ги[тд][\s-]*хъб|задач|issue|pull\s*request|\bpr\b)/iu.test(
+      text,
+    )
+  ) {
+    return null;
+  }
+  const match = text.match(
+    /#\s*(\d{1,10})|(?:задач|issue|\bpr\b)[^\d]{0,20}(\d{1,10})/iu,
+  );
+  const value = Number(match?.[1] || match?.[2]);
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+export function isGitHubTaskStatusRequest(message) {
+  return extractGitHubTaskNumber(message) !== null;
+}
+
+export function isGitHubWriteStatusRequest(message) {
+  const text = typeof message === "string" ? message.trim() : "";
+  return (
+    /(?:github|ги[тд][\s-]*хъб|(?:^|\s)хъб(?:ът|а)?(?=\s|[?!.,:;]|$)|github\s*write)/iu.test(
+      text,
+    ) &&
+    /(?:пиш(?:е|а|еш)|писан|запис|\bwrite\b|branch|клон|commit|комит|pull\s*request|\bpr\b|merge|слив)/iu.test(
+      text,
+    ) &&
+    /(?:може\s+ли|може\s+вече|може\s+да|работи\s+ли|има\s+ли|активен|наличен|свързан|готов|инструмент|мост)/iu.test(
+      text,
+    ) &&
+    !/(?:^|\s)(?:направи|промени|обнови|редактирай|поправи|създай|слей)(?:\s|$)/iu.test(
+      text,
+    )
+  );
 }

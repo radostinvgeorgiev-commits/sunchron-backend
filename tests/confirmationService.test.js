@@ -11,7 +11,7 @@ import {
   validateConfirmation,
 } from "../src/services/confirmationService.js";
 
-const VALID_ACTION = "github.copilot:start_task";
+const VALID_ACTION = "github.write:code_task";
 const VALID_RESOURCE = { repository: "owner/repo", baseRef: "main" };
 
 test.beforeEach(() => {
@@ -36,15 +36,9 @@ test("rejects unknown actions", () => {
   assert.equal(isAllowedAction(""), false);
 });
 
-test("allows only the exact confirmed DigitalOcean www domain action", () => {
-  assert.equal(
-    isAllowedAction("infrastructure.digitalocean:add_www_domain"),
-    true,
-  );
-  assert.equal(
-    isAllowedAction("infrastructure.digitalocean:add_other_domain"),
-    false,
-  );
+test("allows only the exact AI CORE code task action", () => {
+  assert.equal(isAllowedAction("github.write:code_task"), true);
+  assert.equal(isAllowedAction("github.write:push_main"), false);
 });
 
 test("allows only the exact bounded direct GitHub write actions", () => {
@@ -220,7 +214,7 @@ test("rejects non-existent confirmation id", () => {
   );
 });
 
-test("one confirmation cannot approve a different Copilot task — ids are unique", () => {
+test("one confirmation cannot approve a different AI CORE task — ids are unique", () => {
   const conf1 = createConfirmation({
     sessionId: "sess-1",
     action: VALID_ACTION,

@@ -126,8 +126,12 @@ const TASK_ALIASES = Object.freeze([
   [/(?:мост|тунел|bridge|tunnel|mcp)/iu, ["bridge", "tunnel", "mcp"]],
   [/(?:github|гитхъб)/iu, ["github"]],
   [/(?:google|гугъл)/iu, ["google"]],
-  [/(?:deploy|production|продукц)/iu, ["digitalocean", "health"]],
+  [/(?:deploy|production|продукц)/iu, ["cloudrun", "health"]],
   [/(?:codex|кодекс)/iu, ["codex"]],
+  [
+    /(?:аватар|avatar|интерфейс|interface|ui|дизайн)/iu,
+    ["avatar", "public", "app", "styles", "index", "ui"],
+  ],
 ]);
 
 export class CodexAgentError extends Error {
@@ -216,6 +220,7 @@ function sourceFileScore(file, taskText, terms) {
   let score = REQUIRED_CONTEXT_FILES.get(file.path) || 0;
   if (taskText.includes(path)) score += 50000;
   if (path.startsWith("src/")) score += 300;
+  else if (path.startsWith("public/")) score += 250;
   else if (path.startsWith("tests/")) score += 200;
   else if (path.startsWith("docs/")) score += 50;
   for (const term of terms) {

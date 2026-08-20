@@ -13,7 +13,7 @@ test.beforeEach(() => resetToolRegistryForTests());
 
 test("регистрира съществуващите интеграции с пълни метаданни", () => {
   registerCoreTools();
-  assert.equal(listTools().length, 18);
+  assert.equal(listTools().length, 17);
   assert.deepEqual(getTool("synchron-integrations-status").capabilities, [
     "system.integrations.status",
     "system.tools.read",
@@ -56,11 +56,8 @@ test("регистрира съществуващите интеграции с 
   assert.deepEqual(getTool("supabase-status").capabilities, [
     "database.status",
   ]);
-  assert.deepEqual(getTool("digitalocean-read").capabilities, [
-    "infrastructure.digitalocean.read",
-  ]);
-  assert.deepEqual(getTool("cloudflare-read").capabilities, [
-    "infrastructure.cloudflare.read",
+  assert.deepEqual(getTool("google-cloud-read").capabilities, [
+    "infrastructure.googlecloud.read",
   ]);
   assert.deepEqual(getTool("synchron-agent-chat").capabilities, [
     "chat.send_message",

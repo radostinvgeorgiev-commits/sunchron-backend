@@ -1,12 +1,12 @@
 import { getEnvironmentCatalog } from "../config/environmentCatalog.js";
-import { getDigitalOceanAppStatus } from "./digitalOceanService.js";
+import { getGoogleCloudRuntimeStatus } from "./googleCloudService.js";
 import {
   getUserAuthConfigurationStatus,
   getUserAuthProvider,
   isTesterRegistrationEnabled,
 } from "./userAuthService.js";
 
-const DEFAULT_PRODUCTION_URL = "https://synchron.foundation/health/ready";
+const DEFAULT_PRODUCTION_URL = "https://cloudaicore.com/health/ready";
 
 function isConfigured(env, key) {
   return typeof env[key] === "string" && env[key].trim().length > 0;
@@ -15,15 +15,12 @@ function isConfigured(env, key) {
 function statusFor(
   item,
   runtimeConfigured,
-  digitalOceanDeclared,
   protectedFallback,
   requiredForSelectedAuth,
 ) {
   if (item.state === "unused") return "unused";
   if (item.state === "compatibility" && !requiredForSelectedAuth) {
-    return runtimeConfigured || digitalOceanDeclared
-      ? "compatibility"
-      : "not-needed";
+    return runtimeConfigured ? "compatibility" : "not-needed";
   }
   if (runtimeConfigured) return "configured";
   if (protectedFallback) return "protected-fallback";
@@ -34,7 +31,6 @@ function statusFor(
 
 export function buildEnvironmentInventory({
   env = process.env,
-  digitalOceanVariables = [],
 } = {}) {
   const authProvider = getUserAuthProvider(env);
   const requiredAuthKeys = new Set(
@@ -67,13 +63,8 @@ export function buildEnvironmentInventory({
   if (isTesterRegistrationEnabled(env)) {
     protectedFallbacks.add("SYNCHRON_TEST_INVITE_CODE");
   }
-  const declared = new Map(
-    digitalOceanVariables.map((item) => [item.key, item]),
-  );
   return getEnvironmentCatalog().map((item) => {
-    const platform = declared.get(item.key);
     const runtimeConfigured = isConfigured(env, item.key);
-    const digitalOceanDeclared = Boolean(platform);
     const protectedFallback =
       Boolean(item.hasProtectedFallback) && protectedFallbacks.has(item.key);
     return Object.freeze({
@@ -85,13 +76,16 @@ export function buildEnvironmentInventory({
       requiredNow: Boolean(item.requiredNow),
       runtimeConfigured,
       protectedFallback,
-      digitalOceanDeclared,
-      digitalOceanType: platform?.type || null,
-      digitalOceanScope: platform?.scope || null,
+      source: runtimeConfigured
+        ? "google-cloud-runtime"
+        : protectedFallback
+          ? "protected-runtime-fallback"
+          : item.managed || item.hasDefault
+            ? "application-default"
+            : null,
       status: statusFor(
         item,
         runtimeConfigured,
-        digitalOceanDeclared,
         protectedFallback,
         requiredAuthKeys.has(item.key),
       ),
@@ -181,31 +175,20 @@ export async function getProductionReadinessStatus({
 
 export async function getSystemConfigurationReport({
   env = process.env,
-  getDigitalOceanStatus = getDigitalOceanAppStatus,
+  getGoogleCloudStatus = getGoogleCloudRuntimeStatus,
   getProductionStatus = getProductionReadinessStatus,
 } = {}) {
-  let digitalOcean = {
-    connected: false,
-    errorCode: "DIGITALOCEAN_NOT_CONFIGURED",
-    app: null,
-    variables: [],
-  };
+  let googleCloud;
   try {
-    const status = await getDigitalOceanStatus({ env });
-    digitalOcean = {
-      connected: true,
-      errorCode: null,
-      app: {
-        id: status.id,
-        name: status.name,
-        liveUrl: status.liveUrl,
-        activeDeployment: status.activeDeployment,
-        inProgressDeployment: status.inProgressDeployment,
-      },
-      variables: status.environmentVariables || [],
+    googleCloud = await getGoogleCloudStatus({ env });
+  } catch {
+    googleCloud = {
+      provider: "google-cloud",
+      status: "unavailable",
+      configured: false,
+      cloudRunDetected: false,
+      errorCode: "GOOGLE_CLOUD_RUNTIME_UNAVAILABLE",
     };
-  } catch (error) {
-    digitalOcean.errorCode = error?.code || "DIGITALOCEAN_UNAVAILABLE";
   }
 
   let production = emptyProductionStatus();
@@ -215,17 +198,14 @@ export async function getSystemConfigurationReport({
     production = emptyProductionStatus();
   }
 
-  const environment = buildEnvironmentInventory({
-    env,
-    digitalOceanVariables: digitalOcean.variables,
-  });
+  const environment = buildEnvironmentInventory({ env });
   return {
     status:
       summarize(environment).missingRequired === 0 ? "ready" : "attention",
     secretsExposed: false,
     summary: summarize(environment),
     environment,
-    digitalOcean,
+    googleCloud,
     production,
   };
 }
@@ -249,7 +229,7 @@ export function formatSystemConfigurationReport(report) {
     `• ${report.summary.defaulted} използват безопасна стойност по подразбиране.`,
     `• ${protectedFallbacks.length} използват работещ защитен заместител.`,
     `• ${missing.length} задължителни настройки липсват.`,
-    `• DigitalOcean самопроверка: ${report.digitalOcean.connected ? "работи" : "не е достъпна"}.`,
+    `• Google Cloud runtime: ${report.googleCloud?.cloudRunDetected ? "Cloud Run е потвърден" : report.googleCloud?.configured ? "проектът е конфигуриран, но Cloud Run не е потвърден" : "не е конфигуриран"}.`,
     productionReady
       ? `• Production /health/ready: готово; commit ${report.production.commit}.`
       : "• Production /health/ready: не е потвърдено.",

@@ -86,19 +86,11 @@ test("блокира липсваща способност по подразби
   );
 });
 
-test("пази GitHub Copilot адаптера, но го изключва по подразбиране", () => {
+test("регистрира директния AI CORE Code Write адаптер", () => {
   const result = resolveCapability("code.write");
   assert.equal(result.tool.id, "github-write");
   assert.equal(result.requiresConfirmation, true);
-  assert.equal(isToolExecutable("github-write", {}), false);
-  assert.equal(
-    isToolExecutable("github-write", { COPILOT_AUTOMATION_ENABLED: "TRUE" }),
-    false,
-  );
-  assert.equal(
-    isToolExecutable("github-write", { COPILOT_AUTOMATION_ENABLED: "true" }),
-    true,
-  );
+  assert.equal(isToolExecutable("github-write"), true);
 });
 
 test("Calendar Write има изпълним адаптер и изисква потвърждение", () => {
@@ -188,18 +180,9 @@ test("runtime availability blocks configured-looking tools without credentials",
       "github-write",
       { githubSessionId: "owner-session" },
       {
-        GITHUB_CLIENT_ID: "client",
-        GITHUB_CLIENT_SECRET: "secret",
-      },
-    ).code,
-    "COPILOT_AUTOMATION_DISABLED",
-  );
-  assert.equal(
-    getToolRuntimeAvailability(
-      "github-write",
-      { githubSessionId: "owner-session" },
-      {
-        COPILOT_AUTOMATION_ENABLED: "true",
+        OPENAI_API_KEY: "openai",
+        GEMINI_API_KEY: "gemini",
+        GROK_API_KEY: "grok",
         GITHUB_CLIENT_ID: "client",
         GITHUB_CLIENT_SECRET: "secret",
       },
@@ -256,7 +239,7 @@ test("AI CORE chat and memory availability accept Firestore without OpenSearch",
   );
 });
 
-test("code.write спира преди Copilot flow в изключен режим", async () => {
+test("code.write спира преди multi-engine flow без трите AI ключа", async () => {
   await assert.rejects(
     () =>
       executeCapability(
@@ -275,8 +258,8 @@ test("code.write спира преди Copilot flow в изключен режи
       ),
     (error) =>
       error instanceof CapabilityError &&
-      error.code === "COPILOT_AUTOMATION_DISABLED" &&
-      /режим без Copilot/u.test(error.message),
+      error.code === "CAPABILITY_NOT_CONFIGURED" &&
+      /не е конфигуриран/u.test(error.message),
   );
 });
 
@@ -339,11 +322,13 @@ test("връща общ статус само след реални провер
       checkGitHub: async () => true,
       checkMemory: async () => [],
       checkSupabase: async () => ({ status: "healthy" }),
-      checkDigitalOcean: async () => ({ app: { id: "app-1" } }),
-      checkCloudflare: async () => ({ status: "active" }),
+      checkGoogleCloud: async () => ({ configured: true }),
       env: {
         OPENAI_API_KEY: "configured",
-        COPILOT_AUTOMATION_ENABLED: "true",
+        GEMINI_API_KEY: "configured",
+        GROK_API_KEY: "configured",
+        GITHUB_CLIENT_ID: "client",
+        GITHUB_CLIENT_SECRET: "secret",
       },
     },
   );
@@ -352,95 +337,39 @@ test("връща общ статус само след реални провер
   assert.match(report, /GitHub Read/u);
   assert.match(report, /Synchron Memory/u);
   assert.match(report, /Supabase Status/u);
-  assert.match(report, /DigitalOcean Read/u);
-  assert.match(report, /Cloudflare Read/u);
+  assert.match(report, /Google Cloud Read/u);
   assert.match(report, /Google Drive — изисква Google вход/u);
   assert.match(report, /GitHub Write — свързан; изисква потвърждение/u);
 });
 
-test("не обявява Cloudflare за свързан без успешна жива проверка", async () => {
+test("не обявява Google Cloud за работещ без runtime конфигурация", async () => {
   const report = await buildIntegrationStatusReport(
     { ownerId: "primary-user" },
     {
       checkGitHub: async () => true,
       checkMemory: async () => [],
       checkSupabase: async () => ({ status: "healthy" }),
-      checkDigitalOcean: async () => ({ app: { id: "app-1" } }),
-      checkCloudflare: async () => {
-        throw new Error("invalid token");
-      },
-      env: { CLOUDFLARE_API_TOKEN: "configured" },
-    },
-  );
-
-  assert.match(report, /Cloudflare Read — реалната проверка е неуспешна/u);
-  assert.doesNotMatch(report, /Cloudflare Read — свързан/u);
-});
-
-test("не обявява неактивна Cloudflare зона за работеща", async () => {
-  const report = await buildIntegrationStatusReport(
-    { ownerId: "primary-user" },
-    {
-      checkGitHub: async () => true,
-      checkMemory: async () => [],
-      checkSupabase: async () => ({ status: "healthy" }),
-      checkDigitalOcean: async () => ({ app: { id: "app-1" } }),
-      checkCloudflare: async () => ({ status: "pending", paused: false }),
-      env: { CLOUDFLARE_API_TOKEN: "configured" },
-    },
-  );
-
-  assert.match(report, /Cloudflare Read — реалната проверка е неуспешна/u);
-  assert.doesNotMatch(report, /Cloudflare Read — свързан/u);
-});
-
-test("връща фокусиран проверен статус за GitHub Copilot моста", async () => {
-  const report = await buildIntegrationStatusReport(
-    {
-      message: "Работи ли GitHub Write мостът?",
-      githubSessionId: "github-session",
-    },
-    {
-      checkGitHubWriteBridge: async () => ({
-        status: "ready",
-        configured: true,
-        connected: true,
-        copilotEnabled: true,
-        repository: "radostinvgeorgiev-commits/sunchron-backend",
-        createsBranch: true,
-        createsCommits: true,
-        createsPullRequest: true,
-        mergesMainAutomatically: false,
-      }),
-      env: { COPILOT_AUTOMATION_ENABLED: "true" },
-    },
-  );
-
-  assert.match(report, /GitHub Write моста реално: работи/u);
-  assert.match(report, /отделен клон/u);
-  assert.match(report, /Pull Request/u);
-  assert.match(report, /Не слива автоматично/u);
-});
-
-test("връща режим без Copilot без да проверява външния мост", async () => {
-  let bridgeChecked = false;
-  const report = await buildIntegrationStatusReport(
-    {
-      message: "Работи ли GitHub Write мостът?",
-      githubSessionId: "github-session",
-    },
-    {
-      checkGitHubWriteBridge: async () => {
-        bridgeChecked = true;
-        throw new Error("не трябва да се извиква");
-      },
+      checkGoogleCloud: async () => ({ configured: false }),
       env: {},
     },
   );
 
-  assert.equal(bridgeChecked, false);
-  assert.match(report, /изключен е — работим без Copilot/u);
-  assert.match(report, /GitHub Read остава активен/u);
+  assert.match(report, /Google Cloud Read — реалната проверка е неуспешна/u);
+});
+
+test("връща фокусиран статус за директния AI CORE Code Write", async () => {
+  const report = await buildIntegrationStatusReport(
+    {
+      message: "Работи ли GitHub Write мостът?",
+      githubSessionId: "github-session",
+    },
+    {},
+  );
+
+  assert.match(report, /директна и ограничена кодова промяна/u);
+  assert.match(report, /отделен branch/u);
+  assert.match(report, /Pull Request/u);
+  assert.match(report, /main не се променя директно/u);
 });
 
 test("не изпълнява способност за потвърждение без разрешение", async () => {
@@ -456,7 +385,7 @@ test("всеки регистриран основен инструмент им
   registerCoreTools();
   for (const { id } of listTools()) {
     assert.equal(
-      isToolExecutable(id, { COPILOT_AUTOMATION_ENABLED: "true" }),
+      isToolExecutable(id),
       true,
       id,
     );

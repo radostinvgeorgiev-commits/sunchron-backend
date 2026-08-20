@@ -45,13 +45,11 @@ import {
 } from "../services/githubOAuthService.js";
 import { isMergedBranchCleanupPlanRequest } from "../services/githubBranchCleanupService.js";
 import {
-  confirmCopilotTask,
-  CopilotTaskError,
-  extractCopilotConfirmationId,
-  isCopilotTaskStatusRequest,
-  formatCopilotTaskResult,
-  isCopilotBridgeStatusRequest,
-} from "../services/copilotTaskService.js";
+  CodeTaskError,
+  confirmCodeTask,
+  extractCodeTaskConfirmationId,
+  formatCodeTaskResult,
+} from "../services/codeTaskService.js";
 import {
   isAuditSafetyError,
   recordAuditEvent,
@@ -65,11 +63,11 @@ import {
   ImageServiceError,
   validateImageInput,
 } from "../services/imageService.js";
-import { DigitalOceanError } from "../services/digitalOceanService.js";
-import { CloudflareError } from "../services/cloudflareService.js";
 import {
   CapabilityError,
   executeCapability,
+  isGitHubTaskStatusRequest,
+  isGitHubWriteStatusRequest,
 } from "../tools/capabilityEngine.js";
 import {
   hasExplicitReadOnlyBoundary,
@@ -83,6 +81,7 @@ import {
   requestAiResponse,
 } from "../services/aiCoreService.js";
 import { executeTaskPlan } from "../services/taskExecutionService.js";
+import { orchestrateTask } from "../services/taskOrchestratorService.js";
 import { CodexAgentError } from "../services/codexAgentService.js";
 import {
   canPlanCapabilities,
@@ -115,16 +114,13 @@ const DEFAULT_AI_TIMEOUT_MS = 120000;
 const MAX_CHAT_MESSAGE_LENGTH = 6_000;
 const MAX_CHAT_SESSION_ID_LENGTH = 160;
 const SAFE_CHAT_SESSION_ID_PATTERN = /^[a-z0-9:_-]+$/iu;
-const DIGITALOCEAN_NAME_PATTERN =
-  /(?:digital\s*ocean|ди[гж]итал\s*о(?:кеа|ка|ке)н|ди[гж]итъл\s*о(?:кеа|ка|ке)н)/iu;
 const DIRECT_CAPABILITY_REPLIES = new Set([
   "system.integrations.status",
   "calendar.write",
   "code.read",
   "code.task-status",
   "code.write",
-  "infrastructure.digitalocean.read",
-  "infrastructure.cloudflare.read",
+  "infrastructure.googlecloud.read",
 ]);
 
 async function auditAction(event) {
@@ -171,7 +167,7 @@ const ASSISTANT_CONTEXT = [
   "Тази формулировка е по-нова и има предимство пред стари записи, които описват целия проект само като AI аватар.",
   "Паметта, инструментите, разрешенията и изборът на AI модел са отделни части на системата.",
   "Използвай само инструменти, които реално са изпълнени и разрешени. Не твърди, че услуга е свързана, ако не е проверена.",
-  "GitHub Read работи чрез отделен проверим инструмент. GitHub Write може да е изключен в режим без Copilot; използвай живия статус и никога не предлагай нов GitHub App, private key, token или secret без проверена необходимост и изрично решение.",
+  "GitHub Read работи чрез отделен проверим инструмент. AI CORE Code Write подготвя отделен branch, commit и Pull Request само след точно потвърждение; никога не предлагай нов GitHub App, private key, token или secret без проверена необходимост и изрично решение.",
   "Човекът, с когото разговаряш, е Радко. Никога не казвай, че ти си Радко.",
   "Говори само на български, освен ако Радко изрично поиска друг език.",
   "Обръщай се към Радко на „ти“. Говори естествено, спокойно, директно и човешки.",
@@ -304,7 +300,7 @@ export function isGitHubWriteRequest(message) {
   if (hasExplicitReadOnlyBoundary(text)) return false;
 
   const hasWriteOutcome =
-    /(?:промени|обнови|редактирай|поправи|направи\s+промян|създай\s+(?:клон|branch|pull\s*request|pr)|слей)/iu.test(
+    /(?:промени|подобри|обнови|редактирай|поправи|направи\s+промян|създай\s+(?:клон|branch|pull\s*request|pr)|слей|improve)/iu.test(
       text,
     );
   const hasCodeTarget =
@@ -340,10 +336,10 @@ export function detectCapabilityRequests(message) {
   const hasExplicitNumberedChecks =
     /намери\s*:\s*1[\).:-]\s*/iu.test(message) && subtasks.length > 1;
   for (const [index, subtask] of subtasks.entries()) {
-    const copilotBridgeStatusRequest = isCopilotBridgeStatusRequest(subtask);
-    const copilotTaskStatusRequest = isCopilotTaskStatusRequest(subtask);
+    const githubWriteStatusRequest = isGitHubWriteStatusRequest(subtask);
+    const githubTaskStatusRequest = isGitHubTaskStatusRequest(subtask);
     const systemConfigurationRequest =
-      /(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите)).{0,60}(?:сървър|ядро|агент|digitalocean|дигитал\s*океан|дижитал\s*окен|система)|(?:сървър|ядро|агент|digitalocean|дигитал\s*океан|дижитал\s*окен|система).{0,60}(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите))/iu.test(
+        /(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите)).{0,60}(?:сървър|ядро|агент|google\s*cloud|cloud\s*run|гуг[ъал]+\s*клауд|система)|(?:сървър|ядро|агент|google\s*cloud|cloud\s*run|гуг[ъал]+\s*клауд|система).{0,60}(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите))/iu.test(
         subtask,
       );
     if (
@@ -367,7 +363,7 @@ export function detectCapabilityRequests(message) {
       ) &&
       !hasExplicitNoToolBoundary(subtask) &&
       !hasExplicitNoAdditionalToolsBoundary(subtask) &&
-      !copilotBridgeStatusRequest &&
+      !githubWriteStatusRequest &&
       !/(?:регистрирани|tool\s+registry|capability\s+engine)/iu.test(subtask)
     ) {
       requests.push({
@@ -383,14 +379,14 @@ export function detectCapabilityRequests(message) {
         message: subtask,
       });
     }
-    if (copilotBridgeStatusRequest) {
+    if (githubWriteStatusRequest) {
       requests.push({
         capability: "system.integrations.status",
         action: "infrastructure.read",
         message: subtask,
       });
     }
-    if (copilotTaskStatusRequest) {
+    if (githubTaskStatusRequest) {
       requests.push({
         capability: "code.task-status",
         action: "github.read",
@@ -475,24 +471,36 @@ export function detectCapabilityRequests(message) {
     }
     if (
       !systemConfigurationRequest &&
-      DIGITALOCEAN_NAME_PATTERN.test(subtask) &&
-      /(?:провери|покажи|статус|работи|деплой|deployment|публикуван|последн|направи|одит|акаунт|ресурс|droplet|сървър|баз|мреж|firewall|защит|разход|billing|storage|volume|snapshot|kubernetes)/iu.test(
+      /(?:google\s*cloud|cloud\s*run|гуг[ъал]+\s*(?:клауд|конзол))/iu.test(subtask) &&
+      /(?:провери|покажи|статус|работи|деплой|deployment|публикуван|revision|ревизи|runtime|сървър|проект)/iu.test(
         subtask,
       )
     ) {
       requests.push({
-        capability: "infrastructure.digitalocean.read",
+        capability: "infrastructure.googlecloud.read",
         action: "infrastructure.read",
         message: subtask,
       });
     }
     if (
-      /(?:cloudflare|клаудфлеър|клауф\s*фаер)/iu.test(subtask) &&
-      /(?:провери|покажи|статус|работи|dns|домейн|зона|запис)/iu.test(subtask)
+      !githubTaskStatusRequest &&
+      /(?:покажи|изброй|какви|кои|статус|напредък).{0,40}(?:задач|tasks?)|(?:задач|tasks?).{0,40}(?:покажи|изброй|какви|кои|статус|напредък)/iu.test(subtask)
     ) {
       requests.push({
-        capability: "infrastructure.cloudflare.read",
-        action: "infrastructure.read",
+        capability: /(?:незавършен|текущ|чакащ|напредък)/iu.test(subtask)
+          ? "tasks.progress"
+          : "tasks.read",
+        action: "tasks.read",
+        message: subtask,
+      });
+    } else if (
+      /(?:създай|добави|запиши|направи|планирай).{0,35}(?:нова\s+)?задач/iu.test(
+        subtask,
+      )
+    ) {
+      requests.push({
+        capability: "tasks.draft",
+        action: "tasks.draft",
         message: subtask,
       });
     }
@@ -510,8 +518,8 @@ export function detectCapabilityRequests(message) {
           subtask,
         ));
     const wantsGitHubRead =
-      !copilotBridgeStatusRequest &&
-      !copilotTaskStatusRequest &&
+      !githubWriteStatusRequest &&
+      !githubTaskStatusRequest &&
       !/(?:използва\s+успешно|кои\s+са\s+достъпни)/iu.test(subtask) &&
       (mergedBranchCleanupPlan ||
         isGitHubReadRequest(subtask) ||
@@ -618,31 +626,18 @@ function capabilityLabel(capability) {
   if (capability === "memory.read") return "памет";
   if (capability === "memory.verify") return "автоматичен тест на паметта";
   if (capability === "web.search") return "интернет търсене";
-  if (capability === "infrastructure.digitalocean.read") return "DigitalOcean";
-  if (capability === "infrastructure.cloudflare.read") return "Cloudflare";
+  if (capability === "infrastructure.googlecloud.read") return "Google Cloud";
+  if (capability === "tasks.read") return "задачи";
+  if (capability === "tasks.progress") return "напредък на задачите";
+  if (capability === "tasks.draft") return "нова задача";
   return capability;
 }
 
 function formatCapabilityFailureMessage(error) {
-  if (error instanceof DigitalOceanError) {
-    const messages = {
-      DIGITALOCEAN_TOKEN_INVALID:
-        "DigitalOcean token-ът е невалиден, изтекъл или отнет.",
-      DIGITALOCEAN_FORBIDDEN:
-        "DigitalOcean връзката няма право да прочете тези данни.",
-      DIGITALOCEAN_NOT_CONFIGURED: "DigitalOcean Read не е конфигуриран.",
-      DIGITALOCEAN_APP_NOT_CONFIGURED: "DigitalOcean App ID не е конфигуриран.",
-      DIGITALOCEAN_UPSTREAM_ERROR: "DigitalOcean API временно не отговаря.",
-    };
-    return messages[error.code] || "DigitalOcean временно не е достъпен.";
-  }
-  if (error instanceof CloudflareError) {
-    return error.message;
-  }
   if (
     error instanceof GitHubServiceError ||
     error instanceof GitHubOAuthError ||
-    error instanceof CopilotTaskError ||
+    error instanceof CodeTaskError ||
     error instanceof CodexAgentError ||
     error instanceof GoogleDriveError ||
     error instanceof WebSearchError
@@ -972,9 +967,10 @@ router.post("/chat", async (req, res) => {
     }
   }
 
-  const copilotConfirmationId = extractCopilotConfirmationId(cleanMessage);
+  const codeTaskConfirmationId =
+    extractCodeTaskConfirmationId(cleanMessage);
   const calendarConfirmationId = extractCalendarConfirmationId(cleanMessage);
-  if (copilotConfirmationId && !ownerToolsAllowed) {
+  if (codeTaskConfirmationId && !ownerToolsAllowed) {
     return res.status(403).json({
       error: "GitHub действията са достъпни само за собственика.",
       code: "OWNER_ONLY",
@@ -1187,14 +1183,15 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
-  if (copilotConfirmationId) {
+  if (codeTaskConfirmationId) {
     try {
-      const result = await confirmCopilotTask({
-        confirmationId: copilotConfirmationId,
+      const result = await confirmCodeTask({
+        ownerId,
+        confirmationId: codeTaskConfirmationId,
         sessionId: cleanSessionId,
         githubSessionId,
       });
-      const fullReply = formatCopilotTaskResult(result);
+      const fullReply = formatCodeTaskResult(result);
       const conversationPersisted = await saveConversationTurnBestEffort(
         cleanSessionId,
         cleanMessage,
@@ -1206,32 +1203,32 @@ router.post("/chat", async (req, res) => {
         decision: "confirmed",
         outcome: "started",
         resource: result.repository,
-        details: `issue:${result.issueNumber}`,
+        details: `pull-request:${result.pullRequestNumber}`,
         sessionId: cleanSessionId,
       });
       sendEvent("token", { token: fullReply });
       sendEvent("done", {
         ok: true,
-        mode: "copilot-task",
-        issueNumber: result.issueNumber,
+        mode: "code-task",
+        pullRequestNumber: result.pullRequestNumber,
         ...getConversationPersistenceMetadata(conversationPersisted),
       });
     } catch (error) {
-      logSafeError("[Copilot confirmation] Failure", error);
+      logSafeError("[Code task confirmation] Failure", error);
       await auditAction({
         action: "github.write",
         decision: "confirmed",
         outcome: "failed",
-        resource: "github-copilot",
-        details: safeErrorCode(error, "COPILOT_TASK_FAILED"),
+        resource: "ai-core-code-task",
+        details: safeErrorCode(error, "CODE_TASK_FAILED"),
         sessionId: cleanSessionId,
       });
       sendEvent("error", {
         status: error?.status || 500,
         message:
-          error instanceof CopilotTaskError || error instanceof GitHubOAuthError
+          error instanceof CodeTaskError || error instanceof GitHubOAuthError
             ? error.message
-            : "GitHub Copilot задачата не можа да бъде стартирана.",
+            : "AI CORE кодовата задача не можа да бъде изпълнена.",
       });
     }
     res.end();
@@ -1316,56 +1313,26 @@ router.post("/chat", async (req, res) => {
         req.owner,
       )
     : [];
-  let detectedCapabilityRequests = fallbackCapabilityRequests;
-  sendEvent("task", {
-    status: "planning",
-    message: "Проверявам задачата и избирам нужните инструменти…",
-  });
-  if (
-    capabilityPlanningAllowed &&
-    !memoryAction &&
-    openAiApiKey &&
-    !hasExplicitNoAdditionalToolsBoundary(cleanMessage) &&
-    shouldUseAgentPlanner(cleanMessage, fallbackCapabilityRequests)
-  ) {
-    try {
-      const plannedCapabilityRequests = filterCapabilityRequestsForIdentity(
-        await planCapabilities({
-          openAiApiKey,
-          message: cleanMessage,
-        }),
-        req.owner,
-      );
-      detectedCapabilityRequests = mergeCapabilityRequests(
-        fallbackCapabilityRequests,
-        plannedCapabilityRequests,
-      );
-      console.info(
-        `[AgentPlanner] Planned ${detectedCapabilityRequests.length} capability calls for ${cleanSessionId}.`,
-      );
-    } catch (error) {
-      logSafeError("[AgentPlanner] Failure", error);
-      detectedCapabilityRequests = memoryAction
-        ? []
-        : fallbackCapabilityRequests;
-    }
-  }
-  detectedCapabilityRequests = filterCapabilityRequestsForIdentity(
-    routeSelectedWorkAgentCapabilities(
-      detectedCapabilityRequests,
-      cleanWorkContext,
-      cleanMessage,
-    ),
-    req.owner,
-  );
-  console.info(
-    `[Chat] Detected ${detectedCapabilityRequests.length} capability subtasks for ${cleanSessionId}: ${detectedCapabilityRequests
-      .map((request, index) => `#${index + 1}:${request.capability}`)
-      .join(", ")}`,
-  );
-  const taskExecution = await executeTaskPlan({
+  const normalizeCapabilityRequests = (requests) =>
+    filterCapabilityRequestsForIdentity(requests, req.owner);
+  const taskExecution = await orchestrateTask({
     message: cleanMessage,
-    requests: detectedCapabilityRequests,
+    fallbackRequests: fallbackCapabilityRequests,
+    planningAllowed:
+      capabilityPlanningAllowed &&
+      !memoryAction &&
+      Boolean(openAiApiKey) &&
+      !hasExplicitNoAdditionalToolsBoundary(cleanMessage),
+    plannerContext: { openAiApiKey },
+    planFn: planCapabilities,
+    shouldPlanFn: shouldUseAgentPlanner,
+    normalizeRequests: normalizeCapabilityRequests,
+    routeRequests: (requests) =>
+      routeSelectedWorkAgentCapabilities(
+        requests,
+        cleanWorkContext,
+        cleanMessage,
+      ),
     executeFn: executeCapability,
     executionContext: {
       googleSessionId,
@@ -1377,7 +1344,14 @@ router.post("/chat", async (req, res) => {
     },
     notify: (taskEvent) => sendEvent("task", taskEvent),
     audit: auditAction,
+    onPlannerError: (error) => logSafeError("[AgentPlanner] Failure", error),
   });
+  const detectedCapabilityRequests = taskExecution.requests;
+  console.info(
+    `[Chat] Detected ${detectedCapabilityRequests.length} capability subtasks for ${cleanSessionId}: ${detectedCapabilityRequests
+      .map((request, index) => `#${index + 1}:${request.capability}`)
+      .join(", ")}`,
+  );
   const capabilityResults = taskExecution.results;
   const projectRun = projectRunFromCapabilityResults(
     capabilityResults,

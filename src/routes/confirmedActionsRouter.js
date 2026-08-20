@@ -17,10 +17,6 @@ import {
   updateFile,
 } from "../services/githubWriteService.js";
 import {
-  CopilotTaskError,
-  startCopilotTask,
-} from "../services/copilotTaskService.js";
-import {
   GitHubOAuthError,
   parseGitHubCookies,
 } from "../services/githubOAuthService.js";
@@ -184,8 +180,7 @@ router.post("/confirm", async (req, res) => {
     const status =
       isAuditSafetyError(error) ||
       error instanceof GitHubServiceError ||
-      error instanceof GitHubOAuthError ||
-      error instanceof CopilotTaskError
+      error instanceof GitHubOAuthError
         ? error.status
         : 500;
     return res
@@ -282,14 +277,6 @@ async function executeAction(confirmation, githubSessionId = "") {
         body: params.body || "",
         head: resource.head,
         base: resource.base || "main",
-      });
-
-    case "github.copilot:start_task":
-      return startCopilotTask({
-        githubSessionId,
-        prompt: params.prompt,
-        repository: resource.repository || defaultRepo,
-        baseRef: resource.baseRef || "main",
       });
 
     default: {

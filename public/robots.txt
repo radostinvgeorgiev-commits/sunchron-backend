@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://synchron.foundation/sitemap.xml
+Sitemap: https://cloudaicore.com/sitemap.xml

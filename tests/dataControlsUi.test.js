@@ -45,12 +45,8 @@ test("application exposes working memory and permission controls", async () => {
   assert.match(script, /markMemoryOperational\(\)/u);
   assert.match(script, /state\.opensearchFailures >= 3/u);
   assert.match(script, /Свързан · работи/u);
-  assert.match(script, /Изключено · режим без Copilot/u);
-  assert.match(script, /COPILOT_AUTOMATION_DISABLED/u);
-  assert.match(
-    script,
-    /Кодовият мост е запазен, но е изключен в текущия режим без Copilot/u,
-  );
+  assert.match(script, /AI CORE Code Write подготвя отделен branch/u);
+  assert.match(script, /Писането е защитено/u);
   assert.doesNotMatch(script, /fetch\(["']\/opensearch-status["']/u);
   assert.match(html, /\/assets\/20260806-green-chat-v1\/app\.js/u);
 });

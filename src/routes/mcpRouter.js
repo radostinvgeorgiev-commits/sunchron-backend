@@ -16,8 +16,7 @@ import {
 const router = express.Router();
 const handleMcpRequest = createMcpRequestHandler();
 const DEFAULT_ALLOWED_MCP_ORIGINS = Object.freeze([
-  "https://synchron.foundation",
-  "https://www.synchron.foundation",
+  "https://cloudaicore.com",
   "https://chatgpt.com",
 ]);
 const SUPPORTED_MCP_PROTOCOL_VERSIONS = new Set([

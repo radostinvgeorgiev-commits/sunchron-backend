@@ -37,7 +37,7 @@ import {
 
 const ENV = {
   MCP_ACCESS_TOKEN: "mcp-oauth-test-secret-with-more-than-32-characters",
-  MCP_RESOURCE_URL: "https://synchron.foundation/mcp",
+  MCP_RESOURCE_URL: "https://cloudaicore.com/mcp",
 };
 const TUNNEL_RESOURCE =
   "https://tunnel-service.gateway.unified-0.internal.api.openai.org/v1/mcp/tunnel_test123";
@@ -197,7 +197,7 @@ function encryptLegacyToken(prefix, payload, key) {
 
 function legacyIdentityPayload(now = Math.floor(Date.now() / 1_000)) {
   return {
-    iss: "https://synchron.foundation",
+    iss: "https://cloudaicore.com",
     aud: ENV.MCP_RESOURCE_URL,
     clientId: CLIENT_ID,
     scopes: [MCP_READ_SCOPE],
@@ -291,7 +291,7 @@ test.beforeEach(() => resetMcpOAuthStateForTests());
 test("publishes OAuth 2.1 protected-resource and authorization metadata", () => {
   assert.deepEqual(getMcpProtectedResourceMetadata(ENV), {
     resource: ENV.MCP_RESOURCE_URL,
-    authorization_servers: ["https://synchron.foundation"],
+    authorization_servers: ["https://cloudaicore.com"],
     scopes_supported: [
       MCP_READ_SCOPE,
       MCP_AGENT_CHAT_SCOPE,
@@ -307,7 +307,7 @@ test("publishes OAuth 2.1 protected-resource and authorization metadata", () => 
   const authorization = getMcpAuthorizationServerMetadata(ENV);
   assert.equal(
     authorization.authorization_endpoint,
-    "https://synchron.foundation/oauth/authorize",
+    "https://cloudaicore.com/oauth/authorize",
   );
   assert.equal(authorization.token_endpoint_auth_methods_supported[0], "none");
   assert.deepEqual(authorization.grant_types_supported, [

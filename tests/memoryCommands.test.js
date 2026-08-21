@@ -78,3 +78,15 @@ test("extracts a requested confirmation without writing before approval", () => 
     },
   ]);
 });
+
+test("turns an explicit memory proposal into the canonical confirmation flow", () => {
+  const message =
+    "За изолиран приемателен тест предложи да запомниш точно този тестов факт, но не записвай нищо още: SYNCHRON_TEST_FACT_2026_08_21 = синя спирала. Покажи какво би записал и изчакай потвърждение.";
+
+  assert.deepEqual(extractPersistentMemoryCommands(message), [
+    {
+      fact: "SYNCHRON_TEST_FACT_2026_08_21 = синя спирала",
+      scope: "personal",
+    },
+  ]);
+});

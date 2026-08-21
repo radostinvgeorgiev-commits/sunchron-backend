@@ -339,6 +339,18 @@ export function extractPersistentMemoryCommand(message) {
 
 export function extractPersistentMemoryCommands(message) {
   const text = message.trim();
+  // A proposal is still a memory intent, but it must never write anything by
+  // itself. Recognize the explicit "do not write yet" wording so the route can
+  // create the same one-time confirmation used by the canonical `Запомни:`
+  // command instead of leaving the model to invent a free-form confirmation.
+  const proposalCommand = text.match(
+    /не\s+записвай\s+нищо\s+още\s*:\s*([\s\S]+?)(?=\.\s*(?:покажи|изчакай)(?:\s|$)|$)/iu,
+  );
+  if (proposalCommand?.[1]) {
+    const fact = cleanMemoryFact(proposalCommand[1]);
+    if (fact) return [{ fact, scope: "personal" }];
+  }
+
   const embeddedCommand = text.match(
     /(?:^|[.!?]\s+)(?:накрая\s+)?(?:поискай\s+потвърждение\s+да\s+)?запомни(?:ш)?(?:\s+в\s+постоянната\s+ми\s+памет)?\s*:\s*[„“"'’]?([^„“"'’]+?)[„“"'’]?(?=\s+(?:преди\s+запис|не\s+записвай|не\s+променяй)|$)/iu,
   );

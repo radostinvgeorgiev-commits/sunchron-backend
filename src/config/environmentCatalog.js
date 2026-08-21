@@ -197,6 +197,12 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       { hasDefault: true },
     ),
     general(
+      "FIRESTORE_COUNCIL_INTENT_COLLECTION",
+      "Устойчиви изпълнения",
+      "Firestore колекция за еднократните Council препоръки.",
+      { hasDefault: true },
+    ),
+    general(
       "FIRESTORE_GITHUB_SESSION_COLLECTION",
       "GitHub",
       "Firestore колекция за криптираните GitHub OAuth сесии.",

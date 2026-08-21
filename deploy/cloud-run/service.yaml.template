@@ -90,6 +90,8 @@ spec:
               value: synchron-tasks-v1
             - name: FIRESTORE_TASK_RUN_COLLECTION
               value: synchron-task-runs-v1
+            - name: FIRESTORE_COUNCIL_INTENT_COLLECTION
+              value: synchron-council-intents-v1
             - name: FIRESTORE_GITHUB_SESSION_COLLECTION
               value: synchron-github-sessions-v1
             - name: FIRESTORE_GOOGLE_SESSION_COLLECTION

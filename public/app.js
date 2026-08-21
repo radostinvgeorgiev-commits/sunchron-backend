@@ -1625,6 +1625,10 @@ function createAssistantTurn(text = "", showActions = true) {
   actions.className = "message-actions";
   actions.hidden = !showActions;
   actions.innerHTML = `
+        <button type="button" data-action="execute-council" class="council-execute-action" hidden>
+            <i class="fa-solid fa-play"></i>
+            <span class="action-label">Изпълни препоръката</span>
+        </button>
         <button type="button" data-action="copy" title="Копирай" aria-label="Копирай">
             <i class="fa-regular fa-copy"></i>
             <span class="action-label">Копирай</span>
@@ -1643,6 +1647,16 @@ function createAssistantTurn(text = "", showActions = true) {
   turn.append(message, actions);
   elements.chatMessages.appendChild(turn);
   return { turn, message, actions };
+}
+
+function showCouncilExecutionAction(message, councilIntentId) {
+  const turn = message?.closest(".assistant-turn");
+  const button = turn?.querySelector('button[data-action="execute-council"]');
+  if (!button || typeof councilIntentId !== "string" || !councilIntentId) {
+    return;
+  }
+  button.dataset.councilIntentId = councilIntentId;
+  button.hidden = false;
 }
 
 function showConversationPersistenceWarning(message) {
@@ -1686,6 +1700,14 @@ async function handleMessageAction(event) {
   if (!text) return;
 
   const action = button.dataset.action;
+
+  if (action === "execute-council") {
+    elements.chatInput.value = "Изпълни препоръката.";
+    resizeChatInput();
+    elements.chatInput.focus();
+    await sendMessage({ councilIntentId: button.dataset.councilIntentId });
+    return;
+  }
 
   if (action === "copy") {
     await copyText(text);
@@ -1785,7 +1807,7 @@ function parseSseEvent(rawEvent) {
   }
 }
 
-async function sendMessage() {
+async function sendMessage({ councilIntentId = "" } = {}) {
   const text = elements.chatInput.value.trim();
   const image = state.pendingImage;
   if ((!text && !image) || state.chatBusy) return;
@@ -1814,6 +1836,7 @@ async function sendMessage() {
         message: messageText,
         image,
         council: councilMode,
+        ...(councilIntentId ? { councilIntentId } : {}),
         recentHistory,
         ...globalThis.SynchronWorkMode?.getRequestPayload(),
       }),
@@ -1903,6 +1926,10 @@ async function sendMessage() {
             logAction("Задачата е изпълнена частично");
           }
           if (parsed.data?.mode === "council") {
+            showCouncilExecutionAction(
+              responseBubble,
+              parsed.data?.councilIntentId,
+            );
             logAction("Трите AI двигателя дадоха обща препоръка");
           }
           if (typeof parsed.data?.tool === "string") {

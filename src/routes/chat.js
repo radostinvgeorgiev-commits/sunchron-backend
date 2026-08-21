@@ -100,6 +100,11 @@ import {
   runAiCouncil,
 } from "../services/aiCouncilService.js";
 import {
+  consumeCouncilIntent,
+  CouncilIntentError,
+  createCouncilIntent,
+} from "../services/councilIntentService.js";
+import {
   AVATAR_DEFINITION,
   PROJECT_BASE_CONTEXT,
   PROJECT_DEFINITION,
@@ -133,6 +138,8 @@ const DIRECT_CAPABILITY_REPLIES = new Set([
   "code.write",
   "infrastructure.googlecloud.read",
 ]);
+const COUNCIL_SELECTION_PATTERN =
+  /^изпълни\s+(?:препоръката|варианта)(?:[.!?]+)?$/iu;
 
 function durableTaskRunStatus(status) {
   if (status === "executing" || status === "running") return "running";
@@ -929,6 +936,7 @@ router.post("/chat", async (req, res) => {
     workContext,
     recentHistory,
     council,
+    councilIntentId,
   } =
     req.body || {};
   const googleSessionId =
@@ -940,9 +948,11 @@ router.post("/chat", async (req, res) => {
   const capabilityPlanningAllowed = canPlanCapabilities(req.owner);
   const cleanSessionId = typeof sessionId === "string" ? sessionId.trim() : "";
   const cleanMessage = typeof message === "string" ? message.trim() : "";
-  const councilRequested = council === true || isMultiEngineCouncilRequest(cleanMessage);
+  const councilRequested =
+    !councilIntentId &&
+    (council === true || isMultiEngineCouncilRequest(cleanMessage));
   const cleanRecentHistory = normalizeRecentConversationHistory(recentHistory);
-  const taskMessage = buildContextualTaskMessage(
+  let taskMessage = buildContextualTaskMessage(
     cleanMessage,
     cleanRecentHistory,
   );
@@ -1465,6 +1475,49 @@ router.post("/chat", async (req, res) => {
     res.end();
     return;
   }
+  if (councilIntentId && !COUNCIL_SELECTION_PATTERN.test(cleanMessage)) {
+    return res.status(400).json({
+      error: "Council препоръката може да се изпълни само с точната команда.",
+      code: "COUNCIL_INTENT_CONFIRMATION_INVALID",
+    });
+  }
+
+  let selectedCouncilIntent = null;
+  if (councilIntentId) {
+    try {
+      selectedCouncilIntent = await consumeCouncilIntent({
+        ownerId,
+        sessionId: cleanSessionId,
+        intentId: councilIntentId,
+      });
+      taskMessage = [
+        "[ИЗБРАНА ПРЕПОРЪКА ОТ AI CORE COUNCIL]",
+        `Първоначална заявка: ${selectedCouncilIntent.question}`,
+        `Обща препоръка: ${selectedCouncilIntent.recommendation}`,
+        selectedCouncilIntent.rationale
+          ? `Обосновка: ${selectedCouncilIntent.rationale}`
+          : "",
+        selectedCouncilIntent.nextSteps.length
+          ? `Следващи стъпки:\n${selectedCouncilIntent.nextSteps.join("\n")}`
+          : "",
+        `Потребителят избра да се изпълни препоръката: ${cleanMessage}`,
+        "Това е заявка за планиране, не заобикаля защитите. Използвай само разрешени capabilities и изискай отделно потвърждение за рисково действие.",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    } catch (error) {
+      logSafeError("[AI Council] Intent selection failure", error);
+      sendEvent("error", {
+        status: error instanceof CouncilIntentError ? error.status : 503,
+        message:
+          error instanceof CouncilIntentError
+            ? error.message
+            : "Избраната Council препоръка временно не е достъпна.",
+      });
+      res.end();
+      return;
+    }
+  }
 
   if (councilRequested) {
     try {
@@ -1472,6 +1525,19 @@ router.post("/chat", async (req, res) => {
         message: cleanMessage,
         context: PROJECT_BASE_CONTEXT.slice(0, 8).join("\n"),
       });
+      let councilIntent = null;
+      try {
+        councilIntent = await createCouncilIntent({
+          ownerId,
+          sessionId: cleanSessionId,
+          question: councilResult.question,
+          recommendation: councilResult.recommendation,
+          rationale: councilResult.rationale,
+          nextSteps: councilResult.nextSteps,
+        });
+      } catch (error) {
+        logSafeError("[AI Council] Intent persistence failure", error);
+      }
       const fullReply = formatAiCouncilReply(councilResult);
       const conversationPersisted = await saveConversationTurnBestEffort(
         cleanSessionId,
@@ -1484,6 +1550,7 @@ router.post("/chat", async (req, res) => {
         ok: true,
         mode: "council",
         council: councilResult,
+        ...(councilIntent ? { councilIntentId: councilIntent.id } : {}),
         ...getConversationPersistenceMetadata(conversationPersisted),
       });
     } catch (error) {
@@ -1637,6 +1704,9 @@ router.post("/chat", async (req, res) => {
   const taskResult = {
     ...mergeMemoryTaskStatus(taskExecution.task, memoryAction),
     ...(taskRunId ? { taskRunId } : {}),
+    ...(selectedCouncilIntent
+      ? { councilIntentId: selectedCouncilIntent.id }
+      : {}),
   };
   if (taskResult.status !== taskExecution.task.status) {
     sendEvent("task", {

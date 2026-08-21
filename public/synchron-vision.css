@@ -251,6 +251,20 @@ textarea:focus-visible {
   display: none;
 }
 
+.message-actions .council-execute-action {
+  width: auto;
+  padding: 0 11px;
+  gap: 7px;
+  color: var(--sx-accent-dark) !important;
+  border: 1px solid var(--sx-accent) !important;
+  background: #effaf5;
+  font-weight: 800;
+}
+
+.message-actions .council-execute-action .action-label {
+  display: inline;
+}
+
 .typing-indicator {
   color: var(--sx-accent) !important;
 }

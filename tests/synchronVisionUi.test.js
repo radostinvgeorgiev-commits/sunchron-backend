@@ -48,6 +48,9 @@ test("the chat composer is a labelled multiline control with bounded autosize", 
   assert.match(css, /\.chat-input-area textarea\s*\{/u);
   assert.match(css, /max-height:\s*160px/u);
   assert.match(app, /function resizeChatInput\(\)/u);
+  assert.match(app, /execute-council/u);
+  assert.match(app, /showCouncilExecutionAction/u);
+  assert.match(css, /council-execute-action/u);
   assert.match(app, /Math\.min\(naturalHeight, MAX_CHAT_INPUT_HEIGHT\)/u);
   assert.match(app, /chatInput\.addEventListener\("input", resizeChatInput\)/u);
 });

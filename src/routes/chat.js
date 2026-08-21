@@ -799,6 +799,30 @@ function projectRunFromCapabilityResults(capabilityResults, workContext) {
   return run;
 }
 
+export async function loadChatMemoryContext({
+  explicitMemoryIntent,
+  sessionId,
+  ownerId,
+  listMemories = listProfileMemories,
+  listMessages = listConversationMessages,
+} = {}) {
+  // Preparing or confirming a memory mutation still probes profile storage,
+  // but it does not need conversation history. Keeping that unrelated read
+  // out of the protected write path prevents a missing conversation index or
+  // transient history failure from suppressing a valid one-time confirmation.
+  if (explicitMemoryIntent) {
+    return {
+      memories: await listMemories({ ownerId }),
+      history: [],
+    };
+  }
+  const [memories, history] = await Promise.all([
+    listMemories({ ownerId }),
+    listMessages(sessionId, undefined, ownerId),
+  ]);
+  return { memories, history };
+}
+
 router.post("/chat", async (req, res) => {
   const openAiApiKey = process.env.OPENAI_API_KEY;
   const { sessionId, message, image, mode, workContext } = req.body || {};
@@ -932,10 +956,11 @@ router.post("/chat", async (req, res) => {
         }
       }
     }
-    [memories, history] = await Promise.all([
-      listProfileMemories({ ownerId }),
-      listConversationMessages(cleanSessionId, undefined, ownerId),
-    ]);
+    ({ memories, history } = await loadChatMemoryContext({
+      explicitMemoryIntent,
+      sessionId: cleanSessionId,
+      ownerId,
+    }));
   } catch (error) {
     logSafeError("[Memory] Chat request failure", error);
     if (

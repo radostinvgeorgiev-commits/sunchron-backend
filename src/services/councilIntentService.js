@@ -96,8 +96,8 @@ function getStore(env = process.env) {
     const documentStore = createFirestoreDocumentStore({ env });
     const collection = collectionName(env);
     firestoreStore = {
-      get: (id) => documentStore.get(collection, id),
-      set: (id, data) => documentStore.set(collection, id, data),
+      get: (id, options) => documentStore.get(collection, id, options),
+      set: (id, data, options) => documentStore.set(collection, id, data, options),
     };
     firestoreConfiguration = configuration;
   }
@@ -223,7 +223,7 @@ export async function consumeCouncilIntent(
   await previous;
   try {
     const store = requireStore(env);
-    const stored = await store.get(id);
+    const stored = await store.get(id, { includeMetadata: true });
     if (!stored || stored.data?.ownerHash !== hashOwner(ownerId)) {
       throw new CouncilIntentError(
         "Council препоръката не е намерена.",
@@ -249,7 +249,22 @@ export async function consumeCouncilIntent(
       status: "selected",
       selectedAt: at,
     };
-    await store.set(id, selected);
+    try {
+      await store.set(
+        id,
+        selected,
+        stored.updateTime ? { updateTime: stored.updateTime } : undefined,
+      );
+    } catch (error) {
+      if (error?.upstreamErrorStatus === "FAILED_PRECONDITION") {
+        throw new CouncilIntentError(
+          "Тази Council препоръка вече е използвана.",
+          409,
+          "COUNCIL_INTENT_ALREADY_USED",
+        );
+      }
+      throw error;
+    }
     return Object.freeze({ id, ...intentFromData(id, selected) });
   } finally {
     release();

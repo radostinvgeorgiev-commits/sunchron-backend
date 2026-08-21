@@ -76,6 +76,7 @@ const elements = {
     "supabaseBackupStatusDisplay",
   ),
   storageStatusCheckedAt: document.getElementById("storageStatusCheckedAt"),
+  taskRunList: document.getElementById("taskRunList"),
   actionsLog: document.getElementById("actionsLog"),
   conversationList: document.getElementById("conversationList"),
   conversationSearch: document.getElementById("conversationSearch"),
@@ -387,6 +388,7 @@ async function startApplication(user) {
   elements.closeDataDrawerBtn.addEventListener("click", closeDataDrawer);
   elements.drawerBackdrop.addEventListener("click", closeDataDrawer);
   elements.dataDrawerBody.addEventListener("click", handleDataDrawerAction);
+  elements.taskRunList?.addEventListener("click", handleTaskRunAction);
   elements.voiceBtn.addEventListener("click", toggleVoiceInput);
   elements.logoutBtn.addEventListener("click", handleLogout);
   document.addEventListener("keydown", handleGlobalKeydown);
@@ -395,6 +397,7 @@ async function startApplication(user) {
   checkHealth();
   checkOpenSearch();
   checkStorageStatus();
+  void loadTaskRuns();
   setInterval(checkHealth, 10000);
   setInterval(checkOpenSearch, 20000);
   setInterval(checkStorageStatus, 60000);
@@ -657,6 +660,7 @@ function openStatus() {
   elements.statusPanel.classList.add("mobile-visible");
   elements.statusPanel.setAttribute("aria-hidden", "false");
   void checkStorageStatus();
+  void loadTaskRuns();
   elements.closeContextBtn.focus({ preventScroll: true });
 }
 
@@ -1690,6 +1694,115 @@ function showAiResponseSource(message, provider, model) {
   turn.insertBefore(source, actions || null);
 }
 
+const TASK_RUN_STATUS_LABELS = Object.freeze({
+  queued: "Чака планиране",
+  planning: "Планиране",
+  running: "Работи",
+  paused: "Пауза",
+  waiting_confirmation: "Чака потвърждение",
+  partial: "Частично изпълнена",
+  completed: "Завършена",
+  failed: "Неуспешна",
+  cancelled: "Отказана",
+});
+
+function taskRunStatusLabel(status) {
+  return TASK_RUN_STATUS_LABELS[status] || "Неизвестен статус";
+}
+
+function renderTaskRuns(items) {
+  if (!elements.taskRunList) return;
+  elements.taskRunList.replaceChildren();
+  if (!Array.isArray(items) || !items.length) {
+    const empty = document.createElement("li");
+    empty.textContent = "Няма запазени изпълнения.";
+    elements.taskRunList.appendChild(empty);
+    return;
+  }
+
+  for (const run of items.slice(0, 10)) {
+    const item = document.createElement("li");
+    item.className = "task-run-item";
+    const title = document.createElement("strong");
+    title.textContent = run.title || "AI задача";
+    const status = document.createElement("small");
+    status.textContent = `${taskRunStatusLabel(run.status)} · ${run.id}`;
+    item.append(title, status);
+
+    const actions = document.createElement("div");
+    actions.className = "task-run-actions";
+    const canPause = ["planning", "running", "partial"].includes(run.status);
+    const canResume = ["paused", "partial", "failed"].includes(run.status);
+    const canCancel = !["completed", "cancelled"].includes(run.status);
+    for (const [action, label, enabled] of [
+      ["pause", "Пауза", canPause],
+      ["resume", "Продължи", canResume],
+      ["cancel", "Спри", canCancel],
+    ]) {
+      if (!enabled) continue;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.runId = run.id;
+      button.dataset.runAction = action;
+      button.textContent = label;
+      actions.appendChild(button);
+    }
+    if (actions.childElementCount) item.appendChild(actions);
+    elements.taskRunList.appendChild(item);
+  }
+}
+
+async function loadTaskRuns() {
+  if (!elements.taskRunList) return;
+  try {
+    const response = await fetch("/api/task-runs?limit=10", {
+      cache: "no-store",
+    });
+    if (!response.ok) return;
+    const data = await response.json();
+    renderTaskRuns(data.items);
+  } catch {
+    // The chat remains usable when task-run storage is temporarily unavailable.
+  }
+}
+
+async function handleTaskRunAction(event) {
+  const button = event.target.closest("button[data-run-action]");
+  if (!button || !button.dataset.runId) return;
+  button.disabled = true;
+  const action = button.dataset.runAction;
+  try {
+    const response = await fetch(
+      `/api/task-runs/${encodeURIComponent(button.dataset.runId)}/${action}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body:
+          action === "pause"
+            ? JSON.stringify({ reason: "Потребителят спря задачата от панела." })
+            : "{}",
+      },
+    );
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      logAction(data?.error || "Task run действието беше отказано.");
+      return;
+    }
+    logAction(
+      action === "resume"
+        ? "Task run продължи от последния checkpoint"
+        : action === "pause"
+          ? "Task run е поставен на пауза"
+          : "Task run е спрян",
+    );
+    await loadTaskRuns();
+  } catch {
+    logAction("Task run действието временно не е достъпно.");
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function handleMessageAction(event) {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
@@ -1931,6 +2044,9 @@ async function sendMessage({ councilIntentId = "" } = {}) {
               parsed.data?.councilIntentId,
             );
             logAction("Трите AI двигателя дадоха обща препоръка");
+          }
+          if (parsed.data?.taskRunId || parsed.data?.task?.taskRunId) {
+            void loadTaskRuns();
           }
           if (typeof parsed.data?.tool === "string") {
             logAction("Използван инструмент: " + parsed.data.tool);

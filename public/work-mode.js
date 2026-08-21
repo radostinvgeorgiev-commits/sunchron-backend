@@ -61,7 +61,6 @@
   });
   const PROJECT_TOOL_OPTIONS = Object.freeze([
     Object.freeze({ id: "synchron-agent-chat", label: "AI разговор" }),
-    Object.freeze({ id: "opensearch-memory", label: "Памет" }),
     Object.freeze({ id: "synchron-tasks", label: "Задачи" }),
     Object.freeze({ id: "github-read", label: "GitHub" }),
     Object.freeze({ id: "google-drive-read", label: "Google Drive" }),

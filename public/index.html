@@ -494,53 +494,11 @@
           </div>
           <div class="context-box">
             <div class="context-label">Активни интеграции</div>
-            <div class="context-value">
-              Показват се само реално потвърдените връзки.
-            </div>
+            <div class="context-value" id="activeIntegrationsDisplay">Проверка…</div>
             <small class="status-evidence">
-              Нови връзки се добавят през „Инструменти“.
+              Показват се само реално конфигурираните и изпълними връзки.
             </small>
           </div>
-          <details class="legacy-status-details">
-            <summary>Наследени услуги и архив · само диагностика</summary>
-            <p class="status-evidence">
-              Тези проверки не са активна част от основния интерфейс. Отвори
-              секцията само ако търсиш информация за стария runtime или архив.
-            </p>
-            <div class="context-box">
-              <div class="context-label">OpenSearch</div>
-              <div class="context-value" id="opensearchStatusDisplay">
-                Проверка…
-              </div>
-            </div>
-            <div class="context-box">
-              <div class="context-label">Supabase Auth</div>
-              <div class="context-value" id="supabaseStatusDisplay">
-                Проверка с реална заявка…
-              </div>
-            </div>
-            <div class="context-box">
-              <div class="context-label">OpenSearch backup</div>
-              <div class="context-value" id="opensearchBackupStatusDisplay">
-                Проверка на инвентара…
-              </div>
-              <small class="status-evidence">
-                Наличният инвентар не доказва успешно възстановяване.
-              </small>
-            </div>
-            <div class="context-box">
-              <div class="context-label">Supabase backup</div>
-              <div class="context-value" id="supabaseBackupStatusDisplay">
-                Непроверен
-              </div>
-              <small class="status-evidence">
-                Runtime ключът не вижда backup политиката на доставчика.
-              </small>
-            </div>
-            <p class="status-checked-at" id="storageStatusCheckedAt">
-              Последна проверка: предстои
-            </p>
-          </details>
           <div class="context-label task-run-title">Изпълнения на задачи</div>
           <ul class="log-list task-run-list" id="taskRunList">
             <li>Проверка на изпълненията…</li>

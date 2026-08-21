@@ -382,21 +382,6 @@ export function registerCoreTools() {
       healthStatus: "unavailable",
     },
     {
-      id: "supabase-status",
-      provider: "supabase",
-      name: "Supabase Status",
-      version: "1.0.0",
-      category: "database",
-      capabilities: ["database.status"],
-      permissions: ["database.read"],
-      capabilityPermissions: {
-        "database.status": "database.read",
-      },
-      enabled: true,
-      requiresConfirmation: false,
-      healthStatus: "unavailable",
-    },
-    {
       id: "google-cloud-read",
       provider: "google",
       name: "Google Cloud Read",
@@ -412,9 +397,9 @@ export function registerCoreTools() {
       healthStatus: "unavailable",
     },
     {
-      id: "opensearch-memory",
-      provider: "synchron",
-      name: "Synchron Memory",
+      id: "google-firestore-memory",
+      provider: "google",
+      name: "Google Cloud Memory",
       version: "1.0.0",
       category: "memory",
       capabilities: [

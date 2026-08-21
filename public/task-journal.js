@@ -39,14 +39,6 @@
       priority: "Изисква owner вход",
     },
     {
-      id: "opensearch-backup",
-      title: "OpenSearch backup инвентар",
-      detail:
-        "На 1 август 2026 owner проверката потвърди 3 restore точки. Не е създаван restore или fork и не са променяни данни.",
-      status: "done",
-      priority: "Проверено",
-    },
-    {
       id: "memory-real-data",
       title: "Постоянна памет и изолиран acceptance тест",
       detail:

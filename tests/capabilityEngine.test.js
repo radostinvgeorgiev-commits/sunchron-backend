@@ -123,12 +123,15 @@ test("granular mail, contacts, tasks and GitHub writes use exact permission deci
   }
 });
 
-test("регистрира Supabase като изпълним инструмент само за статус", () => {
-  const result = resolveCapability("database.status");
-  assert.equal(result.tool.id, "supabase-status");
-  assert.equal(result.permission.decision, "allow");
-  assert.equal(result.requiresConfirmation, false);
-  assert.equal(isToolExecutable("supabase-status"), true);
+test("не регистрира legacy database status инструмент", () => {
+  assert.equal(getTool("supabase-status"), null);
+  assert.equal(isToolExecutable("supabase-status"), false);
+  assert.throws(
+    () => resolveCapability("database.status"),
+    (error) =>
+      error instanceof CapabilityError &&
+      error.code === "CAPABILITY_UNAVAILABLE",
+  );
 });
 
 test("runtime availability blocks configured-looking tools without credentials", () => {
@@ -156,21 +159,6 @@ test("runtime availability blocks configured-looking tools without credentials",
       {
         GITHUB_CLIENT_ID: "client",
         GITHUB_CLIENT_SECRET: "secret",
-      },
-    ).available,
-    true,
-  );
-  assert.equal(
-    getToolRuntimeAvailability("supabase-status", {}, {}).available,
-    false,
-  );
-  assert.equal(
-    getToolRuntimeAvailability(
-      "supabase-status",
-      {},
-      {
-        SUPABASE_URL: "https://project.supabase.co",
-        SUPABASE_PUBLISHABLE_KEY: "publishable",
       },
     ).available,
     true,
@@ -234,7 +222,7 @@ test("AI CORE chat and memory availability accept Firestore without OpenSearch",
     true,
   );
   assert.equal(
-    getToolRuntimeAvailability("opensearch-memory", {}, env).available,
+    getToolRuntimeAvailability("google-firestore-memory", {}, env).available,
     true,
   );
 });
@@ -275,7 +263,7 @@ test("execution fails closed before calling an unconfigured external tool", asyn
       ),
     (error) =>
       error instanceof CapabilityError &&
-      error.code === "CAPABILITY_NOT_CONFIGURED",
+      error.code === "CAPABILITY_UNAVAILABLE",
   );
 });
 
@@ -321,7 +309,6 @@ test("връща общ статус само след реални провер
     {
       checkGitHub: async () => true,
       checkMemory: async () => [],
-      checkSupabase: async () => ({ status: "healthy" }),
       checkGoogleCloud: async () => ({ configured: true }),
       env: {
         AI_CORE_PROVIDER: "grok",
@@ -336,8 +323,8 @@ test("връща общ статус само след реални провер
 
   assert.match(report, /Проверих инструментите реално сега/u);
   assert.match(report, /GitHub Read/u);
-  assert.match(report, /Synchron Memory/u);
-  assert.match(report, /Supabase Status/u);
+  assert.match(report, /Google Cloud Memory/u);
+  assert.doesNotMatch(report, /Supabase|OpenSearch/u);
   assert.match(report, /Google Cloud Read/u);
   assert.match(report, /Google Drive — изисква Google вход/u);
   assert.match(report, /GitHub Write — свързан; изисква потвърждение/u);
@@ -352,7 +339,6 @@ test("не обявява Google Cloud за работещ без runtime кон
     {
       checkGitHub: async () => true,
       checkMemory: async () => [],
-      checkSupabase: async () => ({ status: "healthy" }),
       checkGoogleCloud: async () => ({ configured: false }),
       env: {},
     },

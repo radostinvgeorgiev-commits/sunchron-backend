@@ -350,7 +350,7 @@ test("answers each repository architecture check from main instead of repeating 
   const registrySource = `
     { id: "github-read", name: "GitHub Read",
       capabilities: ["code.read"], permissions: ["github.read"] },
-    { id: "opensearch-memory", name: "Synchron Memory",
+    { id: "google-firestore-memory", name: "Google Cloud Memory",
       capabilities: ["memory.read"], permissions: ["memory.read", "memory.write"] }
   `;
   global.fetch = async (url) => {
@@ -397,7 +397,7 @@ test("answers each repository architecture check from main instead of repeating 
     "Кои инструменти са регистрирани в GitHub проекта?",
   );
   assert.match(tools, /GitHub Read/u);
-  assert.match(tools, /Synchron Memory/u);
+  assert.match(tools, /Google Cloud Memory/u);
 
   const permissions = await answerGitHubReadRequest(
     "Какви разрешения изисква всеки инструмент в GitHub проекта?",

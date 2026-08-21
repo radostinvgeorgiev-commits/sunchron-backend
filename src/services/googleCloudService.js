@@ -32,6 +32,9 @@ export function getGoogleCloudRuntimeStatus({ env = process.env } = {}) {
   const commit = cleanRuntimeValue(env.APP_COMMIT_SHA, 64);
   const cloudRunDetected = Boolean(env.K_SERVICE && env.K_REVISION);
   const configured = Boolean(projectId);
+  const memoryBackend = resolveMemoryBackend(env);
+  const persistenceBackend = resolvePersistenceBackend(env);
+  const authBackend = getUserAuthProvider(env);
 
   return Object.freeze({
     provider: "google-cloud",
@@ -46,10 +49,11 @@ export function getGoogleCloudRuntimeStatus({ env = process.env } = {}) {
     commit,
     canonicalOrigin: AI_CORE_PUBLIC_ORIGIN,
     consoleUrl: cloudConsoleUrl(projectId),
-    memoryBackend: resolveMemoryBackend(env),
-    persistenceBackend: resolvePersistenceBackend(env),
+    memoryBackend: memoryBackend === "firestore" ? memoryBackend : null,
+    persistenceBackend:
+      persistenceBackend === "firestore" ? persistenceBackend : null,
     firestoreDatabaseId: resolveFirestoreDatabaseId(env),
-    authBackend: getUserAuthProvider(env),
+    authBackend: authBackend === "identity-platform" ? authBackend : null,
   });
 }
 

@@ -275,6 +275,19 @@ body[data-interaction-mode="chat"] .work-pet {
   box-shadow: 0 0 0 2px rgba(39, 138, 82, 0.12);
 }
 
+.pet-choice.active {
+  background: #f3fbf6;
+  box-shadow: 0 0 0 2px rgba(39, 138, 82, 0.18),
+    0 6px 14px rgba(39, 138, 82, 0.12);
+  transform: translateY(-1px);
+}
+
+.pet-choice:focus-visible {
+  border-color: #278a52;
+  outline: 3px solid rgba(39, 138, 82, 0.32);
+  outline-offset: 2px;
+}
+
 .work-manager-form {
   margin-top: 10px;
   padding: 13px;

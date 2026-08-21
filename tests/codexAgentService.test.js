@@ -221,7 +221,10 @@ test("avatar interface tasks prioritize public application files", async () => {
   await mkdir(join(workspace, "public"), { recursive: true });
   await mkdir(join(workspace, "tests"), { recursive: true });
   await writeFile(join(workspace, "public", "app.js"), "export const avatar = true;");
+  await writeFile(join(workspace, "public", "google-apps.js"), "export const google = true;");
+  await writeFile(join(workspace, "public", "work-mode.js"), "export const picker = true;");
   await writeFile(join(workspace, "public", "styles.css"), ".avatar { display: grid; }");
+  await writeFile(join(workspace, "tests", "workModeUi.test.js"), "export const pickerTest = true;");
   await writeFile(join(workspace, "tests", "other.test.js"), "export const other = true;");
   try {
     const snapshot = await createBoundedSourceSnapshot({
@@ -229,10 +232,12 @@ test("avatar interface tasks prioritize public application files", async () => {
       message: "Подобри интерфейса за избор на аватар.",
       projectObjective: "",
     });
-    assert.deepEqual(snapshot.includedPaths.slice(0, 2).toSorted(), [
-      "public/app.js",
-      "public/styles.css",
-    ]);
+    assert.equal(snapshot.includedPaths[0], "public/work-mode.js");
+    assert.equal(snapshot.includedPaths[1], "tests/workModeUi.test.js");
+    assert.ok(
+      snapshot.includedPaths.indexOf("public/work-mode.js") <
+        snapshot.includedPaths.indexOf("public/google-apps.js"),
+    );
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }

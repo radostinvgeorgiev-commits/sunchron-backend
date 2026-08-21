@@ -55,6 +55,8 @@ test("three engines are consulted before a bounded code confirmation is created"
       assert.match(input[0].content, /openai \/ openai-test-model/u);
       assert.match(input[0].content, /gemini \/ gemini-test-model/u);
       assert.match(input[0].content, /grok \/ grok-test-model/u);
+      assert.match(input[0].content, /public\/work-mode\.js/u);
+      assert.match(input[0].content, /Не добавяй конкурентен picker/u);
       return { text: JSON.stringify(plan) };
     },
     resolveGitHubSession: async () => githubSession,

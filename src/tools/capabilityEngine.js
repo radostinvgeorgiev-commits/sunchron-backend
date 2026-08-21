@@ -7,6 +7,7 @@ import {
   isPersistenceBackendConfigured,
 } from "../config/memoryBackend.js";
 import {
+  getAiProviderStatus,
   hasConfiguredAiProvider,
   isAiCoreConfigured,
 } from "../services/aiCoreService.js";
@@ -298,6 +299,12 @@ export async function buildIntegrationStatusReport(
     ["Google Calendar", googleConnected, "изисква Google вход"],
     ["Gmail", googleConnected, "изисква Google вход"],
   ];
+  const aiProviderStatus = getAiProviderStatus(env);
+  const providerLabels = {
+    openai: "OpenAI",
+    gemini: "Gemini",
+    grok: "Grok",
+  };
 
   return [
     "Проверих инструментите реално сега.",
@@ -317,6 +324,14 @@ export async function buildIntegrationStatusReport(
     ...sessionTools
       .filter(([, available]) => available)
       .map(([name, , note]) => `• ${name} — свързан; ${note}`),
+    "",
+    "AI доставчици:",
+    ...aiProviderStatus.providers.map(
+      ({ id, configured }) =>
+        `• ${providerLabels[id] || id} — ${
+          configured ? "конфигуриран" : "не е конфигуриран"
+        }${id === aiProviderStatus.primaryProvider ? "; основен за разговора" : ""}`,
+    ),
   ].join("\n");
 }
 

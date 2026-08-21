@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   hasExplicitReadOnlyBoundary,
+  isReadOnlyIntegrationStatusRequest,
   planCapabilities,
   sanitizeCapabilityPlan,
   shouldUseAgentPlanner,
@@ -225,6 +226,29 @@ test("planner cannot add GitHub write across an explicit read-only boundary", ()
       message,
     ).map(({ capability }) => capability),
     ["code.read"],
+  );
+});
+
+test("status-only requests block data reads and code writes from the planner", () => {
+  const message =
+    "Провери Drive, Gmail и Calendar. Покажи само статуса на връзките, без да четеш лични данни и без промени.";
+
+  assert.equal(hasExplicitReadOnlyBoundary(message), true);
+  assert.equal(isReadOnlyIntegrationStatusRequest(message), true);
+  assert.deepEqual(
+    sanitizeCapabilityPlan(
+      {
+        calls: [
+          { capability: "system.integrations.status", request: message },
+          { capability: "files.read", request: "Покажи Drive файловете" },
+          { capability: "mail.read", request: "Покажи Gmail" },
+          { capability: "calendar.read", request: "Покажи календара" },
+          { capability: "code.write", request: "Промени проекта" },
+        ],
+      },
+      message,
+    ).map(({ capability }) => capability),
+    ["system.integrations.status"],
   );
 });
 

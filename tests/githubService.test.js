@@ -161,6 +161,56 @@ test("returns one read-only overview for repository, commits, issues, PRs and Ac
   assert.equal(overview.workflowRuns[0].conclusion, "success");
 });
 
+test("answers a combined latest-commit and open-PR count request", async () => {
+  global.fetch = async (url) => {
+    const path = String(url);
+    if (path.includes("/commits?")) {
+      return jsonResponse([
+        {
+          sha: "a28469cf1bea8d0f03f4da35658e0e9e6a2be4d5",
+          commit: {
+            message: "UI: avatar picker (#334)",
+            author: { date: "2026-08-21T00:49:55Z" },
+          },
+          html_url: "https://github.test/commit/a28469c",
+        },
+      ]);
+    }
+    if (path.includes("/pulls?")) {
+      return jsonResponse([
+        {
+          number: 325,
+          title: "Добави Anthropic Claude към AI CORE",
+          state: "open",
+          draft: false,
+          head: { ref: "feature/claude" },
+          base: { ref: "main" },
+          html_url: "https://github.test/pull/325",
+        },
+        {
+          number: 321,
+          title: "Bump dependencies",
+          state: "open",
+          draft: true,
+          head: { ref: "dependabot/npm" },
+          base: { ref: "main" },
+          html_url: "https://github.test/pull/321",
+        },
+      ]);
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const answer = await answerGitHubReadRequest(
+    "Прочети реално GitHub. Кажи точния последен commit на main и колко отворени Pull Request-а има. Само четене.",
+  );
+
+  assert.match(answer, /Последният commit в main е a28469c/u);
+  assert.match(answer, /Отворени Pull Request-и: 2/u);
+  assert.match(answer, /#325/u);
+  assert.match(answer, /#321.*\(draft\)/u);
+});
+
 test("returns changed files for a specific commit", async () => {
   global.fetch = async (url) => {
     assert.match(url, /commits\/3d6474b$/u);

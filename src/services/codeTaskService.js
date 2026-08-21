@@ -85,6 +85,12 @@ function cleanText(value, maxLength, label) {
   return clean;
 }
 
+function normalizePlanPath(value) {
+  return cleanText(value, 500, "path")
+    .replaceAll("\\", "/")
+    .replace(/^(?:\.\/)+/u, "");
+}
+
 function fingerprint(label, value) {
   return createHash("sha256")
     .update(`${label}\0${cleanText(value, 500, label)}`)
@@ -130,7 +136,7 @@ function validatePlan(value, env = process.env) {
     .map(([, secret]) => secret);
   const seen = new Set();
   const changes = parsed.changes.slice(0, MAX_TASK_FILES).map((change) => {
-    const path = cleanText(change?.path, 500, "path");
+    const path = normalizePlanPath(change?.path);
     const content =
       typeof change?.content === "string" ? change.content : null;
     if (!SAFE_PATH.test(path) || seen.has(path)) {
@@ -192,6 +198,7 @@ function codeTaskPrompt(message, snapshot, council) {
     "Подготви една минимална production промяна по заявката.",
     "Върни ПЪЛНОТО крайно съдържание на всеки променен или нов файл, не diff.",
     "Използвай максимум 4 файла. Не променяй .env, secrets, GitHub Actions, deployment manifests или .do.",
+    "Всеки path трябва да е уникален, относителен спрямо корена на хранилището, с / и без начален ./.",
     "Не добавяй зависимости, освен ако задачата е невъзможна без тях.",
     "Добави или обнови тест, когато промяната има логика за проверка.",
     "Не твърди, че тестовете са изпълнени; CI ще ги изпълни след Pull Request.",

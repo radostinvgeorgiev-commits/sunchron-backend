@@ -167,3 +167,46 @@ test("code task fails closed unless all three engines are configured", async () 
     (error) => error.code === "CODE_TASK_COUNCIL_NOT_CONFIGURED",
   );
 });
+
+test("normalizes safe repository-relative paths returned by the coding model", async () => {
+  let storedConfirmation;
+  const prepared = await prepareCodeTask({
+    ownerId: "owner-1",
+    sessionId: "session-1",
+    githubSessionId: "github-session",
+    message: "Подобри интерфейса за аватарите.",
+    apiKey: "openai-key",
+    geminiApiKey: "gemini-key",
+    grokApiKey: "grok-key",
+    createWorkspace: async () => ({
+      root: "C:/nonexistent-ai-core-code-task-test",
+      workspace: "C:/nonexistent-ai-core-code-task-test/source",
+    }),
+    createSnapshot: async () => ({ text: "public/app.js\n// source" }),
+    advisorRequesters: {
+      openai: advisor("openai"),
+      gemini: advisor("gemini"),
+      grok: advisor("grok"),
+    },
+    responseRequester: async () => ({
+      text: JSON.stringify({
+        ...plan,
+        changes: [{ ...plan.changes[0], path: ".\\public\\avatar-proof.js" }],
+      }),
+    }),
+    resolveGitHubSession: async () => githubSession,
+    createConfirmation: async (confirmation) => {
+      storedConfirmation = confirmation;
+      return {
+        id: "33333333-3333-4333-8333-333333333333",
+        expiresAt: Date.now() + 60_000,
+      };
+    },
+  });
+
+  assert.equal(prepared.files[0].path, "public/avatar-proof.js");
+  assert.equal(
+    storedConfirmation.params.changes[0].path,
+    "public/avatar-proof.js",
+  );
+});

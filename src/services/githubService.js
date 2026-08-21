@@ -434,6 +434,34 @@ export async function answerGitHubReadRequest(message) {
   const text = message.toLowerCase();
   const architectureAnswer = await answerRepositoryArchitectureQuestion(text);
   if (architectureAnswer) return architectureAnswer;
+  const asksForOpenPullRequests =
+    /(?:отворен(?:и|ите)?\s+(?:pull\s*request|pr)|(?:pull\s*request|pr)(?:-а|-и|s)?\s+.*отворен|колко\s+.*(?:pull\s*request|pr))/iu.test(
+      text,
+    );
+  if (asksForOpenPullRequests) {
+    const repository = getConfiguredRepository();
+    const asksForLatestCommit =
+      /(?:последн(?:ия|ият|ата).*\b(?:commit|комит)\b|\bmain\b)/iu.test(
+        text,
+      );
+    const [pullRequests, commits] = await Promise.all([
+      listOpenPullRequests(repository, 50),
+      asksForLatestCommit ? listRecentCommits(repository, 1) : [],
+    ]);
+    const latestCommit = commits[0];
+    return [
+      ...(latestCommit
+        ? [
+            `Последният commit в main е ${latestCommit.shortSha} — ${latestCommit.message}${latestCommit.date ? ` (${latestCommit.date})` : ""}.`,
+          ]
+        : []),
+      `Отворени Pull Request-и: ${pullRequests.length === 50 ? "поне 50" : pullRequests.length}.`,
+      ...pullRequests.map(
+        (pullRequest) =>
+          `• #${pullRequest.number} — ${pullRequest.title}${pullRequest.draft ? " (draft)" : ""}`,
+      ),
+    ].join("\n");
+  }
   const explicitRef = message.match(/\b[a-f0-9]{7,40}\b/iu)?.[0];
   const asksForDetails =
     /(?:кои|изброй|файлов|файли|diff|разлик|подробност|какво точно|във всеки файл)/u.test(

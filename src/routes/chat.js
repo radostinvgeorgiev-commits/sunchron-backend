@@ -71,6 +71,7 @@ import {
 } from "../tools/capabilityEngine.js";
 import {
   hasExplicitReadOnlyBoundary,
+  isReadOnlyIntegrationStatusRequest,
   planCapabilities,
   shouldUseAgentPlanner,
 } from "../services/agentPlannerService.js";
@@ -333,11 +334,14 @@ export function detectCapabilityRequests(message) {
     isGitHubReadRequest(message) || isMergedBranchCleanupPlanRequest(message);
   const hasGitHubWriteIntent = isGitHubWriteRequest(message);
   let writeTaskReadAdded = false;
+  let integrationStatusAdded = false;
   const hasExplicitNumberedChecks =
     /намери\s*:\s*1[\).:-]\s*/iu.test(message) && subtasks.length > 1;
   for (const [index, subtask] of subtasks.entries()) {
     const githubWriteStatusRequest = isGitHubWriteStatusRequest(subtask);
     const githubTaskStatusRequest = isGitHubTaskStatusRequest(subtask);
+    const integrationStatusOnlyRequest =
+      isReadOnlyIntegrationStatusRequest(subtask);
     const systemConfigurationRequest =
         /(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите)).{0,60}(?:сървър|ядро|агент|google\s*cloud|cloud\s*run|гуг[ъал]+\s*клауд|система)|(?:сървър|ядро|агент|google\s*cloud|cloud\s*run|гуг[ъал]+\s*клауд|система).{0,60}(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите))/iu.test(
         subtask,
@@ -358,12 +362,14 @@ export function detectCapabilityRequests(message) {
       continue;
     }
     if (
-      /(?:(?:инструмент(?:ите)?|връзк(?:и|ите)|интеграци(?:и|ите)).{0,50}(?:работят|работи|достъпни|активни|статус|ползва(?:ш|те)?|използва(?:ш|те)?|достъп)|(?:мож(?:еш|е)|имаш|има|работят|работи|достъпни|активни|статус|ползва(?:ш|те)?|използва(?:ш|те)?|достъп).{0,50}(?:инструмент(?:ите)?|връзк(?:и|ите)|интеграци(?:и|ите)))/iu.test(
-        subtask,
-      ) &&
+      (integrationStatusOnlyRequest ||
+        /(?:(?:инструмент(?:ите)?|връзк(?:и|ите)|интеграци(?:и|ите)).{0,50}(?:работят|работи|достъпни|активни|статус|ползва(?:ш|те)?|използва(?:ш|те)?|достъп)|(?:мож(?:еш|е)|имаш|има|работят|работи|достъпни|активни|статус|ползва(?:ш|те)?|използва(?:ш|те)?|достъп).{0,50}(?:инструмент(?:ите)?|връзк(?:и|ите)|интеграци(?:и|ите)))/iu.test(
+          subtask,
+        )) &&
       !hasExplicitNoToolBoundary(subtask) &&
       !hasExplicitNoAdditionalToolsBoundary(subtask) &&
       !githubWriteStatusRequest &&
+      !integrationStatusAdded &&
       !/(?:регистрирани|tool\s+registry|capability\s+engine)/iu.test(subtask)
     ) {
       requests.push({
@@ -371,6 +377,7 @@ export function detectCapabilityRequests(message) {
         action: "infrastructure.read",
         message: subtask,
       });
+      integrationStatusAdded = true;
     }
     if (systemConfigurationRequest) {
       requests.push({
@@ -379,12 +386,13 @@ export function detectCapabilityRequests(message) {
         message: subtask,
       });
     }
-    if (githubWriteStatusRequest) {
+    if (githubWriteStatusRequest && !integrationStatusAdded) {
       requests.push({
         capability: "system.integrations.status",
         action: "infrastructure.read",
         message: subtask,
       });
+      integrationStatusAdded = true;
     }
     if (githubTaskStatusRequest) {
       requests.push({
@@ -393,13 +401,16 @@ export function detectCapabilityRequests(message) {
         message: subtask,
       });
     }
-    if (isCalendarWriteRequest(subtask)) {
+    if (!integrationStatusOnlyRequest && isCalendarWriteRequest(subtask)) {
       requests.push({
         capability: "calendar.write",
         action: "calendar.write",
         message,
       });
-    } else if (isCalendarReadRequest(subtask)) {
+    } else if (
+      !integrationStatusOnlyRequest &&
+      isCalendarReadRequest(subtask)
+    ) {
       requests.push({
         capability: "calendar.read",
         action: "calendar.read",
@@ -407,6 +418,7 @@ export function detectCapabilityRequests(message) {
       });
     }
     if (
+      !integrationStatusOnlyRequest &&
       /(?:google\s+drive|драйв|моите?\s+файлове|файловете?\s+ми)/iu.test(
         subtask,
       )
@@ -417,7 +429,10 @@ export function detectCapabilityRequests(message) {
         message: subtask,
       });
     }
-    if (/(?:gmail|джимейл|имейлите?\s+ми|пощата\s+ми)/iu.test(subtask)) {
+    if (
+      !integrationStatusOnlyRequest &&
+      /(?:gmail|джимейл|имейлите?\s+ми|пощата\s+ми)/iu.test(subtask)
+    ) {
       requests.push({
         capability: "mail.read",
         action: "mail.read",

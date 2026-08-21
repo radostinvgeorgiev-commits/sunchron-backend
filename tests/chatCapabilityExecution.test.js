@@ -178,6 +178,7 @@ test("общ въпрос за инструментите задейства р�
     "Можеш ли да използваш инструментите?",
     "Имаш ли достъп до инструментите?",
     "Можеш ли да използваш връзките?",
+    "Провери реално кои AI двигатели са конфигурирани и достъпни в момента. Не прави промени.",
   ]) {
     assert.deepEqual(
       detectCapabilityRequests(message).map(({ capability }) => capability),
@@ -678,6 +679,16 @@ test("an avatar interface improvement routes directly to the code executor", () 
   );
 });
 
+test("Google connection status never reads personal data or starts a code task", () => {
+  const message =
+    "Провери реално кои Google инструменти мога да използвам в тази сесия: Drive, Gmail и Calendar. Покажи само статуса на връзките, без да четеш лични файлове, писма или събития и без промени.";
+
+  assert.deepEqual(
+    detectCapabilityRequests(message).map(({ capability }) => capability),
+    ["system.integrations.status"],
+  );
+});
+
 test("an explicit read-only GitHub check never attempts GitHub write", () => {
   const message =
     "Провери само за четене кой е последният commit в main на проекта. Не прави промени.";
@@ -686,5 +697,15 @@ test("an explicit read-only GitHub check never attempts GitHub write", () => {
   assert.deepEqual(
     requests.map(({ capability }) => capability),
     ["code.read"],
+  );
+});
+
+test("a no-changes boundary is read-only even when the prompt mentions files", () => {
+  const message =
+    "Провери статуса на Google Drive файловете, без да четеш лични файлове и без промени.";
+
+  assert.deepEqual(
+    detectCapabilityRequests(message).map(({ capability }) => capability),
+    ["system.integrations.status"],
   );
 });

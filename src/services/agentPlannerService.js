@@ -68,10 +68,37 @@ export function hasExplicitReadOnlyBoundary(message) {
   if (!text) return false;
   return (
     /(?:само\s+за\s+четене|само\s+прочети|read[\s-]*only)/iu.test(text) ||
+    /(?:без|никакви?)\s+(?:кодови\s+)?промени/iu.test(text) ||
+    /(?:покажи|провери)\s+само\s+(?:статуса|статус|състоянието)/iu.test(
+      text,
+    ) ||
     /(?:^|[.!?]\s*)не\s+(?:прави|извършвай)\s+(?:никакви\s+)?промени(?=\s*[.!?]?\s*$)/iu.test(
       text,
     )
   );
+}
+
+export function isReadOnlyIntegrationStatusRequest(message) {
+  const text = typeof message === "string" ? message.trim() : "";
+  if (!text) return false;
+
+  const mentionsIntegration =
+    /(?:инструмент(?:ите)?|връзк(?:и|ите)|интеграци(?:и|ите)|ai\s*(?:двигател(?:и|ите)?|доставчик(?:и|ите)?|provider(?:s)?)|openai|gemini|grok|google\s*drive|драйв|gmail|джимейл|google\s*calendar|календар)/iu.test(
+      text,
+    );
+  const asksForStatus =
+    /(?:статус|състояние|конфигуриран|достъпен|достъпни|активен|активни|свързан|свързани|работи|работят|мога\s+да\s+(?:ги\s+)?използвам|кои\s+.*(?:работят|достъпни|активни))/iu.test(
+      text,
+    );
+  const asksForData =
+    /(?:покажи|прочети|намери|изброй|търси|анализирай).{0,45}(?:файлове|писма|имейли|съобщения|събития|срещи)/iu.test(
+      text,
+    ) &&
+    !/(?:само\s+(?:статуса|статус|състоянието)|без\s+да\s+(?:четеш|показваш|отваряш))/iu.test(
+      text,
+    );
+
+  return mentionsIntegration && asksForStatus && !asksForData;
 }
 
 export class AgentPlannerError extends Error {
@@ -118,12 +145,20 @@ export function sanitizeCapabilityPlan(plan, originalMessage) {
   const calls = Array.isArray(plan?.calls) ? plan.calls : [];
   const requests = [];
   const seen = new Set();
+  const statusOnlyRequest =
+    isReadOnlyIntegrationStatusRequest(originalMessage);
 
   for (const call of calls.slice(0, MAX_PLANNED_CALLS)) {
     const capability =
       typeof call?.capability === "string" ? call.capability.trim() : "";
     const action = CAPABILITY_ACTIONS[capability];
     if (!action) continue;
+    if (
+      statusOnlyRequest &&
+      capability !== "system.integrations.status"
+    ) {
+      continue;
+    }
     if (
       capability === "code.write" &&
       hasExplicitReadOnlyBoundary(originalMessage)
@@ -163,7 +198,7 @@ export function shouldUseAgentPlanner(message, fallbackRequests = []) {
     /(?:^|\s)(?:изпълни|направи|провери|покажи|намери|прочети|потърси|обнови|подобри|промени|редактирай|създай|свържи|изпрати|резервирай|напомни|improve)(?=\s|:|$)/iu.test(
       text,
     ) &&
-    /(?:github|ги[тд][\s-]*хъб|хъб(?:ът|а)?|хранилищ|репозитор|код|календар|calendar|напомни|напомнян|drive|драйв|gmail|имейл|поща|памет|задач|task|интернет|web|сайт|supabase|супабейс|google\s*cloud|cloud\s*run|гуг[ъал]+\s*клауд|гуг[ъал]+\s*конзол)/iu.test(
+    /(?:github|ги[тд][\s-]*хъб|хъб(?:ът|а)?|хранилищ|репозитор|код|календар|calendar|напомни|напомнян|drive|драйв|gmail|имейл|поща|памет|задач|task|интернет|web|сайт|supabase|супабейс|google\s*cloud|cloud\s*run|гуг[ъал]+\s*клауд|гуг[ъал]+\s*конзол|ai\s*(?:двигател|доставчик|provider)|openai|gemini|grok)/iu.test(
       text,
     )
   );

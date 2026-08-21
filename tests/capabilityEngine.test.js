@@ -324,6 +324,7 @@ test("връща общ статус само след реални провер
       checkSupabase: async () => ({ status: "healthy" }),
       checkGoogleCloud: async () => ({ configured: true }),
       env: {
+        AI_CORE_PROVIDER: "grok",
         OPENAI_API_KEY: "configured",
         GEMINI_API_KEY: "configured",
         GROK_API_KEY: "configured",
@@ -340,6 +341,9 @@ test("връща общ статус само след реални провер
   assert.match(report, /Google Cloud Read/u);
   assert.match(report, /Google Drive — изисква Google вход/u);
   assert.match(report, /GitHub Write — свързан; изисква потвърждение/u);
+  assert.match(report, /OpenAI — конфигуриран/u);
+  assert.match(report, /Gemini — конфигуриран/u);
+  assert.match(report, /Grok — конфигуриран; основен за разговора/u);
 });
 
 test("не обявява Google Cloud за работещ без runtime конфигурация", async () => {

@@ -189,6 +189,7 @@ function publicBackupStatus(report) {
           report.checks?.firestore?.errorCode ||
           "FIRESTORE_BACKUP_STATUS_NOT_VISIBLE_TO_RUNTIME",
         readOnlyCheck: true,
+        restoreTested: false,
         provesRestore: false,
       },
     },
@@ -242,6 +243,7 @@ function unavailableBackupReport() {
         status: "unverified",
         errorCode: "FIRESTORE_BACKUP_STATUS_NOT_VISIBLE_TO_RUNTIME",
         readOnlyCheck: true,
+        restoreTested: false,
         provesRestore: false,
       },
     },

@@ -8,6 +8,10 @@
 - Identity Platform е единственият auth backend.
 - OpenAI Responses API, Gemini и Grok имат директни адаптери.
 - Task Orchestrator може да планира multi-step задачи.
+- Instrumentalните задачи имат owner-scoped durable run с checkpoint-и и
+  pause/resume/cancel API.
+- Сайтът има Council режим, който пита OpenAI, Gemini и Grok и показва отделна
+  структурирана препоръка преди изпълнение.
 - AI CORE Code Write подготвя ограничен multi-engine plan и след точно
   потвърждение създава отделен branch, commit и Pull Request.
 - MCP има OAuth boundary и актуален каталог.
@@ -28,9 +32,10 @@
 
 ## Следващо
 
-Реален browser acceptance на аватарна кодова задача: трите двигателя дават
-предложения, coding ролята създава PR, CI минава, промяната се слива и след
-exact-SHA deployment се прави визуална проверка.
+Реален browser acceptance на Council → избор → разрешено действие, последван
+от аватарна кодова задача: трите двигателя дават предложения, coding ролята
+създава PR, CI минава, промяната се слива и след exact-SHA deployment се прави
+визуална проверка.
 
 Продуктовата посока е в `PRODUCT_DIRECTION.md`; оперативните стъпки са в
 `OPERATIONS_RUNBOOK.md`.

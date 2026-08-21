@@ -6,6 +6,7 @@ const state = {
   lastMemorySuccessAt: 0,
   lastActions: [],
   chatBusy: false,
+  councilMode: false,
   speakingButton: null,
   pendingImage: null,
   conversations: [],
@@ -48,6 +49,7 @@ const elements = {
   chatMessages: document.getElementById("chatMessages"),
   chatInput: document.getElementById("chatInput"),
   sendBtn: document.getElementById("sendBtn"),
+  councilModeBtn: document.getElementById("councilModeBtn"),
   attachBtn: document.getElementById("attachBtn"),
   imageInput: document.getElementById("imageInput"),
   attachmentPreview: document.getElementById("attachmentPreview"),
@@ -135,6 +137,18 @@ function writeLocalStorage(key, value) {
 function setAuthMessage(message = "", success = false) {
   elements.authMessage.textContent = message;
   elements.authMessage.classList.toggle("success", success);
+}
+
+function setCouncilMode(enabled) {
+  state.councilMode = Boolean(enabled);
+  if (!elements.councilModeBtn) return;
+  elements.councilModeBtn.setAttribute(
+    "aria-pressed",
+    String(state.councilMode),
+  );
+  elements.councilModeBtn.title = state.councilMode
+    ? "Следващото съобщение ще бъде обсъдено от OpenAI, Gemini и Grok"
+    : "Попитай OpenAI, Gemini и Grok и сравни отговорите";
 }
 
 function setAuthBusy(isBusy) {
@@ -336,6 +350,9 @@ async function startApplication(user) {
   updateSessionDisplay();
 
   elements.sendBtn.addEventListener("click", sendMessage);
+  elements.councilModeBtn?.addEventListener("click", () => {
+    setCouncilMode(!state.councilMode);
+  });
   elements.attachBtn.addEventListener("click", () =>
     elements.imageInput.click(),
   );
@@ -1774,6 +1791,8 @@ async function sendMessage() {
   if ((!text && !image) || state.chatBusy) return;
 
   const messageText = text || "Какво виждаш на тази снимка?";
+  const councilMode = state.councilMode;
+  setCouncilMode(false);
   const recentHistory = state.recentConversationMessages.slice(-12);
   appendMessage("user", messageText, image);
   elements.chatInput.value = "";
@@ -1794,6 +1813,7 @@ async function sendMessage() {
         sessionId: state.sessionId,
         message: messageText,
         image,
+        council: councilMode,
         recentHistory,
         ...globalThis.SynchronWorkMode?.getRequestPayload(),
       }),
@@ -1881,6 +1901,9 @@ async function sendMessage() {
             logAction("Задачата чака потвърждение");
           } else if (parsed.data?.task?.status === "partial") {
             logAction("Задачата е изпълнена частично");
+          }
+          if (parsed.data?.mode === "council") {
+            logAction("Трите AI двигателя дадоха обща препоръка");
           }
           if (typeof parsed.data?.tool === "string") {
             logAction("Използван инструмент: " + parsed.data.tool);

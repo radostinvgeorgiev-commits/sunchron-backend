@@ -51,6 +51,7 @@ export async function orchestrateTask({
   notify,
   audit,
   onPlannerError,
+  onPlan,
 } = {}) {
   const fallback = normalizeRequests(fallbackRequests);
   let requests = fallback;
@@ -77,6 +78,20 @@ export async function orchestrateTask({
   }
 
   requests = normalizeRequests(routeRequests(requests));
+  let taskRunContext = null;
+  if (typeof onPlan === "function") {
+    try {
+      taskRunContext =
+        (await onPlan({
+          message,
+          requests: Object.freeze([...requests]),
+          plannerUsed,
+          plannerErrorCode,
+        })) || null;
+    } catch (error) {
+      onPlannerError?.(error);
+    }
+  }
   const execution = await executeTaskPlan({
     message,
     requests,
@@ -91,5 +106,8 @@ export async function orchestrateTask({
     requests: Object.freeze([...requests]),
     plannerUsed,
     plannerErrorCode,
+    ...(taskRunContext && typeof taskRunContext === "object"
+      ? taskRunContext
+      : {}),
   });
 }

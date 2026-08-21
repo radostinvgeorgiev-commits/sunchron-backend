@@ -215,7 +215,7 @@ jobs:
                 if (status.configured !== true) process.exit(1);
                 if (configuration.projectConnection !== true) process.exit(1);
                 if (configuration.sessionProtection !== true) process.exit(1);
-                if (status.registrationEnabled !== false) process.exit(1);
+                if (status.registrationEnabled !== true) process.exit(1);
               });
             '
 

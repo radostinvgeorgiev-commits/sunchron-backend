@@ -26,6 +26,7 @@ test("production smoke verifies Firestore, Identity Platform and honest backups"
   assert.match(workflow, /checks\.firestore\?\.status !== "healthy"/u);
   assert.match(workflow, /checks\.identityPlatform\?\.status !== "healthy"/u);
   assert.match(workflow, /provider !== "identity-platform"/u);
+  assert.match(workflow, /status\.registrationEnabled !== true/u);
   assert.match(workflow, /Check honest Firestore backup boundary/u);
   assert.match(workflow, /firestore\?\.restoreTested !== false/u);
 });

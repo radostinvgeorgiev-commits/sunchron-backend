@@ -70,6 +70,8 @@ export function isMergedBranchCleanupPlanRequest(message) {
   const hasMergedConstraint = /(?:слет|merged|pull\s*request|\bpr\b)/iu.test(
     text,
   );
+  const hasDeletionIntent =
+    /(?:изтри|премах|почист|delete|remove|cleanup|clean[\s-]*up)/iu.test(text);
   const asksForSafePlan =
     /(?:подготви|покажи|намери|изброй|списък|провери|безопасн)/iu.test(text);
   const forbidsDeletion =
@@ -77,6 +79,7 @@ export function isMergedBranchCleanupPlanRequest(message) {
   return (
     hasBranchTarget &&
     hasMergedConstraint &&
+    hasDeletionIntent &&
     (asksForSafePlan || forbidsDeletion)
   );
 }

@@ -113,6 +113,12 @@ test("recognizes a safe merged-branch cleanup plan request", () => {
     isMergedBranchCleanupPlanRequest("Покажи последния GitHub commit."),
     false,
   );
+  assert.equal(
+    isMergedBranchCleanupPlanRequest(
+      "Подготви GitHub pull request за подобрение на интерфейса.",
+    ),
+    false,
+  );
 });
 
 test("prepares the exact cleanup plan without deleting branches", async () => {

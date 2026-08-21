@@ -129,9 +129,28 @@ const TASK_ALIASES = Object.freeze([
   [/(?:deploy|production|продукц)/iu, ["cloudrun", "health"]],
   [/(?:codex|кодекс)/iu, ["codex"]],
   [
-    /(?:аватар|avatar|интерфейс|interface|ui|дизайн)/iu,
-    ["avatar", "public", "app", "styles", "index", "ui"],
+    /(?:аватар|любимец|avatar|pet|picker|интерфейс|interface|ui|дизайн)/iu,
+    [
+      "avatar",
+      "pet",
+      "picker",
+      "work-mode",
+      "workmodeui",
+      "public",
+      "app",
+      "styles",
+      "index",
+      "ui",
+    ],
   ],
+]);
+
+const AVATAR_CONTEXT_PRIORITY = new Map([
+  ["public/work-mode.js", 30_000],
+  ["tests/workModeUi.test.js", 29_000],
+  ["public/index.html", 28_000],
+  ["public/styles.css", 27_000],
+  ["public/app.js", 26_000],
 ]);
 
 export class CodexAgentError extends Error {
@@ -218,6 +237,12 @@ function taskSearchTerms(...values) {
 function sourceFileScore(file, taskText, terms) {
   const path = file.path.toLowerCase();
   let score = REQUIRED_CONTEXT_FILES.get(file.path) || 0;
+  if (
+    /(?:аватар|любимец|avatar|pet|picker)/iu.test(taskText) &&
+    AVATAR_CONTEXT_PRIORITY.has(file.path)
+  ) {
+    score += AVATAR_CONTEXT_PRIORITY.get(file.path);
+  }
   if (taskText.includes(path)) score += 50000;
   if (path.startsWith("src/")) score += 300;
   else if (path.startsWith("public/")) score += 250;

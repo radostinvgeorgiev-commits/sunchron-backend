@@ -177,6 +177,19 @@ function checkpointFromInput({ status, stepIndex, message, source, at }) {
   });
 }
 
+function safeWaitingConfirmation(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const action = cleanText(value.action, 120, "действие");
+  const resource = cleanText(value.resource, 240, "ресурс");
+  const summary = cleanText(value.summary || value.message, 1_000, "описание");
+  if (!action && !resource && !summary) return null;
+  return Object.freeze({
+    ...(action ? { action } : {}),
+    ...(resource ? { resource } : {}),
+    ...(summary ? { summary } : {}),
+  });
+}
+
 function taskRunFromData(id, data = {}) {
   return Object.freeze({
     id,
@@ -186,7 +199,7 @@ function taskRunFromData(id, data = {}) {
     status: STATUS_SET.has(data.status) ? data.status : "queued",
     currentStep: Number.isInteger(data.currentStep) ? data.currentStep : 0,
     pausedReason: data.pausedReason || null,
-    waitingConfirmation: data.waitingConfirmation || null,
+    waitingConfirmation: safeWaitingConfirmation(data.waitingConfirmation),
     steps: Object.freeze(
       (Array.isArray(data.steps) ? data.steps : []).map((step) =>
         Object.freeze({
@@ -358,7 +371,9 @@ export async function recordTaskRunCheckpoint(
       cleanNextStatus === "paused" ? checkpoint.message : null,
     waitingConfirmation:
       cleanNextStatus === "waiting_confirmation"
-        ? waitingConfirmation || current.waitingConfirmation || null
+        ? safeWaitingConfirmation(
+            waitingConfirmation || current.waitingConfirmation,
+          )
         : null,
     steps,
     checkpoints: [

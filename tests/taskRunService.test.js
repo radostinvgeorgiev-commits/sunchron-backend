@@ -160,6 +160,55 @@ test("partial task runs remain resumable after a mixed execution", async () => {
   assert.equal(resumed.currentStep, 1);
 });
 
+test("waiting confirmations keep only bounded display metadata", async () => {
+  const store = fakeStore();
+  setFirestoreTaskRunStoreForTests(store);
+  const options = { env, now: () => "2026-08-21T10:00:00.000Z" };
+  const created = await createTaskRun(
+    { ownerId: "owner-confirm", title: "Потвърждение", steps: ["Провери"] },
+    options,
+  );
+  await recordTaskRunCheckpoint(
+    {
+      ownerId: "owner-confirm",
+      runId: created.id,
+      status: "planning",
+      message: "Планът е готов.",
+    },
+    options,
+  );
+  await recordTaskRunCheckpoint(
+    {
+      ownerId: "owner-confirm",
+      runId: created.id,
+      status: "running",
+      message: "Проверявам.",
+    },
+    options,
+  );
+  const waiting = await recordTaskRunCheckpoint(
+    {
+      ownerId: "owner-confirm",
+      runId: created.id,
+      status: "waiting_confirmation",
+      message: "Нужно е потвърждение.",
+      waitingConfirmation: {
+        action: "github.write",
+        resource: "repo",
+        summary: "Създай PR",
+        confirmationId: "не се пази",
+      },
+    },
+    options,
+  );
+  assert.deepEqual(waiting.waitingConfirmation, {
+    action: "github.write",
+    resource: "repo",
+    summary: "Създай PR",
+  });
+  assert.equal(JSON.stringify(store.documents).includes("не се пази"), false);
+});
+
 test("task runs enforce owner isolation and valid transitions", async () => {
   const store = fakeStore();
   setFirestoreTaskRunStoreForTests(store);

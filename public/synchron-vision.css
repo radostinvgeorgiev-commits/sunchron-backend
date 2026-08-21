@@ -462,6 +462,28 @@ textarea:focus-visible {
   line-height: 1.45;
 }
 
+.legacy-status-details {
+  margin-top: 4px;
+  border: 1px dashed var(--sx-line);
+  border-radius: 18px;
+  padding: 12px 14px;
+  color: var(--sx-muted);
+}
+
+.legacy-status-details summary {
+  cursor: pointer;
+  color: var(--sx-muted);
+  font-weight: 700;
+}
+
+.legacy-status-details[open] {
+  background: rgba(236, 244, 241, 0.55);
+}
+
+.legacy-status-details > .context-box:first-of-type {
+  margin-top: 12px;
+}
+
 .context-box,
 .permission-row,
 .memory-item,
@@ -743,3 +765,4 @@ textarea:focus-visible {
     }
   }
 }
+

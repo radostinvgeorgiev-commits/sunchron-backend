@@ -11,7 +11,7 @@
     "gcp:migrate:inventory": "node scripts/migrateOpenSearchToFirestore.js --inventory",
     "gcp:migrate:plan": "node scripts/migrateOpenSearchToFirestore.js --plan",
     "gcp:migrate:users:plan": "node scripts/migrateSupabaseUsersToIdentityPlatform.js --plan",
-    "test": "node --check bootstrap.js && node --check server.js && node --check src/routes/chat.js && node --check src/services/codeTaskService.js && node --check src/services/taskOrchestratorService.js && node --check src/services/googleCloudService.js && node --check src/services/githubWriteService.js && node --check src/services/mcpReadService.js && node --check src/tools/capabilityEngine.js && node --check src/tools/toolRegistry.js && node --check public/app.js && node --check public/work-center.js && node --test tests/*.test.js"
+    "test": "node --check bootstrap.js && node --check server.js && node --check src/routes/chat.js && node --check src/services/aiCouncilService.js && node --check src/services/councilIntentService.js && node --check src/services/codeTaskService.js && node --check src/services/taskOrchestratorService.js && node --check src/services/googleCloudService.js && node --check src/services/githubWriteService.js && node --check src/services/mcpReadService.js && node --check src/tools/capabilityEngine.js && node --check src/tools/toolRegistry.js && node --check public/app.js && node --check public/work-center.js && node --test tests/*.test.js"
   },
   "dependencies": {
     "@opensearch-project/opensearch": "^3.6.0",

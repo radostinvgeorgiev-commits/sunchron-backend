@@ -251,6 +251,20 @@ textarea:focus-visible {
   display: none;
 }
 
+.message-actions .council-execute-action {
+  width: auto;
+  padding: 0 11px;
+  gap: 7px;
+  color: var(--sx-accent-dark) !important;
+  border: 1px solid var(--sx-accent) !important;
+  background: #effaf5;
+  font-weight: 800;
+}
+
+.message-actions .council-execute-action .action-label {
+  display: inline;
+}
+
 .typing-indicator {
   color: var(--sx-accent) !important;
 }
@@ -267,6 +281,64 @@ textarea:focus-visible {
 .typing-indicator .thinking-label {
   max-width: min(72vw, 620px);
   line-height: 1.35;
+}
+
+.task-run-title {
+  margin-top: 18px;
+}
+
+.task-run-list {
+  display: grid;
+  gap: 8px;
+}
+
+.task-run-item {
+  padding: 8px 9px;
+  border: 1px solid var(--sx-line);
+  border-radius: 12px;
+  background: #fbfdfc;
+}
+
+.task-run-item strong,
+.task-run-item small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.task-run-item strong {
+  color: var(--sx-ink);
+  font-size: 12px;
+}
+
+.task-run-item small {
+  margin-top: 3px;
+  color: var(--sx-muted);
+  font-size: 11px;
+}
+
+.task-run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.task-run-actions button {
+  min-height: 28px;
+  padding: 3px 8px;
+  border: 1px solid var(--sx-line);
+  border-radius: 8px;
+  color: var(--sx-accent-dark);
+  background: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.task-run-actions button:hover,
+.task-run-actions button:focus-visible {
+  border-color: var(--sx-accent);
+  outline: none;
 }
 
 .attachment-preview {

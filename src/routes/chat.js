@@ -83,12 +83,27 @@ import {
 } from "../services/aiCoreService.js";
 import { executeTaskPlan } from "../services/taskExecutionService.js";
 import { orchestrateTask } from "../services/taskOrchestratorService.js";
+import {
+  createTaskRun,
+  recordTaskRunCheckpoint,
+} from "../services/taskRunService.js";
 import { CodexAgentError } from "../services/codexAgentService.js";
 import {
   canPlanCapabilities,
   filterCapabilityRequestsForIdentity,
   isMemberIdentity,
 } from "../services/memberCapabilityPolicy.js";
+import {
+  AiCouncilError,
+  formatAiCouncilReply,
+  isMultiEngineCouncilRequest,
+  runAiCouncil,
+} from "../services/aiCouncilService.js";
+import {
+  consumeCouncilIntent,
+  CouncilIntentError,
+  createCouncilIntent,
+} from "../services/councilIntentService.js";
 import {
   AVATAR_DEFINITION,
   PROJECT_BASE_CONTEXT,
@@ -123,6 +138,33 @@ const DIRECT_CAPABILITY_REPLIES = new Set([
   "code.write",
   "infrastructure.googlecloud.read",
 ]);
+const COUNCIL_SELECTION_PATTERN =
+  /^изпълни\s+(?:препоръката|варианта)(?:[.!?]+)?$/iu;
+
+function durableTaskRunStatus(status) {
+  if (status === "executing" || status === "running") return "running";
+  if (
+    status === "planning" ||
+    status === "waiting_confirmation" ||
+    status === "partial" ||
+    status === "completed" ||
+    status === "failed" ||
+    status === "paused"
+  ) {
+    return status;
+  }
+  return null;
+}
+
+function durableTaskRunMessage(status, fallback) {
+  if (status === "completed") return "Задачата е изпълнена и проверена.";
+  if (status === "partial") return "Задачата е изпълнена частично и може да продължи.";
+  if (status === "failed") return "Задачата не можа да бъде изпълнена.";
+  if (status === "waiting_confirmation") {
+    return "Задачата чака конкретно потвърждение.";
+  }
+  return fallback || "AI CORE обработва задачата.";
+}
 
 async function auditAction(event) {
   try {
@@ -292,7 +334,7 @@ export function normalizeRecentConversationHistory(value) {
 }
 
 const SHORT_CONTINUATION_PATTERN =
-  /^(?:да|давай|ок(?:ей)?|добре|направи го|продължи)(?:[.!?]+)?$/iu;
+  /^(?:да|давай|ок(?:ей)?|добре|направи го|продължи|изпълни\s+(?:препоръката|варианта)|избери\s+препоръката)(?:[.!?]+)?$/iu;
 
 export function buildContextualTaskMessage(message, recentHistory = []) {
   const cleanMessage = typeof message === "string" ? message.trim() : "";
@@ -886,7 +928,16 @@ export async function loadChatMemoryContext({
 
 router.post("/chat", async (req, res) => {
   const openAiApiKey = process.env.OPENAI_API_KEY;
-  const { sessionId, message, image, mode, workContext, recentHistory } =
+  const {
+    sessionId,
+    message,
+    image,
+    mode,
+    workContext,
+    recentHistory,
+    council,
+    councilIntentId,
+  } =
     req.body || {};
   const googleSessionId =
     parseCookies(req.headers.cookie).synchron_google_session || "";
@@ -897,8 +948,11 @@ router.post("/chat", async (req, res) => {
   const capabilityPlanningAllowed = canPlanCapabilities(req.owner);
   const cleanSessionId = typeof sessionId === "string" ? sessionId.trim() : "";
   const cleanMessage = typeof message === "string" ? message.trim() : "";
+  const councilRequested =
+    !councilIntentId &&
+    (council === true || isMultiEngineCouncilRequest(cleanMessage));
   const cleanRecentHistory = normalizeRecentConversationHistory(recentHistory);
-  const taskMessage = buildContextualTaskMessage(
+  let taskMessage = buildContextualTaskMessage(
     cleanMessage,
     cleanRecentHistory,
   );
@@ -1421,6 +1475,97 @@ router.post("/chat", async (req, res) => {
     res.end();
     return;
   }
+  if (councilIntentId && !COUNCIL_SELECTION_PATTERN.test(cleanMessage)) {
+    return res.status(400).json({
+      error: "Council препоръката може да се изпълни само с точната команда.",
+      code: "COUNCIL_INTENT_CONFIRMATION_INVALID",
+    });
+  }
+
+  let selectedCouncilIntent = null;
+  if (councilIntentId) {
+    try {
+      selectedCouncilIntent = await consumeCouncilIntent({
+        ownerId,
+        sessionId: cleanSessionId,
+        intentId: councilIntentId,
+      });
+      taskMessage = [
+        "[ИЗБРАНА ПРЕПОРЪКА ОТ AI CORE COUNCIL]",
+        `Първоначална заявка: ${selectedCouncilIntent.question}`,
+        `Обща препоръка: ${selectedCouncilIntent.recommendation}`,
+        selectedCouncilIntent.rationale
+          ? `Обосновка: ${selectedCouncilIntent.rationale}`
+          : "",
+        selectedCouncilIntent.nextSteps.length
+          ? `Следващи стъпки:\n${selectedCouncilIntent.nextSteps.join("\n")}`
+          : "",
+        `Потребителят избра да се изпълни препоръката: ${cleanMessage}`,
+        "Това е заявка за планиране, не заобикаля защитите. Използвай само разрешени capabilities и изискай отделно потвърждение за рисково действие.",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    } catch (error) {
+      logSafeError("[AI Council] Intent selection failure", error);
+      sendEvent("error", {
+        status: error instanceof CouncilIntentError ? error.status : 503,
+        message:
+          error instanceof CouncilIntentError
+            ? error.message
+            : "Избраната Council препоръка временно не е достъпна.",
+      });
+      res.end();
+      return;
+    }
+  }
+
+  if (councilRequested) {
+    try {
+      const councilResult = await runAiCouncil({
+        message: cleanMessage,
+        context: PROJECT_BASE_CONTEXT.slice(0, 8).join("\n"),
+      });
+      let councilIntent = null;
+      try {
+        councilIntent = await createCouncilIntent({
+          ownerId,
+          sessionId: cleanSessionId,
+          question: councilResult.question,
+          recommendation: councilResult.recommendation,
+          rationale: councilResult.rationale,
+          nextSteps: councilResult.nextSteps,
+        });
+      } catch (error) {
+        logSafeError("[AI Council] Intent persistence failure", error);
+      }
+      const fullReply = formatAiCouncilReply(councilResult);
+      const conversationPersisted = await saveConversationTurnBestEffort(
+        cleanSessionId,
+        cleanMessage,
+        fullReply,
+        ownerId,
+      );
+      sendEvent("token", { token: fullReply });
+      sendEvent("done", {
+        ok: true,
+        mode: "council",
+        council: councilResult,
+        ...(councilIntent ? { councilIntentId: councilIntent.id } : {}),
+        ...getConversationPersistenceMetadata(conversationPersisted),
+      });
+    } catch (error) {
+      logSafeError("[AI Council] Failure", error);
+      sendEvent("error", {
+        status: error instanceof AiCouncilError ? error.status : 502,
+        message:
+          error instanceof AiCouncilError
+            ? error.message
+            : "Трите AI двигателя не успяха да завършат общия съвет.",
+      });
+    }
+    res.end();
+    return;
+  }
 
   const fallbackCapabilityRequests = !memoryAction
     ? filterCapabilityRequestsForIdentity(
@@ -1430,6 +1575,87 @@ router.post("/chat", async (req, res) => {
     : [];
   const normalizeCapabilityRequests = (requests) =>
     filterCapabilityRequestsForIdentity(requests, req.owner);
+  let durableTaskRunId = null;
+  const pendingTaskRunWrites = [];
+  let taskRunWriteChain = Promise.resolve();
+  const queueTaskRunCheckpoint = ({
+    status,
+    stepIndex = 0,
+    message,
+    source = "orchestrator",
+  }) => {
+    if (!durableTaskRunId || !status || !message) return;
+    taskRunWriteChain = taskRunWriteChain
+      .then(() =>
+        recordTaskRunCheckpoint({
+          ownerId,
+          runId: durableTaskRunId,
+          status,
+          stepIndex,
+          message,
+          source,
+        }),
+      )
+      .catch((error) => {
+        logSafeError("[Task run] Checkpoint write failure", error);
+      });
+    const write = taskRunWriteChain;
+    pendingTaskRunWrites.push(write);
+  };
+  const notifyTaskRun = (taskEvent) => {
+    const event = durableTaskRunId
+      ? { ...taskEvent, taskRunId: durableTaskRunId }
+      : taskEvent;
+    sendEvent("task", event);
+    const status = durableTaskRunStatus(taskEvent.status);
+    if (!status) return;
+    queueTaskRunCheckpoint({
+      status,
+      stepIndex: Number.isInteger(taskEvent.step)
+        ? Math.max(0, taskEvent.step - 1)
+        : 0,
+      message: durableTaskRunMessage(status, taskEvent.message),
+    });
+  };
+  const createDurableTaskRun = async ({ requests }) => {
+    if (!requests.length) return null;
+    try {
+      const created = await createTaskRun({
+        ownerId,
+        sessionId: cleanSessionId,
+        title: cleanMessage.slice(0, 240) || "AI задача",
+        mode: interactionMode,
+        steps: requests.map(({ capability, message }) =>
+          message ? `${capability}: ${message}` : capability,
+        ),
+      });
+      durableTaskRunId = created.id;
+      sendEvent("task", {
+        taskRunId: durableTaskRunId,
+        status: "planning",
+        message: "Задачата е запазена и има устойчив checkpoint.",
+        verified: false,
+      });
+      queueTaskRunCheckpoint({
+        status: "planning",
+        message: "Избраните стъпки са записани и чакат изпълнение.",
+      });
+      return { taskRunId: durableTaskRunId };
+    } catch (error) {
+      logSafeError("[Task run] Creation failure", error);
+      return null;
+    }
+  };
+  const finalizeDurableTaskRun = async (task) => {
+    if (!durableTaskRunId) return;
+    const status = durableTaskRunStatus(task?.status) || "failed";
+    queueTaskRunCheckpoint({
+      status,
+      message: durableTaskRunMessage(status),
+      stepIndex: Math.max(0, Number(task?.totalSteps || 0) - 1),
+    });
+    await Promise.allSettled(pendingTaskRunWrites.splice(0));
+  };
   const taskExecution = await orchestrateTask({
     message: taskMessage,
     fallbackRequests: fallbackCapabilityRequests,
@@ -1457,10 +1683,13 @@ router.post("/chat", async (req, res) => {
       workContext: cleanWorkContext,
       prepareConfirmation: true,
     },
-    notify: (taskEvent) => sendEvent("task", taskEvent),
+    notify: notifyTaskRun,
+    onPlan: createDurableTaskRun,
     audit: auditAction,
     onPlannerError: (error) => logSafeError("[AgentPlanner] Failure", error),
   });
+  const taskRunId = taskExecution.taskRunId || durableTaskRunId;
+  await finalizeDurableTaskRun(taskExecution.task);
   const detectedCapabilityRequests = taskExecution.requests;
   console.info(
     `[Chat] Detected ${detectedCapabilityRequests.length} capability subtasks for ${cleanSessionId}: ${detectedCapabilityRequests
@@ -1472,10 +1701,17 @@ router.post("/chat", async (req, res) => {
     capabilityResults,
     cleanWorkContext,
   );
-  const taskResult = mergeMemoryTaskStatus(taskExecution.task, memoryAction);
+  const taskResult = {
+    ...mergeMemoryTaskStatus(taskExecution.task, memoryAction),
+    ...(taskRunId ? { taskRunId } : {}),
+    ...(selectedCouncilIntent
+      ? { councilIntentId: selectedCouncilIntent.id }
+      : {}),
+  };
   if (taskResult.status !== taskExecution.task.status) {
     sendEvent("task", {
       taskId: taskResult.id,
+      ...(taskRunId ? { taskRunId } : {}),
       status: taskResult.status,
       message: "Задачата чака конкретно потвърждение.",
       verified: false,
@@ -1500,6 +1736,7 @@ router.post("/chat", async (req, res) => {
       ok: taskResult.status !== "failed",
       capabilities: capabilityResults.map(({ request }) => request.capability),
       task: taskResult,
+      ...(taskRunId ? { taskRunId } : {}),
       mode: "verified-tool-output",
       memoryAvailable,
       ...getConversationPersistenceMetadata(conversationPersisted),
@@ -1527,6 +1764,7 @@ router.post("/chat", async (req, res) => {
       memoryUpdated: Boolean(memoryAction),
       capabilities: capabilityResults.map(({ request }) => request.capability),
       task: taskResult,
+      ...(taskRunId ? { taskRunId } : {}),
       mode: capabilityResults.length ? "deterministic" : undefined,
       memoryAvailable,
       ...getConversationPersistenceMetadata(conversationPersisted),
@@ -1556,6 +1794,7 @@ router.post("/chat", async (req, res) => {
           ({ request }) => request.capability,
         ),
         task: taskResult,
+        ...(taskRunId ? { taskRunId } : {}),
         mode: "deterministic-fallback",
         memoryAvailable,
         ...getConversationPersistenceMetadata(conversationPersisted),
@@ -1653,6 +1892,7 @@ router.post("/chat", async (req, res) => {
       memoryAvailable,
       capabilities: capabilityResults.map(({ request }) => request.capability),
       task: taskResult,
+      ...(taskRunId ? { taskRunId } : {}),
       mode: capabilityResults.length ? "agentic" : "conversation",
       provider: aiResponse.provider,
       model: aiResponse.model,

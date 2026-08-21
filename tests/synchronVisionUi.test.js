@@ -22,6 +22,7 @@ test("the personal AI interface keeps chat primary and makes owner mobile action
     /data-command="connections"[^>]*data-owner-only/u,
   );
   assert.match(html, /data-command="status"/u);
+  assert.match(html, /id="taskRunList"/u);
   assert.doesNotMatch(html, /data-command="(?:work|tasks)"/u);
   assert.match(css, /\.mobile-command-bar/u);
   assert.match(css, /repeat\(auto-fit, minmax\(0, 1fr\)\)/u);
@@ -48,6 +49,12 @@ test("the chat composer is a labelled multiline control with bounded autosize", 
   assert.match(css, /\.chat-input-area textarea\s*\{/u);
   assert.match(css, /max-height:\s*160px/u);
   assert.match(app, /function resizeChatInput\(\)/u);
+  assert.match(app, /execute-council/u);
+  assert.match(app, /showCouncilExecutionAction/u);
+  assert.match(app, /function loadTaskRuns\(\)/u);
+  assert.match(app, /data-run-action/u);
+  assert.match(css, /council-execute-action/u);
+  assert.match(css, /task-run-item/u);
   assert.match(app, /Math\.min\(naturalHeight, MAX_CHAT_INPUT_HEIGHT\)/u);
   assert.match(app, /chatInput\.addEventListener\("input", resizeChatInput\)/u);
 });

@@ -34,6 +34,12 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       hasDefault: true,
     }),
     general(
+      "AI_CORE_COUNCIL_MODEL",
+      "AI ядро",
+      "Моделът, който сравнява отговорите на OpenAI, Gemini и Grok.",
+      { hasDefault: true },
+    ),
+    general(
       "OPENAI_PLANNER_MODEL",
       "AI ядро",
       "Модел за планиране на инструментите.",
@@ -182,6 +188,18 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "FIRESTORE_TASK_COLLECTION",
       "Задачи",
       "Firestore колекция за owner-isolated задачи.",
+      { hasDefault: true },
+    ),
+    general(
+      "FIRESTORE_TASK_RUN_COLLECTION",
+      "Устойчиви изпълнения",
+      "Firestore колекция за checkpoint-и и възстановяване на AI задачи.",
+      { hasDefault: true },
+    ),
+    general(
+      "FIRESTORE_COUNCIL_INTENT_COLLECTION",
+      "Устойчиви изпълнения",
+      "Firestore колекция за еднократните Council препоръки.",
       { hasDefault: true },
     ),
     general(

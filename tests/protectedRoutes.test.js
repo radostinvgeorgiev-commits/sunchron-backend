@@ -40,6 +40,8 @@ test("blocks personal data and paid AI routes without owner sign-in", async () =
     ["get", "/api/tasks"],
     ["post", "/api/tasks"],
     ["post", "/api/tasks/status/confirm"],
+    ["get", "/api/task-runs"],
+    ["post", "/api/task-runs"],
     ["get", "/permissions/audit"],
     ["post", "/search/ai"],
     ["post", "/chat/chat"],

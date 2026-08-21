@@ -19,7 +19,8 @@
 
 .interaction-mode-switch button,
 .work-context-button,
-.work-pet-button {
+.work-pet-button,
+.council-mode-button {
   min-height: 42px;
   border: 0;
   color: #52605b;
@@ -50,6 +51,32 @@
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
+}
+
+.council-mode-button {
+  min-height: 40px;
+  padding: 7px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #dfe3e8;
+  border-radius: 12px;
+  color: #52605b;
+  background: #fff;
+  white-space: nowrap;
+}
+
+.council-mode-button:hover,
+.council-mode-button:focus-visible {
+  border-color: #8aa99b;
+  outline: none;
+}
+
+.council-mode-button[aria-pressed="true"] {
+  color: #fff;
+  border-color: #146b55;
+  background: #146b55;
+  box-shadow: 0 4px 12px rgba(20, 107, 85, 0.2);
 }
 
 .work-context-button {
@@ -540,6 +567,16 @@ body[data-interaction-mode="chat"] .work-pet {
 
   .work-context-button {
     padding-left: 6px;
+  }
+
+  .council-mode-button {
+    width: 42px;
+    justify-content: center;
+    padding: 7px;
+  }
+
+  .council-mode-button span {
+    display: none;
   }
 
   .pet-choice-grid {

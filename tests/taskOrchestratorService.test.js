@@ -47,3 +47,26 @@ test("orchestrator plans, routes and executes a real multi-step task", async () 
   );
   assert.ok(events.some(({ status }) => status === "planning"));
 });
+
+test("orchestrator exposes the durable run context after planning", async () => {
+  const events = [];
+  const execution = await orchestrateTask({
+    message: "Провери статуса.",
+    fallbackRequests: [{ capability: "code.read" }],
+    routeRequests: (requests) => requests,
+    executeFn: async (capability) => ({
+      tool: { id: capability },
+      permission: { decision: "allow" },
+      requiresConfirmation: false,
+      output: "ok",
+    }),
+    onPlan: async ({ requests }) => {
+      events.push({ phase: "planned", count: requests.length });
+      return { taskRunId: "run-123" };
+    },
+    notify: (event) => events.push(event),
+  });
+
+  assert.equal(execution.taskRunId, "run-123");
+  assert.deepEqual(events[1], { phase: "planned", count: 1 });
+});

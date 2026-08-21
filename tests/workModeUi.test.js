@@ -40,6 +40,7 @@ test("Chat and Work are available with projects, agents, and pet state", async (
   assert.match(html, /id="workModeToolbarBtn"/u);
   assert.match(html, /id="workPetBtn"/u);
   assert.match(html, /id="workContextBtn"/u);
+  assert.match(html, /id="councilModeBtn"/u);
   assert.match(html, /id="workPet"/u);
   assert.match(html, /\/work-mode\.js\?v=/u);
   assert.ok(
@@ -55,6 +56,7 @@ test("Chat and Work are available with projects, agents, and pet state", async (
   assert.match(css, /data-pet-state="needs-input"/u);
   assert.match(css, /data-pet-state="blocked"/u);
   assert.match(css, /\.work-pet-button/u);
+  assert.match(css, /\.council-mode-button/u);
   assert.match(css, /prefers-reduced-motion/u);
 
   assert.match(workMode, /function getRequestPayload/u);
@@ -77,6 +79,8 @@ test("Chat and Work are available with projects, agents, and pet state", async (
   assert.match(workMode, /\/api\/workspaces/u);
   assert.match(workMode, /защитения ти профил/u);
   assert.match(workMode, /function recordActivity/u);
+  assert.match(app, /councilModeBtn/u);
+  assert.match(app, /council:\s*councilMode/u);
 
   assert.match(app, /SynchronWorkMode\?\.getRequestPayload/u);
   assert.match(app, /SynchronWorkMode\?\.onTask/u);

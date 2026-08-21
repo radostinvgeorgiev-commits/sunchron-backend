@@ -304,6 +304,19 @@ test("ordinary messages are not rewritten as contextual confirmations", () => {
   );
 });
 
+test("selecting a council recommendation restores its bounded context", () => {
+  const message = buildContextualTaskMessage("Изпълни препоръката.", [
+    { role: "user", content: "Питай трите AI модела за следващия ход." },
+    {
+      role: "assistant",
+      content: "Обща препоръка: първо провери GitHub статуса.",
+    },
+  ]);
+
+  assert.match(message, /Обща препоръка/u);
+  assert.match(message, /Текущ отговор на потребителя: Изпълни препоръката/u);
+});
+
 test("AI CORE code task failures keep a safe actionable reason in chat", () => {
   const replies = buildCapabilityReplies([
     {

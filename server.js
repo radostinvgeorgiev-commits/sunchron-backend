@@ -26,6 +26,7 @@ import testerAuthAdminRouter from "./src/routes/testerAuthAdminRouter.js";
 import systemRouter from "./src/routes/systemRouter.js";
 import workspacesRouter from "./src/routes/workspacesRouter.js";
 import tasksRouter from "./src/routes/tasksRouter.js";
+import taskRunsRouter from "./src/routes/taskRunsRouter.js";
 import mcpRouter, { mcpJsonParseErrorHandler } from "./src/routes/mcpRouter.js";
 import { createMcpOAuthRouter } from "./src/routes/mcpOAuthRouter.js";
 
@@ -139,6 +140,12 @@ app.use(
   workspacesRouter,
 );
 app.use("/api/tasks", requireOwnerSession, privateApiRateLimiter, tasksRouter);
+app.use(
+  "/api/task-runs",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  taskRunsRouter,
+);
 app.use(
   "/api/tester-auth",
   requireOwnerSession,

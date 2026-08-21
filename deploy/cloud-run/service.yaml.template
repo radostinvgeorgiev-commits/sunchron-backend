@@ -44,6 +44,8 @@ spec:
                   key: "__OPENAI_API_KEY_VERSION__"
             - name: OPENAI_CODEX_MODEL
               value: gpt-5.6-terra
+            - name: AI_CORE_COUNCIL_MODEL
+              value: gpt-5.6-terra
             - name: GEMINI_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -86,6 +88,10 @@ spec:
               value: synchron-workspaces-v1
             - name: FIRESTORE_TASK_COLLECTION
               value: synchron-tasks-v1
+            - name: FIRESTORE_TASK_RUN_COLLECTION
+              value: synchron-task-runs-v1
+            - name: FIRESTORE_COUNCIL_INTENT_COLLECTION
+              value: synchron-council-intents-v1
             - name: FIRESTORE_GITHUB_SESSION_COLLECTION
               value: synchron-github-sessions-v1
             - name: FIRESTORE_GOOGLE_SESSION_COLLECTION

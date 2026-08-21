@@ -17,10 +17,7 @@ test("the personal AI interface keeps chat primary and makes owner mobile action
   assert.match(html, /data-command="chat"/u);
   assert.match(html, /data-command="memory"/u);
   assert.match(html, /data-command="connections"/u);
-  assert.match(
-    html,
-    /data-command="connections"[^>]*data-owner-only/u,
-  );
+  assert.match(html, /data-command="connections"[^>]*data-owner-only/u);
   assert.match(html, /data-command="status"/u);
   assert.match(html, /id="taskRunList"/u);
   assert.doesNotMatch(html, /data-command="(?:work|tasks)"/u);
@@ -69,27 +66,23 @@ test("status panel reports live Supabase health and honest backup evidence", asy
     mobileScript,
     legacyStyles,
     workCenter,
-  ] =
-    await Promise.all([
-      readFile(new URL("../public/index.html", import.meta.url), "utf8"),
-      readFile(new URL("../public/app.js", import.meta.url), "utf8"),
-      readFile(
-        new URL("../public/synchron-vision.css", import.meta.url),
-        "utf8",
-      ),
-      readFile(new URL("../public/appshell.css", import.meta.url), "utf8"),
-      readFile(new URL("../public/accessibility.css", import.meta.url), "utf8"),
-      readFile(
-        new URL("../public/synchron-vision.js", import.meta.url),
-        "utf8",
-      ),
-      readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
-      readFile(new URL("../public/work-center.js", import.meta.url), "utf8"),
-    ]);
+  ] = await Promise.all([
+    readFile(new URL("../public/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../public/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../public/synchron-vision.css", import.meta.url), "utf8"),
+    readFile(new URL("../public/appshell.css", import.meta.url), "utf8"),
+    readFile(new URL("../public/accessibility.css", import.meta.url), "utf8"),
+    readFile(new URL("../public/synchron-vision.js", import.meta.url), "utf8"),
+    readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
+    readFile(new URL("../public/work-center.js", import.meta.url), "utf8"),
+  ]);
 
   assert.match(html, /id="supabaseStatusDisplay"/u);
   assert.match(html, /id="opensearchBackupStatusDisplay"/u);
   assert.match(html, /id="supabaseBackupStatusDisplay"/u);
+  assert.match(html, /class="legacy-status-details"/u);
+  assert.match(html, /Наследени услуги и архив · само диагностика/u);
+  assert.match(html, /Активни интеграции/u);
   assert.match(html, /Наличният инвентар не доказва успешно възстановяване/u);
   assert.match(app, /readHealthReport\("\/health\/dependencies"\)/u);
   assert.match(app, /readHealthReport\("\/health\/backups"\)/u);
@@ -155,7 +148,9 @@ test("a failed OpenSearch index probe stays authoritative across later memory ev
     "updateOpenSearchUI",
     `${app.slice(policyStart, policyEnd)}\nreturn { markMemoryOperational, handleOpenSearchProbeFailure };`,
   );
-  const policy = createPolicy(state, (status) => displayedStatuses.push(status));
+  const policy = createPolicy(state, (status) =>
+    displayedStatuses.push(status),
+  );
 
   policy.markMemoryOperational();
   policy.handleOpenSearchProbeFailure("unreachable");
@@ -296,3 +291,4 @@ test("each live AI answer shows its verified provider and model", async () => {
   assert.match(script, /AI доставчик и модел/u);
   assert.match(css, /\.ai-response-source/u);
 });
+

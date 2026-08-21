@@ -63,9 +63,16 @@
             действията, преди ти да ги одобриш.
           </p>
           <div class="auth-trust" aria-label="Основни принципи">
-            <span><i class="fa-solid fa-shield-halved"></i> Ти даваш правата</span>
-            <span><i class="fa-solid fa-brain"></i> Ти контролираш паметта</span>
-            <span><i class="fa-solid fa-check-double"></i> Ти одобряваш действията</span>
+            <span
+              ><i class="fa-solid fa-shield-halved"></i> Ти даваш правата</span
+            >
+            <span
+              ><i class="fa-solid fa-brain"></i> Ти контролираш паметта</span
+            >
+            <span
+              ><i class="fa-solid fa-check-double"></i> Ти одобряваш
+              действията</span
+            >
           </div>
           <p class="auth-stage">
             Ранен достъп за малка група реални потребители.
@@ -79,95 +86,102 @@
             Продължи към личното си работно пространство.
           </p>
 
-        <form
-          id="loginForm"
-          class="auth-form"
-          method="post"
-          action="/api/auth/login"
-        >
-          <label for="loginEmail">Имейл</label>
-          <input
-            id="loginEmail"
-            name="email"
-            type="email"
-            autocomplete="username"
-            inputmode="email"
-            required
-          />
-          <label for="loginPassword">Парола</label>
-          <input
-            id="loginPassword"
-            name="password"
-            type="password"
-            autocomplete="current-password"
-            minlength="8"
-            maxlength="128"
-            required
-          />
-          <button id="loginBtn" class="auth-primary" type="submit">Влез</button>
-        </form>
+          <form
+            id="loginForm"
+            class="auth-form"
+            method="post"
+            action="/api/auth/login"
+          >
+            <label for="loginEmail">Имейл</label>
+            <input
+              id="loginEmail"
+              name="email"
+              type="email"
+              autocomplete="username"
+              inputmode="email"
+              required
+            />
+            <label for="loginPassword">Парола</label>
+            <input
+              id="loginPassword"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              minlength="8"
+              maxlength="128"
+              required
+            />
+            <button id="loginBtn" class="auth-primary" type="submit">
+              Влез
+            </button>
+          </form>
 
-        <a id="showRegisterBtn" class="auth-link" href="/register">
-          Кандидатствай за ранен достъп
-        </a>
-        <form
-          id="registerForm"
-          class="auth-form"
-          method="post"
-          action="/api/auth/register"
-          hidden
-        >
-          <label for="registerName">Име</label>
-          <input
-            id="registerName"
-            name="displayName"
-            type="text"
-            autocomplete="name"
-            maxlength="80"
-            required
-          />
-          <label for="registerEmail">Имейл</label>
-          <input
-            id="registerEmail"
-            name="email"
-            type="email"
-            autocomplete="username"
-            inputmode="email"
-            required
-          />
-          <label for="registerPassword">Парола</label>
-          <input
-            id="registerPassword"
-            name="password"
-            type="password"
-            autocomplete="new-password"
-            minlength="8"
-            maxlength="128"
-            required
-          />
-          <label for="registerInviteCode">Код за ранен достъп</label>
-          <input
-            id="registerInviteCode"
-            name="inviteCode"
-            type="password"
-            autocomplete="off"
-            minlength="8"
-            maxlength="128"
-            aria-describedby="registerInviteHelp"
-            required
-          />
-          <small id="registerInviteHelp" class="auth-field-help">
-            Получаваш кода лично от собственика на SYNCHRON-X.
-          </small>
-          <button id="registerBtn" class="auth-primary" type="submit">
-            Създай профил
-          </button>
-          <button id="backToLoginBtn" class="auth-link" type="button">
-            Назад към входа
-          </button>
-        </form>
+          <a id="showRegisterBtn" class="auth-link" href="/register">
+            Кандидатствай за ранен достъп
+          </a>
+          <form
+            id="registerForm"
+            class="auth-form"
+            method="post"
+            action="/api/auth/register"
+            hidden
+          >
+            <label for="registerName">Име</label>
+            <input
+              id="registerName"
+              name="displayName"
+              type="text"
+              autocomplete="name"
+              maxlength="80"
+              required
+            />
+            <label for="registerEmail">Имейл</label>
+            <input
+              id="registerEmail"
+              name="email"
+              type="email"
+              autocomplete="username"
+              inputmode="email"
+              required
+            />
+            <label for="registerPassword">Парола</label>
+            <input
+              id="registerPassword"
+              name="password"
+              type="password"
+              autocomplete="new-password"
+              minlength="8"
+              maxlength="128"
+              required
+            />
+            <label for="registerInviteCode">Код за ранен достъп</label>
+            <input
+              id="registerInviteCode"
+              name="inviteCode"
+              type="password"
+              autocomplete="off"
+              minlength="8"
+              maxlength="128"
+              aria-describedby="registerInviteHelp"
+              required
+            />
+            <small id="registerInviteHelp" class="auth-field-help">
+              Получаваш кода лично от собственика на SYNCHRON-X.
+            </small>
+            <button id="registerBtn" class="auth-primary" type="submit">
+              Създай профил
+            </button>
+            <button id="backToLoginBtn" class="auth-link" type="button">
+              Назад към входа
+            </button>
+          </form>
 
-          <p id="authMessage" class="auth-message" role="alert" aria-live="polite"></p>
+          <p
+            id="authMessage"
+            class="auth-message"
+            role="alert"
+            aria-live="polite"
+          ></p>
           <p class="auth-privacy">
             Профилът, разговорите и паметта са отделени за всеки потребител.
           </p>
@@ -479,38 +493,54 @@
             <div class="context-value" id="serverStatusDisplay">Проверка…</div>
           </div>
           <div class="context-box">
-            <div class="context-label">OpenSearch</div>
-            <div class="context-value" id="opensearchStatusDisplay">
-              Проверка…
-            </div>
-          </div>
-          <div class="context-box">
-            <div class="context-label">Supabase Auth</div>
-            <div class="context-value" id="supabaseStatusDisplay">
-              Проверка с реална заявка…
-            </div>
-          </div>
-          <div class="context-box">
-            <div class="context-label">OpenSearch backup</div>
-            <div class="context-value" id="opensearchBackupStatusDisplay">
-              Проверка на инвентара…
+            <div class="context-label">Активни интеграции</div>
+            <div class="context-value">
+              Показват се само реално потвърдените връзки.
             </div>
             <small class="status-evidence">
-              Наличният инвентар не доказва успешно възстановяване.
+              Нови връзки се добавят през „Инструменти“.
             </small>
           </div>
-          <div class="context-box">
-            <div class="context-label">Supabase backup</div>
-            <div class="context-value" id="supabaseBackupStatusDisplay">
-              Непроверен
+          <details class="legacy-status-details">
+            <summary>Наследени услуги и архив · само диагностика</summary>
+            <p class="status-evidence">
+              Тези проверки не са активна част от основния интерфейс. Отвори
+              секцията само ако търсиш информация за стария runtime или архив.
+            </p>
+            <div class="context-box">
+              <div class="context-label">OpenSearch</div>
+              <div class="context-value" id="opensearchStatusDisplay">
+                Проверка…
+              </div>
             </div>
-            <small class="status-evidence">
-              Runtime ключът не вижда backup политиката на доставчика.
-            </small>
-          </div>
-          <p class="status-checked-at" id="storageStatusCheckedAt">
-            Последна проверка: предстои
-          </p>
+            <div class="context-box">
+              <div class="context-label">Supabase Auth</div>
+              <div class="context-value" id="supabaseStatusDisplay">
+                Проверка с реална заявка…
+              </div>
+            </div>
+            <div class="context-box">
+              <div class="context-label">OpenSearch backup</div>
+              <div class="context-value" id="opensearchBackupStatusDisplay">
+                Проверка на инвентара…
+              </div>
+              <small class="status-evidence">
+                Наличният инвентар не доказва успешно възстановяване.
+              </small>
+            </div>
+            <div class="context-box">
+              <div class="context-label">Supabase backup</div>
+              <div class="context-value" id="supabaseBackupStatusDisplay">
+                Непроверен
+              </div>
+              <small class="status-evidence">
+                Runtime ключът не вижда backup политиката на доставчика.
+              </small>
+            </div>
+            <p class="status-checked-at" id="storageStatusCheckedAt">
+              Последна проверка: предстои
+            </p>
+          </details>
           <div class="context-label task-run-title">Изпълнения на задачи</div>
           <ul class="log-list task-run-list" id="taskRunList">
             <li>Проверка на изпълненията…</li>
@@ -582,3 +612,4 @@
     <script src="/assets/20260806-green-chat-v1/synchron-vision.js"></script>
   </body>
 </html>
+

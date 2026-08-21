@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
@@ -210,5 +213,49 @@ test("normalizes safe repository-relative paths returned by the coding model", a
   assert.equal(
     storedConfirmation.params.changes[0].path,
     "public/avatar-proof.js",
+  );
+});
+
+test("blocks a coding plan that collapses a large existing file", async () => {
+  const root = await mkdtemp(join(tmpdir(), "ai-core-rewrite-guard-"));
+  const workspace = join(root, "source");
+  await mkdir(join(workspace, "public"), { recursive: true });
+  await writeFile(
+    join(workspace, "public", "work-mode.css"),
+    Array.from({ length: 80 }, (_, index) => `.rule-${index} { color: #123; }`).join("\n"),
+  );
+
+  await assert.rejects(
+    () =>
+      prepareCodeTask({
+        ownerId: "owner-1",
+        sessionId: "session-1",
+        githubSessionId: "github-session",
+        message: "Подобри избрания аватар.",
+        apiKey: "openai-key",
+        geminiApiKey: "gemini-key",
+        grokApiKey: "grok-key",
+        createWorkspace: async () => ({ root, workspace }),
+        createSnapshot: async () => ({ text: "public/work-mode.css" }),
+        advisorRequesters: {
+          openai: advisor("openai"),
+          gemini: advisor("gemini"),
+          grok: advisor("grok"),
+        },
+        responseRequester: async () => ({
+          text: JSON.stringify({
+            ...plan,
+            changes: [
+              {
+                path: "public/work-mode.css",
+                content: ".pet-choice.active{background:#f0faf4}",
+                reason: "Минимална визуална промяна.",
+              },
+            ],
+          }),
+        }),
+        resolveGitHubSession: async () => githubSession,
+      }),
+    (error) => error.code === "CODE_TASK_EXCESSIVE_REWRITE",
   );
 });

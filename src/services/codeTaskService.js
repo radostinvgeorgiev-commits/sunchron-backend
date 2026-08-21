@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { rm } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
+import { relative, resolve } from "node:path";
 
 import {
   requestGeminiResponse,
@@ -27,6 +28,9 @@ const CODE_TASK_ACTION = "github.write:code_task";
 const CONFIRM_PREFIX = "Потвърждавам AI CORE кодова задача:";
 const MAX_TASK_FILES = 4;
 const MAX_FILE_CONTENT = 100_000;
+const LARGE_EXISTING_FILE_LINES = 40;
+const MIN_RETAINED_LINE_RATIO = 0.7;
+const MIN_RETAINED_CONTENT_RATIO = 0.6;
 const SAFE_PATH = /^(?!\/)(?!.*\.\.)(?!\.env(?:\.|$))(?!\.github\/workflows\/)(?!\.do\/)[\w./-]{1,500}$/u;
 const SECRET_PATTERN =
   /(?:-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}|\bgh[pousr]_[A-Za-z0-9_]{20,})/u;
@@ -89,6 +93,63 @@ function normalizePlanPath(value) {
   return cleanText(value, 500, "path")
     .replaceAll("\\", "/")
     .replace(/^(?:\.\/)+/u, "");
+}
+
+function lineCount(value) {
+  return String(value).split(/\r?\n/u).length;
+}
+
+function allowsDestructiveRewrite(message) {
+  return /(?:изтри|премах|минифицирай|пренапиши|delete|remove|minify|rewrite)/iu.test(
+    message,
+  );
+}
+
+async function assertSafeExistingFileChanges(plan, workspace, message) {
+  if (allowsDestructiveRewrite(message)) return;
+  const workspaceRoot = resolve(workspace);
+
+  for (const change of plan.changes) {
+    const target = resolve(workspaceRoot, ...change.path.split("/"));
+    const relativeTarget = relative(workspaceRoot, target);
+    if (!relativeTarget || relativeTarget.startsWith("..")) {
+      throw new CodeTaskError(
+        "AI CORE предложи файл извън разрешеното работно копие.",
+        403,
+        "CODE_TASK_PATH_BLOCKED",
+      );
+    }
+
+    let original;
+    try {
+      original = await readFile(target, "utf8");
+    } catch (error) {
+      if (error?.code === "ENOENT") continue;
+      throw new CodeTaskError(
+        "AI CORE не успя безопасно да провери съществуващ файл.",
+        502,
+        "CODE_TASK_SOURCE_CHECK_FAILED",
+      );
+    }
+
+    const originalLines = lineCount(original);
+    const proposedLines = lineCount(change.content);
+    const originalLength = original.trim().length;
+    const proposedLength = change.content.trim().length;
+    const collapsesLines =
+      originalLines >= LARGE_EXISTING_FILE_LINES &&
+      proposedLines < Math.ceil(originalLines * MIN_RETAINED_LINE_RATIO);
+    const removesMostContent =
+      originalLength >= 2_000 &&
+      proposedLength < Math.ceil(originalLength * MIN_RETAINED_CONTENT_RATIO);
+    if (collapsesLines || removesMostContent) {
+      throw new CodeTaskError(
+        "Кодовият план би свил или презаписал прекомерно голям съществуващ файл. Задачата е спряна безопасно.",
+        422,
+        "CODE_TASK_EXCESSIVE_REWRITE",
+      );
+    }
+  }
 }
 
 function fingerprint(label, value) {
@@ -209,6 +270,7 @@ function codeTaskPrompt(message, snapshot, council) {
     "Сравни трите независими предложения, избери най-добрите им части и обясни избора чрез summary и reason полетата.",
     "Подготви една минимална production промяна по заявката.",
     "Върни ПЪЛНОТО крайно съдържание на всеки променен или нов файл, не diff.",
+    "Запази дословно форматирането и цялото непроменено съдържание на съществуващите файлове. Не минифицирай и не преформатирай несвързан код.",
     "Използвай максимум 4 файла. Не променяй .env, secrets, GitHub Actions, deployment manifests или .do.",
     "Всеки path трябва да е уникален, относителен спрямо корена на хранилището, с / и без начален ./.",
     "Не добавяй зависимости, освен ако задачата е невъзможна без тях.",
@@ -314,6 +376,7 @@ export async function prepareCodeTask({
       );
     }
     const plan = validatePlan(response?.text, process.env);
+    await assertSafeExistingFileChanges(plan, isolated.workspace, task);
     const executorModel =
       typeof response?.model === "string" && response.model.trim()
         ? response.model.trim()

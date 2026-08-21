@@ -2,6 +2,21 @@ import { createFirestoreDocumentStore } from "./firestoreDocumentStore.js";
 
 const DEFAULT_PROFILE_COLLECTION = "synchron-profile-memory-v1";
 const DEFAULT_CONVERSATION_COLLECTION = "synchron-conversation-memory-v1";
+const MAX_OWNER_CONVERSATION_DOCUMENTS = 1_000;
+
+function newestConversationDocuments(documents, limit) {
+  const safeLimit = Math.min(
+    Math.max(Number.parseInt(limit, 10) || 1, 1),
+    MAX_OWNER_CONVERSATION_DOCUMENTS,
+  );
+  return [...documents]
+    .sort((left, right) =>
+      String(right.data?.createdAt || "").localeCompare(
+        String(left.data?.createdAt || ""),
+      ),
+    )
+    .slice(0, safeLimit);
+}
 
 function cleanCollection(value, label) {
   const clean = String(value || "").trim();
@@ -45,22 +60,31 @@ export function createFirestoreMemoryStore({
     listProfileDocuments(ownerId, limit = 200) {
       return store.queryEqual(profileCollection, "ownerId", ownerId, limit);
     },
-    listConversationDocuments(ownerId, limit = 1_000) {
-      return store.query(conversationCollection, {
-        filters: [{ field: "ownerId", value: ownerId }],
-        limit,
-        orderBy: { field: "createdAt", direction: "DESCENDING" },
-      });
+    async listConversationDocuments(ownerId, limit = 1_000) {
+      // Keep production reads independent of optional composite Firestore indexes.
+      // The owner-first scan is deliberately bounded for the current personal app.
+      const documents = await store.queryEqual(
+        conversationCollection,
+        "ownerId",
+        ownerId,
+        MAX_OWNER_CONVERSATION_DOCUMENTS,
+      );
+      return newestConversationDocuments(documents, limit);
     },
-    listConversationSessionDocuments(ownerId, sessionId, limit = 20) {
-      return store.query(conversationCollection, {
-        filters: [
-          { field: "ownerId", value: ownerId },
-          { field: "sessionId", value: sessionId },
-        ],
+    async listConversationSessionDocuments(ownerId, sessionId, limit = 20) {
+      // Filter the bounded owner result locally for the same index-free behavior.
+      const documents = await store.queryEqual(
+        conversationCollection,
+        "ownerId",
+        ownerId,
+        MAX_OWNER_CONVERSATION_DOCUMENTS,
+      );
+      return newestConversationDocuments(
+        documents.filter(
+          (document) => document.data?.sessionId === sessionId,
+        ),
         limit,
-        orderBy: { field: "createdAt", direction: "DESCENDING" },
-      });
+      );
     },
     getProfileDocument(id) {
       return store.get(profileCollection, id);

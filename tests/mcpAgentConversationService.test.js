@@ -61,9 +61,15 @@ test("MCP agent conversation reuses the owner workspace, memory and session", as
         assert.equal(reasoningEffort, "low");
         assert.equal(verbosity, "medium");
         assert.match(input[0].content, /Мост тест/u);
-        assert.match(input[0].content, /Предишен отговор/u);
         assert.match(input[0].content, /MCP МОСТ — САМО РАЗГОВОР/u);
         assert.match(input[0].content, /Не променяй код/u);
+        assert.deepEqual(
+          input.slice(-2).map(({ role, content }) => ({ role, content })),
+          [
+            { role: "assistant", content: "Предишен отговор" },
+            { role: "user", content: "Коя е следващата задача?" },
+          ],
+        );
         return "Следващата задача е реален тест на моста.";
       },
       saveTurn: async (...args) => calls.push(["save", args]),

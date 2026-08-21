@@ -229,33 +229,94 @@ export function buildAvatarMessages(
   const assistantContext = isMemberIdentity(identity)
     ? memberAssistantContext(personName)
     : ASSISTANT_CONTEXT;
-  const conversationHistory = history.length
-    ? [
-        "[ПРЕДИШЕН РАЗГОВОР]",
-        ...history.map(
-          ({ role, content }) =>
-            `${role === "assistant" ? "AI CORE" : personName}: ${content}`,
-        ),
-        "[КРАЙ НА ПРЕДИШНИЯ РАЗГОВОР]",
-      ].join("\n")
-    : "";
+  const systemContext = [
+    assistantContext,
+    buildMemoryContext(memories, { personName }),
+    interaction.mode === "work"
+      ? buildWorkModeContext(interaction.workContext)
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  const conversationHistory = (Array.isArray(history) ? history : [])
+    .filter(
+      (item) =>
+        (item?.role === "user" || item?.role === "assistant") &&
+        typeof item.content === "string" &&
+        item.content.trim(),
+    )
+    .map((item) => ({
+      role: item.role,
+      content: item.content.trim(),
+    }));
 
   return [
-    {
-      role: "user",
-      content: [
-        assistantContext,
-        buildMemoryContext(memories, { personName }),
-        interaction.mode === "work"
-          ? buildWorkModeContext(interaction.workContext)
-          : "",
-        conversationHistory,
-        `[ПОСЛЕДНО СЪОБЩЕНИЕ НА ${personName.toLocaleUpperCase("bg-BG")}]\n${cleanMessage}`,
-      ]
-        .filter(Boolean)
-        .join("\n\n"),
-    },
+    { role: "system", content: systemContext },
+    ...conversationHistory,
+    { role: "user", content: cleanMessage },
   ];
+}
+
+const MAX_RECENT_CONVERSATION_MESSAGES = 12;
+const MAX_RECENT_CONVERSATION_MESSAGE_LENGTH = 6_000;
+const MAX_RECENT_CONVERSATION_TOTAL_LENGTH = 24_000;
+
+export function normalizeRecentConversationHistory(value) {
+  if (!Array.isArray(value)) return [];
+  let remaining = MAX_RECENT_CONVERSATION_TOTAL_LENGTH;
+  const normalized = [];
+  for (
+    let index = value.length - 1;
+    index >= 0 &&
+    normalized.length < MAX_RECENT_CONVERSATION_MESSAGES &&
+    remaining > 0;
+    index -= 1
+  ) {
+    const item = value[index];
+    if (
+      (item?.role !== "user" && item?.role !== "assistant") ||
+      typeof item.content !== "string"
+    ) {
+      continue;
+    }
+    let content = item.content.trim();
+    if (!content) continue;
+    if (content.length > MAX_RECENT_CONVERSATION_MESSAGE_LENGTH) {
+      content = content.slice(-MAX_RECENT_CONVERSATION_MESSAGE_LENGTH);
+    }
+    if (content.length > remaining) content = content.slice(-remaining);
+    remaining -= content.length;
+    normalized.unshift({ role: item.role, content });
+  }
+  return normalized;
+}
+
+const SHORT_CONTINUATION_PATTERN =
+  /^(?:да|давай|ок(?:ей)?|добре|направи го|продължи)(?:[.!?]+)?$/iu;
+
+export function buildContextualTaskMessage(message, recentHistory = []) {
+  const cleanMessage = typeof message === "string" ? message.trim() : "";
+  if (!SHORT_CONTINUATION_PATTERN.test(cleanMessage)) return cleanMessage;
+  const history = normalizeRecentConversationHistory(recentHistory);
+  const lastAssistantIndex = history.findLastIndex(
+    (item) => item.role === "assistant",
+  );
+  if (lastAssistantIndex < 0) return cleanMessage;
+  const previousUser = history
+    .slice(0, lastAssistantIndex)
+    .findLast((item) => item.role === "user");
+  const previousAssistant = history[lastAssistantIndex];
+  return [
+    "[КОНТЕКСТ ЗА КРАТКО ПРОДЪЛЖЕНИЕ]",
+    previousUser ? `Предишна заявка: ${previousUser.content}` : "",
+    `Последно предложение на AI CORE: ${previousAssistant.content}`,
+    `Текущ отговор на потребителя: ${cleanMessage}`,
+    "Използвай това само за планиране на предложената следваща стъпка.",
+    "Не го приемай като точно потвърждение за рисково действие; защитеният confirmation процес остава задължителен.",
+    "[КРАЙ НА КОНТЕКСТА ЗА ПРОДЪЛЖЕНИЕ]",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function isOverviewQuestion(message, subject) {
@@ -825,7 +886,8 @@ export async function loadChatMemoryContext({
 
 router.post("/chat", async (req, res) => {
   const openAiApiKey = process.env.OPENAI_API_KEY;
-  const { sessionId, message, image, mode, workContext } = req.body || {};
+  const { sessionId, message, image, mode, workContext, recentHistory } =
+    req.body || {};
   const googleSessionId =
     parseCookies(req.headers.cookie).synchron_google_session || "";
   const githubSessionId =
@@ -835,6 +897,11 @@ router.post("/chat", async (req, res) => {
   const capabilityPlanningAllowed = canPlanCapabilities(req.owner);
   const cleanSessionId = typeof sessionId === "string" ? sessionId.trim() : "";
   const cleanMessage = typeof message === "string" ? message.trim() : "";
+  const cleanRecentHistory = normalizeRecentConversationHistory(recentHistory);
+  const taskMessage = buildContextualTaskMessage(
+    cleanMessage,
+    cleanRecentHistory,
+  );
   const interactionMode = normalizeInteractionMode(mode);
   const cleanWorkContext =
     interactionMode === "work" ? sanitizeWorkContext(workContext) : null;
@@ -983,9 +1050,17 @@ router.post("/chat", async (req, res) => {
     memoryAvailable = false;
   }
 
+  const effectiveHistory = cleanRecentHistory.length
+    ? cleanRecentHistory
+    : history;
+  const conversationContextSource = cleanRecentHistory.length
+    ? "client-recent"
+    : history.length
+      ? "persistent"
+      : "empty";
   let messages = buildAvatarMessages(
     memories,
-    history,
+    effectiveHistory,
     cleanMessage,
     req.owner,
     { mode: interactionMode, workContext: cleanWorkContext },
@@ -1349,20 +1424,20 @@ router.post("/chat", async (req, res) => {
 
   const fallbackCapabilityRequests = !memoryAction
     ? filterCapabilityRequestsForIdentity(
-        detectCapabilityRequests(cleanMessage),
+        detectCapabilityRequests(taskMessage),
         req.owner,
       )
     : [];
   const normalizeCapabilityRequests = (requests) =>
     filterCapabilityRequestsForIdentity(requests, req.owner);
   const taskExecution = await orchestrateTask({
-    message: cleanMessage,
+    message: taskMessage,
     fallbackRequests: fallbackCapabilityRequests,
     planningAllowed:
       capabilityPlanningAllowed &&
       !memoryAction &&
       Boolean(openAiApiKey) &&
-      !hasExplicitNoAdditionalToolsBoundary(cleanMessage),
+      !hasExplicitNoAdditionalToolsBoundary(taskMessage),
     plannerContext: { openAiApiKey },
     planFn: planCapabilities,
     shouldPlanFn: shouldUseAgentPlanner,
@@ -1371,7 +1446,7 @@ router.post("/chat", async (req, res) => {
       routeSelectedWorkAgentCapabilities(
         requests,
         cleanWorkContext,
-        cleanMessage,
+        taskMessage,
       ),
     executeFn: executeCapability,
     executionContext: {
@@ -1518,10 +1593,12 @@ router.post("/chat", async (req, res) => {
           ]
         : []),
     ].join("\n\n");
+    const currentMessage = messages.at(-1);
     messages = [
+      ...messages.slice(0, -1),
       {
-        ...messages[0],
-        content: `${messages[0].content}\n\n${evidence}`,
+        ...currentMessage,
+        content: `${currentMessage.content}\n\n${evidence}`,
       },
     ];
   }
@@ -1579,6 +1656,7 @@ router.post("/chat", async (req, res) => {
       mode: capabilityResults.length ? "agentic" : "conversation",
       provider: aiResponse.provider,
       model: aiResponse.model,
+      conversationContextSource,
       ...(projectRun ? { projectRun } : {}),
       ...getConversationPersistenceMetadata(conversationPersisted),
     });

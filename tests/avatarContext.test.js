@@ -16,8 +16,11 @@ test("avatar sends identity rules and verified memory as agent-compatible contex
     "Какво да направим днес?",
   );
 
-  assert.equal(messages.length, 1);
-  assert.equal(messages[0].role, "user");
+  assert.equal(messages.length, 2);
+  assert.deepEqual(
+    messages.map(({ role }) => role),
+    ["system", "user"],
+  );
   assert.match(messages[0].content, /личната AI операционна система/u);
   assert.match(messages[0].content, /AI аватарът е интерфейсът/u);
   assert.match(messages[0].content, /избира най-подходящия AI модел/u);
@@ -40,7 +43,7 @@ test("avatar sends identity rules and verified memory as agent-compatible contex
     /\[КОНТЕКСТ НА ПРОЕКТА\][\s\S]*Текущата цел е работещ личен AI аватар/u,
   );
   assert.match(messages[0].content, /без да обясняваш, че четеш памет/u);
-  assert.match(messages[0].content, /Какво да направим днес\\?/u);
+  assert.equal(messages[1].content, "Какво да направим днес?");
 });
 
 test("avatar preserves conversation order without repeating its instructions", () => {
@@ -55,7 +58,7 @@ test("avatar preserves conversation order without repeating its instructions", (
 
   assert.deepEqual(
     messages.map(({ role }) => role),
-    ["user"],
+    ["system", "user", "assistant", "user"],
   );
   assert.equal(
     messages.filter(({ content }) =>
@@ -63,9 +66,9 @@ test("avatar preserves conversation order without repeating its instructions", (
     ).length,
     1,
   );
-  assert.match(messages[0].content, /Радко: Първи въпрос/u);
-  assert.match(messages[0].content, /AI CORE: Първи отговор/u);
-  assert.match(messages[0].content, /Следващ въпрос/u);
+  assert.equal(messages[1].content, "Първи въпрос");
+  assert.equal(messages[2].content, "Първи отговор");
+  assert.equal(messages[3].content, "Следващ въпрос");
 });
 
 test("member context uses the member identity and safe personal tools", () => {
@@ -77,7 +80,7 @@ test("member context uses the member identity and safe personal tools", () => {
   );
 
   assert.match(messages[0].content, /личен AI асистент на Иван/u);
-  assert.match(messages[0].content, /Иван: Здравей/u);
+  assert.equal(messages[1].content, "Здравей");
   assert.match(messages[0].content, /Любимият ми цвят е зелен/u);
   assert.doesNotMatch(messages[0].content, /Радко/u);
   assert.doesNotMatch(
@@ -118,7 +121,7 @@ test("work mode adds bounded project and personal-agent context", () => {
   assert.match(messages[0].content, /Избран личен агент: Майстор/u);
   assert.match(messages[0].content, /Роля: Създател на проекти/u);
   assert.match(messages[0].content, /не отменя разрешенията/u);
-  assert.match(messages[0].content, /Подготви първата версия/u);
+  assert.equal(messages.at(-1).content, "Подготви първата версия");
 });
 
 test("chat mode does not add work-project context", () => {

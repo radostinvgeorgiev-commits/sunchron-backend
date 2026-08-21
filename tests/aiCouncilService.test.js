@@ -78,3 +78,51 @@ test("council fails closed when one engine is not configured", async () => {
       error.status === 503,
   );
 });
+
+test("council bounds a verbose advisor and stops a hanging advisor quickly", async () => {
+  const verbose = "x".repeat(20_000);
+  const advisorRequesters = {
+    openai: async () => ({ model: "openai-test", text: verbose }),
+    gemini: async () => new Promise(() => {}),
+    grok: async () => ({ model: "grok-test", text: "Кратък отговор." }),
+  };
+
+  await assert.rejects(
+    () =>
+      runAiCouncil({
+        message: "Кратък тест.",
+        openAiApiKey: "openai-key",
+        geminiApiKey: "gemini-key",
+        grokApiKey: "grok-key",
+        advisorRequesters,
+        advisorTimeoutMs: 10,
+      }),
+    (error) =>
+      error instanceof AiCouncilError &&
+      error.code === "AI_COUNCIL_ADVISOR_TIMEOUT" &&
+      error.status === 504,
+  );
+
+  const bounded = await runAiCouncil({
+    message: "Кратък тест.",
+    openAiApiKey: "openai-key",
+    geminiApiKey: "gemini-key",
+    grokApiKey: "grok-key",
+    advisorRequesters: {
+      openai: async () => ({ model: "openai-test", text: verbose }),
+      gemini: async () => ({ model: "gemini-test", text: "Gemini." }),
+      grok: async () => ({ model: "grok-test", text: "Grok." }),
+    },
+    arbiterRequester: async () => ({
+      model: "openai-test",
+      text: JSON.stringify({
+        recommendation: "Тест",
+        rationale: "Тест",
+        risks: [],
+        nextSteps: [],
+        confidence: "low",
+      }),
+    }),
+  });
+  assert.equal(bounded.responses[0].text.length, 8_000);
+});

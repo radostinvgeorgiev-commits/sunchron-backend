@@ -43,7 +43,13 @@ test("system report combines Google Cloud runtime and production proof", async (
   assert.equal(report.secretsExposed, false);
   assert.equal(report.googleCloud.provider, "google-cloud");
   assert.equal(report.production.status, "ready");
+  assert.equal(report.ecosystem.novarium.status, "design");
+  assert.equal(report.ecosystem.token.enabled, false);
+  assert.equal(report.ecosystem.foundation.enabled, false);
+  assert.equal(report.ecosystem.corporation.enabled, false);
   const output = formatSystemConfigurationReport(report);
   assert.match(output, /Google Cloud/u);
+  assert.match(output, /NOVARIUM/u);
+  assert.match(output, /правен преглед/u);
   assert.doesNotMatch(output, /DigitalOcean|Cloudflare/iu);
 });

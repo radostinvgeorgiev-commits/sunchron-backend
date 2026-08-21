@@ -10,6 +10,10 @@ import {
   saveConversationTurn,
 } from "../services/memoryService.js";
 import {
+  buildKnowledgeContext,
+  listApprovedKnowledge,
+} from "../services/knowledgeService.js";
+import {
   confirmMemoryWrite,
   extractMemoryWriteConfirmationId,
   formatMemoryWritePreparation,
@@ -266,6 +270,7 @@ export function buildAvatarMessages(
   cleanMessage,
   identity = { role: "owner", displayName: "Радко" },
   interaction = { mode: "chat", workContext: null },
+  knowledge = [],
 ) {
   const personName = identity?.displayName || "Потребител";
   const assistantContext = isMemberIdentity(identity)
@@ -274,6 +279,7 @@ export function buildAvatarMessages(
   const systemContext = [
     assistantContext,
     buildMemoryContext(memories, { personName }),
+    buildKnowledgeContext(knowledge),
     interaction.mode === "work"
       ? buildWorkModeContext(interaction.workContext)
       : "",
@@ -908,6 +914,7 @@ export async function loadChatMemoryContext({
   ownerId,
   listMemories = listProfileMemories,
   listMessages = listConversationMessages,
+  listKnowledge,
 } = {}) {
   // Preparing or confirming a memory mutation still probes profile storage,
   // but it does not need conversation history. Keeping that unrelated read
@@ -917,13 +924,19 @@ export async function loadChatMemoryContext({
     return {
       memories: await listMemories({ ownerId }),
       history: [],
+      ...(typeof listKnowledge === "function" ? { knowledge: [] } : {}),
     };
   }
-  const [memories, history] = await Promise.all([
+  const [memories, history, knowledge] = await Promise.all([
     listMemories({ ownerId }),
     listMessages(sessionId, undefined, ownerId),
+    typeof listKnowledge === "function" ? listKnowledge({ ownerId }) : Promise.resolve(undefined),
   ]);
-  return { memories, history };
+  return {
+    memories,
+    history,
+    ...(typeof listKnowledge === "function" ? { knowledge: knowledge || [] } : {}),
+  };
 }
 
 router.post("/chat", async (req, res) => {
@@ -996,6 +1009,7 @@ router.post("/chat", async (req, res) => {
 
   let memories;
   let history;
+  let knowledge = [];
   let memoryAction = null;
   const autoMemoryCount = 0;
   let memoryAvailable = true;
@@ -1077,10 +1091,21 @@ router.post("/chat", async (req, res) => {
         }
       }
     }
-    ({ memories, history } = await loadChatMemoryContext({
+    ({ memories, history, knowledge = [] } = await loadChatMemoryContext({
       explicitMemoryIntent,
       sessionId: cleanSessionId,
       ownerId,
+      // Approved archive knowledge is an additive context layer. A missing
+      // knowledge collection must never make the verified conversation or
+      // profile memory path look unavailable to the user.
+      listKnowledge: async ({ ownerId: scopedOwnerId }) => {
+        try {
+          return await listApprovedKnowledge({ ownerId: scopedOwnerId });
+        } catch (error) {
+          logSafeError("[Knowledge] Chat context failure", error);
+          return [];
+        }
+      },
     }));
   } catch (error) {
     logSafeError("[Memory] Chat request failure", error);
@@ -1101,6 +1126,7 @@ router.post("/chat", async (req, res) => {
     }
     memories = [];
     history = [];
+    knowledge = [];
     memoryAvailable = false;
   }
 
@@ -1118,6 +1144,7 @@ router.post("/chat", async (req, res) => {
     cleanMessage,
     req.owner,
     { mode: interactionMode, workContext: cleanWorkContext },
+    knowledge,
   );
 
   if (image) {

@@ -13,6 +13,9 @@ const state = {
   conversationLoadError: "",
   recentConversationMessages: [],
   memoryItems: [],
+  knowledgeItems: [],
+  knowledgePreview: [],
+  knowledgeImportConfirmation: null,
   memoryWorkspace: null,
   recognition: null,
   listening: false,
@@ -1117,19 +1120,24 @@ async function openMemoryDrawer() {
   openDataDrawer("Памет");
   renderDrawerLoading();
   try {
-    const [response, workspaceResponse] = await Promise.all([
+    const [response, workspaceResponse, knowledgeResponse] = await Promise.all([
       fetch("/memory/profile", { cache: "no-store" }),
       fetch("/api/workspaces", { cache: "no-store" }),
+      fetch("/memory/knowledge", { cache: "no-store" }).catch(() => null),
     ]);
     if (!response.ok || !workspaceResponse.ok) {
       throw new Error("Паметта временно не е достъпна.");
     }
-    const [data, workspace] = await Promise.all([
+    const [data, workspace, knowledge] = await Promise.all([
       response.json(),
       workspaceResponse.json(),
+      knowledgeResponse?.ok
+        ? knowledgeResponse.json().catch(() => ({ items: [] }))
+        : Promise.resolve({ items: [] }),
     ]);
     markMemoryOperational();
     state.memoryItems = Array.isArray(data.items) ? data.items : [];
+    state.knowledgeItems = Array.isArray(knowledge.items) ? knowledge.items : [];
     state.memoryWorkspace = workspace;
     renderMemoryItems();
   } catch (error) {
@@ -1188,8 +1196,75 @@ function renderMemoryItems() {
         <button type="button" data-memory-policy="disabled" aria-pressed="${memoryMode === "disabled"}">Не записвай</button>
       </div>
     </section>` +
+    renderKnowledgeImportCard() +
     section("За теб", personal) +
-    section("За проекта", project);
+    section("За проекта", project) +
+    renderApprovedKnowledge();
+}
+
+function renderKnowledgeImportCard() {
+  const preview = state.knowledgePreview;
+  const pending = state.knowledgeImportConfirmation;
+  const previewMarkup = preview.length
+    ? `<div class="knowledge-preview-list">
+        ${preview
+          .map(
+            (item, index) => `
+          <label class="memory-card knowledge-preview-item">
+            <input type="checkbox" data-knowledge-select="${escapeHtml(item.id)}" checked />
+            <span>
+              <span class="memory-badge">${escapeHtml(item.category)}/${escapeHtml(item.scope)}</span>
+              <p>${escapeHtml(item.text)}</p>
+              <small>${escapeHtml(item.sourceTitle || item.sourceId || "Архив")}</small>
+            </span>
+          </label>`,
+          )
+          .join("")}
+        <div class="memory-policy-actions">
+          <button type="button" data-knowledge-prepare>Подготви избраните</button>
+        </div>
+      </div>`
+    : "";
+  const pendingMarkup = pending
+    ? `<div class="setup-guide">
+        <p>Прегледът е готов. Нищо не е записано, докато не потвърдиш.</p>
+        <code>${escapeHtml(pending.confirmationPhrase)}</code>
+        <div class="memory-policy-actions">
+          <button type="button" data-knowledge-confirm>Потвърди импорт</button>
+          <button type="button" data-knowledge-cancel>Откажи</button>
+        </div>
+      </div>`
+    : "";
+  return `<section class="memory-policy-card knowledge-import-card">
+      <strong>Архивно знание</strong>
+      <p>Избери ChatGPT JSON архив. AI CORE само предлага кандидати; записът е отделен и изисква твое потвърждение.</p>
+      <input id="knowledgeArchiveInput" type="file" accept="application/json,.json" />
+      <div class="memory-policy-actions">
+        <button type="button" data-knowledge-preview>Прегледай архива</button>
+      </div>
+      ${previewMarkup}${pendingMarkup}
+    </section>`;
+}
+
+function renderApprovedKnowledge() {
+  const items = Array.isArray(state.knowledgeItems) ? state.knowledgeItems : [];
+  if (!items.length) {
+    return '<section class="drawer-section"><h3>Одобрено архивно знание <span>0</span></h3><div class="drawer-empty">Няма одобрени архивни бележки.</div></section>';
+  }
+  return `<section class="drawer-section">
+      <h3>Одобрено архивно знание <span>${items.length}</span></h3>
+      ${items
+        .map(
+          (item) => `<article class="memory-card">
+            <div>
+              <span class="memory-badge">${escapeHtml(item.category || "fact")}/${escapeHtml(item.scope || "project")}</span>
+              <p>${escapeHtml(item.text)}</p>
+              <small>${escapeHtml(item.sourceTitle || item.sourceId || "Архив")}</small>
+            </div>
+          </article>`,
+        )
+        .join("")}
+    </section>`;
 }
 
 async function openPermissionsDrawer() {
@@ -1333,6 +1408,28 @@ function showPermissionInfo(action) {
 }
 
 async function handleDataDrawerAction(event) {
+  if (event.target.closest("[data-knowledge-preview]")) {
+    await previewKnowledgeArchive();
+    return;
+  }
+
+  if (event.target.closest("[data-knowledge-prepare]")) {
+    await prepareKnowledgeArchiveImport();
+    return;
+  }
+
+  if (event.target.closest("[data-knowledge-confirm]")) {
+    await confirmKnowledgeArchiveImport();
+    return;
+  }
+
+  if (event.target.closest("[data-knowledge-cancel]")) {
+    state.knowledgePreview = [];
+    state.knowledgeImportConfirmation = null;
+    renderMemoryItems();
+    return;
+  }
+
   const memoryPolicy = event.target.closest("[data-memory-policy]");
   if (memoryPolicy) {
     const mode = memoryPolicy.dataset.memoryPolicy;
@@ -1749,6 +1846,106 @@ function renderTaskRuns(items) {
     }
     if (actions.childElementCount) item.appendChild(actions);
     elements.taskRunList.appendChild(item);
+  }
+}
+
+async function previewKnowledgeArchive() {
+  const input = document.getElementById("knowledgeArchiveInput");
+  const file = input?.files?.[0];
+  if (!file) {
+    renderDrawerError("Първо избери JSON архив.");
+    return;
+  }
+  if (file.size > 7_500_000) {
+    renderDrawerError("Архивът е прекалено голям. Избери файл до 7,5 MB.");
+    return;
+  }
+  try {
+    const raw = JSON.parse(await file.text());
+    const payload = Array.isArray(raw)
+      ? { documents: raw, sessionId: state.sessionId }
+      : raw && typeof raw === "object"
+        ? { ...raw, sessionId: state.sessionId }
+        : { documents: [], sessionId: state.sessionId };
+    const response = await fetch("/memory/knowledge/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(data?.error || "Архивът не можа да бъде прегледан.");
+    }
+    state.knowledgePreview = Array.isArray(data?.candidates)
+      ? data.candidates
+      : [];
+    state.knowledgeImportConfirmation = null;
+    renderMemoryItems();
+    logAction(`Прегледани са ${state.knowledgePreview.length} кандидата от архив`);
+  } catch (error) {
+    renderDrawerError(error.message || "Невалиден JSON архив.");
+  }
+}
+
+async function prepareKnowledgeArchiveImport() {
+  const selectedIds = new Set(
+    [...document.querySelectorAll("[data-knowledge-select]:checked")].map(
+      (element) => element.dataset.knowledgeSelect,
+    ),
+  );
+  const items = state.knowledgePreview.filter((item) => selectedIds.has(item.id));
+  if (!items.length) {
+    renderDrawerError("Избери поне един кандидат за импорт.");
+    return;
+  }
+  try {
+    const response = await fetch("/memory/knowledge/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: state.sessionId, items }),
+    });
+    const data = await response.json().catch(() => null);
+    if (
+      response.status !== 409 ||
+      data?.code !== "KNOWLEDGE_IMPORT_CONFIRMATION_REQUIRED" ||
+      !data.confirmationId
+    ) {
+      throw new Error(data?.error || "Импортът не можа да бъде подготвен.");
+    }
+    state.knowledgeImportConfirmation = {
+      confirmationId: data.confirmationId,
+      confirmationPhrase: data.confirmationPhrase || "Потвърди импорт",
+    };
+    state.knowledgePreview = data.items || items;
+    renderMemoryItems();
+  } catch (error) {
+    renderDrawerError(error.message || "Импортът не можа да бъде подготвен.");
+  }
+}
+
+async function confirmKnowledgeArchiveImport() {
+  const confirmation = state.knowledgeImportConfirmation;
+  if (!confirmation?.confirmationId) return;
+  try {
+    const response = await fetch("/memory/knowledge/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: state.sessionId,
+        confirmationId: confirmation.confirmationId,
+      }),
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !Array.isArray(data?.items)) {
+      throw new Error(data?.error || "Импортът не можа да бъде записан.");
+    }
+    state.knowledgeItems = [...state.knowledgeItems, ...data.items];
+    state.knowledgePreview = [];
+    state.knowledgeImportConfirmation = null;
+    renderMemoryItems();
+    logAction(`Записани са ${data.items.length} одобрени архивни бележки`);
+  } catch (error) {
+    renderDrawerError(error.message || "Импортът не можа да бъде записан.");
   }
 }
 

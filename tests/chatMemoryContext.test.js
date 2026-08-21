@@ -51,3 +51,16 @@ test("normal chat still loads profile memory and conversation history", async ()
     ["messages", ["normal-chat-session", undefined, "owner-a"]],
   ]);
 });
+
+test("normal chat can load approved knowledge without changing legacy callers", async () => {
+  const context = await loadChatMemoryContext({
+    explicitMemoryIntent: false,
+    sessionId: "knowledge-session",
+    ownerId: "owner-a",
+    listMemories: async () => [],
+    listMessages: async () => [],
+    listKnowledge: async () => [{ id: "knowledge-1", status: "approved" }],
+  });
+
+  assert.deepEqual(context.knowledge, [{ id: "knowledge-1", status: "approved" }]);
+});

@@ -22,6 +22,19 @@ import {
   prepareMemoryDelete,
 } from "../services/memoryDeleteConfirmationService.js";
 import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
+import {
+  buildKnowledgePreview,
+  normalizeKnowledgeCandidates,
+} from "../services/knowledgeIngestionService.js";
+import {
+  listApprovedKnowledge,
+} from "../services/knowledgeService.js";
+import {
+  confirmKnowledgeImport,
+  formatKnowledgeImportPreparation,
+  KnowledgeImportConfirmationError,
+  prepareKnowledgeImport,
+} from "../services/knowledgeImportConfirmationService.js";
 
 const router = express.Router();
 
@@ -39,6 +52,7 @@ function sendMemoryError(res, error) {
   if (
     error instanceof MemoryWriteConfirmationError ||
     error instanceof MemoryDeleteConfirmationError ||
+    error instanceof KnowledgeImportConfirmationError ||
     isAuditSafetyError(error)
   ) {
     return res.status(status).json({
@@ -279,6 +293,97 @@ router.get("/profile", async (req, res) => {
     });
     return res.json({ status: "ok", items });
   } catch (error) {
+    return sendMemoryError(res, error);
+  }
+});
+
+router.get("/knowledge", async (req, res) => {
+  try {
+    const scope = typeof req.query.scope === "string" ? req.query.scope : undefined;
+    const items = await listApprovedKnowledge({
+      ownerId: req.owner.memoryOwnerId,
+      scope,
+    });
+    return res.json({ status: "ok", items });
+  } catch (error) {
+    return sendMemoryError(res, error);
+  }
+});
+
+router.post("/knowledge/preview", async (req, res) => {
+  try {
+    const preview = buildKnowledgePreview(
+      req.body?.documents ?? req.body?.conversations ?? req.body,
+      { scope: req.body?.scope },
+    );
+    await auditMemoryAction({
+      action: "memory.read",
+      decision: "allow",
+      outcome: "preview",
+      resource: "archive-knowledge",
+      details: `preview:${preview.documentCount}:${preview.candidateCount}`,
+      sessionId: typeof req.body?.sessionId === "string" ? req.body.sessionId : "archive-preview",
+    });
+    return res.json({ status: "preview", ...preview });
+  } catch (error) {
+    return sendMemoryError(res, error);
+  }
+});
+
+router.post("/knowledge/import", async (req, res) => {
+  const body = req.body || {};
+  const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : "";
+  const confirmationId = typeof body.confirmationId === "string" ? body.confirmationId.trim() : "";
+  if (!sessionId) {
+    return res.status(400).json({
+      error: "Полето sessionId е задължително за архивен импорт.",
+      code: "MISSING_SESSION",
+    });
+  }
+  try {
+    if (confirmationId) {
+      const items = await confirmKnowledgeImport({
+        confirmationId,
+        sessionId,
+        ownerId: req.owner.memoryOwnerId,
+      });
+      return res.status(201).json({ status: "ok", items });
+    }
+    const candidates = normalizeKnowledgeCandidates(body.items);
+    const prepared = await prepareKnowledgeImport({
+      sessionId,
+      ownerId: req.owner.memoryOwnerId,
+      items: candidates,
+    });
+    await auditMemoryAction({
+      action: "memory.write",
+      decision: "confirm",
+      outcome: "requested",
+      resource: "approved-knowledge",
+      details: `archive-import-prepared:${prepared.items.length}`,
+      sessionId,
+    });
+    return res.status(409).json({
+      error: "Архивният импорт изисква еднократно точно потвърждение.",
+      code: "KNOWLEDGE_IMPORT_CONFIRMATION_REQUIRED",
+      confirmationId: prepared.confirmationId,
+      expiresAt: prepared.expiresAt,
+      items: prepared.items,
+      confirmationPhrase: formatKnowledgeImportPreparation(prepared)
+        .split("\n")
+        .at(-1),
+    });
+  } catch (error) {
+    if (!(error instanceof KnowledgeImportConfirmationError)) {
+      await auditMemoryAction({
+        action: "memory.write",
+        decision: confirmationId ? "confirmed" : "confirm",
+        outcome: "failed",
+        resource: "approved-knowledge",
+        details: `archive-import-failed:${safeErrorCode(error, "KNOWLEDGE_IMPORT_FAILED")}`,
+        sessionId,
+      });
+    }
     return sendMemoryError(res, error);
   }
 });

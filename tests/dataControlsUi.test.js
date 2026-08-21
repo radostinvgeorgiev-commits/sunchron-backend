@@ -19,6 +19,11 @@ test("application exposes working memory and permission controls", async () => {
   assert.match(html, /Лична AI операционна система/u);
   assert.match(html, /Инструменти/u);
   assert.match(script, /fetch\(["']\/memory\/profile["']/u);
+  assert.match(script, /fetch\(["']\/memory\/knowledge["']/u);
+  assert.match(script, /fetch\(["']\/memory\/knowledge\/preview["']/u);
+  assert.match(script, /fetch\(["']\/memory\/knowledge\/import["']/u);
+  assert.match(script, /Избери ChatGPT JSON архив/u);
+  assert.match(script, /Потвърди импорт/u);
   assert.match(script, /fetch\(["']\/permissions["']/u);
   assert.match(script, /MEMORY_DELETE_CONFIRMATION_REQUIRED/u);
   assert.match(script, /data-memory-edit/u);

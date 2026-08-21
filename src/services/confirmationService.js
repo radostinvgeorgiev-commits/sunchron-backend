@@ -20,6 +20,7 @@ const ALLOWED_ACTIONS = new Set([
   "calendar.write:create_event",
   "memory.write:save_profile",
   "memory.write:update_profile",
+  "memory.write:knowledge_import",
   "memory.delete:profile",
   "tasks.write:update_status",
   "mail.send:draft",

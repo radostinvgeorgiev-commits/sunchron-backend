@@ -135,3 +135,24 @@ test("chat mode does not add work-project context", () => {
 
   assert.doesNotMatch(messages[0].content, /РАБОТЕН РЕЖИМ/u);
 });
+
+test("avatar receives approved archive knowledge separately from verified memory", () => {
+  const messages = buildAvatarMessages(
+    [],
+    [],
+    "Каква е посоката?",
+    { role: "owner", displayName: "Радко" },
+    { mode: "chat", workContext: null },
+    [{
+      text: "Първият демонстрационен контур е здраве, задачи и памет.",
+      category: "decision",
+      scope: "project",
+      sourceTitle: "Основата",
+      status: "approved",
+    }],
+  );
+
+  assert.match(messages[0].content, /РАЗРЕШЕНО ЗНАНИЕ ОТ АРХИВА/u);
+  assert.match(messages[0].content, /Първият демонстрационен контур/u);
+  assert.match(messages[0].content, /източник: Основата/u);
+});

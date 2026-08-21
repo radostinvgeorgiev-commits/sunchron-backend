@@ -54,7 +54,10 @@ test("avatar picker updates the toolbar, active agent, and local state", () => {
     window.document.getElementById("workPet").dataset.petId,
     "spark",
   );
-  assert.equal(sparkChoice.classList.contains("active"), true);
+  const selectedSparkChoice = window.document.querySelector(
+    '.pet-choice[aria-label="Избери Искра"]',
+  );
+  assert.equal(selectedSparkChoice.classList.contains("active"), true);
 
   const savedState = JSON.parse(
     window.localStorage.getItem("synchronWorkMode:avatar-picker-test"),

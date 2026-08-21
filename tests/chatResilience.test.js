@@ -43,8 +43,12 @@ test("chat rejects unsafe session identifiers before logging or storage", async 
 
 test("normal AI chat continues when persistent memory is unavailable", async () => {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () =>
-    new Response(
+  let aiRequest;
+  globalThis.fetch = async (url, options = {}) => {
+    if (String(url) === "https://api.openai.com/v1/responses") {
+      aiRequest = JSON.parse(options.body);
+    }
+    return new Response(
       JSON.stringify({
         output: [
           {
@@ -58,15 +62,37 @@ test("normal AI chat continues when persistent memory is unavailable", async () 
         headers: { "content-type": "application/json" },
       },
     );
+  };
 
   try {
     const response = await request(app)
       .post("/chat/chat")
       .set("Cookie", OWNER_COOKIE)
-      .send({ sessionId: "resilience-test", message: "Здравей" })
+      .send({
+        sessionId: "resilience-test",
+        message: "Да.",
+        recentHistory: [
+          { role: "user", content: "Предложи една проверка." },
+          {
+            role: "assistant",
+            content: "Предлагам проверка на чата. Да я изпълня ли?",
+          },
+        ],
+      })
       .expect(200);
 
     assert.match(response.text, /Работя нормално\./u);
+    assert.deepEqual(
+      aiRequest.input.slice(-3).map(({ role, content }) => ({ role, content })),
+      [
+        { role: "user", content: "Предложи една проверка." },
+        {
+          role: "assistant",
+          content: "Предлагам проверка на чата. Да я изпълня ли?",
+        },
+        { role: "user", content: "Да." },
+      ],
+    );
     assert.match(response.text, /"memoryAvailable":false/u);
     assert.match(response.text, /"conversationPersisted":false/u);
     assert.match(response.text, /"warningCode":"CONVERSATION_NOT_SAVED"/u);

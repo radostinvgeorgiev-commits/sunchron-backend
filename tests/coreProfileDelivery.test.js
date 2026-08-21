@@ -134,8 +134,9 @@ test("every real chat request sends Core Profile and owner memory to OpenAI", as
 
   assert.equal(openAiInputs.length, 2);
   for (const [index, input] of openAiInputs.entries()) {
-    assert.equal(input.length, 1);
-    assert.equal(input[0].role, "user");
+    assert.equal(input.length, 2);
+    assert.equal(input[0].role, "system");
+    assert.equal(input[1].role, "user");
     assert.match(
       input[0].content,
       /\[ПОСТОЯНЕН ОСНОВЕН КОНТЕКСТ НА ПРОЕКТА\]/u,
@@ -149,14 +150,11 @@ test("every real chat request sends Core Profile and owner memory to OpenAI", as
       input[0].content,
       /Предпочитам конкретен резултат и кратко обяснение/u,
     );
-    assert.match(
-      input[0].content,
-      new RegExp(
-        index === 0
-          ? "Какво е AI CORE\\?"
-          : "Как работим по техническа задача\\?",
-        "u",
-      ),
+    assert.equal(
+      input[1].content,
+      index === 0
+        ? "Какво е AI CORE?"
+        : "Как работим по техническа задача?",
     );
   }
 });

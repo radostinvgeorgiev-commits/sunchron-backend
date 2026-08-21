@@ -10,6 +10,7 @@ const state = {
   pendingImage: null,
   conversations: [],
   conversationLoadError: "",
+  recentConversationMessages: [],
   memoryItems: [],
   memoryWorkspace: null,
   recognition: null,
@@ -401,10 +402,13 @@ async function showWelcomeMessage() {
       "",
       "AI аватарът е моят начин на общуване. Ти контролираш данните, паметта и рисковите действия.",
     ].join("\n"),
+    null,
+    { remember: false },
   );
 }
 
 async function restoreConversation() {
+  state.recentConversationMessages = [];
   try {
     const response = await fetch(
       "/memory/conversation/" + encodeURIComponent(state.sessionId),
@@ -444,6 +448,7 @@ async function startNewChat() {
   state.sessionId = createSessionId();
   writeLocalStorage("synchronSessionId", state.sessionId);
   state.lastActions = [];
+  state.recentConversationMessages = [];
   elements.chatMessages.replaceChildren();
   updateSessionDisplay();
   renderActionsLog();
@@ -517,6 +522,7 @@ async function handleConversationClick(event) {
   state.sessionId = button.dataset.sessionId;
   localStorage.setItem("synchronSessionId", state.sessionId);
   elements.chatMessages.replaceChildren();
+  state.recentConversationMessages = [];
   updateSessionDisplay();
   renderConversationList();
   await restoreConversation();
@@ -1768,6 +1774,7 @@ async function sendMessage() {
   if ((!text && !image) || state.chatBusy) return;
 
   const messageText = text || "Какво виждаш на тази снимка?";
+  const recentHistory = state.recentConversationMessages.slice(-12);
   appendMessage("user", messageText, image);
   elements.chatInput.value = "";
   resizeChatInput();
@@ -1787,6 +1794,7 @@ async function sendMessage() {
         sessionId: state.sessionId,
         message: messageText,
         image,
+        recentHistory,
         ...globalThis.SynchronWorkMode?.getRequestPayload(),
       }),
     });
@@ -1899,6 +1907,7 @@ async function sendMessage() {
       throw new Error("AI отговорът приключи неочаквано.");
     }
 
+    rememberConversationMessage("assistant", fullText);
     responseActions.hidden = false;
     logAction("Получен AI отговор");
     await loadConversations();
@@ -1923,7 +1932,23 @@ async function sendMessage() {
   }
 }
 
-function appendMessage(role, text, image = null) {
+function rememberConversationMessage(role, text) {
+  const normalizedRole = role === "agent" ? "assistant" : role;
+  const content = typeof text === "string" ? text.trim() : "";
+  if (
+    (normalizedRole !== "user" && normalizedRole !== "assistant") ||
+    !content
+  ) {
+    return;
+  }
+  state.recentConversationMessages.push({ role: normalizedRole, content });
+  state.recentConversationMessages = state.recentConversationMessages.slice(
+    -12,
+  );
+}
+
+function appendMessage(role, text, image = null, options = {}) {
+  if (options.remember !== false) rememberConversationMessage(role, text);
   if (role === "agent") {
     const assistantTurn = createAssistantTurn(text, true);
     scrollChatToBottom();

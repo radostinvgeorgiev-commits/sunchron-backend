@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildCapabilityReplies,
+  buildContextualTaskMessage,
   buildMemoryReply,
   detectCapabilityRequests,
   executeDetectedCapabilities,
@@ -273,6 +274,34 @@ test("recognizes Google Cloud runtime requests", () => {
       ["infrastructure.googlecloud.read"],
     );
   }
+});
+
+test("a short yes continues the immediately preceding proposal without bypassing consent", () => {
+  const message = buildContextualTaskMessage("Да.", [
+    { role: "user", content: "Провери проекта и предложи следваща стъпка." },
+    {
+      role: "assistant",
+      content: "Мога да проверя GitHub и да подготвя промяна. Да продължа ли?",
+    },
+  ]);
+
+  assert.match(message, /Провери проекта/u);
+  assert.match(message, /Мога да проверя GitHub/u);
+  assert.match(message, /Текущ отговор на потребителя: Да\./u);
+  assert.match(message, /confirmation процес остава задължителен/u);
+  assert.deepEqual(
+    detectCapabilityRequests(message).map(({ capability }) => capability),
+    ["code.read"],
+  );
+});
+
+test("ordinary messages are not rewritten as contextual confirmations", () => {
+  assert.equal(
+    buildContextualTaskMessage("Провери само GitHub.", [
+      { role: "assistant", content: "Да изтрия ли нещо?" },
+    ]),
+    "Провери само GitHub.",
+  );
 });
 
 test("AI CORE code task failures keep a safe actionable reason in chat", () => {

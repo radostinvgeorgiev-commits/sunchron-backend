@@ -14,6 +14,9 @@ import {
   resetAuditFallbackForTests,
   setFirestoreAuditStoreForTests,
 } from "../src/services/permissionService.js";
+import {
+  createFirestoreOperationalStore,
+} from "../src/services/firestoreOperationalStore.js";
 
 const ENV_NAMES = [
   "PERSISTENCE_BACKEND",
@@ -116,4 +119,64 @@ test("Firestore stores the durable audit without raw confirmation ids", async ()
   assert.equal(events[0].id, saved.id);
   assert.equal(events[0].confirmationRef.length, 64);
   assert.doesNotMatch(JSON.stringify(events), /private-confirmation-id/u);
+});
+
+test("Firestore audit read falls back when the composite index is missing", async () => {
+  const calls = [];
+  const documentStore = {
+    async queryEqual(collection, field, value, limit, options) {
+      calls.push({ collection, field, value, limit, options });
+      if (options?.orderBy) {
+        const error = new Error("missing index");
+        error.code = "FIRESTORE_UNAVAILABLE";
+        error.upstreamErrorStatus = "FAILED_PRECONDITION";
+        throw error;
+      }
+      return [
+        {
+          id: "older",
+          data: {
+            id: "older",
+            firestorePartition: "synchron-audit",
+            timestamp: "2026-08-23T10:00:00.000Z",
+            outcome: "succeeded",
+          },
+        },
+        {
+          id: "newer",
+          data: {
+            id: "newer",
+            firestorePartition: "synchron-audit",
+            timestamp: "2026-08-23T11:00:00.000Z",
+            outcome: "failed",
+          },
+        },
+      ];
+    },
+  };
+  const store = createFirestoreOperationalStore({
+    env: {
+      GOOGLE_CLOUD_PROJECT: "synchron-project",
+      FIRESTORE_DATABASE_ID: "(default)",
+      FIRESTORE_AUDIT_COLLECTION: "synchron-action-audit-v1",
+    },
+    documentStore,
+  });
+
+  const entries = await store.listAuditEntries(1);
+
+  assert.deepEqual(entries, [
+    {
+      id: "newer",
+      timestamp: "2026-08-23T11:00:00.000Z",
+      outcome: "failed",
+    },
+  ]);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[0].options.orderBy, {
+    field: "timestamp",
+    direction: "DESCENDING",
+  });
+  assert.equal(calls[1].limit, 1_000);
+  assert.equal(calls[1].options, undefined);
 });

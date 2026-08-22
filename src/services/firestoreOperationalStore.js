@@ -3,6 +3,16 @@ import { createFirestoreDocumentStore } from "./firestoreDocumentStore.js";
 const DEFAULT_CONFIRMATION_COLLECTION = "synchron-confirmations-v1";
 const DEFAULT_AUDIT_COLLECTION = "synchron-action-audit-v1";
 const AUDIT_PARTITION = "synchron-audit";
+const MAX_AUDIT_SCAN_DOCUMENTS = 1_000;
+
+function isMissingAuditIndexError(error) {
+  return (
+    error?.code === "FIRESTORE_UNAVAILABLE" &&
+    ["FAILED_PRECONDITION", "FAILED_PRECONDITION_ERROR"].includes(
+      String(error.upstreamErrorStatus || "").trim().toUpperCase(),
+    )
+  );
+}
 
 function cleanCollection(value, label) {
   const clean = String(value || "").trim();
@@ -53,15 +63,32 @@ export function createFirestoreOperationalStore({
       });
     },
     async listAuditEntries(limit = 50) {
-      const entries = await store.queryEqual(
-        auditCollection,
-        "firestorePartition",
-        AUDIT_PARTITION,
-        Math.min(Math.max(Number(limit) || 1, 1), 100),
-        {
-          orderBy: { field: "timestamp", direction: "DESCENDING" },
-        },
-      );
+      const safeLimit = Math.min(Math.max(Number(limit) || 1, 1), 100);
+      let entries;
+      try {
+        entries = await store.queryEqual(
+          auditCollection,
+          "firestorePartition",
+          AUDIT_PARTITION,
+          safeLimit,
+          {
+            orderBy: { field: "timestamp", direction: "DESCENDING" },
+          },
+        );
+      } catch (error) {
+        if (!isMissingAuditIndexError(error)) throw error;
+
+        // A missing composite index must not make the read-only audit MCP
+        // capability unavailable. The fallback remains bounded and sorts
+        // locally; the index in firestore.indexes.json is still preferred.
+        entries = await store.queryEqual(
+          auditCollection,
+          "firestorePartition",
+          AUDIT_PARTITION,
+          MAX_AUDIT_SCAN_DOCUMENTS,
+        );
+      }
+
       return entries
         .map(({ data }) => {
           const { firestorePartition: _partition, ...entry } = data;
@@ -72,7 +99,7 @@ export function createFirestoreOperationalStore({
             String(left.timestamp || ""),
           ),
         )
-        .slice(0, Math.min(Math.max(Number(limit) || 1, 1), 100));
+        .slice(0, safeLimit);
     },
   });
 }

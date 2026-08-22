@@ -639,6 +639,93 @@ input {
   line-height: 1.4;
 }
 
+.memory-candidate-card {
+    margin-top: 12px;
+    padding: 13px 14px;
+    border: 1px solid #cbdceb;
+    border-radius: 13px;
+    color: #243447;
+    background: #f5f9fd;
+}
+
+.memory-candidate-card > strong {
+    display: block;
+    font-size: 14px;
+}
+
+.memory-candidate-card > p {
+    margin: 5px 0 10px;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.memory-candidate-item {
+    margin-top: 8px;
+    padding: 10px;
+    border: 1px solid #dbe5ef;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.memory-candidate-fact {
+    margin: 2px 0 4px;
+    font-weight: 650;
+    line-height: 1.4;
+}
+
+.memory-candidate-item small {
+    display: block;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.memory-candidate-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 9px;
+}
+
+.memory-candidate-actions button {
+    min-height: 32px;
+    padding: 5px 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    color: #334155;
+    background: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.memory-candidate-actions button[data-action="memory-candidate-save"] {
+    border-color: #147d64;
+    color: #fff;
+    background: #147d64;
+}
+
+.memory-candidate-actions button:hover {
+    background: #eef2f6;
+}
+
+.memory-candidate-actions button[data-action="memory-candidate-save"]:hover {
+    background: #0f674f;
+}
+
+.memory-candidate-item.saved {
+    color: #176b4f;
+    border-color: #a8d8c4;
+    background: #effaf4;
+}
+
+.memory-candidate-error {
+    margin-top: 8px;
+    color: #b42318 !important;
+}
+
 .user-turn {
     max-width: 82%;
     align-self: flex-end;

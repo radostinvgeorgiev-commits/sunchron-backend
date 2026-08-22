@@ -1772,6 +1772,148 @@ function showAiResponseSource(message, provider, model) {
   turn.insertBefore(source, actions || null);
 }
 
+function memoryCandidateCategoryLabel(category) {
+  return (
+    {
+      identity: "Идентичност",
+      preference: "Предпочитание",
+      goal: "Цел",
+      interest: "Интерес",
+      "project-fact": "Проект",
+    }[category] || "Факт"
+  );
+}
+
+function showMemoryCandidates(message, candidates) {
+  const turn = message?.closest(".assistant-turn");
+  if (!turn || !Array.isArray(candidates) || candidates.length === 0) return;
+  if (turn.querySelector(".memory-candidate-card")) return;
+
+  const safeCandidates = candidates
+    .filter(
+      (candidate) =>
+        candidate && typeof candidate.fact === "string" && candidate.fact.trim(),
+    )
+    .slice(0, 3)
+    .map((candidate) => ({
+      fact: candidate.fact.trim(),
+      scope: candidate.scope === "project" ? "project" : "personal",
+      category: candidate.category || "personal-fact",
+      reason: candidate.reason || "Може да помогне в бъдещи разговори.",
+    }));
+  if (!safeCandidates.length) return;
+
+  turn.__memoryCandidates = safeCandidates;
+  const card = document.createElement("section");
+  card.className = "memory-candidate-card";
+  card.setAttribute("aria-label", "Предложения за постоянната памет");
+
+  const title = document.createElement("strong");
+  title.textContent = "Предложение за постоянната памет";
+  const intro = document.createElement("p");
+  intro.textContent =
+    "Открих устойчив факт. Нищо не се записва автоматично — избери какво да направя.";
+  card.append(title, intro);
+
+  for (const [index, candidate] of safeCandidates.entries()) {
+    const item = document.createElement("article");
+    item.className = "memory-candidate-item";
+    item.dataset.memoryCandidateIndex = String(index);
+
+    const badge = document.createElement("span");
+    badge.className = "memory-badge";
+    badge.textContent = `${memoryCandidateCategoryLabel(candidate.category)} · ${candidate.scope === "project" ? "проект" : "личен"}`;
+    const fact = document.createElement("p");
+    fact.className = "memory-candidate-fact";
+    fact.textContent = candidate.fact;
+    const reason = document.createElement("small");
+    reason.textContent = candidate.reason;
+
+    const actions = document.createElement("div");
+    actions.className = "memory-candidate-actions";
+    for (const [action, label] of [
+      ["memory-candidate-save", "Запази"],
+      ["memory-candidate-edit", "Редактирай"],
+      ["memory-candidate-reject", "Отхвърли"],
+    ]) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.action = action;
+      button.dataset.memoryCandidateIndex = String(index);
+      button.textContent = label;
+      actions.appendChild(button);
+    }
+    item.append(badge, fact, reason, actions);
+    card.appendChild(item);
+  }
+
+  const actions = turn.querySelector(".message-actions");
+  turn.insertBefore(card, actions || null);
+}
+
+function finishMemoryCandidateItem(item, message) {
+  item.replaceChildren();
+  item.classList.add("saved");
+  const status = document.createElement("span");
+  status.textContent = message;
+  item.appendChild(status);
+}
+
+async function saveMemoryCandidate(button, factOverride = "") {
+  const turn = button.closest(".assistant-turn");
+  const item = button.closest(".memory-candidate-item");
+  const index = Number(button.dataset.memoryCandidateIndex);
+  const candidate = turn?.__memoryCandidates?.[index];
+  if (!item || !candidate) return;
+
+  const fact = (factOverride || candidate.fact).trim();
+  if (!fact) return;
+  const buttons = item.querySelectorAll("button");
+  buttons.forEach((entry) => (entry.disabled = true));
+  try {
+    const preparedResponse = await fetch("/memory/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: state.sessionId,
+        fact,
+        scope: candidate.scope,
+      }),
+    });
+    const prepared = await preparedResponse.json().catch(() => null);
+    if (
+      preparedResponse.status !== 409 ||
+      prepared?.code !== "MEMORY_WRITE_CONFIRMATION_REQUIRED" ||
+      !prepared?.confirmationId
+    ) {
+      throw new Error(
+        prepared?.error || "Предложението не можа да бъде подготвено.",
+      );
+    }
+
+    const response = await fetch("/memory/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: state.sessionId,
+        confirmationId: prepared.confirmationId,
+      }),
+    });
+    const saved = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(saved?.error || "Предложението не можа да бъде записано.");
+    }
+    finishMemoryCandidateItem(item, "Записано в постоянната памет.");
+    logAction("Запазено е предложение за паметта");
+  } catch (error) {
+    buttons.forEach((entry) => (entry.disabled = false));
+    const errorNode = document.createElement("small");
+    errorNode.className = "memory-candidate-error";
+    errorNode.textContent = error.message;
+    item.appendChild(errorNode);
+  }
+}
+
 const TASK_RUN_STATUS_LABELS = Object.freeze({
   queued: "Чака планиране",
   planning: "Планиране",
@@ -1992,6 +2134,36 @@ async function handleMessageAction(event) {
 
   const action = button.dataset.action;
 
+  if (
+    action === "memory-candidate-save" ||
+    action === "memory-candidate-edit" ||
+    action === "memory-candidate-reject"
+  ) {
+    const index = Number(button.dataset.memoryCandidateIndex);
+    const candidate = turn?.__memoryCandidates?.[index];
+    const item = button.closest(".memory-candidate-item");
+    if (!candidate || !item) return;
+    if (action === "memory-candidate-reject") {
+      item.remove();
+      if (!turn.querySelector(".memory-candidate-item")) {
+        turn.querySelector(".memory-candidate-card")?.remove();
+      }
+      logAction("Отхвърлено е предложение за паметта");
+      return;
+    }
+    if (action === "memory-candidate-edit") {
+      const nextFact = window.prompt(
+        "Редактирай точния текст преди запис:",
+        candidate.fact,
+      );
+      if (!nextFact?.trim()) return;
+      await saveMemoryCandidate(button, nextFact.trim());
+      return;
+    }
+    await saveMemoryCandidate(button);
+    return;
+  }
+
   if (action === "execute-council") {
     elements.chatInput.value = "Изпълни препоръката.";
     resizeChatInput();
@@ -2198,6 +2370,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
             parsed.data?.provider,
             parsed.data?.model,
           );
+          showMemoryCandidates(responseBubble, parsed.data?.memoryCandidates);
           if (
             parsed.data?.conversationPersisted === false &&
             parsed.data?.warningCode === "CONVERSATION_NOT_SAVED"

@@ -102,6 +102,43 @@ test("normal AI chat continues when persistent memory is unavailable", async () 
   }
 });
 
+test("normal chat emits a bounded memory candidate without writing it", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url) === "https://api.openai.com/v1/responses") {
+      return new Response(
+        JSON.stringify({
+          output: [
+            {
+              type: "message",
+              content: [{ type: "output_text", text: "Разбрах те." }],
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    return new Response("", { status: 503 });
+  };
+
+  try {
+    const response = await request(app)
+      .post("/chat/chat")
+      .set("Cookie", OWNER_COOKIE)
+      .send({ sessionId: "memory-candidate-route", message: "Казвам се Радко." })
+      .expect(200);
+
+    assert.match(
+      response.text,
+      /"memoryCandidates":\[\{"fact":"Казвам се Радко","scope":"personal"/u,
+    );
+    assert.match(response.text, /"memoryCandidateCount":1/u);
+    assert.doesNotMatch(response.text, /"memoryUpdated":true/u);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("normal chat uses OpenAI Responses without the removed DigitalOcean agent", async () => {
   const originalFetch = globalThis.fetch;
   const originalOpenAiKey = process.env.OPENAI_API_KEY;

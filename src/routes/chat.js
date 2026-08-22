@@ -9,6 +9,7 @@ import {
   listProfileMemories,
   saveConversationTurn,
 } from "../services/memoryService.js";
+import { extractMemoryCandidates } from "../services/memoryCandidateService.js";
 import {
   buildKnowledgeContext,
   listApprovedKnowledge,
@@ -1193,6 +1194,19 @@ router.post("/chat", async (req, res) => {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     return true;
   };
+  const sendDone = (data) => {
+    const memoryCandidates = explicitMemoryIntent
+      ? []
+      : extractMemoryCandidates({
+          userText: cleanMessage,
+          assistantText: "completed",
+        });
+    return sendEvent("done", {
+      ...data,
+      memoryCandidates,
+      memoryCandidateCount: memoryCandidates.length,
+    });
+  };
   const sendHeartbeat = () => {
     if (!res.writableEnded && !res.destroyed) {
       res.write(`: heartbeat ${Date.now()}\n\n`);
@@ -1221,7 +1235,7 @@ router.post("/chat", async (req, res) => {
       ownerId,
     );
     sendEvent("token", { token: fullReply });
-    sendEvent("done", {
+    sendDone({
       ok: true,
       mode: "verified-work-context",
       workContextVerified: true,
@@ -1252,7 +1266,7 @@ router.post("/chat", async (req, res) => {
         sessionId: cleanSessionId,
       });
       sendEvent("token", { token: fullReply });
-      sendEvent("done", {
+      sendDone({
         ok: true,
         tool: "vision",
         ...getConversationPersistenceMetadata(conversationPersisted),
@@ -1287,7 +1301,7 @@ router.post("/chat", async (req, res) => {
         ownerId,
       );
       sendEvent("token", { token: fullReply });
-      sendEvent("done", {
+      sendDone({
         ok: true,
         mode: "confirmed-memory-write",
         memoryUpdated: true,
@@ -1353,7 +1367,7 @@ router.post("/chat", async (req, res) => {
         sessionId: cleanSessionId,
       });
       sendEvent("token", { token: fullReply });
-      sendEvent("done", {
+      sendDone({
         ok: true,
         mode: "calendar-event",
         eventId: result.id,
@@ -1405,7 +1419,7 @@ router.post("/chat", async (req, res) => {
         sessionId: cleanSessionId,
       });
       sendEvent("token", { token: fullReply });
-      sendEvent("done", {
+      sendDone({
         ok: true,
         mode: "code-task",
         pullRequestNumber: result.pullRequestNumber,
@@ -1493,7 +1507,7 @@ router.post("/chat", async (req, res) => {
       ownerId,
     );
     sendEvent("token", { token: fullReply });
-    sendEvent("done", {
+    sendDone({
       ok: true,
       memoryCount: scopedMemories.length,
       ...getConversationPersistenceMetadata(conversationPersisted),
@@ -1575,7 +1589,7 @@ router.post("/chat", async (req, res) => {
         ownerId,
       );
       sendEvent("token", { token: fullReply });
-      sendEvent("done", {
+      sendDone({
         ok: true,
         mode: "council",
         council: councilResult,
@@ -1761,7 +1775,7 @@ router.post("/chat", async (req, res) => {
       ownerId,
     );
     sendEvent("token", { token: fullReply });
-    sendEvent("done", {
+    sendDone({
       ok: taskResult.status !== "failed",
       capabilities: capabilityResults.map(({ request }) => request.capability),
       task: taskResult,
@@ -1788,7 +1802,7 @@ router.post("/chat", async (req, res) => {
       ownerId,
     );
     sendEvent("token", { token: fullReply });
-    sendEvent("done", {
+    sendDone({
       ok: true,
       memoryUpdated: Boolean(memoryAction),
       capabilities: capabilityResults.map(({ request }) => request.capability),
@@ -1817,7 +1831,7 @@ router.post("/chat", async (req, res) => {
         ownerId,
       );
       sendEvent("token", { token: fullReply });
-      sendEvent("done", {
+      sendDone({
         ok: true,
         capabilities: capabilityResults.map(
           ({ request }) => request.capability,
@@ -1914,7 +1928,7 @@ router.post("/chat", async (req, res) => {
       fullReply,
       ownerId,
     );
-    sendEvent("done", {
+    sendDone({
       ok: true,
       memoryCount: memories.length,
       autoMemoryCount,

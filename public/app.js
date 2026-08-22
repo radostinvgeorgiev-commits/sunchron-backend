@@ -721,12 +721,16 @@ function toggleVoiceInput() {
   }
 }
 
-function isGoogleTool(tool) {
-  return (
-    tool?.provider === "google" ||
-    tool?.id?.startsWith("google-") ||
-    tool?.id === "gmail-read"
-  );
+const GOOGLE_OAUTH_TOOL_IDS = new Set([
+  "google-drive-read",
+  "google-calendar-read",
+  "google-calendar-write",
+  "gmail-read",
+  "google-contacts",
+]);
+
+function requiresGoogleOAuth(tool) {
+  return GOOGLE_OAUTH_TOOL_IDS.has(tool?.id);
 }
 
 function toolState(tool, googleConnected, githubConnected) {
@@ -736,7 +740,7 @@ function toolState(tool, googleConnected, githubConnected) {
   if (!tool.configured) {
     return { label: "Не е конфигуриран", className: "deny" };
   }
-  if (isGoogleTool(tool) && !googleConnected) {
+  if (requiresGoogleOAuth(tool) && !googleConnected) {
     return { label: "Иска свързване", className: "confirm" };
   }
   if (
@@ -750,7 +754,7 @@ function toolState(tool, googleConnected, githubConnected) {
 
 function toolStatusActions(tool, status, googleConnected, githubConnected) {
   let action = "";
-  if (isGoogleTool(tool) && !googleConnected && tool.configured) {
+  if (requiresGoogleOAuth(tool) && !googleConnected && tool.configured) {
     action =
       '<button type="button" class="tool-connect-btn" data-connect-service="google">Свържи Google</button>';
   } else if (

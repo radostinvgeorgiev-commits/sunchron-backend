@@ -267,6 +267,7 @@ test("generic AI dispatch and status are explicit without exposing keys", async 
     { id: "openai", configured: true },
     { id: "gemini", configured: false },
     { id: "grok", configured: true },
+    { id: "vertex-gemini", configured: false },
   ]);
   assert.doesNotMatch(JSON.stringify(status), /secret/u);
 

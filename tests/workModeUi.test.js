@@ -107,6 +107,7 @@ test("work settings are scoped by authenticated user and payload is bounded", as
     script,
     /model: Object\.hasOwn\(MODEL_OPTIONS, agent\?\.model\)/u,
   );
+  assert.match(script, /vertex-gemini-2\.5-flash/u);
   assert.match(script, /petId: agentPetId\(agent\)/u);
   assert.match(script, /if \(busy && workState\?\.mode === "work"\)/u);
 });

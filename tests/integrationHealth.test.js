@@ -24,6 +24,10 @@ test("integration status exposes Google Cloud and the three-engine code council 
   try {
     const status = getIntegrationStatus({ githubAuthenticated: true });
     assert.equal(status.core.chatAgent.configured, true);
+    assert.deepEqual(
+      status.core.chatAgent.providers.find(({ id }) => id === "vertex-gemini"),
+      { id: "vertex-gemini", configured: false },
+    );
     assert.equal(status.core.memory.backend, "firestore");
     assert.equal(status.tools.length, 18);
     const codeWrite = status.tools.find(({ id }) => id === "github-write");

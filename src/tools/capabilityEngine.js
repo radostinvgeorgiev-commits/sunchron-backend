@@ -367,6 +367,7 @@ export async function buildIntegrationStatusReport(
     openai: "OpenAI",
     gemini: "Gemini",
     grok: "Grok",
+    "vertex-gemini": "Vertex Gemini",
   };
 
   return [

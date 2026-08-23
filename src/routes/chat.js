@@ -2172,6 +2172,10 @@ router.post("/chat", async (req, res) => {
     logSafeError("[AI Core] Failure", error);
     sendEvent("error", {
       status: timedOut ? 504 : 502,
+      code: safeErrorCode(
+        error,
+        timedOut ? "AI_TIMEOUT" : "AI_UPSTREAM_ERROR",
+      ),
       message: timedOut
         ? "AI ядрото се забави прекалено. Опитай отново."
         : "Връзката с AI ядрото беше прекъсната. Опитай отново.",

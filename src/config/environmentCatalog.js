@@ -27,7 +27,7 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general(
       "AI_CORE_PROVIDER",
       "AI ядро",
-      "Разговорен доставчик: openai, gemini или grok. По подразбиране е openai.",
+      "Разговорен доставчик: openai, gemini, grok или vertex-gemini. По подразбиране е openai.",
       { hasDefault: true },
     ),
     general("OPENAI_CHAT_MODEL", "AI ядро", "Модел за основния разговор.", {
@@ -102,6 +102,35 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "GEMINI_TIMEOUT_MS",
       "AI ядро",
       "Максимално време за Gemini разговор.",
+      { hasDefault: true },
+    ),
+    general(
+      "VERTEX_AI_ENABLED",
+      "AI ядро",
+      "Изрично включва Vertex AI Gemini; по подразбиране е изключен.",
+      { hasDefault: true },
+    ),
+    general(
+      "VERTEX_AI_PROJECT_ID",
+      "Google Cloud",
+      "Google Cloud project ID за Vertex AI Gemini.",
+    ),
+    general(
+      "VERTEX_AI_LOCATION",
+      "Google Cloud",
+      "Регион за Vertex AI Gemini.",
+      { hasDefault: true },
+    ),
+    general(
+      "VERTEX_AI_MODEL",
+      "AI ядро",
+      "Модел за Vertex AI Gemini.",
+      { hasDefault: true },
+    ),
+    general(
+      "VERTEX_AI_TIMEOUT_MS",
+      "AI ядро",
+      "Ограничено максимално време за Vertex AI Gemini разговор.",
       { hasDefault: true },
     ),
     secret(

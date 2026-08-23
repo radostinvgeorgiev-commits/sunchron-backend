@@ -90,6 +90,161 @@ test("Cloud Run service identity changes are limited to the configured service a
   );
 });
 
+test("Cloud Run service identity confirmation uses the Admin API v2 patch contract", async () => {
+  let preparedConfirmation;
+  const requests = [];
+  const serviceAccount =
+    "ai-core-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com";
+  await prepareGoogleCloudAction(
+    {
+      ownerId: "owner-1",
+      sessionId: "session-1",
+      operation: "update_cloud_run_service_account",
+      input: { serviceAccount },
+      env,
+    },
+    {
+      createConfirmation: async (confirmation) => {
+        preparedConfirmation = confirmation;
+        return { id: "confirmation-cloud-run-api", expiresAt: 12345 };
+      },
+    },
+  );
+
+  const result = await confirmGoogleCloudAction(
+    {
+      ownerId: "owner-1",
+      sessionId: "session-1",
+      confirmationId: "confirmation-cloud-run-api",
+    },
+    {
+      validateConfirmation: async () => preparedConfirmation,
+      consumeConfirmation: async () => {},
+      executeWrite: async ({ execute }) => execute(),
+      adapters: {
+        fetchImpl: async (url, options = {}) => {
+          requests.push({ url, options });
+          if (url.startsWith("http://metadata.google.internal/")) {
+            return {
+              ok: true,
+              json: async () => ({ access_token: "secret-token" }),
+            };
+          }
+          if (options.method === "PATCH") {
+            return {
+              ok: true,
+              text: async () =>
+                JSON.stringify({
+                  name:
+                    "projects/handy-boulevard-479120-q9/locations/europe-west1/services/synchron-backend-google",
+                  template: { serviceAccount },
+                }),
+            };
+          }
+          return {
+            ok: true,
+            text: async () =>
+              JSON.stringify({
+                name:
+                  "projects/handy-boulevard-479120-q9/locations/europe-west1/services/synchron-backend-google",
+              }),
+          };
+        },
+      },
+    },
+  );
+
+  const apiRequests = requests.filter(
+    ({ url }) => !url.startsWith("http://metadata.google.internal/"),
+  );
+  assert.equal(
+    apiRequests[0].url,
+    "https://run.googleapis.com/v2/projects/handy-boulevard-479120-q9/locations/europe-west1/services/synchron-backend-google",
+  );
+  assert.equal(apiRequests[0].options.method, "GET");
+  assert.equal(
+    apiRequests[1].url,
+    "https://run.googleapis.com/v2/projects/handy-boulevard-479120-q9/locations/europe-west1/services/synchron-backend-google?updateMask=template.serviceAccount",
+  );
+  assert.equal(apiRequests[1].options.method, "PATCH");
+  assert.deepEqual(JSON.parse(apiRequests[1].options.body), {
+    name:
+      "projects/handy-boulevard-479120-q9/locations/europe-west1/services/synchron-backend-google",
+    template: { serviceAccount },
+  });
+  assert.deepEqual(result, {
+    projectId: "handy-boulevard-479120-q9",
+    serviceName: "synchron-backend-google",
+    region: "europe-west1",
+    serviceAccount,
+  });
+  assert.doesNotMatch(JSON.stringify(result), /secret-token/u);
+});
+
+test("Cloud Run service identity errors preserve provider codes without leaking response text", async () => {
+  let preparedConfirmation;
+  const serviceAccount =
+    "ai-core-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com";
+  await prepareGoogleCloudAction(
+    {
+      ownerId: "owner-1",
+      sessionId: "session-1",
+      operation: "update_cloud_run_service_account",
+      input: { serviceAccount },
+      env,
+    },
+    {
+      createConfirmation: async (confirmation) => {
+        preparedConfirmation = confirmation;
+        return { id: "confirmation-cloud-run-error", expiresAt: 12345 };
+      },
+    },
+  );
+
+  await assert.rejects(
+    () =>
+      confirmGoogleCloudAction(
+        {
+          ownerId: "owner-1",
+          sessionId: "session-1",
+          confirmationId: "confirmation-cloud-run-error",
+        },
+        {
+          validateConfirmation: async () => preparedConfirmation,
+          consumeConfirmation: async () => {},
+          executeWrite: async ({ execute }) => execute(),
+          adapters: {
+            fetchImpl: async (url) => {
+              if (url.startsWith("http://metadata.google.internal/")) {
+                return {
+                  ok: true,
+                  json: async () => ({ access_token: "secret-token" }),
+                };
+              }
+              return {
+                ok: false,
+                status: 404,
+                text: async () =>
+                  JSON.stringify({
+                    error: {
+                      status: "NOT_FOUND",
+                      message: "secret-token",
+                    },
+                  }),
+              };
+            },
+          },
+        },
+      ),
+    (error) => {
+      assert.equal(error.status, 404);
+      assert.equal(error.code, "NOT_FOUND");
+      assert.doesNotMatch(error.message, /secret-token/u);
+      return true;
+    },
+  );
+});
+
 test("Google Cloud confirmation checks owner and delegates the exact action", async () => {
   const calls = [];
   let preparedConfirmation;
@@ -239,7 +394,7 @@ test("Cloud Build confirmation rechecks trigger and runs only the exact prepared
   ]);
 });
 
-test("Cloud Build uses the regional trigger endpoint and direct RepoSource body", async () => {
+test("Cloud Build uses the global trigger endpoint and direct RepoSource body", async () => {
   let preparedConfirmation;
   const requests = [];
   await prepareGoogleCloudAction(
@@ -302,11 +457,11 @@ test("Cloud Build uses the regional trigger endpoint and direct RepoSource body"
   assert.equal(result.operationName, "operations/build-2");
   assert.equal(
     requests[1].url,
-    "https://cloudbuild.googleapis.com/v1/projects/handy-boulevard-479120-q9/locations/global/triggers/d943b5bc-a267-4273-a48a-3c750f484a42",
+    "https://cloudbuild.googleapis.com/v1/projects/handy-boulevard-479120-q9/triggers/d943b5bc-a267-4273-a48a-3c750f484a42",
   );
   assert.equal(
     requests[3].url,
-    "https://cloudbuild.googleapis.com/v1/projects/handy-boulevard-479120-q9/locations/global/triggers/d943b5bc-a267-4273-a48a-3c750f484a42:run",
+    "https://cloudbuild.googleapis.com/v1/projects/handy-boulevard-479120-q9/triggers/d943b5bc-a267-4273-a48a-3c750f484a42:run",
   );
   assert.deepEqual(JSON.parse(requests[3].options.body), {
     commitSha: "6dbfb750813c47cca439db5bc3e9a3debbbb5a3a",

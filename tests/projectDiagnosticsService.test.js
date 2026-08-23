@@ -42,15 +42,32 @@ test("project diagnostics checks public runtime, MCP, Cloud Run and trigger with
     }
     if (url.includes("run.googleapis.com")) {
       return response({
-        metadata: { name: "synchron-backend-google" },
-        status: { latestReadyRevisionName: "synchron-backend-google-00055-85g" },
-        spec: { template: { spec: { containers: [{ image: "image@sha256:redacted" }] } } },
+        name: "projects/project-1/locations/europe-west1/services/synchron-backend-google",
+        latestReadyRevision:
+          "projects/project-1/locations/europe-west1/services/synchron-backend-google/revisions/synchron-backend-google-00055-85g",
+        latestCreatedRevision:
+          "projects/project-1/locations/europe-west1/services/synchron-backend-google/revisions/synchron-backend-google-00056-abc",
+        template: { containers: [{ image: "image@sha256:redacted" }] },
+        annotations: { "synchron-x/app-commit-sha": "commit-1" },
       });
     }
     if (url.includes("cloudbuild.googleapis.com")) {
       if (url.includes("/builds?")) {
         return response({
-          builds: [{ id: "build-1", status: "SUCCESS", substitutions: { COMMIT_SHA: "commit-1" } }],
+          builds: [
+            {
+              id: "build-older",
+              status: "FAILURE",
+              createTime: "2026-08-22T23:00:00.000Z",
+              substitutions: { COMMIT_SHA: "old-commit" },
+            },
+            {
+              id: "build-newer",
+              status: "SUCCESS",
+              createTime: "2026-08-23T00:00:00.000Z",
+              substitutions: { COMMIT_SHA: "commit-1" },
+            },
+          ],
         });
       }
       return response({
@@ -79,8 +96,23 @@ test("project diagnostics checks public runtime, MCP, Cloud Run and trigger with
   assert.equal(report.status, "pass");
   assert.equal(report.commit.matchesExpected, true);
   assert.equal(report.checks.cloudRun.latestReadyRevision, "synchron-backend-google-00055-85g");
+  assert.equal(report.checks.cloudRun.latestCreatedRevision, "synchron-backend-google-00056-abc");
+  assert.equal(report.checks.cloudRun.service, "synchron-backend-google");
+  assert.equal(report.checks.cloudRun.image, "image@sha256:redacted");
+  assert.equal(report.checks.cloudRun.appCommit, "commit-1");
   assert.equal(report.checks.cloudBuildTrigger.branch, "^main$");
+  assert.equal(report.checks.cloudBuildLatest.build.id, "build-newer");
   assert.equal(report.checks.cloudBuildLatest.build.status, "SUCCESS");
+  assert.equal(
+    requests.find(({ url }) => url.includes("run.googleapis.com"))?.url,
+    "https://run.googleapis.com/v2/projects/project-1/locations/europe-west1/services/synchron-backend-google",
+  );
+  const cloudBuildListUrl = requests.find(({ url }) => url.includes("/builds?"))?.url;
+  assert.equal(
+    cloudBuildListUrl,
+    "https://cloudbuild.googleapis.com/v1/projects/project-1/builds?pageSize=10",
+  );
+  assert.equal(cloudBuildListUrl.includes("orderBy"), false);
   assert.equal(report.safety.secretsDisplayed, false);
   assert.equal(formatProjectDiagnostics(report).includes("secret-token"), false);
   assert.equal(JSON.stringify(report).includes("secret-token"), false);

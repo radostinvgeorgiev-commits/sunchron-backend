@@ -743,6 +743,9 @@ function toolState(tool, googleConnected, githubConnected) {
   if (requiresGoogleOAuth(tool) && !googleConnected) {
     return { label: "Иска свързване", className: "confirm" };
   }
+  if (tool.id === "github-read" && !githubConnected) {
+    return { label: "Иска свързване", className: "confirm" };
+  }
   if (
     ["github-write", "github-confirmed-write"].includes(tool.id) &&
     !githubConnected

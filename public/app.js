@@ -733,13 +733,56 @@ function requiresGoogleOAuth(tool) {
   return GOOGLE_OAUTH_TOOL_IDS.has(tool?.id);
 }
 
-function toolState(tool, googleConnected, githubConnected) {
-  if (!tool.enabled || !tool.executable) {
-    return { label: "Не е свързан", className: "deny" };
+function liveToolDetail(tool) {
+  return [
+    tool?.availabilityCode,
+    tool?.httpStatus ? `HTTP ${tool.httpStatus}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function liveToolLabel(tool) {
+  const detail = liveToolDetail(tool);
+  const withDetail = (label) => (detail ? `${label} · ${detail}` : label);
+  if (!tool?.enabled || !tool?.executable) {
+    return { label: withDetail("Грешка · адаптерът не е изпълним"), className: "deny" };
+  }
+  if (tool.authenticationStatus === "requires_connection") {
+    return { label: withDetail("Изисква свързване"), className: "confirm" };
+  }
+  if (tool.authenticationStatus === "no_access") {
+    return { label: withDetail("Няма достъп"), className: "deny" };
   }
   if (!tool.configured) {
-    return { label: "Не е конфигуриран", className: "deny" };
+    return { label: withDetail("Изисква вход"), className: "deny" };
   }
+  if (tool.healthStatus !== "healthy" || tool.liveVerified !== true) {
+    return { label: withDetail("Грешка"), className: "deny" };
+  }
+  if (tool.id === "openai-codex") {
+    return { label: "Готово · вътрешен инструмент", className: "allow" };
+  }
+  if (tool.requiresConfirmation) {
+    return { label: "Изисква потвърждение", className: "confirm" };
+  }
+  if (
+    ["github-read", "github-write", "github-confirmed-write"].includes(tool.id) &&
+    tool.authenticationStatus === "authenticated"
+  ) {
+    return {
+      label:
+        tool.id === "github-read"
+          ? "Свързано · GitHub Read · Работи"
+          : "Свързано · Работи",
+      className: "allow",
+    };
+  }
+  return { label: "Готово за изпълнение", className: "allow" };
+}
+
+function toolState(tool, googleConnected, githubConnected) {
+  if (tool?.liveVerified !== undefined) return liveToolLabel(tool);
   if (requiresGoogleOAuth(tool) && !googleConnected) {
     return { label: "Иска свързване", className: "confirm" };
   }
@@ -764,18 +807,24 @@ function toolState(tool, googleConnected, githubConnected) {
   ) {
     return { label: "Свързано · потвърждение преди запис", className: "allow" };
   }
-  return { label: "Работи", className: "allow" };
+  return { label: "Не е проверено", className: "confirm" };
 }
 
 function toolStatusActions(tool, status, googleConnected, githubConnected) {
   let action = "";
-  if (requiresGoogleOAuth(tool) && !googleConnected && tool.configured) {
+  if (
+    requiresGoogleOAuth(tool) &&
+    !googleConnected &&
+    tool.configured &&
+    tool.authenticationStatus === "requires_connection"
+  ) {
     action =
       '<button type="button" class="tool-connect-btn" data-connect-service="google">Свържи Google</button>';
   } else if (
     ["github-write", "github-confirmed-write"].includes(tool.id) &&
     tool.configured &&
-    !githubConnected
+    !githubConnected &&
+    tool.authenticationStatus === "requires_connection"
   ) {
     action =
       '<button type="button" class="tool-connect-btn" data-connect-service="github">Свържи GitHub</button>';
@@ -883,6 +932,15 @@ function connectionControls(
     </section>`;
 }
 
+let toolsStatusRefreshTimer = null;
+
+function stopToolsStatusRefresh() {
+  if (toolsStatusRefreshTimer) {
+    clearInterval(toolsStatusRefreshTimer);
+    toolsStatusRefreshTimer = null;
+  }
+}
+
 async function openToolsDrawer() {
   openDataDrawer("Инструменти");
   renderDrawerLoading();
@@ -920,6 +978,43 @@ async function openToolsDrawer() {
           }))
       : { configured: false, connected: false, unavailable: true };
     const tools = Array.isArray(data.tools) ? data.tools : [];
+    const dependencyTool = (id, name, description, dependency) => ({
+      id,
+      name,
+      description,
+      enabled: true,
+      executable: true,
+      requiresConfirmation: false,
+      ...(dependency || {
+        configured: false,
+        authenticated: false,
+        authenticationStatus: "not_configured",
+        liveVerified: false,
+        healthStatus: "unavailable",
+        availabilityCode: "LIVE_STATUS_NOT_REPORTED",
+      }),
+    });
+    const displayTools = [
+      ...tools,
+      dependencyTool(
+        "identity-platform",
+        "Identity Platform",
+        "Проверява реалната конфигурация и authentication endpoint-а.",
+        data.dependencies?.identityPlatform,
+      ),
+      dependencyTool(
+        "google-cloud-run",
+        "Cloud Run",
+        "Проверява service, revision и runtime commit.",
+        data.dependencies?.cloudRun,
+      ),
+      dependencyTool(
+        "google-cloud-build",
+        "Cloud Build",
+        "Проверява trigger и последния build read-only.",
+        data.dependencies?.cloudBuild,
+      ),
+    ];
     const descriptions = {
       "github-read": "Проверява commit-и и файлове. Само за четене.",
       "github-write":
@@ -963,9 +1058,9 @@ async function openToolsDrawer() {
         </button>
         <article class="permission-card tool-status-card">
           <div><strong>Снимки</strong><p>JPEG, PNG и WebP до 5 MB.</p></div>
-          <span class="permission-badge allow">Работи</span>
+          <span class="permission-badge allow">Готово за изпълнение</span>
         </article>
-        ${tools
+        ${displayTools
           .map((tool) => {
             const status = toolState(
               tool,
@@ -990,6 +1085,15 @@ async function openToolsDrawer() {
           })
           .join("")}
       </section>`;
+    stopToolsStatusRefresh();
+    toolsStatusRefreshTimer = setInterval(() => {
+      if (
+        !elements.dataDrawer.hidden &&
+        elements.dataDrawerTitle.textContent === "Инструменти"
+      ) {
+        void openToolsDrawer();
+      }
+    }, 30_000);
   } catch (error) {
     renderDrawerError(error.message);
   }
@@ -1061,12 +1165,17 @@ async function openSystemConfigurationDrawer() {
     }
     const tools = Array.isArray(integrations.tools) ? integrations.tools : [];
     const workingTools = tools.filter(
-      (tool) => tool.enabled && tool.executable && tool.configured,
+      (tool) =>
+        tool.enabled &&
+        tool.executable &&
+        tool.configured &&
+        tool.liveVerified === true &&
+        tool.healthStatus === "healthy",
     ).length;
     elements.dataDrawerBody.innerHTML = `
       <div class="permission-default system-summary">
         <strong>${readiness?.status === "ready" ? "Ядрото е готово" : "Ядрото изисква внимание"}</strong>
-        <p>${workingTools} от ${tools.length} инструмента са конфигурирани и изпълними.</p>
+        <p>${workingTools} от ${tools.length} инструмента са конфигурирани и изпълними след реална live проверка.</p>
         <p>${configuration.summary.configured} настройки са налични; ${configuration.summary.protectedFallback || 0} използват защитен заместител; ${configuration.summary.missingRequired} задължителни липсват.</p>
         <p>Production: ${configuration.production?.status === "ready" ? `готово · commit ${escapeHtml(configuration.production.commit)}` : "не е потвърдено"}.</p>
         <p>Google Cloud runtime: ${configuration.googleCloud?.cloudRunDetected ? "Cloud Run е потвърден" : configuration.googleCloud?.configured ? "проектът е конфигуриран" : "не е достъпен"}.</p>
@@ -1085,6 +1194,7 @@ async function openSystemConfigurationDrawer() {
 }
 
 function openDataDrawer(title) {
+  if (title !== "Инструменти") stopToolsStatusRefresh();
   elements.dataDrawerTitle.textContent = title;
   elements.dataDrawer.hidden = false;
   elements.drawerBackdrop.hidden = false;
@@ -1092,6 +1202,7 @@ function openDataDrawer(title) {
 }
 
 function closeDataDrawer() {
+  stopToolsStatusRefresh();
   const wasOpen = !elements.dataDrawer.hidden;
   elements.dataDrawer.hidden = true;
   elements.drawerBackdrop.hidden = true;
@@ -2543,7 +2654,14 @@ async function checkHealth() {
     }
     const data = await integrationsResponse.json().catch(() => ({}));
     const active = (Array.isArray(data.tools) ? data.tools : [])
-      .filter((tool) => tool.enabled && tool.executable && tool.configured)
+      .filter(
+        (tool) =>
+          tool.enabled &&
+          tool.executable &&
+          tool.configured &&
+          tool.liveVerified === true &&
+          tool.healthStatus === "healthy",
+      )
       .map((tool) => tool.name)
       .filter(Boolean);
     elements.activeIntegrationsDisplay.textContent = active.length

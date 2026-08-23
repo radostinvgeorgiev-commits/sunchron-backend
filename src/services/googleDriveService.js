@@ -431,11 +431,13 @@ async function googleFetch(
 
   if (response.status === 401) {
     sessions.delete(id);
-    throw new GoogleDriveError(
+    const error = new GoogleDriveError(
       `Google връзката е изтекла. ${googleConnectLink("Свържи Google отново")}.`,
       401,
       "GOOGLE_RECONNECT_REQUIRED",
     );
+    error.upstreamStatus = response.status;
+    throw error;
   }
 
   if (response.status === 403) {
@@ -444,26 +446,78 @@ async function googleFetch(
         reasonText,
       );
     if (apiDisabled) {
-      throw new GoogleDriveError(
+      const error = new GoogleDriveError(
         `${serviceName} API не е включен в Google Cloud. Отвори настройката на Google проекта и включи услугата.`,
         503,
         "GOOGLE_API_DISABLED",
       );
+      error.upstreamStatus = response.status;
+      throw error;
     }
-    throw new GoogleDriveError(
+    const error = new GoogleDriveError(
       `${serviceName} няма дадено разрешение. ${googleConnectLink(
         `Разреши ${serviceName}`,
       )}.`,
       403,
       "GOOGLE_SCOPE_REQUIRED",
     );
+    error.upstreamStatus = response.status;
+    throw error;
   }
 
-  throw new GoogleDriveError(
+  const error = new GoogleDriveError(
     `${serviceName} временно не е достъпен (Google грешка ${response.status}).`,
     502,
     "GOOGLE_REQUEST_FAILED",
   );
+  error.upstreamStatus = response.status;
+  throw error;
+}
+
+const GOOGLE_LIVE_PROBES = Object.freeze({
+  drive: {
+    serviceName: "Google Drive",
+    url: `${DRIVE_API_URL}/files?pageSize=1&fields=files(id)`,
+  },
+  gmail: {
+    serviceName: "Gmail",
+    url: `${GMAIL_API_URL}/users/me/profile`,
+  },
+  calendar: {
+    serviceName: "Google Calendar",
+    url: `${CALENDAR_API_URL}/calendars/primary/events?maxResults=1&singleEvents=true`,
+  },
+  contacts: {
+    serviceName: "Google Contacts",
+    url: `${PEOPLE_API_URL}/people:searchContacts?query=AI%20CORE&readMask=names&pageSize=1`,
+  },
+});
+
+export async function probeGoogleService(
+  id,
+  service,
+  fetchImpl = fetch,
+) {
+  const probe = GOOGLE_LIVE_PROBES[service];
+  if (!probe) {
+    throw new GoogleDriveError(
+      "Непозната Google услуга.",
+      400,
+      "GOOGLE_SERVICE_INVALID",
+    );
+  }
+  const response = await googleFetch(
+    id,
+    probe.url,
+    {},
+    fetchImpl,
+    probe.serviceName,
+  );
+  return {
+    service,
+    httpStatus: response.status,
+    status: "pass",
+  };
 }
 
 export async function hasSession(id) {

@@ -153,7 +153,36 @@
     document.getElementById("chatInput")?.focus();
   }
 
-  function resolveCoreStatus(readiness) {
+  function resolveCoreStatus(readiness, integrations) {
+    const chat = integrations?.tools?.find(
+      (tool) => tool.id === "synchron-agent-chat",
+    );
+    const memory = integrations?.tools?.find(
+      (tool) => tool.id === "google-firestore-memory",
+    );
+    if (chat && memory) {
+      if (
+        chat.healthStatus === "healthy" &&
+        chat.liveVerified === true &&
+        memory.healthStatus === "healthy" &&
+        memory.liveVerified === true
+      ) {
+        return {
+          label: "AI ядро и постоянна памет: свързани · работят",
+          className: "internal",
+        };
+      }
+      return {
+        label: "AI ядрото или паметта: проверката е неуспешна",
+        className: "warning",
+      };
+    }
+    if (integrations) {
+      return {
+        label: "Статусът на ядрото не е потвърден от live проверката",
+        className: "warning",
+      };
+    }
     if (
       readiness?.status === "ready" &&
       readiness?.checks?.chatAgent?.ready === true &&
@@ -192,43 +221,112 @@
       };
     }
     const tool = integrations?.tools?.find((item) => item.id === toolId);
-    if (!tool?.configured || !tool?.enabled || !tool?.executable) {
+    if (!tool?.enabled || !tool?.executable) {
       return {
-        label: "Не е конфигуриран",
+        label: "Грешка · адаптерът не е изпълним",
+        className: "warning",
+      };
+    }
+    if (typeof tool.liveVerified !== "boolean") {
+      if (!tool.configured) {
+        return {
+          label: "Не е конфигуриран",
+          className: "warning",
+        };
+      }
+      if (
+        liveCheck?.checked === true &&
+        liveCheck.ok === true &&
+        liveCheck.connected === false
+      ) {
+        return {
+          label: `Изисква еднократен вход в ${connectionName}`,
+          className: "warning",
+        };
+      }
+      if (liveCheck?.checked === true && liveCheck.ok !== true) {
+        const code = liveCheck.statusCode ? ` (${liveCheck.statusCode})` : "";
+        return {
+          label: `${connectionName}: проверката неуспешна${code}`,
+          className: "warning",
+        };
+      }
+      if (!connected) {
+        return {
+          label: `Изисква еднократен вход в ${connectionName}`,
+          className: "warning",
+        };
+      }
+      if (tool.healthStatus === "degraded" && tool.availabilityReason) {
+        return {
+          label: tool.availabilityReason,
+          className: "warning",
+        };
+      }
+      return {
+        label: "Не е проверено",
+        className: "warning",
+      };
+    }
+    const detail = [
+      tool.availabilityCode,
+      tool.httpStatus ? `HTTP ${tool.httpStatus}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const withDetail = (label) => (detail ? `${label} · ${detail}` : label);
+    if (tool.authenticationStatus === "requires_connection") {
+      return {
+        label: withDetail("Изисква свързване"),
+        className: "warning",
+      };
+    }
+    if (tool.authenticationStatus === "no_access") {
+      return {
+        label: withDetail("Няма достъп"),
+        className: "warning",
+      };
+    }
+    if (!tool.configured) {
+      return {
+        label: withDetail("Изисква вход"),
+        className: "warning",
+      };
+    }
+    if (tool.healthStatus !== "healthy" || tool.liveVerified !== true) {
+      return {
+        label: withDetail("Грешка"),
+        className: "warning",
+      };
+    }
+    if (toolId === "openai-codex") {
+      return {
+        label: "Готово · вътрешен инструмент",
+        className: "internal",
+      };
+    }
+    if (tool.requiresConfirmation) {
+      return {
+        label: "Изисква потвърждение",
         className: "warning",
       };
     }
     if (
-      liveCheck?.checked === true &&
-      liveCheck.ok === true &&
-      liveCheck.connected === false
+      ["github-read", "github-write", "github-confirmed-write"].includes(
+        toolId,
+      ) &&
+      tool.authenticationStatus === "authenticated"
     ) {
       return {
-        label: `Изисква еднократен вход в ${connectionName}`,
-        className: "warning",
-      };
-    }
-    if (liveCheck?.checked === true && liveCheck.ok !== true) {
-      const code = liveCheck.statusCode ? ` (${liveCheck.statusCode})` : "";
-      return {
-        label: `${connectionName}: проверката неуспешна${code}`,
-        className: "warning",
-      };
-    }
-    if (!connected) {
-      return {
-        label: `Изисква еднократен вход в ${connectionName}`,
-        className: "warning",
-      };
-    }
-    if (tool.healthStatus === "degraded" && tool.availabilityReason) {
-      return {
-        label: tool.availabilityReason,
-        className: "warning",
+        label:
+          toolId === "github-read"
+            ? "Свързано · GitHub Read · Работи"
+            : "Свързано · Работи",
+        className: "internal",
       };
     }
     return {
-      label: toolId === "github-read" ? "GitHub Read: работи" : "Работи",
+      label: "Готово за изпълнение",
       className: "internal",
     };
   }
@@ -274,10 +372,20 @@
     if (!tool?.configured || !tool?.enabled || !tool?.executable) {
       return "unavailable";
     }
+    if (tool.authenticationStatus === "requires_connection") return "action";
+    if (
+      tool.authenticationStatus === "no_access" ||
+      tool.healthStatus !== "healthy" ||
+      tool.liveVerified !== true
+    ) {
+      return "unavailable";
+    }
     if (liveCheck?.checked === true && liveCheck.ok !== true) {
       return "unavailable";
     }
-    return connected ? "working" : "action";
+    const connectionReady =
+      tool.authenticationStatus === "public" || connected;
+    return connectionReady && !tool.requiresConfirmation ? "working" : "action";
   }
 
   function buildCurrentCapabilities(
@@ -287,10 +395,25 @@
     testerAuth,
     liveChecks = {},
   ) {
-    const coreReady =
-      readiness?.status === "ready" &&
-      readiness?.checks?.chatAgent?.ready === true &&
-      readiness?.checks?.memory?.ready === true;
+    const coreTools = integrations?.tools || [];
+    const liveChat = coreTools.find(
+      (tool) => tool.id === "synchron-agent-chat",
+    );
+    const liveMemory = coreTools.find(
+      (tool) => tool.id === "google-firestore-memory",
+    );
+    const coreReady = integrations
+      ? Boolean(
+          liveChat &&
+            liveMemory &&
+            liveChat.healthStatus === "healthy" &&
+            liveChat.liveVerified === true &&
+            liveMemory.healthStatus === "healthy" &&
+            liveMemory.liveVerified === true,
+        )
+      : readiness?.status === "ready" &&
+        readiness?.checks?.chatAgent?.ready === true &&
+        readiness?.checks?.memory?.ready === true;
     const bridge = readiness?.checks?.bridge;
     const bridgeConfigured =
       bridge?.configured === true &&
@@ -300,11 +423,14 @@
     const bridgeReady =
       bridgeConfigured &&
       bridge?.authentication?.tokenExchange?.tokenExchange === "success";
-    const testerStatus = testerAuth
-      ? testerAuth.configured && testerAuth.registrationEnabled
+    const identityPlatform = integrations?.dependencies?.identityPlatform;
+    const testerStatus =
+      identityPlatform?.healthStatus === "healthy" &&
+      identityPlatform?.liveVerified === true
         ? "working"
-        : "action"
-      : "unavailable";
+        : identityPlatform?.authenticationStatus === "requires_connection"
+          ? "action"
+          : "unavailable";
     return [
       {
         label: "AI разговор и постоянна памет",
@@ -567,6 +693,54 @@
     };
   }
 
+  function resolveIdentityPlatformStatus(integrations, testerAuth) {
+    const identity = integrations?.dependencies?.identityPlatform;
+    if (!identity || typeof identity.liveVerified !== "boolean") {
+      return {
+        label: "Не е проверено",
+        className: "warning",
+      };
+    }
+    const detail = [
+      identity.availabilityCode,
+      identity.httpStatus ? `HTTP ${identity.httpStatus}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const withDetail = (label) => (detail ? `${label} · ${detail}` : label);
+    if (identity.authenticationStatus === "requires_connection") {
+      return {
+        label: withDetail("Изисква свързване"),
+        className: "warning",
+      };
+    }
+    if (identity.authenticationStatus === "no_access") {
+      return {
+        label: withDetail("Няма достъп"),
+        className: "warning",
+      };
+    }
+    if (!identity.configured) {
+      return {
+        label: withDetail("Изисква вход"),
+        className: "warning",
+      };
+    }
+    if (identity.healthStatus !== "healthy" || identity.liveVerified !== true) {
+      return {
+        label: withDetail("Грешка"),
+        className: "warning",
+      };
+    }
+    return {
+      label:
+        testerAuth?.configured && testerAuth?.registrationEnabled
+          ? "Свързано · Работи · Нормална регистрация"
+          : "Свързано · Работи",
+      className: "internal",
+    };
+  }
+
   function renderWorkCenter(
     config,
     readiness = null,
@@ -606,7 +780,7 @@
     const grid = document.createElement("section");
     grid.className = "work-center-grid";
     grid.setAttribute("aria-label", "Услуги на проекта");
-    const coreStatus = resolveCoreStatus(readiness);
+    const coreStatus = resolveCoreStatus(readiness, integrations);
     const githubReadStatus = resolveToolStatus(integrations, "github-read", {
       connected: Boolean(sessions.githubConnected),
       connectionName: "GitHub",
@@ -641,6 +815,10 @@
       },
     );
     const chatGptAppStatus = resolveChatGptAppStatus(readiness);
+    const identityPlatformStatus = resolveIdentityPlatformStatus(
+      integrations,
+      testerAuth,
+    );
     const chatGptAppCard = createActionCard({
       title: "ChatGPT приложение — AI CORE",
       description:
@@ -723,10 +901,7 @@
             ? PUBLIC_REGISTRATION_URL
             : googleCloudConsoleUrl,
         icon: "fa-solid fa-user-plus",
-        status:
-          testerAuth?.configured && testerAuth?.registrationEnabled
-            ? "Работи · Нормална регистрация"
-            : "Настройва се в Google Cloud",
+        status: identityPlatformStatus.label,
       }),
       createInternalCard({
         title: "Google Drive",

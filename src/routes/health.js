@@ -30,6 +30,7 @@ import {
   getAiProviderStatus,
   isAiCoreConfigured,
 } from "../services/aiCoreService.js";
+import { getVertexAiProviderStatus } from "../services/vertexAiGeminiService.js";
 
 const router = express.Router();
 const DEFAULT_READINESS_TIMEOUT_MS = 2_000;
@@ -114,6 +115,7 @@ export async function getReadinessStatus({
   timeoutMs = DEFAULT_READINESS_TIMEOUT_MS,
 } = {}) {
   const aiProviderStatus = getAiProviderStatus(env);
+  const vertexAiStatus = getVertexAiProviderStatus(env);
   const chatAgentReady = aiProviderStatus.configured;
   let memory = { ready: false, status: "unavailable" };
 
@@ -154,6 +156,7 @@ export async function getReadinessStatus({
         providers: aiProviderStatus.providers,
         removedProvider: "digitalocean-agent",
       },
+      vertexAi: vertexAiStatus,
       memory,
       memoryAcceptance: {
         required: memoryVerificationRequired,
@@ -397,6 +400,7 @@ function resolveToolHealthStatus(tool, configuration = {}) {
 export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
   registerCoreTools();
   const copilotAutomationEnabled = isCopilotAutomationEnabled();
+  const vertexAiStatus = getVertexAiProviderStatus();
   const configuration = {
     "synchron-agent-chat": {
       configured:
@@ -544,6 +548,7 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
       openai: {
         configured: Boolean(process.env.OPENAI_API_KEY),
       },
+      vertexAi: vertexAiStatus,
       memory: configuration["opensearch-memory"],
     },
     tools: listTools().map((tool) => {

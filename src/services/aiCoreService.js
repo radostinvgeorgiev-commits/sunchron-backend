@@ -1,3 +1,9 @@
+import {
+  extractGeminiOutputText,
+  extractTextContent,
+  normalizeChatMessages,
+} from "./aiMessageContract.js";
+
 const DEFAULT_OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_GROK_API_URL = "https://api.x.ai/v1/chat/completions";
@@ -23,34 +29,6 @@ function parsePositiveInteger(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function extractTextContent(content) {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((part) => {
-      if (typeof part === "string") return part;
-      if (!part || typeof part !== "object") return "";
-      return [part.text, part.input_text, part.output_text].find(
-        (value) => typeof value === "string",
-      ) || "";
-    })
-    .join("");
-}
-
-function normalizeChatMessages(input) {
-  return (Array.isArray(input) ? input : [])
-    .map((item) => ({
-      role:
-        item?.role === "assistant" || item?.role === "model"
-          ? "assistant"
-          : item?.role === "system"
-            ? "system"
-            : "user",
-      content: extractTextContent(item?.content),
-    }))
-    .filter((item) => item.content.trim());
-}
-
 export function extractOpenAIOutputText(data) {
   if (typeof data?.output_text === "string" && data.output_text.trim()) {
     return data.output_text;
@@ -66,14 +44,7 @@ export function extractOpenAIOutputText(data) {
   return text;
 }
 
-export function extractGeminiOutputText(data) {
-  return (Array.isArray(data?.candidates) ? data.candidates : [])
-    .flatMap((candidate) =>
-      Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [],
-    )
-    .map((part) => (typeof part?.text === "string" ? part.text : ""))
-    .join("");
-}
+export { extractGeminiOutputText };
 
 export function extractGrokOutputText(data) {
   return (Array.isArray(data?.choices) ? data.choices : [])

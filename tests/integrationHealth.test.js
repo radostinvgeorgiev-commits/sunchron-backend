@@ -28,6 +28,11 @@ const ENV_NAMES = [
   "DIGITALOCEAN_APP_ID",
   "CLOUDFLARE_API_TOKEN",
   "CLOUDFLARE_ZONE_ID",
+  "VERTEX_AI_ENABLED",
+  "VERTEX_AI_PROJECT_ID",
+  "VERTEX_AI_LOCATION",
+  "VERTEX_AI_MODEL",
+  "VERTEX_AI_TIMEOUT_MS",
 ];
 
 test("integration status reports configuration without exposing secret values", () => {
@@ -45,6 +50,8 @@ test("integration status reports configuration without exposing secret values", 
     assert.equal(status.core.chatAgent.primaryProvider, "openai");
     assert.equal(status.core.chatAgent.removedProvider, "digitalocean-agent");
     assert.equal(status.core.openai.configured, true);
+    assert.equal(status.core.vertexAi.status, "disabled");
+    assert.equal(status.core.vertexAi.selected, false);
     assert.equal(status.tools.length, 18);
     assert.equal(
       status.tools
@@ -78,6 +85,33 @@ test("integration status reports configuration without exposing secret values", 
       else process.env[name] = value;
     }
     resetToolRegistryForTests();
+  }
+});
+
+test("integration status reports isolated Vertex pilot configuration without secrets", () => {
+  const original = Object.fromEntries(
+    ENV_NAMES.map((name) => [name, process.env[name]]),
+  );
+  process.env.VERTEX_AI_ENABLED = "true";
+  process.env.VERTEX_AI_PROJECT_ID = "synchron-vertex-test";
+  process.env.VERTEX_AI_LOCATION = "europe-west1";
+  process.env.VERTEX_AI_MODEL = "gemini-2.5-flash";
+  process.env.VERTEX_AI_TIMEOUT_MS = "30000";
+
+  try {
+    const status = getIntegrationStatus();
+    assert.equal(status.core.vertexAi.provider, "vertex-gemini");
+    assert.equal(status.core.vertexAi.status, "configured");
+    assert.equal(status.core.vertexAi.selected, false);
+    assert.equal(status.core.vertexAi.auth.mode, "application-default-credentials");
+    assert.equal(status.core.vertexAi.auth.status, "not-verified");
+    assert.equal(status.core.vertexAi.availabilityCode, null);
+    assert.doesNotMatch(JSON.stringify(status.core.vertexAi), /synchron-vertex-test/u);
+  } finally {
+    for (const [name, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
   }
 });
 

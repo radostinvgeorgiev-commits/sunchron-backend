@@ -57,7 +57,8 @@ test("Google Cloud catalog preserves data, secret and deployment boundaries", as
     assert.match(catalog, new RegExp(marker, "u"));
   }
 
-  assert.match(catalog, /Няма runtime\s+adapter/u);
+  assert.match(catalog, /Vertex AI има само изолиран\s+opt-in adapter/u);
+  assert.match(catalog, /Firestore и Identity Platform са planning-only/u);
   assert.match(catalog, /Няма миграция на\s+Supabase users/u);
   assert.match(catalog, /няма secret\s+стойност/u);
 });

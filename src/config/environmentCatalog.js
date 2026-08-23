@@ -124,6 +124,33 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "Максимално време за Grok разговор.",
       { hasDefault: true },
     ),
+    general(
+      "VERTEX_AI_ENABLED",
+      "AI ядро",
+      "Opt-in флаг за изолирания Vertex AI Gemini pilot; не променя текущия provider selector.",
+      { hasDefault: true },
+    ),
+    general(
+      "VERTEX_AI_PROJECT_ID",
+      "Google Cloud",
+      "Изричен Google Cloud project за изолирания Vertex AI Gemini pilot.",
+    ),
+    general(
+      "VERTEX_AI_LOCATION",
+      "Google Cloud",
+      "Изричен регион или global location за Vertex AI Gemini.",
+    ),
+    general(
+      "VERTEX_AI_MODEL",
+      "Google Cloud",
+      "Изричен Vertex AI Gemini model за изолирания pilot.",
+    ),
+    general(
+      "VERTEX_AI_TIMEOUT_MS",
+      "Google Cloud",
+      "Максимално време за Vertex AI Gemini заявка.",
+      { hasDefault: true },
+    ),
 
     secret(
       "OPENSEARCH_HOST",

@@ -87,6 +87,36 @@ test("readiness accepts Gemini when it is explicitly selected", async () => {
   assert.equal(result.status, "ready");
   assert.equal(result.checks.chatAgent.primaryProvider, "gemini");
   assert.equal(result.checks.chatAgent.providers[1].configured, true);
+  assert.equal(result.checks.vertexAi.status, "disabled");
+  assert.equal(result.checks.vertexAi.selected, false);
+});
+
+test("readiness reports Vertex pilot state without making it a readiness dependency", async () => {
+  const result = await getReadinessStatus({
+    env: {
+      OPENAI_API_KEY: "secret",
+      VERTEX_AI_ENABLED: "true",
+      VERTEX_AI_PROJECT_ID: "synchron-vertex-test",
+      VERTEX_AI_LOCATION: "europe-west1",
+      VERTEX_AI_MODEL: "gemini-2.5-flash",
+    },
+    loadOpenSearchClient: () => ({
+      cluster: {
+        health: async () => ({ body: { status: "green" } }),
+      },
+    }),
+  });
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.checks.chatAgent.primaryProvider, "openai");
+  assert.equal(result.checks.vertexAi.status, "configured");
+  assert.equal(result.checks.vertexAi.selected, false);
+  assert.equal(result.checks.vertexAi.auth.status, "not-verified");
+  assert.deepEqual(result.checks.vertexAi.configuration, {
+    projectConfigured: true,
+    locationConfigured: true,
+    modelConfigured: true,
+  });
 });
 
 test("readiness fails closed for an invalid AI provider selection", async () => {

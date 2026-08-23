@@ -66,6 +66,17 @@ test("allows only the exact bounded direct GitHub write actions", () => {
   }
 });
 
+test("allows the exact Cloud Build trigger confirmation action", () => {
+  assert.equal(
+    isAllowedAction("infrastructure.write:run_cloud_build_trigger"),
+    true,
+  );
+  assert.equal(
+    isAllowedAction("infrastructure.write:run_arbitrary_command"),
+    false,
+  );
+});
+
 // ─── createConfirmation ───────────────────────────────────────────────────────
 
 test("creates a confirmation with correct structure", () => {

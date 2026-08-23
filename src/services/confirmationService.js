@@ -35,6 +35,7 @@ const ALLOWED_ACTIONS = new Set([
   "infrastructure.write:grant_project_role",
   "infrastructure.write:revoke_project_role",
   "infrastructure.write:update_cloud_run_service_account",
+  "infrastructure.write:run_cloud_build_trigger",
 ]);
 
 // Fields that must never be stored in a confirmation (audit safety)

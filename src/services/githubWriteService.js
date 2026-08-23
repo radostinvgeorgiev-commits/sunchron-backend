@@ -136,6 +136,29 @@ function assertWritableBranch(branch) {
   return clean;
 }
 
+function assertPullRequestNumber(value) {
+  const number = Number(value);
+  if (!Number.isSafeInteger(number) || number <= 0) {
+    throw new GitHubServiceError(
+      "Невалиден номер на GitHub Pull Request.",
+      400,
+      "INVALID_PULL_REQUEST_NUMBER",
+    );
+  }
+  return number;
+}
+
+function assertCommitSha(value) {
+  if (typeof value !== "string" || !/^[a-f0-9]{40}$/iu.test(value.trim())) {
+    throw new GitHubServiceError(
+      "Липсва валиден точен head commit SHA на Pull Request-а.",
+      400,
+      "INVALID_PULL_REQUEST_SHA",
+    );
+  }
+  return value.trim();
+}
+
 /**
  * Creates a new file in a repository branch.
  */
@@ -295,6 +318,171 @@ export async function createPullRequest({
     },
     accessToken,
   );
+}
+
+/**
+ * Merges one owner-confirmed Pull Request after binding the exact head SHA
+ * and verifying that GitHub reports successful checks and no known conflict.
+ */
+export async function getPullRequest({ repository, pullNumber, accessToken }) {
+  const repo = repository ?? configuredRepository();
+  assertAllowedRepository(repo);
+  const number = assertPullRequestNumber(pullNumber);
+  return githubWriteRequest(
+    `/repos/${repo}/pulls/${number}`,
+    {},
+    accessToken,
+  );
+}
+
+export async function mergePullRequest({
+  repository,
+  pullNumber,
+  expectedHeadSha,
+  expectedBaseSha,
+  base = "main",
+  mergeMethod = "merge",
+  accessToken,
+}) {
+  const repo = repository ?? configuredRepository();
+  assertAllowedRepository(repo);
+  const number = assertPullRequestNumber(pullNumber);
+  const headSha = assertCommitSha(expectedHeadSha);
+  const baseSha = assertCommitSha(expectedBaseSha);
+
+  if (base !== "main") {
+    throw new GitHubServiceError(
+      "Pull Request може да бъде сливан само към main.",
+      403,
+      "PROTECTED_BRANCH",
+    );
+  }
+  if (!["merge", "squash", "rebase"].includes(mergeMethod)) {
+    throw new GitHubServiceError(
+      "Невалиден метод за сливане на Pull Request.",
+      400,
+      "INVALID_MERGE_METHOD",
+    );
+  }
+
+  const pullRequest = await getPullRequest({
+    repository: repo,
+    pullNumber: number,
+    accessToken,
+  });
+  if (pullRequest.merged) {
+    return {
+      number,
+      merged: true,
+      unchanged: true,
+      mergeCommitSha: pullRequest.merge_commit_sha || null,
+      url: pullRequest.html_url || null,
+    };
+  }
+  if (pullRequest.state !== "open") {
+    throw new GitHubServiceError(
+      "Pull Request-ът не е отворен.",
+      409,
+      "PULL_REQUEST_NOT_OPEN",
+    );
+  }
+  if (pullRequest.draft) {
+    throw new GitHubServiceError(
+      "Draft Pull Request не може да бъде слят.",
+      409,
+      "PULL_REQUEST_DRAFT",
+    );
+  }
+  if (pullRequest.base?.ref !== base) {
+    throw new GitHubServiceError(
+      "Pull Request-ът не е насочен към защитения main.",
+      403,
+      "PROTECTED_BRANCH",
+    );
+  }
+  if (pullRequest.base?.sha !== baseSha) {
+    throw new GitHubServiceError(
+      "Основата на Pull Request-а се е променила след подготовката. Направи ново потвърждение.",
+      409,
+      "PULL_REQUEST_BASE_CHANGED",
+    );
+  }
+  if (pullRequest.head?.sha !== headSha) {
+    throw new GitHubServiceError(
+      "Head commit-ът се е променил след подготовката. Направи ново потвърждение.",
+      409,
+      "PULL_REQUEST_HEAD_CHANGED",
+    );
+  }
+  if (
+    pullRequest.mergeable === false ||
+    ["dirty", "blocked"].includes(pullRequest.mergeable_state)
+  ) {
+    throw new GitHubServiceError(
+      "GitHub отчита конфликт или блокирано сливане.",
+      409,
+      "PULL_REQUEST_NOT_MERGEABLE",
+    );
+  }
+
+  const [combinedStatus, checkRuns] = await Promise.all([
+    githubWriteRequest(
+      `/repos/${repo}/commits/${encodeURIComponent(headSha)}/status`,
+      {},
+      accessToken,
+    ),
+    githubWriteRequest(
+      `/repos/${repo}/commits/${encodeURIComponent(headSha)}/check-runs`,
+      {},
+      accessToken,
+    ),
+  ]);
+  const combinedStatusGreen =
+    !combinedStatus?.state || combinedStatus.state === "success";
+  const runs = Array.isArray(checkRuns?.check_runs)
+    ? checkRuns.check_runs
+    : [];
+  const checksGreen =
+    runs.length > 0 &&
+    runs.every(
+      (run) =>
+        run?.status === "completed" &&
+        ["success", "neutral", "skipped"].includes(run?.conclusion),
+    );
+  if (!combinedStatusGreen || !checksGreen) {
+    throw new GitHubServiceError(
+      "CI проверките не са зелени. Pull Request-ът не е слят.",
+      409,
+      "PULL_REQUEST_CHECKS_NOT_GREEN",
+    );
+  }
+
+  const result = await githubWriteRequest(
+    `/repos/${repo}/pulls/${number}/merge`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        sha: headSha,
+        merge_method: mergeMethod,
+      }),
+    },
+    accessToken,
+  );
+  if (!result.merged) {
+    throw new GitHubServiceError(
+      result.message || "GitHub не потвърди сливането на Pull Request-а.",
+      409,
+      "PULL_REQUEST_MERGE_FAILED",
+    );
+  }
+  return {
+    number,
+    merged: true,
+    unchanged: false,
+    mergeCommitSha: result.sha || null,
+    url: pullRequest.html_url || null,
+    message: result.message || null,
+  };
 }
 
 export async function closeIssue({ repository, issueNumber, accessToken }) {

@@ -403,7 +403,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "prepare_github_change",
     "Подготви ограничена GitHub промяна",
-    "Подготвя branch, file commit, Pull Request или затваряне на issue. Не пише в main, не merge-ва и не deploy-ва.",
+    "Подготвя branch, file commit, Pull Request, проверено сливане към main или затваряне на issue. Не изпълнява промяната без отделно owner потвърждение.",
     {
       type: "object",
       properties: {
@@ -414,6 +414,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
             "create_file",
             "update_file",
             "create_pr",
+            "merge_pr",
             "close_issue",
           ],
         },
@@ -427,7 +428,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "confirm_github_change",
     "Потвърди ограничена GitHub промяна",
-    "Изпълнява само точната подготвена промяна след еднократно потвърждение. Merge и production deployment не се поддържат.",
+    "Изпълнява само точната подготвена GitHub промяна след еднократно owner потвърждение. Сливането е ограничено до конкретен PR към main, точен head SHA и зелени CI проверки; production deployment не се изпълнява.",
     {
       type: "object",
       properties: {

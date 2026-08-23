@@ -47,6 +47,7 @@ test("allows only the exact bounded direct GitHub write actions", () => {
     "github.write:update_file",
     "github.write:create_branch",
     "github.write:create_pr",
+    "github.write:merge_pr",
     "github.write:close_issue",
   ]) {
     assert.equal(

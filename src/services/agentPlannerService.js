@@ -14,6 +14,7 @@ const CAPABILITY_ACTIONS = Object.freeze({
   "code.read": "github.read",
   "code.task-status": "github.read",
   "code.write": "github.write",
+  "github.pull-request.merge": "github.write",
   "database.status": "database.read",
   "infrastructure.googlecloud.read": "infrastructure.read",
   "infrastructure.googlecloud.diagnostics.read": "infrastructure.read",
@@ -40,6 +41,7 @@ const PLANNER_INSTRUCTIONS = [
   "- code.read: четене и проверка на разрешеното GitHub хранилище",
   "- code.task-status: реално проследяване на конкретна GitHub задача или Pull Request по номер, проверките и production статуса",
   "- code.write: промяна в GitHub; може да е недостъпна и винаги изисква потвърждение",
+  "- github.pull-request.merge: сливане на конкретен Pull Request към main след зелени проверки; винаги изисква точно потвърждение",
   "- database.status: проверка дали Supabase е свързан и отговаря",
   "- infrastructure.googlecloud.read: реална проверка на текущия Google Cloud / Cloud Run runtime без стойности на secrets",
   "- infrastructure.googlecloud.diagnostics.read: bounded read-only проверка на health, readiness, MCP, Cloud Run и Cloud Build trigger-а",
@@ -190,7 +192,7 @@ export function sanitizeCapabilityPlan(plan, originalMessage) {
       continue;
     }
     if (
-      capability === "code.write" &&
+      ["code.write", "github.pull-request.merge"].includes(capability) &&
       hasExplicitReadOnlyBoundary(originalMessage)
     ) {
       continue;
@@ -199,7 +201,7 @@ export function sanitizeCapabilityPlan(plan, originalMessage) {
     const plannedRequest =
       typeof call?.request === "string" ? call.request.trim() : "";
     const requestMessage =
-      capability === "code.write"
+      ["code.write", "github.pull-request.merge"].includes(capability)
         ? originalMessage
         : plannedRequest || originalMessage;
     const cloudBuildInput =

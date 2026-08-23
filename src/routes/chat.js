@@ -46,8 +46,14 @@ import {
 } from "../services/googleDriveService.js";
 import {
   GitHubOAuthError,
+  getGitHubSession,
   parseGitHubCookies,
 } from "../services/githubOAuthService.js";
+import {
+  GitHubActionError,
+  confirmGitHubChange,
+  extractGitHubChangeConfirmationId,
+} from "../services/githubActionService.js";
 import { isMergedBranchCleanupPlanRequest } from "../services/githubBranchCleanupService.js";
 import {
   CodeTaskError,
@@ -141,6 +147,7 @@ const DIRECT_CAPABILITY_REPLIES = new Set([
   "code.read",
   "code.task-status",
   "code.write",
+  "github.pull-request.merge",
   "infrastructure.googlecloud.read",
   "infrastructure.googlecloud.diagnostics.read",
 ]);
@@ -414,14 +421,25 @@ export function isGitHubWriteRequest(message) {
   if (hasExplicitReadOnlyBoundary(text)) return false;
 
   const hasWriteOutcome =
-    /(?:промени|подобри|обнови|редактирай|поправи|направи\s+промян|създай\s+(?:клон|branch|pull\s*request|pr)|слей|improve)/iu.test(
+    /(?:промени|подобри|обнови|редактирай|поправи|направи\s+промян|създай\s+(?:клон|branch|pull\s*request|pr)|слей|слий|improve)/iu.test(
       text,
-    );
+    ) || isGitHubPullRequestMergeRequest(text);
   const hasCodeTarget =
     /(?:github|хранилищ|репозитор|код|интерфейс|файл|commit|комит|pull\s*request|\bpr\b|клон|branch|main|deployment|деплой)/iu.test(
       text,
     );
   return hasWriteOutcome && hasCodeTarget;
+}
+
+export function isGitHubPullRequestMergeRequest(message) {
+  const text = typeof message === "string" ? message.trim() : "";
+  if (!text || hasExplicitReadOnlyBoundary(text)) return false;
+  return (
+    /(?:merge|сли(?:й|ване)|сл(?:ей|ив)|обедин)/iu.test(text) &&
+    /#\s*\d{1,10}|(?:pull\s*request|\bpr\b|пул\s*рек)\s*(?:№|номер)?\s*\d{1,10}/iu.test(
+      text,
+    )
+  );
 }
 
 function isExplicitGitHubReadSubtask(subtask, hasGitHubContext) {
@@ -705,8 +723,11 @@ export function detectCapabilityRequests(message) {
     }
   }
   if (hasGitHubWriteIntent) {
+    const capability = isGitHubPullRequestMergeRequest(message)
+      ? "github.pull-request.merge"
+      : "code.write";
     requests.push({
-      capability: "code.write",
+      capability,
       action: "github.write",
       message,
     });
@@ -786,6 +807,8 @@ function capabilityLabel(capability) {
   if (capability === "code.analyze") return "Codex";
   if (capability === "code.task-status") return "GitHub задача";
   if (capability === "code.write") return "GitHub запис";
+  if (capability === "github.pull-request.merge")
+    return "сливане на GitHub Pull Request";
   if (capability === "files.read") return "Google Drive";
   if (capability === "mail.read") return "Gmail";
   if (capability === "memory.read") return "памет";
@@ -1208,6 +1231,8 @@ router.post("/chat", async (req, res) => {
 
   const codeTaskConfirmationId =
     extractCodeTaskConfirmationId(cleanMessage);
+  const githubChangeConfirmationId =
+    extractGitHubChangeConfirmationId(cleanMessage);
   const calendarConfirmationId = extractCalendarConfirmationId(cleanMessage);
   if (codeTaskConfirmationId && !ownerToolsAllowed) {
     return res.status(403).json({
@@ -1218,6 +1243,12 @@ router.post("/chat", async (req, res) => {
   if (calendarConfirmationId && !ownerToolsAllowed) {
     return res.status(403).json({
       error: "Календарните действия са достъпни само за собственика.",
+      code: "OWNER_ONLY",
+    });
+  }
+  if (githubChangeConfirmationId && !ownerToolsAllowed) {
+    return res.status(403).json({
+      error: "GitHub действията са достъпни само за собственика.",
       code: "OWNER_ONLY",
     });
   }
@@ -1481,6 +1512,62 @@ router.post("/chat", async (req, res) => {
           error instanceof CodeTaskError || error instanceof GitHubOAuthError
             ? error.message
             : "AI CORE кодовата задача не можа да бъде изпълнена.",
+      });
+    }
+    res.end();
+    return;
+  }
+
+  if (githubChangeConfirmationId) {
+    try {
+      const githubSession = await getGitHubSession(githubSessionId);
+      const changed = await confirmGitHubChange({
+        ownerId,
+        sessionId: cleanSessionId,
+        confirmationId: githubChangeConfirmationId,
+        githubSession,
+      });
+      const fullReply = `Потвърдената GitHub промяна е изпълнена: ${changed.url || changed.sha || changed.number || "готово"}.`;
+      const conversationPersisted = await saveConversationTurnBestEffort(
+        cleanSessionId,
+        cleanMessage,
+        fullReply,
+        ownerId,
+      );
+      await auditAction({
+        action: "github.write",
+        decision: "confirmed",
+        outcome: "succeeded",
+        resource: changed.url || String(changed.number || "github"),
+        details: "confirmed-github-change",
+        sessionId: cleanSessionId,
+      });
+      sendEvent("token", { token: fullReply });
+      sendDone({
+        ok: true,
+        mode: "github-confirmed-change",
+        ...getConversationPersistenceMetadata(conversationPersisted),
+      });
+    } catch (error) {
+      logSafeError("[GitHub confirmation] Failure", error);
+      await auditAction({
+        action: "github.write",
+        decision: "confirmed",
+        outcome: "failed",
+        resource: "github-confirmed-change",
+        details: safeErrorCode(error, "GITHUB_CHANGE_FAILED"),
+        sessionId: cleanSessionId,
+      });
+      sendEvent("error", {
+        status:
+          error instanceof GitHubActionError || error instanceof GitHubOAuthError
+            ? error.status
+            : error?.status || 500,
+        message:
+          error instanceof GitHubActionError || error instanceof GitHubOAuthError
+            ? error.message
+            : "Потвърдената GitHub промяна не можа да бъде изпълнена.",
+        code: error?.code || "GITHUB_CHANGE_FAILED",
       });
     }
     res.end();

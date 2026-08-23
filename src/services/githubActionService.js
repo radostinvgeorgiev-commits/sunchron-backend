@@ -14,6 +14,8 @@ import {
   createBranch,
   createFile,
   createPullRequest,
+  getPullRequest,
+  mergePullRequest,
   updateFile,
 } from "./githubWriteService.js";
 import { isAuthorizedGitHubLogin } from "./githubOAuthService.js";
@@ -24,6 +26,7 @@ const ACTIONS = Object.freeze({
   CREATE_FILE: "github.write:create_file",
   UPDATE_FILE: "github.write:update_file",
   CREATE_PULL_REQUEST: "github.write:create_pr",
+  MERGE_PULL_REQUEST: "github.write:merge_pr",
   CLOSE_ISSUE: "github.write:close_issue",
 });
 const OPERATION_ACTIONS = Object.freeze({
@@ -31,10 +34,13 @@ const OPERATION_ACTIONS = Object.freeze({
   create_file: ACTIONS.CREATE_FILE,
   update_file: ACTIONS.UPDATE_FILE,
   create_pr: ACTIONS.CREATE_PULL_REQUEST,
+  merge_pr: ACTIONS.MERGE_PULL_REQUEST,
   close_issue: ACTIONS.CLOSE_ISSUE,
 });
 const SAFE_BRANCH_PATTERN = /^[\w.\-/]+$/u;
 const SAFE_SHA_PATTERN = /^[a-f0-9]{40}$/iu;
+const SAFE_CONFIRMATION_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const SECRET_PATTERN =
   /(?:-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}|\bgh[pousr]_[A-Za-z0-9_]{20,})/u;
 
@@ -210,6 +216,47 @@ function normalizeOperation(operation, input = {}) {
     };
   }
 
+  if (operation === "merge_pr") {
+    const pullNumber = Number(input.pullNumber);
+    if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0) {
+      throw new GitHubActionError(
+        "Невалиден номер на GitHub Pull Request.",
+        400,
+        "GITHUB_PULL_REQUEST_INVALID",
+      );
+    }
+    const headSha = cleanText(input.headSha, 40, "head commit SHA");
+    if (headSha && !SAFE_SHA_PATTERN.test(headSha)) {
+      throw new GitHubActionError(
+        "Невалиден точен head commit SHA на Pull Request-а.",
+        400,
+        "GITHUB_SHA_INVALID",
+      );
+    }
+    const mergeMethod = cleanText(
+      input.mergeMethod || "merge",
+      20,
+      "merge method",
+    );
+    if (!["merge", "squash", "rebase"].includes(mergeMethod)) {
+      throw new GitHubActionError(
+        "Невалиден метод за сливане на Pull Request.",
+        400,
+        "GITHUB_MERGE_METHOD_INVALID",
+      );
+    }
+    return {
+      action,
+      resource: {
+        repository,
+        pullNumber,
+        ...(headSha ? { headSha } : {}),
+        base: "main",
+      },
+      params: { mergeMethod },
+    };
+  }
+
   const issueNumber = Number(input.issueNumber);
   if (!Number.isSafeInteger(issueNumber) || issueNumber <= 0) {
     throw new GitHubActionError(
@@ -245,11 +292,48 @@ export async function prepareGitHubChange(
 ) {
   const session = assertGitHubSession(githubSession);
   const normalized = normalizeOperation(operation, input);
+  let resource = normalized.resource;
+  if (operation === "merge_pr") {
+    const pullRequest = await getPullRequest({
+      repository: resource.repository,
+      pullNumber: resource.pullNumber,
+      accessToken: session.accessToken,
+    });
+    if (pullRequest.base?.ref !== "main") {
+      throw new GitHubActionError(
+        "Pull Request-ът не е насочен към защитения main.",
+        403,
+        "PROTECTED_BRANCH",
+      );
+    }
+    const headSha = pullRequest.head?.sha;
+    const baseSha = pullRequest.base?.sha;
+    if (
+      !headSha ||
+      !SAFE_SHA_PATTERN.test(headSha) ||
+      !baseSha ||
+      !SAFE_SHA_PATTERN.test(baseSha)
+    ) {
+      throw new GitHubActionError(
+        "GitHub не върна точни head и base commit SHA за Pull Request-а.",
+        502,
+        "GITHUB_PULL_REQUEST_SHA_MISSING",
+      );
+    }
+    if (resource.headSha && resource.headSha !== headSha) {
+      throw new GitHubActionError(
+        "Head commit-ът се е променил преди подготовката. Направи ново четене и потвърждение.",
+        409,
+        "GITHUB_PULL_REQUEST_HEAD_CHANGED",
+      );
+    }
+    resource = { ...resource, headSha, baseSha };
+  }
   const confirmation = await createConfirmation({
     sessionId,
     action: normalized.action,
     resource: {
-      ...normalized.resource,
+      ...resource,
       ownerFingerprint: fingerprint("owner", ownerId),
       githubLoginFingerprint: fingerprint("github-login", session.login),
     },
@@ -259,7 +343,7 @@ export async function prepareGitHubChange(
     confirmationId: confirmation.id,
     expiresAt: confirmation.expiresAt,
     operation,
-    resource: Object.freeze({ ...normalized.resource }),
+    resource: Object.freeze({ ...resource }),
     params: Object.freeze({
       ...normalized.params,
       ...(normalized.params.content
@@ -315,6 +399,7 @@ export async function confirmGitHubChange(
   const createFileAdapter = adapters.createFile || createFile;
   const updateFileAdapter = adapters.updateFile || updateFile;
   const createPrAdapter = adapters.createPullRequest || createPullRequest;
+  const mergePrAdapter = adapters.mergePullRequest || mergePullRequest;
   const closeIssueAdapter = adapters.closeIssue || closeIssue;
 
   return executeWrite({
@@ -362,6 +447,16 @@ export async function confirmGitHubChange(
             base: resource.base,
             accessToken,
           });
+        case ACTIONS.MERGE_PULL_REQUEST:
+          return mergePrAdapter({
+            repository: resource.repository,
+            pullNumber: resource.pullNumber,
+            expectedHeadSha: resource.headSha,
+            expectedBaseSha: resource.baseSha,
+            base: resource.base,
+            mergeMethod: params.mergeMethod || "merge",
+            accessToken,
+          });
         case ACTIONS.CLOSE_ISSUE:
           return closeIssueAdapter({
             repository: resource.repository,
@@ -380,3 +475,13 @@ export async function confirmGitHubChange(
 }
 
 export const GITHUB_CONFIRMED_ACTIONS = ACTIONS;
+
+export function extractGitHubChangeConfirmationId(message) {
+  if (typeof message !== "string") return null;
+  const match = message.trim().match(
+    /^Потвърждавам\s+GitHub\s+(?:промяната|merge):\s*([0-9a-f-]{36})$/iu,
+  );
+  return match && SAFE_CONFIRMATION_ID_PATTERN.test(match[1])
+    ? match[1]
+    : null;
+}

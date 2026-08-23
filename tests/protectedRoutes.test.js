@@ -69,3 +69,45 @@ test("allows the verified repository owner through the private boundary", async 
 
   assert.notEqual(response.status, 401);
 });
+
+test("GitHub API reads use the verified owner OAuth session", async () => {
+  const originalFetch = global.fetch;
+  const originalApiUrl = process.env.GITHUB_API_URL;
+  const originalToken = process.env.GITHUB_TOKEN;
+  process.env.GITHUB_API_URL = "https://github.test";
+  process.env.GITHUB_TOKEN = "configured-read-token";
+  const session = await createGitHubSession(
+    { access_token: "oauth-router-token" },
+    async () =>
+      new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
+        status: 200,
+      }),
+  );
+  global.fetch = async (_url, options) => {
+    assert.equal(options.headers.Authorization, "Bearer oauth-router-token");
+    return new Response(
+      JSON.stringify({
+        full_name: "radostinvgeorgiev-commits/sunchron-backend",
+        default_branch: "main",
+        private: true,
+        html_url: "https://github.test/repository",
+      }),
+      { status: 200 },
+    );
+  };
+
+  try {
+    const response = await request(app)
+      .get("/github/status")
+      .set("Cookie", `synchron_github_session=${session.id}`);
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.private, true);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalApiUrl === undefined) delete process.env.GITHUB_API_URL;
+    else process.env.GITHUB_API_URL = originalApiUrl;
+    if (originalToken === undefined) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = originalToken;
+  }
+});

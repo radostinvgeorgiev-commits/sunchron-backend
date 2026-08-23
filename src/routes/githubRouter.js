@@ -8,12 +8,32 @@ import {
   listRecentCommits,
 } from "../services/githubService.js";
 import {
+  getGitHubSession,
+  parseGitHubCookies,
+} from "../services/githubOAuthService.js";
+import {
   evaluatePermission,
   recordAuditEvent,
 } from "../services/permissionService.js";
 import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 
 const router = express.Router();
+
+async function readOptions(req) {
+  const sessionId =
+    parseGitHubCookies(req.headers.cookie).synchron_github_session;
+  if (!sessionId) return {};
+
+  const session = await getGitHubSession(sessionId);
+  if (!session) {
+    throw new GitHubServiceError(
+      "GitHub OAuth сесията е невалидна или изтекла.",
+      401,
+      "GITHUB_SESSION_INVALID",
+    );
+  }
+  return { accessToken: session.accessToken };
+}
 
 function requireGitHubRead(req, res, next) {
   const permission = evaluatePermission("github.read");
@@ -61,7 +81,10 @@ router.use(requireGitHubRead);
 router.get("/status", async (req, res) => {
   try {
     const repository = getConfiguredRepository();
-    const summary = await getRepositorySummary(repository);
+    const summary = await getRepositorySummary(
+      repository,
+      await readOptions(req),
+    );
     await audit(req, "succeeded", repository);
     res.json({ status: "connected", mode: "read-only", ...summary });
   } catch (error) {
@@ -74,6 +97,7 @@ router.get("/commits", async (req, res) => {
     const commits = await listRecentCommits(
       getConfiguredRepository(),
       req.query.limit,
+      await readOptions(req),
     );
     await audit(req, "succeeded", `commits:${commits.length}`);
     res.json({ mode: "read-only", commits });
@@ -87,6 +111,7 @@ router.get("/commit/:ref", async (req, res) => {
     const commit = await getCommitDetails(
       req.params.ref,
       getConfiguredRepository(),
+      await readOptions(req),
     );
     await audit(req, "succeeded", `commit:${commit.shortSha}`);
     res.json({ mode: "read-only", commit });
@@ -101,6 +126,7 @@ router.get("/file", async (req, res) => {
       req.query.path,
       getConfiguredRepository(),
       req.query.ref,
+      await readOptions(req),
     );
     await audit(req, "succeeded", file.path);
     res.json({ mode: "read-only", ...file });

@@ -15,6 +15,7 @@ import {
   registerTool,
   resetToolRegistryForTests,
 } from "../src/tools/toolRegistry.js";
+import { isActiveAuthorizedGitHubSession } from "../src/services/githubOAuthService.js";
 
 test.beforeEach(() => resetToolRegistryForTests());
 
@@ -309,6 +310,70 @@ test("изпълнява GitHub четене чрез избрания инст�
     global.fetch = originalFetch;
     if (originalApiUrl === undefined) delete process.env.GITHUB_API_URL;
     else process.env.GITHUB_API_URL = originalApiUrl;
+  }
+});
+
+test("подава активната GitHub owner сесия и не пада към static token при невалиден id", async () => {
+  const originalFetch = global.fetch;
+  const originalApiUrl = process.env.GITHUB_API_URL;
+  const originalRepository = process.env.GITHUB_REPOSITORY;
+  const originalToken = process.env.GITHUB_TOKEN;
+  process.env.GITHUB_API_URL = "https://github.test";
+  process.env.GITHUB_REPOSITORY =
+    "radostinvgeorgiev-commits/sunchron-backend";
+  process.env.GITHUB_TOKEN = "configured-read-token";
+  let calls = 0;
+  global.fetch = async (_url, options) => {
+    calls += 1;
+    assert.equal(options.headers.Authorization, "Bearer oauth-read-token");
+    return new Response(
+      JSON.stringify([
+        {
+          sha: "oauth1234567890",
+          commit: { message: "OAuth read", author: {} },
+          html_url: "https://github.test/commit/oauth123",
+        },
+      ]),
+      { status: 200 },
+    );
+  };
+
+  try {
+    const result = await executeCapability("code.read", {
+      ownerId: "primary-user",
+      message: "Покажи последните commit-и в GitHub.",
+      githubSession: {
+        accessToken: "oauth-read-token",
+        login: "radostinvgeorgiev-commits",
+      },
+    });
+    assert.match(result.output, /oauth12/u);
+    assert.equal(isActiveAuthorizedGitHubSession({
+      accessToken: "oauth-read-token",
+      login: "radostinvgeorgiev-commits",
+    }), true);
+
+    await assert.rejects(
+      () =>
+        executeCapability("code.read", {
+          ownerId: "primary-user",
+          message: "Покажи последните commit-и в GitHub.",
+          githubSessionId: "missing-session",
+        }),
+      (error) =>
+        error instanceof CapabilityError &&
+        error.code === "GITHUB_SESSION_INVALID" &&
+        error.status === 401,
+    );
+    assert.equal(calls, 1);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalApiUrl === undefined) delete process.env.GITHUB_API_URL;
+    else process.env.GITHUB_API_URL = originalApiUrl;
+    if (originalRepository === undefined) delete process.env.GITHUB_REPOSITORY;
+    else process.env.GITHUB_REPOSITORY = originalRepository;
+    if (originalToken === undefined) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = originalToken;
   }
 });
 

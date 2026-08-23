@@ -8,6 +8,8 @@ import {
   encryptGitHubSession,
   exchangeGitHubCode,
   getGitHubSession,
+  getLatestAuthorizedGitHubSession,
+  isActiveAuthorizedGitHubSession,
   isAuthorizedGitHubLogin,
   resolveGitHubRedirectUri,
   resolveOwnerGitHubLogin,
@@ -110,6 +112,36 @@ test("creates a browser session after checking the GitHub user", async () => {
   const stored = await getGitHubSession(session.id);
   assert.equal(session.login, "radostinvgeorgiev-commits");
   assert.equal(stored.accessToken, "ghu-user-token");
+});
+
+test("rejects expired and non-owner GitHub sessions", async () => {
+  process.env.GITHUB_REPOSITORY =
+    "radostinvgeorgiev-commits/sunchron-backend";
+  const foreign = await createGitHubSession(
+    { access_token: "foreign-token" },
+    async () =>
+      new Response(JSON.stringify({ login: "another-user" }), {
+        status: 200,
+      }),
+  );
+  const expired = await createGitHubSession(
+    { access_token: "expired-token", expires_in: -1 },
+    async () =>
+      new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
+        status: 200,
+      }),
+  );
+
+  assert.equal(await getGitHubSession(foreign.id), null);
+  assert.equal(await getGitHubSession(expired.id), null);
+  assert.equal(
+    isActiveAuthorizedGitHubSession({
+      accessToken: "valid-token",
+      login: "another-user",
+    }),
+    false,
+  );
+  assert.equal(await getLatestAuthorizedGitHubSession(), null);
 });
 
 

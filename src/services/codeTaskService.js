@@ -292,6 +292,7 @@ export async function prepareCodeTask({
   ownerId,
   sessionId,
   githubSessionId,
+  githubSession,
   message,
   apiKey = process.env.OPENAI_API_KEY,
   geminiApiKey = process.env.GEMINI_API_KEY,
@@ -310,8 +311,8 @@ export async function prepareCodeTask({
   resolveGitHubSession = getGitHubSession,
 } = {}) {
   const task = cleanText(message, 8_000, "задача");
-  const githubSession = assertGitHubSession(
-    await resolveGitHubSession(githubSessionId),
+  const authorizedGitHubSession = assertGitHubSession(
+    githubSession || (await resolveGitHubSession(githubSessionId)),
   );
   if (!apiKey || !geminiApiKey || !grokApiKey) {
     throw new CodeTaskError(
@@ -393,7 +394,7 @@ export async function prepareCodeTask({
         ownerFingerprint: fingerprint("owner", ownerId),
         githubLoginFingerprint: fingerprint(
           "github-login",
-          githubSession.login,
+          authorizedGitHubSession.login,
         ),
         title: plan.title,
         summary: plan.summary,

@@ -149,7 +149,7 @@ export function getToolRuntimeAvailability(
         );
       }
       return configured(
-        Boolean(input.githubSessionId),
+        Boolean(input.githubSessionId || input.githubSession),
         "GitHub Write изисква удостоверена собственическа сесия.",
         "CAPABILITY_AUTH_REQUIRED",
       );
@@ -217,7 +217,12 @@ export function getToolRuntimeAvailability(
     case "google-cloud-read":
     case "google-cloud-diagnostics":
       return configured(
-        Boolean(env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT || env.GCP_PROJECT_ID),
+        Boolean(
+          env.GOOGLE_CLOUD_PROJECT ||
+            env.GCLOUD_PROJECT ||
+            env.GCP_PROJECT_ID ||
+            (env.K_SERVICE && env.K_REVISION),
+        ),
         "Google Cloud runtime не е конфигуриран.",
       );
     case "google-cloud-write":
@@ -522,6 +527,7 @@ const executors = Object.freeze({
       ownerId: input.ownerId,
       sessionId: input.sessionId,
       githubSessionId: input.githubSessionId,
+      githubSession: input.githubSession,
       message: input.message,
     });
     return prepared.output;

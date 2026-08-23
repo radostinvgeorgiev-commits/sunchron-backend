@@ -14,6 +14,10 @@
 - `get_google_cloud_project_diagnostics` — owner-scoped read-only проверка на
   публичния health/readiness, MCP каталога, Cloud Run service и Cloud Build
   trigger-а; връща PASS/PARTIAL/FAIL и сравнение на наблюдавания commit.
+- `talk_to_ai_core` / `send_message` — инструментален разговор през същия
+  capability engine: read-only заявките се изпълняват реално, а GitHub,
+  Google, памет и инфраструктурни записи се подготвят за отделно owner
+  потвърждение.
 - `prepare_google_cloud_action` / `confirm_google_cloud_action` — owner-only, точни IAM и Cloud Run service identity промени с еднократно потвърждение и audit журнал.
 
 Project diagnostics използва фиксиран allowlist от Google Cloud API адреси и

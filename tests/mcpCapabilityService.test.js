@@ -8,6 +8,7 @@ import {
 import {
   MCP_AGENT_CHAT_SCOPE,
   MCP_GOOGLE_WRITE_SCOPE,
+  MCP_INFRASTRUCTURE_WRITE_SCOPE,
   MCP_MEMORY_WRITE_SCOPE,
 } from "../src/services/mcpOAuthService.js";
 
@@ -19,6 +20,8 @@ test("granular MCP capabilities have unique names, strict schemas and exact scop
   assert.ok(names.includes("confirm_github_change"));
   assert.ok(names.includes("confirm_google_action"));
   assert.ok(names.includes("confirm_task_status_change"));
+  assert.ok(names.includes("prepare_google_cloud_action"));
+  assert.ok(names.includes("confirm_google_cloud_action"));
   assert.ok(
     MCP_CAPABILITY_TOOLS.every(
       (item) =>
@@ -34,11 +37,58 @@ test("granular MCP capabilities have unique names, strict schemas and exact scop
   assert.deepEqual(scopeFor("send_message"), [MCP_AGENT_CHAT_SCOPE]);
   assert.deepEqual(scopeFor("prepare_memory_write"), [MCP_MEMORY_WRITE_SCOPE]);
   assert.deepEqual(scopeFor("confirm_google_action"), [MCP_GOOGLE_WRITE_SCOPE]);
+  assert.deepEqual(scopeFor("confirm_google_cloud_action"), [
+    MCP_INFRASTRUCTURE_WRITE_SCOPE,
+  ]);
   assert.equal(
     MCP_CAPABILITY_TOOLS.find((item) => item.name === "confirm_google_action")
       .annotations.destructiveHint,
     true,
   );
+});
+
+test("Google Cloud MCP write path preserves the prepare-confirm boundary", async () => {
+  const calls = [];
+  const handler = createMcpCapabilityHandler({
+    audit: async (event) => calls.push(["audit", event]),
+    dependencies: {
+      prepareGoogleCloudAction: async (input) => {
+        calls.push(["prepare", input]);
+        return {
+          confirmationId: "cloud-confirmation-1",
+          expiresAt: Date.now() + 60_000,
+          operation: input.operation,
+        };
+      },
+      confirmGoogleCloudAction: async (input) => {
+        calls.push(["confirm", input]);
+        return { changed: true };
+      },
+    },
+  });
+
+  const prepared = await handler(
+    "prepare_google_cloud_action",
+    {
+      operation: "grant_project_role",
+      input: {
+        principal: "serviceAccount:ai-core-admin@example.com",
+        role: "roles/owner",
+      },
+    },
+    { ownerId: "verified-owner" },
+  );
+  assert.equal(prepared.result.structuredContent.confirmationId, "cloud-confirmation-1");
+  assert.equal(calls[0][1].ownerId, "verified-owner");
+
+  const confirmed = await handler(
+    "confirm_google_cloud_action",
+    { confirmationId: "cloud-confirmation-1" },
+    { ownerId: "verified-owner" },
+  );
+  assert.equal(confirmed.result.structuredContent.changed, true);
+  assert.equal(calls[2][1].ownerId, "verified-owner");
+  assert.equal(calls.at(-1)[1].action, "infrastructure.write");
 });
 
 test("send_message injects the verified owner and preserves the safe chat boundary", async () => {

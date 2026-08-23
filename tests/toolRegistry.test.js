@@ -13,7 +13,7 @@ test.beforeEach(() => resetToolRegistryForTests());
 
 test("регистрира съществуващите интеграции с пълни метаданни", () => {
   registerCoreTools();
-  assert.equal(listTools().length, 17);
+  assert.equal(listTools().length, 18);
   assert.deepEqual(getTool("synchron-integrations-status").capabilities, [
     "system.integrations.status",
     "system.tools.read",
@@ -59,6 +59,10 @@ test("регистрира съществуващите интеграции с 
   assert.deepEqual(getTool("google-cloud-read").capabilities, [
     "infrastructure.googlecloud.read",
   ]);
+  assert.deepEqual(getTool("google-cloud-write").capabilities, [
+    "infrastructure.googlecloud.write",
+  ]);
+  assert.equal(getTool("google-cloud-write").requiresConfirmation, true);
   assert.deepEqual(getTool("synchron-agent-chat").capabilities, [
     "chat.send_message",
     "chat.read_reply",

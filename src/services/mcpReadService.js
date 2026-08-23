@@ -58,6 +58,7 @@ const SAFE_MCP_ERROR_NAMES = new Set([
   "GitHubActionError",
   "GitHubServiceError",
   "GoogleActionError",
+  "GoogleCloudActionError",
   "GoogleDriveError",
   "MemoryDeleteConfirmationError",
   "MemoryWriteConfirmationError",

@@ -32,6 +32,9 @@ const ALLOWED_ACTIONS = new Set([
   "github.write:update_file",
   "github.write:create_pr",
   "github.write:close_issue",
+  "infrastructure.write:grant_project_role",
+  "infrastructure.write:revoke_project_role",
+  "infrastructure.write:update_cloud_run_service_account",
 ]);
 
 // Fields that must never be stored in a confirmation (audit safety)

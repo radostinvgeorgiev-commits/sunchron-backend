@@ -372,6 +372,13 @@ export function requiredScopesForMcpTool(name) {
   if (["prepare_github_change", "confirm_github_change"].includes(name)) {
     return [MCP_GITHUB_WRITE_SCOPE];
   }
+  if (
+    ["prepare_google_cloud_action", "confirm_google_cloud_action"].includes(
+      name,
+    )
+  ) {
+    return [MCP_INFRASTRUCTURE_WRITE_SCOPE];
+  }
   return name === "prepare_github_merged_branch_cleanup" ||
     name === "confirm_github_merged_branch_cleanup"
     ? [MCP_GITHUB_WRITE_SCOPE]

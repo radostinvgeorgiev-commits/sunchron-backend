@@ -71,6 +71,10 @@ import {
   getGoogleCloudRuntimeStatus,
 } from "../services/googleCloudService.js";
 import {
+  confirmGoogleCloudAction,
+  prepareGoogleCloudAction,
+} from "../services/googleCloudActionService.js";
+import {
   formatSystemConfigurationReport,
   getSystemConfigurationReport,
 } from "../services/systemConfigurationService.js";
@@ -211,6 +215,11 @@ export function getToolRuntimeAvailability(
       return configured(
         Boolean(env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT || env.GCP_PROJECT_ID),
         "Google Cloud runtime не е конфигуриран.",
+      );
+    case "google-cloud-write":
+      return configured(
+        Boolean(env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT || env.GCP_PROJECT_ID),
+        "Google Cloud write runtime не е конфигуриран.",
       );
     case "opensearch-memory":
       return configured(
@@ -769,6 +778,30 @@ const executors = Object.freeze({
   },
   "google-cloud-read": async () =>
     formatGoogleCloudRuntimeStatus(getGoogleCloudRuntimeStatus()),
+  "google-cloud-write": async ({ input, confirmed }) => {
+    const operationInput = input.input || input;
+    const result = confirmed
+      ? await confirmGoogleCloudAction({
+          ownerId: input.ownerId,
+          sessionId: input.sessionId,
+          confirmationId: requiredInput(
+            input.confirmationId,
+            "confirmationId",
+          ),
+        })
+      : await prepareGoogleCloudAction({
+          ownerId: input.ownerId,
+          sessionId: input.sessionId,
+          operation: requiredInput(input.operation, "operation"),
+          input: operationInput,
+        });
+    return {
+      output: confirmed
+        ? "Точната потвърдена Google Cloud промяна е изпълнена."
+        : confirmationOutput(result, "Google Cloud промяната"),
+      metadata: { result },
+    };
+  },
   "opensearch-memory": async ({ capability, input }) => {
     if (capability === "memory.verify") {
       const report = await runMemoryAcceptanceTest({
@@ -861,6 +894,7 @@ export async function executeCapability(capability, input = {}, options = {}) {
         "gmail-read",
         "google-contacts",
         "synchron-tasks",
+        "google-cloud-write",
       ].includes(resolved.tool.id);
     if (!canPrepareConfirmation) {
       throw new CapabilityError(

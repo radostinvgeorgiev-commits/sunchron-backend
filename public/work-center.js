@@ -198,6 +198,16 @@
         className: "warning",
       };
     }
+    if (
+      liveCheck?.checked === true &&
+      liveCheck.ok === true &&
+      liveCheck.connected === false
+    ) {
+      return {
+        label: `Изисква еднократен вход в ${connectionName}`,
+        className: "warning",
+      };
+    }
     if (liveCheck?.checked === true && liveCheck.ok !== true) {
       const code = liveCheck.statusCode ? ` (${liveCheck.statusCode})` : "";
       return {

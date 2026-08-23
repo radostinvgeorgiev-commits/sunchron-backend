@@ -74,6 +74,11 @@ const AGENT_MODELS = Object.freeze({
     provider: "gemini",
     apiModel: "gemini-2.5-flash",
   },
+  "vertex-gemini-2.5-flash": {
+    label: "Vertex Gemini 2.5 Flash",
+    provider: "vertex-gemini",
+    apiModel: "gemini-2.5-flash",
+  },
   "grok-4.5": {
     label: "Grok 4.5",
     provider: "grok",

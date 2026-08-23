@@ -107,15 +107,22 @@ test("workspace keeps a supported personal pet", () => {
   assert.equal(state.petId, "drop");
 });
 
-test("workspace preserves supported Gemini and Grok model choices", () => {
+test("workspace preserves direct Gemini, Vertex Gemini and Grok model choices", () => {
   const state = normalizeWorkspaceState({
     agents: [
       { id: "gemini", name: "Gemini", role: "researcher", model: "gemini-2.5-flash" },
+      {
+        id: "vertex",
+        name: "Vertex Gemini",
+        role: "researcher",
+        model: "vertex-gemini-2.5-flash",
+      },
       { id: "grok", name: "Grok", role: "researcher", model: "grok-3-mini" },
     ],
   });
   assert.equal(state.agents[0].model, "gemini-2.5-flash");
-  assert.equal(state.agents[1].model, "grok-4.5");
+  assert.equal(state.agents[1].model, "vertex-gemini-2.5-flash");
+  assert.equal(state.agents[2].model, "grok-4.5");
 });
 
 test("legacy workspaces receive specialized agents with their own pets", () => {

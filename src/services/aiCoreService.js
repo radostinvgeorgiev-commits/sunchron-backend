@@ -1,8 +1,19 @@
+import {
+  isVertexAiConfigured,
+  requestVertexAiGeminiResponse,
+  resolveVertexAiTimeoutMs,
+} from "./vertexAiGeminiService.js";
+
 const DEFAULT_OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_GROK_API_URL = "https://api.x.ai/v1/chat/completions";
 const DEFAULT_AI_TIMEOUT_MS = 120_000;
-const AI_PROVIDERS = new Set(["openai", "gemini", "grok"]);
+export const AI_PROVIDERS = new Set([
+  "openai",
+  "gemini",
+  "grok",
+  "vertex-gemini",
+]);
 
 export const DEFAULT_OPENAI_CHAT_MODEL = "gpt-5.6-terra";
 export const DEFAULT_OPENAI_PLANNER_MODEL = "gpt-5.6-luna";
@@ -316,6 +327,8 @@ export function isAiProviderConfigured(provider, env = process.env) {
       return Boolean(env.GEMINI_API_KEY);
     case "grok":
       return Boolean(env.GROK_API_KEY);
+    case "vertex-gemini":
+      return isVertexAiConfigured(env);
     default:
       return false;
   }
@@ -327,14 +340,14 @@ export function isAiCoreConfigured(env = process.env) {
 }
 
 export function hasConfiguredAiProvider(env = process.env) {
-  return ["openai", "gemini", "grok"].some((provider) =>
+  return [...AI_PROVIDERS].some((provider) =>
     isAiProviderConfigured(provider, env),
   );
 }
 
 export function getAiProviderStatus(env = process.env) {
   const selectedProvider = getConfiguredAiProvider(env);
-  const providers = ["openai", "gemini", "grok"].map((id) => ({
+  const providers = [...AI_PROVIDERS].map((id) => ({
     id,
     configured: isAiProviderConfigured(id, env),
   }));
@@ -358,6 +371,9 @@ export function getAiProviderTimeoutMs(
     gemini: "GEMINI_TIMEOUT_MS",
     grok: "GROK_TIMEOUT_MS",
   }[normalizeAiProvider(provider)];
+  if (normalizeAiProvider(provider) === "vertex-gemini") {
+    return resolveVertexAiTimeoutMs(env);
+  }
   return parsePositiveInteger(timeoutKey ? env[timeoutKey] : undefined, fallback);
 }
 
@@ -367,7 +383,7 @@ export async function requestAiResponse({
 } = {}) {
   const selectedProvider =
     provider === undefined
-      ? getConfiguredAiProvider()
+      ? getConfiguredAiProvider(options.env || process.env)
       : normalizeAiProvider(provider);
   if (!selectedProvider) {
     throw new AiCoreError(
@@ -384,6 +400,8 @@ export async function requestAiResponse({
       return requestGeminiResponse(options);
     case "grok":
       return requestGrokResponse(options);
+    case "vertex-gemini":
+      return requestVertexAiGeminiResponse(options);
     default:
       throw new AiCoreError(
         "AI доставчикът не е разрешен.",

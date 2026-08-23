@@ -37,6 +37,7 @@ const VALID_MODELS = new Set([
   "gpt-5.6-terra",
   "gpt-5.6-luna",
   "gemini-2.5-flash",
+  "vertex-gemini-2.5-flash",
   "grok-4.5",
 ]);
 const LEGACY_MODEL_MIGRATIONS = new Map([["grok-3-mini", "grok-4.5"]]);

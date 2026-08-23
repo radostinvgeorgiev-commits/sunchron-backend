@@ -1,5 +1,6 @@
 const SAFE_ERROR_NAME = /^(?:Error|[A-Za-z][A-Za-z0-9]{0,47}Error)$/u;
 const SAFE_ERROR_CODE = /^[A-Z][A-Z0-9_]{1,63}$/u;
+const SAFE_UPSTREAM_ERROR_STATUS = /^[A-Z][A-Z0-9_]{1,63}$/u;
 
 function safeIdentifier(value, pattern, fallback = null) {
   return typeof value === "string" && pattern.test(value) ? value : fallback;
@@ -22,8 +23,13 @@ export function safeErrorMetadata(error) {
     name: safeIdentifier(error?.name, SAFE_ERROR_NAME, "Error"),
   };
   const code = safeIdentifier(error?.code, SAFE_ERROR_CODE);
+  const upstreamErrorStatus = safeIdentifier(
+    error?.upstreamErrorStatus,
+    SAFE_UPSTREAM_ERROR_STATUS,
+  );
   const status = safeStatus(error);
   if (code) metadata.code = code;
+  if (upstreamErrorStatus) metadata.upstreamErrorStatus = upstreamErrorStatus;
   if (status) metadata.status = status;
   return Object.freeze(metadata);
 }

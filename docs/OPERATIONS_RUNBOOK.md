@@ -22,6 +22,14 @@ curl --fail --silent --show-error https://cloudaicore.com/api/auth/session
 трябва да съдържа `get_google_cloud_runtime_status`, task capabilities и GitHub
 write инструментите. За private tool очаквай 401 OAuth challenge със scope.
 
+За една bounded проверка от аватара използвай
+`get_google_cloud_project_diagnostics`. Тя проверява health/readiness, MCP
+discovery, Cloud Run и Cloud Build trigger-а само за текущия project и service.
+Резултат `PASS` означава, че всички проверки са изпълними; `PARTIAL` означава,
+че публичните проверки са успешни, но runtime identity или някой upstream е
+недостъпен. Инструментът е read-only и не стартира Cloud Shell, build, job или
+deployment.
+
 ## Кодова задача
 
 1. Влез като owner и свържи GitHub OAuth.

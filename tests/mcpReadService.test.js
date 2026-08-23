@@ -18,6 +18,7 @@ test("MCP exposes Google Cloud and no retired provider or Copilot tools", () => 
   const names = MCP_TOOLS.map(({ name }) => name);
   assert.ok(names.includes("get_google_cloud_runtime_status"));
   assert.ok(names.includes("get_system_configuration"));
+  assert.ok(names.includes("get_google_cloud_project_diagnostics"));
   assert.equal(names.some((name) => /digitalocean|cloudflare|copilot/iu.test(name)), false);
 });
 

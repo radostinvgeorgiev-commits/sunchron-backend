@@ -22,6 +22,7 @@ test("granular MCP capabilities have unique names, strict schemas and exact scop
   assert.ok(names.includes("confirm_task_status_change"));
   assert.ok(names.includes("prepare_google_cloud_action"));
   assert.ok(names.includes("confirm_google_cloud_action"));
+  assert.ok(names.includes("get_google_cloud_project_diagnostics"));
   assert.ok(
     MCP_CAPABILITY_TOOLS.every(
       (item) =>
@@ -89,6 +90,28 @@ test("Google Cloud MCP write path preserves the prepare-confirm boundary", async
   assert.equal(confirmed.result.structuredContent.changed, true);
   assert.equal(calls[2][1].ownerId, "verified-owner");
   assert.equal(calls.at(-1)[1].action, "infrastructure.write");
+});
+
+test("Google Cloud project diagnostics is read-only and uses the verified owner", async () => {
+  const calls = [];
+  const handler = createMcpCapabilityHandler({
+    audit: async (event) => calls.push(["audit", event]),
+    dependencies: {
+      getGoogleCloudProjectDiagnostics: async () => ({
+        status: "pass",
+        checks: { publicHealth: { status: "pass" } },
+        safety: { readOnly: true, secretsDisplayed: false, arbitraryCommands: false },
+      }),
+    },
+  });
+  const result = await handler(
+    "get_google_cloud_project_diagnostics",
+    {},
+    { ownerId: "verified-owner" },
+  );
+  assert.equal(result.result.structuredContent.status, "pass");
+  assert.equal(calls.at(-1)[1].action, "infrastructure.read");
+  assert.equal(calls.at(-1)[1].decision, "allow");
 });
 
 test("send_message injects the verified owner and preserves the safe chat boundary", async () => {

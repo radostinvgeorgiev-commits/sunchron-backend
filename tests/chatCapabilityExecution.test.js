@@ -304,6 +304,18 @@ test("ordinary messages are not rewritten as contextual confirmations", () => {
   );
 });
 
+test("recognizes a backend project diagnostics request", () => {
+  assert.deepEqual(
+    detectCapabilityRequests("Провери състоянието на бекенда в Cloud Run и Cloud Build.").map(
+      ({ capability, action }) => ({ capability, action }),
+    ),
+    [{
+      capability: "infrastructure.googlecloud.diagnostics.read",
+      action: "infrastructure.read",
+    }],
+  );
+});
+
 test("selecting a council recommendation restores its bounded context", () => {
   const message = buildContextualTaskMessage("Изпълни препоръката.", [
     { role: "user", content: "Питай трите AI модела за следващия ход." },

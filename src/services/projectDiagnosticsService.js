@@ -8,6 +8,7 @@ const METADATA_TOKEN_URL =
 const DEFAULT_SERVICE = "synchron-backend-google";
 const DEFAULT_REGION = "europe-west1";
 const DEFAULT_TRIGGER_NAME = "synchron-main-deploy";
+const DEFAULT_CLOUD_BUILD_LOCATION = "global";
 const DEFAULT_TIMEOUT_MS = 8_000;
 const MAX_TOOL_NAMES = 100;
 
@@ -27,6 +28,22 @@ function projectIdFromEnvironment(env) {
   return projectId && /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/u.test(projectId)
     ? projectId
     : null;
+}
+
+function cloudBuildLocationFromEnvironment(env) {
+  const location = clean(
+    env.CLOUD_BUILD_TRIGGER_LOCATION || DEFAULT_CLOUD_BUILD_LOCATION,
+    40,
+  );
+  return location && /^[a-z0-9-]+$/u.test(location) ? location : null;
+}
+
+function cloudBuildResourceUrl(projectId, location, resource) {
+  const projectPath = encodeURIComponent(projectId);
+  const locationPath = encodeURIComponent(location);
+  return location === DEFAULT_CLOUD_BUILD_LOCATION
+    ? `${CLOUD_BUILD_API}/projects/${projectPath}/${resource}`
+    : `${CLOUD_BUILD_API}/projects/${projectPath}/locations/${locationPath}/${resource}`;
 }
 
 function statusFromHttp(response) {
@@ -275,6 +292,7 @@ export async function getProjectDiagnostics({
   const triggerId = clean(env.CLOUD_BUILD_TRIGGER_ID, 120);
   const triggerName =
     clean(env.CLOUD_BUILD_TRIGGER_NAME, 160) || DEFAULT_TRIGGER_NAME;
+  const cloudBuildLocation = cloudBuildLocationFromEnvironment(env);
   const checks = {
     publicHealth: await publicCheck("/health", { origin, fetchImpl, timeoutMs }),
     readiness: await publicCheck("/health/ready", { origin, fetchImpl, timeoutMs }),
@@ -304,28 +322,43 @@ export async function getProjectDiagnostics({
       url: `${CLOUD_RUN_API}/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(region)}/services/${encodeURIComponent(service)}`,
       pick: cloudRunSummary,
     });
-    checks.cloudBuildTrigger = triggerId
-      ? await googleApiCheck({
-          token,
-          fetchImpl,
-          timeoutMs,
-          url: `${CLOUD_BUILD_API}/projects/${encodeURIComponent(projectId)}/triggers/${encodeURIComponent(triggerId)}`,
-          pick: triggerSummary,
-        })
-      : await googleApiCheck({
-          token,
-          fetchImpl,
-          timeoutMs,
-          url: `${CLOUD_BUILD_API}/projects/${encodeURIComponent(projectId)}/triggers?pageSize=100`,
-          pick: (payload) => triggerListSummary(payload, triggerName),
-        });
-    checks.cloudBuildLatest = await googleApiCheck({
-      token,
-      fetchImpl,
-      timeoutMs,
-      url: `${CLOUD_BUILD_API}/projects/${encodeURIComponent(projectId)}/builds?pageSize=10`,
-      pick: latestBuildSummary,
-    });
+    if (cloudBuildLocation) {
+      checks.cloudBuildTrigger = triggerId
+        ? await googleApiCheck({
+            token,
+            fetchImpl,
+            timeoutMs,
+            url: cloudBuildResourceUrl(
+              projectId,
+              cloudBuildLocation,
+              `triggers/${encodeURIComponent(triggerId)}`,
+            ),
+            pick: triggerSummary,
+          })
+        : await googleApiCheck({
+            token,
+            fetchImpl,
+            timeoutMs,
+            url: `${cloudBuildResourceUrl(projectId, cloudBuildLocation, "triggers")}?pageSize=100`,
+            pick: (payload) => triggerListSummary(payload, triggerName),
+          });
+      checks.cloudBuildLatest = await googleApiCheck({
+        token,
+        fetchImpl,
+        timeoutMs,
+        url: `${cloudBuildResourceUrl(projectId, cloudBuildLocation, "builds")}?pageSize=10`,
+        pick: latestBuildSummary,
+      });
+    } else {
+      checks.cloudBuildTrigger = {
+        status: "unavailable",
+        errorCode: "GOOGLE_CLOUD_BUILD_LOCATION_INVALID",
+      };
+      checks.cloudBuildLatest = {
+        status: "unavailable",
+        errorCode: "GOOGLE_CLOUD_BUILD_LOCATION_INVALID",
+      };
+    }
   }
 
   const runtime = getGoogleCloudRuntimeStatus({ env });

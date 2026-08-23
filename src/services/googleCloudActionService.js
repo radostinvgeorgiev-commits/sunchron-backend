@@ -10,7 +10,7 @@ import { resolveFirestoreProjectId } from "../config/memoryBackend.js";
 
 const RESOURCE_MANAGER_API =
   "https://cloudresourcemanager.googleapis.com/v1";
-const CLOUD_RUN_API = "https://run.googleapis.com/apis/serving.knative.dev/v1";
+const CLOUD_RUN_API = "https://run.googleapis.com/v2";
 const CLOUD_BUILD_API = "https://cloudbuild.googleapis.com/v1";
 const DEFAULT_REGION = "europe-west1";
 const DEFAULT_SERVICE = "synchron-backend-google";
@@ -123,6 +123,11 @@ function normalizeServiceAccount(value) {
     );
   }
   return serviceAccount;
+}
+
+function safeProviderErrorCode(value) {
+  const code = typeof value === "string" ? value.trim() : "";
+  return /^[A-Z0-9_.-]+$/u.test(code) ? code : "GOOGLE_CLOUD_API_FAILED";
 }
 
 function normalizeCloudRunTarget(input = {}, env = process.env) {
@@ -356,7 +361,7 @@ async function googleJsonRequest(
     throw new GoogleCloudActionError(
       `Google Cloud API върна HTTP ${response.status}.`,
       response.status,
-      payload?.error?.status || "GOOGLE_CLOUD_API_FAILED",
+      safeProviderErrorCode(payload?.error?.status),
     );
   }
   return payload || {};
@@ -436,16 +441,23 @@ async function updateCloudRunServiceAccount({
 }) {
   const url = `${CLOUD_RUN_API}/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(region)}/services/${encodeURIComponent(serviceName)}`;
   await googleJsonRequest(url, { fetchImpl });
-  return googleJsonRequest(`${url}?updateMask=spec.template.spec.serviceAccountName`, {
+  await googleJsonRequest(`${url}?updateMask=template.serviceAccount`, {
     method: "PATCH",
     body: {
-      apiVersion: "serving.knative.dev/v1",
-      kind: "Service",
-      metadata: { name: serviceName },
-      spec: { template: { spec: { serviceAccountName: serviceAccount } } },
+      name: `projects/${projectId}/locations/${region}/services/${serviceName}`,
+      template: { serviceAccount: serviceAccount },
     },
     fetchImpl,
   });
+  return { projectId, serviceName, region, serviceAccount };
+}
+
+function cloudBuildTriggerUrl(projectId, location, triggerId) {
+  const projectPath = encodeURIComponent(projectId);
+  const triggerPath = encodeURIComponent(triggerId);
+  return location === DEFAULT_CLOUD_BUILD_LOCATION
+    ? `${CLOUD_BUILD_API}/projects/${projectPath}/triggers/${triggerPath}`
+    : `${CLOUD_BUILD_API}/projects/${projectPath}/locations/${encodeURIComponent(location)}/triggers/${triggerPath}`;
 }
 
 function triggerBranch(payload) {
@@ -466,7 +478,7 @@ async function getCloudBuildTrigger({
 }) {
   const expectedResourceName = `projects/${projectId}/locations/${location}/triggers/${triggerId}`;
   const payload = await googleJsonRequest(
-    `${CLOUD_BUILD_API}/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/triggers/${encodeURIComponent(triggerId)}`,
+    cloudBuildTriggerUrl(projectId, location, triggerId),
     { fetchImpl },
   );
   if (payload?.resourceName && payload.resourceName !== expectedResourceName) {
@@ -510,7 +522,7 @@ async function runCloudBuildTrigger({
   fetchImpl,
 }) {
   const payload = await googleJsonRequest(
-    `${CLOUD_BUILD_API}/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/triggers/${encodeURIComponent(triggerId)}:run`,
+    `${cloudBuildTriggerUrl(projectId, location, triggerId)}:run`,
     {
       method: "POST",
       body: { commitSha },

@@ -38,7 +38,26 @@ function githubHeaders() {
   return headers;
 }
 
-async function githubRequest(path, options = {}) {
+function normalizeAccessToken(readOptions) {
+  const candidate =
+    typeof readOptions === "string"
+      ? readOptions
+      : readOptions?.accessToken || readOptions?.githubSession?.accessToken;
+  return typeof candidate === "string" && candidate.trim()
+    ? candidate.trim()
+    : null;
+}
+
+function githubHeadersWithOptions(readOptions = {}) {
+  const oauthToken = normalizeAccessToken(readOptions);
+  if (!oauthToken) return githubHeaders();
+  return {
+    ...githubHeaders(),
+    Authorization: `Bearer ${oauthToken}`,
+  };
+}
+
+async function githubRequest(path, options = {}, readOptions = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
   const apiUrl = (process.env.GITHUB_API_URL || DEFAULT_API_URL).replace(
@@ -48,7 +67,7 @@ async function githubRequest(path, options = {}) {
 
   try {
     const response = await fetch(`${apiUrl}${path}`, {
-      headers: githubHeaders(),
+      headers: githubHeadersWithOptions(readOptions),
       signal: controller.signal,
       ...options,
     });
@@ -92,9 +111,10 @@ export function getConfiguredRepository() {
 
 export async function getRepositorySummary(
   repository = configuredRepository(),
+  readOptions = {},
 ) {
   assertAllowedRepository(repository);
-  const data = await githubRequest(`/repos/${repository}`);
+  const data = await githubRequest(`/repos/${repository}`, {}, readOptions);
   return {
     repository: data.full_name,
     defaultBranch: data.default_branch,
@@ -108,11 +128,14 @@ export async function getRepositorySummary(
 export async function listRecentCommits(
   repository = configuredRepository(),
   limit = 5,
+  readOptions = {},
 ) {
   assertAllowedRepository(repository);
   const safeLimit = Math.min(Math.max(Number(limit) || 5, 1), 20);
   const commits = await githubRequest(
     `/repos/${repository}/commits?per_page=${safeLimit}`,
+    {},
+    readOptions,
   );
   return commits.map((item) => ({
     sha: item.sha,
@@ -127,6 +150,7 @@ export async function listRecentCommits(
 export async function getCommitDetails(
   ref,
   repository = configuredRepository(),
+  readOptions = {},
 ) {
   assertAllowedRepository(repository);
   const cleanRef = typeof ref === "string" ? ref.trim() : "";
@@ -140,6 +164,8 @@ export async function getCommitDetails(
 
   const data = await githubRequest(
     `/repos/${repository}/commits/${encodeURIComponent(cleanRef)}`,
+    {},
+    readOptions,
   );
   return {
     sha: data.sha,
@@ -169,6 +195,7 @@ export async function getFileContent(
   path,
   repository = configuredRepository(),
   ref,
+  readOptions = {},
 ) {
   assertAllowedRepository(repository);
   const cleanPath = typeof path === "string" ? path.trim() : "";
@@ -182,6 +209,8 @@ export async function getFileContent(
   const query = ref ? `?ref=${encodeURIComponent(ref)}` : "";
   const data = await githubRequest(
     `/repos/${repository}/contents/${encodePath(cleanPath)}${query}`,
+    {},
+    readOptions,
   );
   if (data.type !== "file" || typeof data.content !== "string") {
     throw new GitHubServiceError(
@@ -202,11 +231,14 @@ export async function getFileContent(
 export async function listOpenIssues(
   repository = configuredRepository(),
   limit = 20,
+  readOptions = {},
 ) {
   assertAllowedRepository(repository);
   const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
   const items = await githubRequest(
     `/repos/${repository}/issues?state=open&per_page=${safeLimit}`,
+    {},
+    readOptions,
   );
   return items
     .filter((item) => !item.pull_request)
@@ -222,11 +254,14 @@ export async function listOpenIssues(
 export async function listOpenPullRequests(
   repository = configuredRepository(),
   limit = 20,
+  readOptions = {},
 ) {
   assertAllowedRepository(repository);
   const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
   const items = await githubRequest(
     `/repos/${repository}/pulls?state=open&per_page=${safeLimit}`,
+    {},
+    readOptions,
   );
   return items.map((item) => ({
     number: item.number,
@@ -243,11 +278,14 @@ export async function listOpenPullRequests(
 export async function listRecentWorkflowRuns(
   repository = configuredRepository(),
   limit = 20,
+  readOptions = {},
 ) {
   assertAllowedRepository(repository);
   const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
   const data = await githubRequest(
     `/repos/${repository}/actions/runs?per_page=${safeLimit}`,
+    {},
+    readOptions,
   );
   return (Array.isArray(data.workflow_runs) ? data.workflow_runs : []).map(
     (run) => ({
@@ -268,15 +306,17 @@ export async function listRecentWorkflowRuns(
 export async function getGitHubReadOverview({
   repository = configuredRepository(),
   limit = 10,
+  accessToken,
 } = {}) {
   assertAllowedRepository(repository);
+  const readOptions = accessToken ? { accessToken } : {};
   const [summary, commits, issues, pullRequests, workflowRuns] =
     await Promise.all([
-      getRepositorySummary(repository),
-      listRecentCommits(repository, limit),
-      listOpenIssues(repository, limit),
-      listOpenPullRequests(repository, limit),
-      listRecentWorkflowRuns(repository, limit),
+      getRepositorySummary(repository, readOptions),
+      listRecentCommits(repository, limit, readOptions),
+      listOpenIssues(repository, limit, readOptions),
+      listOpenPullRequests(repository, limit, readOptions),
+      listRecentWorkflowRuns(repository, limit, readOptions),
     ]);
   return Object.freeze({
     summary,
@@ -328,7 +368,7 @@ function parseRegisteredTools(source) {
   return definitions;
 }
 
-async function answerRepositoryArchitectureQuestion(text) {
+async function answerRepositoryArchitectureQuestion(text, readOptions = {}) {
   const repository = getConfiguredRepository();
 
   if (
@@ -348,6 +388,7 @@ async function answerRepositoryArchitectureQuestion(text) {
       "src/tools/toolRegistry.js",
       repository,
       "main",
+      readOptions,
     );
     const tools = parseRegisteredTools(registry.content);
     return [
@@ -361,6 +402,7 @@ async function answerRepositoryArchitectureQuestion(text) {
       "src/tools/toolRegistry.js",
       repository,
       "main",
+      readOptions,
     );
     const tools = parseRegisteredTools(registry.content);
     return [
@@ -374,8 +416,13 @@ async function answerRepositoryArchitectureQuestion(text) {
 
   if (/чатът.*(?:действително\s+)?използва.*capability\s+engine/iu.test(text)) {
     const [chat, engine] = await Promise.all([
-      getFileContent("src/routes/chat.js", repository, "main"),
-      getFileContent("src/tools/capabilityEngine.js", repository, "main"),
+      getFileContent("src/routes/chat.js", repository, "main", readOptions),
+      getFileContent(
+        "src/tools/capabilityEngine.js",
+        repository,
+        "main",
+        readOptions,
+      ),
     ]);
     const chatUsesEngine =
       /executeDetectedCapabilities/gu.test(chat.content) &&
@@ -392,8 +439,18 @@ async function answerRepositoryArchitectureQuestion(text) {
 
   if (/кои\s+са.*(?:три|3).*последно\s+поправен.*проблем/iu.test(text)) {
     const [registry, engine] = await Promise.all([
-      getFileContent("src/tools/toolRegistry.js", repository, "main"),
-      getFileContent("src/tools/capabilityEngine.js", repository, "main"),
+      getFileContent(
+        "src/tools/toolRegistry.js",
+        repository,
+        "main",
+        readOptions,
+      ),
+      getFileContent(
+        "src/tools/capabilityEngine.js",
+        repository,
+        "main",
+        readOptions,
+      ),
     ]);
     const checks = [
       {
@@ -423,7 +480,7 @@ async function answerRepositoryArchitectureQuestion(text) {
   return null;
 }
 
-export async function answerGitHubReadRequest(message) {
+export async function answerGitHubReadRequest(message, readOptions = {}) {
   if (
     !isGitHubReadRequest(message) &&
     !isRepositoryArchitectureRequest(message)
@@ -432,7 +489,10 @@ export async function answerGitHubReadRequest(message) {
   }
 
   const text = message.toLowerCase();
-  const architectureAnswer = await answerRepositoryArchitectureQuestion(text);
+  const architectureAnswer = await answerRepositoryArchitectureQuestion(
+    text,
+    readOptions,
+  );
   if (architectureAnswer) return architectureAnswer;
   const asksForOpenPullRequests =
     /(?:отворен(?:и|ите)?\s+(?:pull\s*request|pr)|(?:pull\s*request|pr)(?:-а|-и|s)?\s+.*отворен|колко\s+.*(?:pull\s*request|pr))/iu.test(
@@ -445,8 +505,8 @@ export async function answerGitHubReadRequest(message) {
         text,
       );
     const [pullRequests, commits] = await Promise.all([
-      listOpenPullRequests(repository, 50),
-      asksForLatestCommit ? listRecentCommits(repository, 1) : [],
+      listOpenPullRequests(repository, 50, readOptions),
+      asksForLatestCommit ? listRecentCommits(repository, 1, readOptions) : [],
     ]);
     const latestCommit = commits[0];
     return [
@@ -471,12 +531,17 @@ export async function answerGitHubReadRequest(message) {
   if (asksForDetails) {
     const ref =
       explicitRef ||
-      (await listRecentCommits(getConfiguredRepository(), 1))[0]?.sha;
+      (await listRecentCommits(getConfiguredRepository(), 1, readOptions))[0]
+        ?.sha;
     if (!ref) {
       return "В GitHub не намерих commit за подробна проверка.";
     }
 
-    const commit = await getCommitDetails(ref, getConfiguredRepository());
+    const commit = await getCommitDetails(
+      ref,
+      getConfiguredRepository(),
+      readOptions,
+    );
     if (!commit.files.length) {
       return `Commit ${commit.shortSha} няма отчетени променени файлове.`;
     }
@@ -498,7 +563,11 @@ export async function answerGitHubReadRequest(message) {
     ].join("\n");
   }
 
-  const commits = await listRecentCommits(getConfiguredRepository(), 5);
+  const commits = await listRecentCommits(
+    getConfiguredRepository(),
+    5,
+    readOptions,
+  );
   if (!commits.length) {
     return "В GitHub не намерих commit-и за разрешеното хранилище.";
   }

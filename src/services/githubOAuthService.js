@@ -257,6 +257,24 @@ export function requiresPersistentGitHubSessions(env = process.env) {
   return env.NODE_ENV === "production";
 }
 
+function isExpired(expiresAt) {
+  if (expiresAt === null || expiresAt === undefined) return false;
+  const timestamp = Number(expiresAt);
+  return !Number.isFinite(timestamp) || Date.now() >= timestamp;
+}
+
+export function isActiveAuthorizedGitHubSession(
+  session,
+  env = process.env,
+) {
+  return Boolean(
+    typeof session?.accessToken === "string" &&
+      session.accessToken.trim() &&
+      !isExpired(session.expiresAt) &&
+      isAuthorizedGitHubLogin(session.login, env),
+  );
+}
+
 async function persistSession(id, session, env = process.env) {
   const backend = resolvePersistenceBackend(env);
   if (backend === "firestore") {
@@ -349,9 +367,7 @@ export async function createGitHubSession(tokens, fetchImpl = fetch) {
 
 export async function getGitHubSession(id) {
   const session = await loadSession(id);
-  if (!session?.accessToken) return null;
-  if (session.expiresAt && Date.now() >= session.expiresAt) return null;
-  return session;
+  return isActiveAuthorizedGitHubSession(session) ? session : null;
 }
 
 export async function hasGitHubSession(id) {
@@ -360,9 +376,9 @@ export async function hasGitHubSession(id) {
 
 export async function getLatestAuthorizedGitHubSession() {
   const cached = [...sessions.entries()]
-    .filter(([, session]) => isAuthorizedGitHubLogin(session.login))
+    .filter(([, session]) => isActiveAuthorizedGitHubSession(session))
     .sort(([, a], [, b]) => (b.createdAt || 0) - (a.createdAt || 0))[0];
-  if (cached?.[1]?.accessToken) {
+  if (cached) {
     return Object.freeze({ ...cached[1], id: cached[0] });
   }
 
@@ -386,7 +402,7 @@ export async function getLatestAuthorizedGitHubSession() {
   for (const hit of hits) {
     try {
       const session = decryptGitHubSession(hit._source);
-      if (session?.accessToken && isAuthorizedGitHubLogin(session.login)) {
+      if (isActiveAuthorizedGitHubSession(session)) {
         sessions.set(hit._id, session);
         return Object.freeze({ ...session, id: hit._id });
       }

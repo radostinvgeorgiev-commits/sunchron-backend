@@ -287,6 +287,7 @@ test("verified GitHub results bypass AI rewriting", async () => {
 
     if (String(url).includes("api.github.com/repos/")) {
       githubCalls += 1;
+      assert.equal(options.headers.Authorization, "Bearer test-owner-token");
       return new Response(
         JSON.stringify([
           {

@@ -97,6 +97,10 @@ export async function executeTaskPlan({
         {
           message: requestMessage,
           scope: request.scope,
+          ...(request.operation ? { operation: request.operation } : {}),
+          ...(request.input && typeof request.input === "object"
+            ? { input: request.input }
+            : {}),
           ...capabilityInputContext,
         },
         { prepareConfirmation },

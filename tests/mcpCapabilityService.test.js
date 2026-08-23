@@ -22,6 +22,16 @@ test("granular MCP capabilities have unique names, strict schemas and exact scop
   assert.ok(names.includes("confirm_task_status_change"));
   assert.ok(names.includes("prepare_google_cloud_action"));
   assert.ok(names.includes("confirm_google_cloud_action"));
+  assert.deepEqual(
+    MCP_CAPABILITY_TOOLS.find((item) => item.name === "prepare_google_cloud_action")
+      .inputSchema.properties.operation.enum,
+    [
+      "grant_project_role",
+      "revoke_project_role",
+      "update_cloud_run_service_account",
+      "run_cloud_build_trigger",
+    ],
+  );
   assert.ok(names.includes("get_google_cloud_project_diagnostics"));
   assert.ok(
     MCP_CAPABILITY_TOOLS.every(

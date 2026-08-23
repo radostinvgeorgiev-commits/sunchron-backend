@@ -466,6 +466,17 @@ export function detectCapabilityRequests(message) {
       /(?:провери|покажи|статус|състояние|работи|готов|диагност|check|status|health|readiness|build|trigger|бекенд|backend)/iu.test(
         subtask,
       );
+    const cloudBuildRunRequest =
+      !integrationStatusOnlyRequest &&
+      /(?:стартирай|пусни|изпълни|задействай|deploy|деплой|разгърни|публикувай|публикуване)/iu.test(
+        subtask,
+      ) &&
+      /(?:cloud\s*build|build\s*trigger|cloud\s*run|google\s*cloud|гуг[ъал]+\s*(?:клауд|конзол))/iu.test(
+        subtask,
+      ) &&
+      !/(?:покажи|провери|статус|състояни|диагност|health|readiness)/iu.test(
+        subtask,
+      );
     if (
       hasExplicitNumberedChecks &&
       index === 0 &&
@@ -604,7 +615,19 @@ export function detectCapabilityRequests(message) {
         message: subtask,
       });
     }
-    if (projectDiagnosticsRequest && !systemConfigurationRequest) {
+    if (cloudBuildRunRequest && !systemConfigurationRequest) {
+      const commitSha = subtask.match(/\b[a-f0-9]{40}\b/iu)?.[0]?.toLowerCase();
+      requests.push({
+        capability: "infrastructure.googlecloud.write",
+        action: "infrastructure.write",
+        message: subtask,
+        operation: "run_cloud_build_trigger",
+        input: {
+          ...(commitSha ? { commitSha } : {}),
+          branch: "main",
+        },
+      });
+    } else if (projectDiagnosticsRequest && !systemConfigurationRequest) {
       requests.push({
         capability: "infrastructure.googlecloud.diagnostics.read",
         action: "infrastructure.read",
@@ -661,6 +684,7 @@ export function detectCapabilityRequests(message) {
     const wantsGitHubRead =
       !githubWriteStatusRequest &&
       !githubTaskStatusRequest &&
+      !cloudBuildRunRequest &&
       !/(?:използва\s+успешно|кои\s+са\s+достъпни)/iu.test(subtask) &&
       (mergedBranchCleanupPlan ||
         isGitHubReadRequest(subtask) ||

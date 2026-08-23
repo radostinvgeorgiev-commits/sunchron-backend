@@ -43,7 +43,7 @@ const PLANNER_INSTRUCTIONS = [
   "- database.status: проверка дали Supabase е свързан и отговаря",
   "- infrastructure.googlecloud.read: реална проверка на текущия Google Cloud / Cloud Run runtime без стойности на secrets",
   "- infrastructure.googlecloud.diagnostics.read: bounded read-only проверка на health, readiness, MCP, Cloud Run и Cloud Build trigger-а",
-  "- infrastructure.googlecloud.write: точна IAM или Cloud Run service identity промяна; винаги изисква отделно потвърждение",
+  "- infrastructure.googlecloud.write: точна IAM, Cloud Run service identity или synchron-main-deploy Cloud Build trigger промяна; винаги изисква отделно потвърждение и exact 40-символен commit SHA при build",
   "- calendar.read: четене на Google Calendar",
   "- calendar.write: подготвяне на ново Google Calendar събитие или напомняне; винаги изисква точно потвърждение преди запис",
   "- files.read: четене на Google Drive",
@@ -145,6 +145,32 @@ function cleanScope(value) {
   return value === "personal" || value === "project" ? value : undefined;
 }
 
+function extractCommitSha(value) {
+  const match = String(value || "").match(/\b[a-f0-9]{40}\b/iu);
+  return match?.[0]?.toLowerCase() || null;
+}
+
+function sanitizeCloudBuildInput(call, originalMessage) {
+  const rawInput =
+    call?.input && typeof call.input === "object" && !Array.isArray(call.input)
+      ? call.input
+      : {};
+  const commitSha =
+    typeof rawInput.commitSha === "string"
+      ? rawInput.commitSha.trim().toLowerCase()
+      : typeof call?.commitSha === "string"
+        ? call.commitSha.trim().toLowerCase()
+        : extractCommitSha(originalMessage);
+  if (!/^[a-f0-9]{40}$/u.test(commitSha || "")) return null;
+  const input = { commitSha, branch: "main" };
+  for (const field of ["triggerId", "triggerName", "location"]) {
+    if (typeof rawInput[field] === "string" && rawInput[field].trim()) {
+      input[field] = rawInput[field].trim();
+    }
+  }
+  return input;
+}
+
 export function sanitizeCapabilityPlan(plan, originalMessage) {
   const calls = Array.isArray(plan?.calls) ? plan.calls : [];
   const requests = [];
@@ -176,8 +202,20 @@ export function sanitizeCapabilityPlan(plan, originalMessage) {
       capability === "code.write"
         ? originalMessage
         : plannedRequest || originalMessage;
+    const cloudBuildInput =
+      capability === "infrastructure.googlecloud.write" &&
+      call?.operation === "run_cloud_build_trigger"
+        ? sanitizeCloudBuildInput(call, originalMessage)
+        : null;
+    if (
+      capability === "infrastructure.googlecloud.write" &&
+      call?.operation === "run_cloud_build_trigger" &&
+      !cloudBuildInput
+    ) {
+      continue;
+    }
     const scope = cleanScope(call?.scope);
-    const key = `${capability}\u0000${requestMessage}\u0000${scope || ""}`;
+    const key = `${capability}\u0000${requestMessage}\u0000${scope || ""}\u0000${JSON.stringify(cloudBuildInput)}`;
     if (seen.has(key)) continue;
     seen.add(key);
 
@@ -186,6 +224,9 @@ export function sanitizeCapabilityPlan(plan, originalMessage) {
       action,
       message: requestMessage,
       ...(scope ? { scope } : {}),
+      ...(cloudBuildInput
+        ? { operation: "run_cloud_build_trigger", input: cloudBuildInput }
+        : {}),
     });
   }
 

@@ -28,7 +28,11 @@ discovery, Cloud Run и Cloud Build trigger-а само за текущия proj
 Резултат `PASS` означава, че всички проверки са изпълними; `PARTIAL` означава,
 че публичните проверки са успешни, но runtime identity или някой upstream е
 недостъпен. Инструментът е read-only и не стартира Cloud Shell, build, job или
-deployment.
+deployment. За owner-confirmed deploy се използва само
+`prepare_google_cloud_action` с `operation=run_cloud_build_trigger`,
+`triggerName=synchron-main-deploy`, `location=global`, `branch=main` и точен
+40-символен `commitSha`; `confirm_google_cloud_action` първо препроверява
+trigger-а и после стартира само този SHA.
 
 Разговорният аватар използва същия проверен capability engine. Read-only
 заявките могат да върнат реален резултат в разговора; write заявките спират на

@@ -58,6 +58,32 @@ test("task execution stops at the existing confirmation boundary", async () => {
   assert.equal(execution.task.steps[0].status, "waiting_confirmation");
 });
 
+test("task execution passes exact operation input to confirmed capabilities", async () => {
+  let captured;
+  await executeTaskPlan({
+    message: "Стартирай Cloud Build.",
+    requests: [
+      {
+        capability: "infrastructure.googlecloud.write",
+        action: "infrastructure.write",
+        operation: "run_cloud_build_trigger",
+        input: { commitSha: "6dbfb750813c47cca439db5bc3e9a3debbbb5a3a", branch: "main" },
+      },
+    ],
+    executeFn: async (_capability, input) => {
+      captured = input;
+      return result({ requiresConfirmation: true, permission: { decision: "confirm" } });
+    },
+    executionContext: { sessionId: "sess-test", prepareConfirmation: true },
+  });
+
+  assert.equal(captured.operation, "run_cloud_build_trigger");
+  assert.deepEqual(captured.input, {
+    commitSha: "6dbfb750813c47cca439db5bc3e9a3debbbb5a3a",
+    branch: "main",
+  });
+});
+
 test("task execution reports partial results without hiding failures", async () => {
   let call = 0;
   const execution = await executeTaskPlan({

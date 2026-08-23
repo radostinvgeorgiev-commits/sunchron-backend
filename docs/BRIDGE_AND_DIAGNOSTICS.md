@@ -18,7 +18,7 @@
   capability engine: read-only заявките се изпълняват реално, а GitHub,
   Google, памет и инфраструктурни записи се подготвят за отделно owner
   потвърждение.
-- `prepare_google_cloud_action` / `confirm_google_cloud_action` — owner-only, точни IAM и Cloud Run service identity промени с еднократно потвърждение и audit журнал.
+- `prepare_google_cloud_action` / `confirm_google_cloud_action` — owner-only, точни IAM, Cloud Run service identity или съществуващия `synchron-main-deploy` Cloud Build trigger за exact commit SHA, с еднократно потвърждение и audit журнал.
 
 Project diagnostics използва фиксиран allowlist от Google Cloud API адреси и
 метаданните на текущата Cloud Run service identity. Не приема shell команда,
@@ -26,8 +26,10 @@ Project diagnostics използва фиксиран allowlist от Google Clou
 интерактивния Cloud Shell интерфейс.
 
 Write инструментите са owner-only, имат най-тесен scope и изискват точна
-еднократна фраза. Backup и restore не са bridge операции. Те се проверяват в
-Google Cloud Console и не се стартират без изрично разрешение.
+еднократна фраза. Cloud Build trigger run е ограничен до `global`/`main`/
+`synchron-main-deploy` и exact 40-символен commit SHA; не приема shell команда,
+произволен trigger или произволен project. Backup и restore не са bridge операции. Те се проверяват в Google Cloud Console и не се стартират без
+изрично разрешение.
 
 Никога не поставяй OAuth code, access token, refresh token, API key или secret
 стойност в issue, PR, лог или чат.

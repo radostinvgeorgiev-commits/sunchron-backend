@@ -64,7 +64,10 @@ import {
   confirmGitHubChange,
   prepareGitHubChange,
 } from "../services/githubActionService.js";
-import { getGitHubSession } from "../services/githubOAuthService.js";
+import {
+  getGitHubSession,
+  isActiveAuthorizedGitHubSession,
+} from "../services/githubOAuthService.js";
 import {
   formatGoogleCloudRuntimeStatus,
   getGoogleCloudRuntimeStatus,
@@ -104,6 +107,37 @@ function hasEnvironment(env, ...names) {
   return names.every(
     (name) => typeof env[name] === "string" && env[name].trim().length > 0,
   );
+}
+
+async function resolveGitHubReadOptions(input = {}) {
+  const sessionId =
+    typeof input.githubSessionId === "string"
+      ? input.githubSessionId.trim()
+      : "";
+  if (sessionId) {
+    const session = await getGitHubSession(sessionId);
+    if (!session) {
+      throw new CapabilityError(
+        "GitHub OAuth сесията е невалидна или изтекла.",
+        "GITHUB_SESSION_INVALID",
+        401,
+      );
+    }
+    return { accessToken: session.accessToken };
+  }
+
+  if (input.githubSession) {
+    if (!isActiveAuthorizedGitHubSession(input.githubSession)) {
+      throw new CapabilityError(
+        "Липсва активна собственическа GitHub сесия.",
+        "GITHUB_SESSION_INVALID",
+        401,
+      );
+    }
+    return { accessToken: input.githubSession.accessToken };
+  }
+
+  return {};
 }
 
 export function getToolRuntimeAvailability(
@@ -262,7 +296,10 @@ export async function buildIntegrationStatusReport(
   input = {},
   {
     checkGitHub = () =>
-      answerGitHubReadRequest("Покажи последния commit в GitHub."),
+      answerGitHubReadRequest(
+        "Покажи последния commit в GitHub.",
+        resolveGitHubReadOptions(input),
+      ),
     checkMemory = () =>
       listProfileMemories({ ownerId: input.ownerId, limit: 1 }),
     checkGoogleCloud = getGoogleCloudRuntimeStatus,
@@ -532,6 +569,7 @@ const executors = Object.freeze({
   "synchron-system-inspector": async () =>
     formatSystemConfigurationReport(await getSystemConfigurationReport()),
   "github-read": async ({ capability, input }) => {
+    const readOptions = await resolveGitHubReadOptions(input);
     if (capability === "code.task-status") {
       const issueNumber = extractGitHubTaskNumber(input.message);
       if (!issueNumber) {
@@ -540,12 +578,12 @@ const executors = Object.freeze({
           "MISSING_ISSUE_NUMBER",
         );
       }
-      return answerGitHubReadRequest(input.message);
+      return answerGitHubReadRequest(input.message, readOptions);
     }
     if (isMergedBranchCleanupPlanRequest(input.message)) {
       return prepareMergedBranchCleanup({ ownerId: input.ownerId });
     }
-    return answerGitHubReadRequest(input.message);
+    return answerGitHubReadRequest(input.message, readOptions);
   },
   "github-write": async ({ input }) => {
     const prepared = await prepareCodeTask({

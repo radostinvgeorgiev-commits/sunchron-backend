@@ -225,6 +225,51 @@ test("Google capabilities fail closed when no authorized owner session exists", 
   );
 });
 
+test("GitHub MCP read capabilities use the active owner OAuth session", async () => {
+  const calls = [];
+  const handler = createMcpCapabilityHandler({
+    audit: async () => {},
+    resolveLatestGitHubSession: async () => ({
+      accessToken: "mcp-oauth-token",
+      login: "radostinvgeorgiev-commits",
+    }),
+    dependencies: {
+      getGitHubOverview: async (input) => {
+        calls.push(["overview", input]);
+        return { summary: { private: true } };
+      },
+      getGitHubFile: async (...args) => {
+        calls.push(["file", args]);
+        return { path: args[0], content: "safe" };
+      },
+    },
+  });
+
+  const overview = await handler(
+    "get_github_overview",
+    { limit: 5 },
+    { ownerId: "verified-owner" },
+  );
+  const file = await handler(
+    "get_github_file",
+    { path: "README.md", ref: "main" },
+    { ownerId: "verified-owner" },
+  );
+
+  assert.equal(calls[0][1].accessToken, "mcp-oauth-token");
+  assert.equal(calls[1][1][3].accessToken, "mcp-oauth-token");
+  assert.equal(overview.result.structuredContent.summary.private, true);
+  assert.equal(file.result.structuredContent.path, "README.md");
+  assert.doesNotMatch(
+    JSON.stringify(overview.result.structuredContent),
+    /mcp-oauth-token/u,
+  );
+  assert.doesNotMatch(
+    JSON.stringify(file.result.structuredContent),
+    /mcp-oauth-token/u,
+  );
+});
+
 test("unsupported names are left to the legacy MCP handler", async () => {
   const handler = createMcpCapabilityHandler({ audit: async () => {} });
   assert.deepEqual(

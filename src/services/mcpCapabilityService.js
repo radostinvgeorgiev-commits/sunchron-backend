@@ -11,12 +11,16 @@ import {
   getConfiguredRepository,
   getFileContent,
   getGitHubReadOverview,
+  GitHubServiceError,
 } from "./githubService.js";
 import {
   confirmGoogleCloudAction,
   prepareGoogleCloudAction,
 } from "./googleCloudActionService.js";
-import { getLatestAuthorizedGitHubSession } from "./githubOAuthService.js";
+import {
+  getLatestAuthorizedGitHubSession,
+  isActiveAuthorizedGitHubSession,
+} from "./githubOAuthService.js";
 import {
   confirmGoogleAction,
   prepareGmailDraftSend,
@@ -678,6 +682,19 @@ async function requireGoogleSession(resolveLatestGoogleSession) {
   return id;
 }
 
+async function resolveGitHubReadOptions(resolveLatestGitHubSession) {
+  const session = await resolveLatestGitHubSession();
+  if (!session) return {};
+  if (!isActiveAuthorizedGitHubSession(session)) {
+    throw new GitHubServiceError(
+      "GitHub OAuth сесията е невалидна или изтекла.",
+      401,
+      "GITHUB_SESSION_INVALID",
+    );
+  }
+  return { accessToken: session.accessToken };
+}
+
 function memoryDeleteTarget(args = {}) {
   if (args.kind === "fact") {
     return { kind: "fact", fact: args.fact, scope: args.scope || "personal" };
@@ -965,10 +982,14 @@ export function createMcpCapabilityHandler({
         `Намерени са ${workspace.state.projects.length} проекта.`,
       );
     } else if (name === "get_github_overview") {
+      const readOptions = await resolveGitHubReadOptions(
+        resolveLatestGitHubSession,
+      );
       const overview = await (
         dependencies.getGitHubOverview || getGitHubReadOverview
       )({
         limit: args.limit || 10,
+        ...readOptions,
       });
       result = textResult(
         overview,
@@ -981,10 +1002,14 @@ export function createMcpCapabilityHandler({
           { code: -32602 },
         );
       }
+      const readOptions = await resolveGitHubReadOptions(
+        resolveLatestGitHubSession,
+      );
       const file = await (dependencies.getGitHubFile || getFileContent)(
         args.path,
         getConfiguredRepository(),
         args.ref || "main",
+        readOptions,
       );
       result = textResult(file, `Прочетен е ${file.path} от GitHub.`);
     } else if (name === "prepare_github_change") {

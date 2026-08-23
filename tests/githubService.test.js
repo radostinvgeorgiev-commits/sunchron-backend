@@ -64,6 +64,39 @@ test("returns a repository summary in read-only mode", async () => {
   assert.equal(summary.defaultBranch, "main");
 });
 
+test("uses the owner OAuth token before the configured public read token", async () => {
+  process.env.GITHUB_TOKEN = "configured-read-token";
+  global.fetch = async (_url, options) => {
+    assert.equal(options.headers.Authorization, "Bearer oauth-read-token");
+    return jsonResponse({
+      full_name: process.env.GITHUB_REPOSITORY,
+      default_branch: "main",
+      private: true,
+      html_url: "https://github.test/repository",
+    });
+  };
+
+  const summary = await getRepositorySummary(undefined, {
+    accessToken: "oauth-read-token",
+  });
+  assert.equal(summary.private, true);
+});
+
+test("preserves the configured GITHUB_TOKEN read contract", async () => {
+  process.env.GITHUB_TOKEN = "configured-read-token";
+  global.fetch = async (_url, options) => {
+    assert.equal(options.headers.Authorization, "Bearer configured-read-token");
+    return jsonResponse({
+      full_name: process.env.GITHUB_REPOSITORY,
+      default_branch: "main",
+      private: false,
+      html_url: "https://github.test/repository",
+    });
+  };
+
+  await getRepositorySummary();
+});
+
 test("limits and normalizes recent commits", async () => {
   global.fetch = async (url) => {
     assert.match(url, /commits\?per_page=20$/u);

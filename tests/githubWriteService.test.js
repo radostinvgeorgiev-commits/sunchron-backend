@@ -85,6 +85,7 @@ test("confirmed merge binds the exact head SHA and requires green checks", async
   const originalRepository = process.env.GITHUB_REPOSITORY;
   const calls = [];
   const headSha = "a".repeat(40);
+  const baseSha = "b".repeat(40);
   process.env.GITHUB_API_URL = "https://github.test";
   process.env.GITHUB_REPOSITORY = repository;
   global.fetch = async (url, options = {}) => {
@@ -96,7 +97,7 @@ test("confirmed merge binds the exact head SHA and requires green checks", async
             state: "open",
             merged: false,
             draft: false,
-            base: { ref: "main" },
+            base: { ref: "main", sha: baseSha },
             head: { ref: "ai-core/task-proof", sha: headSha },
             mergeable: true,
             mergeable_state: "clean",
@@ -104,7 +105,14 @@ test("confirmed merge binds the exact head SHA and requires green checks", async
           }
         : calls.length === 2
           ? { state: "success", total_count: 1 }
-          : {
+          : calls.length === 3
+            ? {
+                total_count: 1,
+                check_runs: [
+                  { status: "completed", conclusion: "success" },
+                ],
+              }
+            : {
               sha: "b".repeat(40),
               merged: true,
               message: "Pull Request successfully merged",
@@ -117,16 +125,18 @@ test("confirmed merge binds the exact head SHA and requires green checks", async
       repository,
       pullNumber: 356,
       expectedHeadSha: headSha,
+      expectedBaseSha: baseSha,
       accessToken: "oauth-token",
     });
 
     assert.equal(result.merged, true);
     assert.equal(result.mergeCommitSha, "b".repeat(40));
-    assert.equal(calls.length, 3);
+    assert.equal(calls.length, 4);
     assert.match(calls[0].url, /\/pulls\/356$/u);
     assert.match(calls[1].url, /\/commits\/aaaaaaaa.*\/status$/u);
-    assert.match(calls[2].url, /\/pulls\/356\/merge$/u);
-    assert.deepEqual(JSON.parse(calls[2].options.body), {
+    assert.match(calls[2].url, /\/commits\/aaaaaaaa.*\/check-runs$/u);
+    assert.match(calls[3].url, /\/pulls\/356\/merge$/u);
+    assert.deepEqual(JSON.parse(calls[3].options.body), {
       sha: headSha,
       merge_method: "merge",
     });
@@ -147,14 +157,22 @@ test("confirmed merge stops when CI is not green", async () => {
   process.env.GITHUB_API_URL = "https://github.test";
   process.env.GITHUB_REPOSITORY = repository;
   let mergeCalled = false;
+  const baseSha = "d".repeat(40);
   global.fetch = async (url) => {
     if (/\/pulls\/356\/merge$/u.test(url)) mergeCalled = true;
     const payload = /\/status$/u.test(url)
       ? { state: "pending", total_count: 1 }
-      : {
+      : /\/check-runs$/u.test(url)
+        ? {
+            total_count: 1,
+            check_runs: [
+              { status: "completed", conclusion: "failure" },
+            ],
+          }
+        : {
           state: "open",
           merged: false,
-          base: { ref: "main" },
+          base: { ref: "main", sha: baseSha },
           head: { sha: headSha },
           mergeable: true,
           mergeable_state: "clean",
@@ -169,6 +187,7 @@ test("confirmed merge stops when CI is not green", async () => {
           repository,
           pullNumber: 356,
           expectedHeadSha: headSha,
+          expectedBaseSha: baseSha,
           accessToken: "oauth-token",
         }),
       (error) => error.code === "PULL_REQUEST_CHECKS_NOT_GREEN",

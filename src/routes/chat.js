@@ -46,8 +46,14 @@ import {
 } from "../services/googleDriveService.js";
 import {
   GitHubOAuthError,
+  getGitHubSession,
   parseGitHubCookies,
 } from "../services/githubOAuthService.js";
+import {
+  GitHubActionError,
+  confirmGitHubChange,
+  extractGitHubChangeConfirmationId,
+} from "../services/githubActionService.js";
 import { isMergedBranchCleanupPlanRequest } from "../services/githubBranchCleanupService.js";
 import {
   CodeTaskError,
@@ -1225,6 +1231,8 @@ router.post("/chat", async (req, res) => {
 
   const codeTaskConfirmationId =
     extractCodeTaskConfirmationId(cleanMessage);
+  const githubChangeConfirmationId =
+    extractGitHubChangeConfirmationId(cleanMessage);
   const calendarConfirmationId = extractCalendarConfirmationId(cleanMessage);
   if (codeTaskConfirmationId && !ownerToolsAllowed) {
     return res.status(403).json({
@@ -1235,6 +1243,12 @@ router.post("/chat", async (req, res) => {
   if (calendarConfirmationId && !ownerToolsAllowed) {
     return res.status(403).json({
       error: "Календарните действия са достъпни само за собственика.",
+      code: "OWNER_ONLY",
+    });
+  }
+  if (githubChangeConfirmationId && !ownerToolsAllowed) {
+    return res.status(403).json({
+      error: "GitHub действията са достъпни само за собственика.",
       code: "OWNER_ONLY",
     });
   }
@@ -1498,6 +1512,62 @@ router.post("/chat", async (req, res) => {
           error instanceof CodeTaskError || error instanceof GitHubOAuthError
             ? error.message
             : "AI CORE кодовата задача не можа да бъде изпълнена.",
+      });
+    }
+    res.end();
+    return;
+  }
+
+  if (githubChangeConfirmationId) {
+    try {
+      const githubSession = await getGitHubSession(githubSessionId);
+      const changed = await confirmGitHubChange({
+        ownerId,
+        sessionId: cleanSessionId,
+        confirmationId: githubChangeConfirmationId,
+        githubSession,
+      });
+      const fullReply = `Потвърдената GitHub промяна е изпълнена: ${changed.url || changed.sha || changed.number || "готово"}.`;
+      const conversationPersisted = await saveConversationTurnBestEffort(
+        cleanSessionId,
+        cleanMessage,
+        fullReply,
+        ownerId,
+      );
+      await auditAction({
+        action: "github.write",
+        decision: "confirmed",
+        outcome: "succeeded",
+        resource: changed.url || String(changed.number || "github"),
+        details: "confirmed-github-change",
+        sessionId: cleanSessionId,
+      });
+      sendEvent("token", { token: fullReply });
+      sendDone({
+        ok: true,
+        mode: "github-confirmed-change",
+        ...getConversationPersistenceMetadata(conversationPersisted),
+      });
+    } catch (error) {
+      logSafeError("[GitHub confirmation] Failure", error);
+      await auditAction({
+        action: "github.write",
+        decision: "confirmed",
+        outcome: "failed",
+        resource: "github-confirmed-change",
+        details: safeErrorCode(error, "GITHUB_CHANGE_FAILED"),
+        sessionId: cleanSessionId,
+      });
+      sendEvent("error", {
+        status:
+          error instanceof GitHubActionError || error instanceof GitHubOAuthError
+            ? error.status
+            : error?.status || 500,
+        message:
+          error instanceof GitHubActionError || error instanceof GitHubOAuthError
+            ? error.message
+            : "Потвърдената GitHub промяна не можа да бъде изпълнена.",
+        code: error?.code || "GITHUB_CHANGE_FAILED",
       });
     }
     res.end();

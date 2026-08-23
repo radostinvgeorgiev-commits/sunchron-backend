@@ -339,6 +339,7 @@ export async function mergePullRequest({
   repository,
   pullNumber,
   expectedHeadSha,
+  expectedBaseSha,
   base = "main",
   mergeMethod = "merge",
   accessToken,
@@ -347,6 +348,7 @@ export async function mergePullRequest({
   assertAllowedRepository(repo);
   const number = assertPullRequestNumber(pullNumber);
   const headSha = assertCommitSha(expectedHeadSha);
+  const baseSha = assertCommitSha(expectedBaseSha);
 
   if (base !== "main") {
     throw new GitHubServiceError(
@@ -398,6 +400,13 @@ export async function mergePullRequest({
       "PROTECTED_BRANCH",
     );
   }
+  if (pullRequest.base?.sha !== baseSha) {
+    throw new GitHubServiceError(
+      "Основата на Pull Request-а се е променила след подготовката. Направи ново потвърждение.",
+      409,
+      "PULL_REQUEST_BASE_CHANGED",
+    );
+  }
   if (pullRequest.head?.sha !== headSha) {
     throw new GitHubServiceError(
       "Head commit-ът се е променил след подготовката. Направи ново потвърждение.",
@@ -416,12 +425,31 @@ export async function mergePullRequest({
     );
   }
 
-  const combinedStatus = await githubWriteRequest(
-    `/repos/${repo}/commits/${encodeURIComponent(headSha)}/status`,
-    {},
-    accessToken,
-  );
-  if (combinedStatus.state !== "success") {
+  const [combinedStatus, checkRuns] = await Promise.all([
+    githubWriteRequest(
+      `/repos/${repo}/commits/${encodeURIComponent(headSha)}/status`,
+      {},
+      accessToken,
+    ),
+    githubWriteRequest(
+      `/repos/${repo}/commits/${encodeURIComponent(headSha)}/check-runs`,
+      {},
+      accessToken,
+    ),
+  ]);
+  const combinedStatusGreen =
+    !combinedStatus?.state || combinedStatus.state === "success";
+  const runs = Array.isArray(checkRuns?.check_runs)
+    ? checkRuns.check_runs
+    : [];
+  const checksGreen =
+    runs.length > 0 &&
+    runs.every(
+      (run) =>
+        run?.status === "completed" &&
+        ["success", "neutral", "skipped"].includes(run?.conclusion),
+    );
+  if (!combinedStatusGreen || !checksGreen) {
     throw new GitHubServiceError(
       "CI проверките не са зелени. Pull Request-ът не е слят.",
       409,

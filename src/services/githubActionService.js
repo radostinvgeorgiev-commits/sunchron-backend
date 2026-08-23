@@ -39,6 +39,8 @@ const OPERATION_ACTIONS = Object.freeze({
 });
 const SAFE_BRANCH_PATTERN = /^[\w.\-/]+$/u;
 const SAFE_SHA_PATTERN = /^[a-f0-9]{40}$/iu;
+const SAFE_CONFIRMATION_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const SECRET_PATTERN =
   /(?:-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}|\bgh[pousr]_[A-Za-z0-9_]{20,})/u;
 
@@ -291,21 +293,41 @@ export async function prepareGitHubChange(
   const session = assertGitHubSession(githubSession);
   const normalized = normalizeOperation(operation, input);
   let resource = normalized.resource;
-  if (operation === "merge_pr" && !resource.headSha) {
+  if (operation === "merge_pr") {
     const pullRequest = await getPullRequest({
       repository: resource.repository,
       pullNumber: resource.pullNumber,
       accessToken: session.accessToken,
     });
-    const headSha = pullRequest.head?.sha;
-    if (!headSha || !SAFE_SHA_PATTERN.test(headSha)) {
+    if (pullRequest.base?.ref !== "main") {
       throw new GitHubActionError(
-        "GitHub не върна точен head commit SHA за Pull Request-а.",
+        "Pull Request-ът не е насочен към защитения main.",
+        403,
+        "PROTECTED_BRANCH",
+      );
+    }
+    const headSha = pullRequest.head?.sha;
+    const baseSha = pullRequest.base?.sha;
+    if (
+      !headSha ||
+      !SAFE_SHA_PATTERN.test(headSha) ||
+      !baseSha ||
+      !SAFE_SHA_PATTERN.test(baseSha)
+    ) {
+      throw new GitHubActionError(
+        "GitHub не върна точни head и base commit SHA за Pull Request-а.",
         502,
         "GITHUB_PULL_REQUEST_SHA_MISSING",
       );
     }
-    resource = { ...resource, headSha };
+    if (resource.headSha && resource.headSha !== headSha) {
+      throw new GitHubActionError(
+        "Head commit-ът се е променил преди подготовката. Направи ново четене и потвърждение.",
+        409,
+        "GITHUB_PULL_REQUEST_HEAD_CHANGED",
+      );
+    }
+    resource = { ...resource, headSha, baseSha };
   }
   const confirmation = await createConfirmation({
     sessionId,
@@ -430,6 +452,7 @@ export async function confirmGitHubChange(
             repository: resource.repository,
             pullNumber: resource.pullNumber,
             expectedHeadSha: resource.headSha,
+            expectedBaseSha: resource.baseSha,
             base: resource.base,
             mergeMethod: params.mergeMethod || "merge",
             accessToken,
@@ -452,3 +475,13 @@ export async function confirmGitHubChange(
 }
 
 export const GITHUB_CONFIRMED_ACTIONS = ACTIONS;
+
+export function extractGitHubChangeConfirmationId(message) {
+  if (typeof message !== "string") return null;
+  const match = message.trim().match(
+    /^Потвърждавам\s+GitHub\s+(?:промяната|merge):\s*([0-9a-f-]{36})$/iu,
+  );
+  return match && SAFE_CONFIRMATION_ID_PATTERN.test(match[1])
+    ? match[1]
+    : null;
+}

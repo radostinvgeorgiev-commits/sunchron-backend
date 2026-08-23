@@ -432,12 +432,14 @@ function extractPullRequestNumber(message) {
   return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
-function confirmationOutput(prepared, label) {
-  return [
+function confirmationOutput(prepared, label, exactCommand = null) {
+  const lines = [
     `${label} е подготвено, но не е изпълнено.`,
     `Потвърждение: ${prepared.confirmationId}.`,
     `Валидно до: ${new Date(prepared.expiresAt).toISOString()}.`,
-  ].join("\n");
+  ];
+  if (exactCommand) lines.push(`За изпълнение изпрати точно: ${exactCommand}`);
+  return lines.join("\n");
 }
 
 const executors = Object.freeze({
@@ -594,7 +596,11 @@ const executors = Object.freeze({
       operation: operations[capability],
       input: changeInput,
     });
-    return confirmationOutput(prepared, "GitHub промяната");
+    return confirmationOutput(
+      prepared,
+      "GitHub промяната",
+      `Потвърждавам GitHub промяната: ${prepared.confirmationId}`,
+    );
   },
   "openai-codex": async ({ input }) => {
     const result = await runCodexProjectAnalysis({

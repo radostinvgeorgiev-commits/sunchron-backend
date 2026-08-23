@@ -47,6 +47,7 @@ import {
   normalizeProfileMemoryDraft,
 } from "./memoryService.js";
 import { sendMcpAgentMessage } from "./mcpAgentConversationService.js";
+import { getProjectDiagnostics } from "./projectDiagnosticsService.js";
 import { mcpToolSecuritySchemes } from "./mcpOAuthService.js";
 import {
   listAuditEvents,
@@ -474,6 +475,12 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
     CONFIRMED_WRITE,
   ),
   tool(
+    "get_google_cloud_project_diagnostics",
+    "Провери състоянието на AI CORE проекта",
+    "Проверява read-only сайта, health/readiness, MCP tool discovery, Cloud Run и Cloud Build trigger-а. Не изпълнява shell команди и не променя инфраструктура.",
+    { type: "object", properties: {}, additionalProperties: false },
+  ),
+  tool(
     "list_google_drive_files",
     "Покажи Google Drive файловете",
     "Показва файлове само от свързаната собственическа Google сесия.",
@@ -706,6 +713,9 @@ function permissionAction(name) {
   }
   if (name.includes("github")) {
     return name.includes("change") ? "github.write" : "github.read";
+  }
+  if (name === "get_google_cloud_project_diagnostics") {
+    return "infrastructure.read";
   }
   if (name.includes("google_cloud")) return "infrastructure.write";
   if (name.includes("gmail")) {
@@ -1028,6 +1038,14 @@ export function createMcpCapabilityHandler({
       result = textResult(
         changed,
         "Точната потвърдена Google Cloud промяна е изпълнена.",
+      );
+    } else if (name === "get_google_cloud_project_diagnostics") {
+      const diagnostics = await (
+        dependencies.getGoogleCloudProjectDiagnostics || getProjectDiagnostics
+      )();
+      result = textResult(
+        diagnostics,
+        `Project diagnostics: ${diagnostics.status || "unknown"}. Read-only проверката е завършена.`,
       );
     } else {
       const googleSessionId = await requireGoogleSession(

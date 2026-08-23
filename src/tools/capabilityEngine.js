@@ -74,6 +74,10 @@ import {
   prepareGoogleCloudAction,
 } from "../services/googleCloudActionService.js";
 import {
+  formatProjectDiagnostics,
+  getProjectDiagnostics,
+} from "../services/projectDiagnosticsService.js";
+import {
   formatSystemConfigurationReport,
   getSystemConfigurationReport,
 } from "../services/systemConfigurationService.js";
@@ -211,6 +215,7 @@ export function getToolRuntimeAvailability(
         "Google Cloud Memory не е конфигурирана.",
       );
     case "google-cloud-read":
+    case "google-cloud-diagnostics":
       return configured(
         Boolean(env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT || env.GCP_PROJECT_ID),
         "Google Cloud runtime не е конфигуриран.",
@@ -764,6 +769,8 @@ const executors = Object.freeze({
     formatWebSearchResult(await searchWeb(input.message)),
   "google-cloud-read": async () =>
     formatGoogleCloudRuntimeStatus(getGoogleCloudRuntimeStatus()),
+  "google-cloud-diagnostics": async () =>
+    formatProjectDiagnostics(await getProjectDiagnostics()),
   "google-cloud-write": async ({ input, confirmed }) => {
     const operationInput = input.input || input;
     const result = confirmed

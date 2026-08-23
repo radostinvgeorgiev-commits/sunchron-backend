@@ -64,7 +64,7 @@ test("MCP initialize and tool discovery work without credentials", async () => {
     .post("/mcp")
     .send({ jsonrpc: "2.0", id: 2, method: "tools/list" })
     .expect(200);
-  assert.equal(listed.body.result.tools.length, 47);
+  assert.equal(listed.body.result.tools.length, 48);
   assert.deepEqual(listed.body.result.tools[0].securitySchemes, [
     { type: "oauth2", scopes: ["synchron:read"] },
   ]);

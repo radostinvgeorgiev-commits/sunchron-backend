@@ -142,6 +142,7 @@ const DIRECT_CAPABILITY_REPLIES = new Set([
   "code.task-status",
   "code.write",
   "infrastructure.googlecloud.read",
+  "infrastructure.googlecloud.diagnostics.read",
 ]);
 const COUNCIL_SELECTION_PATTERN =
   /^изпълни\s+(?:препоръката|варианта)(?:[.!?]+)?$/iu;
@@ -458,6 +459,13 @@ export function detectCapabilityRequests(message) {
         /(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите)).{0,60}(?:сървър|ядро|агент|google\s*cloud|cloud\s*run|гуг[ъал]+\s*клауд|система)|(?:сървър|ядро|агент|google\s*cloud|cloud\s*run|гуг[ъал]+\s*клауд|система).{0,60}(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите))/iu.test(
         subtask,
       );
+    const projectDiagnosticsRequest =
+      /(?:health|readiness|готовност|диагност|cloud\s*build|build\s+trigger|mcp\s+(?:каталог|инструмент)|състояни(?:ето|е)\s+на\s+(?:проекта|сървъра|сайта|бекенда)|(?:бекенд|backend).{0,30}(?:състояни|health|status|провери|покажи|check))/iu.test(
+        subtask,
+      ) &&
+      /(?:провери|покажи|статус|състояние|работи|готов|диагност|check|status|health|readiness|build|trigger|бекенд|backend)/iu.test(
+        subtask,
+      );
     if (
       hasExplicitNumberedChecks &&
       index === 0 &&
@@ -596,7 +604,13 @@ export function detectCapabilityRequests(message) {
         message: subtask,
       });
     }
-    if (
+    if (projectDiagnosticsRequest && !systemConfigurationRequest) {
+      requests.push({
+        capability: "infrastructure.googlecloud.diagnostics.read",
+        action: "infrastructure.read",
+        message: subtask,
+      });
+    } else if (
       !systemConfigurationRequest &&
       /(?:google\s*cloud|cloud\s*run|гуг[ъал]+\s*(?:клауд|конзол))/iu.test(subtask) &&
       /(?:провери|покажи|статус|работи|деплой|deployment|публикуван|revision|ревизи|runtime|сървър|проект)/iu.test(
@@ -754,6 +768,8 @@ function capabilityLabel(capability) {
   if (capability === "memory.verify") return "автоматичен тест на паметта";
   if (capability === "web.search") return "интернет търсене";
   if (capability === "infrastructure.googlecloud.read") return "Google Cloud";
+  if (capability === "infrastructure.googlecloud.diagnostics.read")
+    return "Google Cloud project diagnostics";
   if (capability === "tasks.read") return "задачи";
   if (capability === "tasks.progress") return "напредък на задачите";
   if (capability === "tasks.draft") return "нова задача";

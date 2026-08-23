@@ -397,6 +397,21 @@ export function registerCoreTools() {
       healthStatus: "unavailable",
     },
     {
+      id: "google-cloud-diagnostics",
+      provider: "google",
+      name: "Google Cloud Project Diagnostics",
+      version: "1.0.0",
+      category: "infrastructure",
+      capabilities: ["infrastructure.googlecloud.diagnostics.read"],
+      permissions: ["infrastructure.read"],
+      capabilityPermissions: {
+        "infrastructure.googlecloud.diagnostics.read": "infrastructure.read",
+      },
+      enabled: true,
+      requiresConfirmation: false,
+      healthStatus: "unavailable",
+    },
+    {
       id: "google-cloud-write",
       provider: "google",
       name: "Google Cloud Confirmed Write",

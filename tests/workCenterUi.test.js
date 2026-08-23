@@ -43,6 +43,8 @@ test("work center shows live connection checks instead of config-only claims", a
   assert.match(source, /liveCheck: liveChecks\.github/u);
   assert.match(source, /liveCheck\.connected === false/u);
   assert.match(source, /проверката неуспешна/u);
+  assert.match(source, /resolveCoreStatus\(readiness, integrations\)/u);
+  assert.match(source, /dependencies\?\.identityPlatform/u);
 });
 
 test("work center refreshes live statuses and exposes a manual refresh", async () => {

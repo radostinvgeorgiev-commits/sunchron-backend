@@ -63,6 +63,7 @@ async function metadataAccessToken(fetchImpl, timeoutMs) {
   if (!response.ok || typeof payload?.access_token !== "string") {
     const error = new Error("metadata token unavailable");
     error.code = "GOOGLE_CLOUD_TOKEN_UNAVAILABLE";
+    error.httpStatus = response.status;
     throw error;
   }
   return payload.access_token;
@@ -252,9 +253,24 @@ export async function getProjectDiagnostics({
     try {
       token = await (accessTokenProvider || (() => metadataAccessToken(fetchImpl, timeoutMs)))();
     } catch (error) {
-      checks.cloudRun = { status: "unavailable", errorCode: safeErrorCode(error) };
-      checks.cloudBuildTrigger = { status: "unavailable", errorCode: safeErrorCode(error) };
-      checks.cloudBuildLatest = { status: "unavailable", errorCode: safeErrorCode(error) };
+      const httpStatus = Number.isInteger(error?.httpStatus)
+        ? error.httpStatus
+        : null;
+      checks.cloudRun = {
+        status: "unavailable",
+        errorCode: safeErrorCode(error),
+        httpStatus,
+      };
+      checks.cloudBuildTrigger = {
+        status: "unavailable",
+        errorCode: safeErrorCode(error),
+        httpStatus,
+      };
+      checks.cloudBuildLatest = {
+        status: "unavailable",
+        errorCode: safeErrorCode(error),
+        httpStatus,
+      };
     }
   } else {
     checks.cloudRun = { status: "unavailable", errorCode: "GOOGLE_CLOUD_PROJECT_UNAVAILABLE" };
@@ -346,7 +362,8 @@ export function formatProjectDiagnostics(report) {
   return [
     `Project diagnostics: ${label}.`,
     `• Project: ${report.projectId || "не е наличен"}.`,
-    `• Service: ${report.service || "не е наличен"}; region: ${report.region || "не е наличен"}.`,
+    `• Service: ${report.service || report.runtime?.service || "не е наличен"}; region: ${report.region || "не е наличен"}.`,
+    `• Revision: ${report.runtime?.revision || "не е наблюдавана"}.`,
     `• Commit: ${report.commit?.observed?.join(", ") || "не е наблюдаван"}${report.commit?.consistent ? " (съвпада)" : ""}.`,
     ...checkLines,
     "• Read-only проверка: да; secrets и произволни команди: не.",

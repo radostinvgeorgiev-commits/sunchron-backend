@@ -68,9 +68,9 @@ function configuration() {
   return { clientId, clientSecret, redirectUri };
 }
 
-export function isGitHubOAuthConfigured() {
+export function isGitHubOAuthConfigured(env = process.env) {
   return Boolean(
-    process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET,
+    env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET,
   );
 }
 

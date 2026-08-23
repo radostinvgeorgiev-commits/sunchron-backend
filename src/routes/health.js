@@ -35,6 +35,12 @@ import {
 } from "../services/aiCoreService.js";
 import { createFirestoreMemoryStore } from "../services/firestoreMemoryStore.js";
 import { getGoogleCloudRuntimeStatus } from "../services/googleCloudService.js";
+import {
+  hasSession as hasGoogleSession,
+  parseCookies as parseGoogleCookies,
+} from "../services/googleDriveService.js";
+import { getLiveIntegrationReport } from "../services/liveIntegrationStatusService.js";
+import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 
 const router = express.Router();
 const DEFAULT_READINESS_TIMEOUT_MS = 2_000;
@@ -363,7 +369,101 @@ function resolveToolHealthStatus(tool, configuration = {}) {
   return "healthy";
 }
 
-export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
+function formatLiveIntegrationStatus(liveReport) {
+  registerCoreTools();
+  const tools = listTools().map((tool) => {
+    const live = liveReport.tools[tool.id] || {
+      configured: false,
+      authenticated: false,
+      authenticationStatus: "unknown",
+      liveVerified: false,
+      healthStatus: "unavailable",
+      availabilityCode: "LIVE_STATUS_NOT_REPORTED",
+      availabilityReason: "LIVE_STATUS_NOT_REPORTED",
+      httpStatus: null,
+      smokeTest: {
+        status: "not_run",
+        readOnly: true,
+        httpStatus: null,
+        errorCode: "LIVE_STATUS_NOT_REPORTED",
+      },
+    };
+    return {
+      id: tool.id,
+      name: tool.name,
+      enabled: tool.enabled,
+      executable: isToolExecutable(tool.id),
+      configured: Boolean(live.configured),
+      authenticated: Boolean(live.authenticated),
+      authenticationStatus: live.authenticationStatus || "unknown",
+      liveVerified: Boolean(live.liveVerified),
+      healthStatus: live.healthStatus || "unavailable",
+      availabilityCode: live.availabilityCode || null,
+      availabilityReason: live.availabilityReason || null,
+      httpStatus: live.httpStatus || null,
+      smokeTest: live.smokeTest || null,
+      requiresConfirmation: tool.requiresConfirmation,
+      readOnly: !tool.requiresConfirmation,
+    };
+  });
+  const chatAgent = liveReport.tools["synchron-agent-chat"];
+  const firestore = liveReport.tools["google-firestore-memory"];
+  const identityPlatform = liveReport.dependencies?.identityPlatform || null;
+  const liveTools = tools.filter((tool) => tool.enabled);
+  const overallStatus = liveTools.every(
+    (tool) => tool.healthStatus === "healthy",
+  )
+    ? "healthy"
+    : liveTools.some((tool) => tool.healthStatus === "healthy")
+      ? "degraded"
+      : "unavailable";
+  const googleCloud = liveReport.googleCloud || {};
+  return {
+    status: "ok",
+    overallStatus,
+    checkedAt: liveReport.checkedAt,
+    ...getRuntimeVersion(),
+    core: {
+      chatAgent: {
+        ...liveReport.provider,
+        ...chatAgent,
+      },
+      openai: {
+        configured: Boolean(liveReport.provider?.providers?.find(
+          ({ id }) => id === "openai",
+        )?.configured),
+        ...(liveReport.provider?.selectedProvider === "openai"
+          ? liveReport.tools["openai-codex"]
+          : {}),
+      },
+      memory: {
+        ...firestore,
+        backend:
+          googleCloud.runtime?.memoryBackend ||
+          (firestore?.configured ? "firestore" : null),
+      },
+      identityPlatform,
+      mcp: liveReport.tools.mcp,
+    },
+    tools,
+    dependencies: liveReport.dependencies,
+    googleCloud: {
+      ...googleCloud.runtime,
+      configured: Boolean(googleCloud.runtime?.configured),
+      healthStatus: googleCloud.cloud?.healthStatus || "unavailable",
+      liveVerified: Boolean(googleCloud.cloud?.liveVerified),
+      diagnostics: googleCloud.diagnostics,
+      dependencies: googleCloud.dependencies,
+    },
+    safety: liveReport.safety,
+  };
+}
+
+export function getIntegrationStatus({
+  githubAuthenticated = false,
+  liveReport = null,
+} = {}) {
+  if (liveReport) return formatLiveIntegrationStatus(liveReport);
   registerCoreTools();
   const googleCloud = getGoogleCloudRuntimeStatus();
   const configuration = {
@@ -530,12 +630,34 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
 }
 
 router.get("/integrations", async (req, res) => {
-  const cookies = parseGitHubCookies(req.headers.cookie);
-  const session = await getGitHubSession(cookies.synchron_github_session);
-  const githubAuthenticated = Boolean(
-    session && isAuthorizedGitHubLogin(session.login),
-  );
-  res.json(getIntegrationStatus({ githubAuthenticated }));
+  try {
+    const githubCookies = parseGitHubCookies(req.headers.cookie);
+    const session = await getGitHubSession(githubCookies.synchron_github_session);
+    const githubAuthenticated = Boolean(
+      session && isAuthorizedGitHubLogin(session.login),
+    );
+    const googleSessionId =
+      parseGoogleCookies(req.headers.cookie).synchron_google_session || "";
+    const googleConnected = googleSessionId
+      ? await hasGoogleSession(googleSessionId)
+      : false;
+    const liveReport = await getLiveIntegrationReport({
+      githubSession: githubAuthenticated ? session : null,
+      googleSessionId: googleConnected ? googleSessionId : "",
+    });
+    res.json(getIntegrationStatus({ liveReport }));
+  } catch (error) {
+    logSafeError("[Health integrations] Live status failed", error);
+    res.status(503).json({
+      status: "degraded",
+      errorCode: safeErrorCode(error, "INTEGRATION_STATUS_FAILED"),
+      safety: {
+        readOnly: true,
+        secretsDisplayed: false,
+        writesExecuted: false,
+      },
+    });
+  }
 });
 
 export default router;

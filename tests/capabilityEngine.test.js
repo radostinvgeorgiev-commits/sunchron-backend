@@ -430,3 +430,80 @@ test("изпълнява интернет търсене през OpenAI инс�
     else process.env.OPENAI_API_KEY = originalKey;
   }
 });
+
+test("не изпълнява адаптер, когато live проверката върне 403", async () => {
+  let executorCalled = false;
+  await assert.rejects(
+    () =>
+      executeCapability(
+        "code.read",
+        { message: "Покажи последния commit." },
+        {
+          env: { GITHUB_API_URL: "https://github.test" },
+          loadLiveStatus: async () => ({
+            tools: {
+              "github-read": {
+                configured: true,
+                authenticated: false,
+                authenticationStatus: "no_access",
+                liveVerified: false,
+                healthStatus: "degraded",
+                availabilityCode: "HTTP_403",
+                httpStatus: 403,
+              },
+            },
+          }),
+          getProjectDiagnostics: async () => {
+            executorCalled = true;
+            return {};
+          },
+        },
+      ),
+    (error) =>
+      error instanceof CapabilityError &&
+      error.code === "HTTP_403" &&
+      error.status === 403,
+  );
+  assert.equal(executorCalled, false);
+});
+
+test("Google Cloud Read returns the live service, revision and commit", async () => {
+  const result = await executeCapability(
+    "infrastructure.googlecloud.read",
+    {},
+    {
+      env: {
+        GOOGLE_CLOUD_PROJECT: "project-1",
+        K_SERVICE: "synchron-backend-google",
+        K_REVISION: "synchron-backend-google-00055-85g",
+      },
+      loadLiveStatus: async () => ({
+        tools: {
+          "google-cloud-read": {
+            configured: true,
+            authenticated: true,
+            authenticationStatus: "service_identity",
+            liveVerified: true,
+            healthStatus: "healthy",
+          },
+        },
+      }),
+      getProjectDiagnostics: async () => ({
+        runtime: {
+          service: "synchron-backend-google",
+          revision: "synchron-backend-google-00055-85g",
+          commit: "commit-1",
+        },
+        projectId: "project-1",
+        region: "europe-west1",
+        commit: { observed: ["commit-1"], consistent: true },
+        checks: {},
+      }),
+    },
+  );
+
+  assert.equal(result.tool.id, "google-cloud-read");
+  assert.match(result.output, /Service: synchron-backend-google/u);
+  assert.match(result.output, /Revision: synchron-backend-google-00055-85g/u);
+  assert.match(result.output, /Commit: commit-1/u);
+});

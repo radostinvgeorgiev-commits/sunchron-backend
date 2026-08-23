@@ -11,7 +11,10 @@ import {
   hasConfiguredAiProvider,
   isAiCoreConfigured,
 } from "../services/aiCoreService.js";
-import { answerGitHubReadRequest } from "../services/githubService.js";
+import {
+  answerGitHubReadRequest,
+  isGitHubReadRequest,
+} from "../services/githubService.js";
 import {
   createGmailDraft,
   GoogleDriveError,
@@ -66,7 +69,6 @@ import {
 } from "../services/githubActionService.js";
 import { getGitHubSession } from "../services/githubOAuthService.js";
 import {
-  formatGoogleCloudRuntimeStatus,
   getGoogleCloudRuntimeStatus,
 } from "../services/googleCloudService.js";
 import {
@@ -85,6 +87,7 @@ import {
   isCodexAgentConfigured,
   runCodexProjectAnalysis,
 } from "../services/codexAgentService.js";
+import { getLiveIntegrationReport } from "../services/liveIntegrationStatusService.js";
 import {
   findToolsByCapability,
   listTools,
@@ -249,6 +252,62 @@ function resolvePermission(tool, capability) {
   return tool.capabilityPermissions?.[capability] || null;
 }
 
+function liveStatusToolId(toolId) {
+  if (toolId === "github-confirmed-write") return "github-confirmed-write";
+  if (toolId === "google-calendar-write") return "google-calendar-read";
+  if (toolId === "google-cloud-write") return "google-cloud-read";
+  return toolId;
+}
+
+function liveStatusFailure(tool, status) {
+  const httpStatus = Number(status?.httpStatus);
+  const statusCode =
+    Number.isInteger(httpStatus) && httpStatus >= 400
+      ? httpStatus
+      : status?.authenticationStatus === "requires_connection"
+        ? 401
+        : status?.authenticationStatus === "no_access"
+          ? 403
+          : 503;
+  const code =
+    typeof status?.availabilityCode === "string" &&
+    status.availabilityCode.trim()
+      ? status.availabilityCode
+      : "LIVE_CHECK_FAILED";
+  const detail = httpStatus >= 400 ? ` (HTTP ${httpStatus})` : "";
+  return new CapabilityError(
+    `Инструментът "${tool.name}" не е готов: ${code}${detail}.`,
+    code,
+    statusCode,
+  );
+}
+
+async function requireLiveToolStatus(tool, input, options, env) {
+  if (
+    tool.id === "github-read" &&
+    !options.liveReport &&
+    !options.loadLiveStatus &&
+    isGitHubReadRequest(input.message)
+  ) {
+    // The bounded GitHub read below is itself the live smoke request.
+    return null;
+  }
+  const liveReport = options.liveReport || (await (options.loadLiveStatus || getLiveIntegrationReport)({
+    env,
+    githubSession:
+      input.githubSession ||
+      (input.githubSessionId ? await getGitHubSession(input.githubSessionId) : null),
+    googleSessionId: input.googleSessionId || "",
+    fetchImpl: options.fetchImpl || globalThis.fetch,
+    diagnostics: options.diagnostics,
+  }));
+  const status = liveReport?.tools?.[liveStatusToolId(tool.id)];
+  if (!status || status.liveVerified !== true || status.healthStatus !== "healthy") {
+    throw liveStatusFailure(tool, status);
+  }
+  return status;
+}
+
 async function checkedStatus(check, isWorking = () => true) {
   try {
     const result = await check();
@@ -258,18 +317,87 @@ async function checkedStatus(check, isWorking = () => true) {
   }
 }
 
+function formatLiveToolStatus(toolId, tool) {
+  if (!tool) return "Грешка: LIVE_STATUS_NOT_REPORTED.";
+  if (tool.authenticationStatus === "requires_connection") {
+    return "Изисква свързване.";
+  }
+  if (tool.authenticationStatus === "no_access") {
+    return `Няма достъп${tool.httpStatus ? ` (HTTP ${tool.httpStatus})` : ""}.`;
+  }
+  if (tool.healthStatus === "healthy") {
+    if (toolId === "openai-codex") return "Готово · вътрешен инструмент.";
+    if (
+      ["github-read", "github-write", "github-confirmed-write"].includes(toolId) &&
+      tool.authenticationStatus === "authenticated"
+    ) {
+      return "Свързано · Работи.";
+    }
+    if (tool.requiresConfirmation) return "Готово · изисква потвърждение.";
+    return "Готово за изпълнение.";
+  }
+  if (!tool.configured) return "Изисква вход.";
+  return `Грешка: ${tool.availabilityCode || "LIVE_CHECK_FAILED"}${
+    tool.httpStatus ? ` (HTTP ${tool.httpStatus})` : ""
+  }.`;
+}
+
+export function formatLiveIntegrationReport(report) {
+  const tools = Object.entries(report?.tools || {});
+  return [
+    "Проверих реалните адаптери с read-only smoke тестове.",
+    `Проверка: ${report?.checkedAt || "без дата"}.`,
+    "",
+    ...tools.map(
+      ([toolId, tool]) =>
+        `• ${toolId}: ${formatLiveToolStatus(toolId, tool)}`,
+    ),
+    "",
+    "Не са изпълнявани write действия, не са показвани secrets и всички опасни действия остават owner-confirmed.",
+  ].join("\n");
+}
+
 export async function buildIntegrationStatusReport(
   input = {},
-  {
+  options = {},
+) {
+  const env = options.env || process.env;
+  const hasLegacyChecks = [
+    "checkGitHub",
+    "checkMemory",
+    "checkGoogleCloud",
+    "checkGoogleSession",
+  ].some((name) => Object.hasOwn(options, name));
+  if (!hasLegacyChecks && options.useLiveStatus !== false) {
+    const githubSession =
+      input.githubSession ||
+      (input.githubSessionId
+        ? await getGitHubSession(input.githubSessionId)
+        : null);
+    const liveReport = await (options.loadLiveStatus || getLiveIntegrationReport)({
+      env,
+      githubSession,
+      googleSessionId: input.googleSessionId || "",
+    });
+    const reportText = formatLiveIntegrationReport(liveReport);
+    if (!isGitHubWriteStatusRequest(input.message)) return reportText;
+    return [
+      reportText,
+      "",
+      "Проверих текущия режим за GitHub Write.",
+      "Резултат: AI CORE подготвя diff, а реалният запис се изпълнява чрез свързания GitHub Write API.",
+      "След точно потвърждение създава отделен branch, атомарен commit и Pull Request; main не се променя директно.",
+    ].join("\n");
+  }
+
+  const {
     checkGitHub = () =>
       answerGitHubReadRequest("Покажи последния commit в GitHub."),
     checkMemory = () =>
       listProfileMemories({ ownerId: input.ownerId, limit: 1 }),
     checkGoogleCloud = getGoogleCloudRuntimeStatus,
     checkGoogleSession = hasSession,
-    env = process.env,
-  } = {},
-) {
+  } = options;
   if (isGitHubWriteStatusRequest(input.message)) {
     return [
       "Проверих текущия режим за GitHub Write.",
@@ -851,10 +979,10 @@ const executors = Object.freeze({
   },
   "openai-web-search": async ({ input }) =>
     formatWebSearchResult(await searchWeb(input.message)),
-  "google-cloud-read": async () =>
-    formatGoogleCloudRuntimeStatus(getGoogleCloudRuntimeStatus()),
-  "google-cloud-diagnostics": async () =>
-    formatProjectDiagnostics(await getProjectDiagnostics()),
+  "google-cloud-read": async ({ env, loadProjectDiagnostics }) =>
+    formatProjectDiagnostics(await loadProjectDiagnostics({ env })),
+  "google-cloud-diagnostics": async ({ env, loadProjectDiagnostics }) =>
+    formatProjectDiagnostics(await loadProjectDiagnostics({ env })),
   "google-cloud-write": async ({ input, confirmed }) => {
     const operationInput = input.input || input;
     const result = confirmed
@@ -1004,10 +1132,14 @@ export async function executeCapability(capability, input = {}, options = {}) {
     throw new CapabilityError(runtime.reason, runtime.code, 503);
   }
 
+  await requireLiveToolStatus(resolved.tool, input, options, runtimeEnvironment);
+
   const execution = await executor({
     capability: resolved.capability,
     input,
     confirmed: options.confirmed === true,
+    env: runtimeEnvironment,
+    loadProjectDiagnostics: options.getProjectDiagnostics || getProjectDiagnostics,
   });
   const output = typeof execution === "string" ? execution : execution?.output;
   if (typeof output !== "string" || !output.trim()) {

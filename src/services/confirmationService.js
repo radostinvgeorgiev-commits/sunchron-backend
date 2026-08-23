@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { getOpenSearchClient } from "../config/opensearch.js";
 import { resolvePersistenceBackend } from "../config/memoryBackend.js";
 import { logSafeError } from "../utils/safeLogging.js";
@@ -37,7 +37,12 @@ const ALLOWED_ACTIONS = new Set([
   "infrastructure.write:revoke_project_role",
   "infrastructure.write:update_cloud_run_service_account",
   "infrastructure.write:run_cloud_build_trigger",
+  // A task-level confirmation groups the exact, already-prepared write
+  // operations of one task. It is never a blanket approval for future work.
+  "task.write:execute",
 ]);
+
+export const TASK_CONFIRMATION_ACTION = "task.write:execute";
 
 // Fields that must never be stored in a confirmation (audit safety)
 const SENSITIVE_PARAM_KEYS = new Set([
@@ -190,6 +195,15 @@ function sanitizeParams(params) {
   return clean;
 }
 
+function ownerFingerprint(ownerId) {
+  const clean = typeof ownerId === "string" ? ownerId.trim() : "";
+  if (!clean) return "";
+  return createHash("sha256")
+    .update("synchron-task-confirmation-owner-v1\0")
+    .update(clean)
+    .digest("hex");
+}
+
 export function isAllowedAction(action) {
   return ALLOWED_ACTIONS.has(action);
 }
@@ -267,6 +281,98 @@ export async function createDurableConfirmation(options) {
   if (!persisted && requiresPersistentConfirmations()) {
     pendingConfirmations.delete(confirmation.id);
     throw persistenceError();
+  }
+  return confirmation;
+}
+
+/**
+ * Creates one confirmation for the exact prepared writes in a single task.
+ * Individual action confirmations remain the source of truth; this token
+ * only groups their ids and cannot approve a different task or future work.
+ */
+export async function createTaskConfirmation({
+  ownerId,
+  sessionId,
+  taskId,
+  items,
+  ttlMs = CONFIRMATION_TTL_MS,
+  createConfirmation: createConfirmationFn = createDurableConfirmation,
+} = {}) {
+  if (typeof ownerId !== "string" || !ownerId.trim()) {
+    const error = new Error("Липсва проверен собственик за задачата.");
+    error.code = "TASK_CONFIRMATION_OWNER_MISSING";
+    throw error;
+  }
+  if (typeof taskId !== "string" || !taskId.trim()) {
+    const error = new Error("Липсва идентификатор на задачата.");
+    error.code = "TASK_CONFIRMATION_TASK_MISSING";
+    throw error;
+  }
+  const safeItems = Array.isArray(items)
+    ? items
+        .filter(
+          (item) =>
+            item &&
+            typeof item.confirmationId === "string" &&
+            item.confirmationId.trim(),
+        )
+        .map((item) => ({
+          confirmationId: item.confirmationId.trim(),
+          capability:
+            typeof item.capability === "string" ? item.capability.trim() : "",
+          toolId: typeof item.toolId === "string" ? item.toolId.trim() : "",
+          confirmationType:
+            typeof item.confirmationType === "string"
+              ? item.confirmationType.trim()
+              : "capability",
+        }))
+    : [];
+  if (!safeItems.length) {
+    const error = new Error("Липсват подготвени операции за задачата.");
+    error.code = "TASK_CONFIRMATION_ITEMS_MISSING";
+    throw error;
+  }
+  const confirmation = await createConfirmationFn({
+    sessionId,
+    action: TASK_CONFIRMATION_ACTION,
+    resource: {
+      taskId: typeof taskId === "string" ? taskId.trim() : "",
+      ownerFingerprint: ownerFingerprint(ownerId),
+      items: safeItems,
+    },
+    params: {
+      confirmationIds: safeItems.map((item) => item.confirmationId),
+    },
+    ttlMs,
+  });
+  return Object.freeze({
+    confirmationId: confirmation.id,
+    expiresAt: confirmation.expiresAt,
+    taskId: confirmation.resource.taskId,
+    items: Object.freeze(safeItems.map((item) => Object.freeze({ ...item }))),
+  });
+}
+
+export async function validateTaskConfirmation(
+  confirmationId,
+  { ownerId, sessionId, taskId } = {},
+) {
+  const confirmation = await validateDurableConfirmation(
+    confirmationId,
+    sessionId,
+  );
+  if (confirmation.action !== TASK_CONFIRMATION_ACTION) {
+    const error = new Error("Потвърждението не е за тази задача.");
+    error.code = "TASK_CONFIRMATION_MISMATCH";
+    throw error;
+  }
+  if (
+    confirmation.resource?.ownerFingerprint !== ownerFingerprint(ownerId) ||
+    (taskId && confirmation.resource?.taskId !== taskId)
+  ) {
+    const error = new Error("Профилът или задачата не съответстват на потвърждението.");
+    error.code = "TASK_CONFIRMATION_OWNER_MISMATCH";
+    throw error;
   }
   return confirmation;
 }

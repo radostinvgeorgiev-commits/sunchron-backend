@@ -49,6 +49,21 @@ function statusMessage(status) {
   return "Задачата не можа да бъде изпълнена.";
 }
 
+function confirmationReference(result) {
+  const metadata = result?.metadata;
+  const confirmationId =
+    typeof metadata?.confirmationId === "string"
+      ? metadata.confirmationId.trim()
+      : typeof metadata?.result?.confirmationId === "string"
+        ? metadata.result.confirmationId.trim()
+        : "";
+  if (!confirmationId) return null;
+  return {
+    confirmationId,
+    confirmationType: metadata?.confirmationType || "capability",
+  };
+}
+
 export async function executeTaskPlan({
   message,
   requests,
@@ -63,8 +78,11 @@ export async function executeTaskPlan({
 
   const taskId = randomUUID();
   const plannedRequests = Array.isArray(requests) ? requests : [];
-  const { prepareConfirmation = false, ...capabilityInputContext } =
-    executionContext;
+  const {
+    prepareConfirmation = false,
+    createTaskConfirmation,
+    ...capabilityInputContext
+  } = executionContext;
   const results = [];
 
   safeNotify(notify, {
@@ -131,6 +149,44 @@ export async function executeTaskPlan({
     (item) => item.status === "fulfilled",
   ).length;
   const failedSteps = results.length - successfulSteps;
+  let taskConfirmation = null;
+  if (typeof createTaskConfirmation === "function") {
+    const pendingItems = results
+      .filter(
+        (item) =>
+          item.status === "fulfilled" && item.result?.requiresConfirmation,
+      )
+      .map((item) => {
+        const reference = confirmationReference(item.result);
+        if (!reference) return null;
+        return {
+          ...reference,
+          capability: item.request.capability,
+          toolId: item.result.tool?.id || "",
+        };
+      })
+      .filter(Boolean);
+    if (pendingItems.length) {
+      try {
+        taskConfirmation = await createTaskConfirmation({
+          taskId,
+          sessionId: capabilityInputContext.sessionId,
+          ownerId: capabilityInputContext.ownerId,
+          items: pendingItems,
+        });
+      } catch (error) {
+        await safeAudit(audit, {
+          action: "task.write",
+          decision: "deny",
+          outcome: "failed",
+          resource: "task-confirmation",
+          details: safeErrorCode(error, "TASK_CONFIRMATION_FAILED"),
+          sessionId: capabilityInputContext.sessionId,
+        });
+      }
+    }
+  }
+
   const task = Object.freeze({
     id: taskId,
     status,
@@ -144,6 +200,12 @@ export async function executeTaskPlan({
     totalSteps: results.length,
     successfulSteps,
     failedSteps,
+    ...(taskConfirmation
+      ? {
+          confirmationId: taskConfirmation.confirmationId,
+          confirmationExpiresAt: taskConfirmation.expiresAt,
+        }
+      : {}),
     steps: Object.freeze(
       results.map((item) =>
         Object.freeze({
@@ -179,5 +241,9 @@ export async function executeTaskPlan({
     });
   }
 
-  return Object.freeze({ task, results: Object.freeze(results) });
+  return Object.freeze({
+    task,
+    results: Object.freeze(results),
+    ...(taskConfirmation ? { taskConfirmation } : {}),
+  });
 }

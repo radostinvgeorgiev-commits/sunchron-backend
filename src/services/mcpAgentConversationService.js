@@ -33,6 +33,8 @@ import {
 import { getLatestGoogleSessionId } from "./googleDriveService.js";
 import { getLatestAuthorizedGitHubSession } from "./githubOAuthService.js";
 import { recordAuditEvent } from "./permissionService.js";
+import { createTaskConfirmation } from "./confirmationService.js";
+import { confirmTaskWrite, extractTaskConfirmationId } from "./taskConfirmationService.js";
 
 const MAX_MESSAGE_LENGTH = 6_000;
 const MAX_SESSION_QUESTIONS = 10;
@@ -41,7 +43,7 @@ const BRIDGE_BOUNDARY = [
   "[MCP МОСТ — ПРОВЕРЕН ИНСТРУМЕНТАЛЕН РЕЖИМ]",
   "Заявките за инструменти се изпълняват само през проверения capability engine на AI CORE.",
   "Read-only проверките могат да се изпълнят и да върнат реален резултат.",
-  "Записите, изпращанията и инфраструктурните промени никога не се изпълняват директно: подготви точна операция и изчакай отделно owner потвърждение.",
+  "Записите, изпращанията и инфраструктурните промени никога не се изпълняват директно: подготви точните операции за текущата задача и изчакай едно owner потвърждение за тази задача.",
   "Не изпълнявай shell команди, произволни URL адреси или действия извън регистрираните инструменти; не показвай secrets.",
   "Не твърди, че промяна е извършена без потвърден резултат от инструмента.",
   "[КРАЙ НА MCP ГРАНИЦАТА]",
@@ -187,6 +189,7 @@ export async function sendMcpAgentMessage(
 
   let googleSessionId = null;
   let githubSession = null;
+  const taskConfirmationId = extractTaskConfirmationId(cleanMessage);
   if (
     /(?:google|drive|драйв|gmail|джимейл|календар|calendar|контакт)/iu.test(
       cleanMessage,
@@ -209,6 +212,57 @@ export async function sendMcpAgentMessage(
     } catch {
       githubSession = null;
     }
+  }
+
+  if (taskConfirmationId) {
+    if (safeIdentity?.role !== "owner") {
+      throw new McpAgentConversationError(
+        "Записващите действия са достъпни само за собственика.",
+        -32003,
+      );
+    }
+    if (!githubSession) {
+      try {
+        githubSession = await getGitHubSession();
+      } catch {
+        githubSession = null;
+      }
+    }
+    if (!googleSessionId) {
+      try {
+        googleSessionId = await getGoogleSession();
+      } catch {
+        googleSessionId = null;
+      }
+    }
+    const confirmed = await confirmTaskWrite({
+      ownerId: cleanOwnerId,
+      sessionId: cleanSessionId,
+      taskConfirmationId,
+      githubSessionId: githubSession?.id || null,
+      googleSessionId,
+    });
+    const response = `Потвърдената AI CORE задача е изпълнена: ${confirmed.results.length} операции.`;
+    await saveTurn(cleanSessionId, cleanMessage, response, cleanOwnerId);
+    return Object.freeze({
+      sessionId: cleanSessionId,
+      response,
+      project: Object.freeze({ id: project.id, name: project.name }),
+      agent: Object.freeze({ id: agent.id, name: agent.name, role: agent.role }),
+      conversationPersisted: true,
+      capabilities: Object.freeze(
+        confirmed.results.map((item) => item.capability).filter(Boolean),
+      ),
+      task: null,
+      plannerUsed: false,
+      plannerErrorCode: null,
+      externalActionsExecuted: true,
+      codeChanged: confirmed.results.some(
+        (item) => item.capability === "code.write" || item.capability?.startsWith("github."),
+      ),
+      turnNumber: previousQuestions + 1,
+      turnsRemaining: MAX_SESSION_QUESTIONS - previousQuestions - 1,
+    });
   }
 
   const taskExecution = await runTask({
@@ -238,11 +292,22 @@ export async function sendMcpAgentMessage(
       workContext: sanitizedWorkContext,
       identity: safeIdentity,
       prepareConfirmation: true,
+      createTaskConfirmation: (options) =>
+        createTaskConfirmation({
+          ...options,
+          ownerId: cleanOwnerId,
+          sessionId: cleanSessionId,
+        }),
     },
     audit: auditTask,
   });
   const capabilityResults = taskExecution?.results || [];
-  const capabilityReplies = buildCapabilityReplies(capabilityResults);
+  const capabilityReplies = buildCapabilityReplies(
+    capabilityResults,
+    taskExecution?.taskConfirmation
+      ? { taskConfirmation: taskExecution.taskConfirmation }
+      : {},
+  );
   const capabilityOutput = capabilityReplies.join("\n\n").trim();
   const input = buildAvatarMessages(
     memories,

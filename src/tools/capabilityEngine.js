@@ -422,6 +422,16 @@ function requiredInput(value, label) {
   return value.trim();
 }
 
+function extractPullRequestNumber(message) {
+  const text = typeof message === "string" ? message.trim() : "";
+  if (!/(?:merge|сли(?:й|ване)|сл(?:ей|ив)|обедин)/iu.test(text)) return null;
+  const match = text.match(
+    /#\s*(\d{1,10})|(?:pull\s*request|\bpr\b|пул\s*рек)\s*(?:№|номер)?\s*(\d{1,10})|(?:merge|сли(?:й|ване)|сл(?:ей|ив)|обедин)\s+#?\s*(\d{1,10})/iu,
+  );
+  const value = Number(match?.[1] || match?.[2] || match?.[3]);
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
 function confirmationOutput(prepared, label) {
   return [
     `${label} е подготвено, но не е изпълнено.`,
@@ -561,14 +571,28 @@ const executors = Object.freeze({
       "github.file.create": "create_file",
       "github.file.update": "update_file",
       "github.pull-request.create": "create_pr",
+      "github.pull-request.merge": "merge_pr",
       "github.issue.close": "close_issue",
     };
+    let changeInput = input.change || input;
+    if (capability === "github.pull-request.merge") {
+      const pullNumber = Number(
+        changeInput.pullNumber || extractPullRequestNumber(input.message),
+      );
+      if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0) {
+        throw new CapabilityError(
+          "Липсва номер на Pull Request за сливане.",
+          "MISSING_PULL_REQUEST_NUMBER",
+        );
+      }
+      changeInput = { ...changeInput, pullNumber };
+    }
     const prepared = await prepareGitHubChange({
       ownerId: input.ownerId,
       sessionId: input.sessionId,
       githubSession,
       operation: operations[capability],
-      input: input.change || input,
+      input: changeInput,
     });
     return confirmationOutput(prepared, "GitHub промяната");
   },

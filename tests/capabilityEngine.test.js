@@ -111,6 +111,7 @@ test("granular mail, contacts, tasks and GitHub writes use exact permission deci
     ["tasks.draft", "tasks.draft", "allow"],
     ["tasks.status", "tasks.update", "confirm"],
     ["github.branch.create", "github.write", "confirm"],
+    ["github.pull-request.merge", "github.write", "confirm"],
   ]) {
     const resolved = resolveCapability(capability);
     assert.equal(resolved.permission.action, action, capability);

@@ -31,6 +31,7 @@ const ALLOWED_ACTIONS = new Set([
   "github.write:create_file",
   "github.write:update_file",
   "github.write:create_pr",
+  "github.write:merge_pr",
   "github.write:close_issue",
   "infrastructure.write:grant_project_role",
   "infrastructure.write:revoke_project_role",

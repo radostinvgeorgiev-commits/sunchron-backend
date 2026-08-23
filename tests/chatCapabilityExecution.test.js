@@ -10,6 +10,7 @@ import {
   extractConfirmedMemoryDeleteCommand,
   mergeMemoryTaskStatus,
   mergeCapabilityRequests,
+  isGitHubPullRequestMergeRequest,
   shouldReplyWithVerifiedToolOutput,
   splitCapabilitySubtasks,
 } from "../src/routes/chat.js";
@@ -755,6 +756,16 @@ test("an avatar interface improvement routes directly to the code executor", () 
   assert.equal(
     requests.filter(({ capability }) => capability === "code.write").length,
     1,
+  );
+});
+
+test("an explicit numbered GitHub PR merge routes to the confirmed merge capability", () => {
+  const message =
+    "Провери PR #356 и ако CI е зелено, merge-ни го към main.";
+  assert.equal(isGitHubPullRequestMergeRequest(message), true);
+  assert.deepEqual(
+    detectCapabilityRequests(message).map(({ capability }) => capability),
+    ["code.task-status", "github.pull-request.merge"],
   );
 });
 

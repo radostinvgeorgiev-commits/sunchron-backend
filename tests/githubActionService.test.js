@@ -201,3 +201,116 @@ test("rejects a confirmation when the GitHub identity changes before consumption
   );
   assert.equal(consumed, false);
 });
+
+test("prepares and confirms a merge only for the exact PR head SHA", async () => {
+  let confirmation;
+  const headSha = "d".repeat(40);
+  await prepareGitHubChange(
+    {
+      ownerId: "primary-user",
+      sessionId: "session-1",
+      githubSession,
+      operation: "merge_pr",
+      input: { pullNumber: 356, headSha },
+    },
+    {
+      createConfirmation: async (input) => {
+        confirmation = { id: "confirmation-merge-1", ...input };
+        return confirmation;
+      },
+    },
+  );
+
+  assert.equal(
+    confirmation.action,
+    GITHUB_CONFIRMED_ACTIONS.MERGE_PULL_REQUEST,
+  );
+  assert.deepEqual(confirmation.resource, {
+    repository: "radostinvgeorgiev-commits/sunchron-backend",
+    pullNumber: 356,
+    headSha,
+    base: "main",
+    ownerFingerprint: confirmation.resource.ownerFingerprint,
+    githubLoginFingerprint: confirmation.resource.githubLoginFingerprint,
+  });
+
+  const order = [];
+  const result = await confirmGitHubChange(
+    {
+      ownerId: "primary-user",
+      sessionId: "session-1",
+      confirmationId: "confirmation-merge-1",
+      githubSession,
+    },
+    {
+      validateConfirmation: async () => confirmation,
+      consumeConfirmation: async () => order.push("consume"),
+      executeWrite: async ({ execute, capability }) => {
+        order.push(`audit:${capability}`);
+        return execute();
+      },
+      adapters: {
+        mergePullRequest: async (input) => {
+          order.push("merge-pr");
+          assert.equal(input.pullNumber, 356);
+          assert.equal(input.expectedHeadSha, headSha);
+          assert.equal(input.base, "main");
+          assert.equal(input.mergeMethod, "merge");
+          assert.equal(input.accessToken, githubSession.accessToken);
+          return { merged: true, mergeCommitSha: "e".repeat(40) };
+        },
+      },
+    },
+  );
+
+  assert.deepEqual(order, [
+    "consume",
+    `audit:${GITHUB_CONFIRMED_ACTIONS.MERGE_PULL_REQUEST}`,
+    "merge-pr",
+  ]);
+  assert.equal(result.merged, true);
+});
+
+test("merge preparation reads the current PR head when only its number is given", async () => {
+  const originalFetch = global.fetch;
+  const originalApiUrl = process.env.GITHUB_API_URL;
+  const originalRepository = process.env.GITHUB_REPOSITORY;
+  const headSha = "f".repeat(40);
+  process.env.GITHUB_API_URL = "https://github.test";
+  process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
+  global.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        state: "open",
+        base: { ref: "main" },
+        head: { sha: headSha },
+      }),
+      { status: 200 },
+    );
+  let confirmation;
+
+  try {
+    await prepareGitHubChange(
+      {
+        ownerId: "primary-user",
+        sessionId: "session-1",
+        githubSession,
+        operation: "merge_pr",
+        input: { pullNumber: 356 },
+      },
+      {
+        createConfirmation: async (input) => {
+          confirmation = { id: "confirmation-merge-2", ...input };
+          return confirmation;
+        },
+      },
+    );
+    assert.equal(confirmation.resource.headSha, headSha);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalApiUrl === undefined) delete process.env.GITHUB_API_URL;
+    else process.env.GITHUB_API_URL = originalApiUrl;
+    if (originalRepository === undefined) delete process.env.GITHUB_REPOSITORY;
+    else process.env.GITHUB_REPOSITORY = originalRepository;
+  }
+});

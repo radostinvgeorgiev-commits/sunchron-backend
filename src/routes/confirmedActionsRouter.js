@@ -14,6 +14,7 @@ import {
   createBranch,
   createFile,
   createPullRequest,
+  mergePullRequest,
   updateFile,
 } from "../services/githubWriteService.js";
 import {
@@ -277,6 +278,15 @@ async function executeAction(confirmation, githubSessionId = "") {
         body: params.body || "",
         head: resource.head,
         base: resource.base || "main",
+      });
+
+    case "github.write:merge_pr":
+      return mergePullRequest({
+        repository: resource.repository || defaultRepo,
+        pullNumber: resource.pullNumber,
+        expectedHeadSha: resource.headSha,
+        base: resource.base || "main",
+        mergeMethod: params.mergeMethod || "merge",
       });
 
     default: {

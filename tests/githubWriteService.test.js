@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createCodeTaskPullRequest } from "../src/services/githubWriteService.js";
+import {
+  createCodeTaskPullRequest,
+  mergePullRequest,
+} from "../src/services/githubWriteService.js";
 
 const repository = "radostinvgeorgiev-commits/sunchron-backend";
 
@@ -74,4 +77,108 @@ test("AI CORE code write blocks protected deployment files", async () => {
       }),
     (error) => error.code === "PROTECTED_PATH",
   );
+});
+
+test("confirmed merge binds the exact head SHA and requires green checks", async () => {
+  const originalFetch = global.fetch;
+  const originalApiUrl = process.env.GITHUB_API_URL;
+  const originalRepository = process.env.GITHUB_REPOSITORY;
+  const calls = [];
+  const headSha = "a".repeat(40);
+  process.env.GITHUB_API_URL = "https://github.test";
+  process.env.GITHUB_REPOSITORY = repository;
+  global.fetch = async (url, options = {}) => {
+    calls.push({ url, options });
+    const payload =
+      calls.length === 1
+        ? {
+            number: 356,
+            state: "open",
+            merged: false,
+            draft: false,
+            base: { ref: "main" },
+            head: { ref: "ai-core/task-proof", sha: headSha },
+            mergeable: true,
+            mergeable_state: "clean",
+            html_url: "https://github.test/pull/356",
+          }
+        : calls.length === 2
+          ? { state: "success", total_count: 1 }
+          : {
+              sha: "b".repeat(40),
+              merged: true,
+              message: "Pull Request successfully merged",
+            };
+    return new Response(JSON.stringify(payload), { status: 200 });
+  };
+
+  try {
+    const result = await mergePullRequest({
+      repository,
+      pullNumber: 356,
+      expectedHeadSha: headSha,
+      accessToken: "oauth-token",
+    });
+
+    assert.equal(result.merged, true);
+    assert.equal(result.mergeCommitSha, "b".repeat(40));
+    assert.equal(calls.length, 3);
+    assert.match(calls[0].url, /\/pulls\/356$/u);
+    assert.match(calls[1].url, /\/commits\/aaaaaaaa.*\/status$/u);
+    assert.match(calls[2].url, /\/pulls\/356\/merge$/u);
+    assert.deepEqual(JSON.parse(calls[2].options.body), {
+      sha: headSha,
+      merge_method: "merge",
+    });
+  } finally {
+    global.fetch = originalFetch;
+    if (originalApiUrl === undefined) delete process.env.GITHUB_API_URL;
+    else process.env.GITHUB_API_URL = originalApiUrl;
+    if (originalRepository === undefined) delete process.env.GITHUB_REPOSITORY;
+    else process.env.GITHUB_REPOSITORY = originalRepository;
+  }
+});
+
+test("confirmed merge stops when CI is not green", async () => {
+  const originalFetch = global.fetch;
+  const originalApiUrl = process.env.GITHUB_API_URL;
+  const originalRepository = process.env.GITHUB_REPOSITORY;
+  const headSha = "c".repeat(40);
+  process.env.GITHUB_API_URL = "https://github.test";
+  process.env.GITHUB_REPOSITORY = repository;
+  let mergeCalled = false;
+  global.fetch = async (url) => {
+    if (/\/pulls\/356\/merge$/u.test(url)) mergeCalled = true;
+    const payload = /\/status$/u.test(url)
+      ? { state: "pending", total_count: 1 }
+      : {
+          state: "open",
+          merged: false,
+          base: { ref: "main" },
+          head: { sha: headSha },
+          mergeable: true,
+          mergeable_state: "clean",
+        };
+    return new Response(JSON.stringify(payload), { status: 200 });
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        mergePullRequest({
+          repository,
+          pullNumber: 356,
+          expectedHeadSha: headSha,
+          accessToken: "oauth-token",
+        }),
+      (error) => error.code === "PULL_REQUEST_CHECKS_NOT_GREEN",
+    );
+    assert.equal(mergeCalled, false);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalApiUrl === undefined) delete process.env.GITHUB_API_URL;
+    else process.env.GITHUB_API_URL = originalApiUrl;
+    if (originalRepository === undefined) delete process.env.GITHUB_REPOSITORY;
+    else process.env.GITHUB_REPOSITORY = originalRepository;
+  }
 });

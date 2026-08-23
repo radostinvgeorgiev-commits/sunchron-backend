@@ -141,6 +141,7 @@ const DIRECT_CAPABILITY_REPLIES = new Set([
   "code.read",
   "code.task-status",
   "code.write",
+  "github.pull-request.merge",
   "infrastructure.googlecloud.read",
   "infrastructure.googlecloud.diagnostics.read",
 ]);
@@ -414,14 +415,25 @@ export function isGitHubWriteRequest(message) {
   if (hasExplicitReadOnlyBoundary(text)) return false;
 
   const hasWriteOutcome =
-    /(?:промени|подобри|обнови|редактирай|поправи|направи\s+промян|създай\s+(?:клон|branch|pull\s*request|pr)|слей|improve)/iu.test(
+    /(?:промени|подобри|обнови|редактирай|поправи|направи\s+промян|създай\s+(?:клон|branch|pull\s*request|pr)|слей|слий|improve)/iu.test(
       text,
-    );
+    ) || isGitHubPullRequestMergeRequest(text);
   const hasCodeTarget =
     /(?:github|хранилищ|репозитор|код|интерфейс|файл|commit|комит|pull\s*request|\bpr\b|клон|branch|main|deployment|деплой)/iu.test(
       text,
     );
   return hasWriteOutcome && hasCodeTarget;
+}
+
+export function isGitHubPullRequestMergeRequest(message) {
+  const text = typeof message === "string" ? message.trim() : "";
+  if (!text || hasExplicitReadOnlyBoundary(text)) return false;
+  return (
+    /(?:merge|сли(?:й|ване)|сл(?:ей|ив)|обедин)/iu.test(text) &&
+    /#\s*\d{1,10}|(?:pull\s*request|\bpr\b|пул\s*рек)\s*(?:№|номер)?\s*\d{1,10}/iu.test(
+      text,
+    )
+  );
 }
 
 function isExplicitGitHubReadSubtask(subtask, hasGitHubContext) {
@@ -705,8 +717,11 @@ export function detectCapabilityRequests(message) {
     }
   }
   if (hasGitHubWriteIntent) {
+    const capability = isGitHubPullRequestMergeRequest(message)
+      ? "github.pull-request.merge"
+      : "code.write";
     requests.push({
-      capability: "code.write",
+      capability,
       action: "github.write",
       message,
     });
@@ -786,6 +801,8 @@ function capabilityLabel(capability) {
   if (capability === "code.analyze") return "Codex";
   if (capability === "code.task-status") return "GitHub задача";
   if (capability === "code.write") return "GitHub запис";
+  if (capability === "github.pull-request.merge")
+    return "сливане на GitHub Pull Request";
   if (capability === "files.read") return "Google Drive";
   if (capability === "mail.read") return "Gmail";
   if (capability === "memory.read") return "памет";

@@ -232,6 +232,37 @@ test("Firestore exposes opt-in version metadata and applies range plus updateTim
   assert.equal(commitBody.writes[0].currentDocument.updateTime, updateTime);
 });
 
+test("Firestore surfaces embedded runQuery failures for higher-level fallbacks", async () => {
+  const fetchImpl = async (url) => {
+    if (String(url).includes("metadata.google.internal")) {
+      return jsonResponse({ access_token: "runtime-token", expires_in: 3600 });
+    }
+    return jsonResponse([
+      {
+        error: {
+          code: 400,
+          status: "FAILED_PRECONDITION",
+          message: "private index detail",
+        },
+      },
+    ]);
+  };
+  const store = createFirestoreDocumentStore({ env: ENV, fetchImpl });
+
+  await assert.rejects(
+    () =>
+      store.queryEqual("audit", "firestorePartition", "synchron-audit", 5, {
+        orderBy: { field: "timestamp", direction: "DESCENDING" },
+      }),
+    (error) => {
+      assert.equal(error.code, "FIRESTORE_UNAVAILABLE");
+      assert.equal(error.upstreamErrorStatus, "FAILED_PRECONDITION");
+      assert.doesNotMatch(error.message, /private index detail/u);
+      return true;
+    },
+  );
+});
+
 test("Firestore normalizes only the upstream status code without exposing its message", async () => {
   const fetchImpl = async (url) => {
     if (String(url).includes("metadata.google.internal")) {

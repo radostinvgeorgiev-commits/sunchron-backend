@@ -191,6 +191,18 @@ test("runtime availability blocks configured-looking tools without credentials",
   );
 });
 
+test("Google Cloud Write accepts the verified Cloud Run runtime markers", () => {
+  const result = getToolRuntimeAvailability(
+    "google-cloud-write",
+    {},
+    {
+      K_SERVICE: "synchron-backend-google",
+      K_REVISION: "synchron-backend-google-00058-gbn",
+    },
+  );
+  assert.equal(result.available, true);
+});
+
 test("AI CORE chat availability accepts a configured non-OpenAI provider", () => {
   const result = getToolRuntimeAvailability(
     "synchron-agent-chat",

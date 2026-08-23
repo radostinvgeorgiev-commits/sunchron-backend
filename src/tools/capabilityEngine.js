@@ -227,7 +227,12 @@ export function getToolRuntimeAvailability(
       );
     case "google-cloud-write":
       return configured(
-        Boolean(env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT || env.GCP_PROJECT_ID),
+        Boolean(
+          env.GOOGLE_CLOUD_PROJECT ||
+            env.GCLOUD_PROJECT ||
+            env.GCP_PROJECT_ID ||
+            (env.K_SERVICE && env.K_REVISION),
+        ),
         "Google Cloud write runtime не е конфигуриран.",
       );
     case "google-firestore-memory":

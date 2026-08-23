@@ -11,9 +11,10 @@
 - Supabase остава authoritative за текущите тестови профили и сесии.
 - Съществуващият `GOOGLE_CLIENT_*` поток е Google OAuth за Drive/Calendar/Gmail,
   а не Identity Platform migration.
-- Firestore, Identity Platform и Vertex AI са planning-only. Няма runtime
-  adapter, data import, data migration, user import или provider selection в този
-  слой.
+- Firestore memory adapter-ът е изпълним само като изрично включен
+  OpenSearch-first shadow mirror. Той е disabled-by-default, не е read source и
+  няма cutover, data import, data migration или user import в този слой.
+  Identity Platform и Vertex AI остават planning-only.
 - Cloud Run template-ът е нарочно непълен: има placeholders и няма secret
   references, IAM binding, public invoker или DNS промяна.
 
@@ -55,18 +56,40 @@ staging deploy всеки reference трябва да има owner, IAM scope, r
 rollback plan. Липсващ или невалиден reference трябва да остави системата
 not-ready, а не да активира fallback с друг secret.
 
-## Firestore — бъдещ изолиран control plane
+## Firestore — изолиран shadow mirror
 
 | Поле | Предназначение | Приемателна граница |
 | --- | --- | --- |
-| `FIRESTORE_DATABASE_ID` | Бъдещ database идентификатор | Не се provision-ва и не заменя OpenSearch. |
+| `FIRESTORE_DATABASE_ID` | Изрично избран sandbox database идентификатор | Не се provision-ва и не заменя OpenSearch. |
 | `FIRESTORE_LOCATION` | Регион и data residency | Нужни са cost, residency и backup решения преди ресурс. |
-| `FIRESTORE_COLLECTION_PREFIX` | Изолирано име на бъдещи колекции | Няма production collections или import в този PR. |
-| `FIRESTORE_ENABLED` | Бъдещ feature flag | Остава `false`/липсващ до изпълним adapter и тестов sandbox. |
+| `FIRESTORE_COLLECTION_PREFIX` | Namespaced име на shadow колекциите | Няма production collections или import в този PR. |
+| `FIRESTORE_ENABLED` | Feature flag за `mode=shadow` | Липсващ/`false` оставя OpenSearch-only поведението. |
+| `FIRESTORE_REQUEST_TIMEOUT_MS` | Горна граница за best-effort mirror | Timeout не блокира chat, response или readiness. |
 
-Първият тест трябва да е с изолиран non-production database/namespace, ясна
-schema, backup/restore план и cleanup. Няма четене, запис, restore или изтриване
-на лични данни за целите на migration foundation.
+При `true` са задължителни `GCP_PROJECT_ID`, `FIRESTORE_DATABASE_ID`,
+`FIRESTORE_LOCATION` и `FIRESTORE_COLLECTION_PREFIX`. Невалидната explicit
+конфигурация е `misconfigured` и не активира fallback към друг project,
+database, secret или provider. Authentication е само чрез Application Default
+Credentials; не се добавят JSON keys или `GOOGLE_APPLICATION_CREDENTIALS`.
+`FIRESTORE_EMULATOR_HOST` е разрешен само local/test и е невалиден в production.
+
+OpenSearch винаги се изпълнява първи и остава authoritative за всички публични
+read/response операции. След успешен profile write/delete или conversation turn
+се изпраща best-effort Firestore mirror. Shadow failure се записва като
+ограничен audit warning с operation, safe error code и hashed reference; не
+връща съдържание, owner/session стойности или secrets и не променя
+authoritative резултата.
+
+Schema `v1` е описана в
+[`firestore-indexes.v1.json`](./firestore-indexes.v1.json) и включва:
+
+- namespaced profile memories с owner-bound deterministic document IDs;
+- owner/session-bound conversation messages с idempotent turn IDs и
+  транзакционна monotonic turn sequence;
+- owner-bound conversation summaries с atomic transaction за turn и summary.
+
+Index artifact-ът е документационен и не се provision-ва от този PR. Emulator
+contract tests са opt-in и default `npm test` не прави live GCP calls.
 
 ## Identity Platform — бъдещ auth pilot
 

@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "collectionPrefix": "<FIRESTORE_COLLECTION_PREFIX>",
+  "provisioned": false,
+  "description": "Документационен Firestore shadow index contract; не се provision-ва от този PR.",
+  "indexes": [
+    {
+      "collectionGroup": "<prefix>profile-memories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "<prefix>profile-memories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "scope", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "<prefix>profile-memories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "memoryKey", "order": "ASCENDING" },
+        { "fieldPath": "normalizedFact", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "<prefix>conversation-messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "sessionId", "order": "ASCENDING" },
+        { "fieldPath": "turnSequence", "order": "DESCENDING" },
+        { "fieldPath": "sequence", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "<prefix>conversation-summaries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    }
+  ]
+}

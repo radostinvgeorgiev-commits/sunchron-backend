@@ -36,6 +36,31 @@ deployment acceptance проверка, защото включва AI, OpenSear
 и bridge. Не използвай readiness endpoint като liveness probe и не приемай
 подготвен YAML или image като deployed/accepted.
 
+### Firestore shadow mirror
+
+`FIRESTORE_ENABLED` е `false` по подразбиране и липсващият флаг запазва
+OpenSearch-only поведението. При explicit `true` са задължителни валидни
+`GCP_PROJECT_ID`, `FIRESTORE_DATABASE_ID`, `FIRESTORE_LOCATION` и
+`FIRESTORE_COLLECTION_PREFIX`; authentication е чрез Application Default
+Credentials, без JSON keys или `GOOGLE_APPLICATION_CREDENTIALS`.
+
+OpenSearch остава authoritative. Firestore се извиква само след успешен
+OpenSearch profile/conversation write или delete, не се чете за response/context
+и shadow failure не блокира chat или `/health/ready`. Failure се вижда в
+безопасния audit trail само с operation, safe error code и hashed reference.
+Shadow операциите се сериализират по owner/resource и имат bounded backlog:
+при запълване новото огледално действие се пропуска с
+`FIRESTORE_SHADOW_QUEUE_FULL`, без да се променя authoritative резултатът.
+Повторното изпращане на conversation turn трябва да използва същия `turnId`,
+за да остане Firestore mirror-ът idempotent.
+Невалидна explicit конфигурация е `misconfigured`, без fallback към друг
+project/database/provider. `FIRESTORE_EMULATOR_HOST` е само local/test и никога
+не е production конфигурация.
+
+Rollback на shadow режима е изключване на `FIRESTORE_ENABLED` и restart; това
+връща OpenSearch-only пътя без data migration. Sandbox cleanup, restore или
+production resource действие изискват отделно изрично разрешение.
+
 Флаговете `configured`, `registrationEnabled`, `projectConnection` и
 `sessionProtection` доказват само runtime конфигурация. Те не доказват, че нов
 потребител реално може да се регистрира, да излезе и да влезе отново. Това се

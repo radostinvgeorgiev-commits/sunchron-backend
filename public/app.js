@@ -103,6 +103,15 @@ function createSessionId() {
   );
 }
 
+function createTurnId() {
+  if (globalThis.crypto?.randomUUID) {
+    return "turn-" + globalThis.crypto.randomUUID();
+  }
+  return (
+    "turn-" + Math.random().toString(36).slice(2) + Date.now().toString(36)
+  );
+}
+
 function getOrCreateSessionId() {
   const stored = localStorage.getItem("synchronSessionId");
   if (stored?.startsWith("sess-")) return stored;
@@ -1734,6 +1743,7 @@ async function sendMessage() {
   if ((!text && !image) || state.chatBusy) return;
 
   const messageText = text || "Какво виждаш на тази снимка?";
+  const turnId = createTurnId();
   appendMessage("user", messageText, image);
   elements.chatInput.value = "";
   resizeChatInput();
@@ -1754,6 +1764,7 @@ async function sendMessage() {
         message: messageText,
         image,
         ...globalThis.SynchronWorkMode?.getRequestPayload(),
+        turnId,
       }),
     });
 

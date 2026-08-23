@@ -156,3 +156,40 @@ test("production readiness keeps only safe proof fields", async () => {
   assert.equal(report.memoryAcceptance.passedSteps, 9);
   assert.doesNotMatch(JSON.stringify(report), /must-not-survive/u);
 });
+
+test("system report exposes Firestore shadow configuration without making it production-ready", async () => {
+  const report = await getSystemConfigurationReport({
+    env: {
+      NODE_ENV: "test",
+      FIRESTORE_ENABLED: "true",
+      GCP_PROJECT_ID: "synchron-shadow-test",
+      FIRESTORE_DATABASE_ID: "synchron-shadow-v1",
+      FIRESTORE_LOCATION: "europe-west1",
+      FIRESTORE_COLLECTION_PREFIX: "synchron-shadow-",
+    },
+    getDigitalOceanStatus: async () => {
+      throw Object.assign(new Error("not configured"), {
+        code: "DIGITALOCEAN_NOT_CONFIGURED",
+      });
+    },
+    getProductionStatus: async () => ({
+      connected: false,
+      status: "unavailable",
+      commit: null,
+      memoryAcceptance: null,
+      errorCode: "PRODUCTION_READINESS_UNAVAILABLE",
+    }),
+  });
+
+  assert.equal(report.firestore.status, "configured");
+  assert.equal(report.firestore.mode, "shadow");
+  assert.equal(report.firestore.adapterInitialized, false);
+  assert.match(
+    formatSystemConfigurationReport(report),
+    /Firestore shadow: configured; OpenSearch остава authoritative/u,
+  );
+  assert.doesNotMatch(
+    JSON.stringify(report),
+    /GOOGLE_APPLICATION_CREDENTIALS|private-key/u,
+  );
+});

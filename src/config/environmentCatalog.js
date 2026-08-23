@@ -185,6 +185,49 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       { hasDefault: true },
     ),
 
+    general(
+      "GCP_PROJECT_ID",
+      "Google Cloud",
+      "Изрично избран Google Cloud project за изолирания Firestore sandbox.",
+    ),
+    general(
+      "GCP_REGION",
+      "Google Cloud",
+      "Бъдещ регион за Google Cloud ресурси; не се избира автоматично.",
+    ),
+    general(
+      "FIRESTORE_ENABLED",
+      "Google Cloud",
+      "Изрично включва само shadow mirror към Firestore; OpenSearch остава authoritative.",
+      { hasDefault: true },
+    ),
+    general(
+      "FIRESTORE_DATABASE_ID",
+      "Google Cloud",
+      "Изолиран Firestore database идентификатор за shadow sandbox.",
+    ),
+    general(
+      "FIRESTORE_LOCATION",
+      "Google Cloud",
+      "Деклариран Firestore регион и data residency граница.",
+    ),
+    general(
+      "FIRESTORE_COLLECTION_PREFIX",
+      "Google Cloud",
+      "Prefix за изолираните Firestore profile и conversation collections.",
+    ),
+    general(
+      "FIRESTORE_REQUEST_TIMEOUT_MS",
+      "Google Cloud",
+      "Максимално време за best-effort Firestore shadow операция.",
+      { hasDefault: true },
+    ),
+    general(
+      "FIRESTORE_EMULATOR_HOST",
+      "Google Cloud",
+      "Само local/test адрес за Firestore emulator; невалиден в production.",
+    ),
+
     secret(
       "MCP_ACCESS_TOKEN",
       "ChatGPT / MCP",

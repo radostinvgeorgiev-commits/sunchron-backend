@@ -41,6 +41,7 @@ test("work center shows live connection checks instead of config-only claims", a
   assert.match(source, /fetch\("\/api\/github\/status"/u);
   assert.match(source, /fetch\("\/api\/google\/status"/u);
   assert.match(source, /liveCheck: liveChecks\.github/u);
+  assert.match(source, /liveCheck\.connected === false/u);
   assert.match(source, /проверката неуспешна/u);
 });
 

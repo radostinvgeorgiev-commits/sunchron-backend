@@ -45,6 +45,8 @@ test("application exposes working memory and permission controls", async () => {
   assert.doesNotMatch(script, /Снимки и файлове/u);
   assert.match(script, /fetch\(["']\/health\/integrations["']/u);
   assert.match(script, /tool\.id === "github-read" && !githubConnected/u);
+  assert.match(script, /Свързано · GitHub Read/u);
+  assert.match(script, /Готово · вътрешен инструмент/u);
   assert.match(script, /Твоята лична AI операционна система/u);
   assert.match(script, /item\.readOnly/u);
   assert.match(script, /fetch\(["']\/health\/ready["']/u);

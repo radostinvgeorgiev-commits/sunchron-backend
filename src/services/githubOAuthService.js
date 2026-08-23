@@ -359,10 +359,12 @@ export async function hasGitHubSession(id) {
 }
 
 export async function getLatestAuthorizedGitHubSession() {
-  const cached = [...sessions.values()]
-    .filter((session) => isAuthorizedGitHubLogin(session.login))
-    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
-  if (cached?.accessToken) return cached;
+  const cached = [...sessions.entries()]
+    .filter(([, session]) => isAuthorizedGitHubLogin(session.login))
+    .sort(([, a], [, b]) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+  if (cached?.[1]?.accessToken) {
+    return Object.freeze({ ...cached[1], id: cached[0] });
+  }
 
   const backend = resolvePersistenceBackend(process.env);
   let hits = [];
@@ -386,7 +388,7 @@ export async function getLatestAuthorizedGitHubSession() {
       const session = decryptGitHubSession(hit._source);
       if (session?.accessToken && isAuthorizedGitHubLogin(session.login)) {
         sessions.set(hit._id, session);
-        return session;
+        return Object.freeze({ ...session, id: hit._id });
       }
     } catch {
       // Ignore stale or unreadable sessions and continue fail-closed.

@@ -30,6 +30,10 @@ discovery, Cloud Run и Cloud Build trigger-а само за текущия proj
 недостъпен. Инструментът е read-only и не стартира Cloud Shell, build, job или
 deployment.
 
+Разговорният аватар използва същия проверен capability engine. Read-only
+заявките могат да върнат реален резултат в разговора; write заявките спират на
+точна confirmation стъпка и не променят външна система преди owner потвърждение.
+
 ## Кодова задача
 
 1. Влез като owner и свържи GitHub OAuth.

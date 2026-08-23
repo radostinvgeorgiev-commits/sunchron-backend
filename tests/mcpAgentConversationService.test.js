@@ -61,8 +61,8 @@ test("MCP agent conversation reuses the owner workspace, memory and session", as
         assert.equal(reasoningEffort, "low");
         assert.equal(verbosity, "medium");
         assert.match(input[0].content, /Мост тест/u);
-        assert.match(input[0].content, /MCP МОСТ — САМО РАЗГОВОР/u);
-        assert.match(input[0].content, /Не променяй код/u);
+        assert.match(input[0].content, /MCP МОСТ — ПРОВЕРЕН ИНСТРУМЕНТАЛЕН РЕЖИМ/u);
+        assert.match(input[0].content, /Не изпълнявай shell команди/u);
         assert.deepEqual(
           input.slice(-2).map(({ role, content }) => ({ role, content })),
           [
@@ -97,6 +97,104 @@ test("MCP agent conversation reuses the owner workspace, memory and session", as
       "primary-user",
     ],
   ]);
+});
+
+test("MCP agent conversation executes a detected read-only capability", async () => {
+  let taskOptions;
+  const result = await sendMcpAgentMessage(
+    {
+      ownerId: "primary-user",
+      message: "Провери състоянието на бекенда",
+      identity: { role: "owner", displayName: "Радко" },
+    },
+    {
+      loadWorkspace: async () => workspace(),
+      listMemories: async () => [],
+      listMessages: async () => [],
+      runTask: async (options) => {
+        taskOptions = options;
+        return {
+          requests: [
+            {
+              capability: "infrastructure.googlecloud.diagnostics.read",
+              action: "infrastructure.read",
+              message: "Провери състоянието на бекенда",
+            },
+          ],
+          results: [
+            {
+              status: "fulfilled",
+              request: {
+                capability: "infrastructure.googlecloud.diagnostics.read",
+                action: "infrastructure.read",
+              },
+              result: {
+                output: "Project diagnostics: PASS.",
+                permission: { decision: "allow" },
+                tool: { name: "Google Cloud Project Diagnostics" },
+                requiresConfirmation: false,
+              },
+            },
+          ],
+          task: {
+            id: "task-1",
+            status: "completed",
+            verified: true,
+          },
+          plannerUsed: false,
+        };
+      },
+      saveTurn: async () => {},
+    },
+  );
+
+  assert.equal(result.response, "Project diagnostics: PASS.");
+  assert.deepEqual(result.capabilities, [
+    "infrastructure.googlecloud.diagnostics.read",
+  ]);
+  assert.equal(result.task.status, "completed");
+  assert.equal(taskOptions.executionContext.prepareConfirmation, true);
+  assert.equal(taskOptions.executionContext.ownerId, "primary-user");
+  assert.equal(result.externalActionsExecuted, false);
+});
+
+test("MCP agent conversation returns owner confirmation for a write capability", async () => {
+  const result = await sendMcpAgentMessage(
+    {
+      ownerId: "primary-user",
+      message: "Създай Pull Request в GitHub",
+      identity: { role: "owner", displayName: "Радко" },
+    },
+    {
+      loadWorkspace: async () => workspace(),
+      listMemories: async () => [],
+      listMessages: async () => [],
+      runTask: async () => ({
+        requests: [
+          { capability: "code.write", action: "github.write", message: "Създай Pull Request" },
+        ],
+        results: [
+          {
+            status: "fulfilled",
+            request: { capability: "code.write", action: "github.write" },
+            result: {
+              output: "GitHub промяната е подготвена. Потвърждение: confirmation-1.",
+              permission: { decision: "confirm" },
+              tool: { name: "AI CORE Code Write" },
+              requiresConfirmation: true,
+            },
+          },
+        ],
+        task: { id: "task-2", status: "waiting_confirmation", verified: false },
+      }),
+      saveTurn: async () => {},
+    },
+  );
+
+  assert.match(result.response, /confirmation-1/u);
+  assert.equal(result.task.status, "waiting_confirmation");
+  assert.equal(result.externalActionsExecuted, false);
+  assert.equal(result.codeChanged, false);
 });
 
 test("MCP agent conversation creates a new safe session when none is supplied", async () => {

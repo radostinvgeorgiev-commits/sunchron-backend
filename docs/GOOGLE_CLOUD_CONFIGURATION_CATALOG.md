@@ -11,9 +11,9 @@
 - Supabase остава authoritative за текущите тестови профили и сесии.
 - Съществуващият `GOOGLE_CLIENT_*` поток е Google OAuth за Drive/Calendar/Gmail,
   а не Identity Platform migration.
-- Firestore, Identity Platform и Vertex AI са planning-only. Няма runtime
-  adapter, data import, data migration, user import или provider selection в този
-  слой.
+- Firestore и Identity Platform са planning-only. Vertex AI има само изолиран
+  opt-in adapter/auth/status слой; няма data import, data migration, user import
+  или provider selection в този слой.
 - Cloud Run template-ът е нарочно непълен: има placeholders и няма secret
   references, IAM binding, public invoker или DNS промяна.
 
@@ -80,15 +80,21 @@ signup → logout → login, session protection и rollback. Няма мигра
 Supabase users, sessions или лични профили, няма промяна на текущия Google OAuth
 поток и няма DNS/authorized-domain промяна в този PR.
 
-## Vertex AI — бъдещ provider pilot
+## Vertex AI — изолиран provider pilot
 
-Бъдещите non-secret полета са `VERTEX_AI_PROJECT_ID`,
+Non-secret полетата са `VERTEX_AI_PROJECT_ID`,
 `VERTEX_AI_LOCATION`, `VERTEX_AI_MODEL`, `VERTEX_AI_TIMEOUT_MS` и
 `VERTEX_AI_ENABLED=false`. Достъпът трябва да е чрез runtime service account и
 одобрена `roles/aiplatform.user` граница; ролята не се предоставя в този слой.
 
-Vertex AI не се добавя директно в AI Core и не става fallback. Реален provider
-трябва първо да има provider adapter, Capability Engine/Tool Registry boundary,
+Adapter-ът използва Application Default Credentials и не приема JSON key,
+`GOOGLE_APPLICATION_CREDENTIALS` стойност или API key. Той е изключен по
+подразбиране и не се добавя директно в AI CORE selector-а, не става fallback и
+не се регистрира като Tool Registry capability. Неговият status е отделен от
+текущия primary provider и показва auth като `not-verified`, докато не бъде
+изпълнен одобрен smoke.
+
+Provider selection изисква отделен Capability Engine/Tool Registry boundary,
 rate/cost limit, isolated smoke и изрично owner acceptance. До тогава текущият
 OpenAI/Gemini/Grok contract остава непроменен.
 
@@ -115,7 +121,7 @@ Cloud Run template-ът е в
 | 2. Изолиран GCP staging | Избран project/region, показана цена, Artifact Registry, runtime service account и Secret Manager references с least privilege. | Нова платена услуга, IAM write или secret без изрично owner одобрение. |
 | 3. Runtime acceptance | Cloud Run revision сочи exact immutable image; `/health`, `/health/ready` и безопасният smoke contract са зелени. | Readiness failure, dependency fallback, неочакван публичен достъп или неясен rollback. |
 | 4. Data/identity pilot | Само sandbox Firestore schema + backup/restore и тестов Identity Platform tenant с signup/logout/login. | Import на production данни, Supabase cutover, изтриване или липсващ cleanup. |
-| 5. Vertex pilot | Изолиран provider smoke, cost/quota ceiling, service-account scope и проверка през одобрен AI Core boundary. | Директен обход на Capability Engine, автоматичен fallback или production secret. |
+| 5. Vertex pilot | Изолиран adapter smoke с ADC, cost/quota ceiling, service-account scope и проверка през бъдещ одобрен AI Core boundary. | Директен обход на Capability Engine, автоматичен fallback или production secret. |
 | 6. Cutover/rollback | Отделно owner решение, доказан rollback към DigitalOcean и повторен exact-SHA acceptance; DNS се разглежда отделно. | DNS промяна, production migration или deploy без изрично разрешение. |
 
 До преминаване на всички gates този документ описва само готовност за

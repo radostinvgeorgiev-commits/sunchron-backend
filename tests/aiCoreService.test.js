@@ -6,6 +6,7 @@ import {
   extractGeminiOutputText,
   extractGrokOutputText,
   extractOpenAIOutputText,
+  getConfiguredAiProvider,
   getAiProviderStatus,
   requestAiResponse,
   requestGeminiResponse,
@@ -275,4 +276,31 @@ test("generic AI dispatch and status are explicit without exposing keys", async 
   });
   assert.equal(result.provider, "grok");
   assert.equal(result.text, "Работи.");
+});
+
+test("Vertex remains outside the AI Core selector and dispatch boundary", async () => {
+  assert.equal(
+    getConfiguredAiProvider({ AI_CORE_PROVIDER: "vertex-gemini" }),
+    null,
+  );
+  const status = getAiProviderStatus({
+    AI_CORE_PROVIDER: "vertex-gemini",
+    OPENAI_API_KEY: "openai-secret",
+  });
+  assert.equal(status.selectedProvider, null);
+  assert.deepEqual(status.providers, [
+    { id: "openai", configured: true },
+    { id: "gemini", configured: false },
+    { id: "grok", configured: false },
+  ]);
+
+  await assert.rejects(
+    requestAiResponse({
+      provider: "vertex-gemini",
+      input: [{ role: "user", content: "Здравей" }],
+    }),
+    (error) =>
+      error.code === "AI_PROVIDER_INVALID" &&
+      error.status === 503,
+  );
 });

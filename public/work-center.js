@@ -9,6 +9,7 @@
   const FALLBACK_CONFIG = Object.freeze({
     googleCloudConsoleUrl: "https://console.cloud.google.com/run",
   });
+  const STATUS_REFRESH_INTERVAL_MS = 30_000;
 
   const button = document.getElementById("workCenterBtn");
   const drawer = document.getElementById("dataDrawer");
@@ -17,6 +18,9 @@
   const body = document.getElementById("dataDrawerBody");
   const sidebar = document.getElementById("sidebar");
   if (!button || !drawer || !backdrop || !title || !body || !sidebar) return;
+
+  let refreshTimer = null;
+  let refreshInFlight = false;
 
   function safeHttpsUrl(value, fallback = null) {
     try {
@@ -133,6 +137,10 @@
 
   function closeWorkCenter() {
     const wasOpen = !drawer.hidden;
+    if (refreshTimer) {
+      clearInterval(refreshTimer);
+      refreshTimer = null;
+    }
     drawer.hidden = true;
     backdrop.hidden = true;
     if (wasOpen) {
@@ -171,7 +179,11 @@
   function resolveToolStatus(
     integrations,
     toolId,
-    { connected = true, connectionName = "услугата" } = {},
+    {
+      connected = true,
+      connectionName = "услугата",
+      liveCheck = null,
+    } = {},
   ) {
     if (!Array.isArray(integrations?.tools)) {
       return {
@@ -183,6 +195,13 @@
     if (!tool?.configured || !tool?.enabled || !tool?.executable) {
       return {
         label: "Не е конфигуриран",
+        className: "warning",
+      };
+    }
+    if (liveCheck?.checked === true && liveCheck.ok !== true) {
+      const code = liveCheck.statusCode ? ` (${liveCheck.statusCode})` : "";
+      return {
+        label: `${connectionName}: проверката неуспешна${code}`,
         className: "warning",
       };
     }
@@ -204,14 +223,48 @@
     };
   }
 
+  function formatStatusTime(value) {
+    if (!value) return "не е проверено";
+    try {
+      return new Intl.DateTimeFormat("bg-BG", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }).format(new Date(value));
+    } catch {
+      return "не е проверено";
+    }
+  }
+
+  function renderLiveStatusMeta(checkedAt) {
+    const meta = document.createElement("div");
+    meta.className = "work-center-live-meta";
+    meta.setAttribute("role", "status");
+    addText(
+      meta,
+      "span",
+      `Последна реална проверка: ${formatStatusTime(checkedAt)} · автоматично опресняване на 30 секунди.`,
+    );
+    const refresh = document.createElement("button");
+    refresh.type = "button";
+    refresh.className = "work-center-refresh";
+    refresh.dataset.refreshWorkCenter = "";
+    refresh.textContent = "Опреси сега";
+    meta.appendChild(refresh);
+    return meta;
+  }
+
   function resolveCapabilityState(
     integrations,
     toolId,
-    { connected = true } = {},
+    { connected = true, liveCheck = null } = {},
   ) {
     if (!Array.isArray(integrations?.tools)) return "unavailable";
     const tool = integrations.tools.find((item) => item.id === toolId);
     if (!tool?.configured || !tool?.enabled || !tool?.executable) {
+      return "unavailable";
+    }
+    if (liveCheck?.checked === true && liveCheck.ok !== true) {
       return "unavailable";
     }
     return connected ? "working" : "action";
@@ -222,6 +275,7 @@
     integrations,
     sessions,
     testerAuth,
+    liveChecks = {},
   ) {
     const coreReady =
       readiness?.status === "ready" &&
@@ -256,30 +310,37 @@
       },
       {
         label: "GitHub Read",
-        state: resolveCapabilityState(integrations, "github-read"),
+        state: resolveCapabilityState(integrations, "github-read", {
+          connected: Boolean(sessions.githubConnected),
+          liveCheck: liveChecks.github,
+        }),
       },
       {
         label: "GitHub запис с точно потвърждение",
         state: resolveCapabilityState(integrations, "github-confirmed-write", {
           connected: Boolean(sessions.githubConnected),
+          liveCheck: liveChecks.github,
         }),
       },
       {
         label: "Google Drive",
         state: resolveCapabilityState(integrations, "google-drive-read", {
           connected: Boolean(sessions.googleConnected),
+          liveCheck: liveChecks.google,
         }),
       },
       {
         label: "Gmail",
         state: resolveCapabilityState(integrations, "gmail-read", {
           connected: Boolean(sessions.googleConnected),
+          liveCheck: liveChecks.google,
         }),
       },
       {
         label: "Google Calendar",
         state: resolveCapabilityState(integrations, "google-calendar-read", {
           connected: Boolean(sessions.googleConnected),
+          liveCheck: liveChecks.google,
         }),
       },
       { label: "Потребителски профили", state: testerStatus },
@@ -291,6 +352,7 @@
     integrations,
     sessions,
     testerAuth,
+    liveChecks = {},
   ) {
     const section = document.createElement("section");
     section.className = "work-center-capabilities";
@@ -315,6 +377,7 @@
       integrations,
       sessions,
       testerAuth,
+      liveChecks,
     );
     const groups = [
       { state: "working", title: "Работи сега" },
@@ -501,6 +564,8 @@
     sessions = {},
     testerAuth = null,
     actionCenter = null,
+    liveChecks = {},
+    checkedAt = null,
   ) {
     const googleCloudConsoleUrl = safeHttpsUrl(
       config.googleCloudConsoleUrl,
@@ -516,19 +581,31 @@
       "Свързаният разговор е вътре в AI CORE. Външните услуги не получават автоматично достъп до паметта и не дават нови права на агента.",
     );
     body.appendChild(intro);
+    body.appendChild(renderLiveStatusMeta(checkedAt));
     body.appendChild(renderActionCenter(actionCenter || {}));
     body.appendChild(
-      renderCurrentCapabilities(readiness, integrations, sessions, testerAuth),
+      renderCurrentCapabilities(
+        readiness,
+        integrations,
+        sessions,
+        testerAuth,
+        liveChecks,
+      ),
     );
 
     const grid = document.createElement("section");
     grid.className = "work-center-grid";
     grid.setAttribute("aria-label", "Услуги на проекта");
     const coreStatus = resolveCoreStatus(readiness);
-    const githubReadStatus = resolveToolStatus(integrations, "github-read");
+    const githubReadStatus = resolveToolStatus(integrations, "github-read", {
+      connected: Boolean(sessions.githubConnected),
+      connectionName: "GitHub",
+      liveCheck: liveChecks.github,
+    });
     const googleCloudStatus = resolveToolStatus(
       integrations,
       "google-cloud-read",
+      { liveCheck: liveChecks.googleCloud },
     );
     const googleDriveStatus = resolveToolStatus(
       integrations,
@@ -536,11 +613,13 @@
       {
         connected: Boolean(sessions.googleConnected),
         connectionName: "Google",
+        liveCheck: liveChecks.google,
       },
     );
     const gmailStatus = resolveToolStatus(integrations, "gmail-read", {
       connected: Boolean(sessions.googleConnected),
       connectionName: "Google",
+      liveCheck: liveChecks.google,
     });
     const calendarStatus = resolveToolStatus(
       integrations,
@@ -548,6 +627,7 @@
       {
         connected: Boolean(sessions.googleConnected),
         connectionName: "Google",
+        liveCheck: liveChecks.google,
       },
     );
     const chatGptAppStatus = resolveChatGptAppStatus(readiness);
@@ -759,100 +839,159 @@
     panel.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
   }
 
+  async function refreshWorkCenter({ showLoading = false } = {}) {
+    if (refreshInFlight) return;
+    refreshInFlight = true;
+    if (showLoading) {
+      body.innerHTML =
+        '<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Проверка на връзките…</div>';
+    }
+
+    try {
+      const [
+        configResult,
+        readinessResult,
+        integrationsResult,
+        googleResult,
+        githubResult,
+        testerAuthResult,
+        tasksResult,
+        workspaceResult,
+        auditResult,
+        memoriesResult,
+      ] = await Promise.allSettled([
+        fetch("/api/public-config", { cache: "no-store" }),
+        fetch("/health/ready", { cache: "no-store" }),
+        fetch("/health/integrations", { cache: "no-store" }),
+        fetch("/api/google/status", { cache: "no-store" }),
+        fetch("/api/github/status", { cache: "no-store" }),
+        fetch("/api/tester-auth/status", { cache: "no-store" }),
+        fetch("/api/tasks?unfinished=true&limit=20", { cache: "no-store" }),
+        fetch("/api/workspaces", { cache: "no-store" }),
+        fetch("/permissions/audit?limit=30", { cache: "no-store" }),
+        fetch("/memory/profile", { cache: "no-store" }),
+      ]);
+
+      let config = FALLBACK_CONFIG;
+      if (configResult.status === "fulfilled" && configResult.value.ok) {
+        config = (await configResult.value.json()) || FALLBACK_CONFIG;
+      }
+
+      let readiness = null;
+      if (readinessResult.status === "fulfilled" && readinessResult.value.ok) {
+        readiness = await readinessResult.value.json();
+      }
+      let integrations = null;
+      if (
+        integrationsResult.status === "fulfilled" &&
+        integrationsResult.value.ok
+      ) {
+        integrations = await integrationsResult.value.json();
+      }
+
+      const googleCheck = {
+        checked: googleResult.status === "fulfilled",
+        ok: googleResult.status === "fulfilled" && googleResult.value.ok,
+        statusCode:
+          googleResult.status === "fulfilled" ? googleResult.value.status : null,
+        connected: false,
+      };
+      if (googleResult.status === "fulfilled") {
+        try {
+          const google = await googleResult.value.json();
+          googleCheck.connected = google?.connected === true;
+        } catch {
+          // The HTTP status remains the source of truth when the response is not JSON.
+        }
+      }
+
+      const githubCheck = {
+        checked: githubResult.status === "fulfilled",
+        ok: githubResult.status === "fulfilled" && githubResult.value.ok,
+        statusCode:
+          githubResult.status === "fulfilled" ? githubResult.value.status : null,
+        connected: false,
+      };
+      if (githubResult.status === "fulfilled") {
+        try {
+          const github = await githubResult.value.json();
+          githubCheck.connected = github?.connected === true;
+        } catch {
+          // The HTTP status remains the source of truth when the response is not JSON.
+        }
+      }
+
+      const googleCloudTool = integrations?.tools?.find(
+        (tool) => tool.id === "google-cloud-read",
+      );
+      const liveChecks = {
+        google: googleCheck,
+        github: githubCheck,
+        googleCloud: googleCloudTool
+          ? {
+              checked: true,
+              ok: googleCloudTool.healthStatus === "healthy",
+              statusCode: null,
+            }
+          : null,
+      };
+      let testerAuth = null;
+      if (testerAuthResult.status === "fulfilled" && testerAuthResult.value.ok) {
+        testerAuth = await testerAuthResult.value.json();
+      }
+      const actionCenter = {
+        tasks:
+          tasksResult.status === "fulfilled" && tasksResult.value.ok
+            ? (await tasksResult.value.json()).items || []
+            : [],
+        workspace:
+          workspaceResult.status === "fulfilled" && workspaceResult.value.ok
+            ? await workspaceResult.value.json()
+            : null,
+        audit:
+          auditResult.status === "fulfilled" && auditResult.value.ok
+            ? (await auditResult.value.json()).events || []
+            : [],
+        memories:
+          memoriesResult.status === "fulfilled" && memoriesResult.value.ok
+            ? (await memoriesResult.value.json()).items || []
+            : [],
+      };
+      renderWorkCenter(
+        config,
+        readiness,
+        integrations,
+        {
+          googleConnected: googleCheck.connected,
+          githubConnected: githubCheck.connected,
+        },
+        testerAuth,
+        actionCenter,
+        liveChecks,
+        new Date().toISOString(),
+      );
+    } finally {
+      refreshInFlight = false;
+    }
+  }
+
   async function openWorkCenter() {
     title.textContent = "Работен център";
     drawer.hidden = false;
     backdrop.hidden = false;
     sidebar.classList.remove("mobile-visible");
-    body.innerHTML =
-      '<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Зареждане…</div>';
-
-    const [
-      configResult,
-      readinessResult,
-      integrationsResult,
-      googleResult,
-      githubResult,
-      testerAuthResult,
-      tasksResult,
-      workspaceResult,
-      auditResult,
-      memoriesResult,
-    ] = await Promise.allSettled([
-      fetch("/api/public-config", { cache: "no-store" }),
-      fetch("/health/ready", { cache: "no-store" }),
-      fetch("/health/integrations", { cache: "no-store" }),
-      fetch("/api/google/status", { cache: "no-store" }),
-      fetch("/api/github/status", { cache: "no-store" }),
-      fetch("/api/tester-auth/status", { cache: "no-store" }),
-      fetch("/api/tasks?unfinished=true&limit=20", { cache: "no-store" }),
-      fetch("/api/workspaces", { cache: "no-store" }),
-      fetch("/permissions/audit?limit=30", { cache: "no-store" }),
-      fetch("/memory/profile", { cache: "no-store" }),
-    ]);
-
-    let config = FALLBACK_CONFIG;
-    if (configResult.status === "fulfilled" && configResult.value.ok) {
-      config = (await configResult.value.json()) || FALLBACK_CONFIG;
-    }
-
-    let readiness = null;
-    if (readinessResult.status === "fulfilled" && readinessResult.value.ok) {
-      readiness = await readinessResult.value.json();
-    }
-    let integrations = null;
-    if (
-      integrationsResult.status === "fulfilled" &&
-      integrationsResult.value.ok
-    ) {
-      integrations = await integrationsResult.value.json();
-    }
-    let googleConnected = false;
-    if (googleResult.status === "fulfilled" && googleResult.value.ok) {
-      const google = await googleResult.value.json();
-      googleConnected = Boolean(google.connected);
-    }
-    let githubConnected = false;
-    if (githubResult.status === "fulfilled" && githubResult.value.ok) {
-      const github = await githubResult.value.json();
-      githubConnected = Boolean(github.connected);
-    }
-    let testerAuth = null;
-    if (testerAuthResult.status === "fulfilled" && testerAuthResult.value.ok) {
-      testerAuth = await testerAuthResult.value.json();
-    }
-    const actionCenter = {
-      tasks:
-        tasksResult.status === "fulfilled" && tasksResult.value.ok
-          ? (await tasksResult.value.json()).items || []
-          : [],
-      workspace:
-        workspaceResult.status === "fulfilled" && workspaceResult.value.ok
-          ? await workspaceResult.value.json()
-          : null,
-      audit:
-        auditResult.status === "fulfilled" && auditResult.value.ok
-          ? (await auditResult.value.json()).events || []
-          : [],
-      memories:
-        memoriesResult.status === "fulfilled" && memoriesResult.value.ok
-          ? (await memoriesResult.value.json()).items || []
-          : [],
-    };
-    renderWorkCenter(
-      config,
-      readiness,
-      integrations,
-      {
-        googleConnected,
-        githubConnected,
-      },
-      testerAuth,
-      actionCenter,
-    );
+    if (refreshTimer) clearInterval(refreshTimer);
+    await refreshWorkCenter({ showLoading: true });
+    refreshTimer = setInterval(() => {
+      if (!drawer.hidden) refreshWorkCenter();
+    }, STATUS_REFRESH_INTERVAL_MS);
   }
 
   body.addEventListener("click", async (event) => {
+    if (event.target.closest("[data-refresh-work-center]")) {
+      await refreshWorkCenter();
+      return;
+    }
     if (event.target.closest("[data-close-work-center]")) {
       closeWorkCenter();
       return;

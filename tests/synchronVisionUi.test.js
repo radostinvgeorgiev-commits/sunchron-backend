@@ -44,6 +44,8 @@ test("the chat composer is a labelled multiline control with bounded autosize", 
   assert.match(app, /function resizeChatInput\(\)/u);
   assert.match(app, /Math\.min\(naturalHeight, MAX_CHAT_INPUT_HEIGHT\)/u);
   assert.match(app, /chatInput\.addEventListener\("input", resizeChatInput\)/u);
+  assert.match(app, /function createTurnId\(\)/u);
+  assert.match(app, /turnId,\s*\}\),/u);
 });
 
 test("status panel reports live Supabase health and honest backup evidence", async () => {

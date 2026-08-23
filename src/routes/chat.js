@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import express from "express";
 import {
   buildMemoryContext,
@@ -115,6 +116,7 @@ const DEFAULT_AI_TIMEOUT_MS = 120000;
 const MAX_CHAT_MESSAGE_LENGTH = 6_000;
 const MAX_CHAT_SESSION_ID_LENGTH = 160;
 const SAFE_CHAT_SESSION_ID_PATTERN = /^[a-z0-9:_-]+$/iu;
+const MAX_CONVERSATION_TURN_ID_LENGTH = 200;
 const DIGITALOCEAN_NAME_PATTERN =
   /(?:digital\s*ocean|ди[гж]итал\s*о(?:кеа|ка|ке)н|ди[гж]итъл\s*о(?:кеа|ка|ке)н)/iu;
 const DIRECT_CAPABILITY_REPLIES = new Set([
@@ -140,14 +142,30 @@ async function saveConversationTurnBestEffort(
   userText,
   replyText,
   ownerId,
+  turnId,
 ) {
   try {
-    await saveConversationTurn(sessionId, userText, replyText, ownerId);
+    await saveConversationTurn(
+      sessionId,
+      userText,
+      replyText,
+      ownerId,
+      turnId,
+    );
     return true;
   } catch (error) {
     logSafeError("[ConversationMemory] Save failure", error);
     return false;
   }
+}
+
+function normalizeConversationTurnId(value) {
+  const turnId = typeof value === "string" ? value.trim() : "";
+  return turnId &&
+    turnId.length <= MAX_CONVERSATION_TURN_ID_LENGTH &&
+    !/[\u0000-\u001f/]/u.test(turnId)
+    ? turnId
+    : randomUUID();
 }
 
 export function getConversationPersistenceMetadata(conversationPersisted) {
@@ -791,7 +809,8 @@ function projectRunFromCapabilityResults(capabilityResults, workContext) {
 
 router.post("/chat", async (req, res) => {
   const openAiApiKey = process.env.OPENAI_API_KEY;
-  const { sessionId, message, image, mode, workContext } = req.body || {};
+  const { sessionId, message, image, mode, workContext, turnId } =
+    req.body || {};
   const googleSessionId =
     parseCookies(req.headers.cookie).synchron_google_session || "";
   const githubSessionId =
@@ -801,6 +820,7 @@ router.post("/chat", async (req, res) => {
   const capabilityPlanningAllowed = canPlanCapabilities(req.owner);
   const cleanSessionId = typeof sessionId === "string" ? sessionId.trim() : "";
   const cleanMessage = typeof message === "string" ? message.trim() : "";
+  const conversationTurnId = normalizeConversationTurnId(turnId);
   const interactionMode = normalizeInteractionMode(mode);
   const cleanWorkContext =
     interactionMode === "work" ? sanitizeWorkContext(workContext) : null;
@@ -1012,6 +1032,14 @@ router.post("/chat", async (req, res) => {
   sendHeartbeat();
   res.on("close", clearHeartbeat);
   res.on("finish", clearHeartbeat);
+  const persistConversation = (replyText) =>
+    saveConversationTurnBestEffort(
+      cleanSessionId,
+      cleanMessage,
+      replyText,
+      ownerId,
+      conversationTurnId,
+    );
 
   if (
     !image &&
@@ -1020,12 +1048,7 @@ router.post("/chat", async (req, res) => {
     isWorkContextStatusRequest(cleanMessage)
   ) {
     const fullReply = buildWorkContextStatusReply(cleanWorkContext);
-    const conversationPersisted = await saveConversationTurnBestEffort(
-      cleanSessionId,
-      cleanMessage,
-      fullReply,
-      ownerId,
-    );
+    const conversationPersisted = await persistConversation(fullReply);
     sendEvent("token", { token: fullReply });
     sendEvent("done", {
       ok: true,
@@ -1044,12 +1067,7 @@ router.post("/chat", async (req, res) => {
         prompt: cleanMessage,
         context: messages[0].content,
       });
-      const conversationPersisted = await saveConversationTurnBestEffort(
-        cleanSessionId,
-        cleanMessage,
-        fullReply,
-        ownerId,
-      );
+      const conversationPersisted = await persistConversation(fullReply);
       await auditAction({
         action: "image.read",
         decision: "allow",
@@ -1086,12 +1104,7 @@ router.post("/chat", async (req, res) => {
         source: "confirmed-chat-command",
       });
       const fullReply = formatMemoryWriteResult(items);
-      const conversationPersisted = await saveConversationTurnBestEffort(
-        cleanSessionId,
-        cleanMessage,
-        fullReply,
-        ownerId,
-      );
+      const conversationPersisted = await persistConversation(fullReply);
       sendEvent("token", { token: fullReply });
       sendEvent("done", {
         ok: true,
@@ -1142,12 +1155,7 @@ router.post("/chat", async (req, res) => {
         googleSessionId,
       });
       const fullReply = formatCalendarEventResult(result);
-      const conversationPersisted = await saveConversationTurnBestEffort(
-        cleanSessionId,
-        cleanMessage,
-        fullReply,
-        ownerId,
-      );
+      const conversationPersisted = await persistConversation(fullReply);
       await auditAction({
         action: "calendar.write",
         decision: "confirmed",
@@ -1195,12 +1203,7 @@ router.post("/chat", async (req, res) => {
         githubSessionId,
       });
       const fullReply = formatCopilotTaskResult(result);
-      const conversationPersisted = await saveConversationTurnBestEffort(
-        cleanSessionId,
-        cleanMessage,
-        fullReply,
-        ownerId,
-      );
+      const conversationPersisted = await persistConversation(fullReply);
       await auditAction({
         action: "github.write",
         decision: "confirmed",
@@ -1291,12 +1294,7 @@ router.post("/chat", async (req, res) => {
       ? [heading, ...scopedMemories.map(({ fact }) => `• ${fact}`)].join("\n")
       : emptyReply;
 
-    const conversationPersisted = await saveConversationTurnBestEffort(
-      cleanSessionId,
-      cleanMessage,
-      fullReply,
-      ownerId,
-    );
+    const conversationPersisted = await persistConversation(fullReply);
     sendEvent("token", { token: fullReply });
     sendEvent("done", {
       ok: true,
@@ -1400,12 +1398,7 @@ router.post("/chat", async (req, res) => {
     shouldReplyWithVerifiedToolOutput(capabilityResults)
   ) {
     const fullReply = capabilityReplies.join("\n\n");
-    const conversationPersisted = await saveConversationTurnBestEffort(
-      cleanSessionId,
-      cleanMessage,
-      fullReply,
-      ownerId,
-    );
+    const conversationPersisted = await persistConversation(fullReply);
     sendEvent("token", { token: fullReply });
     sendEvent("done", {
       ok: taskResult.status !== "failed",
@@ -1426,12 +1419,7 @@ router.post("/chat", async (req, res) => {
     const fullReply = [...capabilityReplies, memoryReply]
       .filter(Boolean)
       .join("\n\n");
-    const conversationPersisted = await saveConversationTurnBestEffort(
-      cleanSessionId,
-      cleanMessage,
-      fullReply,
-      ownerId,
-    );
+    const conversationPersisted = await persistConversation(fullReply);
     sendEvent("token", { token: fullReply });
     sendEvent("done", {
       ok: true,
@@ -1454,12 +1442,7 @@ router.post("/chat", async (req, res) => {
       const fullReply = [...capabilityReplies, memoryReply]
         .filter(Boolean)
         .join("\n\n");
-      const conversationPersisted = await saveConversationTurnBestEffort(
-        cleanSessionId,
-        cleanMessage,
-        fullReply,
-        ownerId,
-      );
+      const conversationPersisted = await persistConversation(fullReply);
       sendEvent("token", { token: fullReply });
       sendEvent("done", {
         ok: true,
@@ -1549,12 +1532,7 @@ router.post("/chat", async (req, res) => {
       throw new Error("AI ядрото приключи без текстов отговор.");
     }
 
-    const conversationPersisted = await saveConversationTurnBestEffort(
-      cleanSessionId,
-      cleanMessage,
-      fullReply,
-      ownerId,
-    );
+    const conversationPersisted = await persistConversation(fullReply);
     sendEvent("done", {
       ok: true,
       memoryCount: memories.length,

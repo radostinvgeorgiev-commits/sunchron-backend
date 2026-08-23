@@ -14,6 +14,7 @@ const bridgeRunbook = read("../docs/BRIDGE_AND_DIAGNOSTICS.md");
 const googleCloudCatalog = read(
   "../docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md",
 );
+const firestoreIndexes = read("../docs/firestore-indexes.v1.json");
 const historicalAudit = read("../docs/archive/TECHNICAL_AUDIT_2026-07.md");
 const historicalShortAudit = read(
   "../docs/archive/TECHNICAL_AUDIT_2026-07-31.md",
@@ -140,6 +141,11 @@ test("Google Cloud foundation stays planning-only and preserves production bound
     googleCloudCatalog,
     /Няма миграция на\s+Supabase users/u,
   );
+  assert.match(googleCloudCatalog, /OpenSearch-first shadow mirror/u);
+  assert.match(googleCloudCatalog, /FIRESTORE_EMULATOR_HOST/u);
+  assert.match(googleCloudCatalog, /default `npm test` не прави live GCP calls/u);
+  assert.match(firestoreIndexes, /"schemaVersion": 1/u);
+  assert.match(firestoreIndexes, /"provisioned": false/u);
 });
 
 test("product direction keeps UX ambition separate from verified tools", () => {

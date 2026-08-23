@@ -20,7 +20,7 @@ test("every successful conversation save path forwards the real persistence resu
     "utf8",
   );
   const saveCalls = source.match(
-    /const conversationPersisted = await saveConversationTurnBestEffort\(/gu,
+    /const conversationPersisted = await persistConversation\(/gu,
   );
   const metadataCalls = source.match(
     /\.\.\.getConversationPersistenceMetadata\(conversationPersisted\)/gu,

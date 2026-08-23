@@ -71,6 +71,27 @@ test("readiness accepts OpenAI as the primary chat provider", async () => {
   assert.equal(result.checks.chatAgent.removedProvider, "digitalocean-agent");
 });
 
+test("readiness does not depend on the optional Firestore shadow mirror", async () => {
+  const result = await getReadinessStatus({
+    env: {
+      OPENAI_API_KEY: "secret",
+      FIRESTORE_ENABLED: "true",
+      GCP_PROJECT_ID: "synchron-shadow-test",
+      FIRESTORE_DATABASE_ID: "synchron-shadow-v1",
+      FIRESTORE_LOCATION: "europe-west1",
+      FIRESTORE_COLLECTION_PREFIX: "synchron-shadow-",
+    },
+    loadOpenSearchClient: () => ({
+      cluster: {
+        health: async () => ({ body: { status: "green" } }),
+      },
+    }),
+  });
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.checks.memory.status, "green");
+});
+
 test("readiness accepts Gemini when it is explicitly selected", async () => {
   const result = await getReadinessStatus({
     env: {

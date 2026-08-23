@@ -1,10 +1,21 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { getOpenSearchClient } from "../config/opensearch.js";
 import {
   CANONICAL_PROJECT_MEMORY_ID,
   PROJECT_DEFINITION,
   isSupersededProjectDefinition,
 } from "../config/projectIdentity.js";
+import {
+  getFirestoreMemoryAdapter,
+  isFirestoreMemoryShadowConfigured,
+} from "./firestoreMemoryAdapter.js";
+import { recordAuditEvent } from "./permissionService.js";
+import { conversationTitleFromMessages } from "../utils/conversation.js";
+import {
+  profileMemoryDocumentId,
+  safeMemoryReference,
+} from "../utils/memoryIdentifiers.js";
+import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 
 const PROFILE_INDEX = process.env.MEMORY_INDEX || "synchron-profile-memory-v1";
 const CONVERSATION_INDEX =
@@ -15,19 +26,152 @@ const MAX_CONVERSATION_MESSAGES = 20;
 const MAX_CONVERSATIONS = 50;
 const VALID_SCOPES = new Set(["personal", "project"]);
 const indexPromises = new Map();
+const SHADOW_ACTIONS = Object.freeze({
+  "profile-upsert": "memory.write",
+  "profile-update": "memory.write",
+  "profile-delete": "memory.delete",
+  "profile-clear": "memory.delete",
+  "conversation-turn": "memory.write",
+});
+const MAX_FIRESTORE_SHADOW_TASKS = 256;
+const MAX_FIRESTORE_SHADOW_QUEUE_DEPTH = 64;
+const firestoreShadowTasks = new Set();
+const firestoreShadowAuditTasks = new Set();
+const firestoreShadowQueues = new Map();
+const firestoreShadowQueueDepths = new Map();
+let firestoreShadowQueueFullAuditTask = null;
 
-export function profileMemoryDocumentId(ownerId, memoryKey) {
-  const owner = String(ownerId || "").trim();
-  const key = String(memoryKey || "").trim();
-  if (!owner || !key) {
-    throw new TypeError("Profile memory document ID requires owner and key.");
+function firestoreShadowQueueKey(ownerId, sessionId) {
+  return JSON.stringify([
+    String(ownerId ?? "").trim(),
+    sessionId === null || sessionId === undefined
+      ? null
+      : String(sessionId).trim(),
+  ]);
+}
+
+async function recordFirestoreShadowFailure(operation, sessionId, error) {
+  const action = SHADOW_ACTIONS[operation] || "memory.write";
+  const details = `firestore-shadow:${operation}:${safeErrorCode(
+    error,
+    "FIRESTORE_SHADOW_FAILED",
+  )}`;
+  try {
+    await recordAuditEvent({
+      action,
+      capability: "memory.firestore.shadow",
+      decision: "shadow",
+      phase: "shadow",
+      outcome: "failed",
+      resource: "firestore-shadow",
+      details,
+      sessionId: safeMemoryReference(sessionId),
+    });
+  } catch (auditError) {
+    logSafeError("[Firestore shadow] Audit failure", auditError);
   }
+  logSafeError("[Firestore shadow] Mirror failure", error);
+  if (error?.settlement && typeof error.settlement.then === "function") {
+    await error.settlement;
+  }
+}
 
-  return `profile-${createHash("sha256")
-    .update(owner)
-    .update("\0")
-    .update(key)
-    .digest("hex")}`;
+function trackFirestoreShadowAudit(operation, sessionId, error) {
+  if (firestoreShadowQueueFullAuditTask) return;
+  const task = recordFirestoreShadowFailure(operation, sessionId, error);
+  firestoreShadowQueueFullAuditTask = task;
+  firestoreShadowAuditTasks.add(task);
+  void task.then(
+    () => {
+      firestoreShadowAuditTasks.delete(task);
+      if (firestoreShadowQueueFullAuditTask === task) {
+        firestoreShadowQueueFullAuditTask = null;
+      }
+    },
+    (auditError) => {
+      firestoreShadowAuditTasks.delete(task);
+      if (firestoreShadowQueueFullAuditTask === task) {
+        firestoreShadowQueueFullAuditTask = null;
+      }
+      logSafeError("[Firestore shadow] Failure audit task failed", auditError);
+    },
+  );
+}
+
+function mirrorFirestoreShadow(
+  operation,
+  { ownerId, sessionId = null, execute } = {},
+) {
+  if (typeof execute !== "function") return null;
+  if (!isFirestoreMemoryShadowConfigured()) return null;
+
+  const queueKey = firestoreShadowQueueKey(ownerId, sessionId);
+  const queueDepth = firestoreShadowQueueDepths.get(queueKey) || 0;
+  if (
+    queueDepth >= MAX_FIRESTORE_SHADOW_QUEUE_DEPTH ||
+    firestoreShadowTasks.size >= MAX_FIRESTORE_SHADOW_TASKS
+  ) {
+    const error = new Error("Firestore shadow queue is full.");
+    error.code = "FIRESTORE_SHADOW_QUEUE_FULL";
+    trackFirestoreShadowAudit(operation, sessionId, error);
+    return null;
+  }
+  firestoreShadowQueueDepths.set(queueKey, queueDepth + 1);
+  const previous = firestoreShadowQueues.get(queueKey) || Promise.resolve();
+  const task = previous
+    .catch((error) => {
+      logSafeError("[Firestore shadow] Queue failure", error);
+    })
+    .then(async () => {
+      try {
+        const adapter = getFirestoreMemoryAdapter();
+        if (!adapter) return;
+        await execute(adapter);
+      } catch (error) {
+        await recordFirestoreShadowFailure(operation, sessionId, error);
+      }
+    });
+  firestoreShadowQueues.set(queueKey, task);
+  firestoreShadowTasks.add(task);
+  void task.then(
+    () => {
+      firestoreShadowTasks.delete(task);
+      if (firestoreShadowQueues.get(queueKey) === task) {
+        firestoreShadowQueues.delete(queueKey);
+      }
+      const queueDepth = (firestoreShadowQueueDepths.get(queueKey) || 1) - 1;
+      if (queueDepth > 0) {
+        firestoreShadowQueueDepths.set(queueKey, queueDepth);
+      } else {
+        firestoreShadowQueueDepths.delete(queueKey);
+      }
+    },
+    (error) => {
+      firestoreShadowTasks.delete(task);
+      if (firestoreShadowQueues.get(queueKey) === task) {
+        firestoreShadowQueues.delete(queueKey);
+      }
+      const queueDepth = (firestoreShadowQueueDepths.get(queueKey) || 1) - 1;
+      if (queueDepth > 0) {
+        firestoreShadowQueueDepths.set(queueKey, queueDepth);
+      } else {
+        firestoreShadowQueueDepths.delete(queueKey);
+      }
+      logSafeError("[Firestore shadow] Task failure", error);
+    },
+  );
+  return null;
+}
+
+export { conversationTitleFromMessages, profileMemoryDocumentId };
+
+export async function flushFirestoreShadowForTests() {
+  while (firestoreShadowTasks.size || firestoreShadowAuditTasks.size) {
+    await Promise.all([
+      ...firestoreShadowTasks,
+      ...firestoreShadowAuditTasks,
+    ]);
+  }
 }
 
 function getClientOrThrow() {
@@ -38,6 +182,15 @@ function getClientOrThrow() {
     throw error;
   }
   return client;
+}
+
+function normalizeConversationTurnId(value) {
+  const turnId = typeof value === "string" ? value.trim() : "";
+  return turnId &&
+    turnId.length <= 200 &&
+    !/[\u0000-\u001f/]/u.test(turnId)
+    ? turnId
+    : randomUUID();
 }
 
 async function ensureIndex(index, mappings) {
@@ -614,7 +767,7 @@ export async function saveProfileMemory(
     }
   }
 
-  return {
+  const result = {
     id,
     fact: cleanFact,
     normalizedFact,
@@ -628,6 +781,12 @@ export async function saveProfileMemory(
         normalizedFact,
     ),
   };
+  await mirrorFirestoreShadow("profile-upsert", {
+    ownerId,
+    execute: (adapter) =>
+      adapter.upsertProfileMemory({ ownerId, memory: result }),
+  });
+  return result;
 }
 
 export async function updateProfileMemoryById(
@@ -687,8 +846,8 @@ export async function updateProfileMemoryById(
     operations.push({ delete: { _index: PROFILE_INDEX, _id: cleanId } });
   }
   const response = await client.bulk({ refresh: true, body: operations });
-  const result = response.body || response;
-  if (result?.errors) {
+  const bulkResult = response.body || response;
+  if (bulkResult?.errors) {
     const error = new Error(
       "Промяната на спомена не можа да бъде завършена еднозначно.",
     );
@@ -696,7 +855,7 @@ export async function updateProfileMemoryById(
     error.status = 502;
     throw error;
   }
-  return {
+  const result = {
     id: nextId,
     fact: cleanFact,
     normalizedFact,
@@ -705,6 +864,16 @@ export async function updateProfileMemoryById(
     source: body.source,
     replaced: true,
   };
+  await mirrorFirestoreShadow("profile-update", {
+    ownerId,
+    execute: (adapter) =>
+      adapter.updateProfileMemory({
+        ownerId,
+        memory: result,
+        previousId: cleanId,
+      }),
+  });
+  return result;
 }
 
 export async function deleteProfileMemoryByFact(
@@ -741,7 +910,19 @@ export async function deleteProfileMemoryByFact(
       },
     },
   });
-  return response.body?.deleted ?? response.deleted ?? 0;
+  const deleted = response.body?.deleted ?? response.deleted ?? 0;
+  if (deleted > 0) {
+    await mirrorFirestoreShadow("profile-delete", {
+      ownerId,
+      execute: (adapter) =>
+        adapter.deleteProfileMemoryByFact({
+          ownerId,
+          memoryKey: metadata.memoryKey,
+          normalizedFact,
+        }),
+    });
+  }
+  return deleted;
 }
 
 export async function deleteProfileMemory(id, ownerId = OWNER_ID) {
@@ -757,7 +938,15 @@ export async function deleteProfileMemory(id, ownerId = OWNER_ID) {
       },
     },
   });
-  return (response.body?.deleted ?? response.deleted ?? 0) > 0;
+  const deleted = (response.body?.deleted ?? response.deleted ?? 0) > 0;
+  if (deleted) {
+    await mirrorFirestoreShadow("profile-delete", {
+      ownerId,
+      execute: (adapter) =>
+        adapter.deleteProfileMemoryById({ ownerId, id }),
+    });
+  }
+  return deleted;
 }
 
 export async function clearProfileMemories(scope, ownerId = OWNER_ID) {
@@ -769,7 +958,15 @@ export async function clearProfileMemories(scope, ownerId = OWNER_ID) {
     refresh: true,
     body: { query: { bool: { filter: filters } } },
   });
-  return response.body?.deleted ?? response.deleted ?? 0;
+  const deleted = response.body?.deleted ?? response.deleted ?? 0;
+  if (deleted > 0) {
+    await mirrorFirestoreShadow("profile-clear", {
+      ownerId,
+      execute: (adapter) =>
+        adapter.clearProfileMemories({ ownerId, scope }),
+    });
+  }
+  return deleted;
 }
 
 export async function listConversationMessages(
@@ -793,16 +990,6 @@ export async function listConversationMessages(
   });
   const hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
   return hits.map((hit) => ({ id: hit._id, ...hit._source })).reverse();
-}
-
-export function conversationTitleFromMessages(messages) {
-  const firstUserMessage = messages.find(
-    (message) =>
-      message?.role === "user" && typeof message.content === "string",
-  );
-  const title = firstUserMessage?.content?.trim().replace(/\s+/g, " ");
-  if (!title) return "Нов разговор";
-  return title.length > 52 ? `${title.slice(0, 49).trimEnd()}…` : title;
 }
 
 export async function listConversationSummaries(
@@ -861,6 +1048,7 @@ export async function saveConversationTurn(
   userText,
   replyText,
   ownerId = OWNER_ID,
+  turnId,
 ) {
   await ensureConversationIndex();
   const client = getClientOrThrow();
@@ -895,6 +1083,20 @@ export async function saveConversationTurn(
     error.status = 502;
     throw error;
   }
+  const shadowTurnId = normalizeConversationTurnId(turnId);
+  await mirrorFirestoreShadow("conversation-turn", {
+    ownerId,
+    sessionId,
+    execute: (adapter) =>
+      adapter.saveConversationTurn({
+        ownerId,
+        sessionId,
+        userText,
+        replyText,
+        turnId: shadowTurnId,
+        createdAt: new Date(timestamp),
+      }),
+  });
 }
 
 export function buildMemoryContext(memories, { personName = "Радко" } = {}) {

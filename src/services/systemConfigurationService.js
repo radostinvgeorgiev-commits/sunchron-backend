@@ -4,6 +4,7 @@ import {
   getUserAuthConfigurationStatus,
   isTesterRegistrationEnabled,
 } from "./userAuthService.js";
+import { getFirestoreMemoryStatus } from "./firestoreMemoryAdapter.js";
 
 const DEFAULT_PRODUCTION_URL = "https://synchron.foundation/health/ready";
 
@@ -192,12 +193,14 @@ export async function getSystemConfigurationReport({
     env,
     digitalOceanVariables: digitalOcean.variables,
   });
+  const firestore = getFirestoreMemoryStatus(env);
   return {
     status:
       summarize(environment).missingRequired === 0 ? "ready" : "attention",
     secretsExposed: false,
     summary: summarize(environment),
     environment,
+    firestore,
     digitalOcean,
     production,
   };
@@ -244,6 +247,7 @@ export function formatSystemConfigurationReport(report) {
           `Защитени заместители: ${protectedFallbacks.map((item) => item.key).join(", ")}. Те работят и не са блокер.`,
         ]
       : []),
+    `• Firestore shadow: ${report.firestore?.status || "disabled"}; OpenSearch остава authoritative.`,
     ...(unused.length
       ? [
           `Неизползвани настройки: ${unused.map((item) => item.key).join(", ")}.`,

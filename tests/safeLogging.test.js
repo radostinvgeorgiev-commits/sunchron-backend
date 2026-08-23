@@ -56,6 +56,23 @@ test("unsafe error codes cannot inject arbitrary text into logs", () => {
   });
 });
 
+test("safe error metadata keeps a bounded upstream status for diagnostics", () => {
+  const error = sensitiveError();
+  error.upstreamErrorStatus = "FAILED_PRECONDITION";
+  assert.deepEqual(safeErrorMetadata(error), {
+    name: "OAuthSessionError",
+    code: "SESSION_PERSISTENCE_FAILED",
+    upstreamErrorStatus: "FAILED_PRECONDITION",
+    status: 503,
+  });
+
+  error.upstreamErrorStatus = SENTINEL;
+  assert.doesNotMatch(
+    JSON.stringify(safeErrorMetadata(error)),
+    /private-token/u,
+  );
+});
+
 test("safe error codes use only validated codes or fixed fallbacks", () => {
   assert.equal(safeErrorCode(sensitiveError()), "SESSION_PERSISTENCE_FAILED");
 

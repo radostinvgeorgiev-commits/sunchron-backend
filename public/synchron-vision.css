@@ -10,7 +10,6 @@
   --sx-shadow: 0 22px 70px rgba(33, 45, 40, 0.12);
   --sx-radius: 26px;
 }
-
 html,
 body {
   background:
@@ -743,4 +742,3 @@ textarea:focus-visible {
     }
   }
 }
-

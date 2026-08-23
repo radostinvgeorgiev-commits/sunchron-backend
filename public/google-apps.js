@@ -121,4 +121,3 @@
   calendarButton.addEventListener("click", showCalendar);
   mapsButton.addEventListener("click", showMaps);
 })();
-

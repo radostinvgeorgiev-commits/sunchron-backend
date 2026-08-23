@@ -31,7 +31,6 @@ test("the personal AI interface keeps chat primary and makes owner mobile action
   assert.match(script, /forwardClick\("profileStatusBtn", "status"\)/u);
   assert.match(script, /setAttribute\("aria-current", "page"\)/u);
 });
-
 test("the chat composer is a labelled multiline control with bounded autosize", async () => {
   const [html, css, app] = await Promise.all([
     readFile(new URL("../public/index.html", import.meta.url), "utf8"),
@@ -244,4 +243,3 @@ test("each live AI answer shows its verified provider and model", async () => {
   assert.match(script, /AI доставчик и модел/u);
   assert.match(css, /\.ai-response-source/u);
 });
-

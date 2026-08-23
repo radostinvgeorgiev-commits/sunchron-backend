@@ -397,6 +397,21 @@ export function registerCoreTools() {
       healthStatus: "unavailable",
     },
     {
+      id: "google-cloud-write",
+      provider: "google",
+      name: "Google Cloud Confirmed Write",
+      version: "1.0.0",
+      category: "infrastructure",
+      capabilities: ["infrastructure.googlecloud.write"],
+      permissions: ["infrastructure.write"],
+      capabilityPermissions: {
+        "infrastructure.googlecloud.write": "infrastructure.write",
+      },
+      enabled: true,
+      requiresConfirmation: true,
+      healthStatus: "unavailable",
+    },
+    {
       id: "google-firestore-memory",
       provider: "google",
       name: "Google Cloud Memory",

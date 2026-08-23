@@ -25,13 +25,16 @@ test("integration status exposes Google Cloud and the three-engine code council 
     const status = getIntegrationStatus({ githubAuthenticated: true });
     assert.equal(status.core.chatAgent.configured, true);
     assert.equal(status.core.memory.backend, "firestore");
-    assert.equal(status.tools.length, 16);
+    assert.equal(status.tools.length, 17);
     const codeWrite = status.tools.find(({ id }) => id === "github-write");
     assert.equal(codeWrite.configured, true);
     assert.equal(codeWrite.authenticated, true);
     assert.equal(codeWrite.healthStatus, "healthy");
     const cloud = status.tools.find(({ id }) => id === "google-cloud-read");
     assert.equal(cloud.configured, true);
+    const cloudWrite = status.tools.find(({ id }) => id === "google-cloud-write");
+    assert.equal(cloudWrite.configured, true);
+    assert.equal(cloudWrite.healthStatus, "degraded");
     assert.doesNotMatch(JSON.stringify(status), /secret-/u);
   } finally {
     for (const [key, value] of Object.entries(original)) {

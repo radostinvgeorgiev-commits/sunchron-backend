@@ -12,6 +12,10 @@ import {
   getFileContent,
   getGitHubReadOverview,
 } from "./githubService.js";
+import {
+  confirmGoogleCloudAction,
+  prepareGoogleCloudAction,
+} from "./googleCloudActionService.js";
 import { getLatestAuthorizedGitHubSession } from "./githubOAuthService.js";
 import {
   confirmGoogleAction,
@@ -434,6 +438,42 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
     CONFIRMED_WRITE,
   ),
   tool(
+    "prepare_google_cloud_action",
+    "Подготви Google Cloud промяна",
+    "Подготвя точна IAM промяна в текущия Google Cloud project или смяна на service identity на текущата Cloud Run услуга. Не променя нищо без отделно потвърждение.",
+    {
+      type: "object",
+      properties: {
+        operation: {
+          type: "string",
+          enum: [
+            "grant_project_role",
+            "revoke_project_role",
+            "update_cloud_run_service_account",
+          ],
+        },
+        input: { type: "object", additionalProperties: true },
+      },
+      required: ["operation", "input"],
+      additionalProperties: false,
+    },
+    REVERSIBLE_WRITE,
+  ),
+  tool(
+    "confirm_google_cloud_action",
+    "Потвърди Google Cloud промяна",
+    "Изпълнява само точната предварително подготвена Google Cloud IAM или Cloud Run промяна след еднократно потвърждение и записва audit събитие.",
+    {
+      type: "object",
+      properties: {
+        confirmationId: { type: "string", minLength: 1, maxLength: 100 },
+      },
+      required: ["confirmationId"],
+      additionalProperties: false,
+    },
+    CONFIRMED_WRITE,
+  ),
+  tool(
     "list_google_drive_files",
     "Покажи Google Drive файловете",
     "Показва файлове само от свързаната собственическа Google сесия.",
@@ -667,6 +707,7 @@ function permissionAction(name) {
   if (name.includes("github")) {
     return name.includes("change") ? "github.write" : "github.read";
   }
+  if (name.includes("google_cloud")) return "infrastructure.write";
   if (name.includes("gmail")) {
     if (name === "search_gmail") return "mail.read";
     if (name === "create_gmail_draft") return "mail.draft";
@@ -962,6 +1003,31 @@ export function createMcpCapabilityHandler({
       result = textResult(
         changed,
         "Точната потвърдена GitHub промяна е изпълнена.",
+      );
+    } else if (name === "prepare_google_cloud_action") {
+      const prepared = await (
+        dependencies.prepareGoogleCloudAction || prepareGoogleCloudAction
+      )({
+        ownerId,
+        sessionId,
+        operation: args.operation,
+        input: args.input,
+      });
+      result = textResult(
+        prepared,
+        "Google Cloud промяната е подготвена, но не е изпълнена.",
+      );
+    } else if (name === "confirm_google_cloud_action") {
+      const changed = await (
+        dependencies.confirmGoogleCloudAction || confirmGoogleCloudAction
+      )({
+        ownerId,
+        sessionId,
+        confirmationId: args.confirmationId,
+      });
+      result = textResult(
+        changed,
+        "Точната потвърдена Google Cloud промяна е изпълнена.",
       );
     } else {
       const googleSessionId = await requireGoogleSession(

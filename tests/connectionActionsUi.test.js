@@ -56,4 +56,3 @@ test("connection and permission controls lead to real setup actions", async () =
   assert.match(app, /data-permission-info/u);
   assert.match(app, /Оранжевото също работи, но пита/u);
 });
-

@@ -64,7 +64,7 @@ test("MCP initialize and tool discovery work without credentials", async () => {
     .post("/mcp")
     .send({ jsonrpc: "2.0", id: 2, method: "tools/list" })
     .expect(200);
-  assert.equal(listed.body.result.tools.length, 45);
+  assert.equal(listed.body.result.tools.length, 47);
   assert.deepEqual(listed.body.result.tools[0].securitySchemes, [
     { type: "oauth2", scopes: ["synchron:read"] },
   ]);
@@ -85,6 +85,12 @@ test("MCP initialize and tool discovery work without credentials", async () => {
       (tool) => tool.name === "confirm_google_action",
     ).securitySchemes,
     [{ type: "oauth2", scopes: ["synchron:google.write"] }],
+  );
+  assert.deepEqual(
+    listed.body.result.tools.find(
+      (tool) => tool.name === "confirm_google_cloud_action",
+    ).securitySchemes,
+    [{ type: "oauth2", scopes: ["synchron:infrastructure.write"] }],
   );
 });
 

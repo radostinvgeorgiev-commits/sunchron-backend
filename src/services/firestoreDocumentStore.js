@@ -117,6 +117,15 @@ function firestoreError(response, fallbackCode, upstreamErrorStatus = null) {
   return error;
 }
 
+function firestoreQueryError(payload = {}) {
+  const error = new Error("Firestore заявката е неуспешна.");
+  error.code = "FIRESTORE_UNAVAILABLE";
+  error.status = 503;
+  error.upstreamStatus = Number(payload.code) || null;
+  error.upstreamErrorStatus = String(payload.status || "").trim() || null;
+  return error;
+}
+
 export function createFirestoreDocumentStore({
   env = process.env,
   fetchImpl = globalThis.fetch,
@@ -247,11 +256,7 @@ export function createFirestoreDocumentStore({
   }
 
   function cleanDocumentId(id) {
-    return cleanIdentifier(
-      id,
-      "Firestore document ID",
-      /^[^/]{1,500}$/u,
-    );
+    return cleanIdentifier(id, "Firestore document ID", /^[^/]{1,500}$/u);
   }
 
   function documentName(collection, id) {
@@ -374,6 +379,11 @@ export function createFirestoreDocumentStore({
           },
         },
       });
+      const embeddedError = Array.isArray(result)
+        ? result.find((item) => item?.error)?.error
+        : null;
+      if (embeddedError) throw firestoreQueryError(embeddedError);
+
       return (Array.isArray(result) ? result : [])
         .map((item) => item?.document)
         .filter(Boolean)
@@ -388,10 +398,9 @@ export function createFirestoreDocumentStore({
       });
     },
     async get(collection, id, options = {}) {
-      const result = await request(
-        documentUrl(collection, id),
-        { allow404: true },
-      );
+      const result = await request(documentUrl(collection, id), {
+        allow404: true,
+      });
       if (!result) return null;
       return documentResult(result, options);
     },

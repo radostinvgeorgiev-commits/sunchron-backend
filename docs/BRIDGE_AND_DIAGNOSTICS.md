@@ -11,6 +11,7 @@
   статус;
 - анонимен MCP `tools/list` — актуален каталог;
 - `get_google_cloud_runtime_status` — read-only runtime metadata без secrets.
+- `prepare_google_cloud_action` / `confirm_google_cloud_action` — owner-only, точни IAM и Cloud Run service identity промени с еднократно потвърждение и audit журнал.
 
 Write инструментите са owner-only, имат най-тесен scope и изискват точна
 еднократна фраза. Backup и restore не са bridge операции. Те се проверяват в

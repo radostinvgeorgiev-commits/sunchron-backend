@@ -1,7 +1,7 @@
 import { resolveFirestoreProjectId } from "../config/memoryBackend.js";
 import { AI_CORE_PUBLIC_ORIGIN, getGoogleCloudRuntimeStatus } from "./googleCloudService.js";
 
-const CLOUD_RUN_API = "https://run.googleapis.com/apis/serving.knative.dev/v1";
+const CLOUD_RUN_API = "https://run.googleapis.com/v2";
 const CLOUD_BUILD_API = "https://cloudbuild.googleapis.com/v1";
 const METADATA_TOKEN_URL =
   "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token";
@@ -14,6 +14,12 @@ const MAX_TOOL_NAMES = 100;
 function clean(value, maxLength = 200) {
   const text = typeof value === "string" ? value.trim() : "";
   return text && text.length <= maxLength ? text : null;
+}
+
+function resourceNameSegment(value, maxLength = 200) {
+  const text = typeof value === "string" ? value.trim() : "";
+  const segment = text.split("/").filter(Boolean).pop() || text;
+  return clean(segment, maxLength);
 }
 
 function projectIdFromEnvironment(env) {
@@ -145,17 +151,36 @@ async function googleApiCheck({ url, token, fetchImpl, timeoutMs, pick }) {
 }
 
 function cloudRunSummary(payload) {
-  const template = payload?.spec?.template?.spec;
-  const container = Array.isArray(template?.containers) ? template.containers[0] : null;
-  const annotations = payload?.metadata?.annotations || {};
+  const containers = Array.isArray(payload?.template?.containers)
+    ? payload.template.containers
+    : Array.isArray(payload?.template?.spec?.containers)
+      ? payload.template.spec.containers
+      : payload?.spec?.template?.spec?.containers;
+  const container = Array.isArray(containers) ? containers[0] : null;
+  const annotations = {
+    ...(payload?.metadata?.annotations || {}),
+    ...(payload?.spec?.template?.metadata?.annotations || {}),
+    ...(payload?.template?.annotations || {}),
+    ...(payload?.template?.metadata?.annotations || {}),
+    ...(payload?.annotations || {}),
+  };
   return {
-    service: clean(payload?.metadata?.name, 80),
-    latestReadyRevision: clean(payload?.status?.latestReadyRevisionName, 120),
-    latestCreatedRevision: clean(payload?.status?.latestCreatedRevisionName, 120),
+    service:
+      resourceNameSegment(payload?.name, 80) ||
+      resourceNameSegment(payload?.service, 80) ||
+      resourceNameSegment(payload?.metadata?.name, 80),
+    latestReadyRevision:
+      resourceNameSegment(payload?.latestReadyRevision, 120) ||
+      resourceNameSegment(payload?.status?.latestReadyRevisionName, 120) ||
+      resourceNameSegment(payload?.status?.latestReadyRevision, 120),
+    latestCreatedRevision:
+      resourceNameSegment(payload?.latestCreatedRevision, 120) ||
+      resourceNameSegment(payload?.status?.latestCreatedRevisionName, 120) ||
+      resourceNameSegment(payload?.status?.latestCreatedRevision, 120),
     image: clean(container?.image, 300),
     appCommit: clean(
-      annotations["run.googleapis.com/client-version"] ||
-        annotations["synchron-x/app-commit-sha"],
+      annotations["synchron-x/app-commit-sha"] ||
+        annotations["run.googleapis.com/client-version"],
       80,
     ),
   };
@@ -204,10 +229,19 @@ function buildSummary(payload) {
   };
 }
 
+function buildCreateTime(payload) {
+  const createTime = typeof payload?.createTime === "string" ? payload.createTime : "";
+  const timestamp = Date.parse(createTime);
+  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
+}
+
 function latestBuildSummary(payload) {
   const builds = Array.isArray(payload?.builds) ? payload.builds : [];
+  const sortedBuilds = builds
+    .slice()
+    .sort((left, right) => buildCreateTime(right) - buildCreateTime(left));
   return {
-    build: builds.length ? buildSummary(builds[0]) : null,
+    build: sortedBuilds.length ? buildSummary(sortedBuilds[0]) : null,
     count: builds.length,
   };
 }
@@ -289,7 +323,7 @@ export async function getProjectDiagnostics({
       token,
       fetchImpl,
       timeoutMs,
-      url: `${CLOUD_BUILD_API}/projects/${encodeURIComponent(projectId)}/builds?pageSize=10&orderBy=~create_time`,
+      url: `${CLOUD_BUILD_API}/projects/${encodeURIComponent(projectId)}/builds?pageSize=10`,
       pick: latestBuildSummary,
     });
   }

@@ -752,6 +752,18 @@ function toolState(tool, googleConnected, githubConnected) {
   ) {
     return { label: "Иска свързване", className: "confirm" };
   }
+  if (tool.id === "openai-codex") {
+    return { label: "Готово · вътрешен инструмент", className: "allow" };
+  }
+  if (tool.id === "github-read" && githubConnected) {
+    return { label: "Свързано · GitHub Read", className: "allow" };
+  }
+  if (
+    ["github-write", "github-confirmed-write"].includes(tool.id) &&
+    githubConnected
+  ) {
+    return { label: "Свързано · потвърждение преди запис", className: "allow" };
+  }
   return { label: "Работи", className: "allow" };
 }
 

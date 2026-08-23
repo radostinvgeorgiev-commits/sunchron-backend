@@ -10,6 +10,18 @@ const SESSION_PROVIDERS = Object.freeze({
     defaultCollection: "synchron-google-sessions-v1",
   }),
 });
+const MAX_SESSION_SCAN_DOCUMENTS = 1_000;
+
+function isMissingSessionIndexError(error) {
+  return (
+    error?.code === "FIRESTORE_UNAVAILABLE" &&
+    ["FAILED_PRECONDITION", "FAILED_PRECONDITION_ERROR"].includes(
+      String(error.upstreamErrorStatus || "")
+        .trim()
+        .toUpperCase(),
+    )
+  );
+}
 
 function configurationError(message) {
   const error = new Error(message);
@@ -79,11 +91,23 @@ export function createFirestoreOAuthSessionStore({
     },
     async listLatest(limit = 100) {
       const safeLimit = Math.min(Math.max(Number(limit) || 1, 1), 1_000);
-      const documents = await store.query(collection, {
-        filters: [{ field: "firestoreProvider", value: provider }],
-        orderBy: { field: "updatedAt", direction: "DESCENDING" },
-        limit: safeLimit,
-      });
+      let documents;
+      try {
+        documents = await store.query(collection, {
+          filters: [{ field: "firestoreProvider", value: provider }],
+          orderBy: { field: "updatedAt", direction: "DESCENDING" },
+          limit: safeLimit,
+        });
+      } catch (error) {
+        if (!isMissingSessionIndexError(error)) throw error;
+
+        // OAuth sessions remain readable while the preferred composite index
+        // is being built or is missing. Keep the scan bounded and sort locally.
+        documents = await store.query(collection, {
+          filters: [{ field: "firestoreProvider", value: provider }],
+          limit: MAX_SESSION_SCAN_DOCUMENTS,
+        });
+      }
       return documents
         .map((document) => unwrapSession(document, provider))
         .filter(Boolean)
@@ -91,7 +115,8 @@ export function createFirestoreOAuthSessionStore({
           String(right.payload.updatedAt || "").localeCompare(
             String(left.payload.updatedAt || ""),
           ),
-        );
+        )
+        .slice(0, safeLimit);
     },
   });
 }

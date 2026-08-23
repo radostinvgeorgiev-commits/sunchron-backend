@@ -554,7 +554,13 @@ const executors = Object.freeze({
       githubSession: input.githubSession,
       message: input.message,
     });
-    return prepared.output;
+    return {
+      output: prepared.output,
+      metadata: {
+        confirmationId: prepared.confirmationId,
+        confirmationType: "code-task",
+      },
+    };
   },
   "github-confirmed-write": async ({ capability, input, confirmed }) => {
     const githubSession =
@@ -596,11 +602,17 @@ const executors = Object.freeze({
       operation: operations[capability],
       input: changeInput,
     });
-    return confirmationOutput(
-      prepared,
-      "GitHub промяната",
-      `Потвърждавам GitHub промяната: ${prepared.confirmationId}`,
-    );
+    return {
+      output: confirmationOutput(
+        prepared,
+        "GitHub промяната",
+        `Потвърждавам GitHub промяната: ${prepared.confirmationId}`,
+      ),
+      metadata: {
+        confirmationId: prepared.confirmationId,
+        confirmationType: "capability",
+      },
+    };
   },
   "openai-codex": async ({ input }) => {
     const result = await runCodexProjectAnalysis({
@@ -651,7 +663,13 @@ const executors = Object.freeze({
       googleSessionId: input.googleSessionId,
       message: input.message,
     });
-    return prepared.output;
+    return {
+      output: prepared.output,
+      metadata: {
+        confirmationId: prepared.confirmationId,
+        confirmationType: "capability",
+      },
+    };
   },
   "google-drive-read": async ({ input }) => {
     const files = await listDriveFiles(input.googleSessionId);
@@ -696,12 +714,18 @@ const executors = Object.freeze({
               sessionId: input.sessionId,
               messageId: input.messageId,
             });
-      return confirmationOutput(
-        prepared,
-        capability === "mail.send"
-          ? "Изпращането на Gmail черновата"
-          : "Преместването на Gmail съобщението в кошчето",
-      );
+      return {
+        output: confirmationOutput(
+          prepared,
+          capability === "mail.send"
+            ? "Изпращането на Gmail черновата"
+            : "Преместването на Gmail съобщението в кошчето",
+        ),
+        metadata: {
+          confirmationId: prepared.confirmationId,
+          confirmationType: "capability",
+        },
+      };
     }
     const messages = input.query
       ? await searchGmailMessages(
@@ -751,7 +775,13 @@ const executors = Object.freeze({
       operation: capability === "contacts.create" ? "create" : "update",
       contact: input.contact,
     });
-    return confirmationOutput(prepared, "Промяната на Google контакта");
+    return {
+      output: confirmationOutput(prepared, "Промяната на Google контакта"),
+      metadata: {
+        confirmationId: prepared.confirmationId,
+        confirmationType: "capability",
+      },
+    };
   },
   "synchron-tasks": async ({ capability, input, confirmed }) => {
     if (capability === "tasks.read" || capability === "tasks.progress") {
@@ -803,7 +833,13 @@ const executors = Object.freeze({
         taskId: input.taskId,
         status: input.status,
       });
-      return confirmationOutput(prepared, "Промяната на статуса");
+      return {
+        output: confirmationOutput(prepared, "Промяната на статуса"),
+        metadata: {
+          confirmationId: prepared.confirmationId,
+          confirmationType: "capability",
+        },
+      };
     }
     const task = await createTaskDraft({
       ownerId: input.ownerId,
@@ -840,7 +876,11 @@ const executors = Object.freeze({
       output: confirmed
         ? "Точната потвърдена Google Cloud промяна е изпълнена."
         : confirmationOutput(result, "Google Cloud промяната"),
-      metadata: { result },
+      metadata: {
+        result,
+        confirmationId: result.confirmationId,
+        confirmationType: "capability",
+      },
     };
   },
   "google-firestore-memory": async ({ capability, input }) => {

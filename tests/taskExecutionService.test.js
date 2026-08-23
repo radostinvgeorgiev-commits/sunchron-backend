@@ -84,6 +84,58 @@ test("task execution passes exact operation input to confirmed capabilities", as
   });
 });
 
+test("task execution creates one scoped confirmation for multiple prepared writes", async () => {
+  let groupInput;
+  const execution = await executeTaskPlan({
+    message: "Направи две свързани промени",
+    requests: [
+      { capability: "code.write", action: "github.write" },
+      { capability: "infrastructure.googlecloud.write", action: "infrastructure.write" },
+    ],
+    executeFn: async (capability) =>
+      result({
+        requiresConfirmation: true,
+        permission: { decision: "confirm" },
+        tool: {
+          id: capability === "code.write" ? "github-write" : "google-cloud-write",
+        },
+        metadata: {
+          confirmationId:
+            capability === "code.write" ? "code-confirmation" : "cloud-confirmation",
+          confirmationType: capability === "code.write" ? "code-task" : "capability",
+        },
+      }),
+    executionContext: {
+      ownerId: "owner-1",
+      sessionId: "session-1",
+      prepareConfirmation: true,
+      createTaskConfirmation: async (input) => {
+        groupInput = input;
+        return {
+          confirmationId: "task-confirmation",
+          expiresAt: Date.now() + 60_000,
+          items: input.items,
+        };
+      },
+    },
+  });
+
+  assert.equal(execution.task.status, "waiting_confirmation");
+  assert.equal(execution.task.confirmationId, "task-confirmation");
+  assert.equal(execution.taskConfirmation.confirmationId, "task-confirmation");
+  assert.equal(groupInput.items.length, 2);
+  assert.deepEqual(
+    groupInput.items.map(({ confirmationId, confirmationType }) => [
+      confirmationId,
+      confirmationType,
+    ]),
+    [
+      ["code-confirmation", "code-task"],
+      ["cloud-confirmation", "capability"],
+    ],
+  );
+});
+
 test("task execution reports partial results without hiding failures", async () => {
   let call = 0;
   const execution = await executeTaskPlan({

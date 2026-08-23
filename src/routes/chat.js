@@ -93,6 +93,12 @@ import {
   requestAiResponse,
 } from "../services/aiCoreService.js";
 import { executeTaskPlan } from "../services/taskExecutionService.js";
+import {
+  confirmTaskWrite,
+  extractTaskConfirmationId,
+  formatTaskConfirmation,
+} from "../services/taskConfirmationService.js";
+import { createTaskConfirmation } from "../services/confirmationService.js";
 import { orchestrateTask } from "../services/taskOrchestratorService.js";
 import {
   createTaskRun,
@@ -898,9 +904,10 @@ export function mergeMemoryTaskStatus(task, memoryAction) {
   });
 }
 
-export function buildCapabilityReplies(capabilityResults) {
+export function buildCapabilityReplies(capabilityResults, options = {}) {
   const replies = [];
   const seenReplyKeys = new Set();
+  const taskConfirmation = options?.taskConfirmation || null;
   const addUniqueReply = (reply) => {
     if (typeof reply !== "string") return;
     const trimmedReply = reply.trim();
@@ -913,6 +920,9 @@ export function buildCapabilityReplies(capabilityResults) {
 
   for (const capabilityResult of capabilityResults) {
     if (capabilityResult.status === "fulfilled") {
+      if (capabilityResult.result?.requiresConfirmation && taskConfirmation) {
+        continue;
+      }
       addUniqueReply(capabilityResult.result.output);
       continue;
     }
@@ -921,6 +931,9 @@ export function buildCapabilityReplies(capabilityResults) {
     addUniqueReply(
       `Не успях да изпълня заявката за ${capabilityLabel(request.capability)}: ${message}`,
     );
+  }
+  if (taskConfirmation) {
+    addUniqueReply(formatTaskConfirmation(taskConfirmation));
   }
   if (capabilityResults.length > 1) {
     const statusByCapability = new Map();
@@ -934,6 +947,9 @@ export function buildCapabilityReplies(capabilityResults) {
         successful:
           item.status === "fulfilled" || Boolean(existing?.successful),
         failed: item.status === "rejected" || Boolean(existing?.failed),
+        pendingConfirmation:
+          item.result?.requiresConfirmation === true ||
+          Boolean(existing?.pendingConfirmation),
       });
     }
     addUniqueReply(
@@ -943,9 +959,11 @@ export function buildCapabilityReplies(capabilityResults) {
           const result =
             status.successful && status.failed
               ? "частично достъпен"
-              : status.successful
-                ? "успешно"
-                : "недостъпен";
+              : status.pendingConfirmation
+                ? "подготвено · чака потвърждение"
+                : status.successful
+                  ? "успешно"
+                  : "недостъпен";
           return `• ${status.name} — ${result}`;
         }),
       ].join("\n"),
@@ -1231,6 +1249,7 @@ router.post("/chat", async (req, res) => {
 
   const codeTaskConfirmationId =
     extractCodeTaskConfirmationId(cleanMessage);
+  const taskConfirmationId = extractTaskConfirmationId(cleanMessage);
   const githubChangeConfirmationId =
     extractGitHubChangeConfirmationId(cleanMessage);
   const calendarConfirmationId = extractCalendarConfirmationId(cleanMessage);
@@ -1249,6 +1268,12 @@ router.post("/chat", async (req, res) => {
   if (githubChangeConfirmationId && !ownerToolsAllowed) {
     return res.status(403).json({
       error: "GitHub действията са достъпни само за собственика.",
+      code: "OWNER_ONLY",
+    });
+  }
+  if (taskConfirmationId && !ownerToolsAllowed) {
+    return res.status(403).json({
+      error: "Записващите действия са достъпни само за собственика.",
       code: "OWNER_ONLY",
     });
   }
@@ -1574,6 +1599,60 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
+  if (taskConfirmationId) {
+    try {
+      const confirmed = await confirmTaskWrite({
+        ownerId,
+        sessionId: cleanSessionId,
+        taskConfirmationId,
+        githubSessionId,
+        googleSessionId,
+      });
+      const fullReply = `Потвърдената AI CORE задача е изпълнена: ${confirmed.results.length} операции.`;
+      const conversationPersisted = await saveConversationTurnBestEffort(
+        cleanSessionId,
+        cleanMessage,
+        fullReply,
+        ownerId,
+      );
+      await auditAction({
+        action: "task.write",
+        decision: "confirmed",
+        outcome: "succeeded",
+        resource: confirmed.taskId || "task",
+        details: `operations:${confirmed.results.length}`,
+        sessionId: cleanSessionId,
+      });
+      sendEvent("token", { token: fullReply });
+      sendDone({
+        ok: true,
+        mode: "task-confirmed-write",
+        taskId: confirmed.taskId || null,
+        ...getConversationPersistenceMetadata(conversationPersisted),
+      });
+    } catch (error) {
+      logSafeError("[Task confirmation] Failure", error);
+      await auditAction({
+        action: "task.write",
+        decision: "confirmed",
+        outcome: "failed",
+        resource: "task",
+        details: safeErrorCode(error, "TASK_WRITE_FAILED"),
+        sessionId: cleanSessionId,
+      });
+      sendEvent("error", {
+        status: error?.status || 500,
+        message:
+          error?.status === 207
+            ? error.message
+            : "Потвърдената AI CORE задача не можа да бъде изпълнена.",
+        code: error?.code || "TASK_WRITE_FAILED",
+      });
+    }
+    res.end();
+    return;
+  }
+
   const memoryReply = buildMemoryReply(memoryAction);
   if (
     memoryAction &&
@@ -1852,6 +1931,12 @@ router.post("/chat", async (req, res) => {
       sessionId: cleanSessionId,
       workContext: cleanWorkContext,
       prepareConfirmation: true,
+      createTaskConfirmation: (options) =>
+        createTaskConfirmation({
+          ...options,
+          ownerId,
+          sessionId: cleanSessionId,
+        }),
     },
     notify: notifyTaskRun,
     onPlan: createDurableTaskRun,
@@ -1887,12 +1972,18 @@ router.post("/chat", async (req, res) => {
       verified: false,
     });
   }
-  const capabilityReplies = buildCapabilityReplies(capabilityResults);
+  const capabilityReplies = buildCapabilityReplies(
+    capabilityResults,
+    taskExecution.taskConfirmation
+      ? { taskConfirmation: taskExecution.taskConfirmation }
+      : {},
+  );
 
   if (
     capabilityReplies.length &&
     !memoryReply &&
-    shouldReplyWithVerifiedToolOutput(capabilityResults)
+    (taskExecution.taskConfirmation ||
+      shouldReplyWithVerifiedToolOutput(capabilityResults))
   ) {
     const fullReply = capabilityReplies.join("\n\n");
     const conversationPersisted = await saveConversationTurnBestEffort(

@@ -11,8 +11,15 @@ import { resolveFirestoreProjectId } from "../config/memoryBackend.js";
 const RESOURCE_MANAGER_API =
   "https://cloudresourcemanager.googleapis.com/v1";
 const CLOUD_RUN_API = "https://run.googleapis.com/apis/serving.knative.dev/v1";
+const CLOUD_BUILD_API = "https://cloudbuild.googleapis.com/v1";
 const DEFAULT_REGION = "europe-west1";
 const DEFAULT_SERVICE = "synchron-backend-google";
+const DEFAULT_CLOUD_BUILD_LOCATION = "global";
+const DEFAULT_CLOUD_BUILD_TRIGGER_ID =
+  "d943b5bc-a267-4273-a48a-3c750f484a42";
+const DEFAULT_CLOUD_BUILD_TRIGGER_NAME = "synchron-main-deploy";
+const SAFE_SHA_PATTERN = /^[a-f0-9]{40}$/iu;
+const SAFE_TRIGGER_ID_PATTERN = /^[a-z0-9-]{8,128}$/iu;
 const PROJECT_ROLE_PATTERN =
   /^(?:roles\/[A-Za-z0-9_.-]+|projects\/[A-Za-z0-9-]+\/roles\/[A-Za-z0-9_.-]+)$/u;
 const PRINCIPAL_PATTERN =
@@ -25,12 +32,14 @@ const ACTIONS = Object.freeze({
   REVOKE_PROJECT_ROLE: "infrastructure.write:revoke_project_role",
   UPDATE_CLOUD_RUN_SERVICE_ACCOUNT:
     "infrastructure.write:update_cloud_run_service_account",
+  RUN_CLOUD_BUILD_TRIGGER: "infrastructure.write:run_cloud_build_trigger",
 });
 
 const OPERATION_ACTIONS = Object.freeze({
   grant_project_role: ACTIONS.GRANT_PROJECT_ROLE,
   revoke_project_role: ACTIONS.REVOKE_PROJECT_ROLE,
   update_cloud_run_service_account: ACTIONS.UPDATE_CLOUD_RUN_SERVICE_ACCOUNT,
+  run_cloud_build_trigger: ACTIONS.RUN_CLOUD_BUILD_TRIGGER,
 });
 
 export class GoogleCloudActionError extends Error {
@@ -157,6 +166,74 @@ function normalizeCloudRunTarget(input = {}, env = process.env) {
   return { projectId, serviceName, region };
 }
 
+function normalizeCloudBuildTarget(input = {}, env = process.env) {
+  const projectId = projectIdFromEnvironment(env);
+  const triggerId = cleanText(
+    input.triggerId || env.CLOUD_BUILD_TRIGGER_ID || DEFAULT_CLOUD_BUILD_TRIGGER_ID,
+    128,
+    "triggerId",
+    { required: true },
+  );
+  if (!SAFE_TRIGGER_ID_PATTERN.test(triggerId)) {
+    throw new GoogleCloudActionError(
+      "Cloud Build trigger ID е невалиден.",
+      400,
+      "GOOGLE_CLOUD_TRIGGER_INVALID",
+    );
+  }
+  const location = cleanText(
+    input.location ||
+      env.CLOUD_BUILD_TRIGGER_LOCATION ||
+      DEFAULT_CLOUD_BUILD_LOCATION,
+    40,
+    "location",
+    { required: true },
+  );
+  if (location !== DEFAULT_CLOUD_BUILD_LOCATION) {
+    throw new GoogleCloudActionError(
+      "Cloud Build промяната е ограничена до global trigger-а на AI CORE.",
+      403,
+      "GOOGLE_CLOUD_TRIGGER_PROTECTED",
+    );
+  }
+  const triggerName = cleanText(
+    input.triggerName ||
+      env.CLOUD_BUILD_TRIGGER_NAME ||
+      DEFAULT_CLOUD_BUILD_TRIGGER_NAME,
+    160,
+    "triggerName",
+    { required: true },
+  );
+  if (triggerName !== DEFAULT_CLOUD_BUILD_TRIGGER_NAME) {
+    throw new GoogleCloudActionError(
+      "Cloud Build промяната е ограничена до synchron-main-deploy.",
+      403,
+      "GOOGLE_CLOUD_TRIGGER_PROTECTED",
+    );
+  }
+  const branch = cleanText(input.branch || "main", 200, "branch", {
+    required: true,
+  });
+  if (branch !== "main") {
+    throw new GoogleCloudActionError(
+      "Cloud Build deploy capability може да стартира само main.",
+      403,
+      "GOOGLE_CLOUD_TRIGGER_BRANCH_PROTECTED",
+    );
+  }
+  const commitSha = cleanText(input.commitSha, 40, "commitSha", {
+    required: true,
+  }).toLowerCase();
+  if (!SAFE_SHA_PATTERN.test(commitSha)) {
+    throw new GoogleCloudActionError(
+      "Cloud Build commit SHA трябва да е точен 40-символен SHA.",
+      400,
+      "GOOGLE_CLOUD_COMMIT_SHA_INVALID",
+    );
+  }
+  return { projectId, location, triggerId, triggerName, branch, commitSha };
+}
+
 function normalizeOperation(operation, input = {}, env = process.env) {
   const action = OPERATION_ACTIONS[operation];
   if (!action) {
@@ -176,6 +253,15 @@ function normalizeOperation(operation, input = {}, env = process.env) {
         principal: normalizePrincipal(input.principal),
         role: normalizeRole(input.role),
       },
+      params: {},
+    };
+  }
+
+  if (operation === "run_cloud_build_trigger") {
+    const target = normalizeCloudBuildTarget(input, env);
+    return {
+      action,
+      resource: target,
       params: {},
     };
   }
@@ -362,6 +448,84 @@ async function updateCloudRunServiceAccount({
   });
 }
 
+function triggerBranch(payload) {
+  return (
+    payload?.github?.push?.branch ||
+    payload?.triggerTemplate?.branchName ||
+    payload?.repositoryEventConfig?.push?.branch ||
+    null
+  );
+}
+
+async function getCloudBuildTrigger({
+  projectId,
+  location,
+  triggerId,
+  triggerName,
+  fetchImpl,
+}) {
+  const expectedResourceName = `projects/${projectId}/locations/${location}/triggers/${triggerId}`;
+  const payload = await googleJsonRequest(
+    `${CLOUD_BUILD_API}/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/triggers/${encodeURIComponent(triggerId)}`,
+    { fetchImpl },
+  );
+  if (payload?.resourceName && payload.resourceName !== expectedResourceName) {
+    throw new GoogleCloudActionError(
+      "Cloud Build trigger resource-ът не съответства на проверения trigger.",
+      409,
+      "GOOGLE_CLOUD_TRIGGER_MISMATCH",
+    );
+  }
+  const observedName = payload?.name || payload?.displayName || null;
+  if (observedName !== triggerName) {
+    throw new GoogleCloudActionError(
+      "Cloud Build trigger-ът не съответства на проверения synchron-main-deploy.",
+      409,
+      "GOOGLE_CLOUD_TRIGGER_MISMATCH",
+    );
+  }
+  if (payload?.disabled === true) {
+    throw new GoogleCloudActionError(
+      "Cloud Build trigger-ът е изключен.",
+      409,
+      "GOOGLE_CLOUD_TRIGGER_DISABLED",
+    );
+  }
+  const branch = triggerBranch(payload);
+  if (branch && branch !== "^main$" && branch !== "main") {
+    throw new GoogleCloudActionError(
+      "Cloud Build trigger-ът вече не е ограничен до main.",
+      409,
+      "GOOGLE_CLOUD_TRIGGER_BRANCH_MISMATCH",
+    );
+  }
+  return payload;
+}
+
+async function runCloudBuildTrigger({
+  projectId,
+  location,
+  triggerId,
+  commitSha,
+  fetchImpl,
+}) {
+  const payload = await googleJsonRequest(
+    `${CLOUD_BUILD_API}/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/triggers/${encodeURIComponent(triggerId)}:run`,
+    {
+      method: "POST",
+      body: { commitSha },
+      fetchImpl,
+    },
+  );
+  return {
+    projectId,
+    location,
+    triggerId,
+    commitSha,
+    operationName: typeof payload?.name === "string" ? payload.name : null,
+  };
+}
+
 export async function confirmGoogleCloudAction(
   { ownerId, sessionId, confirmationId } = {},
   {
@@ -387,10 +551,16 @@ export async function confirmGoogleCloudAction(
     );
   }
 
-  await consumeConfirmation(confirmationId);
   const resource = confirmation.resource;
   const params = confirmation.params || {};
   const fetchImpl = adapters.fetchImpl || fetch;
+  if (confirmation.action === ACTIONS.RUN_CLOUD_BUILD_TRIGGER) {
+    await (adapters.getCloudBuildTrigger || getCloudBuildTrigger)({
+      ...resource,
+      fetchImpl,
+    });
+  }
+  await consumeConfirmation(confirmationId);
   const execute = async () => {
     if (confirmation.action === ACTIONS.GRANT_PROJECT_ROLE) {
       return (adapters.changeProjectRole || changeProjectRole)({
@@ -403,6 +573,12 @@ export async function confirmGoogleCloudAction(
       return (adapters.changeProjectRole || changeProjectRole)({
         ...resource,
         grant: false,
+        fetchImpl,
+      });
+    }
+    if (confirmation.action === ACTIONS.RUN_CLOUD_BUILD_TRIGGER) {
+      return (adapters.runCloudBuildTrigger || runCloudBuildTrigger)({
+        ...resource,
         fetchImpl,
       });
     }

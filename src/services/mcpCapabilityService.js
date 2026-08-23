@@ -441,7 +441,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "prepare_google_cloud_action",
     "Подготви Google Cloud промяна",
-    "Подготвя точна IAM промяна в текущия Google Cloud project или смяна на service identity на текущата Cloud Run услуга. Не променя нищо без отделно потвърждение.",
+    "Подготвя точна IAM промяна, смяна на service identity на текущата Cloud Run услуга или стартиране на съществуващия synchron-main-deploy Cloud Build trigger за точен commit SHA. Не променя нищо без отделно потвърждение.",
     {
       type: "object",
       properties: {
@@ -451,6 +451,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
             "grant_project_role",
             "revoke_project_role",
             "update_cloud_run_service_account",
+            "run_cloud_build_trigger",
           ],
         },
         input: { type: "object", additionalProperties: true },
@@ -463,7 +464,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "confirm_google_cloud_action",
     "Потвърди Google Cloud промяна",
-    "Изпълнява само точната предварително подготвена Google Cloud IAM или Cloud Run промяна след еднократно потвърждение и записва audit събитие.",
+    "Изпълнява само точната предварително подготвена Google Cloud IAM, Cloud Run или Cloud Build trigger промяна след еднократно потвърждение и записва audit събитие.",
     {
       type: "object",
       properties: {

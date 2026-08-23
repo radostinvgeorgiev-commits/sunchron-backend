@@ -356,7 +356,7 @@ test("връща фокусиран статус за директния AI CORE
     {},
   );
 
-  assert.match(report, /директна и ограничена кодова промяна/u);
+  assert.match(report, /реалният запис се изпълнява чрез свързания GitHub Write API/u);
   assert.match(report, /отделен branch/u);
   assert.match(report, /Pull Request/u);
   assert.match(report, /main не се променя директно/u);

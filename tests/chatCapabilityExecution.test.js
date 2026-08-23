@@ -316,6 +316,31 @@ test("recognizes a backend project diagnostics request", () => {
   );
 });
 
+test("recognizes an exact Cloud Build deploy request as confirmed infrastructure write", () => {
+  const requests = detectCapabilityRequests(
+    "Стартирай Cloud Build deploy за main commit 6dbfb750813c47cca439db5bc3e9a3debbbb5a3a.",
+  );
+  assert.deepEqual(
+    requests.map(({ capability, action, operation, input }) => ({
+      capability,
+      action,
+      operation,
+      input,
+    })),
+    [
+      {
+        capability: "infrastructure.googlecloud.write",
+        action: "infrastructure.write",
+        operation: "run_cloud_build_trigger",
+        input: {
+          commitSha: "6dbfb750813c47cca439db5bc3e9a3debbbb5a3a",
+          branch: "main",
+        },
+      },
+    ],
+  );
+});
+
 test("selecting a council recommendation restores its bounded context", () => {
   const message = buildContextualTaskMessage("Изпълни препоръката.", [
     { role: "user", content: "Питай трите AI модела за следващия ход." },

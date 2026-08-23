@@ -211,6 +211,58 @@ test("planner accepts the read-only Copilot task status capability", () => {
   );
 });
 
+test("planner carries an exact commit SHA into the confirmed Cloud Build trigger action", () => {
+  const message =
+    "Стартирай Cloud Build deploy за main commit 6dbfb750813c47cca439db5bc3e9a3debbbb5a3a.";
+  assert.deepEqual(
+    sanitizeCapabilityPlan(
+      {
+        calls: [
+          {
+            capability: "infrastructure.googlecloud.write",
+            operation: "run_cloud_build_trigger",
+            input: {
+              commitSha: "6DBFB750813C47CCA439DB5BC3E9A3DEBBBB5A3A",
+            },
+            request: message,
+          },
+        ],
+      },
+      message,
+    ),
+    [
+      {
+        capability: "infrastructure.googlecloud.write",
+        action: "infrastructure.write",
+        message,
+        operation: "run_cloud_build_trigger",
+        input: {
+          commitSha: "6dbfb750813c47cca439db5bc3e9a3debbbb5a3a",
+          branch: "main",
+        },
+      },
+    ],
+  );
+});
+
+test("planner drops Cloud Build trigger runs without an exact commit SHA", () => {
+  assert.deepEqual(
+    sanitizeCapabilityPlan(
+      {
+        calls: [
+          {
+            capability: "infrastructure.googlecloud.write",
+            operation: "run_cloud_build_trigger",
+            request: "Стартирай deploy на main.",
+          },
+        ],
+      },
+      "Стартирай deploy на main.",
+    ),
+    [],
+  );
+});
+
 test("planner cannot add GitHub write across an explicit read-only boundary", () => {
   const message =
     "Провери само за четене кой е последният commit в main. Не прави промени.";

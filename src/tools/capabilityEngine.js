@@ -268,7 +268,7 @@ export async function buildIntegrationStatusReport(
   if (isGitHubWriteStatusRequest(input.message)) {
     return [
       "Проверих текущия режим за GitHub Write.",
-      "Резултат: AI CORE подготвя директна и ограничена кодова промяна.",
+      "Резултат: AI CORE подготвя diff, а реалният запис се изпълнява чрез свързания GitHub Write API.",
       "След точно потвърждение създава отделен branch, атомарен commit и Pull Request; main не се променя директно.",
     ].join("\n");
   }
@@ -307,6 +307,13 @@ export async function buildIntegrationStatusReport(
           "GITHUB_CLIENT_ID",
           "GITHUB_CLIENT_SECRET",
         ),
+      "изисква потвърждение",
+    ],
+    [
+      "Google Cloud Write",
+      Boolean(
+        env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT || env.GCP_PROJECT_ID,
+      ),
       "изисква потвърждение",
     ],
     ["Google Drive", googleConnected, "изисква Google вход"],

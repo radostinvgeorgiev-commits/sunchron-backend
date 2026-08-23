@@ -13,7 +13,7 @@ test.beforeEach(() => resetToolRegistryForTests());
 
 test("регистрира съществуващите интеграции с пълни метаданни", () => {
   registerCoreTools();
-  assert.equal(listTools().length, 18);
+  assert.equal(listTools().length, 17);
   assert.deepEqual(getTool("synchron-integrations-status").capabilities, [
     "system.integrations.status",
     "system.tools.read",
@@ -53,8 +53,14 @@ test("регистрира съществуващите интеграции с 
   assert.deepEqual(getTool("google-calendar-write").capabilities, [
     "calendar.write",
   ]);
-  assert.deepEqual(getTool("supabase-status").capabilities, [
-    "database.status",
+  assert.equal(getTool("supabase-status"), null);
+  assert.deepEqual(getTool("google-firestore-memory").capabilities, [
+    "memory.read",
+    "memory.search",
+    "memory.verify",
+    "memory.save",
+    "memory.update",
+    "memory.delete",
   ]);
   assert.deepEqual(getTool("google-cloud-read").capabilities, [
     "infrastructure.googlecloud.read",

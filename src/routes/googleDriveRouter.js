@@ -8,6 +8,7 @@ import {
   disconnectSession,
   downloadDriveFile,
   exchangeCode,
+  getLatestGoogleSessionId,
   hasSession,
   listGmailMessages,
   listGoogleCalendarEvents,
@@ -71,6 +72,29 @@ router.get("/callback", async (req, res) => {
   } catch (error) {
     logSafeError("[Google OAuth callback]", error);
     res.redirect("/?google=error");
+  }
+});
+
+router.get("/restore", async (_req, res) => {
+  try {
+    const id = await getLatestGoogleSessionId();
+    if (!id) {
+      return res.status(404).json({
+        error: "Няма възстановима Google сесия.",
+        code: "GOOGLE_SESSION_NOT_FOUND",
+      });
+    }
+    res.setHeader(
+      "Set-Cookie",
+      `synchron_google_session=${id}; ${COOKIE_OPTIONS}`,
+    );
+    return res.redirect("/?google=connected");
+  } catch (error) {
+    logSafeError("[Google OAuth restore]", error);
+    return res.status(503).json({
+      error: "Google връзката не можа да бъде възстановена.",
+      code: "GOOGLE_SESSION_RESTORE_FAILED",
+    });
   }
 });
 

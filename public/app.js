@@ -1,9 +1,6 @@
 const state = {
   sessionId: getOrCreateSessionId(),
   serverOnline: false,
-  opensearchStatus: "unknown",
-  opensearchFailures: 0,
-  lastMemorySuccessAt: 0,
   lastActions: [],
   chatBusy: false,
   councilMode: false,
@@ -22,8 +19,6 @@ const state = {
   authenticatedUser: null,
   registrationEnabled: false,
   applicationStarted: false,
-  storageStatusLoading: false,
-  storageOpenSearchHealthy: null,
 };
 
 const REGISTRATION_PATH = "/register";
@@ -70,15 +65,7 @@ const elements = {
   agentStatusText: document.getElementById("agentStatusText"),
   sessionIdDisplay: document.getElementById("sessionIdDisplay"),
   serverStatusDisplay: document.getElementById("serverStatusDisplay"),
-  opensearchStatusDisplay: document.getElementById("opensearchStatusDisplay"),
-  supabaseStatusDisplay: document.getElementById("supabaseStatusDisplay"),
-  opensearchBackupStatusDisplay: document.getElementById(
-    "opensearchBackupStatusDisplay",
-  ),
-  supabaseBackupStatusDisplay: document.getElementById(
-    "supabaseBackupStatusDisplay",
-  ),
-  storageStatusCheckedAt: document.getElementById("storageStatusCheckedAt"),
+  activeIntegrationsDisplay: document.getElementById("activeIntegrationsDisplay"),
   taskRunList: document.getElementById("taskRunList"),
   actionsLog: document.getElementById("actionsLog"),
   conversationList: document.getElementById("conversationList"),
@@ -398,12 +385,8 @@ async function startApplication(user) {
   prepareVoiceInput();
 
   checkHealth();
-  checkOpenSearch();
-  checkStorageStatus();
   void loadTaskRuns();
   setInterval(checkHealth, 10000);
-  setInterval(checkOpenSearch, 20000);
-  setInterval(checkStorageStatus, 60000);
   resizeChatInput();
 
   await restoreConversation();
@@ -439,7 +422,6 @@ async function restoreConversation() {
     );
     if (!response.ok) throw new Error("Историята не е достъпна.");
     const data = await response.json();
-    markMemoryOperational();
     const items = Array.isArray(data.items) ? data.items : [];
     if (items.length === 0) {
       await showWelcomeMessage();
@@ -662,7 +644,6 @@ function openStatus() {
   closeSidebar();
   elements.statusPanel.classList.add("mobile-visible");
   elements.statusPanel.setAttribute("aria-hidden", "false");
-  void checkStorageStatus();
   void loadTaskRuns();
   elements.closeContextBtn.focus({ preventScroll: true });
 }
@@ -740,12 +721,16 @@ function toggleVoiceInput() {
   }
 }
 
-function isGoogleTool(tool) {
-  return (
-    tool?.provider === "google" ||
-    tool?.id?.startsWith("google-") ||
-    tool?.id === "gmail-read"
-  );
+const GOOGLE_OAUTH_TOOL_IDS = new Set([
+  "google-drive-read",
+  "google-calendar-read",
+  "google-calendar-write",
+  "gmail-read",
+  "google-contacts",
+]);
+
+function requiresGoogleOAuth(tool) {
+  return GOOGLE_OAUTH_TOOL_IDS.has(tool?.id);
 }
 
 function toolState(tool, googleConnected, githubConnected) {
@@ -755,7 +740,7 @@ function toolState(tool, googleConnected, githubConnected) {
   if (!tool.configured) {
     return { label: "Не е конфигуриран", className: "deny" };
   }
-  if (isGoogleTool(tool) && !googleConnected) {
+  if (requiresGoogleOAuth(tool) && !googleConnected) {
     return { label: "Иска свързване", className: "confirm" };
   }
   if (
@@ -769,7 +754,7 @@ function toolState(tool, googleConnected, githubConnected) {
 
 function toolStatusActions(tool, status, googleConnected, githubConnected) {
   let action = "";
-  if (isGoogleTool(tool) && !googleConnected && tool.configured) {
+  if (requiresGoogleOAuth(tool) && !googleConnected && tool.configured) {
     action =
       '<button type="button" class="tool-connect-btn" data-connect-service="google">Свържи Google</button>';
   } else if (
@@ -937,11 +922,12 @@ async function openToolsDrawer() {
       "synchron-agent-chat":
         "Разговаря с AI CORE до 10 последователни въпроса в една MCP нишка.",
       "openai-web-search": "Търси актуална информация в интернет.",
-      "opensearch-memory": "Пази лична и проектна памет под твой контрол.",
       "synchron-system-inspector":
         "Проверява ядрото и Google Cloud runtime настройките без техните стойности.",
       "google-cloud-read":
         "Проверява текущия Cloud Run runtime, Firestore режима и активната revision без стойности на secrets.",
+      "google-firestore-memory":
+        "Google Cloud Memory: постоянната памет на AI CORE в Firestore.",
     };
     elements.dataDrawerBody.innerHTML = `
       <div class="permission-default">
@@ -1135,7 +1121,6 @@ async function openMemoryDrawer() {
         ? knowledgeResponse.json().catch(() => ({ items: [] }))
         : Promise.resolve({ items: [] }),
     ]);
-    markMemoryOperational();
     state.memoryItems = Array.isArray(data.items) ? data.items : [];
     state.knowledgeItems = Array.isArray(knowledge.items) ? knowledge.items : [];
     state.memoryWorkspace = workspace;
@@ -1791,6 +1776,148 @@ function showAiResponseSource(message, provider, model) {
   turn.insertBefore(source, actions || null);
 }
 
+function memoryCandidateCategoryLabel(category) {
+  return (
+    {
+      identity: "Идентичност",
+      preference: "Предпочитание",
+      goal: "Цел",
+      interest: "Интерес",
+      "project-fact": "Проект",
+    }[category] || "Факт"
+  );
+}
+
+function showMemoryCandidates(message, candidates) {
+  const turn = message?.closest(".assistant-turn");
+  if (!turn || !Array.isArray(candidates) || candidates.length === 0) return;
+  if (turn.querySelector(".memory-candidate-card")) return;
+
+  const safeCandidates = candidates
+    .filter(
+      (candidate) =>
+        candidate && typeof candidate.fact === "string" && candidate.fact.trim(),
+    )
+    .slice(0, 3)
+    .map((candidate) => ({
+      fact: candidate.fact.trim(),
+      scope: candidate.scope === "project" ? "project" : "personal",
+      category: candidate.category || "personal-fact",
+      reason: candidate.reason || "Може да помогне в бъдещи разговори.",
+    }));
+  if (!safeCandidates.length) return;
+
+  turn.__memoryCandidates = safeCandidates;
+  const card = document.createElement("section");
+  card.className = "memory-candidate-card";
+  card.setAttribute("aria-label", "Предложения за постоянната памет");
+
+  const title = document.createElement("strong");
+  title.textContent = "Предложение за постоянната памет";
+  const intro = document.createElement("p");
+  intro.textContent =
+    "Открих устойчив факт. Нищо не се записва автоматично — избери какво да направя.";
+  card.append(title, intro);
+
+  for (const [index, candidate] of safeCandidates.entries()) {
+    const item = document.createElement("article");
+    item.className = "memory-candidate-item";
+    item.dataset.memoryCandidateIndex = String(index);
+
+    const badge = document.createElement("span");
+    badge.className = "memory-badge";
+    badge.textContent = `${memoryCandidateCategoryLabel(candidate.category)} · ${candidate.scope === "project" ? "проект" : "личен"}`;
+    const fact = document.createElement("p");
+    fact.className = "memory-candidate-fact";
+    fact.textContent = candidate.fact;
+    const reason = document.createElement("small");
+    reason.textContent = candidate.reason;
+
+    const actions = document.createElement("div");
+    actions.className = "memory-candidate-actions";
+    for (const [action, label] of [
+      ["memory-candidate-save", "Запази"],
+      ["memory-candidate-edit", "Редактирай"],
+      ["memory-candidate-reject", "Отхвърли"],
+    ]) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.action = action;
+      button.dataset.memoryCandidateIndex = String(index);
+      button.textContent = label;
+      actions.appendChild(button);
+    }
+    item.append(badge, fact, reason, actions);
+    card.appendChild(item);
+  }
+
+  const actions = turn.querySelector(".message-actions");
+  turn.insertBefore(card, actions || null);
+}
+
+function finishMemoryCandidateItem(item, message) {
+  item.replaceChildren();
+  item.classList.add("saved");
+  const status = document.createElement("span");
+  status.textContent = message;
+  item.appendChild(status);
+}
+
+async function saveMemoryCandidate(button, factOverride = "") {
+  const turn = button.closest(".assistant-turn");
+  const item = button.closest(".memory-candidate-item");
+  const index = Number(button.dataset.memoryCandidateIndex);
+  const candidate = turn?.__memoryCandidates?.[index];
+  if (!item || !candidate) return;
+
+  const fact = (factOverride || candidate.fact).trim();
+  if (!fact) return;
+  const buttons = item.querySelectorAll("button");
+  buttons.forEach((entry) => (entry.disabled = true));
+  try {
+    const preparedResponse = await fetch("/memory/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: state.sessionId,
+        fact,
+        scope: candidate.scope,
+      }),
+    });
+    const prepared = await preparedResponse.json().catch(() => null);
+    if (
+      preparedResponse.status !== 409 ||
+      prepared?.code !== "MEMORY_WRITE_CONFIRMATION_REQUIRED" ||
+      !prepared?.confirmationId
+    ) {
+      throw new Error(
+        prepared?.error || "Предложението не можа да бъде подготвено.",
+      );
+    }
+
+    const response = await fetch("/memory/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: state.sessionId,
+        confirmationId: prepared.confirmationId,
+      }),
+    });
+    const saved = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(saved?.error || "Предложението не можа да бъде записано.");
+    }
+    finishMemoryCandidateItem(item, "Записано в постоянната памет.");
+    logAction("Запазено е предложение за паметта");
+  } catch (error) {
+    buttons.forEach((entry) => (entry.disabled = false));
+    const errorNode = document.createElement("small");
+    errorNode.className = "memory-candidate-error";
+    errorNode.textContent = error.message;
+    item.appendChild(errorNode);
+  }
+}
+
 const TASK_RUN_STATUS_LABELS = Object.freeze({
   queued: "Чака планиране",
   planning: "Планиране",
@@ -2011,6 +2138,36 @@ async function handleMessageAction(event) {
 
   const action = button.dataset.action;
 
+  if (
+    action === "memory-candidate-save" ||
+    action === "memory-candidate-edit" ||
+    action === "memory-candidate-reject"
+  ) {
+    const index = Number(button.dataset.memoryCandidateIndex);
+    const candidate = turn?.__memoryCandidates?.[index];
+    const item = button.closest(".memory-candidate-item");
+    if (!candidate || !item) return;
+    if (action === "memory-candidate-reject") {
+      item.remove();
+      if (!turn.querySelector(".memory-candidate-item")) {
+        turn.querySelector(".memory-candidate-card")?.remove();
+      }
+      logAction("Отхвърлено е предложение за паметта");
+      return;
+    }
+    if (action === "memory-candidate-edit") {
+      const nextFact = window.prompt(
+        "Редактирай точния текст преди запис:",
+        candidate.fact,
+      );
+      if (!nextFact?.trim()) return;
+      await saveMemoryCandidate(button, nextFact.trim());
+      return;
+    }
+    await saveMemoryCandidate(button);
+    return;
+  }
+
   if (action === "execute-council") {
     elements.chatInput.value = "Изпълни препоръката.";
     resizeChatInput();
@@ -2217,6 +2374,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
             parsed.data?.provider,
             parsed.data?.model,
           );
+          showMemoryCandidates(responseBubble, parsed.data?.memoryCandidates);
           if (
             parsed.data?.conversationPersisted === false &&
             parsed.data?.warningCode === "CONVERSATION_NOT_SAVED"
@@ -2357,157 +2515,33 @@ function scrollChatToBottom() {
 
 async function checkHealth() {
   try {
-    const response = await fetch("/health", { cache: "no-store" });
+    const [response, integrationsResponse] = await Promise.all([
+      fetch("/health", { cache: "no-store" }),
+      fetch("/health/integrations", { cache: "no-store" }).catch(() => null),
+    ]);
     setServerStatus(response.ok);
-  } catch {
-    setServerStatus(false);
-  }
-}
-
-async function checkOpenSearch() {
-  try {
-    const response = await fetch("/health/ready", { cache: "no-store" });
-    const data = await response.json();
-    const memory = data?.checks?.memory;
-
-    if (memory?.ready) {
-      state.opensearchFailures = 0;
-      updateStorageAwareOpenSearchUI(memory.status || "operational");
+    if (!elements.activeIntegrationsDisplay) return;
+    if (!integrationsResponse?.ok) {
+      elements.activeIntegrationsDisplay.textContent = "Проверката не е достъпна";
+      elements.activeIntegrationsDisplay.className = "context-value status-yellow";
       return;
     }
-
-    handleOpenSearchProbeFailure(memory?.status || "unavailable");
+    const data = await integrationsResponse.json().catch(() => ({}));
+    const active = (Array.isArray(data.tools) ? data.tools : [])
+      .filter((tool) => tool.enabled && tool.executable && tool.configured)
+      .map((tool) => tool.name)
+      .filter(Boolean);
+    elements.activeIntegrationsDisplay.textContent = active.length
+      ? active.join(" · ")
+      : "Няма потвърдени връзки";
+    elements.activeIntegrationsDisplay.className = `context-value ${active.length ? "status-green" : "status-yellow"}`;
   } catch {
-    handleOpenSearchProbeFailure("unreachable");
+    setServerStatus(false);
+    if (elements.activeIntegrationsDisplay) {
+      elements.activeIntegrationsDisplay.textContent = "Проверката не е достъпна";
+      elements.activeIntegrationsDisplay.className = "context-value status-yellow";
+    }
   }
-}
-
-async function readHealthReport(path) {
-  const response = await fetch(path, { cache: "no-store" });
-  const report = await response.json();
-  return { ok: response.ok, report };
-}
-
-function setStorageStatus(element, text, tone) {
-  if (!element) return;
-  element.textContent = text;
-  element.className = `context-value status-${tone}`;
-}
-
-function renderDependencyHealth(result) {
-  if (result.status !== "fulfilled") {
-    state.storageOpenSearchHealthy = false;
-    updateOpenSearchUI("unavailable");
-    setStorageStatus(
-      elements.supabaseStatusDisplay,
-      "Реалната проверка е недостъпна",
-      "red",
-    );
-    return null;
-  }
-
-  const { report } = result.value;
-  const opensearch = report?.checks?.opensearch;
-  const supabase = report?.checks?.supabase;
-  state.storageOpenSearchHealthy = opensearch?.status === "healthy";
-  updateOpenSearchUI(
-    state.storageOpenSearchHealthy
-      ? opensearch.clusterStatus || "operational"
-      : opensearch?.status || "unavailable",
-  );
-  setStorageStatus(
-    elements.supabaseStatusDisplay,
-    supabase?.status === "healthy"
-      ? "Проверено с реална заявка · работи"
-      : "Реалната заявка е неуспешна",
-    supabase?.status === "healthy" ? "green" : "red",
-  );
-  return report?.checkedAt || null;
-}
-
-function renderBackupHealth(result) {
-  if (result.status !== "fulfilled") {
-    setStorageStatus(
-      elements.opensearchBackupStatusDisplay,
-      "Инвентарът не е достъпен · restore не е тестван",
-      "red",
-    );
-    setStorageStatus(
-      elements.supabaseBackupStatusDisplay,
-      "Непроверен · backup политиката не е видима",
-      "yellow",
-    );
-    return null;
-  }
-
-  const { report } = result.value;
-  const opensearch = report?.checks?.opensearch;
-  const inventoryVerified = opensearch?.status === "verified";
-  setStorageStatus(
-    elements.opensearchBackupStatusDisplay,
-    inventoryVerified
-      ? "Инвентарът е проверен · restore не е тестван"
-      : "Инвентарът не е потвърден · restore не е тестван",
-    inventoryVerified ? "yellow" : "red",
-  );
-  setStorageStatus(
-    elements.supabaseBackupStatusDisplay,
-    "Непроверен · backup политиката не е видима",
-    "yellow",
-  );
-  return report?.checkedAt || null;
-}
-
-function renderStorageCheckedAt(...timestamps) {
-  const latest = timestamps
-    .filter((value) => Number.isFinite(Date.parse(value)))
-    .sort((left, right) => Date.parse(right) - Date.parse(left))[0];
-  elements.storageStatusCheckedAt.textContent = latest
-    ? `Последна проверка: ${new Date(latest).toLocaleString("bg-BG")}`
-    : "Последна проверка: недостъпна";
-}
-
-async function checkStorageStatus() {
-  if (state.storageStatusLoading) return;
-  state.storageStatusLoading = true;
-  try {
-    const [dependencies, backups] = await Promise.allSettled([
-      readHealthReport("/health/dependencies"),
-      readHealthReport("/health/backups"),
-    ]);
-    renderStorageCheckedAt(
-      renderDependencyHealth(dependencies),
-      renderBackupHealth(backups),
-    );
-  } finally {
-    state.storageStatusLoading = false;
-  }
-}
-
-function markMemoryOperational() {
-  state.lastMemorySuccessAt = Date.now();
-  state.opensearchFailures = 0;
-  updateStorageAwareOpenSearchUI("operational");
-}
-
-function handleOpenSearchProbeFailure(status) {
-  const memoryWorkedRecently = Date.now() - state.lastMemorySuccessAt < 60_000;
-
-  if (memoryWorkedRecently) {
-    updateStorageAwareOpenSearchUI("operational");
-    return;
-  }
-
-  state.opensearchFailures += 1;
-  updateStorageAwareOpenSearchUI(
-    state.opensearchFailures >= 3 ? status : "checking",
-  );
-}
-
-function updateStorageAwareOpenSearchUI(status) {
-  updateOpenSearchUI(
-    state.storageOpenSearchHealthy === false ? "unavailable" : status,
-  );
 }
 
 function setServerStatus(isOnline) {
@@ -2518,34 +2552,6 @@ function setServerStatus(isOnline) {
     : "Сървър офлайн";
   elements.serverStatusDisplay.textContent = isOnline ? "Онлайн" : "Офлайн";
   elements.serverStatusDisplay.className = `context-value ${isOnline ? "status-green" : "status-red"}`;
-}
-
-function updateOpenSearchUI(status) {
-  state.opensearchStatus = status;
-  elements.opensearchStatusDisplay.className = "context-value";
-
-  if (status === "green" || status === "operational") {
-    elements.opensearchStatusDisplay.textContent = "Свързан · работи";
-    elements.opensearchStatusDisplay.classList.add("status-green");
-  } else if (status === "yellow") {
-    elements.opensearchStatusDisplay.textContent = "Работи · ограничен резерв";
-    elements.opensearchStatusDisplay.classList.add("status-yellow");
-  } else if (
-    status === "red" ||
-    status === "error" ||
-    status === "unreachable" ||
-    status === "unavailable"
-  ) {
-    elements.opensearchStatusDisplay.textContent =
-      status === "red" ? "Проблем в паметта" : "Временно недостъпен";
-    elements.opensearchStatusDisplay.classList.add("status-red");
-  } else if (status === "not-configured") {
-    elements.opensearchStatusDisplay.textContent = "Не е настроен";
-    elements.opensearchStatusDisplay.classList.add("status-red");
-  } else {
-    elements.opensearchStatusDisplay.textContent = "Проверка…";
-    elements.opensearchStatusDisplay.classList.add("status-yellow");
-  }
 }
 
 function logAction(actionName) {

@@ -115,7 +115,7 @@ export async function getReadinessStatus({
     memory = {
       ready: false,
       status: "unavailable",
-      backend: memoryBackend,
+      backend: memoryBackend === "firestore" ? "firestore" : null,
     };
   }
 
@@ -461,12 +461,6 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
           ? "Codex агентът е изключен от конфигурацията."
           : null,
     },
-    "supabase-status": {
-      configured: hasAllProcessEnvironmentVariables(
-        "SUPABASE_URL",
-        "SUPABASE_PUBLISHABLE_KEY",
-      ),
-    },
     "google-cloud-read": {
       configured: googleCloud.configured,
       authenticated: true,
@@ -495,7 +489,7 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
           ? "Google Cloud project е конфигуриран, но процесът не е потвърден като Cloud Run runtime."
           : null,
     },
-    "opensearch-memory": {
+    "google-firestore-memory": {
       configured: isMemoryBackendConfigured(process.env),
     },
   };
@@ -511,8 +505,11 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
         configured: Boolean(process.env.OPENAI_API_KEY),
       },
       memory: {
-        ...configuration["opensearch-memory"],
-        backend: resolveMemoryBackend(process.env),
+        ...configuration["google-firestore-memory"],
+      backend:
+        resolveMemoryBackend(process.env) === "firestore"
+          ? "firestore"
+          : null,
       },
     },
     tools: listTools().map((tool) => {

@@ -7,9 +7,29 @@ test("connection and permission controls lead to real setup actions", async () =
     new URL("../public/app.js", import.meta.url),
     "utf8",
   );
+  const googleDrive = await readFile(
+    new URL("../public/google-drive.js", import.meta.url),
+    "utf8",
+  );
+  const googleApps = await readFile(
+    new URL("../public/google-apps.js", import.meta.url),
+    "utf8",
+  );
 
   assert.match(app, /data-connect-service="google"/u);
   assert.match(app, /window\.location\.href = "\/api\/google\/connect"/u);
+  assert.match(googleDrive, /window\.location\.href = "\/api\/google\/restore"/u);
+  assert.match(googleApps, /window\.location\.href = "\/api\/google\/restore"/u);
+  assert.match(app, /function requiresGoogleOAuth\(tool\)/u);
+  assert.match(app, /"google-drive-read"/u);
+  assert.match(app, /"google-calendar-read"/u);
+  assert.match(app, /"google-calendar-write"/u);
+  assert.match(app, /"gmail-read"/u);
+  assert.match(app, /"google-contacts"/u);
+  assert.doesNotMatch(
+    app,
+    /function requiresGoogleOAuth\(tool\)[\s\S]*?tool\?\.provider === "google"/u,
+  );
   assert.match(app, /data-connect-service="github"/u);
   assert.match(app, /window\.location\.href = "\/api\/github\/connect"/u);
   assert.match(app, /<strong>ChatGPT<\/strong>/u);

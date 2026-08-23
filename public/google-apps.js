@@ -35,8 +35,15 @@
       <button type="button" class="new-chat" id="reconnectGoogle">
         <i class="fa-brands fa-google"></i><span>Свържи Google отново</span>
       </button>`;
+    body.insertAdjacentHTML("beforeend", `
+      <button type="button" class="new-chat" id="restoreGoogle">
+        <i class="fa-solid fa-clock-rotate-left"></i><span>Възстанови старата Google връзка</span>
+      </button>`);
     document.getElementById("reconnectGoogle").addEventListener("click", () => {
       window.location.href = "/api/google/connect";
+    });
+    document.getElementById("restoreGoogle").addEventListener("click", () => {
+      window.location.href = "/api/google/restore";
     });
   }
 

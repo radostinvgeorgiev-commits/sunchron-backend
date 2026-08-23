@@ -17,10 +17,7 @@ test("the personal AI interface keeps chat primary and makes owner mobile action
   assert.match(html, /data-command="chat"/u);
   assert.match(html, /data-command="memory"/u);
   assert.match(html, /data-command="connections"/u);
-  assert.match(
-    html,
-    /data-command="connections"[^>]*data-owner-only/u,
-  );
+  assert.match(html, /data-command="connections"[^>]*data-owner-only/u);
   assert.match(html, /data-command="status"/u);
   assert.match(html, /id="taskRunList"/u);
   assert.doesNotMatch(html, /data-command="(?:work|tasks)"/u);
@@ -34,7 +31,6 @@ test("the personal AI interface keeps chat primary and makes owner mobile action
   assert.match(script, /forwardClick\("profileStatusBtn", "status"\)/u);
   assert.match(script, /setAttribute\("aria-current", "page"\)/u);
 });
-
 test("the chat composer is a labelled multiline control with bounded autosize", async () => {
   const [html, css, app] = await Promise.all([
     readFile(new URL("../public/index.html", import.meta.url), "utf8"),
@@ -59,7 +55,7 @@ test("the chat composer is a labelled multiline control with bounded autosize", 
   assert.match(app, /chatInput\.addEventListener\("input", resizeChatInput\)/u);
 });
 
-test("status panel reports live Supabase health and honest backup evidence", async () => {
+test("status panel exposes the active Google Cloud integrations", async () => {
   const [
     html,
     app,
@@ -69,41 +65,23 @@ test("status panel reports live Supabase health and honest backup evidence", asy
     mobileScript,
     legacyStyles,
     workCenter,
-  ] =
-    await Promise.all([
-      readFile(new URL("../public/index.html", import.meta.url), "utf8"),
-      readFile(new URL("../public/app.js", import.meta.url), "utf8"),
-      readFile(
-        new URL("../public/synchron-vision.css", import.meta.url),
-        "utf8",
-      ),
-      readFile(new URL("../public/appshell.css", import.meta.url), "utf8"),
-      readFile(new URL("../public/accessibility.css", import.meta.url), "utf8"),
-      readFile(
-        new URL("../public/synchron-vision.js", import.meta.url),
-        "utf8",
-      ),
-      readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
-      readFile(new URL("../public/work-center.js", import.meta.url), "utf8"),
-    ]);
+  ] = await Promise.all([
+    readFile(new URL("../public/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../public/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../public/synchron-vision.css", import.meta.url), "utf8"),
+    readFile(new URL("../public/appshell.css", import.meta.url), "utf8"),
+    readFile(new URL("../public/accessibility.css", import.meta.url), "utf8"),
+    readFile(new URL("../public/synchron-vision.js", import.meta.url), "utf8"),
+    readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
+    readFile(new URL("../public/work-center.js", import.meta.url), "utf8"),
+  ]);
 
-  assert.match(html, /id="supabaseStatusDisplay"/u);
-  assert.match(html, /id="opensearchBackupStatusDisplay"/u);
-  assert.match(html, /id="supabaseBackupStatusDisplay"/u);
-  assert.match(html, /Наличният инвентар не доказва успешно възстановяване/u);
-  assert.match(app, /readHealthReport\("\/health\/dependencies"\)/u);
-  assert.match(app, /readHealthReport\("\/health\/backups"\)/u);
-  assert.match(
-    app,
-    /state\.storageOpenSearchHealthy = opensearch\?\.status === "healthy"/u,
-  );
-  assert.match(
-    app,
-    /state\.storageOpenSearchHealthy === false \? "unavailable" : status/u,
-  );
-  assert.match(app, /Проверено с реална заявка · работи/u);
-  assert.match(app, /Инвентарът е проверен · restore не е тестван/u);
-  assert.match(app, /Непроверен · backup политиката не е видима/u);
+  assert.doesNotMatch(html, /Supabase|OpenSearch|DigitalOcean|Cloudflare/iu);
+  assert.doesNotMatch(html, /class="legacy-status-details"/u);
+  assert.match(html, /Активни интеграции/u);
+  assert.match(app, /health\/integrations/u);
+  assert.match(app, /Google Cloud Memory/u);
+  assert.doesNotMatch(app, /checkOpenSearch|checkStorageStatus|Supabase|OpenSearch/iu);
   assert.match(
     shell,
     /\.statusPanel\{[^}]*z-index:80;[^}]*flex-direction:column/u,
@@ -133,37 +111,6 @@ test("status panel reports live Supabase health and honest backup evidence", asy
   assert.match(legacyStyles, /--error:\s*#b42335/u);
   assert.match(legacyStyles, /\.status-yellow\s*\{[^}]*#7c4a03/u);
   assert.doesNotMatch(legacyStyles, /#20b15a|#c58a00|#df3e4f/u);
-});
-
-test("a failed OpenSearch index probe stays authoritative across later memory events", async () => {
-  const app = await readFile(
-    new URL("../public/app.js", import.meta.url),
-    "utf8",
-  );
-  const policyStart = app.indexOf("function markMemoryOperational()");
-  const policyEnd = app.indexOf("function setServerStatus", policyStart);
-  assert.ok(policyStart >= 0 && policyEnd > policyStart);
-
-  const state = {
-    lastMemorySuccessAt: 0,
-    opensearchFailures: 0,
-    storageOpenSearchHealthy: false,
-  };
-  const displayedStatuses = [];
-  const createPolicy = new Function(
-    "state",
-    "updateOpenSearchUI",
-    `${app.slice(policyStart, policyEnd)}\nreturn { markMemoryOperational, handleOpenSearchProbeFailure };`,
-  );
-  const policy = createPolicy(state, (status) => displayedStatuses.push(status));
-
-  policy.markMemoryOperational();
-  policy.handleOpenSearchProbeFailure("unreachable");
-  assert.deepEqual(displayedStatuses, ["unavailable", "unavailable"]);
-
-  state.storageOpenSearchHealthy = true;
-  policy.markMemoryOperational();
-  assert.equal(displayedStatuses.at(-1), "operational");
 });
 
 test("obsolete search and module shells are not loaded by the product UI", async () => {

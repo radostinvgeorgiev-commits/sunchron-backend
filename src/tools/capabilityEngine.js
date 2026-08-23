@@ -65,7 +65,6 @@ import {
   prepareGitHubChange,
 } from "../services/githubActionService.js";
 import { getGitHubSession } from "../services/githubOAuthService.js";
-import { checkSupabaseStatus } from "../services/supabaseService.js";
 import {
   formatGoogleCloudRuntimeStatus,
   getGoogleCloudRuntimeStatus,
@@ -206,10 +205,10 @@ export function getToolRuntimeAvailability(
         "Codex агентът не е конфигуриран.",
         "CODEX_AGENT_NOT_CONFIGURED",
       );
-    case "supabase-status":
+    case "google-firestore-memory":
       return configured(
-        hasEnvironment(env, "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY"),
-        "Supabase Status не е конфигуриран.",
+        isMemoryBackendConfigured(env),
+        "Google Cloud Memory не е конфигурирана.",
       );
     case "google-cloud-read":
       return configured(
@@ -221,7 +220,7 @@ export function getToolRuntimeAvailability(
         Boolean(env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT || env.GCP_PROJECT_ID),
         "Google Cloud write runtime не е конфигуриран.",
       );
-    case "opensearch-memory":
+    case "google-firestore-memory":
       return configured(
         isMemoryBackendConfigured(env),
         "Постоянната памет не е конфигурирана.",
@@ -251,7 +250,6 @@ export async function buildIntegrationStatusReport(
       answerGitHubReadRequest("Покажи последния commit в GitHub."),
     checkMemory = () =>
       listProfileMemories({ ownerId: input.ownerId, limit: 1 }),
-    checkSupabase = checkSupabaseStatus,
     checkGoogleCloud = getGoogleCloudRuntimeStatus,
     checkGoogleSession = hasSession,
     env = process.env,
@@ -268,13 +266,11 @@ export async function buildIntegrationStatusReport(
   const [
     githubRead,
     memory,
-    supabase,
     googleCloud,
     googleConnected,
   ] = await Promise.all([
     checkedStatus(checkGitHub),
     checkedStatus(checkMemory),
-    checkedStatus(checkSupabase),
     checkedStatus(checkGoogleCloud, (status) => status?.configured === true),
     input.googleSessionId
       ? checkedStatus(() => checkGoogleSession(input.googleSessionId))
@@ -283,8 +279,7 @@ export async function buildIntegrationStatusReport(
 
   const working = [
     ["GitHub Read", githubRead],
-    ["Synchron Memory", memory],
-    ["Supabase Status", supabase],
+    ["Google Cloud Memory", memory],
     ["Google Cloud Read", googleCloud],
     ["AI CORE разговор", isAiCoreConfigured(env)],
     ["OpenAI Web Search", Boolean(env.OPENAI_API_KEY)],
@@ -767,15 +762,6 @@ const executors = Object.freeze({
   },
   "openai-web-search": async ({ input }) =>
     formatWebSearchResult(await searchWeb(input.message)),
-  "supabase-status": async () => {
-    const status = await checkSupabaseStatus();
-    return [
-      "Supabase е свързан и отговаря.",
-      `Услуга: ${status.service}.`,
-      `Време за отговор: ${status.responseTimeMs} ms.`,
-      "OpenSearch остава постоянната AI памет.",
-    ].join("\n");
-  },
   "google-cloud-read": async () =>
     formatGoogleCloudRuntimeStatus(getGoogleCloudRuntimeStatus()),
   "google-cloud-write": async ({ input, confirmed }) => {
@@ -802,7 +788,7 @@ const executors = Object.freeze({
       metadata: { result },
     };
   },
-  "opensearch-memory": async ({ capability, input }) => {
+  "google-firestore-memory": async ({ capability, input }) => {
     if (capability === "memory.verify") {
       const report = await runMemoryAcceptanceTest({
         ownerId: input.ownerId,

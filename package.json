@@ -17,17 +17,17 @@
     "@opensearch-project/opensearch": "^3.6.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "express-rate-limit": "^8.6.1",
+    "express-rate-limit": "^8.6.2",
     "google-auth-library": "^11.0.2",
-    "openai": "^7.3.0"
+    "openai": "^7.5.0"
   },
   "engines": {
     "node": "22.x"
   },
   "devDependencies": {
-    "dompurify": "^3.4.12",
+    "dompurify": "^3.4.14",
     "jsdom": "^30.0.1",
-    "marked": "^18.0.7",
+    "marked": "^18.0.10",
     "prettier": "^3.9.6",
     "supertest": "^7.2.2"
   }

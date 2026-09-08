@@ -1791,6 +1791,101 @@ function showAiResponseSource(message, provider, model) {
   turn.insertBefore(source, actions || null);
 }
 
+function cleanNextStep(value) {
+  if (typeof value !== "string") return "";
+  return value
+    .replace(/^[-*•#\s]+/gu, "")
+    .replace(/\*\*/gu, "")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .slice(0, 240);
+}
+
+function nextStepFromReply(text) {
+  const value = typeof text === "string" ? text.trimEnd() : "";
+  const match = value.match(
+    /(?:^|\n)\s*(?:[-*•]\s*)?(?:\*\*)?(?:Следва|Следваща стъпка)(?:\*\*)?\s*:\s*(.+?)\s*$/iu,
+  );
+  const step = cleanNextStep(match?.[1]);
+  return {
+    step,
+    displayText:
+      step && match && match.index > 0
+        ? value.slice(0, match.index).trimEnd()
+        : value,
+  };
+}
+
+function resolveNextStep(replyText, result = {}) {
+  const parsedReply = nextStepFromReply(replyText);
+  const projectStep = cleanNextStep(result?.projectRun?.nextStep);
+  const councilStep = cleanNextStep(result?.council?.nextSteps?.[0]);
+  if (projectStep || councilStep || parsedReply.step) {
+    return {
+      step: projectStep || councilStep || parsedReply.step,
+      displayText: parsedReply.displayText,
+    };
+  }
+
+  const status = result?.task?.status;
+  if (status === "waiting_confirmation") {
+    return {
+      step: "Прегледай подготвеното действие и използвай показаното точно потвърждение.",
+      displayText: parsedReply.displayText,
+    };
+  }
+  if (status === "partial") {
+    return {
+      step: "Отвори Дневника на задачите и продължи първата незавършена стъпка.",
+      displayText: parsedReply.displayText,
+    };
+  }
+  if (status === "failed") {
+    return {
+      step: "Отвори Дневника на задачите и прегледай причината за неуспешната задача.",
+      displayText: parsedReply.displayText,
+    };
+  }
+  return {
+    step: "Продължи с една конкретна задача по този отговор.",
+    displayText: parsedReply.displayText,
+  };
+}
+
+function showNextStep(message, replyText, result) {
+  const turn = message?.closest(".assistant-turn");
+  if (!turn || turn.querySelector(".next-step-card")) return;
+
+  const next = resolveNextStep(replyText, result);
+  if (!next.step) return;
+  if (next.displayText && next.displayText !== String(replyText).trimEnd()) {
+    renderAgentText(message, next.displayText);
+  }
+
+  globalThis.SynchronTaskJournal?.setNextStep(next.step, {
+    detail: "Записано автоматично от последния отговор на AI CORE.",
+  });
+
+  const card = document.createElement("section");
+  card.className = "next-step-card";
+  card.setAttribute("aria-label", "Следваща стъпка");
+
+  const label = document.createElement("strong");
+  label.textContent = "Следва";
+  const step = document.createElement("p");
+  step.textContent = next.step;
+  const openButton = document.createElement("button");
+  openButton.type = "button";
+  openButton.textContent = "Отвори в Дневника";
+  openButton.addEventListener("click", () => {
+    globalThis.SynchronTaskJournal?.openCurrentNext();
+  });
+  card.append(label, step, openButton);
+
+  const actions = turn.querySelector(".message-actions");
+  turn.insertBefore(card, actions || null);
+}
+
 function memoryCandidateCategoryLabel(category) {
   return (
     {
@@ -2390,6 +2485,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
             parsed.data?.model,
           );
           showMemoryCandidates(responseBubble, parsed.data?.memoryCandidates);
+          showNextStep(responseBubble, fullText, parsed.data);
           if (
             parsed.data?.conversationPersisted === false &&
             parsed.data?.warningCode === "CONVERSATION_NOT_SAVED"

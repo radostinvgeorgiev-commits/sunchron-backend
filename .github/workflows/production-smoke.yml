@@ -32,11 +32,20 @@ jobs:
           set -euo pipefail
           consecutive_matches=0
           required_matches=5
+          curl_error_file="$(mktemp)"
+          trap 'rm -f "${curl_error_file}"' EXIT
           for attempt in $(seq 1 24); do
-            response="$(curl --fail --silent --show-error --max-time 30 \
+            response=""
+            if response="$(curl --ipv4 --fail --silent --show-error --max-time 30 \
               --header 'Cache-Control: no-cache' \
               "${PRODUCTION_ORIGIN}/health?deployment-check=${GITHUB_RUN_ID}-${attempt}" \
-              2>/dev/null || true)"
+              2>"${curl_error_file}")"; then
+              :
+            else
+              curl_status="$?"
+              curl_error="$(tr '\n' ' ' < "${curl_error_file}" | cut -c 1-300)"
+              echo "Attempt ${attempt}/24: health request failed (curl ${curl_status}): ${curl_error:-no diagnostic}."
+            fi
             actual_commit="$(printf '%s' "${response}" | node -e '
               let input = "";
               process.stdin.on("data", (chunk) => { input += chunk; });

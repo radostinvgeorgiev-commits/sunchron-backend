@@ -189,6 +189,11 @@
   background: #f7fbf8;
 }
 
+.task-card-highlighted {
+  border-color: #0b57d0;
+  box-shadow: 0 0 0 3px rgba(11, 87, 208, .14);
+}
+
 .task-card-content {
   min-width: 0;
 }

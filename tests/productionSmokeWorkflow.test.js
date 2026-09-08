@@ -14,6 +14,8 @@ test("production smoke targets the canonical Google Cloud production site", asyn
   assert.match(workflow, /required_matches=5/u);
   assert.match(workflow, /deployment-check=\$\{GITHUB_RUN_ID\}-\$\{attempt\}/u);
   assert.match(workflow, /Cache-Control: no-cache/u);
+  assert.match(workflow, /curl --ipv4/u);
+  assert.match(workflow, /health request failed \(curl/u);
   assert.doesNotMatch(
     workflow,
     /synchron\.foundation|DigitalOcean|Cloudflare|OpenSearch|Supabase|Copilot/iu,

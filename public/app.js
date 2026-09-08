@@ -1827,6 +1827,14 @@ function resolveNextStep(replyText, result = {}) {
     };
   }
 
+  if (result?.mode === "council") {
+    return {
+      step:
+        "Прегледай общата препоръка и натисни „Изпълни препоръката“, ако я одобряваш.",
+      displayText: parsedReply.displayText,
+    };
+  }
+
   const status = result?.task?.status;
   if (status === "waiting_confirmation") {
     return {

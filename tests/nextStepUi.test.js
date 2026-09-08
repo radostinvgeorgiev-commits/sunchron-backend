@@ -25,3 +25,8 @@ test("AI CORE формулира конкретната стъпка в маши
   assert.match(chatRoute, /Следва: конкретна стъпка/u);
   assert.match(chatRoute, /изпълнима и пряко свързана с отговора/u);
 });
+
+test("Council без собствен nextSteps показва конкретното защитено действие", () => {
+  assert.match(app, /result\?\.mode === "council"/u);
+  assert.match(app, /натисни „Изпълни препоръката“/u);
+});

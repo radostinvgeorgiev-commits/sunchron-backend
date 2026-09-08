@@ -2,6 +2,7 @@
   const STORAGE_KEY = "synchronTaskJournalV1";
   const ROADMAP_VERSION_KEY = "synchronTaskJournalRoadmapVersion";
   const ROADMAP_VERSION = 3;
+  const CURRENT_NEXT_TASK_ID = "ai-core-current-next-step";
   const STATUS_ORDER = ["now", "waiting", "done"];
   const STATUS_META = Object.freeze({
     now: {
@@ -161,6 +162,36 @@
 
   function saveTasks() {
     persistTasks(tasks);
+  }
+
+  function cleanNextStep(value) {
+    return typeof value === "string"
+      ? value.replace(/\s+/gu, " ").trim().slice(0, 240)
+      : "";
+  }
+
+  function setNextStep(value, options = {}) {
+    const nextStep = cleanNextStep(value);
+    if (!nextStep) return null;
+
+    const detail = cleanNextStep(options.detail);
+    const task = {
+      id: CURRENT_NEXT_TASK_ID,
+      title: nextStep,
+      detail:
+        detail ||
+        "Текущата следваща стъпка от последния отговор на AI CORE.",
+      status: "now",
+      priority: "Следва от AI CORE",
+      updatedAt: new Date().toISOString(),
+    };
+    tasks = [
+      task,
+      ...tasks.filter((item) => item.id !== CURRENT_NEXT_TASK_ID),
+    ];
+    saveTasks();
+    if (!drawer.hidden) renderJournal();
+    return { ...task };
   }
 
   function createElement(tag, className, text) {
@@ -332,6 +363,18 @@
     renderJournal();
   }
 
+  function openCurrentNext() {
+    openJournal();
+    const card = body.querySelector(
+      `[data-task-id="${CURRENT_NEXT_TASK_ID}"]`,
+    );
+    if (!card) return;
+    card.classList.add("task-card-highlighted");
+    if (typeof card.scrollIntoView === "function") {
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+
   function addTask(form) {
     const input = form.elements.task;
     const taskTitle = input.value.trim();
@@ -382,8 +425,11 @@
 
   globalThis.SynchronTaskJournal = Object.freeze({
     open: openJournal,
+    openCurrentNext,
+    setNextStep,
     statuses: STATUS_ORDER,
     storageKey: STORAGE_KEY,
     roadmapVersion: ROADMAP_VERSION,
+    currentNextTaskId: CURRENT_NEXT_TASK_ID,
   });
 })();

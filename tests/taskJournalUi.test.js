@@ -124,6 +124,34 @@ test("нова инсталация записва актуалния roadmap", 
   assert.equal(dom.window.SynchronTaskJournal.roadmapVersion, 3);
 });
 
+test("последната стъпка от AI CORE се пази като една текуща задача", () => {
+  const dom = createHarness();
+  const journal = dom.window.SynchronTaskJournal;
+
+  journal.setNextStep("Пусни целевите тестове.");
+  journal.setNextStep("Провери резултата в production.");
+
+  const tasks = JSON.parse(
+    dom.window.localStorage.getItem("synchronTaskJournalV1"),
+  );
+  const currentTasks = tasks.filter(
+    (task) => task.id === journal.currentNextTaskId,
+  );
+  assert.equal(currentTasks.length, 1);
+  assert.equal(currentTasks[0].title, "Провери резултата в production.");
+  assert.equal(currentTasks[0].status, "now");
+  assert.equal(currentTasks[0].priority, "Следва от AI CORE");
+
+  journal.openCurrentNext();
+  assert.equal(dom.window.document.getElementById("dataDrawer").hidden, false);
+  assert.equal(
+    dom.window.document
+      .querySelector(`[data-task-id="${journal.currentNextTaskId}"]`)
+      .classList.contains("task-card-highlighted"),
+    true,
+  );
+});
+
 test("мобилният изглед остава в една колона", async () => {
   const styles = await readFile(
     new URL("../public/task-journal.css", import.meta.url),

@@ -639,6 +639,46 @@ input {
   line-height: 1.4;
 }
 
+.next-step-card {
+    margin-top: 12px;
+    padding: 13px 14px;
+    border: 1px solid #b8cce0;
+    border-radius: 13px;
+    color: #17212b;
+    background: #eef6ff;
+}
+
+.next-step-card strong {
+    display: block;
+    color: #0b57d0;
+    font-size: 12px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.next-step-card p {
+    margin: 5px 0 10px;
+    font-weight: 650;
+    line-height: 1.45;
+}
+
+.next-step-card button {
+    min-height: 34px;
+    padding: 6px 11px;
+    border: 1px solid #0b57d0;
+    border-radius: 9px;
+    color: #fff;
+    background: #0b57d0;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 750;
+    cursor: pointer;
+}
+
+.next-step-card button:hover {
+    background: #0842a0;
+}
+
 .memory-candidate-card {
     margin-top: 12px;
     padding: 13px 14px;

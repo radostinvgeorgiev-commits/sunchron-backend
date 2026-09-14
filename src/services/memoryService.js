@@ -265,10 +265,17 @@ export function deriveMemoryMetadata(fact, requestedScope = "personal") {
       scope,
     };
   }
-  if (/^(?:аз\s+)?се\s+интересувам\s+от\s+/u.test(normalized)) {
+  if (
+    /^(?:(?:аз\s+)?се\s+интересувам|интересувам\s+се)\s+от\s+/u.test(
+      normalized,
+    )
+  ) {
     return {
       memoryKey: `personal:interest:${normalized
-        .replace(/^(?:аз\s+)?се\s+интересувам\s+от\s+/u, "")
+        .replace(
+          /^(?:(?:аз\s+)?се\s+интересувам|интересувам\s+се)\s+от\s+/u,
+          "",
+        )
         .replace(/\s+/g, "-")
         .slice(0, 100)}`,
       category: "interest",
@@ -533,7 +540,7 @@ export function consolidateMemoryView(memories) {
   const interests = [];
   for (const memory of interestItems) {
     const value = cleanMemoryFact(memory.fact).replace(
-      /^(?:аз\s+)?се\s+интересувам\s+от\s+/iu,
+      /^(?:(?:аз\s+)?се\s+интересувам|интересувам\s+се)\s+от\s+/iu,
       "",
     );
     for (const item of value.split(/\s*(?:,|;|\s+и\s+)\s*/iu)) {

@@ -36,3 +36,6 @@ jobs:
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Audit all dependencies
+        run: npm audit --audit-level=moderate

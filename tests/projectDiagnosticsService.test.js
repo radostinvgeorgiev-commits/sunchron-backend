@@ -112,8 +112,149 @@ test("project diagnostics checks public runtime, MCP, Cloud Run and trigger with
     cloudBuildListUrl,
     "https://cloudbuild.googleapis.com/v1/projects/project-1/builds?pageSize=10",
   );
+  assert.equal(
+    requests.find(({ url }) => url.includes("/triggers/trigger-1"))?.url,
+    "https://cloudbuild.googleapis.com/v1/projects/project-1/triggers/trigger-1",
+  );
+  assert.equal(requests.some(({ url }) => url.includes("orderBy")), false);
   assert.equal(cloudBuildListUrl.includes("orderBy"), false);
   assert.equal(report.safety.secretsDisplayed, false);
+  assert.equal(formatProjectDiagnostics(report).includes("secret-token"), false);
+  assert.equal(JSON.stringify(report).includes("secret-token"), false);
+});
+
+test("project diagnostics uses the regional Cloud Build paths when configured", async () => {
+  const requests = [];
+  const fetchImpl = async (url, options = {}) => {
+    requests.push({ url, options });
+    if (url.endsWith("/health")) return response({ status: "ok", commit: "commit-1" });
+    if (url.endsWith("/health/ready")) return response({ status: "ready", commit: "commit-1" });
+    if (url.endsWith("/mcp")) return response({ result: { tools: [{ name: "safe_tool" }] } });
+    if (url.includes("run.googleapis.com")) {
+      return response({
+        name: "projects/project-1/locations/europe-west1/services/synchron-backend-google",
+      });
+    }
+    if (
+      url ===
+      "https://cloudbuild.googleapis.com/v1/projects/project-1/locations/europe-west1/triggers/trigger-1"
+    ) {
+      return response({ name: "synchron-main-deploy", disabled: false });
+    }
+    if (
+      url ===
+      "https://cloudbuild.googleapis.com/v1/projects/project-1/locations/europe-west1/builds?pageSize=10"
+    ) {
+      return response({ builds: [] });
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const report = await getProjectDiagnostics({
+    env: {
+      GOOGLE_CLOUD_PROJECT: "project-1",
+      CLOUD_RUN_SERVICE: "synchron-backend-google",
+      GOOGLE_CLOUD_REGION: "europe-west1",
+      CLOUD_BUILD_TRIGGER_LOCATION: "europe-west1",
+      CLOUD_BUILD_TRIGGER_ID: "trigger-1",
+    },
+    fetchImpl,
+    accessTokenProvider: async () => "secret-token",
+  });
+  assert.equal(report.status, "pass");
+  assert.equal(report.status, "pass");
+  assert.equal(
+    requests.find(({ url }) => url.includes("triggers/trigger-1"))?.url,
+    "https://cloudbuild.googleapis.com/v1/projects/project-1/locations/europe-west1/triggers/trigger-1",
+  );
+  const cloudBuildListUrl = requests.find(({ url }) => url.includes("/builds?"))?.url;
+  assert.equal(
+    cloudBuildListUrl,
+    "https://cloudbuild.googleapis.com/v1/projects/project-1/locations/europe-west1/builds?pageSize=10",
+  );
+  assert.equal(cloudBuildListUrl.includes("orderBy"), false);
+  assert.equal(JSON.stringify(report).includes("secret-token"), false);
+});
+
+test("project diagnostics fails closed for an invalid Cloud Build location", async () => {
+  const requests = [];
+  const fetchImpl = async (url, options = {}) => {
+    requests.push({ url, options });
+    if (url.endsWith("/health")) return response({ status: "ok", commit: "commit-1" });
+    if (url.endsWith("/health/ready")) return response({ status: "ready", commit: "commit-1" });
+    if (url.endsWith("/mcp")) return response({ result: { tools: [{ name: "safe_tool" }] } });
+    if (url.includes("run.googleapis.com")) {
+      return response({
+        name: "projects/project-1/locations/europe-west1/services/synchron-backend-google",
+      });
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const report = await getProjectDiagnostics({
+    env: {
+      GOOGLE_CLOUD_PROJECT: "project-1",
+      CLOUD_RUN_SERVICE: "synchron-backend-google",
+      GOOGLE_CLOUD_REGION: "europe-west1",
+      CLOUD_BUILD_TRIGGER_LOCATION: "https://example.invalid/builds",
+      CLOUD_BUILD_TRIGGER_ID: "trigger-1",
+    },
+    fetchImpl,
+    accessTokenProvider: async () => "secret-token",
+  });
+
+  assert.equal(report.status, "partial");
+  assert.equal(report.checks.cloudRun.status, "pass");
+  assert.equal(report.checks.cloudBuildTrigger.status, "unavailable");
+  assert.equal(
+    report.checks.cloudBuildTrigger.errorCode,
+    "GOOGLE_CLOUD_BUILD_LOCATION_INVALID",
+  );
+  assert.equal(report.checks.cloudBuildLatest.status, "unavailable");
+  assert.equal(requests.some(({ url }) => url.includes("example.invalid")), false);
+  assert.equal(JSON.stringify(report).includes("secret-token"), false);
+});
+
+test("project diagnostics maps Cloud API failures without exposing response text", async () => {
+  const requests = [];
+  const fetchImpl = async (url, options = {}) => {
+    requests.push({ url, options });
+    if (url.endsWith("/health")) return response({ status: "ok", commit: "commit-1" });
+    if (url.endsWith("/health/ready")) return response({ status: "ready", commit: "commit-1" });
+    if (url.endsWith("/mcp")) return response({ result: { tools: [{ name: "safe_tool" }] } });
+    if (url.includes("run.googleapis.com")) {
+      return response(
+        { error: { status: "NOT_FOUND", message: "secret-token" } },
+        404,
+      );
+    }
+    if (url.includes("/triggers/trigger-1")) return response({ name: "synchron-main-deploy" });
+    if (url.includes("/builds?")) {
+      return response(
+        { error: { status: "INVALID_ARGUMENT", message: "secret-token" } },
+        400,
+      );
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const report = await getProjectDiagnostics({
+    env: {
+      GOOGLE_CLOUD_PROJECT: "project-1",
+      CLOUD_RUN_SERVICE: "synchron-backend-google",
+      GOOGLE_CLOUD_REGION: "europe-west1",
+      CLOUD_BUILD_TRIGGER_ID: "trigger-1",
+    },
+    fetchImpl,
+    accessTokenProvider: async () => "secret-token",
+  });
+
+  assert.equal(report.checks.cloudRun.status, "fail");
+  assert.equal(report.checks.cloudRun.httpStatus, 404);
+  assert.equal(report.checks.cloudRun.errorCode, "GOOGLE_CLOUD_API_FAILED");
+  assert.equal(report.checks.cloudBuildLatest.status, "fail");
+  assert.equal(report.checks.cloudBuildLatest.httpStatus, 400);
+  assert.equal(report.checks.cloudBuildLatest.errorCode, "GOOGLE_CLOUD_API_FAILED");
   assert.equal(formatProjectDiagnostics(report).includes("secret-token"), false);
   assert.equal(JSON.stringify(report).includes("secret-token"), false);
 });

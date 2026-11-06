@@ -22,7 +22,7 @@
     "openai": "^7.34.0"
   },
   "engines": {
-    "node": "22.x"
+    "node": ">=22.22.2 <23"
   },
   "devDependencies": {
     "dompurify": "^3.4.17",

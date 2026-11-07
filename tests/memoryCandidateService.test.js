@@ -53,6 +53,51 @@ test("does not propose secrets or sensitive personal data", () => {
   );
 });
 
+test("blocks Cyrillic keys and preserves apostrophes in legitimate facts", () => {
+  assert.deepEqual(
+    extractMemoryCandidates({
+      userText: "Предпочитам ключ abc123.",
+      assistantText: "Разбрах.",
+    }),
+    [],
+  );
+  assert.deepEqual(
+    extractMemoryCandidates({
+      userText: "Казвам се O'Connor.",
+      assistantText: "Разбрах.",
+    }),
+    [
+      {
+        fact: "Казвам се O'Connor",
+        scope: "personal",
+        category: "identity",
+        reason:
+          "Изглежда като устойчив факт, който може да помогне в бъдещи разговори.",
+      },
+    ],
+  );
+});
+
+test("does not persist transient statements introduced with 'аз съм'", () => {
+  assert.deepEqual(
+    extractMemoryCandidates({
+      userText: "Аз съм уморен.",
+      assistantText: "Разбрах.",
+    }),
+    [],
+  );
+});
+
+test("classifies direct interest statements as interests", () => {
+  assert.equal(
+    extractMemoryCandidates({
+      userText: "Интересувам се от машинно обучение.",
+      assistantText: "Разбрах.",
+    })[0]?.category,
+    "interest",
+  );
+});
+
 test("requires a completed assistant reply and ignores transient commands", () => {
   assert.deepEqual(
     extractMemoryCandidates({

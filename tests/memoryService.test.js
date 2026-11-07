@@ -27,6 +27,13 @@ test("residence facts use one stable key across wording changes", () => {
   );
 });
 
+test("direct interest statements use a stable interest key", () => {
+  const metadata = deriveMemoryMetadata("Интересувам се от машинно обучение");
+
+  assert.equal(metadata.category, "interest");
+  assert.equal(metadata.memoryKey, "personal:interest:машинно-обучение");
+});
+
 test("project facts are separated from personal facts", () => {
   const command = extractPersistentMemoryCommand(
     "Запомни за проекта: текущата цел на проекта е стабилен AI разговор.",

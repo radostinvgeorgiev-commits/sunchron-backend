@@ -68,7 +68,7 @@ test("council asks OpenAI, Gemini and Grok before a bounded synthesis", async ()
   );
   assert.equal(council.responses.length, 3);
   assert.equal(council.recommendation, "Избери минималната проверима промяна.");
-  assert.match(formatAiCouncilReply(council), /трите AI двигателя/u);
+  assert.match(formatAiCouncilReply(council), /избраните AI двигатели/u);
 });
 
 const answer = async () => ({ model: "test", text: "Наличен отговор." });

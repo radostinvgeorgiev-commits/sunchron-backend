@@ -501,6 +501,21 @@ export const GOOGLE_AGENT_CLIENT_IDS = Object.freeze([
   "synchron-antigravity",
 ]);
 
+export const CLAUDE_CLIENT_ID = "synchron-claude";
+export const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
+
+function registeredClaudeClient(clientId, env) {
+  if (clientId !== CLAUDE_CLIENT_ID || env.MCP_CLAUDE_OAUTH_ENABLED !== "true")
+    return null;
+  return {
+    client_id: CLAUDE_CLIENT_ID,
+    client_name: "Claude",
+    redirect_uris: [CLAUDE_CALLBACK],
+    allowedScopes: [MCP_READ_SCOPE, MCP_OFFLINE_ACCESS_SCOPE],
+    token_endpoint_auth_method: "none",
+  };
+}
+
 function registeredGoogleAgentClient(clientId, env) {
   if (!GOOGLE_AGENT_CLIENT_IDS.includes(clientId)) return null;
   try {
@@ -603,7 +618,9 @@ export async function validateMcpAuthorizationRequest(
   if (input?.response_type !== "code") {
     throw new McpOAuthError("Поддържа се само authorization code.");
   }
-  const googleClient = registeredGoogleAgentClient(clientId, env);
+  const googleClient =
+    registeredGoogleAgentClient(clientId, env) ||
+    registeredClaudeClient(clientId, env);
   if (!googleClient && !isAllowedOpenAiClientId(clientId)) {
     throw new McpOAuthError("Непознат OAuth клиент.", 400, "invalid_client");
   }
@@ -669,7 +686,7 @@ export async function validateMcpAuthorizationRequest(
     scopes.some((scope) => !googleClient.allowedScopes.includes(scope))
   ) {
     throw new McpOAuthError(
-      "Поисканите права не са разрешени за този Google агент.",
+      "Поисканите права не са разрешени за този агент.",
       400,
       "invalid_scope",
     );

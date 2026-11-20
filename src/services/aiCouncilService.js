@@ -311,7 +311,7 @@ export async function runAiCouncil({
       confidence: "low",
       arbiter: null,
     });
-  if (normalizedResponses.length === 1) return Object.freeze({ ...fallback(), partial: unavailableProviders.length > 0, recommendation: normalizedResponses[0].text, rationale: "Отговор от един избран AI двигател.", confidence: "medium" });
+  if (normalizedResponses.length === 1) return Object.freeze({ ...fallback(), partial: unavailableProviders.length > 0, recommendation: normalizedResponses[0].text, rationale: "Отговор от един избран AI двигател; няма независима проверка.", confidence: "low" });
   if (!openAiApiKey) return fallback();
 
   let synthesis;

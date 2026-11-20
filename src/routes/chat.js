@@ -1035,6 +1035,7 @@ router.post("/chat", async (req, res) => {
     workContext,
     recentHistory,
     council,
+    councilProviders,
     councilIntentId,
   } =
     req.body || {};
@@ -1774,6 +1775,7 @@ router.post("/chat", async (req, res) => {
     try {
       const councilResult = await runAiCouncil({
         message: cleanMessage,
+        selectedProviders: councilProviders === undefined ? undefined : councilProviders,
         context: PROJECT_BASE_CONTEXT.slice(0, 8).join("\n"),
       });
       let councilIntent = null;

@@ -5,7 +5,7 @@ import {
   requireOwnerSession,
   requirePrimaryOwner,
 } from "./src/middleware/ownerAuth.js";
-import { createRateLimiters } from "./src/middleware/rateLimits.js";
+import { createApiRateLimiter, createRateLimiters } from "./src/middleware/rateLimits.js";
 import { startMemoryStartupVerification } from "./src/services/memoryStartupVerificationService.js";
 import { executeCapability } from "./src/tools/capabilityEngine.js";
 import { getAiProviderStatus } from "./src/services/aiCoreService.js";
@@ -27,6 +27,10 @@ import systemRouter from "./src/routes/systemRouter.js";
 import workspacesRouter from "./src/routes/workspacesRouter.js";
 import tasksRouter from "./src/routes/tasksRouter.js";
 import taskRunsRouter from "./src/routes/taskRunsRouter.js";
+import {
+  createEarlyAccessAdminRouter,
+  createEarlyAccessRouter,
+} from "./src/routes/earlyAccessRouter.js";
 import mcpRouter, { mcpJsonParseErrorHandler } from "./src/routes/mcpRouter.js";
 import { createMcpOAuthRouter } from "./src/routes/mcpOAuthRouter.js";
 
@@ -128,6 +132,18 @@ app.use(
 app.use("/health", healthRouter);
 app.use("/api/public-config", publicConfigRouter);
 app.use("/api/auth", oauthRateLimiter, userAuthRouter);
+app.use(
+  "/api/early-access",
+  createApiRateLimiter({ limit: 10 }),
+  createEarlyAccessRouter(),
+);
+app.use(
+  "/admin/early-access",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  privateApiRateLimiter,
+  createEarlyAccessAdminRouter(),
+);
 app.use("/api/github", oauthRateLimiter, githubOAuthRouter);
 app.use("/mcp", mcpJsonParseErrorHandler, privateApiRateLimiter, mcpRouter);
 
@@ -205,6 +221,10 @@ app.use(
 
 app.get("/", (_req, res) => {
   res.sendFile("public/index.html", { root: process.cwd() });
+});
+
+app.get("/plans", (_req, res) => {
+  res.sendFile("public/plans.html", { root: process.cwd() });
 });
 
 app.get("/register", (_req, res) => {

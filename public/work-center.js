@@ -728,6 +728,17 @@
             ? "Работи · Нормална регистрация"
             : "Настройва се в Google Cloud",
       }),
+      ...(testerAuth
+        ? [
+            createExternalCard({
+              title: "Заявки за ранен достъп",
+              description: "Имейли на хората, поискали покана за SYNCHRON-X.",
+              url: "/admin/early-access",
+              icon: "fa-solid fa-inbox",
+              status: "Само за собственика",
+            }),
+          ]
+        : []),
       createInternalCard({
         title: "Google Drive",
         description: "Преглед и анализ на разрешени файлове.",

@@ -306,6 +306,43 @@ export async function requestGrokResponse({
   };
 }
 
+export async function requestClaudeResponse({
+  apiKey = process.env.ANTHROPIC_API_KEY,
+  apiUrl = "https://api.anthropic.com/v1/messages",
+  input,
+  model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5",
+  fetchImpl = fetch,
+  signal,
+}) {
+  if (!apiKey) {
+    throw new AiCoreError("Claude не е конфигуриран.", "CLAUDE_NOT_CONFIGURED", 503);
+  }
+  const messages = normalizeChatMessages(input).map(({ role, content }) => ({
+    role: role === "assistant" ? "assistant" : "user",
+    content: typeof content === "string" ? content : String(content ?? ""),
+  }));
+  const response = await fetchImpl(apiUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({ model, max_tokens: 2048, messages }),
+    signal,
+  });
+  if (!response.ok) {
+    console.error(`[Claude] Upstream request failed: ${response.status}`);
+    throw new AiCoreError(`Claude върна грешка ${response.status}.`, "CLAUDE_UPSTREAM_ERROR", response.status);
+  }
+  const data = await response.json();
+  const text = Array.isArray(data?.content)
+    ? data.content.filter((item) => item?.type === "text").map((item) => item.text || "").join("\n").trim()
+    : "";
+  if (!text) throw new AiCoreError("Claude не върна текстов отговор.", "CLAUDE_EMPTY_RESPONSE");
+  return { text, provider: "claude", model: data?.model || model };
+}
+
 export function normalizeAiProvider(value) {
   const provider = typeof value === "string" ? value.trim().toLowerCase() : "";
   return AI_PROVIDERS.has(provider) ? provider : null;

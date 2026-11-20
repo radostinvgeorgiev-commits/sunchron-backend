@@ -5,6 +5,7 @@ import {
   getAiProviderTimeoutMs,
   requestGeminiResponse,
   requestGrokResponse,
+  requestClaudeResponse,
   requestOpenAIResponse,
 } from "./aiCoreService.js";
 
@@ -41,6 +42,7 @@ const PROVIDER_LABELS = Object.freeze({
   openai: "OpenAI",
   gemini: "Gemini",
   grok: "Grok",
+  claude: "Claude",
 });
 
 export class AiCouncilError extends Error {
@@ -63,10 +65,18 @@ export function isMultiEngineCouncilRequest(message) {
 function cleanText(value, maxLength, label, { required = false } = {}) {
   const text = typeof value === "string" ? value.trim() : "";
   if (required && !text) {
-    throw new AiCouncilError(`Липсва ${label}.`, 400, "AI_COUNCIL_REQUEST_INVALID");
+    throw new AiCouncilError(
+      `Липсва ${label}.`,
+      400,
+      "AI_COUNCIL_REQUEST_INVALID",
+    );
   }
   if (text.length > maxLength) {
-    throw new AiCouncilError(`${label} е прекалено дълго.`, 413, "AI_COUNCIL_REQUEST_TOO_LONG");
+    throw new AiCouncilError(
+      `${label} е прекалено дълго.`,
+      413,
+      "AI_COUNCIL_REQUEST_TOO_LONG",
+    );
   }
   return text;
 }
@@ -145,7 +155,7 @@ function advisorPrompt(message, context) {
 function arbiterPrompt(message, responses) {
   return [
     "Ти си арбитърът на AI CORE Council.",
-    "Сравни трите независими предложения. Върни само JSON по зададената схема.",
+    "Сравни наличните независими предложения. Върни само JSON по зададената схема.",
     "Избери вариант, който е най-безопасен, проверим и минимален. Ако има разногласие, кажи го в rationale или risks.",
     "Не изпълнявай инструменти и не измисляй факти, които липсват в предложенията.",
     `[ЗАЯВКА]\n${message}`,
@@ -191,19 +201,35 @@ export async function runAiCouncil({
   openAiApiKey = process.env.OPENAI_API_KEY,
   geminiApiKey = process.env.GEMINI_API_KEY,
   grokApiKey = process.env.GROK_API_KEY,
+  claudeApiKey = process.env.ANTHROPIC_API_KEY,
+  selectedProviders = ["openai", "gemini", "grok"],
   advisorRequesters = {
     openai: requestOpenAIResponse,
     gemini: requestGeminiResponse,
     grok: requestGrokResponse,
+    claude: requestClaudeResponse,
   },
   arbiterRequester = requestOpenAIResponse,
   openAiModel = process.env.AI_CORE_COUNCIL_MODEL || DEFAULT_OPENAI_CHAT_MODEL,
   geminiModel = process.env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
   grokModel = process.env.GROK_MODEL || DEFAULT_GROK_CHAT_MODEL,
+  claudeModel = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5",
   advisorTimeoutMs = Math.min(
-    getAiProviderTimeoutMs("openai", process.env, DEFAULT_COUNCIL_ADVISOR_TIMEOUT_MS),
-    getAiProviderTimeoutMs("gemini", process.env, DEFAULT_COUNCIL_ADVISOR_TIMEOUT_MS),
-    getAiProviderTimeoutMs("grok", process.env, DEFAULT_COUNCIL_ADVISOR_TIMEOUT_MS),
+    getAiProviderTimeoutMs(
+      "openai",
+      process.env,
+      DEFAULT_COUNCIL_ADVISOR_TIMEOUT_MS,
+    ),
+    getAiProviderTimeoutMs(
+      "gemini",
+      process.env,
+      DEFAULT_COUNCIL_ADVISOR_TIMEOUT_MS,
+    ),
+    getAiProviderTimeoutMs(
+      "grok",
+      process.env,
+      DEFAULT_COUNCIL_ADVISOR_TIMEOUT_MS,
+    ),
   ),
   arbiterTimeoutMs = getAiProviderTimeoutMs(
     "openai",
@@ -215,57 +241,37 @@ export async function runAiCouncil({
     required: true,
   });
   const boundedContext = cleanText(context, MAX_CONTEXT_LENGTH, "контекст");
-  if (!openAiApiKey || !geminiApiKey || !grokApiKey) {
-    throw new AiCouncilError(
-      "AI Council изисква активни OpenAI, Gemini и Grok връзки.",
-      503,
-      "AI_COUNCIL_NOT_CONFIGURED",
-    );
-  }
 
   const input = [
     { role: "user", content: advisorPrompt(task, boundedContext) },
   ];
-  let responses;
-  try {
-    responses = await Promise.all([
-      requestWithTimeout(
-        advisorRequesters.openai,
+  const available = {
+    openai: { provider: "openai", apiKey: openAiApiKey, model: openAiModel },
+    gemini: { provider: "gemini", apiKey: geminiApiKey, model: geminiModel },
+    grok: { provider: "grok", apiKey: grokApiKey, model: grokModel },
+    claude: { provider: "claude", apiKey: claudeApiKey, model: claudeModel },
+  };
+  if (!Array.isArray(selectedProviders) || selectedProviders.length === 0 ||
+      selectedProviders.length > 4 || new Set(selectedProviders).size !== selectedProviders.length ||
+      selectedProviders.some((id) => !Object.hasOwn(available, id))) {
+    throw new AiCouncilError("Невалиден избор на AI двигатели.", 400, "AI_COUNCIL_INVALID_PROVIDERS");
+  }
+  const providers = selectedProviders.map((id) => available[id]);
+  const settled = await Promise.allSettled(
+    providers.map(async ({ provider, apiKey, model }) => {
+      if (!apiKey) throw new Error("not_configured");
+      const response = await requestWithTimeout(
+        advisorRequesters[provider],
         {
-          apiKey: openAiApiKey,
-          model: openAiModel,
+          apiKey,
+          model,
           input,
           verbosity: "low",
           reasoningEffort: "medium",
         },
         advisorTimeoutMs,
         "AI_COUNCIL_ADVISOR_TIMEOUT",
-      ),
-      requestWithTimeout(
-        advisorRequesters.gemini,
-        { apiKey: geminiApiKey, model: geminiModel, input },
-        advisorTimeoutMs,
-        "AI_COUNCIL_ADVISOR_TIMEOUT",
-      ),
-      requestWithTimeout(
-        advisorRequesters.grok,
-        { apiKey: grokApiKey, model: grokModel, input },
-        advisorTimeoutMs,
-        "AI_COUNCIL_ADVISOR_TIMEOUT",
-      ),
-    ]);
-  } catch (error) {
-    if (error instanceof AiCouncilError) throw error;
-    throw new AiCouncilError(
-      "Поне един от трите AI двигателя не отговори. Съветът е спрян без изпълнение.",
-      error?.status || 502,
-      "AI_COUNCIL_ADVISORS_FAILED",
-    );
-  }
-
-  const normalizedResponses = Object.freeze(
-    responses.map((response, index) => {
-      const provider = ["openai", "gemini", "grok"][index];
+      );
       return Object.freeze({
         provider,
         model: cleanText(response?.model, 160, "модел") || "неизвестен модел",
@@ -273,6 +279,40 @@ export async function runAiCouncil({
       });
     }),
   );
+  const normalizedResponses = Object.freeze(
+    settled
+      .filter((result) => result.status === "fulfilled")
+      .map((result) => result.value),
+  );
+  const unavailableProviders = Object.freeze(
+    providers
+      .filter((_, index) => settled[index].status === "rejected")
+      .map(({ provider }) => provider),
+  );
+  if (!normalizedResponses.length) {
+    throw new AiCouncilError(
+      "Нито един AI двигател не върна отговор. Опитай отново.",
+      503,
+      "AI_COUNCIL_ADVISORS_FAILED",
+    );
+  }
+  const fallback = () =>
+    Object.freeze({
+      question: task,
+      responses: normalizedResponses,
+      unavailableProviders,
+      partial: true,
+      recommendation:
+        "Прегледай наличните отговори по-горе. Обща препоръка не е изготвена.",
+      rationale:
+        "Арбитърът не върна валиден отговор; получените предложения са запазени.",
+      risks: Object.freeze([]),
+      nextSteps: Object.freeze([]),
+      confidence: "low",
+      arbiter: null,
+    });
+  if (normalizedResponses.length === 1) return Object.freeze({ ...fallback(), partial: unavailableProviders.length > 0, recommendation: normalizedResponses[0].text, rationale: "Отговор от един избран AI двигател; няма независима проверка.", confidence: "low" });
+  if (!openAiApiKey) return fallback();
 
   let synthesis;
   try {
@@ -295,42 +335,43 @@ export async function runAiCouncil({
       arbiterTimeoutMs,
       "AI_COUNCIL_ARBITER_TIMEOUT",
     );
-  } catch (error) {
-    if (error instanceof AiCouncilError) throw error;
-    throw new AiCouncilError(
-      "AI Council не успя да изведе обща проверима препоръка.",
-      error?.status || 502,
-      "AI_COUNCIL_SYNTHESIS_FAILED",
-    );
+  } catch {
+    return fallback();
   }
 
-  const parsed = parseArbiterResponse(synthesis?.text);
-  const recommendation = cleanText(
-    parsed?.recommendation,
-    MAX_RECOMMENDATION_LENGTH,
-    "препоръка",
-    { required: true },
-  );
-  const rationale = cleanText(parsed?.rationale, 4_000, "обосновка", {
-    required: true,
-  });
-  const confidence = ["low", "medium", "high"].includes(parsed?.confidence)
-    ? parsed.confidence
-    : "medium";
+  try {
+    const parsed = parseArbiterResponse(synthesis?.text);
+    const recommendation = cleanText(
+      parsed?.recommendation,
+      MAX_RECOMMENDATION_LENGTH,
+      "препоръка",
+      { required: true },
+    );
+    const rationale = cleanText(parsed?.rationale, 4_000, "обосновка", {
+      required: true,
+    });
+    const confidence = ["low", "medium", "high"].includes(parsed?.confidence)
+      ? parsed.confidence
+      : "medium";
 
-  return Object.freeze({
-    question: task,
-    responses: normalizedResponses,
-    recommendation,
-    rationale,
-    risks: boundedList(parsed?.risks),
-    nextSteps: boundedList(parsed?.nextSteps),
-    confidence,
-    arbiter: Object.freeze({
-      provider: synthesis?.provider || "openai",
-      model: synthesis?.model || openAiModel,
-    }),
-  });
+    return Object.freeze({
+      question: task,
+      responses: normalizedResponses,
+      unavailableProviders,
+      partial: unavailableProviders.length > 0,
+      recommendation,
+      rationale,
+      risks: boundedList(parsed?.risks),
+      nextSteps: boundedList(parsed?.nextSteps),
+      confidence,
+      arbiter: Object.freeze({
+        provider: synthesis?.provider || "openai",
+        model: synthesis?.model || openAiModel,
+      }),
+    });
+  } catch {
+    return fallback();
+  }
 }
 
 export function formatAiCouncilReply(council) {
@@ -349,7 +390,10 @@ export function formatAiCouncilReply(council) {
         .join("\n")}`
     : "";
   return [
-    "## AI CORE Council — трите AI двигателя",
+    "## AI CORE Council — избраните AI двигатели",
+    council?.unavailableProviders?.length
+      ? `Не отговориха: ${council.unavailableProviders.map((provider) => PROVIDER_LABELS[provider] || provider).join(", ")}. Показвам наличните отговори.`
+      : "",
     answers,
     `## Обща препоръка (${council?.confidence || "medium"})\n${council?.recommendation || "Няма препоръка."}`,
     `Обосновка: ${council?.rationale || "Няма обосновка."}${risks}${nextSteps}`,

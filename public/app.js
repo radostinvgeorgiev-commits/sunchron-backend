@@ -138,8 +138,8 @@ function setCouncilMode(enabled) {
     String(state.councilMode),
   );
   elements.councilModeBtn.title = state.councilMode
-    ? "Следващото съобщение ще бъде обсъдено от OpenAI, Gemini и Grok"
-    : "Попитай OpenAI, Gemini и Grok и сравни отговорите";
+    ? "Следващото съобщение ще бъде изпратено до избраните AI двигатели"
+    : "Попитай избраните AI двигатели и сравни отговорите";
 }
 
 function setAuthBusy(isBusy) {
@@ -2399,6 +2399,8 @@ async function sendMessage({ councilIntentId = "" } = {}) {
 
   const messageText = text || "Какво виждаш на тази снимка?";
   const councilMode = state.councilMode;
+  const councilProviders = [...document.querySelectorAll('input[name="councilProvider"]:checked')].map((el) => el.value);
+  if (councilMode && !councilProviders.length) { alert("Избери поне един AI двигател."); return; }
   setCouncilMode(false);
   const recentHistory = state.recentConversationMessages.slice(-12);
   appendMessage("user", messageText, image);
@@ -2421,6 +2423,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
         message: messageText,
         image,
         council: councilMode,
+        ...(councilMode ? { councilProviders } : {}),
         ...(councilIntentId ? { councilIntentId } : {}),
         recentHistory,
         ...globalThis.SynchronWorkMode?.getRequestPayload(),

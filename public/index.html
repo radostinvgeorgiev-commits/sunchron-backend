@@ -362,13 +362,19 @@
               id="councilModeBtn"
               class="council-mode-button"
               type="button"
-              aria-label="Попитай трите AI двигателя"
+              aria-label="Попитай избраните AI двигатели"
               aria-pressed="false"
-              title="Попитай OpenAI, Gemini и Grok и сравни отговорите"
+              title="Попитай избраните AI двигатели и сравни отговорите"
             >
               <i class="fa-solid fa-people-group" aria-hidden="true"></i>
-              <span>Три AI</span>
+              <span>AI Council</span>
             </button>
+            <fieldset id="councilProviderPicker" aria-label="Избор на AI двигатели" style="display:inline-flex;gap:0.5rem;flex-wrap:wrap;border:0;margin:0;padding:0.25rem">
+              <label><input type="checkbox" name="councilProvider" value="openai" checked> OpenAI</label>
+              <label><input type="checkbox" name="councilProvider" value="gemini" checked> Gemini</label>
+              <label><input type="checkbox" name="councilProvider" value="grok" checked> Grok</label>
+              <label><input type="checkbox" name="councilProvider" value="claude"> Claude</label>
+            </fieldset>
             <button
               id="workPetBtn"
               class="work-pet-button"

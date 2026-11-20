@@ -1,0 +1,22 @@
+{
+  "name": "ai-core-whatsapp-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.22.2 <23"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "pair": "node pair.js",
+    "test": "node --test ../../tests/whatsappBridge.test.js"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "1.34.8"
+  },
+  "overrides": {
+    "puppeteer": "25.18.1",
+    "archiver": "8.0.0",
+    "minimatch": "11.0.1"
+  }
+}

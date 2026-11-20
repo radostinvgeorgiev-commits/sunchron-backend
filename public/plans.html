@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="bg">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Планове и ранен достъп до SYNCHRON-X, личната ти AI система."
+    />
+    <title>Планове и ранен достъп · SYNCHRON-X</title>
+    <link rel="canonical" href="https://cloudaicore.com/plans" />
+    <link rel="icon" type="image/png" href="/ai-core-mark.png" />
+    <link rel="stylesheet" href="/plans.css" />
+    <script src="/plans.js" defer></script>
+  </head>
+  <body>
+    <main class="plans-shell">
+      <header class="plans-header">
+        <a class="plans-brand" href="/">
+          <img src="/ai-core-mark.png" alt="" width="40" height="40" />
+          SYNCHRON-X
+        </a>
+        <a href="/">Вход</a>
+      </header>
+      <section class="plans-intro" aria-labelledby="plans-title">
+        <h1 id="plans-title">Планове за SYNCHRON-X</h1>
+        <p>
+          Изпробвай личната AI система с покана. Платените планове са в
+          подготовка.
+        </p>
+      </section>
+      <div class="plans-grid">
+        <article class="plan plan-featured">
+          <h2>Ранен достъп</h2>
+          <p class="plan-price">Безплатно</p>
+          <p>За първите участници в тестовата група.</p>
+          <ul>
+            <li>AI разговори и контролирана памет</li>
+            <li>Регистрация с покана</li>
+          </ul>
+          <a class="plans-button" href="#early-access">Заяви достъп</a>
+        </article>
+        <article class="plan">
+          <h2>Личен</h2>
+          <p class="plan-price">В подготовка</p>
+          <p>За ежедневни разговори и лични задачи.</p>
+          <ul>
+            <li>Лична памет и история</li>
+            <li>Разрешени инструменти за задачи</li>
+          </ul>
+        </article>
+        <article class="plan">
+          <h2>Професионален</h2>
+          <p class="plan-price">В подготовка</p>
+          <p>За по-честа работа с AI и свързани приложения.</p>
+          <ul>
+            <li>Сравняване на отговори от AI модели</li>
+            <li>Връзки с работни приложения по твой избор</li>
+          </ul>
+        </article>
+      </div>
+      <section
+        class="request-panel"
+        id="early-access"
+        aria-labelledby="request-title"
+      >
+        <div>
+          <h2 id="request-title">Заяви ранен достъп</h2>
+          <p>
+            Остави имейл, за да можем да ти изпратим покана при свободно място.
+          </p>
+          <a href="/register">Вече имам код за покана</a>
+        </div>
+        <form method="post" action="/api/early-access">
+          <label for="request-email">Имейл</label>
+          <input
+            id="request-email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            maxlength="254"
+            required
+          />
+          <input id="request-source" type="hidden" name="source" />
+          <label class="request-consent">
+            <input type="checkbox" name="consent" value="yes" required />
+            <span
+              >Съгласен съм SYNCHRON-X да използва имейла ми, за да отговори на
+              тази заявка.</span
+            >
+          </label>
+          <button class="plans-button" type="submit">Изпрати заявка</button>
+          <p id="request-status" role="status" hidden></p>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

@@ -168,3 +168,43 @@ test("council bounds a verbose advisor", async () => {
   });
   assert.equal(bounded.responses[0].text.length, 8_000);
 });
+
+test("selects Claude only and returns its response without synthesis", async () => {
+  const result = await runAiCouncil({
+    message: "Тест на Claude.",
+    selectedProviders: ["claude"],
+    claudeApiKey: "test",
+    openAiApiKey: "",
+    advisorRequesters: {
+      claude: async () => ({ model: "claude-test", text: "Отговор от Claude." }),
+    },
+  });
+  assert.equal(result.responses.length, 1);
+  assert.equal(result.responses[0].provider, "claude");
+  assert.match(result.recommendation, /Отговор от Claude/);
+});
+
+test("selected providers exclude others and preserve partial answers", async () => {
+  const result = await runAiCouncil({
+    message: "Тест на частичен отговор.",
+    selectedProviders: ["claude", "gemini"],
+    claudeApiKey: "test",
+    geminiApiKey: "test",
+    openAiApiKey: "",
+    advisorRequesters: {
+      claude: async () => ({ model: "claude-test", text: "Claude работи." }),
+      gemini: async () => { throw new Error("unavailable"); },
+    },
+  });
+  assert.deepEqual(result.unavailableProviders, ["gemini"]);
+  assert.equal(result.responses[0].provider, "claude");
+});
+
+test("rejects unsupported and duplicate Council provider selection", async () => {
+  for (const selectedProviders of [[], ["claude", "claude"], ["unknown"]]) {
+    await assert.rejects(
+      () => runAiCouncil({ message: "Тест", selectedProviders }),
+      (error) => error instanceof AiCouncilError && error.code === "AI_COUNCIL_INVALID_PROVIDERS",
+    );
+  }
+});

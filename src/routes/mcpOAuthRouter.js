@@ -6,6 +6,7 @@ import {
   exchangeMcpToken,
   getMcpAuthorizationServerMetadata,
   getMcpProtectedResourceMetadata,
+  GOOGLE_AGENT_CLIENT_IDS,
   McpOAuthError,
   recordMcpAuthorizationRuntimeStatus,
   resolveMcpConsentRequest,
@@ -40,12 +41,24 @@ function noStore(res) {
   res.set("Pragma", "no-cache");
 }
 
-function preserveOAuthPopupHandoff(res) {
+function preserveOAuthPopupHandoff(res, request) {
   res.set("Cross-Origin-Opener-Policy", "unsafe-none");
   // The consent form posts to this origin, then redirects to ChatGPT's exact
   // validated OAuth callback. The global form-action 'self' policy blocks that
   // redirect before ChatGPT can exchange the authorization code.
-  res.set("Content-Security-Policy", MCP_OAUTH_CONTENT_SECURITY_POLICY);
+  const callbackOrigin =
+    request && GOOGLE_AGENT_CLIENT_IDS.includes(request.clientId)
+      ? new URL(request.redirectUri).origin
+      : null;
+  res.set(
+    "Content-Security-Policy",
+    callbackOrigin
+      ? MCP_OAUTH_CONTENT_SECURITY_POLICY.replace(
+          `form-action 'self' ${CHATGPT_OAUTH_CALLBACK_ORIGIN}`,
+          `form-action 'self' ${CHATGPT_OAUTH_CALLBACK_ORIGIN} ${callbackOrigin}`,
+        )
+      : MCP_OAUTH_CONTENT_SECURITY_POLICY,
+  );
 }
 
 function escapeHtml(value) {
@@ -85,7 +98,8 @@ function consentPage(request, identity, consentToken) {
     )
     .join("");
   const callbackHost = new URL(request.redirectUri).hostname;
-  return `<!doctype html><html lang="bg"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI CORE OAuth</title><style>body{font-family:system-ui;background:#08111f;color:#eef4ff;display:grid;place-items:center;min-height:100vh;margin:0}.card{max-width:520px;background:#111e31;padding:28px;border-radius:18px}button{font-size:18px;padding:12px 18px;border:0;border-radius:10px;margin-right:8px}.allow{background:#4f8cff;color:white}.deny{background:#26364d;color:white}</style></head><body><main class="card"><h1>Свързване на ChatGPT със AI CORE</h1><p>Влязъл си като <strong>${escapeHtml(identity.displayName || identity.id)}</strong>.</p><p>Клиент: <strong>${escapeHtml(request.clientName || "ChatGPT")}</strong> · callback: <strong>${escapeHtml(callbackHost)}</strong></p><p>ChatGPT иска следните права:</p><ul>${rights}</ul><p>Всяко действие за запис продължава да изисква отделно точно потвърждение.</p><p>Връзката може да се подновява, докато я използваш. Можеш да видиш правата и да спреш достъпа по всяко време от AI CORE → Разрешения.</p><form method="post" action="/oauth/authorize">${hidden}<button class="allow" name="decision" value="allow" type="submit">Разреши</button><button class="deny" name="decision" value="deny" type="submit">Откажи</button></form></main></body></html>`;
+  const clientName = escapeHtml(request.clientName || "ChatGPT");
+  return `<!doctype html><html lang="bg"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI CORE OAuth</title><style>body{font-family:system-ui;background:#08111f;color:#eef4ff;display:grid;place-items:center;min-height:100vh;margin:0}.card{max-width:520px;background:#111e31;padding:28px;border-radius:18px}button{font-size:18px;padding:12px 18px;border:0;border-radius:10px;margin-right:8px}.allow{background:#4f8cff;color:white}.deny{background:#26364d;color:white}</style></head><body><main class="card"><h1>Свързване на ${clientName} със AI CORE</h1><p>Влязъл си като <strong>${escapeHtml(identity.displayName || identity.id)}</strong>.</p><p>Клиент: <strong>${clientName}</strong> · callback: <strong>${escapeHtml(callbackHost)}</strong></p><p>${clientName} иска следните права:</p><ul>${rights}</ul><p>Всяко действие за запис продължава да изисква отделно точно потвърждение.</p><p>Връзката може да се подновява, докато я използваш. Можеш да видиш правата и да спреш достъпа по всяко време от AI CORE → Разрешения.</p><form method="post" action="/oauth/authorize">${hidden}<button class="allow" name="decision" value="allow" type="submit">Разреши</button><button class="deny" name="decision" value="deny" type="submit">Откажи</button></form></main></body></html>`;
 }
 
 function loginRequiredPage() {
@@ -118,6 +132,7 @@ export function createMcpOAuthRouter({
     preserveOAuthPopupHandoff(res);
     try {
       const request = await validateRequest(req.query);
+      preserveOAuthPopupHandoff(res, request);
       const identity = await resolveIdentity(req, res);
       noStore(res);
       if (!identity)
@@ -150,6 +165,7 @@ export function createMcpOAuthRouter({
           req.body?.consent_token,
           identity,
         );
+        preserveOAuthPopupHandoff(res, request);
         const callback = new URL(request.redirectUri);
         if (req.body?.decision !== "allow") {
           recordMcpAuthorizationRuntimeStatus({

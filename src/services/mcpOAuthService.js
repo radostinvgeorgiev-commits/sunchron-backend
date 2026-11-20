@@ -494,6 +494,61 @@ function isAllowedOpenAiClientId(value) {
   }
 }
 
+// Public native clients have no client secret. Each callback and scope must be
+// explicitly registered by the operator; PKCE and browser consent still apply.
+export const GOOGLE_AGENT_CLIENT_IDS = Object.freeze([
+  "synchron-gemini-cli",
+  "synchron-antigravity",
+]);
+
+function registeredGoogleAgentClient(clientId, env) {
+  if (!GOOGLE_AGENT_CLIENT_IDS.includes(clientId)) return null;
+  try {
+    const raw = env.MCP_GOOGLE_OAUTH_CLIENTS || "[]";
+    if (raw.length > 16_384) return null;
+    const clients = JSON.parse(raw);
+    if (!Array.isArray(clients) || clients.length > 2) return null;
+    const matches = clients.filter((client) => client?.client_id === clientId);
+    if (matches.length !== 1) return null;
+    const client = matches[0];
+    if (
+      typeof client.client_name !== "string" ||
+      !client.client_name.trim() ||
+      client.client_name.length > 100 ||
+      !Array.isArray(client.redirect_uris) ||
+      !client.redirect_uris.length ||
+      client.redirect_uris.length > 8 ||
+      typeof client.scope !== "string" ||
+      !client.scope.trim()
+    )
+      return null;
+    for (const value of client.redirect_uris) {
+      if (typeof value !== "string") return null;
+      const url = new URL(value);
+      const loopback = ["127.0.0.1", "localhost"].includes(url.hostname);
+      if (
+        url.username ||
+        url.password ||
+        url.search ||
+        url.hash ||
+        url.pathname !== "/oauth/callback" ||
+        (url.protocol !== "https:" &&
+          !(url.protocol === "http:" && loopback && url.port)) ||
+        url.href !== value
+      )
+        return null;
+    }
+    return {
+      ...client,
+      client_name: client.client_name.trim(),
+      allowedScopes: parseScopes(client.scope),
+      token_endpoint_auth_method: "none",
+    };
+  } catch {
+    return null;
+  }
+}
+
 function trustedChatGptClientMetadata(clientId, redirectUri) {
   try {
     const clientUrl = new URL(clientId);
@@ -548,7 +603,8 @@ export async function validateMcpAuthorizationRequest(
   if (input?.response_type !== "code") {
     throw new McpOAuthError("Поддържа се само authorization code.");
   }
-  if (!isAllowedOpenAiClientId(clientId)) {
+  const googleClient = registeredGoogleAgentClient(clientId, env);
+  if (!googleClient && !isAllowedOpenAiClientId(clientId)) {
     throw new McpOAuthError("Непознат OAuth клиент.", 400, "invalid_client");
   }
   if (!state || state.length > 1_000) {
@@ -560,27 +616,32 @@ export async function validateMcpAuthorizationRequest(
   ) {
     throw new McpOAuthError("Изисква се PKCE S256.");
   }
-  if (!isAllowedMcpResourceUrl(resource, env)) {
+  if (
+    !isAllowedMcpResourceUrl(resource, env) ||
+    (googleClient && resource !== resolveMcpResourceUrl(env))
+  ) {
     throw new McpOAuthError("Невалиден MCP resource.", 400, "invalid_target");
   }
 
-  let metadata;
-  try {
-    const response = await fetchImpl(clientId, {
-      headers: { Accept: "application/json" },
-      redirect: "error",
-      signal: AbortSignal.timeout(5_000),
-    });
-    if (!response.ok) throw new Error("CLIENT_METADATA_UNAVAILABLE");
-    metadata = await response.json();
-  } catch {
-    metadata = trustedChatGptClientMetadata(clientId, redirectUri);
-    if (!metadata) {
-      throw new McpOAuthError(
-        "OAuth клиентът не може да бъде проверен.",
-        400,
-        "invalid_client",
-      );
+  let metadata = googleClient;
+  if (!metadata) {
+    try {
+      const response = await fetchImpl(clientId, {
+        headers: { Accept: "application/json" },
+        redirect: "error",
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!response.ok) throw new Error("CLIENT_METADATA_UNAVAILABLE");
+      metadata = await response.json();
+    } catch {
+      metadata = trustedChatGptClientMetadata(clientId, redirectUri);
+      if (!metadata) {
+        throw new McpOAuthError(
+          "OAuth клиентът не може да бъде проверен.",
+          400,
+          "invalid_client",
+        );
+      }
     }
   }
 
@@ -602,6 +663,17 @@ export async function validateMcpAuthorizationRequest(
     );
   }
 
+  const scopes = parseScopes(input?.scope);
+  if (
+    googleClient &&
+    scopes.some((scope) => !googleClient.allowedScopes.includes(scope))
+  ) {
+    throw new McpOAuthError(
+      "Поисканите права не са разрешени за този Google агент.",
+      400,
+      "invalid_scope",
+    );
+  }
   return {
     clientId,
     clientName: metadata.client_name.trim(),
@@ -609,7 +681,7 @@ export async function validateMcpAuthorizationRequest(
     state,
     codeChallenge,
     resource,
-    scopes: parseScopes(input?.scope),
+    scopes,
   };
 }
 

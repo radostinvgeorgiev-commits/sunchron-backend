@@ -5,6 +5,7 @@ import {
   getAiProviderTimeoutMs,
   requestGeminiResponse,
   requestGrokResponse,
+  requestClaudeResponse,
   requestOpenAIResponse,
 } from "./aiCoreService.js";
 
@@ -41,6 +42,7 @@ const PROVIDER_LABELS = Object.freeze({
   openai: "OpenAI",
   gemini: "Gemini",
   grok: "Grok",
+  claude: "Claude",
 });
 
 export class AiCouncilError extends Error {
@@ -199,15 +201,19 @@ export async function runAiCouncil({
   openAiApiKey = process.env.OPENAI_API_KEY,
   geminiApiKey = process.env.GEMINI_API_KEY,
   grokApiKey = process.env.GROK_API_KEY,
+  claudeApiKey = process.env.ANTHROPIC_API_KEY,
+  selectedProviders = ["openai", "gemini", "grok"],
   advisorRequesters = {
     openai: requestOpenAIResponse,
     gemini: requestGeminiResponse,
     grok: requestGrokResponse,
+    claude: requestClaudeResponse,
   },
   arbiterRequester = requestOpenAIResponse,
   openAiModel = process.env.AI_CORE_COUNCIL_MODEL || DEFAULT_OPENAI_CHAT_MODEL,
   geminiModel = process.env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
   grokModel = process.env.GROK_MODEL || DEFAULT_GROK_CHAT_MODEL,
+  claudeModel = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5",
   advisorTimeoutMs = Math.min(
     getAiProviderTimeoutMs(
       "openai",
@@ -239,11 +245,18 @@ export async function runAiCouncil({
   const input = [
     { role: "user", content: advisorPrompt(task, boundedContext) },
   ];
-  const providers = [
-    { provider: "openai", apiKey: openAiApiKey, model: openAiModel },
-    { provider: "gemini", apiKey: geminiApiKey, model: geminiModel },
-    { provider: "grok", apiKey: grokApiKey, model: grokModel },
-  ];
+  const available = {
+    openai: { provider: "openai", apiKey: openAiApiKey, model: openAiModel },
+    gemini: { provider: "gemini", apiKey: geminiApiKey, model: geminiModel },
+    grok: { provider: "grok", apiKey: grokApiKey, model: grokModel },
+    claude: { provider: "claude", apiKey: claudeApiKey, model: claudeModel },
+  };
+  if (!Array.isArray(selectedProviders) || selectedProviders.length === 0 ||
+      selectedProviders.length > 4 || new Set(selectedProviders).size !== selectedProviders.length ||
+      selectedProviders.some((id) => !Object.hasOwn(available, id))) {
+    throw new AiCouncilError("Невалиден избор на AI двигатели.", 400, "AI_COUNCIL_INVALID_PROVIDERS");
+  }
+  const providers = selectedProviders.map((id) => available[id]);
   const settled = await Promise.allSettled(
     providers.map(async ({ provider, apiKey, model }) => {
       if (!apiKey) throw new Error("not_configured");
@@ -298,6 +311,7 @@ export async function runAiCouncil({
       confidence: "low",
       arbiter: null,
     });
+  if (normalizedResponses.length === 1) return Object.freeze({ ...fallback(), partial: unavailableProviders.length > 0, recommendation: normalizedResponses[0].text, rationale: "Отговор от един избран AI двигател.", confidence: "medium" });
   if (!openAiApiKey) return fallback();
 
   let synthesis;
@@ -376,7 +390,7 @@ export function formatAiCouncilReply(council) {
         .join("\n")}`
     : "";
   return [
-    "## AI CORE Council — трите AI двигателя",
+    "## AI CORE Council — избраните AI двигатели",
     council?.unavailableProviders?.length
       ? `Не отговориха: ${council.unavailableProviders.map((provider) => PROVIDER_LABELS[provider] || provider).join(", ")}. Показвам наличните отговори.`
       : "",

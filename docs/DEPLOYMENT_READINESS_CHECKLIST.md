@@ -1,39 +1,73 @@
 # Deployment readiness checklist
 
-Този checklist е за owner review преди merge/deploy към production.
+Този checklist се използва преди merge към `main` и преди production deployment.
+Той не стартира deployment сам по себе си.
 
-## Среда и архитектура
+## 1. Source of truth
 
-- [ ] Canonical URL е `https://cloudaicore.com`.
-- [ ] Runtime е Google Cloud Run.
-- [ ] Паметта и operational state са във Firestore.
-- [ ] Auth backend е Google Identity Platform.
-- [ ] MCP endpoint е `https://cloudaicore.com/mcp`.
+- Repository: `radostinvgeorgiev-commits/sunchron-backend`.
+- Release branch: отделен branch, не директен commit към `main`.
+- Canonical site: `https://cloudaicore.com`.
+- Runtime: Cloud Run.
+- Storage: Firestore за памет и operational state.
+- Auth: Identity Platform.
+- MCP endpoint: `https://cloudaicore.com/mcp`.
+- AI providers: OpenAI Responses API е основен, а Gemini, Grok, Claude и Codex
+  са допълнителни двигатели само при валидна конфигурация.
 
-## AI и capabilities
+## 2. Преди merge
 
-- [ ] OpenAI Responses API е основният AI backend.
-- [ ] Gemini, Grok, Claude и Codex са маркирани като допълнителни двигатели
-      само при валидна конфигурация.
-- [ ] Codex е в branch/PR write поток под owner confirmation.
-- [ ] Няма write capability, която да заобикаля owner confirmation и audit.
-
-## Безопасност
-
-- [ ] Няма добавени secrets в diff-а.
-- [ ] Няма промени по production secrets/IAM без изрично owner разрешение.
-- [ ] Няма destructive операции (delete/drop/reset) без отделно потвърждение.
+- [ ] PR diff е прегледан.
+- [ ] Няма secret стойности в diff-а.
+- [ ] `npm test` минава.
+- [ ] `git diff --check` минава.
+- [ ] Няма промяна на production secrets.
 - [ ] Няма direct push към `main`.
+- [ ] Няма нов външен side effect без owner confirmation gate.
+- [ ] Отворените PR-и са проверени за конфликт или дублиране.
 
-## Проверки
+## 3. Production health преди deployment
 
-- [ ] `npm test` минава за текущия branch.
-- [ ] CI checks за PR са зелени.
-- [ ] `/health` връща exact commit SHA след deployment.
-- [ ] `/health/ready` е `ready`.
-- [ ] `synchron/production-smoke` е success.
+- [ ] `GET https://cloudaicore.com/health` връща `ok`.
+- [ ] `/health` връща exact SHA, който съвпада с expected release commit.
+- [ ] `GET https://cloudaicore.com/health/ready` връща `ready`.
+- [ ] `GET https://cloudaicore.com/health/storage-report` показва healthy Firestore.
+- [ ] Identity Platform health е healthy.
+- [ ] MCP/OAuth endpoint е reachable.
 
-## Яснота в документацията
+## 4. Acceptance преди deployment
+
+- [ ] A1: стабилен owner разговор е проверен в browser.
+- [ ] A2: memory lifecycle е проверен с тестов факт и отделни потвърждения.
+- [ ] A3: неразрешено действие се отказва без външен side effect.
+- [ ] A4: разрешено действие спира на confirmation gate, изпълнява се след точно
+      потвърждение и audit read връща проверим запис.
+- [ ] A5: staging fault injection доказва контролирана грешка и възстановяване.
+
+## 5. След deployment
+
+- [ ] `/health` връща новия exact SHA.
+- [ ] `/health/ready` остава `ready`.
+- [ ] `/health/storage-report` остава healthy.
+- [ ] Production smoke е зелен.
+- [ ] Browser smoke: сайтът зарежда, AI разговорът отговаря, Council режимът не
+      губи наличните отговори при частичен provider failure.
+- [ ] Ако има проблем, използвай `OPERATIONS_RUNBOOK.md` за rollback.
+
+## 6. Блокиращи условия
+
+Deployment не се прави, ако има поне едно от следните:
+
+- exact SHA не съвпада;
+- health или ready не минава;
+- storage-report не е healthy;
+- има failing CI;
+- има secret в diff-а;
+- A4 audit read остава непроверен;
+- A5 recovery остава само локално проверен;
+- owner не е дал отделно потвърждение за merge/deploy.
+
+## 7. Яснота в документацията
 
 - [ ] Активните docs не представят `synchron.foundation`, OpenSearch или
       Supabase като текуща production истина.

@@ -55,7 +55,7 @@ import {
   formatWebSearchResult,
   searchWeb,
 } from "../services/webSearchService.js";
-import { prepareCodeTask } from "../services/codeTaskService.js";
+import { isCodeTaskConfigured, prepareCodeTask } from "../services/codeTaskService.js";
 import {
   isMergedBranchCleanupPlanRequest,
   prepareMergedBranchCleanup,
@@ -167,14 +167,8 @@ export function getToolRuntimeAvailability(
       return configured(true, null);
     case "github-write":
       if (
-        !hasEnvironment(
-          env,
-          "OPENAI_API_KEY",
-          "GEMINI_API_KEY",
-          "GROK_API_KEY",
-          "GITHUB_CLIENT_ID",
-          "GITHUB_CLIENT_SECRET",
-        )
+        !isCodeTaskConfigured(env) ||
+        !hasEnvironment(env, "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET")
       ) {
         return configured(
           false,
@@ -341,14 +335,8 @@ export async function buildIntegrationStatusReport(
     [
       "GitHub Write",
       Boolean(input.githubSessionId) &&
-        hasEnvironment(
-          env,
-          "OPENAI_API_KEY",
-          "GEMINI_API_KEY",
-          "GROK_API_KEY",
-          "GITHUB_CLIENT_ID",
-          "GITHUB_CLIENT_SECRET",
-        ),
+        isCodeTaskConfigured(env) &&
+        hasEnvironment(env, "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"),
       "изисква потвърждение",
     ],
     [

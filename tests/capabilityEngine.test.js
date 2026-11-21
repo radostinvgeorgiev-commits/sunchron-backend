@@ -241,7 +241,7 @@ test("AI CORE chat and memory availability accept Firestore without OpenSearch",
   );
 });
 
-test("code.write спира преди multi-engine flow без трите AI ключа", async () => {
+test("code.write спира преди multi-engine flow без конфигуриран двигател", async () => {
   await assert.rejects(
     () =>
       executeCapability(

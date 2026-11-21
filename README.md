@@ -23,6 +23,9 @@ OpenAI coding моделът синтезира ограничен набор о
 започва само след точно еднократно потвърждение. `main` никога не се променя
 директно от задачата.
 
+В production default backend-ите са Firestore и Identity Platform; legacy
+OpenSearch/Supabase се използват само при изрична конфигурация.
+
 ## Локално стартиране
 
 ```bash

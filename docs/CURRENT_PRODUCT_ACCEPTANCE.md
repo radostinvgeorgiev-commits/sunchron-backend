@@ -10,6 +10,8 @@
 - Identity Platform е текущият auth backend.
 - OpenAI Responses API е основен AI backend, а Gemini, Grok и Claude са
   допълнителни двигатели при валидна конфигурация.
+- Production defaults са Firestore + Identity Platform; legacy OpenSearch и
+  Supabase се включват само при изрична конфигурация.
 - Task Orchestrator може да планира multi-step задачи.
 - Инструменталните задачи имат owner-scoped durable run с checkpoint-и и
   pause/resume/cancel API.

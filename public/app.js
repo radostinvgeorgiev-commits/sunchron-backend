@@ -1795,7 +1795,7 @@ function showConversationPersistenceWarning(message) {
   turn.insertBefore(warning, actions || null);
 }
 
-function showAiResponseSource(message, provider, model) {
+function showAiResponseSource(message, provider, model, linkedProjectContext) {
   const turn = message?.closest(".assistant-turn");
   if (!turn || turn.querySelector(".ai-response-source")) return;
 
@@ -1805,8 +1805,14 @@ function showAiResponseSource(message, provider, model) {
 
   const source = document.createElement("div");
   source.className = "ai-response-source";
-  source.textContent = [cleanProvider, cleanModel].filter(Boolean).join(" · ");
-  source.setAttribute("aria-label", "AI доставчик и модел");
+  const context = linkedProjectContext === true
+    ? "Работа със свързани чатове"
+    : linkedProjectContext === false
+      ? "Работа без заредени свързани чатове"
+      : linkedProjectContext === null
+        ? "Работа без активен проект"
+        : "";
+  source.textContent = [cleanProvider, cleanModel, context].filter(Boolean).join(" · ");
 
   const actions = turn.querySelector(".message-actions");
   turn.insertBefore(source, actions || null);
@@ -2530,6 +2536,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
             responseBubble,
             parsed.data?.provider,
             parsed.data?.model,
+            parsed.data?.linkedProjectContext,
           );
           showMemoryCandidates(responseBubble, parsed.data?.memoryCandidates);
           showNextStep(responseBubble, fullText, parsed.data);

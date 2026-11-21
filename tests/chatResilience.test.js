@@ -610,9 +610,62 @@ test("Work uses stored project conversations and ignores client-provided links",
     .expect(200);
   assert.match(result.text, /event: done/u);
   assert.deepEqual(reads, ["current-chat", "linked-chat"]);
+  assert.match(result.text, /"linkedProjectContext":true/u);
   assert.equal(input[1].content, "По-стара заявка от текущия чат.");
   assert.equal(input.filter(({ content }) => content === "Последен запазен отговор.").length, 1);
   assert.match(input.at(-2).content, /Синият файл е одобрен\./u);
   assert.match(input.at(-2).content, /Срокът е петък\./u);
   assert.equal(input.at(-1).content, "Обобщи контекста.");
+});
+
+test("Work keeps trying available models when a selected model fails and another times out", async (t) => {
+  const config = {
+    AI_CORE_PROVIDER: "grok",
+    OPENAI_CHAT_MODEL: "gpt-5.6-terra",
+    OPENAI_TIMEOUT_MS: "15",
+    GEMINI_API_KEY: "test-gemini",
+    GROK_API_KEY: "test-grok",
+  };
+  const previous = Object.fromEntries(Object.keys(config).map((key) => [key, process.env[key]]));
+  Object.assign(process.env, config);
+  t.after(() => {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    const host = new URL(url).hostname;
+    calls.push(host === "api.openai.com" ? JSON.parse(options.body).model : host);
+    if (host === "api.openai.com") {
+      if (calls.length === 1) return new Response(null, { status: 404 });
+      await new Promise((resolve, reject) => {
+        options.signal.addEventListener("abort", () => reject(options.signal.reason), { once: true });
+      });
+    }
+    if (host === "generativelanguage.googleapis.com") return new Response(null, { status: 503 });
+    assert.equal(host, "api.x.ai");
+    return Response.json({ model: "grok-test", choices: [{ message: { content: "Работният чат отговаря." } }] });
+  });
+
+  const response = await request(app)
+    .post("/chat/chat")
+    .set("Cookie", OWNER_COOKIE)
+    .send({
+      sessionId: "work-provider-recovery",
+      message: "Добър ден",
+      mode: "work",
+      workContext: {
+        project: { name: "Тест" },
+        agent: { name: "Личен помощник", model: "gpt-5.6-sol" },
+      },
+    })
+    .expect(200);
+
+  assert.deepEqual(calls, ["gpt-5.6-sol", "gpt-5.6-terra", "generativelanguage.googleapis.com", "api.x.ai"]);
+  assert.match(response.text, /Работният чат отговаря\./u);
+  assert.match(response.text, /"provider":"grok","model":"grok-test"/u);
+  assert.doesNotMatch(response.text, /event: error/u);
 });

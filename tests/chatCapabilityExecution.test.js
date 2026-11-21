@@ -802,3 +802,43 @@ test("a no-changes boundary is read-only even when the prompt mentions files", (
     ["system.integrations.status"],
   );
 });
+
+
+test("deterministic replies use English fallback without changing facts or confirmation commands", () => {
+  const confirmationId = "11111111-2222-3333-4444-555555555555";
+  const fact = "İzmit · Камчия";
+  const reply = buildMemoryReply(
+    {
+      type: "write-confirmation-required",
+      items: [{ fact }],
+      confirmationId,
+    },
+    "tr",
+  );
+  assert.match(reply, /awaits one-time confirmation/);
+  assert.ok(reply.includes(fact));
+  assert.ok(reply.endsWith(`Потвърждавам постоянен запис: ${confirmationId}`));
+
+  assert.deepEqual(
+    buildCapabilityReplies(
+      [
+        {
+          status: "fulfilled",
+          request: { capability: "first" },
+          result: { output: fact },
+        },
+        {
+          status: "fulfilled",
+          request: { capability: "second" },
+          result: { output: "verified" },
+        },
+      ],
+      { language: "nso" },
+    ),
+    [
+      fact,
+      "verified",
+      "Tools used:\n• first — successful\n• second — successful",
+    ],
+  );
+});

@@ -335,8 +335,6 @@ async function init() {
   elements.loginForm.addEventListener("submit", handleLogin);
   elements.registerForm.addEventListener("submit", handleRegistration);
   elements.showRegisterBtn.addEventListener("click", showRegisterForm);
-  const heroRegister = document.getElementById("heroRegisterBtn");
-  heroRegister?.addEventListener("click", showRegisterForm);
   elements.backToLoginBtn.addEventListener("click", showLoginForm);
 
   try {
@@ -348,7 +346,6 @@ async function init() {
     elements.registerInviteCode.disabled = state.registrationMode !== "invite";
     elements.registerInviteCode.required = state.registrationMode === "invite";
     elements.showRegisterBtn.hidden = !state.registrationEnabled;
-    if (heroRegister) heroRegister.hidden = !state.registrationEnabled;
     if (session.authenticated) {
       await startApplication(session.user);
       return;
@@ -445,14 +442,7 @@ function updateSessionDisplay() {
 async function showWelcomeMessage() {
   const welcome = appendMessage(
     "agent",
-    [
-      chatText("## Нека свършим нещо полезно."),
-      chatText("**Твоята лична AI операционна система.**"),
-      "",
-      chatText("Опиши какво искаш да постигнеш или избери задача по-долу."),
-      "",
-      chatText("Ти избираш какво да запазя и кои действия да одобриш."),
-    ].join("\n"),
+    `## ${chatText("С какво започваме?")}`,
     null,
     { remember: false },
   );
@@ -2761,8 +2751,8 @@ function setServerStatus(isOnline) {
   state.serverOnline = isOnline;
   elements.agentStatusDot.className = isOnline ? "online" : "offline";
   elements.agentStatusText.textContent = isOnline
-    ? "Сървър онлайн"
-    : "Сървър офлайн";
+    ? chatText("Сървър онлайн")
+    : chatText("Сървър офлайн");
   elements.serverStatusDisplay.textContent = isOnline ? chatText("Онлайн") : chatText("Офлайн");
   elements.serverStatusDisplay.className = `context-value ${isOnline ? "status-green" : "status-red"}`;
 }

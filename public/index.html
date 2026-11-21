@@ -38,7 +38,7 @@
       href="/assets/20260806-green-chat-v1/synchron-vision.css"
     />
     <link rel="stylesheet" href="/workspace-refresh.css?v=20261121" />
-    <link rel="stylesheet" href="/interface.css?v=1" />
+    <link rel="stylesheet" href="/interface.css?v=2" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.7.2/css/all.min.css"
@@ -75,13 +75,6 @@
             да планираш задачи. Сравнявай отговори от различни AI модели
             и продължавай оттам, където си спрял, с паметта на проекта.
           </p>
-          <div class="hero-actions">
-            <a id="heroRegisterBtn" class="hero-primary" href="/register">
-              <i class="fa-solid fa-user-plus" aria-hidden="true"></i>
-              Създай профил
-            </a>
-            <a class="hero-secondary" href="/plans">Виж плановете</a>
-          </div>
           <p class="auth-stage">Започни с 10 AI единици. Без банкова карта.</p>
         </div>
 
@@ -194,9 +187,6 @@
             role="alert"
             aria-live="polite"
           ></p>
-          <p class="auth-privacy">
-            Профилът, разговорите и паметта са отделени за всеки потребител.
-          </p>
           <details class="auth-owner">
             <summary>Вход за собственик</summary>
             <a href="/api/github/connect">
@@ -283,34 +273,6 @@
           <i class="fa-regular fa-pen-to-square"></i>
           <span>Нов разговор</span>
         </button>
-        <nav class="sidebar-nav" aria-label="Основно меню">
-          <button id="searchChatsBtn" type="button">
-            <i class="fa-solid fa-clock-rotate-left"></i><span>Разговори</span>
-          </button>
-          <button id="workModeBtn" type="button">
-            <i class="fa-solid fa-briefcase"></i><span>Работа</span>
-          </button>
-          <button id="focusBtn" type="button" data-owner-only>
-            <i class="fa-solid fa-bullseye"></i><span>Дневник на задачите</span>
-          </button>
-          <button id="toolsBtn" type="button" data-owner-only>
-            <i class="fa-solid fa-toolbox"></i><span>Инструменти</span>
-          </button>
-          <button id="workCenterBtn" type="button" data-owner-only>
-            <i class="fa-solid fa-table-cells-large"></i
-            ><span>Работен център</span>
-          </button>
-          <a class="product-nav" href="/plans"><i class="fa-solid fa-wallet" aria-hidden="true"></i><span>Планове и потребление</span></a>
-          <a class="product-nav" href="/help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i><span>Помощ и документация</span></a>
-          <a class="product-nav" href="/developers"><i class="fa-solid fa-code" aria-hidden="true"></i><span>За разработчици</span></a>
-          <span class="sidebar-nav-label">Система</span>
-          <button id="memoryBtn" type="button">
-            <i class="fa-solid fa-brain"></i><span>Памет</span>
-          </button>
-          <button id="permissionsBtn" type="button" data-owner-only>
-            <i class="fa-solid fa-shield-halved"></i><span>Разрешения</span>
-          </button>
-        </nav>
         <div class="tool-hooks" hidden aria-hidden="true">
           <button id="imagesBtn" type="button">Снимки</button>
           <button id="googleDriveBtn" type="button">Google Drive</button>
@@ -322,7 +284,12 @@
           </button>
         </div>
         <div class="sidebar-section">
-          <span>Разговори</span>
+          <div class="conversation-heading">
+            <span>История</span>
+            <button id="searchChatsBtn" type="button" aria-label="Търси разговори" title="Търси разговори">
+              <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            </button>
+          </div>
           <input
             id="conversationSearch"
             class="conversation-search"
@@ -332,6 +299,30 @@
           />
           <div id="conversationList" class="conversation-list"></div>
         </div>
+        <nav class="sidebar-nav" aria-label="Основно меню">
+          <details class="sidebar-group">
+            <summary><i class="fa-solid fa-sliders" aria-hidden="true"></i> Ресурси и инструменти</summary>
+          <button id="focusBtn" type="button" data-owner-only>
+            <i class="fa-solid fa-bullseye"></i><span>Дневник на задачите</span>
+          </button>
+          <button id="toolsBtn" type="button" data-owner-only>
+            <i class="fa-solid fa-toolbox"></i><span>Инструменти</span>
+          </button>
+          <button id="workCenterBtn" type="button" data-owner-only>
+            <i class="fa-solid fa-table-cells-large"></i
+            ><span>Работен център</span>
+          </button>
+          <button id="memoryBtn" type="button">
+            <i class="fa-solid fa-brain"></i><span>Памет</span>
+          </button>
+          <button id="permissionsBtn" type="button" data-owner-only>
+            <i class="fa-solid fa-shield-halved"></i><span>Разрешения</span>
+          </button>
+          <a class="product-nav" href="/plans"><i class="fa-solid fa-wallet" aria-hidden="true"></i><span>Планове и потребление</span></a>
+          <a class="product-nav" href="/help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i><span>Помощ и документация</span></a>
+          <a class="product-nav" href="/developers"><i class="fa-solid fa-code" aria-hidden="true"></i><span>За разработчици</span></a>
+          </details>
+        </nav>
       </aside>
 
       <section class="chatPanel" id="chat-container">
@@ -346,9 +337,23 @@
           </button>
           <div class="model-title">
             <strong>AI CORE</strong>
-            <small>Работно пространство</small>
           </div>
           <div data-language-switch></div>
+          <details class="chat-options" id="chatOptions">
+            <summary aria-label="Действия за разговора" title="Действия за разговора">
+              <i class="fa-solid fa-ellipsis" aria-hidden="true"></i>
+            </summary>
+            <div class="chat-options-menu">
+              <button id="conversationFindBtn" type="button">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                Търси в чата
+              </button>
+              <button id="conversationExportBtn" type="button">
+                <i class="fa-solid fa-download" aria-hidden="true"></i>
+                Изтегли разговора
+              </button>
+            </div>
+          </details>
           <div class="status-indicator" aria-live="polite">
             <span id="agentStatusDot" class="offline"></span>
             <span id="agentStatusText">Свързване…</span>
@@ -472,21 +477,6 @@
           >
         </fieldset>
 
-        <section
-          class="workspace-actions"
-          aria-label="Инструменти за разговора"
-        >
-          <span>Текущ разговор</span>
-          <div>
-            <button id="conversationFindBtn" type="button">
-              <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-              Търси в чата
-            </button>
-            <button id="conversationExportBtn" type="button">
-              <i class="fa-solid fa-download" aria-hidden="true"></i> Изтегли
-            </button>
-          </div>
-        </section>
         <div class="conversation-find" id="conversationFind" hidden>
           <label for="conversationQuery">Търси в текущия разговор</label>
           <input
@@ -512,7 +502,6 @@
           aria-label="Бързо начало"
           hidden
         >
-          <p>С какво започваме?</p>
           <div>
             <button
               type="button"
@@ -596,7 +585,6 @@
             </button>
           </div>
           <div class="composer-note">
-            Ти контролираш паметта, инструментите и разрешенията.
             <span class="member-usage-note"
               >3 единици на AI опит; Council до 18.
               <a href="/plans">Потребление</a></span
@@ -681,29 +669,6 @@
         <div class="data-drawer-body" id="dataDrawerBody"></div>
       </aside>
 
-      <nav class="mobile-command-bar" aria-label="Основна мобилна навигация">
-        <button
-          class="active"
-          type="button"
-          data-command="chat"
-          aria-current="page"
-        >
-          <i class="fa-regular fa-message"></i>
-          <span>Чат</span>
-        </button>
-        <button type="button" data-command="memory">
-          <i class="fa-solid fa-brain"></i>
-          <span>Памет</span>
-        </button>
-        <button type="button" data-command="connections" data-owner-only>
-          <i class="fa-solid fa-plug"></i>
-          <span>Връзки</span>
-        </button>
-        <button type="button" data-command="status">
-          <i class="fa-solid fa-heart-pulse"></i>
-          <span>Статус</span>
-        </button>
-      </nav>
     </main>
 
     <dialog
@@ -777,7 +742,7 @@
       </div>
     </dialog>
 
-    <script src="/workspace-refresh.js?v=20261121" defer></script>
+    <script src="/workspace-refresh.js?v=20261121-menu" defer></script>
     <script src="/markdown-renderer.js?v=20260728-xss"></script>
     <script src="/work-mode.js?v=20260802-specialized-agents-v1"></script>
     <script src="/code-workspace.js"></script>

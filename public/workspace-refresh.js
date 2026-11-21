@@ -3,9 +3,19 @@
   const input = document.getElementById("chatInput");
   const starters = document.getElementById("quickStart");
   const find = document.getElementById("conversationFind");
+  const options = document.getElementById("chatOptions");
   const query = document.getElementById("conversationQuery");
   const count = document.getElementById("conversationFindCount");
   if (!messages || !input || !starters || !find || !query || !count) return;
+  document.addEventListener("click", (event) => {
+    if (options?.open && !options.contains(event.target)) options.open = false;
+  });
+  options?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && options.open) {
+      options.open = false;
+      options.querySelector("summary")?.focus();
+    }
+  });
   let matches = [];
   let position = -1;
   const turns = () => [
@@ -49,6 +59,7 @@
     .getElementById("conversationFindBtn")
     ?.addEventListener("click", () => {
       find.hidden = !find.hidden;
+      if (options) options.open = false;
       if (!find.hidden) {
         query.focus();
         search();
@@ -57,7 +68,7 @@
   function closeFind() {
     find.hidden = true;
     clearMatches();
-    document.getElementById("conversationFindBtn")?.focus();
+    options?.querySelector("summary")?.focus();
   }
   document
     .getElementById("conversationFindClose")
@@ -102,6 +113,8 @@
   document
     .getElementById("conversationExportBtn")
     ?.addEventListener("click", () => {
+      if (options) options.open = false;
+      options?.querySelector("summary")?.focus();
       const content = turns().map((turn) => {
         const message = turn.querySelector(".message");
         const role = turn.classList.contains("user-turn") ? "Ти" : "AI CORE";

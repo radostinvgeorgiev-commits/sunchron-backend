@@ -1,6 +1,9 @@
 import { getProductPlansService } from "../services/productPlansService.js";
 import express from "express";
-import { replyLanguageInstruction } from "../config/replyLanguage.js";
+import {
+  replyLanguageInstruction,
+  useEnglishReplyFallback,
+} from "../config/replyLanguage.js";
 import {
   buildMemoryContext,
   extractForgetMemoryCommand,
@@ -907,13 +910,30 @@ function formatCapabilityFailureMessage(error) {
   return "Избраният инструмент временно не е достъпен.";
 }
 
-export function buildMemoryReply(memoryAction) {
+export function buildMemoryReply(memoryAction, language) {
   if (!memoryAction) return null;
+  const english = useEnglishReplyFallback(language);
   if (memoryAction.type === "write-confirmation-required") {
-    return formatMemoryWritePreparation(memoryAction);
+    return formatMemoryWritePreparation(memoryAction, english);
   }
   if (memoryAction.type === "delete-confirmation-required") {
-    return formatMemoryDeletePreparation(memoryAction);
+    return formatMemoryDeletePreparation(memoryAction, english);
+  }
+  if (english) {
+    switch (memoryAction.type) {
+      case "cleared":
+        return "Cleared persistent memory.";
+      case "forgot":
+        return memoryAction.deleted
+          ? `Removed from persistent memory: ${memoryAction.fact}.`
+          : "No matching entry in persistent memory.";
+      case "batch":
+        return formatMemoryWriteResult(memoryAction.items, true);
+      case "updated":
+        return `Updated in persistent memory: ${memoryAction.fact}.`;
+      default:
+        return `Remembered: ${memoryAction.fact}.`;
+    }
   }
   if (memoryAction.type === "cleared") {
     return "Изчистих постоянната памет.";
@@ -960,6 +980,7 @@ export function buildCapabilityReplies(capabilityResults, options = {}) {
   const replies = [];
   const seenReplyKeys = new Set();
   const taskConfirmation = options?.taskConfirmation || null;
+  const english = useEnglishReplyFallback(options?.language);
   const addUniqueReply = (reply) => {
     if (typeof reply !== "string") return;
     const trimmedReply = reply.trim();
@@ -981,11 +1002,13 @@ export function buildCapabilityReplies(capabilityResults, options = {}) {
     const { request, error } = capabilityResult;
     const message = formatCapabilityFailureMessage(error);
     addUniqueReply(
-      `Не успях да изпълня заявката за ${capabilityLabel(request.capability)}: ${message}`,
+      english
+        ? `Request failed for ${request.capability}: ${message}`
+        : `Не успях да изпълня заявката за ${capabilityLabel(request.capability)}: ${message}`,
     );
   }
   if (taskConfirmation) {
-    addUniqueReply(formatTaskConfirmation(taskConfirmation));
+    addUniqueReply(formatTaskConfirmation(taskConfirmation, english));
   }
   if (capabilityResults.length > 1) {
     const statusByCapability = new Map();
@@ -993,7 +1016,7 @@ export function buildCapabilityReplies(capabilityResults, options = {}) {
       const key = item.request.capability;
       const existing = statusByCapability.get(key);
       const name =
-        item.result?.tool?.name || existing?.name || capabilityLabel(key);
+        item.result?.tool?.name || existing?.name || (english ? key : capabilityLabel(key));
       statusByCapability.set(key, {
         name,
         successful:
@@ -1006,16 +1029,16 @@ export function buildCapabilityReplies(capabilityResults, options = {}) {
     }
     addUniqueReply(
       [
-        "Използвани инструменти:",
+        english ? "Tools used:" : "Използвани инструменти:",
         ...[...statusByCapability.values()].map((status) => {
           const result =
             status.successful && status.failed
-              ? "частично достъпен"
+              ? (english ? "partially available" : "частично достъпен")
               : status.pendingConfirmation
-                ? "подготвено · чака потвърждение"
+                ? (english ? "awaiting confirmation" : "подготвено · чака потвърждение")
                 : status.successful
-                  ? "успешно"
-                  : "недостъпен";
+                  ? (english ? "successful" : "успешно")
+                  : (english ? "unavailable" : "недостъпен");
           return `• ${status.name} — ${result}`;
         }),
       ].join("\n"),
@@ -1494,7 +1517,7 @@ router.post("/chat", async (req, res) => {
         ownerId,
         source: "confirmed-chat-command",
       });
-      const fullReply = formatMemoryWriteResult(items);
+      const fullReply = formatMemoryWriteResult(items, useEnglishReplyFallback(language));
       const conversationPersisted = await saveConversationTurnBestEffort(
         cleanSessionId,
         cleanMessage,
@@ -1760,7 +1783,7 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
-  const memoryReply = buildMemoryReply(memoryAction);
+  const memoryReply = buildMemoryReply(memoryAction, language);
   if (
     memoryAction &&
     memoryAction.type !== "cleared" &&
@@ -2089,9 +2112,7 @@ router.post("/chat", async (req, res) => {
   }
   const capabilityReplies = buildCapabilityReplies(
     capabilityResults,
-    taskExecution.taskConfirmation
-      ? { taskConfirmation: taskExecution.taskConfirmation }
-      : {},
+    { taskConfirmation: taskExecution.taskConfirmation, language },
   );
 
   if (

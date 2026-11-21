@@ -1,14 +1,19 @@
 (() => {
-  const supported = new Set(window.AiCoreLanguages || ["bg", "en"]);
+  const normalizeCode = (code) => (code === "ns" ? "nso" : code);
+  const supported = new Set((window.AiCoreLanguages || ["bg", "en"]).map(normalizeCode));
   const preferenceKey = "ai-core-language";
   const url = new URL(window.location.href);
-  const requested = url.searchParams.get("lang");
-  const english = window.AiCoreEnglish;
+  const requested = normalizeCode(url.searchParams.get("lang"));
+  const english = new Map(window.AiCoreEnglish);
+  english.set("Сървър онлайн", "Server online");
+  english.set("Сървър офлайн", "Server offline");
+  english.set("Действия за разговора", "Conversation actions");
+  english.set("Изтегли разговора", "Download conversation");
   let saved;
   try {
     if (supported.has(requested))
       localStorage.setItem(preferenceKey, requested);
-    saved = localStorage.getItem(preferenceKey);
+    saved = normalizeCode(localStorage.getItem(preferenceKey));
   } catch {
     // The URL preference also works when storage is unavailable.
   }
@@ -28,12 +33,29 @@
   ];
   const rtl = new Set(["ar", "fa", "he", "ps", "sd", "ur", "yi"]);
 
+  const currentLabels = {
+    ar: ["الخادم متصل", "الخادم غير متصل", "إجراءات المحادثة", "تنزيل المحادثة"],
+    de: ["Server ist online", "Server ist offline", "Unterhaltungsaktionen", "Unterhaltung herunterladen"],
+    es: ["Servidor en línea", "Servidor sin conexión", "Acciones de conversación", "Descargar conversación"],
+    fr: ["Serveur en ligne", "Serveur hors ligne", "Actions de la conversation", "Télécharger la conversation"],
+    tr: ["Sunucu çevrimiçi", "Sunucu çevrimdışı", "Sohbet işlemleri", "Sohbeti indir"],
+  };
+  const currentLabelKeys = [
+    "Server online",
+    "Server offline",
+    "Conversation actions",
+    "Download conversation",
+  ];
+
   async function load() {
     if (language !== "en" && language !== "bg") {
       try {
         const response = await fetch(`/locales/${language}.json`);
         if (!response.ok) throw new Error("Language catalog is unavailable.");
         const translated = await response.json();
+        currentLabels[language]?.forEach((label, index) => {
+          translated[currentLabelKeys[index]] = label;
+        });
         catalog = new Map(
           Array.from(english, ([key, fallback]) => [
             key,
@@ -64,12 +86,12 @@
     select.setAttribute("aria-label", text("Език на интерфейса"));
     const names = new Intl.DisplayNames(["en"], { type: "language" });
     const prettyName = (code) =>
-      code === "ns" ? "Northern Sotho" : names.of(code);
+      code === "nso" ? "Northern Sotho" : names.of(code);
     for (const code of [...supported].sort((a, b) =>
       prettyName(a).localeCompare(prettyName(b), "en"),
     )) {
       const nativeName =
-        code === "ns"
+        code === "nso"
           ? "Sesotho sa Leboa"
           : new Intl.DisplayNames([code], { type: "language" }).of(code);
       const option = new Option(

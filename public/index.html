@@ -31,7 +31,7 @@
     <link rel="stylesheet" href="/code-workspace.css" />
     <link
       rel="stylesheet"
-      href="/work-mode.css?v=20260802-pet-picker-button-v2"
+      href="/work-mode.css?v=20261122-controls"
     />
     <link
       rel="stylesheet"
@@ -302,6 +302,20 @@
         <nav class="sidebar-nav" aria-label="Основно меню">
           <details class="sidebar-group">
             <summary><i class="fa-solid fa-sliders" aria-hidden="true"></i> Ресурси и инструменти</summary>
+          <button id="workContextBtn" type="button" aria-controls="dataDrawer">
+            <i class="fa-solid fa-folder-open" aria-hidden="true"></i><span>Проекти и работни режими</span>
+          </button>
+          <button
+            id="codeWorkspaceBtn"
+            type="button"
+            aria-label="Код"
+            aria-haspopup="dialog"
+            data-owner-only
+            hidden
+          >
+            <i class="fa-solid fa-code" aria-hidden="true"></i>
+            <span>Код</span>
+          </button>
           <button id="focusBtn" type="button" data-owner-only>
             <i class="fa-solid fa-bullseye"></i><span>Дневник на задачите</span>
           </button>
@@ -380,58 +394,19 @@
               <i class="fa-solid fa-briefcase"></i>
               <span>Работа</span>
             </button>
-            <button
-              id="codeWorkspaceBtn"
-              type="button"
-              aria-label="Код"
-              aria-haspopup="dialog"
-              data-owner-only
-              hidden
-            >
-              <i class="fa-solid fa-code" aria-hidden="true"></i>
-              <span>Код</span>
-            </button>
           </div>
-          <div class="work-context-controls">
-            <button
-              id="councilModeBtn"
-              class="council-mode-button"
-              type="button"
-              aria-label="Попитай избраните AI двигатели"
-              aria-pressed="false"
-              aria-controls="councilProviderPicker"
-              title="Попитай избраните AI двигатели и сравни отговорите"
-            >
-              <i class="fa-solid fa-people-group" aria-hidden="true"></i>
-              <span>AI Council</span>
-            </button>
-            <button
-              id="workPetBtn"
-              class="work-pet-button"
-              type="button"
-              aria-label="Избери любимец"
-            >
-              <span
-                id="workPet"
-                class="work-pet"
-                data-pet-state="ready"
-                aria-hidden="true"
-                >🤖</span
-              >
-            </button>
-            <button
-              id="workContextBtn"
-              class="work-context-button"
-              type="button"
-              aria-label="Проекти и работни режими"
-            >
-              <span class="work-context-copy">
-                <strong id="workProjectLabel">Без активен проект</strong>
-                <small id="workAgentLabel">AI CORE</small>
-              </span>
-              <i class="fa-solid fa-sliders"></i>
-            </button>
-          </div>
+          <button
+            id="councilModeBtn"
+            class="council-mode-button"
+            type="button"
+            aria-label="Попитай избраните AI двигатели"
+            aria-pressed="false"
+            aria-controls="councilProviderPicker"
+            title="Попитай избраните AI двигатели и сравни отговорите"
+          >
+            <i class="fa-solid fa-people-group" aria-hidden="true"></i>
+            <span>AI Council</span>
+          </button>
         </div>
 
         <fieldset
@@ -744,7 +719,7 @@
 
     <script src="/workspace-refresh.js?v=20261121-menu" defer></script>
     <script src="/markdown-renderer.js?v=20260728-xss"></script>
-    <script src="/work-mode.js?v=20260802-specialized-agents-v1"></script>
+    <script src="/work-mode.js?v=20261122-controls"></script>
     <script src="/code-workspace.js"></script>
     <script src="/assets/20260806-green-chat-v1/app.js"></script>
     <script src="/accessibility.js?v=20260728-font-stepper"></script>

@@ -53,7 +53,7 @@ test("work context is bounded and uses a server-owned role allowlist", () => {
   assert.equal(context.agent.model, "auto");
   assert.equal(context.agent.name, "Моят агент");
   assert.equal(context.agent.engine, "ai-core");
-  assert.equal(context.agent.petId, "owl");
+  assert.ok(!Object.hasOwn(context.agent, "petId"));
   assert.equal(context.project.id, "project-one");
   assert.equal(context.project.run.sequence, 4);
   assert.equal(context.project.run.codeChanged, false);
@@ -272,7 +272,6 @@ test("active work context questions use verified state instead of chat history",
       "Модел: GPT-5.6 Sol",
       "Роля: Организатор",
       "Изпълнител: AI CORE",
-      "Любимец: Кори",
       "Проект: AI CORE развитие",
     ].join("\n"),
   );

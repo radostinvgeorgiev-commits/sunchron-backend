@@ -1,44 +1,6 @@
 (() => {
   const STORAGE_VERSION = 6;
   const WORKSPACE_ENDPOINT = "/api/workspaces";
-  const PETS = Object.freeze([
-    {
-      id: "robot",
-      symbol: "🤖",
-      label: "Кори",
-      description: "Технически и точен помощник.",
-    },
-    {
-      id: "drop",
-      symbol: "💧",
-      label: "Капка",
-      description: "Спокоен спътник за фокус.",
-    },
-    {
-      id: "spark",
-      symbol: "🔥",
-      label: "Искра",
-      description: "Енергия за бърза работа.",
-    },
-    {
-      id: "owl",
-      symbol: "🦉",
-      label: "Бухал",
-      description: "Наблюдателен и прецизен.",
-    },
-    {
-      id: "rock",
-      symbol: "🪨",
-      label: "Скала",
-      description: "Стабилен при трудни задачи.",
-    },
-    {
-      id: "cat",
-      symbol: "🐈",
-      label: "Мяу",
-      description: "Любопитен и гъвкав спътник.",
-    },
-  ]);
   const ROLE_LABELS = Object.freeze({
     general: "Универсален помощник",
     researcher: "Изследовател",
@@ -79,7 +41,6 @@
       model: "auto",
       purpose: "Подготвя реален резултат и показва какво е проверено.",
       engine: "ai-core",
-      petId: "robot",
     }),
     Object.freeze({
       id: "research-agent",
@@ -88,7 +49,6 @@
       model: "auto",
       purpose: "Проверява актуални източници и отделя фактите от изводите.",
       engine: "ai-core",
-      petId: "owl",
     }),
     Object.freeze({
       id: "organizer-agent",
@@ -97,7 +57,6 @@
       model: "auto",
       purpose: "Подрежда задачи и календар, като спира преди външни промени.",
       engine: "ai-core",
-      petId: "rock",
     }),
     Object.freeze({
       id: "documents-agent",
@@ -106,7 +65,6 @@
       model: "auto",
       purpose: "Работи с разрешени файлове, документи и поща.",
       engine: "ai-core",
-      petId: "cat",
     }),
     Object.freeze({
       id: "codex-agent",
@@ -115,17 +73,8 @@
       model: "gpt-5.6-terra",
       purpose: "Подготвя code diff в branch/PR поток след owner потвърждение.",
       engine: "codex",
-      petId: "spark",
     }),
   ]);
-
-  function agentPetId(agent) {
-    if (PETS.some((pet) => pet.id === agent?.petId)) return agent.petId;
-    return (
-      DEFAULT_AGENTS.find((defaultAgent) => defaultAgent.id === agent?.id)
-        ?.petId || "robot"
-    );
-  }
 
   let storageKey = "synchronWorkMode:anonymous";
   let workState = null;
@@ -145,11 +94,7 @@
     chatModeBtn: document.getElementById("chatModeBtn"),
     workModeToolbarBtn: document.getElementById("workModeToolbarBtn"),
     workModeBtn: document.getElementById("workModeBtn"),
-    workPetBtn: document.getElementById("workPetBtn"),
     workContextBtn: document.getElementById("workContextBtn"),
-    projectLabel: document.getElementById("workProjectLabel"),
-    agentLabel: document.getElementById("workAgentLabel"),
-    pet: document.getElementById("workPet"),
     drawer: document.getElementById("dataDrawer"),
     drawerBackdrop: document.getElementById("drawerBackdrop"),
     drawerTitle: document.getElementById("dataDrawerTitle"),
@@ -174,8 +119,6 @@
       mode: "chat",
       activeProjectId: "starter-project",
       activeAgentId: "synchron-builder",
-      petId: "robot",
-      petState: "ready",
       projects: [
         {
           id: "starter-project",
@@ -302,7 +245,6 @@
           engine: Object.hasOwn(ENGINE_OPTIONS, agent?.engine)
             ? agent.engine
             : "ai-core",
-          petId: agentPetId(agent),
         }))
       : fallback.agents;
     const activities = Array.isArray(value.activities)
@@ -368,25 +310,11 @@
     )
       ? value.activeAgentId
       : agents[0].id;
-    const petId = PETS.some((pet) => pet.id === value.petId)
-      ? value.petId
-      : fallback.petId;
-    if ((Number.parseInt(value.version, 10) || 0) < STORAGE_VERSION) {
-      const activeAgent = agents.find((agent) => agent.id === activeAgentId);
-      if (activeAgent) activeAgent.petId = petId;
-    }
-
     return {
       version: STORAGE_VERSION,
       mode: value.mode === "work" ? "work" : "chat",
       activeProjectId,
       activeAgentId,
-      petId,
-      petState: ["ready", "running", "needs-input", "blocked"].includes(
-        value.petState,
-      )
-        ? value.petState
-        : "ready",
       projects,
       agents,
       activities,
@@ -541,10 +469,6 @@
     );
   }
 
-  function selectedPet() {
-    return PETS.find((pet) => pet.id === workState.petId) || PETS[0];
-  }
-
   function activateMobileCommand(command) {
     for (const button of elements.commandBar?.querySelectorAll("button") ||
       []) {
@@ -560,33 +484,7 @@
     elements.chatInput.placeholder = isWork
       ? "Какъв резултат да изработим?"
       : "Пиши на AI CORE";
-    const project = activeProject();
-    const agent = activeAgent();
-    elements.projectLabel.textContent = isWork
-      ? project?.name || "Без активен проект"
-      : "Разговор";
-    elements.agentLabel.textContent = agent?.name || "AI CORE";
-    renderPet();
     activateMobileCommand(isWork ? "work" : "chat");
-  }
-
-  function renderPet() {
-    const pet = selectedPet();
-    elements.pet.textContent = pet.symbol;
-    elements.pet.dataset.petId = pet.id;
-    elements.pet.dataset.petState = workState.petState;
-    const statusLabels = {
-      running: "Работи по задачата",
-      "needs-input": "Чака твое решение",
-      ready: "Готово за преглед",
-      blocked: "Задачата е блокирана",
-    };
-    const petTitle = `${pet.label}: ${statusLabels[workState.petState]}. ${pet.description}`;
-    elements.workPetBtn.title = petTitle;
-    elements.workPetBtn.setAttribute(
-      "aria-label",
-      `Избери любимец. ${petTitle}`,
-    );
   }
 
   function setMode(mode) {
@@ -608,18 +506,16 @@
     setMode(project ? "work" : "chat");
   }
 
-  function setPetState(status) {
+  function setProjectStatus(status) {
     const next = ["ready", "running", "needs-input", "blocked"].includes(status)
       ? status
       : "ready";
-    workState.petState = next;
     const project = activeProject();
     if (project && workState.mode === "work") {
       project.status = next;
       project.updatedAt = new Date().toISOString();
     }
     saveState();
-    renderPet();
   }
 
   function closeOtherPanels() {
@@ -764,13 +660,11 @@
       button.classList.toggle("active", agent.id === workState.activeAgentId);
       button.addEventListener("click", () => {
         workState.activeAgentId = agent.id;
-        workState.petId = agent.petId;
         saveState();
         renderMode();
         openManager();
       });
-      const agentPet = PETS.find((pet) => pet.id === agent.petId) || PETS[0];
-      addText(button, "strong", `${agentPet.symbol} ${agent.name}`);
+      addText(button, "strong", agent.name);
       addText(button, "small", agent.purpose || ROLE_LABELS[agent.role]);
       item.appendChild(button);
       const edit = document.createElement("button");
@@ -781,7 +675,6 @@
       edit.addEventListener("click", () => {
         editingAgentId = agent.id;
         workState.activeAgentId = agent.id;
-        workState.petId = agent.petId;
         saveState();
         renderMode();
         openManager();
@@ -790,37 +683,6 @@
       list.appendChild(item);
     }
     parent.appendChild(list);
-  }
-
-  function renderPetChoices(parent, reopen = openManager) {
-    const grid = document.createElement("div");
-    grid.className = "pet-choice-grid";
-    for (const pet of PETS) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "pet-choice";
-      button.classList.toggle("active", pet.id === workState.petId);
-      button.setAttribute("aria-label", `Избери ${pet.label}`);
-      button.addEventListener("click", () => {
-        workState.petId = pet.id;
-        const agent = activeAgent();
-        if (agent) agent.petId = pet.id;
-        saveState();
-        renderPet();
-        reopen();
-      });
-      addText(button, "span", pet.symbol);
-      addText(button, "strong", pet.label);
-      addText(button, "small", pet.description);
-      grid.appendChild(button);
-    }
-    parent.appendChild(grid);
-    addText(
-      parent,
-      "p",
-      "Личният любимец се запазва в защитения ти профил и показва: работи, чака решение, готов е или е блокиран. Той не променя правата на AI.",
-      "work-pet-status",
-    );
   }
 
   function renderActivities(parent) {
@@ -1089,16 +951,6 @@
       engine.appendChild(option);
     }
     form.appendChild(engine);
-    addText(form, "label", "Любимец на агента").htmlFor = "newWorkAgentPet";
-    const pet = document.createElement("select");
-    pet.id = "newWorkAgentPet";
-    for (const item of PETS) {
-      const option = document.createElement("option");
-      option.value = item.id;
-      option.textContent = `${item.symbol} ${item.label}`;
-      pet.appendChild(option);
-    }
-    form.appendChild(pet);
     const submit = document.createElement("button");
     submit.type = "submit";
     submit.textContent = "Създай и избери режима";
@@ -1114,13 +966,11 @@
         engine: Object.hasOwn(ENGINE_OPTIONS, engine.value)
           ? engine.value
           : "ai-core",
-        petId: PETS.some((item) => item.id === pet.value) ? pet.value : "robot",
       };
       if (!agent.name) return;
       const previousActiveAgentId = workState.activeAgentId;
       workState.agents.unshift(agent);
       workState.activeAgentId = agent.id;
-      workState.petId = agent.petId;
       if (!saveState()) {
         workState.agents = workState.agents.filter(
           (item) => item.id !== agent.id,
@@ -1190,17 +1040,6 @@
     }
     engine.value = agent.engine;
     form.appendChild(engine);
-    addText(form, "label", "Любимец на агента").htmlFor = "editWorkAgentPet";
-    const pet = document.createElement("select");
-    pet.id = "editWorkAgentPet";
-    for (const item of PETS) {
-      const option = document.createElement("option");
-      option.value = item.id;
-      option.textContent = `${item.symbol} ${item.label}`;
-      pet.appendChild(option);
-    }
-    pet.value = agent.petId;
-    form.appendChild(pet);
 
     const actions = document.createElement("div");
     actions.className = "work-form-actions";
@@ -1229,13 +1068,11 @@
         engine: Object.hasOwn(ENGINE_OPTIONS, engine.value)
           ? engine.value
           : "ai-core",
-        petId: PETS.some((item) => item.id === pet.value) ? pet.value : "robot",
       };
       if (!next.name || !next.purpose) return;
       const previous = { ...agent };
       Object.assign(agent, next);
       workState.activeAgentId = agent.id;
-      workState.petId = agent.petId;
       if (!saveState()) {
         Object.assign(agent, previous);
         managerNotice =
@@ -1257,21 +1094,6 @@
     addText(container, "h3", title);
     parent.appendChild(container);
     return container;
-  }
-
-  function openPetManager() {
-    closeOtherPanels();
-    elements.drawerTitle.textContent = "Избери любимец";
-    elements.drawerBody.replaceChildren();
-    addText(
-      elements.drawerBody,
-      "p",
-      "Избери кой любимец да те придружава в AI CORE.",
-      "work-manager-intro",
-    );
-    renderPetChoices(elements.drawerBody, openPetManager);
-    elements.drawer.hidden = false;
-    elements.drawerBackdrop.hidden = false;
   }
 
   function openManager() {
@@ -1322,8 +1144,6 @@
     else createAgentForm(advanced);
     agents.appendChild(advanced);
 
-    const pets = section(elements.drawerBody, "Личен любимец");
-    renderPetChoices(pets);
 
     const activity = section(elements.drawerBody, "Последни задачи");
     renderActivities(activity);
@@ -1355,7 +1175,6 @@
           model: agent?.model || "auto",
           purpose: agent?.purpose || "",
           engine: agent?.engine || "ai-core",
-          petId: agent?.petId || "robot",
         },
       },
     };
@@ -1365,13 +1184,13 @@
     if (!workState || workState.mode !== "work") return;
     recordActivity(task);
     if (task?.status === "waiting_confirmation") {
-      setPetState("needs-input");
+      setProjectStatus("needs-input");
     } else if (task?.status === "failed" || task?.status === "partial") {
-      setPetState("blocked");
+      setProjectStatus("blocked");
     } else if (task?.status === "completed") {
-      setPetState("ready");
+      setProjectStatus("ready");
     } else {
-      setPetState("running");
+      setProjectStatus("running");
     }
   }
 
@@ -1405,12 +1224,12 @@
       );
     }
     const status = data?.task?.status;
-    if (run?.needsUserDecision) setPetState("needs-input");
-    else if (run?.status === "blocked") setPetState("blocked");
-    else if (status === "waiting_confirmation") setPetState("needs-input");
+    if (run?.needsUserDecision) setProjectStatus("needs-input");
+    else if (run?.status === "blocked") setProjectStatus("blocked");
+    else if (status === "waiting_confirmation") setProjectStatus("needs-input");
     else if (status === "failed" || status === "partial")
-      setPetState("blocked");
-    else setPetState("ready");
+      setProjectStatus("blocked");
+    else setProjectStatus("ready");
   }
 
   function init(user, actions = {}) {
@@ -1424,7 +1243,6 @@
       setMode("work"),
     );
     elements.workModeBtn?.addEventListener("click", () => setMode("work"));
-    elements.workPetBtn?.addEventListener("click", openPetManager);
     elements.workContextBtn?.addEventListener("click", openManager);
     elements.commandBar?.addEventListener("click", (event) => {
       const command = event.target.closest("[data-command]")?.dataset.command;
@@ -1440,14 +1258,13 @@
     getRequestPayload,
     init,
     onDone,
-    onError: () => workState?.mode === "work" && setPetState("blocked"),
+    onError: () => workState?.mode === "work" && setProjectStatus("blocked"),
     onTask,
     openManager,
-    openPetManager,
     selectConversation,
     setBusy: (busy) => {
       conversationBusy = busy;
-      if (busy && workState?.mode === "work") setPetState("running");
+      if (busy && workState?.mode === "work") setProjectStatus("running");
     },
   });
 })();

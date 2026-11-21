@@ -129,11 +129,9 @@ const TASK_ALIASES = Object.freeze([
   [/(?:deploy|production|продукц)/iu, ["cloudrun", "health"]],
   [/(?:codex|кодекс)/iu, ["codex"]],
   [
-    /(?:аватар|любимец|avatar|pet|picker|интерфейс|interface|ui|дизайн)/iu,
+    /(?:аватар|avatar|интерфейс|interface|ui|дизайн)/iu,
     [
       "avatar",
-      "pet",
-      "picker",
       "work-mode",
       "workmodeui",
       "public",
@@ -238,7 +236,7 @@ function sourceFileScore(file, taskText, terms) {
   const path = file.path.toLowerCase();
   let score = REQUIRED_CONTEXT_FILES.get(file.path) || 0;
   if (
-    /(?:аватар|любимец|avatar|pet|picker)/iu.test(taskText) &&
+    /(?:аватар|avatar)/iu.test(taskText) &&
     AVATAR_CONTEXT_PRIORITY.has(file.path)
   ) {
     score += AVATAR_CONTEXT_PRIORITY.get(file.path);

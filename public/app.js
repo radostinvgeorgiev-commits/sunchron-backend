@@ -48,6 +48,7 @@ const elements = {
   chatInput: document.getElementById("chatInput"),
   sendBtn: document.getElementById("sendBtn"),
   councilModeBtn: document.getElementById("councilModeBtn"),
+  councilProviderPicker: document.getElementById("councilProviderPicker"),
   attachBtn: document.getElementById("attachBtn"),
   imageInput: document.getElementById("imageInput"),
   attachmentPreview: document.getElementById("attachmentPreview"),
@@ -132,6 +133,9 @@ function setAuthMessage(message = "", success = false) {
 
 function setCouncilMode(enabled) {
   state.councilMode = Boolean(enabled);
+  if (elements.councilProviderPicker) {
+    elements.councilProviderPicker.hidden = !state.councilMode;
+  }
   if (!elements.councilModeBtn) return;
   elements.councilModeBtn.setAttribute(
     "aria-pressed",
@@ -2399,8 +2403,14 @@ async function sendMessage({ councilIntentId = "" } = {}) {
 
   const messageText = text || "Какво виждаш на тази снимка?";
   const councilMode = state.councilMode;
-  const councilProviders = [...document.querySelectorAll('input[name="councilProvider"]:checked')].map((el) => el.value);
-  if (councilMode && !councilProviders.length) { alert("Избери поне един AI двигател."); return; }
+  const councilProviders = Array.from(
+    document.querySelectorAll('input[name="councilProvider"]:checked'),
+    (input) => input.value,
+  );
+  if (councilMode && !councilProviders.length) {
+    alert("Избери поне един AI двигател.");
+    return;
+  }
   setCouncilMode(false);
   const recentHistory = state.recentConversationMessages.slice(-12);
   appendMessage("user", messageText, image);
@@ -2520,7 +2530,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
               responseBubble,
               parsed.data?.councilIntentId,
             );
-            logAction("Трите AI двигателя дадоха обща препоръка");
+            logAction("Получен отговор от AI Council");
           }
           if (parsed.data?.taskRunId || parsed.data?.task?.taskRunId) {
             void loadTaskRuns();

@@ -11,9 +11,10 @@
   статус;
 - анонимен MCP `tools/list` — актуален каталог;
 - `get_google_cloud_runtime_status` — read-only runtime metadata без secrets.
-- `get_google_cloud_project_diagnostics` — owner-scoped read-only проверка на
-  публичния health/readiness, MCP каталога, Cloud Run service и Cloud Build
-  trigger-а; връща PASS/PARTIAL/FAIL и сравнение на наблюдавания commit.
+- `get_google_cloud_project_diagnostics` — проверка само за четене за
+  собственика. Включва health/readiness, MCP, Cloud Run, Cloud Build, Firestore,
+  Monitoring, Logging, Resource Manager и метаданни за версиите на тайните.
+  Връща PASS/PARTIAL/FAIL и сравнение на наблюдавания commit.
 - `talk_to_ai_core` / `send_message` — инструментален разговор през същия
   capability engine: read-only заявките се изпълняват реално, а GitHub,
   Google, памет и инфраструктурни записи се подготвят за отделно owner

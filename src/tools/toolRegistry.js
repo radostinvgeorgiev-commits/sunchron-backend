@@ -404,7 +404,7 @@ export function registerCoreTools() {
       id: "google-cloud-diagnostics",
       provider: "google",
       name: "Google Cloud Project Diagnostics",
-      version: "1.0.0",
+      version: "1.1.0",
       category: "infrastructure",
       capabilities: ["infrastructure.googlecloud.diagnostics.read"],
       permissions: ["infrastructure.read"],

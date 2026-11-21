@@ -38,6 +38,7 @@ import {
 const ENV = {
   MCP_ACCESS_TOKEN: "mcp-oauth-test-secret-with-more-than-32-characters",
   MCP_RESOURCE_URL: "https://cloudaicore.com/mcp",
+  PERSISTENCE_BACKEND: "opensearch",
 };
 const TUNNEL_RESOURCE =
   "https://tunnel-service.gateway.unified-0.internal.api.openai.org/v1/mcp/tunnel_test123";

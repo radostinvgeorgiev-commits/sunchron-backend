@@ -11,9 +11,9 @@ const [html, app, css] = await Promise.all([
 test("renders a real login gate before the private application", () => {
   assert.match(html, /id="authGate"/u);
   assert.match(html, /SYNCHRON-X/u);
-  assert.match(html, /ЛИЧНА AI ОПЕРАЦИОННА СИСТЕМА/u);
-  assert.match(html, /Един AI център за разговори, памет и реална работа/u);
-  assert.match(html, /Ти контролираш паметта/u);
+  assert.match(html, /id="publicTitle"/u);
+  assert.match(html, /id="heroRegisterBtn"[^>]*href="\/register"/u);
+  assert.match(html, /href="\/plans"/u);
   assert.match(html, /AI предлага, ти одобряваш/u);
   assert.match(html, /rel="canonical" href="https:\/\/cloudaicore\.com\/"/u);
   assert.match(html, /property="og:title"/u);

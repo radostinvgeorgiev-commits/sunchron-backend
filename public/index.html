@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#0f5f47" />
+    <meta name="theme-color" content="#102b2a" />
     <meta
       name="description"
       content="SYNCHRON-X е лична AI операционна система за разговори, контролирана памет и изпълнение на разрешени задачи чрез AI CORE."
@@ -38,6 +38,7 @@
       href="/assets/20260806-green-chat-v1/synchron-vision.css"
     />
     <link rel="stylesheet" href="/workspace-refresh.css?v=20261121" />
+    <link rel="stylesheet" href="/interface.css?v=1" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.7.2/css/all.min.css"
@@ -48,41 +49,38 @@
   <body>
     <section class="auth-gate" id="authGate" aria-labelledby="publicTitle">
       <div class="auth-shell">
-        <header class="auth-story">
+        <header class="public-header">
           <a class="auth-wordmark" href="/" aria-label="SYNCHRON-X — начало">
             <img src="/ai-core-mark.png" alt="" />
-            <span>
-              <strong>SYNCHRON-X</strong>
-              <small>AI CORE</small>
-            </span>
+            <strong>SYNCHRON-X</strong>
           </a>
-          <p class="auth-kicker">ЛИЧНА AI ОПЕРАЦИОННА СИСТЕМА</p>
-          <h1 id="publicTitle">
-            Един AI център за разговори, памет и реална работа.
-          </h1>
-          <p class="auth-lead">
-            AI CORE подрежда контекста ти, запазва само позволеното и подготвя
-            действията, преди ти да ги одобриш.
-          </p>
-          <div class="auth-trust" aria-label="Основни принципи">
-            <span
-              ><i class="fa-solid fa-shield-halved"></i> Ти даваш правата</span
-            >
-            <span
-              ><i class="fa-solid fa-brain"></i> Ти контролираш паметта</span
-            >
-            <span
-              ><i class="fa-solid fa-check-double"></i> Ти одобряваш
-              действията</span
-            >
-          </div>
-          <p class="auth-stage">
-            Създай профил, потвърди имейла си и започни с включените AI единици.
-          </p>
+          <nav aria-label="Навигация на сайта">
+            <a href="/plans">Планове</a>
+            <a href="/help">Помощ</a>
+            <a href="/developers">За разработчици</a>
+          </nav>
         </header>
 
+        <div class="auth-story">
+          <p class="auth-kicker">AI CORE</p>
+          <h1 id="publicTitle">
+            Твоето работно<br class="hero-break" /> пространство <em>с AI.</em>
+          </h1>
+          <p class="auth-lead">
+            Сравнявай отговори от AI модели, пази контекста на проектите си и
+            одобрявай действията от едно място.
+          </p>
+          <div class="hero-actions">
+            <a id="heroRegisterBtn" class="hero-primary" href="/register">
+              <i class="fa-solid fa-user-plus" aria-hidden="true"></i>
+              Създай профил
+            </a>
+            <a class="hero-secondary" href="/plans">Виж плановете</a>
+          </div>
+          <p class="auth-stage">Започни с 10 AI единици. Без банкова карта.</p>
+        </div>
+
         <div class="auth-card" id="authCard">
-          <p class="auth-card-kicker">СИГУРЕН ДОСТЪП</p>
           <h2 id="authTitle">Вход в AI CORE</h2>
           <p class="auth-intro" id="authIntro">
             Продължи към личното си работно пространство.
@@ -194,12 +192,6 @@
           <p class="auth-privacy">
             Профилът, разговорите и паметта са отделени за всеки потребител.
           </p>
-          <a class="auth-link" href="/plans">Планове и потребление</a>
-          <nav class="product-links" aria-label="Информация за продукта">
-            <a href="/help">Помощ</a> ·
-            <a href="/developers">За разработчици</a> ·
-            <a href="/help#merchant">Фирмени данни</a>
-          </nav>
           <details class="auth-owner">
             <summary>Вход за собственик</summary>
             <a href="/api/github/connect">
@@ -219,8 +211,8 @@
           <article>
             <i class="fa-regular fa-message"></i>
             <div>
-              <h2>Стабилен разговор</h2>
-              <p>Един AI CORE запазва контекста на работата ти.</p>
+              <h2>Разговори и анализ</h2>
+              <p>Пиши, анализирай и сравнявай отговори с AI Council.</p>
             </div>
           </article>
           <article>
@@ -233,11 +225,15 @@
           <article>
             <i class="fa-solid fa-wand-magic-sparkles"></i>
             <div>
-              <h2>Действия с контрол</h2>
+              <h2>Одобрение на действия</h2>
               <p>AI предлага, ти одобряваш, системата изпълнява.</p>
             </div>
           </article>
         </div>
+        <footer class="public-footer">
+          <span>SYNCHRON-X · AI CORE</span>
+          <a href="/help#merchant">Фирмени данни и контакт</a>
+        </footer>
       </div>
     </section>
 
@@ -247,7 +243,7 @@
           <span class="brand-icon"><img src="/ai-core-mark.png" alt="" /></span>
           <span>
             <strong>AI CORE</strong>
-            <small>Лична AI операционна система</small>
+            <small>SYNCHRON-X</small>
           </span>
         </div>
         <button
@@ -257,7 +253,7 @@
           aria-expanded="false"
           aria-controls="profileActions"
         >
-          <span class="profile-avatar" id="profileAvatar">Р</span>
+          <span class="profile-avatar" id="profileAvatar" aria-hidden="true">AI</span>
           <span
             ><strong id="profileName">Радко</strong
             ><small id="profileRole">Проверка на профила…</small></span
@@ -299,9 +295,9 @@
             <i class="fa-solid fa-table-cells-large"></i
             ><span>Работен център</span>
           </button>
-          <a class="product-nav" href="/plans">Планове и потребление</a>
-          <a class="product-nav" href="/help">Помощ и документация</a>
-          <a class="product-nav" href="/developers">За разработчици</a>
+          <a class="product-nav" href="/plans"><i class="fa-solid fa-wallet" aria-hidden="true"></i><span>Планове и потребление</span></a>
+          <a class="product-nav" href="/help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i><span>Помощ и документация</span></a>
+          <a class="product-nav" href="/developers"><i class="fa-solid fa-code" aria-hidden="true"></i><span>За разработчици</span></a>
           <span class="sidebar-nav-label">Система</span>
           <button id="memoryBtn" type="button">
             <i class="fa-solid fa-brain"></i><span>Памет</span>
@@ -345,7 +341,7 @@
           </button>
           <div class="model-title">
             <strong>AI CORE</strong>
-            <small>Лична AI операционна система</small>
+            <small>Работно пространство</small>
           </div>
           <div class="status-indicator" aria-live="polite">
             <span id="agentStatusDot" class="offline"></span>
@@ -474,7 +470,7 @@
           class="workspace-actions"
           aria-label="Инструменти за разговора"
         >
-          <span>Твоето работно пространство</span>
+          <span>Текущ разговор</span>
           <div>
             <button id="conversationFindBtn" type="button">
               <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>

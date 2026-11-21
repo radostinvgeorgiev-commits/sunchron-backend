@@ -71,3 +71,24 @@ confirmation.
 разрешение.
 
 Owner acceptance е описан в `OWNER_ACCEPTANCE_RUNBOOK.md`.
+
+## Проследяване на първата кампания в ChatGPT Ads
+
+Рекламите водят към `https://cloudaicore.com/plans` с
+`utm_source=chatgpt&utm_medium=paid&utm_campaign=ai-core-launch` и
+`utm_content=variant-1`, `variant-2` или `variant-3`.
+
+В Logs Explorer филтрирай по следните условия:
+
+```text
+resource.type="cloud_run_revision"
+resource.labels.service_name="synchron-backend-google"
+jsonPayload.utm_campaign="ai-core-launch"
+jsonPayload.utm_content!="smoke-test"
+```
+
+Сравнявай броя на събитията по `jsonPayload.event` и `jsonPayload.utm_content`.
+`campaign_landing` брои зареждания, включително повторни. `campaign_early_access`
+брои нови заявки за покана. `campaign_registration` брои създадени профили,
+когато регистрацията е запазила адреса с параметрите на кампанията.
+Тестовият вариант `smoke-test` може да се провери отделно.

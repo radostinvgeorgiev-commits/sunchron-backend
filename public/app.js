@@ -158,7 +158,8 @@ function setAuthBusy(isBusy) {
 
 function replaceAuthPath(path) {
   if (globalThis.location?.pathname === path) return;
-  globalThis.history?.replaceState?.({}, "", path);
+  const search = globalThis.location?.search || "";
+  globalThis.history?.replaceState?.({}, "", path + search);
 }
 
 function showLoginForm(event) {
@@ -251,11 +252,20 @@ async function handleRegistration(event) {
   setAuthBusy(true);
   setAuthMessage();
   try {
+    const params = new URLSearchParams(globalThis.location?.search || "");
     const result = await submitAuth("/api/auth/register", {
       displayName: elements.registerName.value,
       email: elements.registerEmail.value,
       password: elements.registerPassword.value,
       inviteCode: elements.registerInviteCode.value,
+      campaign: params.has("utm_campaign")
+        ? {
+            utm_source: params.get("utm_source"),
+            utm_medium: params.get("utm_medium"),
+            utm_campaign: params.get("utm_campaign"),
+            utm_content: params.get("utm_content"),
+          }
+        : undefined,
     });
     elements.registerPassword.value = "";
     elements.registerInviteCode.value = "";

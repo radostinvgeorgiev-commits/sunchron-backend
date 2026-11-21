@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import express from "express";
 import { createFirestoreDocumentStore } from "../services/firestoreDocumentStore.js";
+import {
+  logCampaignEvent,
+  readCampaignAttribution,
+} from "../services/campaignAttribution.js";
 
 const collection = "synchron-early-access-v1";
 const noticeVersion = "early-access-v1";
@@ -15,6 +19,12 @@ export function createEarlyAccessRouter({
     "/",
     express.urlencoded({ extended: false, limit: "2kb", parameterLimit: 5 }),
     async (req, res) => {
+      const attribution = readCampaignAttribution(req.query);
+      const redirect = (status) =>
+        res.redirect(
+          303,
+          `/plans?${new URLSearchParams({ request: status, ...attribution })}#early-access`,
+        );
       const { email, consent, source } = req.body || {};
       const normalized =
         typeof email === "string" ? email.trim().toLowerCase() : "";
@@ -23,7 +33,7 @@ export function createEarlyAccessRouter({
         !emailPattern.test(normalized) ||
         consent !== "yes"
       ) {
-        return res.redirect(303, "/plans?request=invalid#early-access");
+        return redirect("invalid");
       }
 
       const id = createHash("sha256").update(normalized).digest("hex");
@@ -40,17 +50,18 @@ export function createEarlyAccessRouter({
           },
           { createOnly: true },
         );
+        logCampaignEvent("campaign_early_access", attribution);
       } catch (error) {
         const duplicate = ["ALREADY_EXISTS", "FAILED_PRECONDITION"].includes(
           error.upstreamErrorStatus,
         );
         if (!duplicate) {
           console.warn("Early access request storage unavailable.");
-          return res.redirect(303, "/plans?request=unavailable#early-access");
+          return redirect("unavailable");
         }
       }
 
-      return res.redirect(303, "/plans?request=received#early-access");
+      return redirect("received");
     },
   );
 

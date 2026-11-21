@@ -17,6 +17,10 @@ import {
 } from "../services/githubOAuthService.js";
 import { resolveRequestIdentity } from "../middleware/ownerAuth.js";
 import { logSafeError } from "../utils/safeLogging.js";
+import {
+  logCampaignEvent,
+  readCampaignAttribution,
+} from "../services/campaignAttribution.js";
 
 const router = express.Router();
 
@@ -78,7 +82,12 @@ router.post("/login", async (req, res) => {
 
 router.post("/register", async (req, res) => {
   try {
-    const result = await registerUser(req.body || {});
+    const { campaign, ...registration } = req.body || {};
+    const result = await registerUser(registration);
+    logCampaignEvent(
+      "campaign_registration",
+      readCampaignAttribution(campaign),
+    );
     if (result.session) {
       res.setHeader("Set-Cookie", userSessionCookie(result.session));
     }

@@ -16,6 +16,10 @@ import {
   createBoundedSourceSnapshot,
   createIsolatedSourceWorkspace,
 } from "./codexAgentService.js";
+import {
+  loadCodeWorkspaceSource,
+  reviewCodeWorkspaceChanges,
+} from "./codeWorkspaceSource.js";
 import { getConfiguredRepository } from "./githubService.js";
 import {
   getGitHubSession,
@@ -105,32 +109,34 @@ function allowsDestructiveRewrite(message) {
   );
 }
 
-async function assertSafeExistingFileChanges(plan, workspace, message) {
+async function assertSafeExistingFileChanges(plan, workspace, message, originals) {
   if (allowsDestructiveRewrite(message)) return;
-  const workspaceRoot = resolve(workspace);
+  const workspaceRoot = workspace ? resolve(workspace) : null;
 
   for (const change of plan.changes) {
-    const target = resolve(workspaceRoot, ...change.path.split("/"));
-    const relativeTarget = relative(workspaceRoot, target);
-    if (!relativeTarget || relativeTarget.startsWith("..")) {
-      throw new CodeTaskError(
-        "AI CORE предложи файл извън разрешеното работно копие.",
-        403,
-        "CODE_TASK_PATH_BLOCKED",
-      );
+    let original = originals?.get(change.path);
+    if (workspaceRoot) {
+      const target = resolve(workspaceRoot, ...change.path.split("/"));
+      const relativeTarget = relative(workspaceRoot, target);
+      if (!relativeTarget || relativeTarget.startsWith("..")) {
+        throw new CodeTaskError(
+          "AI CORE предложи файл извън разрешеното работно копие.",
+          403,
+          "CODE_TASK_PATH_BLOCKED",
+        );
+      }
+      try {
+        original = await readFile(target, "utf8");
+      } catch (error) {
+        if (error?.code === "ENOENT") continue;
+        throw new CodeTaskError(
+          "AI CORE не успя безопасно да провери съществуващ файл.",
+          502,
+          "CODE_TASK_SOURCE_CHECK_FAILED",
+        );
+      }
     }
-
-    let original;
-    try {
-      original = await readFile(target, "utf8");
-    } catch (error) {
-      if (error?.code === "ENOENT") continue;
-      throw new CodeTaskError(
-        "AI CORE не успя безопасно да провери съществуващ файл.",
-        502,
-        "CODE_TASK_SOURCE_CHECK_FAILED",
-      );
-    }
+    if (original === null) continue;
 
     const originalLines = lineCount(original);
     const proposedLines = lineCount(change.content);
@@ -200,7 +206,11 @@ function validatePlan(value, env = process.env) {
     const path = normalizePlanPath(change?.path);
     const content =
       typeof change?.content === "string" ? change.content : null;
-    if (!SAFE_PATH.test(path) || seen.has(path)) {
+    const unsafeSegment = path.split("/").some((segment) =>
+      ["", ".", ".git", ".env", ".npmrc"].includes(segment) ||
+      segment.startsWith(".env."),
+    );
+    if (!SAFE_PATH.test(path) || unsafeSegment || seen.has(path)) {
       throw new CodeTaskError(
         "AI CORE предложи неразрешен или дублиран файл.",
         403,
@@ -294,6 +304,7 @@ export async function prepareCodeTask({
   githubSessionId,
   githubSession,
   message,
+  reviewRepository,
   apiKey = process.env.OPENAI_API_KEY,
   geminiApiKey = process.env.GEMINI_API_KEY,
   grokApiKey = process.env.GROK_API_KEY,
@@ -321,25 +332,35 @@ export async function prepareCodeTask({
       "CODE_TASK_COUNCIL_NOT_CONFIGURED",
     );
   }
-  const isolated = await createWorkspace(sourceDirectory);
+  const source = reviewRepository === undefined
+    ? null
+    : await loadCodeWorkspaceSource(reviewRepository, authorizedGitHubSession.accessToken);
+  const isolated = source ? null : await createWorkspace(sourceDirectory);
   try {
     const snapshot = await createSnapshot({
-      workspace: isolated.workspace,
+      workspace: isolated?.workspace,
       message: task,
       projectObjective: "Реално изпълнение на безопасни задачи от cloudaicore.com",
+      ...(source ? {
+        sourceFiles: source.sourceFiles,
+        readSource: ({ path }) => source.read(path),
+        maxFiles: 20,
+      } : {}),
     });
     const advisorInput = [
       { role: "user", content: advisorPrompt(task, snapshot.text) },
     ];
+    const advisorSignal = source ? AbortSignal.timeout(45_000) : undefined;
     const councilResponses = await Promise.all([
       advisorRequesters.openai({
         apiKey,
         input: advisorInput,
+        signal: advisorSignal,
         verbosity: "low",
         reasoningEffort: "medium",
       }),
-      advisorRequesters.gemini({ apiKey: geminiApiKey, input: advisorInput }),
-      advisorRequesters.grok({ apiKey: grokApiKey, input: advisorInput }),
+      advisorRequesters.gemini({ apiKey: geminiApiKey, input: advisorInput, signal: advisorSignal }),
+      advisorRequesters.grok({ apiKey: grokApiKey, input: advisorInput, signal: advisorSignal }),
     ]).catch((error) => {
       throw new CodeTaskError(
         "Поне един от трите AI двигателя не отговори и кодовата задача беше спряна безопасно.",
@@ -358,6 +379,7 @@ export async function prepareCodeTask({
       response = await responseRequester({
         apiKey,
         model: model || undefined,
+        signal: source ? AbortSignal.timeout(60_000) : undefined,
         input: [
           {
             role: "user",
@@ -377,12 +399,34 @@ export async function prepareCodeTask({
       );
     }
     const plan = validatePlan(response?.text, process.env);
-    await assertSafeExistingFileChanges(plan, isolated.workspace, task);
+    const repository = getConfiguredRepository();
+    let changes = plan.changes;
+    let review;
+    const originals = new Map();
+    if (source) {
+      try {
+        for (const { path } of changes) originals.set(path, await source.original(path));
+        review = await reviewCodeWorkspaceChanges(changes, source, originals);
+      } catch (error) {
+        throw new CodeTaskError(
+          "Точният diff не може да бъде проверен за всички предложени файлове.",
+          error?.status || 422,
+          "CODE_TASK_REVIEW_FAILED",
+        );
+      }
+      changes = changes.filter(({ path, content }) => originals.get(path) !== content);
+      if (!changes.length) {
+        throw new CodeTaskError("Задачата не предлага реални промени.", 422, "CODE_TASK_EMPTY_PLAN");
+      }
+    }
+    await assertSafeExistingFileChanges({ changes }, isolated?.workspace, task, originals);
+    if (review?.some(({ check }) => check.status === "failed")) {
+      return { repository, baseSha: source.baseSha, title: plan.title, summary: plan.summary, review };
+    }
     const executorModel =
       typeof response?.model === "string" && response.model.trim()
         ? response.model.trim()
         : model || "configured OpenAI coding model";
-    const repository = getConfiguredRepository();
     const branch = `ai-core/task-${randomUUID().slice(0, 8)}`;
     const confirmation = await createConfirmation({
       sessionId,
@@ -390,6 +434,7 @@ export async function prepareCodeTask({
       resource: {
         repository,
         base: "main",
+        ...(source ? { baseSha: source.baseSha } : {}),
         branch,
         ownerFingerprint: fingerprint("owner", ownerId),
         githubLoginFingerprint: fingerprint(
@@ -407,18 +452,19 @@ export async function prepareCodeTask({
       params: {
         commitMessage: plan.commitMessage,
         pullRequestBody: plan.pullRequestBody,
-        changes: plan.changes,
+        changes,
       },
     });
     return Object.freeze({
       confirmationId: confirmation.id,
       expiresAt: confirmation.expiresAt,
       repository,
+      ...(source ? { baseSha: source.baseSha, review } : {}),
       branch,
       title: plan.title,
       summary: plan.summary,
       files: Object.freeze(
-        plan.changes.map(({ path, reason }) =>
+        changes.map(({ path, reason }) =>
           Object.freeze({ path, reason }),
         ),
       ),
@@ -446,7 +492,7 @@ export async function prepareCodeTask({
       ].join("\n"),
     });
   } finally {
-    await rm(isolated.root, { recursive: true, force: true });
+    if (isolated) await rm(isolated.root, { recursive: true, force: true });
   }
 }
 
@@ -516,6 +562,7 @@ export async function confirmCodeTask({
         repository: confirmation.resource.repository,
         branchName: confirmation.resource.branch,
         base: confirmation.resource.base,
+        ...(confirmation.resource.baseSha ? { expectedBaseSha: confirmation.resource.baseSha } : {}),
         changes: plan.changes,
         commitMessage: plan.commitMessage,
         title: plan.title,

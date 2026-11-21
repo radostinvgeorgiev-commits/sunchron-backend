@@ -15,6 +15,7 @@ import healthRouter from "./src/routes/health.js";
 import memoryRouter from "./src/routes/memoryRouter.js";
 import cloudRouter from "./src/routes/cloudRouter.js";
 import githubRouter from "./src/routes/githubRouter.js";
+import codeWorkspaceRouter from "./src/routes/codeWorkspaceRouter.js";
 import calendarRouter from "./src/routes/calendarRouter.js";
 import permissionsRouter from "./src/routes/permissionsRouter.js";
 import googleDriveRouter from "./src/routes/googleDriveRouter.js";
@@ -148,6 +149,7 @@ app.use("/api/github", oauthRateLimiter, githubOAuthRouter);
 app.use("/mcp", mcpJsonParseErrorHandler, privateApiRateLimiter, mcpRouter);
 
 app.use("/chat", requireOwnerSession, paidAiRateLimiter, chatRouter);
+app.use("/api/code-workspace", requireOwnerSession, requirePrimaryOwner, paidAiRateLimiter, codeWorkspaceRouter);
 app.use("/memory", requireOwnerSession, privateApiRateLimiter, memoryRouter);
 app.use(
   "/api/workspaces",

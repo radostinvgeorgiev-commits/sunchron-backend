@@ -342,6 +342,7 @@ async function startApplication(user) {
   globalThis.SynchronWorkMode?.init(user);
   elements.authGate.hidden = true;
   elements.appShell.hidden = false;
+  if (user?.role === "owner") globalThis.SynchronCodeWorkspace?.afterSignIn();
   updateSessionDisplay();
 
   elements.sendBtn.addEventListener("click", sendMessage);

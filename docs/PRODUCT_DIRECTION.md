@@ -119,4 +119,4 @@ Playwright MCP, а не и двата. Архивирани примерни MCP
 Инструмент не се добавя в production само защото repository съществува или MCP
 сървърът стартира. Не се добавят всички кандидати наведнъж. Първата безопасна
 следваща оценка е Playwright MCP в отделна тестова среда, след като текущите
-signup/login, OpenSearch/Supabase и owner acceptance проверки са завършени.
+signup/login и owner acceptance проверки са завършени.

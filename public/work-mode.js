@@ -49,7 +49,7 @@
   });
   const ENGINE_OPTIONS = Object.freeze({
     "ai-core": "AI CORE",
-    codex: "Codex · изолиран кодов анализ",
+    codex: "Codex · branch/PR кодов изпълнител",
   });
   const MODEL_OPTIONS = Object.freeze({
     auto: "Автоматичен · препоръчано",
@@ -113,7 +113,7 @@
       name: "Код",
       role: "coder",
       model: "gpt-5.6-terra",
-      purpose: "Анализира кода без запис и без интернет.",
+      purpose: "Подготвя code diff в branch/PR поток след owner потвърждение.",
       engine: "codex",
       petId: "spark",
     }),

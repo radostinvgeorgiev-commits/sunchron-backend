@@ -371,3 +371,31 @@ body {
     flex-wrap: wrap;
   }
 }
+
+.product-nav {
+  display: block;
+  padding: 10px 12px;
+  min-height: 44px;
+  color: #116952;
+  font-size: 0.9375rem;
+  text-decoration: none;
+  border-radius: 8px;
+}
+.product-nav:hover {
+  background: #dfece7;
+}
+.product-links {
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+.member-usage-note {
+  display: none;
+}
+body[data-user-role="member"] .member-usage-note {
+  display: block;
+  font-size: 0.875rem;
+}
+body[data-user-role="member"] .composer-note {
+  display: block !important;
+}

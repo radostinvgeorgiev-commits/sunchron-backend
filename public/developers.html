@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="bg">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>За разработчици · SYNCHRON-X</title>
+    <link rel="stylesheet" href="/plans.css" />
+    <link rel="canonical" href="https://cloudaicore.com/developers" />
+  </head>
+  <body>
+    <main class="plans-shell doc-layout">
+      <header class="plans-header">
+        <a class="plans-brand" href="/">SYNCHRON-X</a>
+        <nav><a href="/help">Помощ</a> · <a href="/plans">Планове</a></nav>
+      </header>
+      <section class="plans-intro">
+        <p>ЗА РАЗРАБОТЧИЦИ</p>
+        <h1>Свържи се с AI CORE.</h1>
+        <p>
+          Публични проверки, защитена сесия и MCP интерфейс. Не предлагаме
+          универсален публичен API ключ или неограничен API достъп.
+        </p>
+      </section>
+      <nav class="doc-toc" aria-label="Съдържание">
+        <a href="#health">Статус</a><a href="#auth">Удостоверяване</a
+        ><a href="#mcp">MCP</a><a href="#usage">Потребление</a
+        ><a href="#errors">Грешки</a>
+      </nav>
+      <section class="product-section" id="health">
+        <h2>Проверка на наличността</h2>
+        <pre><code>curl --fail https://cloudaicore.com/health
+curl --fail https://cloudaicore.com/health/ready</code></pre>
+        <p>
+          <code>/health</code> връща <code>status</code> и exact
+          <code>commit</code>. <code>/health/ready</code> показва готовността на
+          зависимостите. Успешна проверка не доказва, че даден AI двигател е
+          отговорил успешно на реална заявка.
+        </p>
+      </section>
+      <section class="product-section" id="auth">
+        <h2>Удостоверяване и права</h2>
+        <p>
+          Уеб интерфейсът използва защитена HttpOnly сесийна бисквитка след
+          вход. Проверката е <code>GET /api/auth/session</code>. Не копирай
+          сесийни бисквитки в чужди приложения. CORS достъп за произволни
+          домейни не е включен.
+        </p>
+        <p>
+          <code>POST /api/auth/register</code> приема <code>email</code>,
+          <code>password</code> и <code>displayName</code>. При публичен режим
+          не е нужен <code>inviteCode</code>. Входът е
+          <code>POST /api/auth/login</code>. Използвай интерфейса, за да
+          избегнеш записване на пароли в shell история.
+        </p>
+        <p>
+          Потребителските идентификатори и правата се определят на сървъра. Нов
+          профил е <code>member</code>. Чужди данни, инфраструктурни операции и
+          инструменти на собственика не са част от публичния достъп.
+        </p>
+      </section>
+      <section class="product-section" id="mcp">
+        <h2>MCP</h2>
+        <p>
+          Крайна точка: <code>https://cloudaicore.com/mcp</code>. Поддържа
+          JSON-RPC през HTTP и OAuth за защитените инструменти. Публичното
+          откриване на каталога не дава право за изпълнение на частните
+          инструменти.
+        </p>
+        <pre><code>curl --fail https://cloudaicore.com/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'</code></pre>
+        <p>
+          Следвай <code>WWW-Authenticate</code> и описанието на OAuth ресурса за
+          защитени заявки. Някои инструменти са само за собственика.
+          Потребителският пакет не разширява OAuth правата и не предоставя
+          платен външен MCP API.
+        </p>
+      </section>
+      <section class="product-section" id="usage">
+        <h2>Планове и потребление</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Endpoint</th>
+              <th>Достъп и резултат</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>GET /api/product/plans</code></td>
+              <td>
+                Публичен каталог, валута EUR, статус на плащанията и правила за
+                единиците.
+              </td>
+            </tr>
+            <tr>
+              <td><code>GET /api/product/usage</code></td>
+              <td>
+                Защитена сесия; само текущият профил, оставащи единици и
+                валидност.
+              </td>
+            </tr>
+            <tr>
+              <td><code>POST /api/product/checkout</code></td>
+              <td>
+                Защитена сесия,
+                <code>{"plan":"personal","confirmed":true}</code>; цена само от
+                сървърния каталог. Работи само след активирани плащания.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p>
+          Тарифата е 3 единици на реален опит към доставчик, максимум 6 опита в
+          една публична задача. Разходът се записва преди доставчика в Firestore
+          с условни атомарни операции. При недостъпно отчитане публичните AI
+          заявки се отказват. Пълно счетоводство на фактурираните токени по
+          доставчик не е налично; единиците са продуктова квота.
+        </p>
+      </section>
+      <section class="product-section" id="errors">
+        <h2>Грешки и повторни опити</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>HTTP</th>
+              <th>Какво означава</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>401</td>
+              <td>Нужен е вход или валиден OAuth достъп.</td>
+            </tr>
+            <tr>
+              <td>402</td>
+              <td>Недостатъчни AI единици; не повтаряй автоматично.</td>
+            </tr>
+            <tr>
+              <td>403</td>
+              <td>Недостатъчни права или непотвърден имейл.</td>
+            </tr>
+            <tr>
+              <td>409</td>
+              <td>Конфликт при едновременни операции.</td>
+            </tr>
+            <tr>
+              <td>413</td>
+              <td>Твърде голямо съобщение или контекст.</td>
+            </tr>
+            <tr>
+              <td>429</td>
+              <td>Временен лимит или изчерпан общ капацитет.</td>
+            </tr>
+            <tr>
+              <td>503</td>
+              <td>Услуга или плащания още не са конфигурирани.</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>
+          Чатът връща SSE събития; след началото на потока грешките са събития,
+          а не нов HTTP статус. Не повтаряй автоматично платени заявки при
+          неизвестен резултат. Външните write действия изискват конкретно
+          еднократно потвърждение.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

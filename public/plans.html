@@ -5,94 +5,176 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Планове и ранен достъп до SYNCHRON-X, личната ти AI система."
+      content="Планове за SYNCHRON-X с ясно включено AI потребление и без автоматично доплащане."
     />
-    <title>Планове и ранен достъп · SYNCHRON-X</title>
+    <title>Планове и потребление · SYNCHRON-X</title>
     <link rel="canonical" href="https://cloudaicore.com/plans" />
-    <link rel="icon" type="image/png" href="/ai-core-mark.png" />
+    <link rel="icon" href="/ai-core-mark.png" />
     <link rel="stylesheet" href="/plans.css" />
     <script src="/plans.js" defer></script>
   </head>
   <body>
     <main class="plans-shell">
       <header class="plans-header">
-        <a class="plans-brand" href="/">
-          <img src="/ai-core-mark.png" alt="" width="40" height="40" />
-          SYNCHRON-X
-        </a>
-        <a href="/">Вход</a>
+        <a class="plans-brand" href="/">SYNCHRON-X</a>
+        <nav>
+          <a href="/help">Помощ</a> ·
+          <a href="/developers">За разработчици</a> · <a href="/">Вход</a>
+        </nav>
       </header>
-      <section class="plans-intro" aria-labelledby="plans-title">
-        <h1 id="plans-title">Планове за SYNCHRON-X</h1>
+      <section class="plans-intro">
+        <p>ПЛАНОВЕ И ПОТРЕБЛЕНИЕ</p>
+        <h1>Ясна цена.<br />Разход под твой контрол.</h1>
         <p>
-          Изпробвай личната AI система с покана. Платените планове са в
-          подготовка.
+          Избери пакет с AI единици за 30 дни. Плащаш предварително, подновяваш
+          само когато решиш. Без автоматично доплащане или абонамент.
         </p>
       </section>
+      <section class="usage-panel" aria-label="Твоето потребление">
+        <h2>Твоят профил</h2>
+        <p id="usage-status" role="status">Проверка на потреблението…</p>
+        <p id="payment-status" role="status">
+          Проверка дали плащанията са активни…
+        </p>
+        <button id="usage-refresh" type="button">Обнови</button>
+      </section>
       <div class="plans-grid">
-        <article class="plan plan-featured">
-          <h2>Ранен достъп</h2>
-          <p class="plan-price">Безплатно</p>
-          <p>За първите участници в тестовата група.</p>
-          <ul>
-            <li>AI разговори и контролирана памет</li>
-            <li>Регистрация с покана</li>
-          </ul>
-          <a class="plans-button" href="#early-access">Заяви достъп</a>
-        </article>
         <article class="plan">
-          <h2>Личен</h2>
-          <p class="plan-price">В подготовка</p>
-          <p>За ежедневни разговори и лични задачи.</p>
+          <h2>Старт</h2>
+          <p class="plan-price">0 €</p>
+          <p>10 AI единици еднократно за 30 дни.</p>
           <ul>
-            <li>Лична памет и история</li>
-            <li>Разрешени инструменти за задачи</li>
+            <li>До 3 стандартни опита към AI двигател</li>
+            <li>Лична история и контролирана памет</li>
+            <li>Без банкова карта</li>
           </ul>
+          <a class="plans-button" href="/register">Създай профил</a>
+        </article>
+        <article class="plan plan-featured">
+          <h2>Личен</h2>
+          <p class="plan-price">9,90 € / 30 дни</p>
+          <p>100 AI единици.</p>
+          <ul>
+            <li>До 33 стандартни опита или комбинация с AI Council</li>
+            <li>История, проекти и контролирана памет</li>
+            <li>Самостоятелно подновяване</li>
+          </ul>
+          <button
+            class="plans-button"
+            type="button"
+            data-plan="personal"
+            disabled
+          >
+            Проверка на плащанията…
+          </button>
         </article>
         <article class="plan">
           <h2>Професионален</h2>
-          <p class="plan-price">В подготовка</p>
-          <p>За по-честа работа с AI и свързани приложения.</p>
+          <p class="plan-price">24,90 € / 30 дни</p>
+          <p>350 AI единици.</p>
           <ul>
-            <li>Сравняване на отговори от AI модели</li>
-            <li>Връзки с работни приложения по твой избор</li>
+            <li>До 116 стандартни опита или комбинация с AI Council</li>
+            <li>По-голям бюджет за работа с няколко двигателя</li>
+            <li>Самостоятелно подновяване</li>
           </ul>
+          <button
+            class="plans-button"
+            type="button"
+            data-plan="professional"
+            disabled
+          >
+            Проверка на плащанията…
+          </button>
         </article>
       </div>
-      <section
-        class="request-panel"
-        id="early-access"
-        aria-labelledby="request-title"
-      >
+      <section class="product-section">
+        <h2>Как се изразходват единиците</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Действие</th>
+              <th>Разход</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Един опит към AI двигател</td>
+              <td>3 единици</td>
+            </tr>
+            <tr>
+              <td>AI Council, включително обобщаване</td>
+              <td>До 18 единици, според броя реални опити</td>
+            </tr>
+            <tr>
+              <td>Четене на запазен разговор</td>
+              <td>Без AI единици</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>
+          Опитите към резервен двигател също използват единици. Опит, изпратен
+          към доставчик, може да изразходва ресурс дори при грешка или
+          прекъсване. AI Council изисква поне 18 свободни единици преди начало,
+          а се отчита по 3 за всеки реален опит. Потребителските отговори са до
+          1024 изходни токена на опит; дългият контекст се ограничава.
+        </p>
+        <p>
+          Единиците са вътрешна мярка за достъп, не пари и не токени на
+          конкретен доставчик. Не се теглят като пари. При изчерпване заявките
+          спират; няма автоматично презареждане. Нов закупен пакет добавя
+          единици и осигурява поне още 30 дни валидност за наличния баланс.
+          Началните 10 единици не се възстановяват ежемесечно.
+        </p>
+      </section>
+      <section class="product-section">
+        <h2>Преди плащане</h2>
+        <p>
+          Пакетите включват само функциите, достъпни за потребителски профил.
+          Инфраструктурни операции, кодови промени и външни интеграции на
+          собственика не се предоставят на всеки регистриран профил. AI може да
+          греши. Наличността на отделен двигател зависи от конфигурацията и
+          доставчика.
+        </p>
+        <p>
+          Цената при активирана продажба е крайната сума в евро за показания
+          пакет. Платените покупки остават изключени до настройване на платежния
+          оператор, търговските данни, условията за продажба и проверка на
+          разходите. Няма да приемаме плащане, преди тези стъпки да са
+          завършени.
+        </p>
+        <a href="/help">Прочети документацията</a>
+      </section>
+      <section class="request-panel" id="early-access">
         <div>
-          <h2 id="request-title">Заяви ранен достъп</h2>
-          <p>
-            Остави имейл, за да можем да ти изпратим покана при свободно място.
-          </p>
-          <a href="/register">Вече имам код за покана</a>
+          <h2>Въпрос за услугата</h2>
+          <p>Остави имейл за отговор. Това не активира платен план.</p>
         </div>
         <form method="post" action="/api/early-access">
-          <label for="request-email">Имейл</label>
-          <input
+          <label for="request-email">Имейл</label
+          ><input
             id="request-email"
             name="email"
             type="email"
             autocomplete="email"
             maxlength="254"
             required
-          />
-          <input id="request-source" type="hidden" name="source" />
-          <label class="request-consent">
-            <input type="checkbox" name="consent" value="yes" required />
-            <span
-              >Съгласен съм SYNCHRON-X да използва имейла ми, за да отговори на
-              тази заявка.</span
-            >
-          </label>
-          <button class="plans-button" type="submit">Изпрати заявка</button>
+          /><input id="request-source" type="hidden" name="source" /><label
+            class="request-consent"
+            ><input type="checkbox" name="consent" value="yes" required /><span
+              >Съгласен съм имейлът ми да се използва за отговор на тази
+              заявка.</span
+            ></label
+          ><button class="plans-button" type="submit">Изпрати запитване</button>
           <p id="request-status" role="status" hidden></p>
         </form>
       </section>
+      <footer class="product-section">
+        <p>
+          Услугата се предоставя от <strong>СИНХРОН Х ЕООД</strong>, ЕИК
+          208554306.
+        </p>
+        <a href="/help#merchant">Фирмени данни и контакт</a>
+      </footer>
     </main>
   </body>
 </html>

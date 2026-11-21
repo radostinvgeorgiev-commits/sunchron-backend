@@ -77,7 +77,7 @@
             >
           </div>
           <p class="auth-stage">
-            Ранен достъп за малка група реални потребители.
+            Създай профил, потвърди имейла си и започни с включените AI единици.
           </p>
         </header>
 
@@ -119,7 +119,7 @@
           </form>
 
           <a id="showRegisterBtn" class="auth-link" href="/register">
-            Имам код за ранен достъп
+            Създай безплатен профил
           </a>
           <form
             id="registerForm"
@@ -156,20 +156,27 @@
               maxlength="128"
               required
             />
-            <label for="registerInviteCode">Код за ранен достъп</label>
-            <input
-              id="registerInviteCode"
-              name="inviteCode"
-              type="password"
-              autocomplete="off"
-              minlength="8"
-              maxlength="128"
-              aria-describedby="registerInviteHelp"
-              required
-            />
-            <small id="registerInviteHelp" class="auth-field-help">
-              Получаваш кода лично от собственика на SYNCHRON-X.
-            </small>
+            <div id="inviteFields" hidden>
+              <label for="registerInviteCode">Код за ранен достъп</label>
+              <input
+                id="registerInviteCode"
+                disabled
+                name="inviteCode"
+                type="password"
+                autocomplete="off"
+                minlength="8"
+                maxlength="128"
+                aria-describedby="registerInviteHelp"
+                required
+              />
+              <small id="registerInviteHelp" class="auth-field-help">
+                Това поле се използва само при ограничена регистрация.
+              </small>
+            </div>
+            <p>
+              С регистрацията се създава личен профил. Няма автоматични
+              плащания. <a href="/help">Как работи услугата</a>.
+            </p>
             <button id="registerBtn" class="auth-primary" type="submit">
               Създай профил
             </button>
@@ -187,9 +194,12 @@
           <p class="auth-privacy">
             Профилът, разговорите и паметта са отделени за всеки потребител.
           </p>
-          <a class="auth-link" href="/plans"
-            >Виж плановете и заяви ранен достъп</a
-          >
+          <a class="auth-link" href="/plans">Планове и потребление</a>
+          <nav class="product-links" aria-label="Информация за продукта">
+            <a href="/help">Помощ</a> ·
+            <a href="/developers">За разработчици</a> ·
+            <a href="/help#merchant">Фирмени данни</a>
+          </nav>
           <details class="auth-owner">
             <summary>Вход за собственик</summary>
             <a href="/api/github/connect">
@@ -289,6 +299,9 @@
             <i class="fa-solid fa-table-cells-large"></i
             ><span>Работен център</span>
           </button>
+          <a class="product-nav" href="/plans">Планове и потребление</a>
+          <a class="product-nav" href="/help">Помощ и документация</a>
+          <a class="product-nav" href="/developers">За разработчици</a>
           <span class="sidebar-nav-label">Система</span>
           <button id="memoryBtn" type="button">
             <i class="fa-solid fa-brain"></i><span>Памет</span>
@@ -582,6 +595,10 @@
           </div>
           <div class="composer-note">
             Ти контролираш паметта, инструментите и разрешенията.
+            <span class="member-usage-note"
+              >3 единици на AI опит; Council до 18.
+              <a href="/plans">Потребление</a></span
+            >
           </div>
         </div>
       </section>

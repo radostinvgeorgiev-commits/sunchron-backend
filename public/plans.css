@@ -177,3 +177,98 @@ li {
     grid-template-columns: 1fr;
   }
 }
+.usage-panel,
+.product-section {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  border: 1px solid #cedbd2;
+  border-radius: 1rem;
+  background: white;
+}
+.product-section h2,
+.usage-panel h2 {
+  margin-bottom: 1rem;
+}
+.product-section p {
+  margin: 1rem 0;
+}
+.product-section table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  text-align: left;
+}
+.product-section th,
+.product-section td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #dce7e0;
+  vertical-align: top;
+}
+button {
+  font: inherit;
+  cursor: pointer;
+  min-height: 44px;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+.product-section pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 1rem;
+  background: #eef5f1;
+  border-radius: 8px;
+}
+.product-section code {
+  overflow-wrap: anywhere;
+}
+.plans-header nav {
+  font-size: 1rem;
+}
+.doc-layout {
+  max-width: 56rem;
+}
+.doc-layout .product-section {
+  scroll-margin-top: 1rem;
+}
+.doc-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+@media (max-width: 600px) {
+  .plans-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .product-section {
+    padding: 1rem;
+  }
+  .product-section table {
+    font-size: 0.875rem;
+  }
+}
+
+.merchant-details {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) 2fr;
+  gap: 0.75rem 1rem;
+}
+.merchant-details dt {
+  font-weight: 650;
+}
+.merchant-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .merchant-details {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+  .merchant-details dd {
+    margin-bottom: 0.65rem;
+  }
+}

@@ -86,8 +86,18 @@ export function isTesterRegistrationEnabled(env = process.env) {
   return getTesterInviteCode(env).length >= 8;
 }
 
+export function isPublicRegistration(env = process.env) {
+  return (
+    (env.USER_REGISTRATION_MODE ||
+      (env.NODE_ENV === "production" ? "public" : "invite")) === "public"
+  );
+}
 export function isUserRegistrationEnabled(env = process.env) {
-  return isUserAuthConfigured(env) && isTesterRegistrationEnabled(env);
+  return (
+    env.USER_REGISTRATION_MODE !== "closed" &&
+    isUserAuthConfigured(env) &&
+    (isPublicRegistration(env) || isTesterRegistrationEnabled(env))
+  );
 }
 
 function assertTesterInviteCode(value, env = process.env) {
@@ -436,7 +446,8 @@ function mapTesterAccessError(error) {
 function requiresVerifiedIdentityEmail(env = process.env) {
   return (
     resolveAuthBackend(env) === "identity-platform" &&
-    env.IDENTITY_PLATFORM_REQUIRE_EMAIL_VERIFICATION !== "false"
+    (isPublicRegistration(env) ||
+      env.IDENTITY_PLATFORM_REQUIRE_EMAIL_VERIFICATION !== "false")
   );
 }
 
@@ -476,7 +487,13 @@ export async function registerUser(
     email: cleanEmail(email),
     password: cleanPassword(password),
   };
-  assertTesterInviteCode(inviteCode, env);
+  if (env.USER_REGISTRATION_MODE === "closed")
+    throw new UserAuthError(
+      "Регистрацията временно е затворена.",
+      503,
+      "AUTH_REGISTRATION_CLOSED",
+    );
+  if (!isPublicRegistration(env)) assertTesterInviteCode(inviteCode, env);
   const authClient = client || createAuthClient(env);
 
   let { data, error } = await authClient.auth.signUp({
@@ -489,9 +506,10 @@ export async function registerUser(
   });
 
   if (
-    error ||
-    !data?.user ||
-    (!data?.session && data?.confirmationRequired !== true)
+    !isPublicRegistration(env) &&
+    (error ||
+      !data?.user ||
+      (!data?.session && data?.confirmationRequired !== true))
   ) {
     const recovered =
       await authClient.auth.signInWithPassword(cleanCredentials);
@@ -611,6 +629,7 @@ export async function resolveUserSession(
     refreshed = true;
   }
 
+  if (requiresVerifiedIdentityEmail(env) && !user.emailVerified) return null;
   try {
     await requireTesterAccess(user, { env });
   } catch (error) {

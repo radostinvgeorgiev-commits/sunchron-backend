@@ -37,6 +37,7 @@
       rel="stylesheet"
       href="/assets/20260806-green-chat-v1/synchron-vision.css"
     />
+    <link rel="stylesheet" href="/workspace-refresh.css?v=20261121" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.7.2/css/all.min.css"
@@ -456,7 +457,73 @@
           >
         </fieldset>
 
+        <section
+          class="workspace-actions"
+          aria-label="Инструменти за разговора"
+        >
+          <span>Твоето работно пространство</span>
+          <div>
+            <button id="conversationFindBtn" type="button">
+              <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+              Търси в чата
+            </button>
+            <button id="conversationExportBtn" type="button">
+              <i class="fa-solid fa-download" aria-hidden="true"></i> Изтегли
+            </button>
+          </div>
+        </section>
+        <div class="conversation-find" id="conversationFind" hidden>
+          <label for="conversationQuery">Търси в текущия разговор</label>
+          <input
+            id="conversationQuery"
+            type="search"
+            maxlength="200"
+            placeholder="Дума или фраза"
+          />
+          <button id="conversationFindNext" type="button">Следващ</button>
+          <button
+            id="conversationFindClose"
+            type="button"
+            aria-label="Затвори търсенето"
+          >
+            Затвори
+          </button>
+          <span id="conversationFindCount" role="status"></span>
+        </div>
         <div id="chatMessages" aria-live="polite"></div>
+        <section
+          id="quickStart"
+          class="quick-start"
+          aria-label="Бързо начало"
+          hidden
+        >
+          <p>С какво започваме?</p>
+          <div>
+            <button
+              type="button"
+              data-starter="Подготви план за задачите ми днес. Първо ме попитай за приоритетите."
+            >
+              <i class="fa-regular fa-calendar-check" aria-hidden="true"></i
+              ><strong>Подреди деня</strong><span>План и ясни приоритети</span>
+            </button>
+            <button
+              type="button"
+              data-starter="Помогни ми да анализирам бизнес отчет. Ще ти изпратя данните; отбелязвай ясно липсващата информация."
+            >
+              <i class="fa-solid fa-chart-simple" aria-hidden="true"></i
+              ><strong>Анализирай отчет</strong
+              ><span>Числа, разлики и изводи</span>
+            </button>
+            <button
+              type="button"
+              data-starter="Помогни ми да напиша кратък професионален отговор. Първо ще ти дам съобщението и контекста. Не изпращай нищо."
+            >
+              <i class="fa-regular fa-pen-to-square" aria-hidden="true"></i
+              ><strong>Подготви отговор</strong
+              ><span>Кратко, ясно и в твой стил</span>
+            </button>
+          </div>
+        </section>
 
         <div id="attachmentPreview" class="attachment-preview" hidden>
           <img id="attachmentImage" alt="Избрана снимка" />
@@ -691,6 +758,7 @@
       </div>
     </dialog>
 
+    <script src="/workspace-refresh.js?v=20261121" defer></script>
     <script src="/markdown-renderer.js?v=20260728-xss"></script>
     <script src="/work-mode.js?v=20260802-specialized-agents-v1"></script>
     <script src="/code-workspace.js"></script>

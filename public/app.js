@@ -318,6 +318,8 @@ async function init() {
   elements.loginForm.addEventListener("submit", handleLogin);
   elements.registerForm.addEventListener("submit", handleRegistration);
   elements.showRegisterBtn.addEventListener("click", showRegisterForm);
+  const heroRegister = document.getElementById("heroRegisterBtn");
+  heroRegister?.addEventListener("click", showRegisterForm);
   elements.backToLoginBtn.addEventListener("click", showLoginForm);
 
   try {
@@ -329,6 +331,7 @@ async function init() {
     elements.registerInviteCode.disabled = state.registrationMode !== "invite";
     elements.registerInviteCode.required = state.registrationMode === "invite";
     elements.showRegisterBtn.hidden = !state.registrationEnabled;
+    if (heroRegister) heroRegister.hidden = !state.registrationEnabled;
     if (session.authenticated) {
       await startApplication(session.user);
       return;
@@ -337,10 +340,6 @@ async function init() {
     elements.appShell.hidden = true;
     if (state.registrationEnabled && isDirectRegistrationPage()) {
       showRegisterForm();
-      setAuthMessage(
-        "Създай профил с име, имейл, парола и код за ранен достъп.",
-        true,
-      );
       return;
     }
     if (!session.configured) {

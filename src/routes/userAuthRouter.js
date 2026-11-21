@@ -84,10 +84,12 @@ router.post("/register", async (req, res) => {
   try {
     const { campaign, ...registration } = req.body || {};
     const result = await registerUser(registration);
-    logCampaignEvent(
-      "campaign_registration",
-      readCampaignAttribution(campaign),
-    );
+    if (result.created) {
+      logCampaignEvent(
+        "campaign_registration",
+        readCampaignAttribution(campaign),
+      );
+    }
     if (result.session) {
       res.setHeader("Set-Cookie", userSessionCookie(result.session));
     }

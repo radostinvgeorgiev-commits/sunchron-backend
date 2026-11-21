@@ -297,6 +297,13 @@ export function routeSelectedWorkAgentCapabilities(requests, value, message) {
   );
   if (hasExplicitNoToolBoundary(message)) return [];
   if (isRuntimeAiIdentityRequest(message)) return nonCodeRequests;
+  if (
+    /^(?:добър ден|добро утро|добър вечер|здравей(?:те)?|здрасти|hi|hello)[.!?\s]*$/iu.test(
+      cleanText(message, 8000),
+    )
+  ) {
+    return nonCodeRequests;
+  }
   const codeReadRequests = safeRequests.filter(({ capability }) =>
     ["code.read", "code.task-status"].includes(capability),
   );

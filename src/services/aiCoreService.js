@@ -117,7 +117,7 @@ export async function requestOpenAIResponse({
     .replace(/[^A-Za-z0-9_-]/gu, "_")
     .slice(0, 64);
   const textOptions = {
-    verbosity,
+    ...(verbosity ? { verbosity } : {}),
     ...(outputSchema && typeof outputSchema === "object"
       ? {
           format: {
@@ -140,7 +140,7 @@ export async function requestOpenAIResponse({
       model,
       input,
       reasoning: { effort: reasoningEffort },
-      text: textOptions,
+      ...(Object.keys(textOptions).length ? { text: textOptions } : {}),
       store: false,
     }),
     signal,

@@ -8,6 +8,7 @@ import {
   requestClaudeResponse,
   requestOpenAIResponse,
 } from "./aiCoreService.js";
+import { isCodexAgentConfigured } from "./codexAgentService.js";
 
 const MAX_REQUEST_LENGTH = 6_000;
 const MAX_CONTEXT_LENGTH = 8_000;
@@ -43,6 +44,7 @@ const PROVIDER_LABELS = Object.freeze({
   gemini: "Gemini",
   grok: "Grok",
   claude: "Claude",
+  codex: "Codex",
 });
 
 export class AiCouncilError extends Error {
@@ -202,18 +204,21 @@ export async function runAiCouncil({
   geminiApiKey = process.env.GEMINI_API_KEY,
   grokApiKey = process.env.GROK_API_KEY,
   claudeApiKey = process.env.ANTHROPIC_API_KEY,
+  codexApiKey = isCodexAgentConfigured() ? process.env.OPENAI_API_KEY : undefined,
   selectedProviders = ["openai", "gemini", "grok"],
   advisorRequesters = {
     openai: requestOpenAIResponse,
     gemini: requestGeminiResponse,
     grok: requestGrokResponse,
     claude: requestClaudeResponse,
+    codex: requestOpenAIResponse,
   },
   arbiterRequester = requestOpenAIResponse,
   openAiModel = process.env.AI_CORE_COUNCIL_MODEL || DEFAULT_OPENAI_CHAT_MODEL,
   geminiModel = process.env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
   grokModel = process.env.GROK_MODEL || DEFAULT_GROK_CHAT_MODEL,
   claudeModel = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5",
+  codexModel = process.env.AI_CORE_COUNCIL_CODEX_MODEL || "gpt-5.3-codex",
   advisorTimeoutMs = Math.min(
     getAiProviderTimeoutMs(
       "openai",
@@ -250,11 +255,20 @@ export async function runAiCouncil({
     gemini: { provider: "gemini", apiKey: geminiApiKey, model: geminiModel },
     grok: { provider: "grok", apiKey: grokApiKey, model: grokModel },
     claude: { provider: "claude", apiKey: claudeApiKey, model: claudeModel },
+    codex: { provider: "codex", apiKey: codexApiKey, model: codexModel },
   };
-  if (!Array.isArray(selectedProviders) || selectedProviders.length === 0 ||
-      selectedProviders.length > 4 || new Set(selectedProviders).size !== selectedProviders.length ||
-      selectedProviders.some((id) => !Object.hasOwn(available, id))) {
-    throw new AiCouncilError("Невалиден избор на AI двигатели.", 400, "AI_COUNCIL_INVALID_PROVIDERS");
+  if (
+    !Array.isArray(selectedProviders) ||
+    !selectedProviders.length ||
+    selectedProviders.length > Object.keys(available).length ||
+    new Set(selectedProviders).size !== selectedProviders.length ||
+    selectedProviders.some((id) => !Object.hasOwn(available, id))
+  ) {
+    throw new AiCouncilError(
+      "Невалиден избор на AI двигатели.",
+      400,
+      "AI_COUNCIL_INVALID_PROVIDERS",
+    );
   }
   const providers = selectedProviders.map((id) => available[id]);
   const settled = await Promise.allSettled(
@@ -266,8 +280,8 @@ export async function runAiCouncil({
           apiKey,
           model,
           input,
-          verbosity: "low",
-          reasoningEffort: "medium",
+          verbosity: provider === "codex" ? null : "low",
+          reasoningEffort: provider === "codex" ? "low" : "medium",
         },
         advisorTimeoutMs,
         "AI_COUNCIL_ADVISOR_TIMEOUT",

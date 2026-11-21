@@ -1059,16 +1059,12 @@ router.post("/chat", async (req, res) => {
   const interactionMode = normalizeInteractionMode(mode);
   const cleanWorkContext =
     interactionMode === "work" ? sanitizeWorkContext(workContext) : null;
-  const aiProvider =
-    resolveWorkAgentProvider(cleanWorkContext?.agent?.model) ||
-    getConfiguredAiProvider();
+  const workAgentProvider = resolveWorkAgentProvider(
+    cleanWorkContext?.agent?.model,
+  );
+  const aiProvider = workAgentProvider || getConfiguredAiProvider();
   const aiProviderConfigured = Boolean(
     aiProvider && isAiProviderConfigured(aiProvider),
-  );
-  const aiTimeoutMs = getAiProviderTimeoutMs(
-    aiProvider,
-    process.env,
-    DEFAULT_AI_TIMEOUT_MS,
   );
 
   if (!cleanSessionId) {
@@ -1813,7 +1809,7 @@ router.post("/chat", async (req, res) => {
         message:
           error instanceof AiCouncilError
             ? error.message
-            : "Трите AI двигателя не успяха да завършат общия съвет.",
+            : "AI Council не успя да завърши обсъждането.",
       });
     }
     res.end();
@@ -2041,7 +2037,14 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
-  if (!aiProviderConfigured) {
+  const workFallbackProvider =
+    interactionMode === "work" && !workAgentProvider && !capabilityResults.length
+      ? ["gemini", "openai", "grok"].find(
+          (provider) =>
+            provider !== aiProvider && isAiProviderConfigured(provider),
+        )
+      : undefined;
+  if (!aiProviderConfigured && !workFallbackProvider) {
     if (capabilityReplies.length) {
       const fullReply = [...capabilityReplies, memoryReply]
         .filter(Boolean)
@@ -2122,20 +2125,45 @@ router.post("/chat", async (req, res) => {
     cleanup();
     if (!res.writableEnded) abortUpstream();
   });
+  const aiTimeoutMs = getAiProviderTimeoutMs(
+    aiProviderConfigured ? aiProvider : workFallbackProvider,
+    process.env,
+    DEFAULT_AI_TIMEOUT_MS,
+  );
   timeoutHandle = setTimeout(() => {
     timedOut = true;
     abortUpstream();
   }, aiTimeoutMs);
 
   try {
-    const aiResponse = await requestAiResponse({
-      provider: aiProvider,
+    const responseOptions = {
       input: messages,
-      model: resolveWorkAgentModel(cleanWorkContext?.agent?.model),
       signal: abortController.signal,
       reasoningEffort: "low",
       verbosity: "medium",
-    });
+    };
+    let aiResponse;
+    if (aiProviderConfigured) {
+      try {
+        aiResponse = await requestAiResponse({
+          ...responseOptions,
+          provider: aiProvider,
+          model: resolveWorkAgentModel(cleanWorkContext?.agent?.model),
+        });
+      } catch (error) {
+        if (!workFallbackProvider || abortController.signal.aborted) throw error;
+        logSafeError("[AI Core] Work primary provider failure", error);
+      }
+    }
+    if (!aiResponse) {
+      sendEvent("activity", {
+        message: "Работният чат използва резервен AI двигател.",
+      });
+      aiResponse = await requestAiResponse({
+        ...responseOptions,
+        provider: workFallbackProvider,
+      });
+    }
     const fullReply = isRuntimeAiIdentityRequest(cleanMessage)
       ? `Този отговор реално е обработен от ${aiResponse.provider} · ${aiResponse.model}.`
       : aiResponse.text;

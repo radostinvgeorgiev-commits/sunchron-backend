@@ -66,6 +66,24 @@
   white-space: nowrap;
 }
 
+.council-provider-picker:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  flex-shrink: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0.25rem 1rem;
+  border: 0;
+}
+
+.council-provider-picker label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 36px;
+}
+
 .council-mode-button:hover,
 .council-mode-button:focus-visible {
   border-color: #8aa99b;

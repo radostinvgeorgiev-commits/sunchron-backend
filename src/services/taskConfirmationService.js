@@ -121,10 +121,18 @@ export function extractTaskConfirmationId(message) {
   return match?.[1] || null;
 }
 
-export function formatTaskConfirmation(confirmation) {
+export function formatTaskConfirmation(confirmation, english = false) {
   const count = Array.isArray(confirmation?.items)
     ? confirmation.items.length
     : 0;
+  if (english) {
+    return [
+      `Prepared ${count} write operations. The task awaits confirmation.`,
+      `Confirmation: ${confirmation.confirmationId}.`,
+      `Expires: ${new Date(confirmation.expiresAt).toISOString()}.`,
+      `To proceed, send this exact command: Потвърждавам AI CORE задача: ${confirmation.confirmationId}`,
+    ].join("\n");
+  }
   return [
     `Подготвих ${count} точни записващи операции в една задача.`,
     "Нищо не е записано още.",

@@ -1,3 +1,16 @@
+const chatLocale = globalThis.AiCoreLocale;
+const chatText = (value, values) => chatLocale?.text(value, values) ?? value;
+const englishAuthErrors = {
+  AUTH_INVALID_EMAIL: "Enter a valid email address.",
+  AUTH_INVALID_NAME: "Enter a valid name.",
+  AUTH_INVALID_PASSWORD: "Enter a password between 8 and 128 characters.",
+  AUTH_INVALID_CREDENTIALS: "The email address or password is incorrect.",
+  AUTH_INVITE_INVALID: "Enter a valid early access code.",
+  AUTH_REGISTRATION_CLOSED: "Registration is currently closed.",
+  AUTH_EMAIL_NOT_VERIFIED: "Verify your email address before signing in.",
+  AUTH_SIGNUP_REJECTED: "The account could not be created. If you already have an account, sign in.",
+};
+
 const state = {
   sessionId: getOrCreateSessionId(),
   serverOnline: false,
@@ -145,16 +158,16 @@ function setCouncilMode(enabled) {
     String(state.councilMode),
   );
   elements.councilModeBtn.title = state.councilMode
-    ? "Следващото съобщение ще бъде изпратено до избраните AI двигатели"
-    : "Попитай избраните AI двигатели и сравни отговорите";
+    ? chatText("Следващото съобщение ще бъде изпратено до избраните AI двигатели")
+    : chatText("Попитай избраните AI двигатели и сравни отговорите");
 }
 
 function setAuthBusy(isBusy) {
   elements.loginBtn.disabled = isBusy;
   elements.registerBtn.disabled = isBusy;
   elements.authCard?.setAttribute("aria-busy", String(isBusy));
-  elements.loginBtn.textContent = isBusy ? "Влизане…" : "Влез";
-  elements.registerBtn.textContent = isBusy ? "Създаване…" : "Създай профил";
+  elements.loginBtn.textContent = isBusy ? chatText("Влизане…") : chatText("Влез");
+  elements.registerBtn.textContent = isBusy ? chatText("Създаване…") : chatText("Създай профил");
 }
 
 function replaceAuthPath(path) {
@@ -168,10 +181,10 @@ function showLoginForm(event) {
   elements.loginForm.hidden = false;
   elements.registerForm.hidden = true;
   elements.showRegisterBtn.hidden = !state.registrationEnabled;
-  elements.authTitle.textContent = "Вход в AI CORE";
+  elements.authTitle.textContent = chatText("Вход в AI CORE");
   elements.authIntro.textContent =
-    "Продължи към личното си работно пространство.";
-  document.title = "Вход · SYNCHRON-X";
+    chatText("Продължи към личното си работно пространство.");
+  document.title = chatText("Вход · SYNCHRON-X");
   replaceAuthPath("/");
   setAuthMessage();
   elements.loginEmail.focus();
@@ -183,10 +196,10 @@ function showRegisterForm(event) {
   elements.loginForm.hidden = true;
   elements.registerForm.hidden = false;
   elements.showRegisterBtn.hidden = true;
-  elements.authTitle.textContent = "Създай профил";
+  elements.authTitle.textContent = chatText("Създай профил");
   elements.authIntro.textContent =
-    "Създай личен профил с отделни разговори, проекти и контролирана памет.";
-  document.title = "Създай профил · SYNCHRON-X";
+    chatText("Създай личен профил с отделни разговори, проекти и контролирана памет.");
+  document.title = chatText("Създай профил · SYNCHRON-X");
   replaceAuthPath(REGISTRATION_PATH);
   setAuthMessage();
   elements.registerName.focus();
@@ -201,7 +214,7 @@ function isDirectRegistrationPage() {
 async function readAuthSession() {
   const response = await fetch("/api/auth/session", { cache: "no-store" });
   if (!response.ok) {
-    throw new Error("Входът временно не е достъпен.");
+    throw new Error(chatText("Входът временно не е достъпен."));
   }
   return response.json();
 }
@@ -216,14 +229,18 @@ async function submitAuth(path, body) {
   if (!response.ok) {
     const action = path.endsWith("/register") ? "Регистрацията" : "Входът";
     const error = new Error(
-      data?.error || `${action} не беше успешен (HTTP ${response.status}).`,
+      chatLocale && chatLocale.language !== "bg"
+        ? (Object.hasOwn(englishAuthErrors, data?.code)
+            ? englishAuthErrors[data.code]
+            : `${path.endsWith("/register") ? "Registration" : "Sign-in"} failed (HTTP ${response.status}).`)
+        : data?.error || `${action} не беше успешен (HTTP ${response.status}).`,
     );
     error.code = data?.code || "AUTH_REQUEST_FAILED";
     error.status = response.status;
     throw error;
   }
   if (!data) {
-    throw new Error(`Невалиден отговор от услугата (HTTP ${response.status}).`);
+    throw new Error(chatText("Невалиден отговор от услугата (HTTP {status}).", { status: response.status }));
   }
   return data;
 }
@@ -239,7 +256,7 @@ async function handleLogin(event) {
     });
     elements.loginPassword.value = "";
     const session = await readAuthSession();
-    if (!session.authenticated) throw new Error("Сесията не беше създадена.");
+    if (!session.authenticated) throw new Error(chatText("Сесията не беше създадена."));
     await startApplication(session.user);
   } catch (error) {
     setAuthMessage(error.message);
@@ -274,13 +291,13 @@ async function handleRegistration(event) {
       showLoginForm();
       elements.loginEmail.value = result.user?.email || "";
       setAuthMessage(
-        "Профилът е създаден. Потвърди имейла си и после влез.",
+        chatText("Профилът е създаден. Потвърди имейла си и после влез."),
         true,
       );
       return;
     }
     const session = await readAuthSession();
-    if (!session.authenticated) throw new Error("Сесията не беше създадена.");
+    if (!session.authenticated) throw new Error(chatText("Сесията не беше създадена."));
     await startApplication(session.user);
   } catch (error) {
     setAuthMessage(error.message);
@@ -300,14 +317,14 @@ async function handleLogout() {
 
 function applyAuthenticatedUser(user) {
   state.authenticatedUser = user;
-  const displayName = user?.displayName || "Потребител";
+  const displayName = user?.displayName || chatText("Потребител");
   const isOwner = user?.role === "owner";
   elements.profileName.textContent = displayName;
   elements.profileAvatar.textContent =
     displayName.trim().charAt(0).toLocaleUpperCase("bg-BG") || "П";
   elements.profileRole.textContent = isOwner
-    ? "Собственик · настройки"
-    : "Личен профил";
+    ? chatText("Собственик · настройки")
+    : chatText("Личен профил");
   document.body.dataset.userRole = isOwner ? "owner" : "member";
   for (const item of document.querySelectorAll("[data-owner-only]")) {
     item.hidden = !isOwner;
@@ -341,7 +358,7 @@ async function init() {
     }
     if (!session.configured) {
       setAuthMessage(
-        "Входът с потребителски профили още не е активиран. Собственикът може да влезе с GitHub.",
+        chatText("Входът с потребителски профили още не е активиран. Собственикът може да влезе с GitHub."),
       );
     }
   } catch (error) {
@@ -425,7 +442,7 @@ function updateSessionDisplay() {
 async function showWelcomeMessage() {
   const welcome = appendMessage(
     "agent",
-    "## С какво започваме?",
+    `## ${chatText("С какво започваме?")}`,
     null,
     { remember: false },
   );
@@ -440,7 +457,7 @@ async function restoreConversation() {
       "/memory/conversation/" + encodeURIComponent(sessionId),
       { cache: "no-store" },
     );
-    if (!response.ok) throw new Error("Историята не е достъпна.");
+    if (!response.ok) throw new Error(chatText("Историята не е достъпна."));
     const data = await response.json();
     if (state.sessionId !== sessionId) return;
     const items = Array.isArray(data.items) ? data.items : [];
@@ -494,7 +511,7 @@ async function loadConversations() {
     const response = await fetch("/memory/conversations", {
       cache: "no-store",
     });
-    if (!response.ok) throw new Error("Списъкът не е достъпен.");
+    if (!response.ok) throw new Error(chatText("Списъкът не е достъпен."));
     const data = await response.json();
     state.conversations = Array.isArray(data.items) ? data.items : [];
     state.conversationLoadError = "";
@@ -503,7 +520,7 @@ async function loadConversations() {
     console.error(error);
     state.conversations = [];
     state.conversationLoadError =
-      "Историята временно не е достъпна. Опитай отново.";
+      chatText("Историята временно не е достъпна. Опитай отново.");
     renderConversationList();
   }
 }
@@ -529,8 +546,8 @@ function renderConversationList() {
     const empty = document.createElement("p");
     empty.className = "conversation-state";
     empty.textContent = query
-      ? "Няма намерени разговори."
-      : "Все още няма запазени разговори.";
+      ? chatText("Няма намерени разговори.")
+      : chatText("Все още няма запазени разговори.");
     elements.conversationList.appendChild(empty);
     return;
   }
@@ -702,7 +719,7 @@ function prepareVoiceInput() {
   }
 
   const recognition = new SpeechRecognition();
-  recognition.lang = "bg-BG";
+  recognition.lang = chatLocale?.browserLocale || "bg-BG";
   recognition.continuous = false;
   recognition.interimResults = true;
 
@@ -713,7 +730,7 @@ function prepareVoiceInput() {
     if (event.error !== "aborted" && event.error !== "no-speech") {
       appendMessage(
         "agent",
-        "Гласовото въвеждане не можа да стартира. Провери достъпа до микрофона.",
+        chatText("Гласовото въвеждане не можа да стартира. Провери достъпа до микрофона."),
       );
     }
   };
@@ -739,8 +756,8 @@ function setListening(isListening) {
   elements.voiceBtn.classList.toggle("listening", isListening);
   elements.voiceBtn.setAttribute("aria-pressed", String(isListening));
   elements.voiceBtn.title = isListening
-    ? "Спри слушането"
-    : "Гласово въвеждане";
+    ? chatText("Спри слушането")
+    : chatText("Гласово въвеждане");
 }
 
 function toggleVoiceInput() {
@@ -1130,6 +1147,10 @@ function renderDrawerLoading() {
 
 function renderDrawerError(message) {
   elements.dataDrawerBody.innerHTML = `<div class="drawer-state drawer-error">${escapeHtml(message)}</div>`;
+}
+
+function localizedMarkup(value) {
+  return escapeHtml(chatText(value)).replace(/"/gu, "&quot;");
 }
 
 function escapeHtml(value) {
@@ -1692,7 +1713,7 @@ function showTypingIndicator() {
         <span class="thinking-avatar" aria-hidden="true">
             <i class="fa-solid fa-atom"></i>
         </span>
-        <span class="thinking-label">Приемам задачата…</span>
+        <span class="thinking-label">${localizedMarkup("Приемам задачата…")}</span>
         <span class="thinking-dots" aria-hidden="true">
             <span></span><span></span><span></span>
         </span>
@@ -1749,19 +1770,19 @@ function createAssistantTurn(text = "", showActions = true) {
   actions.innerHTML = `
         <button type="button" data-action="execute-council" class="council-execute-action" hidden>
             <i class="fa-solid fa-play"></i>
-            <span class="action-label">Изпълни препоръката</span>
+            <span class="action-label">${localizedMarkup("Изпълни препоръката")}</span>
         </button>
-        <button type="button" data-action="copy" title="Копирай" aria-label="Копирай">
+        <button type="button" data-action="copy" title="${localizedMarkup("Копирай")}" aria-label="${localizedMarkup("Копирай")}">
             <i class="fa-regular fa-copy"></i>
-            <span class="action-label">Копирай</span>
+            <span class="action-label">${localizedMarkup("Копирай")}</span>
         </button>
-        <button type="button" data-action="speak" title="Прочети на глас" aria-label="Прочети на глас">
+        <button type="button" data-action="speak" title="${localizedMarkup("Прочети на глас")}" aria-label="${localizedMarkup("Прочети на глас")}">
             <i class="fa-solid fa-volume-high"></i>
         </button>
-        <button type="button" data-action="like" title="Добър отговор" aria-label="Добър отговор">
+        <button type="button" data-action="like" title="${localizedMarkup("Добър отговор")}" aria-label="${localizedMarkup("Добър отговор")}">
             <i class="fa-regular fa-thumbs-up"></i>
         </button>
-        <button type="button" data-action="dislike" title="Лош отговор" aria-label="Лош отговор">
+        <button type="button" data-action="dislike" title="${localizedMarkup("Лош отговор")}" aria-label="${localizedMarkup("Лош отговор")}">
             <i class="fa-regular fa-thumbs-down"></i>
         </button>
     `;
@@ -1909,12 +1930,12 @@ function showNextStep(message, replyText, result) {
   card.setAttribute("aria-label", "Следваща стъпка");
 
   const label = document.createElement("strong");
-  label.textContent = "Следва";
+  label.textContent = chatText("Следва");
   const step = document.createElement("p");
   step.textContent = next.step;
   const openButton = document.createElement("button");
   openButton.type = "button";
-  openButton.textContent = "Отвори в Дневника";
+  openButton.textContent = chatText("Отвори в Дневника");
   openButton.addEventListener("click", () => {
     globalThis.SynchronTaskJournal?.openCurrentNext();
   });
@@ -2091,7 +2112,7 @@ function renderTaskRuns(items) {
   elements.taskRunList.replaceChildren();
   if (!Array.isArray(items) || !items.length) {
     const empty = document.createElement("li");
-    empty.textContent = "Няма запазени изпълнения.";
+    empty.textContent = chatText("Няма запазени изпълнения.");
     elements.taskRunList.appendChild(empty);
     return;
   }
@@ -2100,7 +2121,7 @@ function renderTaskRuns(items) {
     const item = document.createElement("li");
     item.className = "task-run-item";
     const title = document.createElement("strong");
-    title.textContent = run.title || "AI задача";
+    title.textContent = run.title || chatText("AI задача");
     const status = document.createElement("small");
     status.textContent = `${taskRunStatusLabel(run.status)} · ${run.id}`;
     item.append(title, status);
@@ -2391,7 +2412,7 @@ function speakText(text, button) {
   state.speakingButton?.classList.remove("active");
 
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "bg-BG";
+  utterance.lang = chatLocale?.browserLocale || "bg-BG";
   utterance.rate = 1;
   button.classList.add("active");
   state.speakingButton = button;
@@ -2472,6 +2493,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
       body: JSON.stringify({
         sessionId: sentSessionId,
         message: messageText,
+        language: chatLocale?.language,
         image,
         council: councilMode,
         ...(councilMode ? { councilProviders } : {}),
@@ -2495,7 +2517,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
 
     const contentType = response.headers.get("content-type") || "";
     if (!contentType.includes("text/event-stream")) {
-      throw new Error("Сървърът върна неочакван формат.");
+      throw new Error(chatText("Сървърът върна неочакван формат."));
     }
 
     const assistantTurn = createAssistantTurn("", false);
@@ -2603,7 +2625,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
     }
 
     if (!completed || !fullText.trim()) {
-      throw new Error("AI отговорът приключи неочаквано.");
+      throw new Error(chatText("AI отговорът приключи неочаквано."));
     }
 
     rememberConversationMessage("assistant", fullText);
@@ -2613,7 +2635,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
   } catch (error) {
     console.error(error);
     globalThis.SynchronWorkMode?.onError();
-    const message = `❌ ${error?.message || "Сървърна грешка. Опитай отново."}`;
+    const message = `❌ ${error?.message || chatText("Сървърна грешка. Опитай отново.")}`;
 
     if (responseBubble) {
       responseBubble.textContent = message;
@@ -2674,9 +2696,9 @@ function appendMessage(role, text, image = null, options = {}) {
   const actions = document.createElement("div");
   actions.className = "message-actions user-actions";
   actions.innerHTML = `
-        <button type="button" data-action="copy" title="Копирай" aria-label="Копирай">
+        <button type="button" data-action="copy" title="${localizedMarkup("Копирай")}" aria-label="${localizedMarkup("Копирай")}">
             <i class="fa-regular fa-copy"></i>
-            <span class="action-label">Копирай</span>
+            <span class="action-label">${localizedMarkup("Копирай")}</span>
         </button>
     `;
 
@@ -2729,14 +2751,14 @@ function setServerStatus(isOnline) {
   state.serverOnline = isOnline;
   elements.agentStatusDot.className = isOnline ? "online" : "offline";
   elements.agentStatusText.textContent = isOnline
-    ? "Сървър онлайн"
-    : "Сървър офлайн";
-  elements.serverStatusDisplay.textContent = isOnline ? "Онлайн" : "Офлайн";
+    ? chatText("Сървър онлайн")
+    : chatText("Сървър офлайн");
+  elements.serverStatusDisplay.textContent = isOnline ? chatText("Онлайн") : chatText("Офлайн");
   elements.serverStatusDisplay.className = `context-value ${isOnline ? "status-green" : "status-red"}`;
 }
 
 function logAction(actionName) {
-  const time = new Date().toLocaleTimeString("bg-BG", {
+  const time = new Date().toLocaleTimeString(chatLocale?.browserLocale || "bg-BG", {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -2750,7 +2772,7 @@ function renderActionsLog() {
 
   if (state.lastActions.length === 0) {
     const item = document.createElement("li");
-    item.textContent = "Няма скорошни действия";
+    item.textContent = chatText("Няма скорошни действия");
     elements.actionsLog.appendChild(item);
     return;
   }
@@ -2762,4 +2784,7 @@ function renderActionsLog() {
   }
 }
 
-window.addEventListener("load", init);
+window.addEventListener("load", async () => {
+  await chatLocale?.ready;
+  await init();
+});

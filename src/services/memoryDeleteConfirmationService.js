@@ -148,20 +148,30 @@ export function extractMemoryDeleteConfirmationId(message) {
   return match?.[1] || null;
 }
 
-export function formatMemoryDeletePreparation(prepared) {
+export function formatMemoryDeletePreparation(prepared, english = false) {
   const target = prepared.target;
   const description =
     target.kind === "fact"
-      ? `Точен факт: ${target.fact}`
+      ? `${english ? "Exact fact" : "Точен факт"}: ${target.fact}`
       : target.kind === "id"
-        ? "Точно избраният запис."
+        ? english
+          ? "The selected entry."
+          : "Точно избраният запис."
         : target.scope
-          ? `Всички записи в обхват „${target.scope}“.`
-          : "Цялата постоянна профилна памет.";
+          ? english
+            ? `All entries in “${target.scope}”.`
+            : `Всички записи в обхват „${target.scope}“.`
+          : english
+            ? "All persistent profile memory."
+            : "Цялата постоянна профилна памет.";
   return [
-    "Подготвих изтриването, но още не съм изтрил нищо.",
+    english
+      ? "The deletion is prepared and awaits confirmation."
+      : "Подготвих изтриването, но още не съм изтрил нищо.",
     description,
-    "За изтриване изпрати точно:",
+    english
+      ? "To delete, send the following command exactly:"
+      : "За изтриване изпрати точно:",
     `${MEMORY_DELETE_CONFIRM_PREFIX} ${prepared.confirmationId}`,
   ].join("\n");
 }

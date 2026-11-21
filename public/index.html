@@ -45,6 +45,9 @@
     />
     <script src="https://cdn.jsdelivr.net/npm/marked@18.0.7/lib/marked.umd.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.12/dist/purify.min.js"></script>
+    <link rel="stylesheet" href="/locale.css" />
+    <script src="/locale-en.js"></script>
+    <script src="/locale.js"></script>
   </head>
   <body>
     <section class="auth-gate" id="authGate" aria-labelledby="publicTitle">
@@ -59,6 +62,7 @@
             <a href="/help">Помощ</a>
             <a href="/developers">За разработчици</a>
           </nav>
+          <div data-language-switch></div>
         </header>
 
         <div class="auth-story">
@@ -67,8 +71,9 @@
             Твоето работно<br class="hero-break" /> пространство <em>с AI.</em>
           </h1>
           <p class="auth-lead">
-            Сравнявай отговори от AI модели, пази контекста на проектите си и
-            одобрявай действията от едно място.
+            AI CORE ти помага да анализираш информация, да подготвяш текстове и
+            да планираш задачи. Сравнявай отговори от различни AI модели
+            и продължавай оттам, където си спрял, с паметта на проекта.
           </p>
           <p class="auth-stage">Започни с 10 AI единици. Без банкова карта.</p>
         </div>
@@ -333,6 +338,7 @@
           <div class="model-title">
             <strong>AI CORE</strong>
           </div>
+          <div data-language-switch></div>
           <details class="chat-options" id="chatOptions">
             <summary aria-label="Действия за разговора" title="Действия за разговора">
               <i class="fa-solid fa-ellipsis" aria-hidden="true"></i>

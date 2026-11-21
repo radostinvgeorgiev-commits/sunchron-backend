@@ -1813,6 +1813,7 @@ function showAiResponseSource(message, provider, model, linkedProjectContext) {
         ? "Работа без активен проект"
         : "";
   source.textContent = [cleanProvider, cleanModel, context].filter(Boolean).join(" · ");
+  source.setAttribute("aria-label", "AI доставчик и модел");
 
   const actions = turn.querySelector(".message-actions");
   turn.insertBefore(source, actions || null);

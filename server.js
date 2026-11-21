@@ -12,6 +12,10 @@ import {
 import { startMemoryStartupVerification } from "./src/services/memoryStartupVerificationService.js";
 import { executeCapability } from "./src/tools/capabilityEngine.js";
 import { getAiProviderStatus } from "./src/services/aiCoreService.js";
+import {
+  logCampaignEvent,
+  readCampaignAttribution,
+} from "./src/services/campaignAttribution.js";
 
 import chatRouter from "./src/routes/chat.js";
 import healthRouter from "./src/routes/health.js";
@@ -234,7 +238,10 @@ app.get("/", (_req, res) => {
   res.sendFile("public/index.html", { root: process.cwd() });
 });
 
-app.get("/plans", (_req, res) => {
+app.get("/plans", (req, res) => {
+  if (req.method === "GET" && !req.query.request) {
+    logCampaignEvent("campaign_landing", readCampaignAttribution(req.query));
+  }
   res.sendFile("public/plans.html", { root: process.cwd() });
 });
 

@@ -125,6 +125,45 @@ export async function getRepositorySummary(
   };
 }
 
+export async function getCodeWorkspaceBase(repository, readOptions) {
+  assertAllowedRepository(repository);
+  const base = await githubRequest(
+    `/repos/${repository}/git/ref/heads/main`,
+    {},
+    readOptions,
+  );
+  if (!/^[a-f0-9]{40}$/u.test(base.object?.sha || "")) {
+    throw new GitHubServiceError("GitHub не върна валиден SHA на main.", 502, "GITHUB_BASE_SHA_MISSING");
+  }
+  return base.object.sha;
+}
+
+export async function getCodeWorkspaceTree(repository, baseSha, readOptions) {
+  assertAllowedRepository(repository);
+  const data = await githubRequest(
+    `/repos/${repository}/git/trees/${encodeURIComponent(baseSha)}?recursive=1`,
+    {},
+    readOptions,
+  );
+  if (data.truncated || !Array.isArray(data.tree)) {
+    throw new GitHubServiceError("GitHub не върна пълния списък с файлове.", 422, "GITHUB_TREE_INCOMPLETE");
+  }
+  return data.tree;
+}
+
+export async function getCodeWorkspaceChecks(sha, repository, readOptions) {
+  assertAllowedRepository(repository);
+  if (!/^[a-f0-9]{40}$/u.test(sha)) {
+    throw new GitHubServiceError("Невалиден SHA за проверките.", 400, "INVALID_COMMIT");
+  }
+  const data = await githubRequest(
+    `/repos/${repository}/commits/${sha}/check-runs?filter=latest&per_page=50`,
+    {},
+    readOptions,
+  );
+  return (data.check_runs || []).map(({ name, status, conclusion }) => ({ name, status, conclusion }));
+}
+
 export async function listRecentCommits(
   repository = configuredRepository(),
   limit = 5,

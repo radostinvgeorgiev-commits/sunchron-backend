@@ -4,6 +4,7 @@ import {
   getUserAuthConfigurationStatus,
   getUserAuthProvider,
   isUserRegistrationEnabled,
+  isPublicRegistration,
   isUserAuthConfigured,
   registerUser,
   signInUser,
@@ -47,6 +48,7 @@ router.get("/session", async (req, res) => {
       configured: isUserAuthConfigured(),
       configuration: getUserAuthConfigurationStatus(),
       registrationEnabled: isUserRegistrationEnabled(),
+      registrationMode: isPublicRegistration() ? "public" : "invite",
       authProvider: getUserAuthProvider(),
       authenticated: Boolean(identity),
       user: identity

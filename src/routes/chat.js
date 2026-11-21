@@ -1,3 +1,4 @@
+import { getProductPlansService } from "../services/productPlansService.js";
 import express from "express";
 import {
   buildMemoryContext,
@@ -1139,6 +1140,35 @@ router.post("/chat", async (req, res) => {
       error: `Съобщението трябва да е до ${MAX_CHAT_MESSAGE_LENGTH} знака.`,
       code: "CHAT_MESSAGE_TOO_LONG",
     });
+  }
+  if (!ownerToolsAllowed) {
+    // Reserve the worst-case cost, including implicit Council and fallback calls.
+    if (image || councilIntentId)
+      return res
+        .status(403)
+        .json({
+          error: "Това действие е достъпно само за собственика.",
+          code: "OWNER_ONLY",
+        });
+    try {
+      const usage = await getProductPlansService().usage(req.owner);
+      if (usage.remaining < (councilRequested ? 18 : 3))
+        return res
+          .status(402)
+          .json({
+            error: "Нямаш достатъчно AI единици за тази задача. Виж плановете.",
+            code: "AI_CREDITS_EXHAUSTED",
+          });
+    } catch (error) {
+      return res
+        .status(error.status || 503)
+        .json({
+          error: error.code?.startsWith("AI_")
+            ? error.message
+            : "Потреблението временно не е достъпно. Опитай по-късно.",
+          code: error.code || "USAGE_UNAVAILABLE",
+        });
+    }
   }
   console.log(`[POST /chat] sessionId: ${cleanSessionId}`);
 

@@ -1,3 +1,4 @@
+import { publicAiOutputLimit, reservePublicAiCall } from "./publicAiBudget.js";
 import {
   isVertexAiConfigured,
   requestVertexAiGeminiResponse,
@@ -135,6 +136,7 @@ export async function requestOpenAIResponse({
       : {}),
   };
 
+  await reservePublicAiCall(input, "openai", model);
   const response = await fetchImpl(responsesUrl, {
     method: "POST",
     headers: {
@@ -147,6 +149,9 @@ export async function requestOpenAIResponse({
       reasoning: { effort: reasoningEffort },
       ...(Object.keys(textOptions).length ? { text: textOptions } : {}),
       store: false,
+      ...(publicAiOutputLimit()
+        ? { max_output_tokens: publicAiOutputLimit() }
+        : {}),
     }),
     signal,
   });
@@ -206,6 +211,7 @@ export async function requestGeminiResponse({
       parts: [{ text: item.content }],
     }));
   const baseUrl = String(apiUrl).replace(/\/+$/u, "");
+  await reservePublicAiCall(input, "gemini", model);
   const response = await fetchImpl(
     `${baseUrl}/models/${encodeURIComponent(model)}:generateContent`,
     {
@@ -223,8 +229,15 @@ export async function requestGeminiResponse({
             }
           : {}),
         contents,
-        ...(jsonMode
-          ? { generationConfig: { responseMimeType: "application/json" } }
+        ...(jsonMode || publicAiOutputLimit()
+          ? {
+              generationConfig: {
+                ...(jsonMode ? { responseMimeType: "application/json" } : {}),
+                ...(publicAiOutputLimit()
+                  ? { maxOutputTokens: publicAiOutputLimit() }
+                  : {}),
+              },
+            }
           : {}),
       }),
       signal,
@@ -275,6 +288,7 @@ export async function requestGrokResponse({
     );
   }
 
+  await reservePublicAiCall(input, "grok", model);
   const response = await fetchImpl(apiUrl, {
     method: "POST",
     headers: {
@@ -285,6 +299,7 @@ export async function requestGrokResponse({
       model,
       messages: normalizeChatMessages(input),
       stream: false,
+      ...(publicAiOutputLimit() ? { max_tokens: publicAiOutputLimit() } : {}),
       ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
     }),
     signal,
@@ -337,6 +352,7 @@ export async function requestClaudeResponse({
     role: role === "assistant" ? "assistant" : "user",
     content: typeof content === "string" ? content : String(content ?? ""),
   }));
+  await reservePublicAiCall(input, "claude", model);
   const response = await fetchImpl(apiUrl, {
     method: "POST",
     headers: {
@@ -344,7 +360,11 @@ export async function requestClaudeResponse({
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
     },
-    body: JSON.stringify({ model, max_tokens: maxTokens, messages }),
+    body: JSON.stringify({
+      model,
+      max_tokens: publicAiOutputLimit() || maxTokens,
+      messages,
+    }),
     signal,
   });
   if (!response.ok) {
@@ -466,6 +486,13 @@ export async function requestAiResponse({ provider, ...options } = {}) {
       503,
     );
   }
+
+  if (publicAiOutputLimit() && selectedProvider === "vertex-gemini")
+    throw new AiCoreError(
+      "Този двигател не е включен в потребителските планове.",
+      "PUBLIC_PROVIDER_UNAVAILABLE",
+      403,
+    );
 
   switch (selectedProvider) {
     case "openai":

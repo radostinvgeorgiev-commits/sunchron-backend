@@ -1,4 +1,9 @@
+import { publicAiBudgetContext } from "./src/services/publicAiBudget.js";
 import express from "express";
+import {
+  createProductRouter,
+  productWebhook,
+} from "./src/routes/productRouter.js";
 import { createOpenSearchClient } from "./src/config/opensearch.js";
 import { isOpenSearchMemoryConfigured } from "./src/config/memoryBackend.js";
 import {
@@ -91,7 +96,13 @@ app.use((_req, res, next) => {
   res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
   next();
 });
+app.post(
+  "/api/product/webhook",
+  express.raw({ type: "application/json", limit: "128kb" }),
+  productWebhook,
+);
 app.use(express.json({ limit: "8mb" }));
+app.use("/api/product", createProductRouter());
 
 const mobileLayoutAssetVersion = "20260806-green-chat-v1";
 const versionedApplicationAssets = Object.freeze({
@@ -155,7 +166,13 @@ app.use(
 app.use("/api/github", oauthRateLimiter, githubOAuthRouter);
 app.use("/mcp", mcpJsonParseErrorHandler, privateApiRateLimiter, mcpRouter);
 
-app.use("/chat", requireOwnerSession, paidAiRateLimiter, chatRouter);
+app.use(
+  "/chat",
+  requireOwnerSession,
+  paidAiRateLimiter,
+  publicAiBudgetContext,
+  chatRouter,
+);
 app.use(
   "/api/code-workspace",
   requireOwnerSession,
@@ -238,6 +255,12 @@ app.get("/", (_req, res) => {
   res.sendFile("public/index.html", { root: process.cwd() });
 });
 
+app.get("/developers", (_req, res) =>
+  res.sendFile("public/developers.html", { root: process.cwd() }),
+);
+app.get("/help", (_req, res) =>
+  res.sendFile("public/help.html", { root: process.cwd() }),
+);
 app.get("/plans", (req, res) => {
   if (req.method === "GET" && !req.query.request) {
     logCampaignEvent("campaign_landing", readCampaignAttribution(req.query));

@@ -18,6 +18,7 @@ const state = {
   listening: false,
   authenticatedUser: null,
   registrationEnabled: false,
+  registrationMode: "public",
   applicationStarted: false,
 };
 
@@ -184,7 +185,7 @@ function showRegisterForm(event) {
   elements.showRegisterBtn.hidden = true;
   elements.authTitle.textContent = "Създай профил";
   elements.authIntro.textContent =
-    "Всеки одобрен профил има отделни разговори, проекти и контролирана памет.";
+    "Създай личен профил с отделни разговори, проекти и контролирана памет.";
   document.title = "Създай профил · SYNCHRON-X";
   replaceAuthPath(REGISTRATION_PATH);
   setAuthMessage();
@@ -322,6 +323,11 @@ async function init() {
   try {
     const session = await readAuthSession();
     state.registrationEnabled = Boolean(session.registrationEnabled);
+    state.registrationMode = session.registrationMode || "invite";
+    document.getElementById("inviteFields").hidden =
+      state.registrationMode !== "invite";
+    elements.registerInviteCode.disabled = state.registrationMode !== "invite";
+    elements.registerInviteCode.required = state.registrationMode === "invite";
     elements.showRegisterBtn.hidden = !state.registrationEnabled;
     if (session.authenticated) {
       await startApplication(session.user);

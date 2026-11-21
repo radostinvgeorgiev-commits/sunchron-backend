@@ -31,7 +31,11 @@ function timeoutMs(env) {
 }
 
 function requiresEmailVerification(env) {
-  return env.IDENTITY_PLATFORM_REQUIRE_EMAIL_VERIFICATION !== "false";
+  return (
+    env.USER_REGISTRATION_MODE === "public" ||
+    (env.NODE_ENV === "production" && !env.USER_REGISTRATION_MODE) ||
+    env.IDENTITY_PLATFORM_REQUIRE_EMAIL_VERIFICATION !== "false"
+  );
 }
 
 function normalizeUser(payload = {}) {

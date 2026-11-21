@@ -74,5 +74,5 @@ test("admin list escapes saved text and is private on the real server", async ()
   await request(app)
     .get("/plans")
     .expect(200)
-    .expect(/Заяви ранен достъп/u);
+    .expect(/Въпрос за услугата/u);
 });

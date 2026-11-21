@@ -14,6 +14,10 @@ function response(payload, status = 200) {
   };
 }
 
+const inspectHealthyStorage = async () => ({
+  checks: { firestore: { status: "healthy", readOnlyCheck: true } },
+});
+
 test("project diagnostics checks public runtime, MCP, Cloud Run and trigger without secrets", async () => {
   const requests = [];
   const fetchImpl = async (url, options = {}) => {
@@ -40,14 +44,30 @@ test("project diagnostics checks public runtime, MCP, Cloud Run and trigger with
         },
       });
     }
-    if (url.includes("run.googleapis.com")) {
+    if (new URL(url).hostname === "run.googleapis.com") {
       return response({
         name: "projects/project-1/locations/europe-west1/services/synchron-backend-google",
         latestReadyRevision:
           "projects/project-1/locations/europe-west1/services/synchron-backend-google/revisions/synchron-backend-google-00055-85g",
         latestCreatedRevision:
           "projects/project-1/locations/europe-west1/services/synchron-backend-google/revisions/synchron-backend-google-00056-abc",
-        template: { containers: [{ image: "image@sha256:redacted" }] },
+        template: {
+          containers: [
+            {
+              image: "image@sha256:redacted",
+              env: [
+                {
+                  valueSource: {
+                    secretKeyRef: {
+                      secret: "projects/123456789/secrets/private-name",
+                      version: "latest",
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        },
         annotations: { "synchron-x/app-commit-sha": "commit-1" },
       });
     }
@@ -76,6 +96,36 @@ test("project diagnostics checks public runtime, MCP, Cloud Run and trigger with
         serviceAccount: "ai-core-admin@project-1.iam.gserviceaccount.com",
       });
     }
+    if (url.includes("cloudresourcemanager.googleapis.com")) {
+      return response({ name: "projects/123456789", state: "ACTIVE" });
+    }
+    if (url.includes("monitoring.googleapis.com")) {
+      const query = new URL(url).searchParams;
+      assert.match(query.get("filter"), /run.googleapis.com\/request_count/u);
+      assert.match(query.get("filter"), /synchron-backend-google/u);
+      assert.equal(query.get("interval.startTime"), "2026-08-22T23:30:00.000Z");
+      assert.equal(query.get("view"), "HEADERS");
+      return response({ timeSeries: [{ private: "unreported-raw-metric" }] });
+    }
+    if (url.includes("logging.googleapis.com")) {
+      assert.equal(options.method, "POST");
+      const body = JSON.parse(options.body);
+      assert.deepEqual(body.resourceNames, ["projects/project-1"]);
+      assert.equal(body.pageSize, 1);
+      assert.match(body.filter, /severity >= ERROR/u);
+      return response({ entries: [{ textPayload: "unreported-raw-log" }] });
+    }
+    if (url.includes("secretmanager.googleapis.com")) {
+      assert.equal(options.method, "GET");
+      assert.equal(
+        url,
+        "https://secretmanager.googleapis.com/v1/projects/project-1/secrets/private-name/versions/latest",
+      );
+      return response({
+        state: "ENABLED",
+        payload: { data: "unreported-raw-secret" },
+      });
+    }
     throw new Error(`Unexpected URL: ${url}`);
   };
 
@@ -90,6 +140,7 @@ test("project diagnostics checks public runtime, MCP, Cloud Run and trigger with
     },
     fetchImpl,
     accessTokenProvider: async () => "secret-token-must-not-appear",
+    inspectStorage: inspectHealthyStorage,
     now: () => "2026-08-23T00:00:00.000Z",
   });
 
@@ -109,8 +160,14 @@ test("project diagnostics checks public runtime, MCP, Cloud Run and trigger with
   assert.equal(report.checks.cloudBuildTrigger.branch, "^main$");
   assert.equal(report.checks.cloudBuildLatest.build.id, "build-newer");
   assert.equal(report.checks.cloudBuildLatest.build.status, "SUCCESS");
+  assert.equal(report.checks.firestore.status, "pass");
+  assert.equal(report.checks.cloudProject.status, "pass");
+  assert.equal(report.checks.monitoring.samplePresent, true);
+  assert.equal(report.checks.logging.recentErrorFound, true);
+  assert.equal(report.checks.secretManager.enabledVersions, 1);
   assert.equal(
-    requests.find(({ url }) => url.includes("run.googleapis.com"))?.url,
+    requests.find(({ url }) => new URL(url).hostname === "run.googleapis.com")
+      ?.url,
     "https://run.googleapis.com/v2/projects/project-1/locations/europe-west1/services/synchron-backend-google",
   );
   const cloudBuildListUrl = requests.find(({ url }) =>
@@ -127,6 +184,7 @@ test("project diagnostics checks public runtime, MCP, Cloud Run and trigger with
     false,
   );
   assert.equal(JSON.stringify(report).includes("secret-token"), false);
+  assert.doesNotMatch(JSON.stringify(report), /unreported-raw|private-name/u);
 });
 
 test("project diagnostics is partial and safe when Cloud identity is unavailable", async () => {
@@ -142,6 +200,7 @@ test("project diagnostics is partial and safe when Cloud identity is unavailable
   const report = await getProjectDiagnostics({
     env: { GOOGLE_CLOUD_PROJECT: "project-1" },
     fetchImpl,
+    inspectStorage: inspectHealthyStorage,
     accessTokenProvider: async () => {
       const error = new Error("no identity");
       error.code = "GOOGLE_CLOUD_TOKEN_UNAVAILABLE";
@@ -155,4 +214,74 @@ test("project diagnostics is partial and safe when Cloud identity is unavailable
     "GOOGLE_CLOUD_TOKEN_UNAVAILABLE",
   );
   assert.equal(report.safety.arbitraryCommands, false);
+});
+
+test("diagnostics reports disabled APIs, missing access, and blocked secret references safely", async () => {
+  const fetchedSecrets = [];
+  const report = await getProjectDiagnostics({
+    env: { GOOGLE_CLOUD_PROJECT: "project-1" },
+    accessTokenProvider: async () => "test-token",
+    inspectStorage: async () => ({
+      checks: { firestore: { status: "unavailable" } },
+    }),
+    fetchImpl: async (url) => {
+      if (url.endsWith("/mcp"))
+        return response({ result: { tools: [{ name: "safe_tool" }] } });
+      if (url.startsWith("https://cloudaicore.com/"))
+        return response({ status: "ok" });
+      if (url.startsWith("https://monitoring.googleapis.com/")) {
+        return response(
+          { error: { details: [{ reason: "SERVICE_DISABLED" }] } },
+          403,
+        );
+      }
+      if (url.startsWith("https://logging.googleapis.com/")) {
+        return response({ error: { message: "unreported-iam-error" } }, 403);
+      }
+      if (url.startsWith("https://run.googleapis.com/")) {
+        return response({
+          template: {
+            containers: [
+              {
+                env: [
+                  {
+                    valueSource: {
+                      secretKeyRef: {
+                        secret: "projects/other-project/secrets/external",
+                        version: "latest",
+                      },
+                    },
+                  },
+                  {
+                    valueSource: {
+                      secretKeyRef: { secret: "local", version: "1" },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
+      if (url.startsWith("https://secretmanager.googleapis.com/")) {
+        fetchedSecrets.push(url);
+        return response({ state: "DISABLED" });
+      }
+      return response({});
+    },
+  });
+
+  assert.equal(report.status, "partial");
+  assert.equal(report.checks.firestore.status, "fail");
+  assert.equal(report.checks.monitoring.errorCode, "GOOGLE_CLOUD_API_DISABLED");
+  assert.equal(
+    report.checks.logging.errorCode,
+    "GOOGLE_CLOUD_PERMISSION_DENIED",
+  );
+  assert.equal(report.checks.secretManager.failedVersions, 1);
+  assert.equal(report.checks.secretManager.unverifiedVersions, 1);
+  assert.deepEqual(fetchedSecrets, [
+    "https://secretmanager.googleapis.com/v1/projects/project-1/secrets/local/versions/1",
+  ]);
+  assert.doesNotMatch(JSON.stringify(report), /unreported-iam-error/u);
 });

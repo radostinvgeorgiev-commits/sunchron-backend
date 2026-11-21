@@ -531,10 +531,10 @@ export function detectCapabilityRequests(message) {
         subtask,
       );
     const projectDiagnosticsRequest =
-      /(?:health|readiness|готовност|диагност|cloud\s*build|build\s+trigger|mcp\s+(?:каталог|инструмент)|състояни(?:ето|е)\s+на\s+(?:проекта|сървъра|сайта|бекенда)|(?:бекенд|backend).{0,30}(?:състояни|health|status|провери|покажи|check))/iu.test(
+      /(?:health|readiness|готовност|диагност|diagnostics|cloud\s*(?:build|monitoring|logging|resource\s+manager)|secret\s+manager|build\s+trigger|mcp\s+(?:каталог|инструмент)|състояни(?:ето|е)\s+на\s+(?:проекта|сървъра|сайта|бекенда)|(?:бекенд|backend).{0,30}(?:състояни|health|status|провери|покажи|check))/iu.test(
         subtask,
       ) &&
-      /(?:провери|покажи|статус|състояние|работи|готов|диагност|check|status|health|readiness|build|trigger|бекенд|backend)/iu.test(
+      /(?:провери|покажи|статус|състояние|работи|готов|диагност|diagnostics|check|status|health|readiness|build|trigger|бекенд|backend)/iu.test(
         subtask,
       );
     const cloudBuildRunRequest =
@@ -545,7 +545,7 @@ export function detectCapabilityRequests(message) {
       /(?:cloud\s*build|build\s*trigger|cloud\s*run|google\s*cloud|гуг[ъал]+\s*(?:клауд|конзол))/iu.test(
         subtask,
       ) &&
-      !/(?:покажи|провери|статус|състояни|диагност|health|readiness)/iu.test(
+      !/(?:покажи|провери|статус|състояни|диагност|diagnostics|health|readiness)/iu.test(
         subtask,
       );
     if (

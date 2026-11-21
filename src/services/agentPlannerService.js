@@ -44,7 +44,7 @@ const PLANNER_INSTRUCTIONS = [
   "- github.pull-request.merge: сливане на конкретен Pull Request към main след зелени проверки; винаги изисква точно потвърждение",
   "- database.status: проверка дали Supabase е свързан и отговаря",
   "- infrastructure.googlecloud.read: реална проверка на текущия Google Cloud / Cloud Run runtime без стойности на secrets",
-  "- infrastructure.googlecloud.diagnostics.read: bounded read-only проверка на health, readiness, MCP, Cloud Run и Cloud Build trigger-а",
+  "- infrastructure.googlecloud.diagnostics.read: проверка само за четене на Cloud Run, Firestore, Cloud Build, Monitoring, Logging, Cloud Resource Manager и метаданни за версии на тайни",
   "- infrastructure.googlecloud.write: точна IAM, Cloud Run service identity или synchron-main-deploy Cloud Build trigger промяна; винаги изисква отделно потвърждение и exact 40-символен commit SHA при build",
   "- calendar.read: четене на Google Calendar",
   "- calendar.write: подготвяне на ново Google Calendar събитие или напомняне; винаги изисква точно потвърждение преди запис",

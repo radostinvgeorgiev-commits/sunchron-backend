@@ -483,7 +483,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "get_google_cloud_project_diagnostics",
     "Провери състоянието на AI CORE проекта",
-    "Проверява read-only сайта, health/readiness, MCP tool discovery, Cloud Run и Cloud Build trigger-а. Не изпълнява shell команди и не променя инфраструктура.",
+    "Проверява само за четене сайта, MCP, Cloud Run, Cloud Build, Firestore, Monitoring, Logging, Cloud Resource Manager и метаданни за версии на тайни за текущия проект.",
     { type: "object", properties: {}, additionalProperties: false },
   ),
   tool(

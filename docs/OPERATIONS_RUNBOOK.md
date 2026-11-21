@@ -23,12 +23,23 @@ curl --fail --silent --show-error https://cloudaicore.com/api/auth/session
 write инструментите. За private tool очаквай 401 OAuth challenge със scope.
 
 За една bounded проверка от аватара използвай
-`get_google_cloud_project_diagnostics`. Тя проверява health/readiness, MCP
-discovery, Cloud Run и Cloud Build trigger-а само за текущия project и service.
-Резултат `PASS` означава, че всички проверки са изпълними; `PARTIAL` означава,
-че публичните проверки са успешни, но runtime identity или някой upstream е
-недостъпен. Инструментът е read-only и не стартира Cloud Shell, build, job или
-deployment. За owner-confirmed deploy се използва само
+`get_google_cloud_project_diagnostics`. Тя проверява health/readiness, MCP,
+Cloud Run, Cloud Build, връзката с Firestore и статуса на текущия Google Cloud
+проект. За последните 30 минути отчита наличие на Cloud Run метрики и дали е
+намерен запис със сериозност ERROR или по-висока. За Secret Manager показва
+сумарен статус на версиите, към които сочи Cloud Run. Отчетът връща агрегирани
+данни за метрики, логове и версии.
+
+За пълна проверка активирай Cloud Monitoring, Cloud Logging, Cloud Resource
+Manager и Secret Manager API в проекта. Работният акаунт на Cloud Run се
+нуждае от `monitoring.timeSeries.list`, `logging.logEntries.list`,
+`resourcemanager.projects.get` и `secretmanager.versions.get` за съответните
+ресурси. За метриките и журналите могат да се използват `roles/monitoring.viewer`
+и `roles/logging.viewer`. За версиите използвай роля за метаданни, например
+`roles/secretmanager.viewer` върху тайните, към които сочи услугата.
+`PARTIAL` показва кои проверки са върнали грешка или са недостъпни.
+
+За owner-confirmed deploy се използва
 `prepare_google_cloud_action` с `operation=run_cloud_build_trigger`,
 `triggerName=synchron-main-deploy`, `location=global`, `branch=main` и точен
 40-символен `commitSha`; `confirm_google_cloud_action` първо препроверява

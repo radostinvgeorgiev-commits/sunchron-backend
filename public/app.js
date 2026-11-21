@@ -318,8 +318,6 @@ async function init() {
   elements.loginForm.addEventListener("submit", handleLogin);
   elements.registerForm.addEventListener("submit", handleRegistration);
   elements.showRegisterBtn.addEventListener("click", showRegisterForm);
-  const heroRegister = document.getElementById("heroRegisterBtn");
-  heroRegister?.addEventListener("click", showRegisterForm);
   elements.backToLoginBtn.addEventListener("click", showLoginForm);
 
   try {
@@ -331,7 +329,6 @@ async function init() {
     elements.registerInviteCode.disabled = state.registrationMode !== "invite";
     elements.registerInviteCode.required = state.registrationMode === "invite";
     elements.showRegisterBtn.hidden = !state.registrationEnabled;
-    if (heroRegister) heroRegister.hidden = !state.registrationEnabled;
     if (session.authenticated) {
       await startApplication(session.user);
       return;
@@ -428,14 +425,7 @@ function updateSessionDisplay() {
 async function showWelcomeMessage() {
   const welcome = appendMessage(
     "agent",
-    [
-      "## Нека свършим нещо полезно.",
-      "**Твоята лична AI операционна система.**",
-      "",
-      "Опиши какво искаш да постигнеш или избери задача по-долу.",
-      "",
-      "Ти избираш какво да запазя и кои действия да одобриш.",
-    ].join("\n"),
+    "## С какво започваме?",
     null,
     { remember: false },
   );

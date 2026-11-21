@@ -1,6 +1,7 @@
 import {
   isVertexAiConfigured,
   requestVertexAiGeminiResponse,
+  resolveVertexAiModel,
   resolveVertexAiTimeoutMs,
 } from "./vertexAiGeminiService.js";
 
@@ -418,6 +419,15 @@ export function getAiProviderTimeoutMs(
     return resolveVertexAiTimeoutMs(env);
   }
   return parsePositiveInteger(timeoutKey ? env[timeoutKey] : undefined, fallback);
+}
+
+export function getDefaultChatModel(provider, env = process.env) {
+  return {
+    openai: env.OPENAI_CHAT_MODEL || DEFAULT_OPENAI_CHAT_MODEL,
+    gemini: env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
+    grok: env.GROK_MODEL || DEFAULT_GROK_CHAT_MODEL,
+    "vertex-gemini": resolveVertexAiModel(env),
+  }[provider];
 }
 
 export async function requestAiResponse({

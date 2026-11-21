@@ -253,6 +253,7 @@ test("normal registration creates the application approval", async () => {
 
   assert.equal(approvedUser.id, "registered-user");
   assert.equal(result.user.id, "registered-user");
+  assert.equal(result.created, true);
   assert.deepEqual(result.session, fakeSession);
 });
 
@@ -364,6 +365,7 @@ test("registration recovers an existing invited user with the same password", as
 
   assert.equal(approvedUser.id, "existing-user");
   assert.equal(result.user.id, "existing-user");
+  assert.equal(result.created, false);
   assert.deepEqual(result.session, fakeSession);
   assert.equal(result.confirmationRequired, false);
 });

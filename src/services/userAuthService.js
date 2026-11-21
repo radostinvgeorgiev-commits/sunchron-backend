@@ -487,6 +487,7 @@ export async function registerUser(
       },
     },
   });
+  let created = !error && Boolean(data?.user);
 
   if (
     error ||
@@ -496,6 +497,7 @@ export async function registerUser(
     const recovered =
       await authClient.auth.signInWithPassword(cleanCredentials);
     if (!recovered.error && recovered.data?.user && recovered.data?.session) {
+      created = false;
       if (
         requiresVerifiedIdentityEmail(env) &&
         !recovered.data.user.emailVerified
@@ -547,6 +549,7 @@ export async function registerUser(
   return {
     user: data.user,
     session: data.session ? sessionPayload(data.session) : null,
+    created,
     confirmationRequired: data.confirmationRequired === true || !data.session,
   };
 }

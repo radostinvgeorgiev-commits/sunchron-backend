@@ -8,12 +8,17 @@
 - Cloud Run е текущият production runtime.
 - Firestore е текущият runtime backend за памет и operational state.
 - Identity Platform е текущият auth backend.
-- OpenAI Responses API, Gemini и Grok имат директни адаптери.
+- OpenAI Responses API, Gemini, Grok, Claude и Codex са част от новата AI среда.
+- OpenAI Responses API, Gemini и Grok имат директни разговорни адаптери.
+- Claude участва само когато `ANTHROPIC_API_KEY` и съответните OAuth настройки са
+  конфигурирани.
+- Codex участва само като защитен кодов/analysis изпълнител, когато е
+  конфигуриран; не прави direct push към `main`.
 - Task Orchestrator може да планира multi-step задачи.
 - Инструменталните задачи имат owner-scoped durable run с checkpoint-и и
   pause/resume/cancel API.
-- Сайтът има Council режим, който пита OpenAI, Gemini и Grok и показва отделна
-  структурирана препоръка преди изпълнение.
+- Сайтът има Council режим, който пита избраните налични AI двигатели и показва
+  отделна структурирана препоръка преди изпълнение.
 - AI CORE Code Write подготвя ограничен multi-engine plan и след точно
   потвърждение създава отделен branch, commit и Pull Request.
 - MCP има OAuth boundary и актуален каталог.
@@ -30,6 +35,8 @@
 5. A5 остава незавършен, докато няма реален staging fault-injection/recovery
    тест, а не само локален тест.
 6. Browser acceptance след PR промени трябва да се изпълни преди merge/deploy.
+7. Claude и Codex не се приемат за работещи само защото са показани в UI; трябва
+   да имат конфигурация, capability gate, audit и краен тест.
 
 ## Задължителни проверки преди deployment
 

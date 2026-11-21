@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("the personal AI interface keeps chat primary and makes owner mobile actions role-aware", async () => {
+test("the personal AI interface keeps chat primary and shares the sidebar across screen sizes", async () => {
   const [html, css, script, server] = await Promise.all([
     readFile(new URL("../public/index.html", import.meta.url), "utf8"),
     readFile(new URL("../public/synchron-vision.css", import.meta.url), "utf8"),
@@ -13,23 +13,12 @@ test("the personal AI interface keeps chat primary and makes owner mobile action
   assert.match(html, /\/assets\/20260806-green-chat-v1\/synchron-vision\.css/u);
   assert.match(html, /\/assets\/20260806-green-chat-v1\/synchron-vision\.js/u);
   assert.match(server, /mobileLayoutAssetVersion = "20260806-green-chat-v1"/u);
-  assert.match(html, /class="mobile-command-bar"/u);
-  assert.match(html, /data-command="chat"/u);
-  assert.match(html, /data-command="memory"/u);
-  assert.match(html, /data-command="connections"/u);
-  assert.match(html, /data-command="connections"[^>]*data-owner-only/u);
-  assert.match(html, /data-command="status"/u);
-  assert.match(html, /id="taskRunList"/u);
-  assert.doesNotMatch(html, /data-command="(?:work|tasks)"/u);
-  assert.match(css, /\.mobile-command-bar/u);
-  assert.match(css, /repeat\(auto-fit, minmax\(0, 1fr\)\)/u);
-  assert.match(css, /\.mobile-command-bar button\[hidden\]/u);
-  assert.match(css, /bottom:\s*calc\(70px \+ env\(safe-area-inset-bottom\)\)/u);
-  assert.match(script, /forwardClick\("memoryBtn", "memory"\)/u);
-  assert.match(script, /forwardClick\("workCenterBtn", "connections"\)/u);
-  assert.match(script, /!target\s*\|\|\s*target\.hidden/u);
-  assert.match(script, /forwardClick\("profileStatusBtn", "status"\)/u);
-  assert.match(script, /setAttribute\("aria-current", "page"\)/u);
+  assert.doesNotMatch(html, /class="mobile-command-bar"/u);
+  assert.match(html, /id="mobileMenuBtn"/u);
+  assert.match(html, /id="memoryBtn"/u);
+  assert.match(html, /id="workCenterBtn"[^>]*data-owner-only/u);
+  assert.match(css, /\.composer-wrap\s*\{[^}]*bottom:\s*0;/u);
+  assert.match(script, /composer\.getBoundingClientRect/u);
 });
 test("the chat composer is a labelled multiline control with bounded autosize", async () => {
   const [html, css, app] = await Promise.all([
@@ -62,7 +51,6 @@ test("status panel exposes the active Google Cloud integrations", async () => {
     css,
     shell,
     accessibility,
-    mobileScript,
     legacyStyles,
     workCenter,
   ] = await Promise.all([
@@ -71,7 +59,6 @@ test("status panel exposes the active Google Cloud integrations", async () => {
     readFile(new URL("../public/synchron-vision.css", import.meta.url), "utf8"),
     readFile(new URL("../public/appshell.css", import.meta.url), "utf8"),
     readFile(new URL("../public/accessibility.css", import.meta.url), "utf8"),
-    readFile(new URL("../public/synchron-vision.js", import.meta.url), "utf8"),
     readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
     readFile(new URL("../public/work-center.js", import.meta.url), "utf8"),
   ]);
@@ -103,8 +90,6 @@ test("status panel exposes the active Google Cloud integrations", async () => {
   assert.match(app, /activeElement === elements\.profileStatusBtn/u);
   assert.match(app, /new CustomEvent\("synchron:status-closed"\)/u);
   assert.match(app, /new CustomEvent\("synchron:data-drawer-closed"\)/u);
-  assert.match(mobileScript, /synchron:status-closed/u);
-  assert.match(mobileScript, /synchron:data-drawer-closed/u);
   assert.match(workCenter, /synchron:data-drawer-closed/u);
   assert.match(
     legacyStyles,
@@ -145,7 +130,7 @@ test("mobile conversation history stays reachable with very large text", async (
     readFile(new URL("../public/app.js", import.meta.url), "utf8"),
   ]);
 
-  assert.match(html, /id="searchChatsBtn"[\s\S]*?<span>Разговори<\/span>/u);
+  assert.match(html, /<span>История<\/span>[\s\S]*?id="searchChatsBtn"/u);
   assert.match(css, /\.sidebar\s*\{[\s\S]*?overflow-y:\s*auto\s*!important/u);
   assert.match(css, /\.sidebar-section\s*\{[\s\S]*?min-height:\s*180px/u);
   assert.match(
@@ -191,7 +176,7 @@ test("intermediate widths use the mobile sidebar without pushing chat below it",
   );
 });
 
-test("mobile chat content clears the measured composer and command bar", async () => {
+test("mobile chat content clears the measured composer", async () => {
   const [css, script, app] = await Promise.all([
     readFile(new URL("../public/synchron-vision.css", import.meta.url), "utf8"),
     readFile(new URL("../public/synchron-vision.js", import.meta.url), "utf8"),
@@ -203,7 +188,6 @@ test("mobile chat content clears the measured composer and command bar", async (
   assert.match(css, /#chatMessages::after/u);
   assert.match(script, /ResizeObserver/u);
   assert.match(script, /composerRect\.height/u);
-  assert.match(script, /commandBarRect\.height/u);
   assert.match(script, /chatMessages\.scrollTop = chatMessages\.scrollHeight/u);
   assert.match(css, /user-select:\s*text/u);
   assert.match(app, /class="action-label">Копирай<\/span>/u);

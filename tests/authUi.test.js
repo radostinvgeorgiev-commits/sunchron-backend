@@ -12,7 +12,7 @@ test("renders a real login gate before the private application", () => {
   assert.match(html, /id="authGate"/u);
   assert.match(html, /SYNCHRON-X/u);
   assert.match(html, /id="publicTitle"/u);
-  assert.match(html, /id="heroRegisterBtn"[^>]*href="\/register"/u);
+  assert.match(html, /id="showRegisterBtn"[^>]*href="\/register"/u);
   assert.match(html, /href="\/plans"/u);
   assert.match(html, /AI предлага, ти одобряваш/u);
   assert.match(html, /rel="canonical" href="https:\/\/cloudaicore\.com\/"/u);
@@ -82,7 +82,6 @@ test("direct registration address opens the registration form", () => {
 test("hides owner-only tools for member profiles and exposes logout", () => {
   assert.match(html, /id="toolsBtn"[^>]*data-owner-only/u);
   assert.match(html, /id="workCenterBtn"[^>]*data-owner-only/u);
-  assert.match(html, /data-command="connections"[^>]*data-owner-only/u);
   assert.match(html, /id="logoutBtn"/u);
   assert.match(app, /querySelectorAll\("\[data-owner-only\]"\)/u);
   assert.match(app, /user\?\.role === "owner"/u);

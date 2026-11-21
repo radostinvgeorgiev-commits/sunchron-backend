@@ -114,44 +114,6 @@ body {
   font-size: clamp(1rem, 2vw, 1.25rem);
 }
 
-.hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.hero-primary,
-.hero-secondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  min-height: 48px;
-  padding: 9px 17px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  text-decoration: none;
-  font-weight: 730;
-}
-
-.hero-primary {
-  background: var(--sx-mint);
-  color: var(--sx-night);
-}
-
-.hero-primary:hover {
-  background: #ddffac;
-}
-
-.hero-secondary {
-  border-color: #537269;
-  color: #f2f8f4;
-}
-
-.hero-secondary:hover {
-  background: #233e38;
-}
-
 .auth-stage {
   margin-top: 14px;
   color: #abcbc0;
@@ -293,18 +255,6 @@ body {
   padding-block: 8px !important;
 }
 
-.app-shell .workspace-actions {
-  justify-content: space-between;
-  padding-block: 7px;
-  border-bottom: 1px solid var(--sx-line);
-}
-
-.app-shell .workspace-actions button {
-  min-height: 44px;
-  background: var(--sx-surface);
-  color: var(--sx-ink);
-}
-
 .app-shell .quick-start button {
   border-color: var(--sx-line);
   background: var(--sx-surface);
@@ -424,10 +374,6 @@ body {
   .auth-features {
     grid-template-columns: 1fr;
   }
-
-  .app-shell .workspace-actions {
-    justify-content: flex-end;
-  }
 }
 
 @media (max-width: 520px) {
@@ -447,10 +393,6 @@ body {
 
   .auth-features article {
     padding: 14px;
-  }
-
-  .app-shell .workspace-actions button {
-    padding-block: 6px;
   }
 }
 
@@ -498,4 +440,126 @@ body {
   color: var(--sx-ink);
   font-weight: 750;
   text-underline-offset: 5px;
+}
+
+.conversation-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #b8cec4;
+  font-weight: 650;
+}
+
+.conversation-heading button {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 8px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.conversation-heading button:hover {
+  background: #284e42;
+  color: white;
+}
+
+.app-shell > .sidebar .sidebar-section {
+  min-height: 0;
+}
+
+.sidebar-group {
+  border-top: 1px solid #36554c;
+  margin-top: 10px;
+}
+
+.sidebar-group summary {
+  padding: 12px 8px;
+  color: #eaf6ef;
+  cursor: pointer;
+}
+
+.sidebar-group summary i {
+  margin-inline: 6px;
+}
+
+.sidebar-group > :is(button, a) {
+  width: 100%;
+}
+
+.chat-options {
+  position: relative;
+  margin-inline-start: auto;
+}
+
+.chat-options > summary {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--sx-line);
+  border-radius: 9px;
+  list-style: none;
+  color: var(--sx-ink);
+  cursor: pointer;
+}
+
+.chat-options > summary::-webkit-details-marker {
+  display: none;
+}
+
+.chat-options-menu {
+  position: absolute;
+  z-index: 20;
+  inset: calc(100% + 6px) 0 auto auto;
+  width: max-content;
+  max-width: 85vw;
+  padding: 4px;
+  border: 1px solid var(--sx-line);
+  border-radius: 10px;
+  background: var(--sx-surface);
+  box-shadow: 0 6px 24px #102b2a26;
+}
+
+.chat-options-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 7px;
+  text-align: start;
+  color: var(--sx-ink);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.chat-options-menu button:hover {
+  background: var(--sx-mint-soft);
+}
+
+@media (max-width: 900px) {
+  .app-shell .composer-wrap {
+    bottom: 0;
+    padding-bottom: max(8px, env(safe-area-inset-bottom)) !important;
+  }
+}
+
+
+body[data-user-role="owner"] .composer-note {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .app-shell .chat-toolbar {
+    gap: 8px;
+  }
+
+  .chat-options > summary {
+    width: 40px;
+  }
 }

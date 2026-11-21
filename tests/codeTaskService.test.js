@@ -156,7 +156,7 @@ test("confirmation creates exactly one branch commit and pull request operation"
   assert.equal(result.pullRequestNumber, 42);
 });
 
-test("code task fails closed unless all three engines are configured", async () => {
+test("code task stops when no engine is configured", async () => {
   await assert.rejects(
     () =>
       prepareCodeTask({
@@ -164,9 +164,10 @@ test("code task fails closed unless all three engines are configured", async () 
         sessionId: "session-1",
         githubSessionId: "github-session",
         message: "Промени интерфейса.",
-        apiKey: "openai-key",
+        apiKey: "",
         geminiApiKey: "",
-        grokApiKey: "grok-key",
+        grokApiKey: "",
+        claudeApiKey: "",
         resolveGitHubSession: async () => githubSession,
       }),
     (error) => error.code === "CODE_TASK_COUNCIL_NOT_CONFIGURED",

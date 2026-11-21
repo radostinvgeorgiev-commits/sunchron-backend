@@ -22,6 +22,7 @@ import {
   isMcpOAuthConfigured,
 } from "../services/mcpOAuthService.js";
 import { isCodexAgentConfigured } from "../services/codexAgentService.js";
+import { getCodeTaskProviderStatus, isCodeTaskConfigured } from "../services/codeTaskService.js";
 import {
   createSingleFlightCache,
   inspectStorageBackups,
@@ -385,13 +386,7 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
       authenticated: true,
     },
     "github-write": {
-      configured:
-        isGitHubOAuthConfigured() &&
-        Boolean(
-          process.env.OPENAI_API_KEY &&
-            process.env.GEMINI_API_KEY &&
-            process.env.GROK_API_KEY,
-        ),
+      configured: isGitHubOAuthConfigured() && isCodeTaskConfigured(),
       authenticated: githubAuthenticated,
       runtimeEnabled: true,
       availabilityCode: null,
@@ -501,6 +496,7 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
       chatAgent: {
         ...getAiProviderStatus(),
       },
+      codeTask: { providers: getCodeTaskProviderStatus() },
       openai: {
         configured: Boolean(process.env.OPENAI_API_KEY),
       },

@@ -82,7 +82,18 @@ router.post("/prepare", async (req, res) => {
     message,
     reviewRepository: repository,
   });
-  const { confirmationId, expiresAt, baseSha, title, summary, review } = draft;
+  const {
+    confirmationId,
+    expiresAt,
+    baseSha,
+    title,
+    summary,
+    review,
+    council,
+    unavailableProviders,
+    executor,
+    advice,
+  } = draft;
   res.json({
     confirmationId,
     expiresAt,
@@ -91,6 +102,10 @@ router.post("/prepare", async (req, res) => {
     title,
     summary,
     review,
+    council,
+    unavailableProviders,
+    executor,
+    advice,
   });
 });
 

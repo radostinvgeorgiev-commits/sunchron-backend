@@ -17,6 +17,13 @@
     failed: "Неуспешна",
     skipped: "Пропусната",
   };
+  const engineNames = {
+    openai: "OpenAI",
+    gemini: "Gemini",
+    grok: "Grok",
+    claude: "Claude",
+    codex: "Codex",
+  };
   let draft;
   let result;
   let busy = false;
@@ -102,6 +109,33 @@
     appendText(review, "h3", plan.title);
     appendText(review, "p", plan.summary);
     appendText(review, "p", `Основа main · ${plan.baseSha.slice(0, 12)}`);
+    if (plan.council?.length) {
+      appendText(
+        review,
+        "p",
+        `Отговориха ${plan.council.map(({ provider }) => engineNames[provider]).join(", ")}.`,
+      );
+    }
+    if (plan.unavailableProviders?.length) {
+      appendText(
+        review,
+        "p",
+        `Недостъпни двигатели ${plan.unavailableProviders.map((provider) => engineNames[provider]).join(", ")}.`,
+      );
+    }
+    if (plan.executor) {
+      appendText(
+        review,
+        "p",
+        `Планът е подготвен от ${engineNames[plan.executor.provider]}.`,
+      );
+    }
+    for (const item of plan.advice || []) {
+      const details = document.createElement("details");
+      appendText(details, "summary", engineNames[item.provider]);
+      appendText(details, "pre", item.text);
+      review.append(details);
+    }
     for (const [index, file] of plan.review.entries()) {
       const details = document.createElement("details");
       details.open = index === 0;
@@ -116,11 +150,13 @@
       diff.tabIndex = 0;
       review.append(details);
     }
-    appendText(
-      review,
-      "p",
-      "Пълните тестове се изпълняват в GitHub след създаване на PR.",
-    );
+    if (plan.review.length) {
+      appendText(
+        review,
+        "p",
+        "Пълните тестове се изпълняват в GitHub след създаване на PR.",
+      );
+    }
   }
 
   async function prepare(event) {
@@ -151,6 +187,8 @@
           },
           Math.max(0, remainingTime),
         );
+      } else if (draft.advice?.length) {
+        setStatus("Виж предложенията или уточни задачата и опитай отново.");
       } else {
         setStatus(
           "Има неуспешна проверка. Уточни задачата и подготви промените отново.",

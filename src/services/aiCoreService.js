@@ -16,6 +16,7 @@ export const AI_PROVIDERS = new Set([
 ]);
 
 export const DEFAULT_OPENAI_CHAT_MODEL = "gpt-5.6-terra";
+export const DEFAULT_CODEX_COUNCIL_MODEL = "gpt-5.3-codex";
 export const DEFAULT_OPENAI_PLANNER_MODEL = "gpt-5.6-luna";
 export const DEFAULT_GEMINI_CHAT_MODEL = "gemini-2.5-flash";
 export const DEFAULT_GROK_CHAT_MODEL = "grok-4.5";
@@ -180,6 +181,7 @@ export async function requestGeminiResponse({
   model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
   fetchImpl = fetch,
   signal,
+  jsonMode = false,
 }) {
   if (!apiKey) {
     throw new AiCoreError(
@@ -217,6 +219,7 @@ export async function requestGeminiResponse({
             }
           : {}),
         contents,
+        ...(jsonMode ? { generationConfig: { responseMimeType: "application/json" } } : {}),
       }),
       signal,
     },
@@ -256,6 +259,7 @@ export async function requestGrokResponse({
   model = process.env.GROK_MODEL || DEFAULT_GROK_CHAT_MODEL,
   fetchImpl = fetch,
   signal,
+  jsonMode = false,
 }) {
   if (!apiKey) {
     throw new AiCoreError(
@@ -275,6 +279,7 @@ export async function requestGrokResponse({
       model,
       messages: normalizeChatMessages(input),
       stream: false,
+      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
     }),
     signal,
   });
@@ -313,6 +318,7 @@ export async function requestClaudeResponse({
   model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5",
   fetchImpl = fetch,
   signal,
+  maxTokens = 2048,
 }) {
   if (!apiKey) {
     throw new AiCoreError("Claude не е конфигуриран.", "CLAUDE_NOT_CONFIGURED", 503);
@@ -328,7 +334,7 @@ export async function requestClaudeResponse({
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
     },
-    body: JSON.stringify({ model, max_tokens: 2048, messages }),
+    body: JSON.stringify({ model, max_tokens: maxTokens, messages }),
     signal,
   });
   if (!response.ok) {

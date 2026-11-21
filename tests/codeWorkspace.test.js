@@ -16,6 +16,9 @@ Object.assign(process.env, {
   OPENAI_API_KEY: "test-openai",
   GEMINI_API_KEY: "test-gemini",
   GROK_API_KEY: "test-grok",
+  ANTHROPIC_API_KEY: "test-claude",
+  CODEX_AGENT_ENABLED: "true",
+  AI_CORE_COUNCIL_CODEX_MODEL: "gpt-5.3-codex",
 });
 
 const { default: app } = await import("../server.js");
@@ -26,10 +29,15 @@ const { setFirestoreConfirmationStoreForTests } =
 const { setFirestoreAuditStoreForTests } =
   await import("../src/services/permissionService.js");
 
-async function setup(t, proposal = changed) {
+async function setup(
+  t,
+  proposal = changed,
+  { unavailable = [], badPlanners = [] } = {},
+) {
   const confirmations = new Map();
   const audits = [];
   const writes = [];
+  const calls = [];
   let head = sha;
   setFirestoreGitHubSessionStoreForTests({ set: async () => {} });
   setFirestoreConfirmationStoreForTests({
@@ -51,34 +59,57 @@ async function setup(t, proposal = changed) {
   }
   const cookie = await ownerCookie();
   const secondCookie = await ownerCookie();
+  const plan = JSON.stringify({
+    title: "Update example",
+    summary: "Make a change",
+    commitMessage: "Update example",
+    pullRequestBody: "Update example",
+    changes: [{ path: "src/example.js", content: proposal, reason: "Example" }],
+  });
+  function engineReply(provider, planning, format) {
+    calls.push({ provider, planning });
+    if (unavailable.includes(provider))
+      return new Response(null, { status: 503 });
+    if (planning && badPlanners.includes(provider))
+      return Response.json(format("Няма валиден JSON"));
+    return Response.json(format(planning ? plan : `${provider} advice`));
+  }
   t.mock.method(globalThis, "fetch", async (url, options = {}) => {
     const parsed = new URL(url);
     if (parsed.hostname === "api.openai.com") {
       const input = JSON.parse(options.body);
-      if (!input.text?.format)
-        return Response.json({ output_text: "OpenAI advice" });
-      assert.match(input.input[0].content, /export const number = 1/u);
-      return Response.json({
-        output_text: JSON.stringify({
-          title: "Update example",
-          summary: "Make a change",
-          commitMessage: "Update example",
-          pullRequestBody: "Update example",
-          changes: [
-            { path: "src/example.js", content: proposal, reason: "Example" },
-          ],
-        }),
-      });
+      const planning = Boolean(input.text?.format);
+      if (planning)
+        assert.match(input.input[0].content, /export const number = 1/u);
+      return engineReply(
+        input.model === "gpt-5.3-codex" ? "codex" : "openai",
+        planning,
+        (text) => ({ model: input.model, output_text: text }),
+      );
     }
     if (parsed.hostname === "generativelanguage.googleapis.com") {
-      return Response.json({
-        candidates: [{ content: { parts: [{ text: "Gemini advice" }] } }],
-      });
+      const input = JSON.parse(options.body);
+      return engineReply(
+        "gemini",
+        input.generationConfig?.responseMimeType === "application/json",
+        (text) => ({ candidates: [{ content: { parts: [{ text }] } }] }),
+      );
     }
     if (parsed.hostname === "api.x.ai") {
-      return Response.json({
-        choices: [{ message: { content: "Grok advice" } }],
-      });
+      const input = JSON.parse(options.body);
+      return engineReply(
+        "grok",
+        input.response_format?.type === "json_object",
+        (text) => ({ choices: [{ message: { content: text } }] }),
+      );
+    }
+    if (parsed.hostname === "api.anthropic.com") {
+      const input = JSON.parse(options.body);
+      return engineReply(
+        "claude",
+        input.messages[0].content.includes("Върни само JSON"),
+        (text) => ({ content: [{ type: "text", text }] }),
+      );
     }
     assert.equal(parsed.hostname, "api.github.com");
     const path = parsed.pathname.slice(`/repos/${repository}`.length);
@@ -139,6 +170,7 @@ async function setup(t, proposal = changed) {
     cookie,
     secondCookie,
     writes,
+    calls,
     audits,
     confirmations,
     moveHead: () => {
@@ -174,6 +206,11 @@ test("an owner can review a pinned diff, approve the exact change once and see C
 
   const { body: draft } = await prepare(cookie).expect(200);
   assert.equal(draft.baseSha, sha);
+  assert.deepEqual(
+    draft.council.map(({ provider }) => provider),
+    ["openai", "gemini", "grok", "claude", "codex"],
+  );
+  assert.equal(draft.executor.provider, "codex");
   assert.equal(draft.review[0].check.status, "passed");
   assert.match(
     draft.review[0].diff,
@@ -222,5 +259,53 @@ test("confirming a review whose base moved does not create a commit", async (t) 
   moveHead();
   const { body } = await confirm(cookie, draft.confirmationId).expect(409);
   assert.equal(body.code, "CODE_TASK_BASE_CHANGED");
+  assert.deepEqual(writes, []);
+});
+
+test("Code uses a single responsive engine when the other four fail", async (t) => {
+  const unavailable = ["openai", "gemini", "grok", "codex"];
+  const { cookie, calls, writes } = await setup(t, changed, { unavailable });
+  const { body: draft } = await prepare(cookie).expect(200);
+  assert.deepEqual(
+    draft.council.map(({ provider }) => provider),
+    ["claude"],
+  );
+  assert.deepEqual(draft.unavailableProviders, unavailable);
+  assert.equal(draft.executor.provider, "claude");
+  assert.ok(draft.confirmationId);
+  assert.deepEqual(
+    calls.filter(({ planning }) => planning),
+    [{ provider: "claude", planning: true }],
+  );
+  assert.deepEqual(writes, []);
+});
+
+test("Code tries another responsive engine if Codex fails to produce a plan", async (t) => {
+  const { cookie, calls } = await setup(t, changed, {
+    unavailable: ["openai", "grok"],
+    badPlanners: ["codex"],
+  });
+  const { body: draft } = await prepare(cookie).expect(200);
+  assert.equal(draft.executor.provider, "gemini");
+  assert.deepEqual(
+    calls.filter(({ planning }) => planning).map(({ provider }) => provider),
+    ["codex", "gemini"],
+  );
+  assert.ok(draft.confirmationId);
+});
+
+test("Code keeps available advice when no engine can prepare a valid diff", async (t) => {
+  const { cookie, confirmations, writes } = await setup(t, changed, {
+    unavailable: ["openai", "grok", "claude", "codex"],
+    badPlanners: ["gemini"],
+  });
+  const { body: draft } = await prepare(cookie).expect(200);
+  assert.deepEqual(
+    draft.advice.map(({ provider }) => provider),
+    ["gemini"],
+  );
+  assert.equal(draft.confirmationId, undefined);
+  assert.deepEqual(draft.review, []);
+  assert.equal(confirmations.size, 0);
   assert.deepEqual(writes, []);
 });

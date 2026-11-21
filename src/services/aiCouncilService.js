@@ -1,4 +1,5 @@
 import {
+  DEFAULT_CODEX_COUNCIL_MODEL,
   DEFAULT_GEMINI_CHAT_MODEL,
   DEFAULT_GROK_CHAT_MODEL,
   DEFAULT_OPENAI_CHAT_MODEL,
@@ -218,7 +219,7 @@ export async function runAiCouncil({
   geminiModel = process.env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
   grokModel = process.env.GROK_MODEL || DEFAULT_GROK_CHAT_MODEL,
   claudeModel = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5",
-  codexModel = process.env.AI_CORE_COUNCIL_CODEX_MODEL || "gpt-5.3-codex",
+  codexModel = process.env.AI_CORE_COUNCIL_CODEX_MODEL || DEFAULT_CODEX_COUNCIL_MODEL,
   advisorTimeoutMs = Math.min(
     getAiProviderTimeoutMs(
       "openai",

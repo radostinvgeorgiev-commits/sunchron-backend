@@ -49,7 +49,7 @@ test("integration status exposes Google Cloud and the three-engine code council 
   }
 });
 
-test("AI CORE Code Write is unavailable unless all three engines are configured", () => {
+test("AI CORE Code Write is configured when one engine is available", () => {
   const original = Object.fromEntries(KEYS.map((key) => [key, process.env[key]]));
   process.env.OPENAI_API_KEY = "openai";
   delete process.env.GEMINI_API_KEY;
@@ -60,8 +60,8 @@ test("AI CORE Code Write is unavailable unless all three engines are configured"
   try {
     const status = getIntegrationStatus({ githubAuthenticated: true });
     const codeWrite = status.tools.find(({ id }) => id === "github-write");
-    assert.equal(codeWrite.configured, false);
-    assert.equal(codeWrite.healthStatus, "unavailable");
+    assert.equal(codeWrite.configured, true);
+    assert.equal(codeWrite.healthStatus, "healthy");
   } finally {
     for (const [key, value] of Object.entries(original)) {
       if (value === undefined) delete process.env[key];

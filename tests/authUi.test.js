@@ -41,10 +41,7 @@ test("offers invite-protected registration with safe POST fallback", () => {
     html,
     /id="registerForm"[\s\S]{0,160}method="post"[\s\S]{0,80}action="\/api\/auth\/register"/u,
   );
-  assert.match(
-    html,
-    /id="showRegisterBtn"[^>]*href="\/register"/u,
-  );
+  assert.match(html, /id="showRegisterBtn"[^>]*href="\/register"/u);
   assert.match(app, /registrationEnabled/u);
   assert.match(app, /\/api\/auth\/register/u);
   assert.doesNotMatch(
@@ -85,10 +82,7 @@ test("direct registration address opens the registration form", () => {
 test("hides owner-only tools for member profiles and exposes logout", () => {
   assert.match(html, /id="toolsBtn"[^>]*data-owner-only/u);
   assert.match(html, /id="workCenterBtn"[^>]*data-owner-only/u);
-  assert.match(
-    html,
-    /data-command="connections"[^>]*data-owner-only/u,
-  );
+  assert.match(html, /data-command="connections"[^>]*data-owner-only/u);
   assert.match(html, /id="logoutBtn"/u);
   assert.match(app, /querySelectorAll\("\[data-owner-only\]"\)/u);
   assert.match(app, /user\?\.role === "owner"/u);

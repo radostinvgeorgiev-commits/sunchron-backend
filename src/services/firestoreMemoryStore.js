@@ -80,9 +80,7 @@ export function createFirestoreMemoryStore({
         MAX_OWNER_CONVERSATION_DOCUMENTS,
       );
       return newestConversationDocuments(
-        documents.filter(
-          (document) => document.data?.sessionId === sessionId,
-        ),
+        documents.filter((document) => document.data?.sessionId === sessionId),
         limit,
       );
     },

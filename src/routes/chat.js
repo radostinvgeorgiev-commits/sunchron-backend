@@ -183,7 +183,8 @@ function durableTaskRunStatus(status) {
 
 function durableTaskRunMessage(status, fallback) {
   if (status === "completed") return "Задачата е изпълнена и проверена.";
-  if (status === "partial") return "Задачата е изпълнена частично и може да продължи.";
+  if (status === "partial")
+    return "Задачата е изпълнена частично и може да продължи.";
   if (status === "failed") return "Задачата не можа да бъде изпълнена.";
   if (status === "waiting_confirmation") {
     return "Задачата чака конкретно потвърждение.";
@@ -340,18 +341,19 @@ const MAX_RECENT_CONVERSATION_MESSAGES = 12;
 const MAX_RECENT_CONVERSATION_MESSAGE_LENGTH = 6_000;
 const MAX_RECENT_CONVERSATION_TOTAL_LENGTH = 24_000;
 
-export function normalizeRecentConversationHistory(value, {
-  maxMessages = MAX_RECENT_CONVERSATION_MESSAGES,
-  maxLength = MAX_RECENT_CONVERSATION_TOTAL_LENGTH,
-} = {}) {
+export function normalizeRecentConversationHistory(
+  value,
+  {
+    maxMessages = MAX_RECENT_CONVERSATION_MESSAGES,
+    maxLength = MAX_RECENT_CONVERSATION_TOTAL_LENGTH,
+  } = {},
+) {
   if (!Array.isArray(value)) return [];
   let remaining = maxLength;
   const normalized = [];
   for (
     let index = value.length - 1;
-    index >= 0 &&
-    normalized.length < maxMessages &&
-    remaining > 0;
+    index >= 0 && normalized.length < maxMessages && remaining > 0;
     index -= 1
   ) {
     const item = value[index];
@@ -377,12 +379,25 @@ export function combineConversationHistory(persistent, recent) {
   const limits = { maxMessages: 24, maxLength: 36_000 };
   const saved = normalizeRecentConversationHistory(persistent, limits);
   if (!recent.length) return saved;
-  for (let overlap = Math.min(saved.length, recent.length); overlap > 0; overlap -= 1) {
+  for (
+    let overlap = Math.min(saved.length, recent.length);
+    overlap > 0;
+    overlap -= 1
+  ) {
     const offset = saved.length - overlap;
-    if (saved.slice(offset).every((message, index) =>
-      message.role === recent[index].role && message.content === recent[index].content,
-    )) {
-      return normalizeRecentConversationHistory([...saved, ...recent.slice(overlap)], limits);
+    if (
+      saved
+        .slice(offset)
+        .every(
+          (message, index) =>
+            message.role === recent[index].role &&
+            message.content === recent[index].content,
+        )
+    ) {
+      return normalizeRecentConversationHistory(
+        [...saved, ...recent.slice(overlap)],
+        limits,
+      );
     }
   }
   return recent;
@@ -512,7 +527,7 @@ export function detectCapabilityRequests(message) {
     const integrationStatusOnlyRequest =
       isReadOnlyIntegrationStatusRequest(subtask);
     const systemConfigurationRequest =
-        /(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите)).{0,60}(?:сървър|ядро|агент|google\s*cloud|cloud\s*run|гуг[ъал]+\s*клауд|система)|(?:сървър|ядро|агент|google\s*cloud|cloud\s*run|гуг[ъал]+\s*клауд|система).{0,60}(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите))/iu.test(
+      /(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите)).{0,60}(?:сървър|ядро|агент|google\s*cloud|cloud\s*run|гуг[ъал]+\s*клауд|система)|(?:сървър|ядро|агент|google\s*cloud|cloud\s*run|гуг[ъал]+\s*клауд|система).{0,60}(?:променлив(?:и|ите)|environment|env\b|конфигураци(?:я|ята)|настройк(?:и|ите))/iu.test(
         subtask,
       );
     const projectDiagnosticsRequest =
@@ -691,7 +706,9 @@ export function detectCapabilityRequests(message) {
       });
     } else if (
       !systemConfigurationRequest &&
-      /(?:google\s*cloud|cloud\s*run|гуг[ъал]+\s*(?:клауд|конзол))/iu.test(subtask) &&
+      /(?:google\s*cloud|cloud\s*run|гуг[ъал]+\s*(?:клауд|конзол))/iu.test(
+        subtask,
+      ) &&
       /(?:провери|покажи|статус|работи|деплой|deployment|публикуван|revision|ревизи|runtime|сървър|проект)/iu.test(
         subtask,
       )
@@ -704,7 +721,9 @@ export function detectCapabilityRequests(message) {
     }
     if (
       !githubTaskStatusRequest &&
-      /(?:покажи|изброй|какви|кои|статус|напредък).{0,40}(?:задач|tasks?)|(?:задач|tasks?).{0,40}(?:покажи|изброй|какви|кои|статус|напредък)/iu.test(subtask)
+      /(?:покажи|изброй|какви|кои|статус|напредък).{0,40}(?:задач|tasks?)|(?:задач|tasks?).{0,40}(?:покажи|изброй|какви|кои|статус|напредък)/iu.test(
+        subtask,
+      )
     ) {
       requests.push({
         capability: /(?:незавършен|текущ|чакащ|напредък)/iu.test(subtask)
@@ -1046,12 +1065,16 @@ export async function loadChatMemoryContext({
   const [memories, history, knowledge] = await Promise.all([
     listMemories({ ownerId }),
     listMessages(sessionId, undefined, ownerId),
-    typeof listKnowledge === "function" ? listKnowledge({ ownerId }) : Promise.resolve(undefined),
+    typeof listKnowledge === "function"
+      ? listKnowledge({ ownerId })
+      : Promise.resolve(undefined),
   ]);
   return {
     memories,
     history,
-    ...(typeof listKnowledge === "function" ? { knowledge: knowledge || [] } : {}),
+    ...(typeof listKnowledge === "function"
+      ? { knowledge: knowledge || [] }
+      : {}),
   };
 }
 
@@ -1067,8 +1090,7 @@ router.post("/chat", async (req, res) => {
     council,
     councilProviders,
     councilIntentId,
-  } =
-    req.body || {};
+  } = req.body || {};
   const googleSessionId =
     parseCookies(req.headers.cookie).synchron_google_session || "";
   const githubSessionId =
@@ -1204,7 +1226,11 @@ router.post("/chat", async (req, res) => {
         }
       }
     }
-    ({ memories, history, knowledge = [] } = await loadChatMemoryContext({
+    ({
+      memories,
+      history,
+      knowledge = [],
+    } = await loadChatMemoryContext({
       explicitMemoryIntent,
       sessionId: cleanSessionId,
       ownerId,
@@ -1255,7 +1281,10 @@ router.post("/chat", async (req, res) => {
       logSafeError("[Project context] Workspace load failed", error);
     }
   }
-  const effectiveHistory = combineConversationHistory(history, cleanRecentHistory);
+  const effectiveHistory = combineConversationHistory(
+    history,
+    cleanRecentHistory,
+  );
   const conversationContextSource = cleanRecentHistory.length
     ? "client-recent"
     : history.length
@@ -1269,7 +1298,9 @@ router.post("/chat", async (req, res) => {
     {
       mode: interactionMode,
       workContext: cleanWorkContext,
-      projectReference: buildProjectConversationReference(projectConversationContext),
+      projectReference: buildProjectConversationReference(
+        projectConversationContext,
+      ),
     },
     knowledge,
   );
@@ -1290,8 +1321,7 @@ router.post("/chat", async (req, res) => {
     }
   }
 
-  const codeTaskConfirmationId =
-    extractCodeTaskConfirmationId(cleanMessage);
+  const codeTaskConfirmationId = extractCodeTaskConfirmationId(cleanMessage);
   const taskConfirmationId = extractTaskConfirmationId(cleanMessage);
   const githubChangeConfirmationId =
     extractGitHubChangeConfirmationId(cleanMessage);
@@ -1628,11 +1658,13 @@ router.post("/chat", async (req, res) => {
       });
       sendEvent("error", {
         status:
-          error instanceof GitHubActionError || error instanceof GitHubOAuthError
+          error instanceof GitHubActionError ||
+          error instanceof GitHubOAuthError
             ? error.status
             : error?.status || 500,
         message:
-          error instanceof GitHubActionError || error instanceof GitHubOAuthError
+          error instanceof GitHubActionError ||
+          error instanceof GitHubOAuthError
             ? error.message
             : "Потвърдената GitHub промяна не можа да бъде изпълнена.",
         code: error?.code || "GITHUB_CHANGE_FAILED",
@@ -1815,11 +1847,14 @@ router.post("/chat", async (req, res) => {
     try {
       const councilResult = await runAiCouncil({
         message: cleanMessage,
-        selectedProviders: councilProviders === undefined ? undefined : councilProviders,
+        selectedProviders:
+          councilProviders === undefined ? undefined : councilProviders,
         context: [
           ...PROJECT_BASE_CONTEXT.slice(0, 8),
           buildProjectConversationReference(projectConversationContext, 5_500),
-        ].filter(Boolean).join("\n"),
+        ]
+          .filter(Boolean)
+          .join("\n"),
       });
       let councilIntent = null;
       try {
@@ -2118,9 +2153,7 @@ router.post("/chat", async (req, res) => {
     sendEvent("token", { token: fullReply });
     sendDone({
       ok: true,
-      capabilities: capabilityResults.map(
-        ({ request }) => request.capability,
-      ),
+      capabilities: capabilityResults.map(({ request }) => request.capability),
       task: taskResult,
       ...(taskRunId ? { taskRunId } : {}),
       mode: "deterministic-fallback",
@@ -2193,7 +2226,11 @@ router.post("/chat", async (req, res) => {
   const aiTimeoutMs =
     attempts.length > 1
       ? DEFAULT_AI_TIMEOUT_MS
-      : getAiProviderTimeoutMs(attempts[0].provider, process.env, DEFAULT_AI_TIMEOUT_MS);
+      : getAiProviderTimeoutMs(
+          attempts[0].provider,
+          process.env,
+          DEFAULT_AI_TIMEOUT_MS,
+        );
   timeoutHandle = setTimeout(() => {
     timedOut = true;
     abortUpstream();
@@ -2204,17 +2241,21 @@ router.post("/chat", async (req, res) => {
     for (const [index, attempt] of attempts.entries()) {
       const deadline =
         attempts.length > 1
-          ? AbortSignal.timeout(Math.min(
-              WORK_ATTEMPT_TIMEOUT_MS,
-              getAiProviderTimeoutMs(attempt.provider),
-            ))
+          ? AbortSignal.timeout(
+              Math.min(
+                WORK_ATTEMPT_TIMEOUT_MS,
+                getAiProviderTimeoutMs(attempt.provider),
+              ),
+            )
           : null;
       const signal = deadline
         ? AbortSignal.any([abortController.signal, deadline])
         : abortController.signal;
       try {
         if (index > 0 || attempt.provider !== aiProvider) {
-          sendEvent("activity", { message: "Работният чат опитва резервен модел." });
+          sendEvent("activity", {
+            message: "Работният чат опитва резервен модел.",
+          });
         }
         aiResponse = await requestAiResponse({
           ...attempt,
@@ -2226,7 +2267,8 @@ router.post("/chat", async (req, res) => {
         break;
       } catch (error) {
         attemptTimedOut = deadline?.aborted === true;
-        if (index === attempts.length - 1 || abortController.signal.aborted) throw error;
+        if (index === attempts.length - 1 || abortController.signal.aborted)
+          throw error;
         logSafeError("[AI Core] Work provider attempt failed", error);
       }
     }
@@ -2255,11 +2297,13 @@ router.post("/chat", async (req, res) => {
       mode: capabilityResults.length ? "agentic" : "conversation",
       provider: aiResponse.provider,
       model: aiResponse.model,
-      ...(isWork ? {
-        linkedProjectContext: cleanWorkContext?.project.id
-          ? Boolean(projectConversationContext?.conversations.length)
-          : null,
-      } : {}),
+      ...(isWork
+        ? {
+            linkedProjectContext: cleanWorkContext?.project.id
+              ? Boolean(projectConversationContext?.conversations.length)
+              : null,
+          }
+        : {}),
       conversationContextSource,
       ...(projectRun ? { projectRun } : {}),
       ...getConversationPersistenceMetadata(conversationPersisted),
@@ -2283,11 +2327,12 @@ router.post("/chat", async (req, res) => {
         error,
         timedOut || attemptTimedOut ? "AI_TIMEOUT" : "AI_UPSTREAM_ERROR",
       ),
-      message: timedOut || attemptTimedOut
-        ? "AI ядрото се забави прекалено. Опитай отново."
-        : isWork
-          ? "Работният чат не получи отговор от наличните AI модели. Опитай отново."
-          : "Връзката с AI ядрото беше прекъсната. Опитай отново.",
+      message:
+        timedOut || attemptTimedOut
+          ? "AI ядрото се забави прекалено. Опитай отново."
+          : isWork
+            ? "Работният чат не получи отговор от наличните AI модели. Опитай отново."
+            : "Връзката с AI ядрото беше прекъсната. Опитай отново.",
     });
   } finally {
     cleanup();

@@ -70,7 +70,10 @@ test("Work Council sends a Codex-only selection to the coding model", async (t) 
   t.mock.method(globalThis, "fetch", async (url, options) => {
     assert.equal(String(url), "https://api.openai.com/v1/responses");
     requests.push(JSON.parse(options.body));
-    return Response.json({ model: "codex-verified", output_text: "Отговор от Codex." });
+    return Response.json({
+      model: "codex-verified",
+      output_text: "Отговор от Codex.",
+    });
   });
   const response = await request(app)
     .post("/chat/chat")
@@ -196,7 +199,10 @@ test("normal chat emits a bounded memory candidate without writing it", async ()
     const response = await request(app)
       .post("/chat/chat")
       .set("Cookie", OWNER_COOKIE)
-      .send({ sessionId: "memory-candidate-route", message: "Казвам се Радко." })
+      .send({
+        sessionId: "memory-candidate-route",
+        message: "Казвам се Радко.",
+      })
       .expect(200);
 
     assert.match(
@@ -552,9 +558,12 @@ test("normal chat reports only the missing AI connection", async () => {
 });
 
 test("Work uses stored project conversations and ignores client-provided links", async (t) => {
-  const { setFirestoreWorkspaceStoreForTests } = await import("../src/services/workspaceStateService.js");
-  const { setFirestoreMemoryStoreForTests } = await import("../src/services/memoryService.js");
-  const { resolveMemoryOwnerId } = await import("../src/middleware/ownerAuth.js");
+  const { setFirestoreWorkspaceStoreForTests } =
+    await import("../src/services/workspaceStateService.js");
+  const { setFirestoreMemoryStoreForTests } =
+    await import("../src/services/memoryService.js");
+  const { resolveMemoryOwnerId } =
+    await import("../src/middleware/ownerAuth.js");
   const ownerId = resolveMemoryOwnerId("radostinvgeorgiev-commits");
   const keys = ["MEMORY_BACKEND", "PERSISTENCE_BACKEND"];
   const previous = keys.map((key) => process.env[key]);
@@ -568,9 +577,20 @@ test("Work uses stored project conversations and ignores client-provided links",
     setFirestoreMemoryStoreForTests(null);
   });
   setFirestoreWorkspaceStoreForTests({
-    get: async () => ({ data: { state: { projects: [
-      { id: "project-launch", name: "Launch", decisions: ["Срокът е петък."], conversationIds: ["linked-chat", "current-chat"] },
-    ] } } }),
+    get: async () => ({
+      data: {
+        state: {
+          projects: [
+            {
+              id: "project-launch",
+              name: "Launch",
+              decisions: ["Срокът е петък."],
+              conversationIds: ["linked-chat", "current-chat"],
+            },
+          ],
+        },
+      },
+    }),
   });
   const reads = [];
   setFirestoreMemoryStoreForTests({
@@ -578,12 +598,17 @@ test("Work uses stored project conversations and ignores client-provided links",
     listConversationSessionDocuments: async (owner, id) => {
       assert.equal(owner, ownerId);
       reads.push(id);
-      const messages = id === "current-chat"
-        ? ["По-стара заявка от текущия чат.", "Последен запазен отговор."]
-        : ["Синият файл е одобрен.", "Възстановявам бележката."];
+      const messages =
+        id === "current-chat"
+          ? ["По-стара заявка от текущия чат.", "Последен запазен отговор."]
+          : ["Синият файл е одобрен.", "Възстановявам бележката."];
       return messages.map((content, index) => ({
         id: `${id}-${index}`,
-        data: { role: index ? "assistant" : "user", content, createdAt: `2026-11-21T00:00:0${index}Z` },
+        data: {
+          role: index ? "assistant" : "user",
+          content,
+          createdAt: `2026-11-21T00:00:0${index}Z`,
+        },
       }));
     },
     commitConversationDocuments: async () => {},
@@ -601,7 +626,13 @@ test("Work uses stored project conversations and ignores client-provided links",
       mode: "work",
       sessionId: "current-chat",
       message: "Обобщи контекста.",
-      workContext: { project: { id: "project-launch", name: "Launch", conversationIds: ["unlinked-chat"] } },
+      workContext: {
+        project: {
+          id: "project-launch",
+          name: "Launch",
+          conversationIds: ["unlinked-chat"],
+        },
+      },
       recentHistory: [
         { role: "assistant", content: "Последен запазен отговор." },
         { role: "user", content: "По-нова незаписана бележка." },
@@ -612,7 +643,11 @@ test("Work uses stored project conversations and ignores client-provided links",
   assert.deepEqual(reads, ["current-chat", "linked-chat"]);
   assert.match(result.text, /"linkedProjectContext":true/u);
   assert.equal(input[1].content, "По-стара заявка от текущия чат.");
-  assert.equal(input.filter(({ content }) => content === "Последен запазен отговор.").length, 1);
+  assert.equal(
+    input.filter(({ content }) => content === "Последен запазен отговор.")
+      .length,
+    1,
+  );
   assert.match(input.at(-2).content, /Синият файл е одобрен\./u);
   assert.match(input.at(-2).content, /Срокът е петък\./u);
   assert.equal(input.at(-1).content, "Обобщи контекста.");
@@ -626,7 +661,9 @@ test("Work keeps trying available models when a selected model fails and another
     GEMINI_API_KEY: "test-gemini",
     GROK_API_KEY: "test-grok",
   };
-  const previous = Object.fromEntries(Object.keys(config).map((key) => [key, process.env[key]]));
+  const previous = Object.fromEntries(
+    Object.keys(config).map((key) => [key, process.env[key]]),
+  );
   Object.assign(process.env, config);
   t.after(() => {
     for (const [key, value] of Object.entries(previous)) {
@@ -638,16 +675,26 @@ test("Work keeps trying available models when a selected model fails and another
   const calls = [];
   t.mock.method(globalThis, "fetch", async (url, options) => {
     const host = new URL(url).hostname;
-    calls.push(host === "api.openai.com" ? JSON.parse(options.body).model : host);
+    calls.push(
+      host === "api.openai.com" ? JSON.parse(options.body).model : host,
+    );
     if (host === "api.openai.com") {
       if (calls.length === 1) return new Response(null, { status: 404 });
       await new Promise((resolve, reject) => {
-        options.signal.addEventListener("abort", () => reject(options.signal.reason), { once: true });
+        options.signal.addEventListener(
+          "abort",
+          () => reject(options.signal.reason),
+          { once: true },
+        );
       });
     }
-    if (host === "generativelanguage.googleapis.com") return new Response(null, { status: 503 });
+    if (host === "generativelanguage.googleapis.com")
+      return new Response(null, { status: 503 });
     assert.equal(host, "api.x.ai");
-    return Response.json({ model: "grok-test", choices: [{ message: { content: "Работният чат отговаря." } }] });
+    return Response.json({
+      model: "grok-test",
+      choices: [{ message: { content: "Работният чат отговаря." } }],
+    });
   });
 
   const response = await request(app)
@@ -664,7 +711,12 @@ test("Work keeps trying available models when a selected model fails and another
     })
     .expect(200);
 
-  assert.deepEqual(calls, ["gpt-5.6-sol", "gpt-5.6-terra", "generativelanguage.googleapis.com", "api.x.ai"]);
+  assert.deepEqual(calls, [
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "generativelanguage.googleapis.com",
+    "api.x.ai",
+  ]);
   assert.match(response.text, /Работният чат отговаря\./u);
   assert.match(response.text, /"provider":"grok","model":"grok-test"/u);
   assert.doesNotMatch(response.text, /event: error/u);

@@ -26,9 +26,7 @@ import {
   buildKnowledgePreview,
   normalizeKnowledgeCandidates,
 } from "../services/knowledgeIngestionService.js";
-import {
-  listApprovedKnowledge,
-} from "../services/knowledgeService.js";
+import { listApprovedKnowledge } from "../services/knowledgeService.js";
 import {
   confirmKnowledgeImport,
   formatKnowledgeImportPreparation,
@@ -299,7 +297,8 @@ router.get("/profile", async (req, res) => {
 
 router.get("/knowledge", async (req, res) => {
   try {
-    const scope = typeof req.query.scope === "string" ? req.query.scope : undefined;
+    const scope =
+      typeof req.query.scope === "string" ? req.query.scope : undefined;
     const items = await listApprovedKnowledge({
       ownerId: req.owner.memoryOwnerId,
       scope,
@@ -322,7 +321,10 @@ router.post("/knowledge/preview", async (req, res) => {
       outcome: "preview",
       resource: "archive-knowledge",
       details: `preview:${preview.documentCount}:${preview.candidateCount}`,
-      sessionId: typeof req.body?.sessionId === "string" ? req.body.sessionId : "archive-preview",
+      sessionId:
+        typeof req.body?.sessionId === "string"
+          ? req.body.sessionId
+          : "archive-preview",
     });
     return res.json({ status: "preview", ...preview });
   } catch (error) {
@@ -332,8 +334,10 @@ router.post("/knowledge/preview", async (req, res) => {
 
 router.post("/knowledge/import", async (req, res) => {
   const body = req.body || {};
-  const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : "";
-  const confirmationId = typeof body.confirmationId === "string" ? body.confirmationId.trim() : "";
+  const sessionId =
+    typeof body.sessionId === "string" ? body.sessionId.trim() : "";
+  const confirmationId =
+    typeof body.confirmationId === "string" ? body.confirmationId.trim() : "";
   if (!sessionId) {
     return res.status(400).json({
       error: "Полето sessionId е задължително за архивен импорт.",

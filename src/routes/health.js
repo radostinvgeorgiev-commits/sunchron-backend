@@ -22,7 +22,10 @@ import {
   isMcpOAuthConfigured,
 } from "../services/mcpOAuthService.js";
 import { isCodexAgentConfigured } from "../services/codexAgentService.js";
-import { getCodeTaskProviderStatus, isCodeTaskConfigured } from "../services/codeTaskService.js";
+import {
+  getCodeTaskProviderStatus,
+  isCodeTaskConfigured,
+} from "../services/codeTaskService.js";
 import {
   createSingleFlightCache,
   inspectStorageBackups,
@@ -70,9 +73,7 @@ function hasAllEnvironmentVariables(env, ...names) {
   return names.every((name) => Boolean(env[name]));
 }
 
-export function resolveStorageBackupCacheTtlMs(
-  _report,
-) {
+export function resolveStorageBackupCacheTtlMs(_report) {
   return FAILED_BACKUP_CACHE_TTL_MS;
 }
 
@@ -502,10 +503,10 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
       },
       memory: {
         ...configuration["google-firestore-memory"],
-      backend:
-        resolveMemoryBackend(process.env) === "firestore"
-          ? "firestore"
-          : null,
+        backend:
+          resolveMemoryBackend(process.env) === "firestore"
+            ? "firestore"
+            : null,
       },
     },
     tools: listTools().map((tool) => {

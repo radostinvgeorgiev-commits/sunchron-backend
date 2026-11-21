@@ -27,7 +27,7 @@ test("the personal AI interface keeps chat primary and makes owner mobile action
   assert.match(css, /bottom:\s*calc\(70px \+ env\(safe-area-inset-bottom\)\)/u);
   assert.match(script, /forwardClick\("memoryBtn", "memory"\)/u);
   assert.match(script, /forwardClick\("workCenterBtn", "connections"\)/u);
-  assert.match(script, /!target \|\| target\.hidden/u);
+  assert.match(script, /!target\s*\|\|\s*target\.hidden/u);
   assert.match(script, /forwardClick\("profileStatusBtn", "status"\)/u);
   assert.match(script, /setAttribute\("aria-current", "page"\)/u);
 });
@@ -81,10 +81,13 @@ test("status panel exposes the active Google Cloud integrations", async () => {
   assert.match(html, /Активни интеграции/u);
   assert.match(app, /health\/integrations/u);
   assert.match(app, /Google Cloud Memory/u);
-  assert.doesNotMatch(app, /checkOpenSearch|checkStorageStatus|Supabase|OpenSearch/iu);
+  assert.doesNotMatch(
+    app,
+    /checkOpenSearch|checkStorageStatus|Supabase|OpenSearch/iu,
+  );
   assert.match(
     shell,
-    /\.statusPanel\{[^}]*z-index:80;[^}]*flex-direction:column/u,
+    /\.statusPanel\s*\{[^}]*z-index:\s*80;[^}]*flex-direction:\s*column/u,
   );
   assert.match(
     css,

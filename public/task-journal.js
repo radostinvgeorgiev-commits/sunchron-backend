@@ -179,16 +179,12 @@
       id: CURRENT_NEXT_TASK_ID,
       title: nextStep,
       detail:
-        detail ||
-        "Текущата следваща стъпка от последния отговор на AI CORE.",
+        detail || "Текущата следваща стъпка от последния отговор на AI CORE.",
       status: "now",
       priority: "Следва от AI CORE",
       updatedAt: new Date().toISOString(),
     };
-    tasks = [
-      task,
-      ...tasks.filter((item) => item.id !== CURRENT_NEXT_TASK_ID),
-    ];
+    tasks = [task, ...tasks.filter((item) => item.id !== CURRENT_NEXT_TASK_ID)];
     saveTasks();
     if (!drawer.hidden) renderJournal();
     return { ...task };
@@ -365,9 +361,7 @@
 
   function openCurrentNext() {
     openJournal();
-    const card = body.querySelector(
-      `[data-task-id="${CURRENT_NEXT_TASK_ID}"]`,
-    );
+    const card = body.querySelector(`[data-task-id="${CURRENT_NEXT_TASK_ID}"]`);
     if (!card) return;
     card.classList.add("task-card-highlighted");
     if (typeof card.scrollIntoView === "function") {

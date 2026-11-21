@@ -6,7 +6,8 @@ import {
 } from "./vertexAiGeminiService.js";
 
 const DEFAULT_OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
-const DEFAULT_GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta";
+const DEFAULT_GEMINI_API_URL =
+  "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_GROK_API_URL = "https://api.x.ai/v1/chat/completions";
 const DEFAULT_AI_TIMEOUT_MS = 120_000;
 export const AI_PROVIDERS = new Set([
@@ -43,9 +44,11 @@ function extractTextContent(content) {
     .map((part) => {
       if (typeof part === "string") return part;
       if (!part || typeof part !== "object") return "";
-      return [part.text, part.input_text, part.output_text].find(
-        (value) => typeof value === "string",
-      ) || "";
+      return (
+        [part.text, part.input_text, part.output_text].find(
+          (value) => typeof value === "string",
+        ) || ""
+      );
     })
     .join("");
 }
@@ -96,8 +99,8 @@ export function extractGrokOutputText(data) {
 
 export async function requestOpenAIResponse({
   apiKey = process.env.OPENAI_API_KEY,
-  responsesUrl =
-    process.env.OPENAI_RESPONSES_URL || DEFAULT_OPENAI_RESPONSES_URL,
+  responsesUrl = process.env.OPENAI_RESPONSES_URL ||
+    DEFAULT_OPENAI_RESPONSES_URL,
   input,
   model = process.env.OPENAI_CHAT_MODEL || DEFAULT_OPENAI_CHAT_MODEL,
   fetchImpl = fetch,
@@ -220,7 +223,9 @@ export async function requestGeminiResponse({
             }
           : {}),
         contents,
-        ...(jsonMode ? { generationConfig: { responseMimeType: "application/json" } } : {}),
+        ...(jsonMode
+          ? { generationConfig: { responseMimeType: "application/json" } }
+          : {}),
       }),
       signal,
     },
@@ -322,7 +327,11 @@ export async function requestClaudeResponse({
   maxTokens = 2048,
 }) {
   if (!apiKey) {
-    throw new AiCoreError("Claude не е конфигуриран.", "CLAUDE_NOT_CONFIGURED", 503);
+    throw new AiCoreError(
+      "Claude не е конфигуриран.",
+      "CLAUDE_NOT_CONFIGURED",
+      503,
+    );
   }
   const messages = normalizeChatMessages(input).map(({ role, content }) => ({
     role: role === "assistant" ? "assistant" : "user",
@@ -340,13 +349,25 @@ export async function requestClaudeResponse({
   });
   if (!response.ok) {
     console.error(`[Claude] Upstream request failed: ${response.status}`);
-    throw new AiCoreError(`Claude върна грешка ${response.status}.`, "CLAUDE_UPSTREAM_ERROR", response.status);
+    throw new AiCoreError(
+      `Claude върна грешка ${response.status}.`,
+      "CLAUDE_UPSTREAM_ERROR",
+      response.status,
+    );
   }
   const data = await response.json();
   const text = Array.isArray(data?.content)
-    ? data.content.filter((item) => item?.type === "text").map((item) => item.text || "").join("\n").trim()
+    ? data.content
+        .filter((item) => item?.type === "text")
+        .map((item) => item.text || "")
+        .join("\n")
+        .trim()
     : "";
-  if (!text) throw new AiCoreError("Claude не върна текстов отговор.", "CLAUDE_EMPTY_RESPONSE");
+  if (!text)
+    throw new AiCoreError(
+      "Claude не върна текстов отговор.",
+      "CLAUDE_EMPTY_RESPONSE",
+    );
   return { text, provider: "claude", model: data?.model || model };
 }
 
@@ -418,7 +439,10 @@ export function getAiProviderTimeoutMs(
   if (normalizeAiProvider(provider) === "vertex-gemini") {
     return resolveVertexAiTimeoutMs(env);
   }
-  return parsePositiveInteger(timeoutKey ? env[timeoutKey] : undefined, fallback);
+  return parsePositiveInteger(
+    timeoutKey ? env[timeoutKey] : undefined,
+    fallback,
+  );
 }
 
 export function getDefaultChatModel(provider, env = process.env) {
@@ -430,10 +454,7 @@ export function getDefaultChatModel(provider, env = process.env) {
   }[provider];
 }
 
-export async function requestAiResponse({
-  provider,
-  ...options
-} = {}) {
+export async function requestAiResponse({ provider, ...options } = {}) {
   const selectedProvider =
     provider === undefined
       ? getConfiguredAiProvider(options.env || process.env)

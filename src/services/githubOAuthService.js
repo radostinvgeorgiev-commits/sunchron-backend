@@ -263,15 +263,12 @@ function isExpired(expiresAt) {
   return !Number.isFinite(timestamp) || Date.now() >= timestamp;
 }
 
-export function isActiveAuthorizedGitHubSession(
-  session,
-  env = process.env,
-) {
+export function isActiveAuthorizedGitHubSession(session, env = process.env) {
   return Boolean(
     typeof session?.accessToken === "string" &&
-      session.accessToken.trim() &&
-      !isExpired(session.expiresAt) &&
-      isAuthorizedGitHubLogin(session.login, env),
+    session.accessToken.trim() &&
+    !isExpired(session.expiresAt) &&
+    isAuthorizedGitHubLogin(session.login, env),
   );
 }
 

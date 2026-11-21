@@ -38,7 +38,12 @@ export function getGoogleCloudRuntimeStatus({ env = process.env } = {}) {
 
   return Object.freeze({
     provider: "google-cloud",
-    status: cloudRunDetected && configured ? "running" : configured ? "configured" : "unavailable",
+    status:
+      cloudRunDetected && configured
+        ? "running"
+        : configured
+          ? "configured"
+          : "unavailable",
     configured,
     cloudRunDetected,
     projectId,

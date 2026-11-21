@@ -58,24 +58,20 @@ router.get("/repository", async (req, res) => {
 router.post("/prepare", async (req, res) => {
   const { repository, message } = req.body || {};
   if (repository !== getConfiguredRepository()) {
-    return res
-      .status(400)
-      .json({
-        error: "Избери разрешено хранилище.",
-        code: "REPOSITORY_NOT_ALLOWED",
-      });
+    return res.status(400).json({
+      error: "Избери разрешено хранилище.",
+      code: "REPOSITORY_NOT_ALLOWED",
+    });
   }
   if (
     typeof message !== "string" ||
     !message.trim() ||
     message.length > 8_000
   ) {
-    return res
-      .status(400)
-      .json({
-        error: "Опиши задачата с до 8000 знака.",
-        code: "CODE_TASK_INVALID_MESSAGE",
-      });
+    return res.status(400).json({
+      error: "Опиши задачата с до 8000 знака.",
+      code: "CODE_TASK_INVALID_MESSAGE",
+    });
   }
   const draft = await prepareCodeTask({
     ...req.codeWorkspace,
@@ -115,12 +111,10 @@ router.post("/confirm", async (req, res) => {
     typeof confirmationId !== "string" ||
     !/^[a-f0-9-]{36}$/u.test(confirmationId)
   ) {
-    return res
-      .status(400)
-      .json({
-        error: "Липсва валиден преглед за потвърждение.",
-        code: "CODE_TASK_CONFIRMATION_REQUIRED",
-      });
+    return res.status(400).json({
+      error: "Липсва валиден преглед за потвърждение.",
+      code: "CODE_TASK_CONFIRMATION_REQUIRED",
+    });
   }
   res.json(await confirmCodeTask({ ...req.codeWorkspace, confirmationId }));
 });
@@ -162,12 +156,10 @@ router.use((error, _req, res, _next) => {
     });
   }
   logSafeError("[Code workspace]", error);
-  res
-    .status(503)
-    .json({
-      error: "Работният екран временно не успя да завърши заявката.",
-      code: "CODE_WORKSPACE_UNAVAILABLE",
-    });
+  res.status(503).json({
+    error: "Работният екран временно не успя да завърши заявката.",
+    code: "CODE_WORKSPACE_UNAVAILABLE",
+  });
 });
 
 export default router;

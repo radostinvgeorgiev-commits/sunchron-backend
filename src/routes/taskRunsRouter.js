@@ -71,7 +71,10 @@ export function createTaskRunsRouter({
 
   router.get("/:runId", async (req, res) => {
     try {
-      const item = await get({ ownerId: ownerId(req), runId: req.params.runId });
+      const item = await get({
+        ownerId: ownerId(req),
+        runId: req.params.runId,
+      });
       return res.json({ item });
     } catch (error) {
       return sendError(res, error);

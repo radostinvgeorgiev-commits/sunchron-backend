@@ -110,7 +110,12 @@ test("workspace keeps a supported personal pet", () => {
 test("workspace preserves direct Gemini, Vertex Gemini and Grok model choices", () => {
   const state = normalizeWorkspaceState({
     agents: [
-      { id: "gemini", name: "Gemini", role: "researcher", model: "gemini-2.5-flash" },
+      {
+        id: "gemini",
+        name: "Gemini",
+        role: "researcher",
+        model: "gemini-2.5-flash",
+      },
       {
         id: "vertex",
         name: "Vertex Gemini",

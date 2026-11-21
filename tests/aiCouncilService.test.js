@@ -176,7 +176,10 @@ test("selects Claude only and returns its response without synthesis", async () 
     claudeApiKey: "test",
     openAiApiKey: "",
     advisorRequesters: {
-      claude: async () => ({ model: "claude-test", text: "Отговор от Claude." }),
+      claude: async () => ({
+        model: "claude-test",
+        text: "Отговор от Claude.",
+      }),
     },
   });
   assert.equal(result.responses.length, 1);
@@ -193,7 +196,9 @@ test("selected providers exclude others and preserve partial answers", async () 
     openAiApiKey: "",
     advisorRequesters: {
       claude: async () => ({ model: "claude-test", text: "Claude работи." }),
-      gemini: async () => { throw new Error("unavailable"); },
+      gemini: async () => {
+        throw new Error("unavailable");
+      },
     },
   });
   assert.deepEqual(result.unavailableProviders, ["gemini"]);
@@ -204,7 +209,9 @@ test("rejects unsupported and duplicate Council provider selection", async () =>
   for (const selectedProviders of [[], ["claude", "claude"], ["unknown"]]) {
     await assert.rejects(
       () => runAiCouncil({ message: "Тест", selectedProviders }),
-      (error) => error instanceof AiCouncilError && error.code === "AI_COUNCIL_INVALID_PROVIDERS",
+      (error) =>
+        error instanceof AiCouncilError &&
+        error.code === "AI_COUNCIL_INVALID_PROVIDERS",
     );
   }
 });

@@ -51,7 +51,10 @@ test("application exposes working memory and permission controls", async () => {
   assert.match(script, /item\.readOnly/u);
   assert.match(script, /fetch\(["']\/health\/ready["']/u);
   assert.match(script, /activeIntegrationsDisplay/u);
-  assert.doesNotMatch(script, /checkOpenSearch|checkStorageStatus|opensearchFailures/iu);
+  assert.doesNotMatch(
+    script,
+    /checkOpenSearch|checkStorageStatus|opensearchFailures/iu,
+  );
   assert.match(script, /инструмента са конфигурирани и изпълними/u);
   assert.match(script, /AI CORE Code Write подготвя отделен branch/u);
   assert.match(script, /Писането е защитено/u);

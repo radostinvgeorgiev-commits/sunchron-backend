@@ -1,8 +1,4 @@
-const ALLOWED_IMAGE_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-]);
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export class ImageServiceError extends Error {
@@ -67,8 +63,8 @@ export async function analyzeImage({
   prompt,
   context,
   fetchImpl = fetch,
-  inferenceUrl =
-    process.env.OPENAI_API_URL || "https://api.openai.com/v1/chat/completions",
+  inferenceUrl = process.env.OPENAI_API_URL ||
+    "https://api.openai.com/v1/chat/completions",
   modelAccessKey = process.env.OPENAI_API_KEY,
   model = process.env.OPENAI_VISION_MODEL || "gpt-4o-mini",
   signal,

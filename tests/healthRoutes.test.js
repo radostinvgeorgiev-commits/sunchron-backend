@@ -10,7 +10,10 @@ import {
 
 test("liveness version exposes only the deployed version and commit", () => {
   assert.deepEqual(
-    getRuntimeVersion({ npm_package_version: "1.2.3", APP_COMMIT_SHA: "abc123" }),
+    getRuntimeVersion({
+      npm_package_version: "1.2.3",
+      APP_COMMIT_SHA: "abc123",
+    }),
     { version: "1.2.3", commit: "abc123" },
   );
 });
@@ -69,7 +72,11 @@ test("readiness follows an explicitly selected Vertex provider", async () => {
 
 test("readiness rejects non-Firestore memory runtime", async () => {
   const result = await getReadinessStatus({
-    env: { NODE_ENV: "test", OPENAI_API_KEY: "key", MEMORY_BACKEND: "opensearch" },
+    env: {
+      NODE_ENV: "test",
+      OPENAI_API_KEY: "key",
+      MEMORY_BACKEND: "opensearch",
+    },
     loadMemoryVerificationStatus: () => ({ status: "not-required" }),
   });
   assert.equal(result.status, "not-ready");
@@ -77,7 +84,10 @@ test("readiness rejects non-Firestore memory runtime", async () => {
 });
 
 test("unverified Firestore backup status uses a short cache", () => {
-  assert.equal(resolveStorageBackupCacheTtlMs({ status: "unverified" }), 15_000);
+  assert.equal(
+    resolveStorageBackupCacheTtlMs({ status: "unverified" }),
+    15_000,
+  );
 });
 
 test("storage report exposes the explicit untested restore boundary", async () => {

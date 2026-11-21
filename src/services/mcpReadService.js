@@ -25,9 +25,7 @@ import {
   formatSystemConfigurationReport,
   getSystemConfigurationReport,
 } from "./systemConfigurationService.js";
-import {
-  mcpToolSecuritySchemes,
-} from "./mcpOAuthService.js";
+import { mcpToolSecuritySchemes } from "./mcpOAuthService.js";
 import { sendMcpAgentMessage } from "./mcpAgentConversationService.js";
 import {
   createMcpCapabilityHandler,
@@ -389,11 +387,11 @@ export function createMcpRequestHandler({
         name === "talk_to_ai_core"
           ? "agent.chat"
           : name.includes("github")
-                ? "github.write"
-                : name.includes("google_cloud") ||
-                    name.includes("system_configuration")
-                  ? "infrastructure.read"
-                  : "memory.read",
+            ? "github.write"
+            : name.includes("google_cloud") ||
+                name.includes("system_configuration")
+              ? "infrastructure.read"
+              : "memory.read",
       decision: "allow",
       outcome: "succeeded",
       resource: name,

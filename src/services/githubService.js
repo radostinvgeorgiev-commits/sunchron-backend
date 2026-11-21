@@ -133,7 +133,11 @@ export async function getCodeWorkspaceBase(repository, readOptions) {
     readOptions,
   );
   if (!/^[a-f0-9]{40}$/u.test(base.object?.sha || "")) {
-    throw new GitHubServiceError("GitHub не върна валиден SHA на main.", 502, "GITHUB_BASE_SHA_MISSING");
+    throw new GitHubServiceError(
+      "GitHub не върна валиден SHA на main.",
+      502,
+      "GITHUB_BASE_SHA_MISSING",
+    );
   }
   return base.object.sha;
 }
@@ -146,7 +150,11 @@ export async function getCodeWorkspaceTree(repository, baseSha, readOptions) {
     readOptions,
   );
   if (data.truncated || !Array.isArray(data.tree)) {
-    throw new GitHubServiceError("GitHub не върна пълния списък с файлове.", 422, "GITHUB_TREE_INCOMPLETE");
+    throw new GitHubServiceError(
+      "GitHub не върна пълния списък с файлове.",
+      422,
+      "GITHUB_TREE_INCOMPLETE",
+    );
   }
   return data.tree;
 }
@@ -154,14 +162,22 @@ export async function getCodeWorkspaceTree(repository, baseSha, readOptions) {
 export async function getCodeWorkspaceChecks(sha, repository, readOptions) {
   assertAllowedRepository(repository);
   if (!/^[a-f0-9]{40}$/u.test(sha)) {
-    throw new GitHubServiceError("Невалиден SHA за проверките.", 400, "INVALID_COMMIT");
+    throw new GitHubServiceError(
+      "Невалиден SHA за проверките.",
+      400,
+      "INVALID_COMMIT",
+    );
   }
   const data = await githubRequest(
     `/repos/${repository}/commits/${sha}/check-runs?filter=latest&per_page=50`,
     {},
     readOptions,
   );
-  return (data.check_runs || []).map(({ name, status, conclusion }) => ({ name, status, conclusion }));
+  return (data.check_runs || []).map(({ name, status, conclusion }) => ({
+    name,
+    status,
+    conclusion,
+  }));
 }
 
 export async function listRecentCommits(
@@ -540,9 +556,7 @@ export async function answerGitHubReadRequest(message, readOptions = {}) {
   if (asksForOpenPullRequests) {
     const repository = getConfiguredRepository();
     const asksForLatestCommit =
-      /(?:последн(?:ия|ият|ата).*\b(?:commit|комит)\b|\bmain\b)/iu.test(
-        text,
-      );
+      /(?:последн(?:ия|ият|ата).*\b(?:commit|комит)\b|\bmain\b)/iu.test(text);
     const [pullRequests, commits] = await Promise.all([
       listOpenPullRequests(repository, 50, readOptions),
       asksForLatestCommit ? listRecentCommits(repository, 1, readOptions) : [],

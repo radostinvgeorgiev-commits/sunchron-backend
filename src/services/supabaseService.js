@@ -49,11 +49,7 @@ function normalizeProjectUrl(value) {
 }
 
 export async function checkSupabaseStatus(options = {}) {
-  const {
-    fetchImpl = fetch,
-    timeoutMs,
-    env = process.env,
-  } = options;
+  const { fetchImpl = fetch, timeoutMs, env = process.env } = options;
   const hasProjectUrl = Object.hasOwn(options, "projectUrl");
   const hasPublishableKey = Object.hasOwn(options, "publishableKey");
   if (hasProjectUrl !== hasPublishableKey) {

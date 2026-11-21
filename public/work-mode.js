@@ -408,7 +408,8 @@
   }
 
   function currentConversationId() {
-    if (conversationActions.getActiveId) return conversationActions.getActiveId();
+    if (conversationActions.getActiveId)
+      return conversationActions.getActiveId();
     try {
       const value = cleanText(localStorage.getItem("synchronSessionId"), 80);
       return /^[a-z0-9][a-z0-9:_-]{0,79}$/iu.test(value) ? value : "";
@@ -468,7 +469,9 @@
   function persistRemoteState() {
     const snapshot = normalizeState(workState);
     const revision = localRevision;
-    remoteWrites = remoteWrites.then(() => writeRemoteState(snapshot, revision));
+    remoteWrites = remoteWrites.then(() =>
+      writeRemoteState(snapshot, revision),
+    );
     return remoteWrites;
   }
 
@@ -667,8 +670,12 @@
 
   function addConversationToProject(projectId, sessionId) {
     const project = workState.projects.find(({ id }) => id === projectId);
-    if (!project || !sessionId || project.conversationIds.includes(sessionId)) return;
-    project.conversationIds = [sessionId, ...project.conversationIds].slice(0, 50);
+    if (!project || !sessionId || project.conversationIds.includes(sessionId))
+      return;
+    project.conversationIds = [sessionId, ...project.conversationIds].slice(
+      0,
+      50,
+    );
     project.updatedAt = new Date().toISOString();
     saveState();
   }
@@ -681,7 +688,12 @@
     controls.className = "work-project-chat-controls";
     related.appendChild(controls);
     const addButton = (container, label, action) => {
-      const button = addText(container, "button", label, "work-project-chat-action");
+      const button = addText(
+        container,
+        "button",
+        label,
+        "work-project-chat-action",
+      );
       button.type = "button";
       button.addEventListener("click", () => {
         if (!conversationBusy) void action();
@@ -708,7 +720,10 @@
     }
 
     const titles = new Map(
-      (conversationActions.list?.() || []).map(({ sessionId, title }) => [sessionId, title]),
+      (conversationActions.list?.() || []).map(({ sessionId, title }) => [
+        sessionId,
+        title,
+      ]),
     );
     const list = document.createElement("ul");
     list.className = "work-project-chat-list";
@@ -724,7 +739,9 @@
       const unlink = addButton(item, "Откачи", () => {
         const current = workState.projects.find(({ id }) => id === project.id);
         if (!current) return;
-        current.conversationIds = current.conversationIds.filter((itemId) => itemId !== id);
+        current.conversationIds = current.conversationIds.filter(
+          (itemId) => itemId !== id,
+        );
         current.updatedAt = new Date().toISOString();
         saveState();
         openManager();
@@ -1364,7 +1381,11 @@
     const run = normalizeProjectRun(data?.projectRun);
     const projectId = cleanText(data?.projectRun?.projectId, 80);
     const project = workState.projects.find(
-      (item) => item.id === (projectId || sent.projectId || (!sent.sessionId && workState.activeProjectId)),
+      (item) =>
+        item.id ===
+        (projectId ||
+          sent.projectId ||
+          (!sent.sessionId && workState.activeProjectId)),
     );
     if (run && project) {
       project.run = run;
@@ -1378,7 +1399,10 @@
       saveState();
     }
     if (project && data?.conversationPersisted !== false) {
-      addConversationToProject(project.id, sent.sessionId || currentConversationId());
+      addConversationToProject(
+        project.id,
+        sent.sessionId || currentConversationId(),
+      );
     }
     const status = data?.task?.status;
     if (run?.needsUserDecision) setPetState("needs-input");

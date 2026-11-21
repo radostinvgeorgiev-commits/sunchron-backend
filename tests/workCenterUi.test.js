@@ -24,7 +24,10 @@ test("work center contains no retired provider or domain actions", async () => {
     readFile(htmlUrl, "utf8"),
   ]);
   const activeUi = `${source}\n${html}`;
-  assert.doesNotMatch(activeUi, /synchron\.foundation|DigitalOcean|Cloudflare/iu);
+  assert.doesNotMatch(
+    activeUi,
+    /synchron\.foundation|DigitalOcean|Cloudflare/iu,
+  );
   assert.doesNotMatch(activeUi, /prepare-www|confirm-www|www-domain/iu);
 });
 

@@ -523,7 +523,10 @@ test("a pending local project survives reload and replaces stale remote state", 
 });
 
 test("project actions link the current conversation, start a related chat and open it", async () => {
-  const script = await readFile(new URL("../public/work-mode.js", import.meta.url), "utf8");
+  const script = await readFile(
+    new URL("../public/work-mode.js", import.meta.url),
+    "utf8",
+  );
   const dom = createWorkModeDom(script, async () => {
     throw new Error("Offline workspace");
   });
@@ -531,17 +534,28 @@ test("project actions link the current conversation, start a related chat and op
     let active = "chat-one";
     const opened = [];
     const { document, SynchronWorkMode } = dom.window;
-    SynchronWorkMode.init({ id: "project-owner" }, {
-      getActiveId: () => active,
-      list: () => [{ sessionId: "chat-one", title: "Първи разговор" }],
-      open: async (id) => { opened.push(id); active = id; },
-      create: async () => { active = "chat-two"; return active; },
-      closeDrawer: () => { document.getElementById("dataDrawer").hidden = true; },
-    });
+    SynchronWorkMode.init(
+      { id: "project-owner" },
+      {
+        getActiveId: () => active,
+        list: () => [{ sessionId: "chat-one", title: "Първи разговор" }],
+        open: async (id) => {
+          opened.push(id);
+          active = id;
+        },
+        create: async () => {
+          active = "chat-two";
+          return active;
+        },
+        closeDrawer: () => {
+          document.getElementById("dataDrawer").hidden = true;
+        },
+      },
+    );
     const click = (label) => {
-      const button = [...document.querySelectorAll("#dataDrawerBody button")].find(
-        (item) => item.textContent === label,
-      );
+      const button = [
+        ...document.querySelectorAll("#dataDrawerBody button"),
+      ].find((item) => item.textContent === label);
       assert.ok(button, label);
       button.click();
     };
@@ -553,7 +567,13 @@ test("project actions link the current conversation, start a related chat and op
     click("Първи разговор");
     await nextTurn();
     assert.deepEqual(opened, ["chat-one"]);
-    assert.deepEqual(Array.from(SynchronWorkMode.getRequestPayload().workContext.project.conversationIds), ["chat-two", "chat-one"]);
+    assert.deepEqual(
+      Array.from(
+        SynchronWorkMode.getRequestPayload().workContext.project
+          .conversationIds,
+      ),
+      ["chat-two", "chat-one"],
+    );
     SynchronWorkMode.selectConversation("unrelated");
     assert.equal(SynchronWorkMode.getRequestPayload().mode, "chat");
   } finally {

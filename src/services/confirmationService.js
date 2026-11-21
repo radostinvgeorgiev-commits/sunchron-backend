@@ -370,7 +370,9 @@ export async function validateTaskConfirmation(
     confirmation.resource?.ownerFingerprint !== ownerFingerprint(ownerId) ||
     (taskId && confirmation.resource?.taskId !== taskId)
   ) {
-    const error = new Error("Профилът или задачата не съответстват на потвърждението.");
+    const error = new Error(
+      "Профилът или задачата не съответстват на потвърждението.",
+    );
     error.code = "TASK_CONFIRMATION_OWNER_MISMATCH";
     throw error;
   }

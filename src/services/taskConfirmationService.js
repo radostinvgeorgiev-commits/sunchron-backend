@@ -115,9 +115,9 @@ export async function confirmTaskWrite({
 
 export function extractTaskConfirmationId(message) {
   if (typeof message !== "string") return null;
-  const match = message.trim().match(
-    /^Потвърждавам AI CORE задача:\s*([0-9a-f]{8}-[0-9a-f-]{27,})$/iu,
-  );
+  const match = message
+    .trim()
+    .match(/^Потвърждавам AI CORE задача:\s*([0-9a-f]{8}-[0-9a-f-]{27,})$/iu);
   return match?.[1] || null;
 }
 

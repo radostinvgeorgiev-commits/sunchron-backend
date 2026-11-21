@@ -16,7 +16,9 @@ const KEYS = [
 ];
 
 test("integration status exposes Google Cloud and the three-engine code council without secrets", () => {
-  const original = Object.fromEntries(KEYS.map((key) => [key, process.env[key]]));
+  const original = Object.fromEntries(
+    KEYS.map((key) => [key, process.env[key]]),
+  );
   for (const key of KEYS) process.env[key] = `secret-${key}`;
   process.env.MEMORY_BACKEND = "firestore";
   process.env.PERSISTENCE_BACKEND = "firestore";
@@ -36,7 +38,9 @@ test("integration status exposes Google Cloud and the three-engine code council 
     assert.equal(codeWrite.healthStatus, "healthy");
     const cloud = status.tools.find(({ id }) => id === "google-cloud-read");
     assert.equal(cloud.configured, true);
-    const cloudWrite = status.tools.find(({ id }) => id === "google-cloud-write");
+    const cloudWrite = status.tools.find(
+      ({ id }) => id === "google-cloud-write",
+    );
     assert.equal(cloudWrite.configured, true);
     assert.equal(cloudWrite.healthStatus, "degraded");
     assert.doesNotMatch(JSON.stringify(status), /secret-/u);
@@ -50,7 +54,9 @@ test("integration status exposes Google Cloud and the three-engine code council 
 });
 
 test("AI CORE Code Write is configured when one engine is available", () => {
-  const original = Object.fromEntries(KEYS.map((key) => [key, process.env[key]]));
+  const original = Object.fromEntries(
+    KEYS.map((key) => [key, process.env[key]]),
+  );
   process.env.OPENAI_API_KEY = "openai";
   delete process.env.GEMINI_API_KEY;
   delete process.env.GROK_API_KEY;

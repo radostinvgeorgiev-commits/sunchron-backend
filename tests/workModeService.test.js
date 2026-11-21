@@ -123,14 +123,7 @@ test("the available personal-agent models are explicit and server-owned", () => 
 test("the available personal-agent roles are explicit", () => {
   assert.deepEqual(
     listWorkAgentRoles().map(({ id }) => id),
-    [
-      "general",
-      "researcher",
-      "organizer",
-      "documents",
-      "builder",
-      "coder",
-    ],
+    ["general", "researcher", "organizer", "documents", "builder", "coder"],
   );
 });
 
@@ -192,7 +185,12 @@ test("Codex work mode preserves an explicit GitHub read-only request", () => {
 
 test("Codex work mode respects an explicit no-tools boundary", () => {
   const requests = routeSelectedWorkAgentCapabilities(
-    [{ capability: "system.integrations.status", action: "infrastructure.read" }],
+    [
+      {
+        capability: "system.integrations.status",
+        action: "infrastructure.read",
+      },
+    ],
     {
       project: { name: "SYNCHRON-X" },
       agent: {
@@ -233,7 +231,10 @@ test("runtime provider and model questions do not launch Codex code analysis", (
     );
   }
 
-  assert.equal(isRuntimeAiIdentityRequest("Провери модела в src/config.js"), false);
+  assert.equal(
+    isRuntimeAiIdentityRequest("Провери модела в src/config.js"),
+    false,
+  );
   assert.equal(
     isRuntimeAiIdentityRequest(
       "Тест на AI CORE: отговори само с „AI CORE работи“ и не използвай инструменти.",

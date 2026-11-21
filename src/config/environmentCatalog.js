@@ -121,12 +121,9 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "Регион за Vertex AI Gemini.",
       { hasDefault: true },
     ),
-    general(
-      "VERTEX_AI_MODEL",
-      "AI ядро",
-      "Модел за Vertex AI Gemini.",
-      { hasDefault: true },
-    ),
+    general("VERTEX_AI_MODEL", "AI ядро", "Модел за Vertex AI Gemini.", {
+      hasDefault: true,
+    }),
     general(
       "VERTEX_AI_TIMEOUT_MS",
       "AI ядро",

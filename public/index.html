@@ -186,7 +186,9 @@
           <p class="auth-privacy">
             Профилът, разговорите и паметта са отделени за всеки потребител.
           </p>
-          <a class="auth-link" href="/plans">Виж плановете и заяви ранен достъп</a>
+          <a class="auth-link" href="/plans"
+            >Виж плановете и заяви ранен достъп</a
+          >
           <details class="auth-owner">
             <summary>Вход за собственик</summary>
             <a href="/api/github/connect">
@@ -357,7 +359,14 @@
               <i class="fa-solid fa-briefcase"></i>
               <span>Работа</span>
             </button>
-            <button id="codeWorkspaceBtn" type="button" aria-label="Код" aria-haspopup="dialog" data-owner-only hidden>
+            <button
+              id="codeWorkspaceBtn"
+              type="button"
+              aria-label="Код"
+              aria-haspopup="dialog"
+              data-owner-only
+              hidden
+            >
               <i class="fa-solid fa-code" aria-hidden="true"></i>
               <span>Код</span>
             </button>
@@ -404,12 +413,47 @@
           </div>
         </div>
 
-        <fieldset id="councilProviderPicker" class="council-provider-picker" aria-label="Избор на AI двигатели" hidden>
-          <label><input type="checkbox" name="councilProvider" value="openai" checked> OpenAI</label>
-          <label><input type="checkbox" name="councilProvider" value="gemini" checked> Gemini</label>
-          <label><input type="checkbox" name="councilProvider" value="grok" checked> Grok</label>
-          <label><input type="checkbox" name="councilProvider" value="claude"> Claude</label>
-          <label><input type="checkbox" name="councilProvider" value="codex"> Codex</label>
+        <fieldset
+          id="councilProviderPicker"
+          class="council-provider-picker"
+          aria-label="Избор на AI двигатели"
+          hidden
+        >
+          <label
+            ><input
+              type="checkbox"
+              name="councilProvider"
+              value="openai"
+              checked
+            />
+            OpenAI</label
+          >
+          <label
+            ><input
+              type="checkbox"
+              name="councilProvider"
+              value="gemini"
+              checked
+            />
+            Gemini</label
+          >
+          <label
+            ><input
+              type="checkbox"
+              name="councilProvider"
+              value="grok"
+              checked
+            />
+            Grok</label
+          >
+          <label
+            ><input type="checkbox" name="councilProvider" value="claude" />
+            Claude</label
+          >
+          <label
+            ><input type="checkbox" name="councilProvider" value="codex" />
+            Codex</label
+          >
         </fieldset>
 
         <div id="chatMessages" aria-live="polite"></div>
@@ -509,7 +553,9 @@
           </div>
           <div class="context-box">
             <div class="context-label">Активни интеграции</div>
-            <div class="context-value" id="activeIntegrationsDisplay">Проверка…</div>
+            <div class="context-value" id="activeIntegrationsDisplay">
+              Проверка…
+            </div>
             <small class="status-evidence">
               Показват се само реално конфигурираните и изпълними връзки.
             </small>
@@ -574,11 +620,17 @@
       </nav>
     </main>
 
-    <dialog id="codeWorkspace" class="code-workspace" aria-labelledby="codeWorkspaceTitle">
+    <dialog
+      id="codeWorkspace"
+      class="code-workspace"
+      aria-labelledby="codeWorkspaceTitle"
+    >
       <header class="code-workspace-header">
         <h2 id="codeWorkspaceTitle">Код</h2>
         <form method="dialog">
-          <button type="submit" class="code-workspace-secondary" autofocus>Затвори</button>
+          <button type="submit" class="code-workspace-secondary" autofocus>
+            Затвори
+          </button>
         </form>
       </header>
       <div class="code-workspace-body">
@@ -588,20 +640,51 @@
             <option value="">Избери хранилище</option>
           </select>
           <div class="code-workspace-connections">
-            <a id="codeWorkspaceConnect" href="/api/github/connect" hidden>Свържи GitHub</a>
-            <button id="codeWorkspaceReload" type="button" class="code-workspace-secondary" hidden>Зареди отново</button>
+            <a id="codeWorkspaceConnect" href="/api/github/connect" hidden
+              >Свържи GitHub</a
+            >
+            <button
+              id="codeWorkspaceReload"
+              type="button"
+              class="code-workspace-secondary"
+              hidden
+            >
+              Зареди отново
+            </button>
           </div>
           <label for="codeWorkspaceMessage">Задача</label>
-          <textarea id="codeWorkspaceMessage" rows="5" required maxlength="8000" placeholder="Опиши промяната и посочи конкретни файлове, ако ги знаеш."></textarea>
-          <button id="codeWorkspaceStart" type="submit" disabled>Подготви промени</button>
+          <textarea
+            id="codeWorkspaceMessage"
+            rows="5"
+            required
+            maxlength="8000"
+            placeholder="Опиши промяната и посочи конкретни файлове, ако ги знаеш."
+          ></textarea>
+          <button id="codeWorkspaceStart" type="submit" disabled>
+            Подготви промени
+          </button>
         </form>
         <section class="code-workspace-output" aria-label="Преглед на задачата">
           <p id="codeWorkspaceStatus" role="status"></p>
           <div id="codeWorkspaceReview"></div>
-          <button id="codeWorkspaceConfirm" type="button" hidden>Потвърди и създай PR</button>
+          <button id="codeWorkspaceConfirm" type="button" hidden>
+            Потвърди и създай PR
+          </button>
           <div id="codeWorkspaceResult" hidden>
-            <p><a id="codeWorkspacePr" target="_blank" rel="noopener noreferrer"></a></p>
-            <button id="codeWorkspaceRefreshChecks" type="button" class="code-workspace-secondary">Обнови GitHub проверките</button>
+            <p>
+              <a
+                id="codeWorkspacePr"
+                target="_blank"
+                rel="noopener noreferrer"
+              ></a>
+            </p>
+            <button
+              id="codeWorkspaceRefreshChecks"
+              type="button"
+              class="code-workspace-secondary"
+            >
+              Обнови GitHub проверките
+            </button>
             <ul id="codeWorkspaceChecks" aria-live="polite"></ul>
           </div>
         </section>

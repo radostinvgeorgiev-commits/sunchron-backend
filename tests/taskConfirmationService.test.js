@@ -50,14 +50,17 @@ test("task confirmation executes each prepared operation once", async () => {
 
   assert.equal(result.results.length, 2);
   assert.equal(calls.length, 2);
-  assert.deepEqual(calls.map((item) => item.input.confirmationId), [
-    "cloud-1",
-    "github-1",
-  ]);
-  assert.deepEqual(calls.map((item) => item.options), [
-    { confirmed: true, env: process.env },
-    { confirmed: true, env: process.env },
-  ]);
+  assert.deepEqual(
+    calls.map((item) => item.input.confirmationId),
+    ["cloud-1", "github-1"],
+  );
+  assert.deepEqual(
+    calls.map((item) => item.options),
+    [
+      { confirmed: true, env: process.env },
+      { confirmed: true, env: process.env },
+    ],
+  );
 
   await assert.rejects(
     () =>

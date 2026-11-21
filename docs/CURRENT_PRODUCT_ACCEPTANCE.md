@@ -8,12 +8,14 @@
 - Cloud Run е текущият production runtime.
 - Firestore е текущият runtime backend за памет и operational state.
 - Identity Platform е текущият auth backend.
-- OpenAI Responses API, Gemini и Grok имат директни адаптери.
+- OpenAI Responses API е основен AI backend, а Gemini, Grok и Claude са
+  допълнителни двигатели при валидна конфигурация.
 - Task Orchestrator може да планира multi-step задачи.
 - Инструменталните задачи имат owner-scoped durable run с checkpoint-и и
   pause/resume/cancel API.
 - Сайтът има Council режим, който пита OpenAI, Gemini и Grok и показва отделна
   структурирана препоръка преди изпълнение.
+- Codex е водещ code/ops изпълнител в branch/PR поток под owner confirmation.
 - AI CORE Code Write подготвя ограничен multi-engine plan и след точно
   потвърждение създава отделен branch, commit и Pull Request.
 - MCP има OAuth boundary и актуален каталог.

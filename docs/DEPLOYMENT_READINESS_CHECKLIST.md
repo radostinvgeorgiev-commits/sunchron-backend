@@ -11,7 +11,9 @@
 - Runtime: Cloud Run.
 - Storage: Firestore за памет и operational state.
 - Auth: Identity Platform.
-- AI providers: OpenAI Responses API, Gemini и Grok чрез директни адаптери.
+- MCP endpoint: `https://cloudaicore.com/mcp`.
+- AI providers: OpenAI Responses API е основен, а Gemini, Grok, Claude и Codex
+  са допълнителни двигатели само при валидна конфигурация.
 
 ## 2. Преди merge
 
@@ -64,3 +66,10 @@ Deployment не се прави, ако има поне едно от следн
 - A4 audit read остава непроверен;
 - A5 recovery остава само локално проверен;
 - owner не е дал отделно потвърждение за merge/deploy.
+
+## 7. Яснота в документацията
+
+- [ ] Активните docs не представят `synchron.foundation`, OpenSearch или
+      Supabase като текуща production истина.
+- [ ] Legacy/архивните контексти са отделени в migration/archive документация.
+- [ ] Ако нещо не е доказано, е отбелязано като недоказано, а не като факт.

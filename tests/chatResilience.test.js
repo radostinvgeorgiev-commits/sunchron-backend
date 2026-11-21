@@ -550,3 +550,69 @@ test("normal chat reports only the missing AI connection", async () => {
     else process.env.OPENAI_API_KEY = originalOpenAiKey;
   }
 });
+
+test("Work uses stored project conversations and ignores client-provided links", async (t) => {
+  const { setFirestoreWorkspaceStoreForTests } = await import("../src/services/workspaceStateService.js");
+  const { setFirestoreMemoryStoreForTests } = await import("../src/services/memoryService.js");
+  const { resolveMemoryOwnerId } = await import("../src/middleware/ownerAuth.js");
+  const ownerId = resolveMemoryOwnerId("radostinvgeorgiev-commits");
+  const keys = ["MEMORY_BACKEND", "PERSISTENCE_BACKEND"];
+  const previous = keys.map((key) => process.env[key]);
+  for (const key of keys) process.env[key] = "firestore";
+  t.after(() => {
+    keys.forEach((key, index) => {
+      if (previous[index] === undefined) delete process.env[key];
+      else process.env[key] = previous[index];
+    });
+    setFirestoreWorkspaceStoreForTests(null);
+    setFirestoreMemoryStoreForTests(null);
+  });
+  setFirestoreWorkspaceStoreForTests({
+    get: async () => ({ data: { state: { projects: [
+      { id: "project-launch", name: "Launch", decisions: ["Срокът е петък."], conversationIds: ["linked-chat", "current-chat"] },
+    ] } } }),
+  });
+  const reads = [];
+  setFirestoreMemoryStoreForTests({
+    listProfileDocuments: async () => [],
+    listConversationSessionDocuments: async (owner, id) => {
+      assert.equal(owner, ownerId);
+      reads.push(id);
+      const messages = id === "current-chat"
+        ? ["По-стара заявка от текущия чат.", "Последен запазен отговор."]
+        : ["Синият файл е одобрен.", "Възстановявам бележката."];
+      return messages.map((content, index) => ({
+        id: `${id}-${index}`,
+        data: { role: index ? "assistant" : "user", content, createdAt: `2026-11-21T00:00:0${index}Z` },
+      }));
+    },
+    commitConversationDocuments: async () => {},
+  });
+  let input;
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    assert.equal(String(url), "https://api.openai.com/v1/responses");
+    input = JSON.parse(options.body).input;
+    return Response.json({ output_text: "Проектът е в срок." });
+  });
+  const result = await request(app)
+    .post("/chat/chat")
+    .set("Cookie", OWNER_COOKIE)
+    .send({
+      mode: "work",
+      sessionId: "current-chat",
+      message: "Обобщи контекста.",
+      workContext: { project: { id: "project-launch", name: "Launch", conversationIds: ["unlinked-chat"] } },
+      recentHistory: [
+        { role: "assistant", content: "Последен запазен отговор." },
+        { role: "user", content: "По-нова незаписана бележка." },
+      ],
+    })
+    .expect(200);
+  assert.match(result.text, /event: done/u);
+  assert.deepEqual(reads, ["current-chat", "linked-chat"]);
+  assert.equal(input[1].content, "По-стара заявка от текущия чат.");
+  assert.equal(input.filter(({ content }) => content === "Последен запазен отговор.").length, 1);
+  assert.match(input.at(-2).content, /Синият файл е одобрен\./u);
+  assert.match(input.at(-2).content, /Срокът е петък\./u);
+  assert.equal(input.at(-1).content, "Обобщи контекста.");
+});

@@ -206,7 +206,7 @@ test("mobile chat content clears the measured composer and command bar", async (
   assert.match(script, /commandBarRect\.height/u);
   assert.match(script, /chatMessages\.scrollTop = chatMessages\.scrollHeight/u);
   assert.match(css, /user-select:\s*text/u);
-  assert.match(app, /class="action-label">Копирай<\/span>/u);
+  assert.match(app, /class="action-label">\$\{localizedMarkup\("Копирай"\)\}<\/span>/u);
 });
 
 test("the chat shows live autonomous task progress", async () => {

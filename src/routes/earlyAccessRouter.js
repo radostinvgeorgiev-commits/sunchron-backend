@@ -20,10 +20,17 @@ export function createEarlyAccessRouter({
     express.urlencoded({ extended: false, limit: "2kb", parameterLimit: 5 }),
     async (req, res) => {
       const attribution = readCampaignAttribution(req.query);
+      const { lang } = req.query;
       const redirect = (status) =>
         res.redirect(
           303,
-          `/plans?${new URLSearchParams({ request: status, ...attribution })}#early-access`,
+          `/plans?${new URLSearchParams({
+            request: status,
+            ...attribution,
+            ...(typeof lang === "string" && /^[a-z]{2,3}$/u.test(lang)
+              ? { lang }
+              : {}),
+          })}#early-access`,
         );
       const { email, consent, source } = req.body || {};
       const normalized =

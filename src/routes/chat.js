@@ -1,5 +1,6 @@
 import { getProductPlansService } from "../services/productPlansService.js";
 import express from "express";
+import { replyLanguageInstruction } from "../config/replyLanguage.js";
 import {
   buildMemoryContext,
   extractForgetMemoryCommand,
@@ -239,7 +240,6 @@ const ASSISTANT_CONTEXT = [
   "Използвай само инструменти, които реално са изпълнени и разрешени. Не твърди, че услуга е свързана, ако не е проверена.",
   "GitHub Read работи чрез отделен проверим инструмент. AI CORE Code Write подготвя отделен branch, commit и Pull Request само след точно потвърждение; никога не предлагай нов GitHub App, private key, token или secret без проверена необходимост и изрично решение.",
   "Човекът, с когото разговаряш, е Радко. Никога не казвай, че ти си Радко.",
-  "Говори само на български, освен ако Радко изрично поиска друг език.",
   "Обръщай се към Радко на „ти“. Говори естествено, спокойно, директно и човешки.",
   "Отговаряй първо на същината. Не започвай всеки отговор с поздрав, представяне или името на Радко.",
   "Не завършвай автоматично с „Как мога да помогна?“ или друг общ въпрос. Задавай въпрос само когато наистина ти липсва важна информация.",
@@ -278,7 +278,6 @@ function memberAssistantContext(personName) {
     "GitHub, Google и инфраструктурните инструменти не са достъпни, докато потребителят не свърже собствена услуга и не даде отделно разрешение.",
     "Не твърди, че недостъпен инструмент е използван. Показвай само реално изпълнен и проверен резултат.",
     `Човекът, с когото разговаряш, е ${personName}. Никога не казвай, че ти си този човек.`,
-    "Говори на български, освен ако човекът изрично поиска друг език.",
     `Обръщай се към ${personName} на „ти“. Говори естествено, спокойно, директно и човешки.`,
     "Отговаряй първо на същината. Не започвай всеки отговор с поздрав или представяне.",
     "Използвай постоянната памет само когато е свързана с текущия въпрос.",
@@ -305,6 +304,7 @@ export function buildAvatarMessages(
     : ASSISTANT_CONTEXT;
   const systemContext = [
     assistantContext,
+    replyLanguageInstruction(interaction.language),
     buildMemoryContext(memories, { personName }),
     buildKnowledgeContext(knowledge),
     interaction.mode === "work"
@@ -1091,6 +1091,7 @@ router.post("/chat", async (req, res) => {
     council,
     councilProviders,
     councilIntentId,
+    language,
   } = req.body || {};
   const googleSessionId =
     parseCookies(req.headers.cookie).synchron_google_session || "";
@@ -1328,6 +1329,7 @@ router.post("/chat", async (req, res) => {
     {
       mode: interactionMode,
       workContext: cleanWorkContext,
+      language,
       projectReference: buildProjectConversationReference(
         projectConversationContext,
       ),
@@ -1877,6 +1879,7 @@ router.post("/chat", async (req, res) => {
     try {
       const councilResult = await runAiCouncil({
         message: cleanMessage,
+        language,
         selectedProviders:
           councilProviders === undefined ? undefined : councilProviders,
         context: [
@@ -1899,7 +1902,7 @@ router.post("/chat", async (req, res) => {
       } catch (error) {
         logSafeError("[AI Council] Intent persistence failure", error);
       }
-      const fullReply = formatAiCouncilReply(councilResult);
+      const fullReply = formatAiCouncilReply(councilResult, language);
       const conversationPersisted = await saveConversationTurnBestEffort(
         cleanSessionId,
         cleanMessage,

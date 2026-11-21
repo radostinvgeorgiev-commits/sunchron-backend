@@ -136,6 +136,9 @@
   let storageAvailable = true;
   let managerNotice = "";
   let editingAgentId = null;
+  let conversationActions = {};
+  let conversationBusy = false;
+  let remoteWrites = Promise.resolve();
 
   const elements = {
     chatInput: document.getElementById("chatInput"),
@@ -405,6 +408,7 @@
   }
 
   function currentConversationId() {
+    if (conversationActions.getActiveId) return conversationActions.getActiveId();
     try {
       const value = cleanText(localStorage.getItem("synchronSessionId"), 80);
       return /^[a-z0-9][a-z0-9:_-]{0,79}$/iu.test(value) ? value : "";
@@ -461,15 +465,21 @@
     return payload;
   }
 
-  async function persistRemoteState() {
+  function persistRemoteState() {
     const snapshot = normalizeState(workState);
     const revision = localRevision;
+    remoteWrites = remoteWrites.then(() => writeRemoteState(snapshot, revision));
+    return remoteWrites;
+  }
+
+  async function writeRemoteState(snapshot, revision) {
     try {
       const payload = await readJson(
         await fetch(WORKSPACE_ENDPOINT, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ state: snapshot }),
+          signal: globalThis.AbortSignal?.timeout?.(6_000),
         }),
       );
       if (revision === localRevision) {
@@ -483,6 +493,12 @@
     } catch {
       syncStatus = "local";
     }
+  }
+
+  async function flushProjectContext() {
+    if (!remoteReady || !hasPendingRemoteSave()) return;
+    clearTimeout(saveTimer);
+    await persistRemoteState();
   }
 
   async function syncRemoteState() {
@@ -579,6 +595,16 @@
     elements.chatInput?.focus();
   }
 
+  function selectConversation(sessionId) {
+    if (workState?.mode !== "work") return;
+    if (activeProject()?.conversationIds.includes(sessionId)) return;
+    const project = workState.projects.find(({ conversationIds }) =>
+      conversationIds.includes(sessionId),
+    );
+    if (project) workState.activeProjectId = project.id;
+    setMode(project ? "work" : "chat");
+  }
+
   function setPetState(status) {
     const next = ["ready", "running", "needs-input", "blocked"].includes(status)
       ? status
@@ -637,6 +663,76 @@
       list.appendChild(button);
     }
     parent.appendChild(list);
+  }
+
+  function addConversationToProject(projectId, sessionId) {
+    const project = workState.projects.find(({ id }) => id === projectId);
+    if (!project || !sessionId || project.conversationIds.includes(sessionId)) return;
+    project.conversationIds = [sessionId, ...project.conversationIds].slice(0, 50);
+    project.updatedAt = new Date().toISOString();
+    saveState();
+  }
+
+  function renderProjectConversations(parent) {
+    const project = activeProject();
+    if (!project || !conversationActions.open) return;
+    const related = section(parent, "Разговори в проекта");
+    const controls = document.createElement("div");
+    controls.className = "work-project-chat-controls";
+    related.appendChild(controls);
+    const addButton = (container, label, action) => {
+      const button = addText(container, "button", label, "work-project-chat-action");
+      button.type = "button";
+      button.addEventListener("click", () => {
+        if (!conversationBusy) void action();
+      });
+      return button;
+    };
+    const activeId = currentConversationId();
+    const linked = project.conversationIds.includes(activeId);
+    addButton(controls, "Задай задача", () => {
+      conversationActions.closeDrawer();
+      setMode("work");
+    });
+    addButton(controls, "Нов чат в проекта", async () => {
+      conversationActions.closeDrawer();
+      setMode("work");
+      const id = await conversationActions.create();
+      addConversationToProject(project.id, id);
+    });
+    if (activeId && !linked) {
+      addButton(controls, "Свържи текущия чат", () => {
+        addConversationToProject(project.id, activeId);
+        openManager();
+      });
+    }
+
+    const titles = new Map(
+      (conversationActions.list?.() || []).map(({ sessionId, title }) => [sessionId, title]),
+    );
+    const list = document.createElement("ul");
+    list.className = "work-project-chat-list";
+    for (const [index, id] of project.conversationIds.entries()) {
+      const item = document.createElement("li");
+      const title = titles.get(id) || `Свързан разговор ${index + 1}`;
+      const open = addButton(item, title, async () => {
+        conversationActions.closeDrawer();
+        setMode("work");
+        await conversationActions.open(id);
+      });
+      if (id === activeId) open.setAttribute("aria-current", "true");
+      const unlink = addButton(item, "Откачи", () => {
+        const current = workState.projects.find(({ id }) => id === project.id);
+        if (!current) return;
+        current.conversationIds = current.conversationIds.filter((itemId) => itemId !== id);
+        current.updatedAt = new Date().toISOString();
+        saveState();
+        openManager();
+      });
+      unlink.setAttribute("aria-label", `Откачи ${title}`);
+      list.appendChild(item);
+    }
+    if (list.childElementCount) related.appendChild(list);
   }
 
   function renderAgentChoices(parent) {
@@ -1191,6 +1287,7 @@
     }
 
     const projects = section(elements.drawerBody, "Проекти");
+    renderProjectConversations(projects);
     renderProjectChoices(projects);
     renderProjectContextForm(projects);
     createProjectForm(projects);
@@ -1261,13 +1358,13 @@
     }
   }
 
-  function onDone(data) {
-    if (!workState || workState.mode !== "work") return;
+  function onDone(data, sent = {}) {
+    if (!workState || (sent.mode || workState.mode) !== "work") return;
     recordActivity(data?.task);
     const run = normalizeProjectRun(data?.projectRun);
     const projectId = cleanText(data?.projectRun?.projectId, 80);
     const project = workState.projects.find(
-      (item) => item.id === (projectId || workState.activeProjectId),
+      (item) => item.id === (projectId || sent.projectId || (!sent.sessionId && workState.activeProjectId)),
     );
     if (run && project) {
       project.run = run;
@@ -1280,14 +1377,8 @@
             : "ready";
       saveState();
     }
-    if (project) {
-      const conversationId = currentConversationId();
-      if (conversationId && !project.conversationIds.includes(conversationId)) {
-        project.conversationIds.unshift(conversationId);
-        project.conversationIds = project.conversationIds.slice(0, 50);
-        project.updatedAt = new Date().toISOString();
-        saveState();
-      }
+    if (project && data?.conversationPersisted !== false) {
+      addConversationToProject(project.id, sent.sessionId || currentConversationId());
     }
     const status = data?.task?.status;
     if (run?.needsUserDecision) setPetState("needs-input");
@@ -1298,7 +1389,8 @@
     else setPetState("ready");
   }
 
-  function init(user) {
+  function init(user, actions = {}) {
+    conversationActions = actions;
     const identity = cleanText(user?.id, 100) || cleanText(user?.role, 20);
     storageKey = `synchronWorkMode:${identity || "anonymous"}`;
     workState = loadState();
@@ -1320,6 +1412,7 @@
   }
 
   globalThis.SynchronWorkMode = Object.freeze({
+    flushProjectContext,
     getRequestPayload,
     init,
     onDone,
@@ -1327,7 +1420,9 @@
     onTask,
     openManager,
     openPetManager,
+    selectConversation,
     setBusy: (busy) => {
+      conversationBusy = busy;
       if (busy && workState?.mode === "work") setPetState("running");
     },
   });

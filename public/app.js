@@ -339,7 +339,13 @@ async function startApplication(user) {
   if (state.applicationStarted) return;
   state.applicationStarted = true;
   applyAuthenticatedUser(user);
-  globalThis.SynchronWorkMode?.init(user);
+  globalThis.SynchronWorkMode?.init(user, {
+    getActiveId: () => state.sessionId,
+    list: () => state.conversations,
+    open: (id) => openConversation(id, { withinProject: true }),
+    create: () => startNewChat({ withinProject: true }),
+    closeDrawer: closeDataDrawer,
+  });
   elements.authGate.hidden = true;
   elements.appShell.hidden = false;
   if (user?.role === "owner") globalThis.SynchronCodeWorkspace?.afterSignIn();
@@ -419,14 +425,16 @@ async function showWelcomeMessage() {
 }
 
 async function restoreConversation() {
+  const sessionId = state.sessionId;
   state.recentConversationMessages = [];
   try {
     const response = await fetch(
-      "/memory/conversation/" + encodeURIComponent(state.sessionId),
+      "/memory/conversation/" + encodeURIComponent(sessionId),
       { cache: "no-store" },
     );
     if (!response.ok) throw new Error("Историята не е достъпна.");
     const data = await response.json();
+    if (state.sessionId !== sessionId) return;
     const items = Array.isArray(data.items) ? data.items : [];
     if (items.length === 0) {
       await showWelcomeMessage();
@@ -445,17 +453,20 @@ async function restoreConversation() {
     }
     logAction("Възстановена е историята на разговора");
   } catch (error) {
+    if (state.sessionId !== sessionId) return;
     console.error(error);
     await showWelcomeMessage();
     logAction("Историята не можа да бъде възстановена");
   }
 }
 
-async function startNewChat() {
+async function startNewChat({ withinProject = false } = {}) {
   if (state.chatBusy) return;
   closeSidebar();
   clearPendingImage();
-  state.sessionId = createSessionId();
+  const sessionId = createSessionId();
+  state.sessionId = sessionId;
+  if (!withinProject) globalThis.SynchronWorkMode?.selectConversation(sessionId);
   writeLocalStorage("synchronSessionId", state.sessionId);
   state.lastActions = [];
   state.recentConversationMessages = [];
@@ -466,6 +477,7 @@ async function startNewChat() {
   logAction("Започнат е нов разговор");
   renderConversationList();
   elements.chatInput.focus();
+  return sessionId;
 }
 
 async function loadConversations() {
@@ -527,10 +539,14 @@ function renderConversationList() {
 
 async function handleConversationClick(event) {
   const button = event.target.closest("button[data-session-id]");
-  if (!button || state.chatBusy || button.dataset.sessionId === state.sessionId)
-    return;
-  state.sessionId = button.dataset.sessionId;
-  localStorage.setItem("synchronSessionId", state.sessionId);
+  if (button) await openConversation(button.dataset.sessionId);
+}
+
+async function openConversation(sessionId, { withinProject = false } = {}) {
+  if (state.chatBusy || !sessionId || sessionId === state.sessionId) return;
+  state.sessionId = sessionId;
+  if (!withinProject) globalThis.SynchronWorkMode?.selectConversation(sessionId);
+  writeLocalStorage("synchronSessionId", sessionId);
   elements.chatMessages.replaceChildren();
   state.recentConversationMessages = [];
   updateSessionDisplay();
@@ -2414,6 +2430,8 @@ async function sendMessage({ councilIntentId = "" } = {}) {
   }
   setCouncilMode(false);
   const recentHistory = state.recentConversationMessages.slice(-12);
+  const interaction = globalThis.SynchronWorkMode?.getRequestPayload();
+  const sentSessionId = state.sessionId;
   appendMessage("user", messageText, image);
   elements.chatInput.value = "";
   resizeChatInput();
@@ -2426,18 +2444,21 @@ async function sendMessage({ councilIntentId = "" } = {}) {
   let responseActions = null;
 
   try {
+    if (interaction?.workContext?.project.id) {
+      await globalThis.SynchronWorkMode?.flushProjectContext();
+    }
     const response = await fetch("/chat/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        sessionId: state.sessionId,
+        sessionId: sentSessionId,
         message: messageText,
         image,
         council: councilMode,
         ...(councilMode ? { councilProviders } : {}),
         ...(councilIntentId ? { councilIntentId } : {}),
         recentHistory,
-        ...globalThis.SynchronWorkMode?.getRequestPayload(),
+        ...interaction,
       }),
     });
 
@@ -2500,7 +2521,11 @@ async function sendMessage({ councilIntentId = "" } = {}) {
           logAction(parsed.data.message);
         } else if (parsed.event === "done") {
           completed = true;
-          globalThis.SynchronWorkMode?.onDone(parsed.data);
+          globalThis.SynchronWorkMode?.onDone(parsed.data, {
+            projectId: interaction?.workContext?.project.id,
+            sessionId: sentSessionId,
+            mode: interaction?.mode,
+          });
           showAiResponseSource(
             responseBubble,
             parsed.data?.provider,

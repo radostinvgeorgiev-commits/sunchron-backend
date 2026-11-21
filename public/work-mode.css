@@ -601,3 +601,44 @@ body[data-interaction-mode="chat"] .work-pet {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.work-project-chat-controls,
+.work-project-chat-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.work-project-chat-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.work-project-chat-action {
+  min-height: 42px;
+  max-width: 100%;
+  padding: 6px 12px;
+  border: 1px solid #c3d5cd;
+  border-radius: 10px;
+  background: #fff;
+  color: #155a47;
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.work-project-chat-controls > :first-child,
+.work-project-chat-action[aria-current="true"] {
+  border-color: #155a47;
+  background: #155a47;
+  color: #fff;
+}
+
+.work-project-chat-action:focus-visible {
+  outline: 2px solid #155a47;
+  outline-offset: 2px;
+}

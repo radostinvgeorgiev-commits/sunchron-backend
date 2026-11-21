@@ -411,19 +411,20 @@ function updateSessionDisplay() {
 }
 
 async function showWelcomeMessage() {
-  appendMessage(
+  const welcome = appendMessage(
     "agent",
     [
-      "## AI CORE",
+      "## Нека свършим нещо полезно.",
       "**Твоята лична AI операционна система.**",
       "",
-      "Едно AI ядро, постоянна контролирана памет и разрешени инструменти за реални задачи.",
+      "Опиши какво искаш да постигнеш или избери задача по-долу.",
       "",
-      "AI аватарът е моят начин на общуване. Ти контролираш данните, паметта и рисковите действия.",
+      "Ти избираш какво да запазя и кои действия да одобриш.",
     ].join("\n"),
     null,
     { remember: false },
   );
+  welcome.closest(".assistant-turn")?.classList.add("welcome-turn");
 }
 
 async function restoreConversation() {

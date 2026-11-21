@@ -1,5 +1,8 @@
 import { resolveFirestoreProjectId } from "../config/memoryBackend.js";
-import { AI_CORE_PUBLIC_ORIGIN, getGoogleCloudRuntimeStatus } from "./googleCloudService.js";
+import {
+  AI_CORE_PUBLIC_ORIGIN,
+  getGoogleCloudRuntimeStatus,
+} from "./googleCloudService.js";
 
 const CLOUD_RUN_API = "https://run.googleapis.com/v2";
 const CLOUD_BUILD_API = "https://cloudbuild.googleapis.com/v1";
@@ -128,7 +131,12 @@ async function mcpDiscoveryCheck({ origin, fetchImpl, timeoutMs }) {
       tools,
     };
   } catch (error) {
-    return { status: "fail", errorCode: safeErrorCode(error), toolCount: 0, tools: [] };
+    return {
+      status: "fail",
+      errorCode: safeErrorCode(error),
+      toolCount: 0,
+      tools: [],
+    };
   }
 }
 
@@ -142,9 +150,17 @@ async function googleApiCheck({ url, token, fetchImpl, timeoutMs, pick }) {
     );
     const payload = await readJsonResponse(response);
     if (!response.ok) {
-      return { status: "fail", httpStatus: response.status, errorCode: "GOOGLE_CLOUD_API_FAILED" };
+      return {
+        status: "fail",
+        httpStatus: response.status,
+        errorCode: "GOOGLE_CLOUD_API_FAILED",
+      };
     }
-    return { status: "pass", httpStatus: response.status, ...(pick(payload) || {}) };
+    return {
+      status: "pass",
+      httpStatus: response.status,
+      ...(pick(payload) || {}),
+    };
   } catch (error) {
     return { status: "fail", errorCode: safeErrorCode(error) };
   }
@@ -230,7 +246,8 @@ function buildSummary(payload) {
 }
 
 function buildCreateTime(payload) {
-  const createTime = typeof payload?.createTime === "string" ? payload.createTime : "";
+  const createTime =
+    typeof payload?.createTime === "string" ? payload.createTime : "";
   const timestamp = Date.parse(createTime);
   return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
 }
@@ -250,7 +267,9 @@ function overallStatus(checks) {
   const statuses = Object.values(checks).map((check) => check?.status);
   const passed = statuses.filter((status) => status === "pass").length;
   const failed = statuses.filter((status) => status === "fail").length;
-  const unavailable = statuses.filter((status) => status === "unavailable").length;
+  const unavailable = statuses.filter(
+    (status) => status === "unavailable",
+  ).length;
   if (failed === 0 && unavailable === 0 && passed > 0) return "pass";
   if (passed > 0) return "partial";
   return "fail";
@@ -264,9 +283,15 @@ export async function getProjectDiagnostics({
   timeoutMs = DEFAULT_TIMEOUT_MS,
 } = {}) {
   const projectId = projectIdFromEnvironment(env);
-  const service = clean(env.CLOUD_RUN_SERVICE || env.K_SERVICE || DEFAULT_SERVICE, 80);
+  const service = clean(
+    env.CLOUD_RUN_SERVICE || env.K_SERVICE || DEFAULT_SERVICE,
+    80,
+  );
   const region = clean(
-    env.GOOGLE_CLOUD_REGION || env.GCP_REGION || env.CLOUD_RUN_REGION || DEFAULT_REGION,
+    env.GOOGLE_CLOUD_REGION ||
+      env.GCP_REGION ||
+      env.CLOUD_RUN_REGION ||
+      DEFAULT_REGION,
     40,
   );
   // Diagnostics intentionally targets only the canonical production origin;
@@ -276,24 +301,52 @@ export async function getProjectDiagnostics({
   const triggerName =
     clean(env.CLOUD_BUILD_TRIGGER_NAME, 160) || DEFAULT_TRIGGER_NAME;
   const checks = {
-    publicHealth: await publicCheck("/health", { origin, fetchImpl, timeoutMs }),
-    readiness: await publicCheck("/health/ready", { origin, fetchImpl, timeoutMs }),
+    publicHealth: await publicCheck("/health", {
+      origin,
+      fetchImpl,
+      timeoutMs,
+    }),
+    readiness: await publicCheck("/health/ready", {
+      origin,
+      fetchImpl,
+      timeoutMs,
+    }),
     mcp: await mcpDiscoveryCheck({ origin, fetchImpl, timeoutMs }),
   };
 
   let token = null;
   if (projectId) {
     try {
-      token = await (accessTokenProvider || (() => metadataAccessToken(fetchImpl, timeoutMs)))();
+      token = await (
+        accessTokenProvider || (() => metadataAccessToken(fetchImpl, timeoutMs))
+      )();
     } catch (error) {
-      checks.cloudRun = { status: "unavailable", errorCode: safeErrorCode(error) };
-      checks.cloudBuildTrigger = { status: "unavailable", errorCode: safeErrorCode(error) };
-      checks.cloudBuildLatest = { status: "unavailable", errorCode: safeErrorCode(error) };
+      checks.cloudRun = {
+        status: "unavailable",
+        errorCode: safeErrorCode(error),
+      };
+      checks.cloudBuildTrigger = {
+        status: "unavailable",
+        errorCode: safeErrorCode(error),
+      };
+      checks.cloudBuildLatest = {
+        status: "unavailable",
+        errorCode: safeErrorCode(error),
+      };
     }
   } else {
-    checks.cloudRun = { status: "unavailable", errorCode: "GOOGLE_CLOUD_PROJECT_UNAVAILABLE" };
-    checks.cloudBuildTrigger = { status: "unavailable", errorCode: "GOOGLE_CLOUD_PROJECT_UNAVAILABLE" };
-    checks.cloudBuildLatest = { status: "unavailable", errorCode: "GOOGLE_CLOUD_PROJECT_UNAVAILABLE" };
+    checks.cloudRun = {
+      status: "unavailable",
+      errorCode: "GOOGLE_CLOUD_PROJECT_UNAVAILABLE",
+    };
+    checks.cloudBuildTrigger = {
+      status: "unavailable",
+      errorCode: "GOOGLE_CLOUD_PROJECT_UNAVAILABLE",
+    };
+    checks.cloudBuildLatest = {
+      status: "unavailable",
+      errorCode: "GOOGLE_CLOUD_PROJECT_UNAVAILABLE",
+    };
   }
 
   if (token && projectId) {
@@ -336,7 +389,8 @@ export async function getProjectDiagnostics({
     runtime.commit,
     checks.cloudBuildLatest.build?.commit,
   ].filter(Boolean);
-  const commitConsistent = observedCommits.length > 1 && new Set(observedCommits).size === 1;
+  const commitConsistent =
+    observedCommits.length > 1 && new Set(observedCommits).size === 1;
 
   return Object.freeze({
     status: overallStatus(checks),
@@ -359,7 +413,9 @@ export async function getProjectDiagnostics({
       observed: [...new Set(observedCommits)],
       expected: expectedCommit,
       consistent: commitConsistent,
-      matchesExpected: expectedCommit ? observedCommits.every((commit) => commit === expectedCommit) : null,
+      matchesExpected: expectedCommit
+        ? observedCommits.every((commit) => commit === expectedCommit)
+        : null,
     },
     checks,
     safety: {
@@ -371,12 +427,18 @@ export async function getProjectDiagnostics({
 }
 
 export function formatProjectDiagnostics(report) {
-  const label = { pass: "PASS", partial: "PARTIAL", fail: "FAIL" }[report.status] || "UNKNOWN";
-  const checkLines = Object.entries(report.checks || {}).map(([name, check]) => {
-    const status = check?.status || "unknown";
-    const details = [check?.httpStatus, check?.errorCode].filter(Boolean).join("; ");
-    return `• ${name}: ${status.toUpperCase()}${details ? ` (${details})` : ""}`;
-  });
+  const label =
+    { pass: "PASS", partial: "PARTIAL", fail: "FAIL" }[report.status] ||
+    "UNKNOWN";
+  const checkLines = Object.entries(report.checks || {}).map(
+    ([name, check]) => {
+      const status = check?.status || "unknown";
+      const details = [check?.httpStatus, check?.errorCode]
+        .filter(Boolean)
+        .join("; ");
+      return `• ${name}: ${status.toUpperCase()}${details ? ` (${details})` : ""}`;
+    },
+  );
   return [
     `Project diagnostics: ${label}.`,
     `• Project: ${report.projectId || "не е наличен"}.`,

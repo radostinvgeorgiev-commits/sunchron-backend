@@ -141,10 +141,7 @@ test("every real chat request sends Core Profile and owner memory to OpenAI", as
       input[0].content,
       /\[ПОСТОЯНЕН ОСНОВЕН КОНТЕКСТ НА ПРОЕКТА\]/u,
     );
-    assert.match(
-      input[0].content,
-      /AI CORE е лична AI операционна система/u,
-    );
+    assert.match(input[0].content, /AI CORE е лична AI операционна система/u);
     assert.match(input[0].content, /\[ЛИЧЕН ПРОФИЛ НА РАДКО\]/u);
     assert.match(
       input[0].content,
@@ -152,9 +149,7 @@ test("every real chat request sends Core Profile and owner memory to OpenAI", as
     );
     assert.equal(
       input[1].content,
-      index === 0
-        ? "Какво е AI CORE?"
-        : "Как работим по техническа задача?",
+      index === 0 ? "Какво е AI CORE?" : "Как работим по техническа задача?",
     );
   }
 });

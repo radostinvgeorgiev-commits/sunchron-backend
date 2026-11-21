@@ -23,8 +23,9 @@ test("granular MCP capabilities have unique names, strict schemas and exact scop
   assert.ok(names.includes("prepare_google_cloud_action"));
   assert.ok(names.includes("confirm_google_cloud_action"));
   assert.deepEqual(
-    MCP_CAPABILITY_TOOLS.find((item) => item.name === "prepare_google_cloud_action")
-      .inputSchema.properties.operation.enum,
+    MCP_CAPABILITY_TOOLS.find(
+      (item) => item.name === "prepare_google_cloud_action",
+    ).inputSchema.properties.operation.enum,
     [
       "grant_project_role",
       "revoke_project_role",
@@ -101,7 +102,10 @@ test("Google Cloud MCP write path preserves the prepare-confirm boundary", async
     },
     { ownerId: "verified-owner" },
   );
-  assert.equal(prepared.result.structuredContent.confirmationId, "cloud-confirmation-1");
+  assert.equal(
+    prepared.result.structuredContent.confirmationId,
+    "cloud-confirmation-1",
+  );
   assert.equal(calls[0][1].ownerId, "verified-owner");
 
   const confirmed = await handler(
@@ -122,7 +126,11 @@ test("Google Cloud project diagnostics is read-only and uses the verified owner"
       getGoogleCloudProjectDiagnostics: async () => ({
         status: "pass",
         checks: { publicHealth: { status: "pass" } },
-        safety: { readOnly: true, secretsDisplayed: false, arbitraryCommands: false },
+        safety: {
+          readOnly: true,
+          secretsDisplayed: false,
+          arbitraryCommands: false,
+        },
       }),
     },
   });

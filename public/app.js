@@ -66,7 +66,9 @@ const elements = {
   agentStatusText: document.getElementById("agentStatusText"),
   sessionIdDisplay: document.getElementById("sessionIdDisplay"),
   serverStatusDisplay: document.getElementById("serverStatusDisplay"),
-  activeIntegrationsDisplay: document.getElementById("activeIntegrationsDisplay"),
+  activeIntegrationsDisplay: document.getElementById(
+    "activeIntegrationsDisplay",
+  ),
   taskRunList: document.getElementById("taskRunList"),
   actionsLog: document.getElementById("actionsLog"),
   conversationList: document.getElementById("conversationList"),
@@ -466,7 +468,8 @@ async function startNewChat({ withinProject = false } = {}) {
   clearPendingImage();
   const sessionId = createSessionId();
   state.sessionId = sessionId;
-  if (!withinProject) globalThis.SynchronWorkMode?.selectConversation(sessionId);
+  if (!withinProject)
+    globalThis.SynchronWorkMode?.selectConversation(sessionId);
   writeLocalStorage("synchronSessionId", state.sessionId);
   state.lastActions = [];
   state.recentConversationMessages = [];
@@ -545,7 +548,8 @@ async function handleConversationClick(event) {
 async function openConversation(sessionId, { withinProject = false } = {}) {
   if (state.chatBusy || !sessionId || sessionId === state.sessionId) return;
   state.sessionId = sessionId;
-  if (!withinProject) globalThis.SynchronWorkMode?.selectConversation(sessionId);
+  if (!withinProject)
+    globalThis.SynchronWorkMode?.selectConversation(sessionId);
   writeLocalStorage("synchronSessionId", sessionId);
   elements.chatMessages.replaceChildren();
   state.recentConversationMessages = [];
@@ -658,10 +662,10 @@ function openStatus() {
     activeElement === elements.profileStatusBtn
       ? elements.toggleStatusBtn
       : activeElement &&
-    activeElement !== document.body &&
-    typeof activeElement.focus === "function"
-      ? activeElement
-      : elements.toggleStatusBtn;
+          activeElement !== document.body &&
+          typeof activeElement.focus === "function"
+        ? activeElement
+        : elements.toggleStatusBtn;
   closeSidebar();
   elements.statusPanel.classList.add("mobile-visible");
   elements.statusPanel.setAttribute("aria-hidden", "false");
@@ -866,9 +870,7 @@ function connectionControls(
     ? chatgptConnection.grants
     : [];
   const chatgptScopes = [
-    ...new Set(
-      chatgptGrants.flatMap((grant) => grant.scopes || []),
-    ),
+    ...new Set(chatgptGrants.flatMap((grant) => grant.scopes || [])),
   ];
   const chatgptDescription = chatgptUnavailable
     ? "Състоянието временно не е достъпно"
@@ -908,19 +910,15 @@ async function openToolsDrawer() {
   openDataDrawer("Инструменти");
   renderDrawerLoading();
   try {
-    const [
-      healthResponse,
-      googleResponse,
-      githubResponse,
-      chatgptResponse,
-    ] = await Promise.all([
-      fetch("/health/integrations", { cache: "no-store" }),
-      fetch("/api/google/status", { cache: "no-store" }).catch(() => null),
-      fetch("/api/github/status", { cache: "no-store" }).catch(() => null),
-      fetch("/permissions/oauth/chatgpt", { cache: "no-store" }).catch(
-        () => null,
-      ),
-    ]);
+    const [healthResponse, googleResponse, githubResponse, chatgptResponse] =
+      await Promise.all([
+        fetch("/health/integrations", { cache: "no-store" }),
+        fetch("/api/google/status", { cache: "no-store" }).catch(() => null),
+        fetch("/api/github/status", { cache: "no-store" }).catch(() => null),
+        fetch("/permissions/oauth/chatgpt", { cache: "no-store" }).catch(
+          () => null,
+        ),
+      ]);
     if (!healthResponse.ok) {
       throw new Error("Състоянието на инструментите не е достъпно.");
     }
@@ -932,13 +930,11 @@ async function openToolsDrawer() {
       ? await githubResponse.json().catch(() => ({}))
       : {};
     const chatgptData = chatgptResponse?.ok
-      ? await chatgptResponse
-          .json()
-          .catch(() => ({
-            configured: false,
-            connected: false,
-            unavailable: true,
-          }))
+      ? await chatgptResponse.json().catch(() => ({
+          configured: false,
+          connected: false,
+          unavailable: true,
+        }))
       : { configured: false, connected: false, unavailable: true };
     const tools = Array.isArray(data.tools) ? data.tools : [];
     const descriptions = {
@@ -1117,9 +1113,7 @@ function closeDataDrawer() {
   elements.dataDrawer.hidden = true;
   elements.drawerBackdrop.hidden = true;
   if (wasOpen) {
-    document.dispatchEvent(
-      new CustomEvent("synchron:data-drawer-closed"),
-    );
+    document.dispatchEvent(new CustomEvent("synchron:data-drawer-closed"));
   }
 }
 
@@ -1158,7 +1152,9 @@ async function openMemoryDrawer() {
         : Promise.resolve({ items: [] }),
     ]);
     state.memoryItems = Array.isArray(data.items) ? data.items : [];
-    state.knowledgeItems = Array.isArray(knowledge.items) ? knowledge.items : [];
+    state.knowledgeItems = Array.isArray(knowledge.items)
+      ? knowledge.items
+      : [];
     state.memoryWorkspace = workspace;
     renderMemoryItems();
   } catch (error) {
@@ -1321,13 +1317,11 @@ async function openPermissionsDrawer() {
       ? await githubResponse.json().catch(() => ({}))
       : {};
     const chatgptData = chatgptResponse?.ok
-      ? await chatgptResponse
-          .json()
-          .catch(() => ({
-            configured: false,
-            connected: false,
-            unavailable: true,
-          }))
+      ? await chatgptResponse.json().catch(() => ({
+          configured: false,
+          connected: false,
+          unavailable: true,
+        }))
       : { configured: false, connected: false, unavailable: true };
     const toolMap = new Map(
       (healthData.tools || []).map((tool) => [tool.id, tool]),
@@ -1805,14 +1799,17 @@ function showAiResponseSource(message, provider, model, linkedProjectContext) {
 
   const source = document.createElement("div");
   source.className = "ai-response-source";
-  const context = linkedProjectContext === true
-    ? "Работа със свързани чатове"
-    : linkedProjectContext === false
-      ? "Работа без заредени свързани чатове"
-      : linkedProjectContext === null
-        ? "Работа без активен проект"
-        : "";
-  source.textContent = [cleanProvider, cleanModel, context].filter(Boolean).join(" · ");
+  const context =
+    linkedProjectContext === true
+      ? "Работа със свързани чатове"
+      : linkedProjectContext === false
+        ? "Работа без заредени свързани чатове"
+        : linkedProjectContext === null
+          ? "Работа без активен проект"
+          : "";
+  source.textContent = [cleanProvider, cleanModel, context]
+    .filter(Boolean)
+    .join(" · ");
   source.setAttribute("aria-label", "AI доставчик и модел");
 
   const actions = turn.querySelector(".message-actions");
@@ -1857,8 +1854,7 @@ function resolveNextStep(replyText, result = {}) {
 
   if (result?.mode === "council") {
     return {
-      step:
-        "Прегледай общата препоръка и натисни „Изпълни препоръката“, ако я одобряваш.",
+      step: "Прегледай общата препоръка и натисни „Изпълни препоръката“, ако я одобряваш.",
       displayText: parsedReply.displayText,
     };
   }
@@ -1942,7 +1938,9 @@ function showMemoryCandidates(message, candidates) {
   const safeCandidates = candidates
     .filter(
       (candidate) =>
-        candidate && typeof candidate.fact === "string" && candidate.fact.trim(),
+        candidate &&
+        typeof candidate.fact === "string" &&
+        candidate.fact.trim(),
     )
     .slice(0, 3)
     .map((candidate) => ({
@@ -2051,7 +2049,9 @@ async function saveMemoryCandidate(button, factOverride = "") {
     });
     const saved = await response.json().catch(() => null);
     if (!response.ok) {
-      throw new Error(saved?.error || "Предложението не можа да бъде записано.");
+      throw new Error(
+        saved?.error || "Предложението не можа да бъде записано.",
+      );
     }
     finishMemoryCandidateItem(item, "Записано в постоянната памет.");
     logAction("Запазено е предложение за паметта");
@@ -2154,7 +2154,9 @@ async function previewKnowledgeArchive() {
       : [];
     state.knowledgeImportConfirmation = null;
     renderMemoryItems();
-    logAction(`Прегледани са ${state.knowledgePreview.length} кандидата от архив`);
+    logAction(
+      `Прегледани са ${state.knowledgePreview.length} кандидата от архив`,
+    );
   } catch (error) {
     renderDrawerError(error.message || "Невалиден JSON архив.");
   }
@@ -2166,7 +2168,9 @@ async function prepareKnowledgeArchiveImport() {
       (element) => element.dataset.knowledgeSelect,
     ),
   );
-  const items = state.knowledgePreview.filter((item) => selectedIds.has(item.id));
+  const items = state.knowledgePreview.filter((item) =>
+    selectedIds.has(item.id),
+  );
   if (!items.length) {
     renderDrawerError("Избери поне един кандидат за импорт.");
     return;
@@ -2249,7 +2253,9 @@ async function handleTaskRunAction(event) {
         headers: { "Content-Type": "application/json" },
         body:
           action === "pause"
-            ? JSON.stringify({ reason: "Потребителят спря задачата от панела." })
+            ? JSON.stringify({
+                reason: "Потребителят спря задачата от панела.",
+              })
             : "{}",
       },
     );
@@ -2629,9 +2635,8 @@ function rememberConversationMessage(role, text) {
     return;
   }
   state.recentConversationMessages.push({ role: normalizedRole, content });
-  state.recentConversationMessages = state.recentConversationMessages.slice(
-    -12,
-  );
+  state.recentConversationMessages =
+    state.recentConversationMessages.slice(-12);
 }
 
 function appendMessage(role, text, image = null, options = {}) {
@@ -2688,8 +2693,10 @@ async function checkHealth() {
     setServerStatus(response.ok);
     if (!elements.activeIntegrationsDisplay) return;
     if (!integrationsResponse?.ok) {
-      elements.activeIntegrationsDisplay.textContent = "Проверката не е достъпна";
-      elements.activeIntegrationsDisplay.className = "context-value status-yellow";
+      elements.activeIntegrationsDisplay.textContent =
+        "Проверката не е достъпна";
+      elements.activeIntegrationsDisplay.className =
+        "context-value status-yellow";
       return;
     }
     const data = await integrationsResponse.json().catch(() => ({}));
@@ -2704,8 +2711,10 @@ async function checkHealth() {
   } catch {
     setServerStatus(false);
     if (elements.activeIntegrationsDisplay) {
-      elements.activeIntegrationsDisplay.textContent = "Проверката не е достъпна";
-      elements.activeIntegrationsDisplay.className = "context-value status-yellow";
+      elements.activeIntegrationsDisplay.textContent =
+        "Проверката не е достъпна";
+      elements.activeIntegrationsDisplay.className =
+        "context-value status-yellow";
     }
   }
 }

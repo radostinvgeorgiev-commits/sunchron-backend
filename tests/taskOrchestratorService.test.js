@@ -25,9 +25,7 @@ test("orchestrator plans, routes and executes a real multi-step task", async () 
     fallbackRequests: [{ capability: "code.write", action: "github.write" }],
     planningAllowed: true,
     shouldPlanFn: () => true,
-    planFn: async () => [
-      { capability: "code.read", action: "github.read" },
-    ],
+    planFn: async () => [{ capability: "code.read", action: "github.read" }],
     routeRequests: (requests) => requests,
     executeFn: async (capability) => ({
       tool: { id: capability },

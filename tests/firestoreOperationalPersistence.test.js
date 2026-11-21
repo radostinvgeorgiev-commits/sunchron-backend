@@ -14,9 +14,7 @@ import {
   resetAuditFallbackForTests,
   setFirestoreAuditStoreForTests,
 } from "../src/services/permissionService.js";
-import {
-  createFirestoreOperationalStore,
-} from "../src/services/firestoreOperationalStore.js";
+import { createFirestoreOperationalStore } from "../src/services/firestoreOperationalStore.js";
 
 const ENV_NAMES = [
   "PERSISTENCE_BACKEND",

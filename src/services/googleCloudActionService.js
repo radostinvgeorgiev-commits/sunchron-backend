@@ -8,15 +8,13 @@ import {
 import { executeAuditedWriteAction } from "./permissionService.js";
 import { resolveFirestoreProjectId } from "../config/memoryBackend.js";
 
-const RESOURCE_MANAGER_API =
-  "https://cloudresourcemanager.googleapis.com/v1";
+const RESOURCE_MANAGER_API = "https://cloudresourcemanager.googleapis.com/v1";
 const CLOUD_RUN_API = "https://run.googleapis.com/apis/serving.knative.dev/v1";
 const CLOUD_BUILD_API = "https://cloudbuild.googleapis.com/v1";
 const DEFAULT_REGION = "europe-west1";
 const DEFAULT_SERVICE = "synchron-backend-google";
 const DEFAULT_CLOUD_BUILD_LOCATION = "global";
-const DEFAULT_CLOUD_BUILD_TRIGGER_ID =
-  "d943b5bc-a267-4273-a48a-3c750f484a42";
+const DEFAULT_CLOUD_BUILD_TRIGGER_ID = "d943b5bc-a267-4273-a48a-3c750f484a42";
 const DEFAULT_CLOUD_BUILD_TRIGGER_NAME = "synchron-main-deploy";
 const SAFE_SHA_PATTERN = /^[a-f0-9]{40}$/iu;
 const SAFE_TRIGGER_ID_PATTERN = /^[a-z0-9-]{8,128}$/iu;
@@ -133,9 +131,14 @@ function normalizeCloudRunTarget(input = {}, env = process.env) {
     "serviceName",
     { required: true },
   );
-  const serviceName = cleanText(input.serviceName || configuredService, 80, "serviceName", {
-    required: true,
-  });
+  const serviceName = cleanText(
+    input.serviceName || configuredService,
+    80,
+    "serviceName",
+    {
+      required: true,
+    },
+  );
   const region = cleanText(
     input.region || env.GOOGLE_CLOUD_REGION || env.GCP_REGION || DEFAULT_REGION,
     40,
@@ -169,7 +172,9 @@ function normalizeCloudRunTarget(input = {}, env = process.env) {
 function normalizeCloudBuildTarget(input = {}, env = process.env) {
   const projectId = projectIdFromEnvironment(env);
   const triggerId = cleanText(
-    input.triggerId || env.CLOUD_BUILD_TRIGGER_ID || DEFAULT_CLOUD_BUILD_TRIGGER_ID,
+    input.triggerId ||
+      env.CLOUD_BUILD_TRIGGER_ID ||
+      DEFAULT_CLOUD_BUILD_TRIGGER_ID,
     128,
     "triggerId",
     { required: true },
@@ -245,7 +250,10 @@ function normalizeOperation(operation, input = {}, env = process.env) {
   }
   const projectId = projectIdFromEnvironment(env);
 
-  if (operation === "grant_project_role" || operation === "revoke_project_role") {
+  if (
+    operation === "grant_project_role" ||
+    operation === "revoke_project_role"
+  ) {
     return {
       action,
       resource: {
@@ -393,7 +401,13 @@ function cloneBindings(policy) {
     : [];
 }
 
-async function changeProjectRole({ projectId, principal, role, grant, fetchImpl }) {
+async function changeProjectRole({
+  projectId,
+  principal,
+  role,
+  grant,
+  fetchImpl,
+}) {
   const policy = await getProjectIamPolicy(projectId, fetchImpl);
   const bindings = cloneBindings(policy);
   const index = bindings.findIndex((binding) => binding.role === role);
@@ -436,16 +450,19 @@ async function updateCloudRunServiceAccount({
 }) {
   const url = `${CLOUD_RUN_API}/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(region)}/services/${encodeURIComponent(serviceName)}`;
   await googleJsonRequest(url, { fetchImpl });
-  return googleJsonRequest(`${url}?updateMask=spec.template.spec.serviceAccountName`, {
-    method: "PATCH",
-    body: {
-      apiVersion: "serving.knative.dev/v1",
-      kind: "Service",
-      metadata: { name: serviceName },
-      spec: { template: { spec: { serviceAccountName: serviceAccount } } },
+  return googleJsonRequest(
+    `${url}?updateMask=spec.template.spec.serviceAccountName`,
+    {
+      method: "PATCH",
+      body: {
+        apiVersion: "serving.knative.dev/v1",
+        kind: "Service",
+        metadata: { name: serviceName },
+        spec: { template: { spec: { serviceAccountName: serviceAccount } } },
+      },
+      fetchImpl,
     },
-    fetchImpl,
-  });
+  );
 }
 
 function triggerBranch(payload) {
@@ -582,7 +599,9 @@ export async function confirmGoogleCloudAction(
         fetchImpl,
       });
     }
-    return (adapters.updateCloudRunServiceAccount || updateCloudRunServiceAccount)({
+    return (
+      adapters.updateCloudRunServiceAccount || updateCloudRunServiceAccount
+    )({
       ...resource,
       serviceAccount: params.serviceAccount,
       fetchImpl,

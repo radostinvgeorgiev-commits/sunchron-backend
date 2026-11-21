@@ -28,7 +28,10 @@ test("current documentation describes one Google Cloud production architecture",
   assert.match(current, /Cloud Run/u);
   assert.match(current, /Firestore/u);
   assert.match(current, /Identity Platform/u);
-  assert.doesNotMatch(current, /synchron\.foundation|DigitalOcean|Cloudflare/iu);
+  assert.doesNotMatch(
+    current,
+    /synchron\.foundation|DigitalOcean|Cloudflare/iu,
+  );
 });
 
 test("code task documentation preserves multi-engine and confirmation boundaries", () => {
@@ -42,7 +45,10 @@ test("code task documentation preserves multi-engine and confirmation boundaries
     "Pull Request",
     "точно еднократно потвърждение",
   ]) {
-    assert.match(`${readme}\n${architecture}\n${ownerRunbook}`, new RegExp(marker, "u"));
+    assert.match(
+      `${readme}\n${architecture}\n${ownerRunbook}`,
+      new RegExp(marker, "u"),
+    );
   }
   assert.match(ownerRunbook, /Потвърждавам AI CORE кодова задача:/u);
   assert.match(ownerRunbook, /Не стартирай write\s+acceptance от CI/u);
@@ -72,7 +78,10 @@ test("MCP documentation separates transport, tools and backup verification", () 
 test("product direction remains ambition rather than verified runtime", () => {
   assert.match(direction, /Център за действие/u);
   assert.match(direction, /read-only по подразбиране/u);
-  assert.match(direction, /не означава внедрена или работеща production\s+интеграция/u);
+  assert.match(
+    direction,
+    /не означава внедрена или работеща production\s+интеграция/u,
+  );
 });
 
 test("historical audits remain archived and are not the current roadmap", () => {
@@ -82,6 +91,9 @@ test("historical audits remain archived and are not the current roadmap", () => 
   ]) {
     const audit = read(`../docs/archive/${name}`);
     assert.match(audit, /Исторически документ — не е текущ roadmap/u);
-    assert.equal(existsSync(new URL(`../docs/${name}`, import.meta.url)), false);
+    assert.equal(
+      existsSync(new URL(`../docs/${name}`, import.meta.url)),
+      false,
+    );
   }
 });

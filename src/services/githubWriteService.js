@@ -328,11 +328,7 @@ export async function getPullRequest({ repository, pullNumber, accessToken }) {
   const repo = repository ?? configuredRepository();
   assertAllowedRepository(repo);
   const number = assertPullRequestNumber(pullNumber);
-  return githubWriteRequest(
-    `/repos/${repo}/pulls/${number}`,
-    {},
-    accessToken,
-  );
+  return githubWriteRequest(`/repos/${repo}/pulls/${number}`, {}, accessToken);
 }
 
 export async function mergePullRequest({
@@ -439,9 +435,7 @@ export async function mergePullRequest({
   ]);
   const combinedStatusGreen =
     !combinedStatus?.state || combinedStatus.state === "success";
-  const runs = Array.isArray(checkRuns?.check_runs)
-    ? checkRuns.check_runs
-    : [];
+  const runs = Array.isArray(checkRuns?.check_runs) ? checkRuns.check_runs : [];
   const checksGreen =
     runs.length > 0 &&
     runs.every(

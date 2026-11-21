@@ -77,7 +77,7 @@ function revokedCount(result) {
   const value =
     typeof result === "number"
       ? result
-      : result?.revoked ?? result?.revokedCount ?? result?.count;
+      : (result?.revoked ?? result?.revokedCount ?? result?.count);
   return Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 

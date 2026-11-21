@@ -205,7 +205,9 @@ export async function runAiCouncil({
   geminiApiKey = process.env.GEMINI_API_KEY,
   grokApiKey = process.env.GROK_API_KEY,
   claudeApiKey = process.env.ANTHROPIC_API_KEY,
-  codexApiKey = isCodexAgentConfigured() ? process.env.OPENAI_API_KEY : undefined,
+  codexApiKey = isCodexAgentConfigured()
+    ? process.env.OPENAI_API_KEY
+    : undefined,
   selectedProviders = ["openai", "gemini", "grok"],
   advisorRequesters = {
     openai: requestOpenAIResponse,
@@ -219,7 +221,8 @@ export async function runAiCouncil({
   geminiModel = process.env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
   grokModel = process.env.GROK_MODEL || DEFAULT_GROK_CHAT_MODEL,
   claudeModel = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5",
-  codexModel = process.env.AI_CORE_COUNCIL_CODEX_MODEL || DEFAULT_CODEX_COUNCIL_MODEL,
+  codexModel = process.env.AI_CORE_COUNCIL_CODEX_MODEL ||
+    DEFAULT_CODEX_COUNCIL_MODEL,
   advisorTimeoutMs = Math.min(
     getAiProviderTimeoutMs(
       "openai",
@@ -326,7 +329,15 @@ export async function runAiCouncil({
       confidence: "low",
       arbiter: null,
     });
-  if (normalizedResponses.length === 1) return Object.freeze({ ...fallback(), partial: unavailableProviders.length > 0, recommendation: normalizedResponses[0].text, rationale: "Отговор от един избран AI двигател; няма независима проверка.", confidence: "low" });
+  if (normalizedResponses.length === 1)
+    return Object.freeze({
+      ...fallback(),
+      partial: unavailableProviders.length > 0,
+      recommendation: normalizedResponses[0].text,
+      rationale:
+        "Отговор от един избран AI двигател; няма независима проверка.",
+      confidence: "low",
+    });
   if (!openAiApiKey) return fallback();
 
   let synthesis;

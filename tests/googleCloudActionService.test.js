@@ -137,7 +137,11 @@ test("Google Cloud confirmation checks owner and delegates the exact action", as
   assert.equal(result.changed, true);
   assert.deepEqual(calls, [
     ["consume", "confirmation-3"],
-    ["execute", "infrastructure.write", "infrastructure.write:grant_project_role"],
+    [
+      "execute",
+      "infrastructure.write",
+      "infrastructure.write:grant_project_role",
+    ],
     ["adapter", true],
   ]);
 });
@@ -213,11 +217,18 @@ test("Cloud Build confirmation rechecks trigger and runs only the exact prepared
       adapters: {
         getCloudBuildTrigger: async (input) => {
           calls.push(["get-trigger", input.triggerId, input.triggerName]);
-          return { displayName: input.triggerName, disabled: false, github: { push: { branch: "^main$" } } };
+          return {
+            displayName: input.triggerName,
+            disabled: false,
+            github: { push: { branch: "^main$" } },
+          };
         },
         runCloudBuildTrigger: async (input) => {
           calls.push(["run", input.commitSha, input.branch]);
-          return { operationName: "operations/build-1", commitSha: input.commitSha };
+          return {
+            operationName: "operations/build-1",
+            commitSha: input.commitSha,
+          };
         },
       },
     },

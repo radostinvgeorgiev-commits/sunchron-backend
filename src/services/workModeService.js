@@ -223,9 +223,7 @@ export function isRuntimeAiIdentityRequest(message) {
   const text = cleanText(message, 500).toLocaleLowerCase("bg-BG");
   if (!text) return false;
   const asksForIdentity =
-    /(?:кой|какъв|каква|кажи|покажи|посочи|доставчик|provider)/u.test(
-      text,
-    );
+    /(?:кой|какъв|каква|кажи|покажи|посочи|доставчик|provider)/u.test(text);
   const mentionsRuntime =
     /(?:ai|изкуствен интелект|доставчик|provider|модел)/u.test(text);
   const refersToCurrentReply =

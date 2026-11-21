@@ -20,8 +20,9 @@ import { logSafeError, safeErrorCode } from "../utils/safeLogging.js";
 const router = express.Router();
 
 async function readOptions(req) {
-  const sessionId =
-    parseGitHubCookies(req.headers.cookie).synchron_github_session;
+  const sessionId = parseGitHubCookies(
+    req.headers.cookie,
+  ).synchron_github_session;
   if (!sessionId) return {};
 
   const session = await getGitHubSession(sessionId);

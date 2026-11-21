@@ -35,10 +35,7 @@ test("uses the public bootstrap when App Platform exposes encrypted placeholders
       SUPABASE_PUBLISHABLE_KEY: "EV[1:encrypted-placeholder]",
     },
     fetchImpl: async (url, options) => {
-      assert.equal(
-        url,
-        `${TESTER_AUTH_BOOTSTRAP.projectUrl}/auth/v1/settings`,
-      );
+      assert.equal(url, `${TESTER_AUTH_BOOTSTRAP.projectUrl}/auth/v1/settings`);
       assert.equal(
         options.headers.apikey,
         TESTER_AUTH_BOOTSTRAP.publishableKey,
@@ -55,10 +52,7 @@ test("uses the public bootstrap when optional runtime values are omitted", async
   const result = await checkSupabaseStatus({
     env: {},
     fetchImpl: async (url, options) => {
-      assert.equal(
-        url,
-        `${TESTER_AUTH_BOOTSTRAP.projectUrl}/auth/v1/settings`,
-      );
+      assert.equal(url, `${TESTER_AUTH_BOOTSTRAP.projectUrl}/auth/v1/settings`);
       assert.equal(
         options.headers.apikey,
         TESTER_AUTH_BOOTSTRAP.publishableKey,
@@ -78,10 +72,7 @@ test("uses the whole public bootstrap pair when the runtime URL is invalid", asy
       SUPABASE_PUBLISHABLE_KEY: TESTER_AUTH_BOOTSTRAP.publishableKey,
     },
     fetchImpl: async (url, options) => {
-      assert.equal(
-        url,
-        `${TESTER_AUTH_BOOTSTRAP.projectUrl}/auth/v1/settings`,
-      );
+      assert.equal(url, `${TESTER_AUTH_BOOTSTRAP.projectUrl}/auth/v1/settings`);
       assert.equal(
         options.headers.apikey,
         TESTER_AUTH_BOOTSTRAP.publishableKey,
@@ -101,10 +92,7 @@ test("uses the whole public bootstrap pair when the runtime URL is insecure", as
       SUPABASE_PUBLISHABLE_KEY: TESTER_AUTH_BOOTSTRAP.publishableKey,
     },
     fetchImpl: async (url, options) => {
-      assert.equal(
-        url,
-        `${TESTER_AUTH_BOOTSTRAP.projectUrl}/auth/v1/settings`,
-      );
+      assert.equal(url, `${TESTER_AUTH_BOOTSTRAP.projectUrl}/auth/v1/settings`);
       assert.equal(
         options.headers.apikey,
         TESTER_AUTH_BOOTSTRAP.publishableKey,
@@ -124,10 +112,7 @@ test("uses the whole public bootstrap pair when the runtime key is invalid", asy
       SUPABASE_PUBLISHABLE_KEY: "not-a-publishable-key",
     },
     fetchImpl: async (url, options) => {
-      assert.equal(
-        url,
-        `${TESTER_AUTH_BOOTSTRAP.projectUrl}/auth/v1/settings`,
-      );
+      assert.equal(url, `${TESTER_AUTH_BOOTSTRAP.projectUrl}/auth/v1/settings`);
       assert.equal(
         options.headers.apikey,
         TESTER_AUTH_BOOTSTRAP.publishableKey,
@@ -147,10 +132,7 @@ test("prefers a valid runtime connection over the public bootstrap", async () =>
       SUPABASE_PUBLISHABLE_KEY: "sb_publishable_runtime_key",
     },
     fetchImpl: async (url, options) => {
-      assert.equal(
-        url,
-        "https://runtime-project.supabase.co/auth/v1/settings",
-      );
+      assert.equal(url, "https://runtime-project.supabase.co/auth/v1/settings");
       assert.equal(options.headers.apikey, "sb_publishable_runtime_key");
       return new Response("{}", { status: 200 });
     },

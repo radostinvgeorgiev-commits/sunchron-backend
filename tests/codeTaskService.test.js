@@ -223,7 +223,10 @@ test("blocks a coding plan that collapses a large existing file", async () => {
   await mkdir(join(workspace, "public"), { recursive: true });
   await writeFile(
     join(workspace, "public", "work-mode.css"),
-    Array.from({ length: 80 }, (_, index) => `.rule-${index} { color: #123; }`).join("\n"),
+    Array.from(
+      { length: 80 },
+      (_, index) => `.rule-${index} { color: #123; }`,
+    ).join("\n"),
   );
 
   await assert.rejects(

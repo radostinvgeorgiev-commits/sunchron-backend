@@ -16,19 +16,19 @@ router.get("/", async (req, res) => {
     const response = await client.search({
       index: INDEX_NAME,
       body: {
-        query: { match_all: {} }
-      }
+        query: { match_all: {} },
+      },
     });
 
-    const projects = response.body.hits.hits.map(hit => ({
+    const projects = response.body.hits.hits.map((hit) => ({
       id: hit._id,
-      ...hit._source
+      ...hit._source,
     }));
 
     res.json(projects);
   } catch (error) {
     if (error.meta && error.meta.statusCode === 404) {
-        return res.json([]);
+      return res.json([]);
     }
     logSafeError("[Projects] OpenSearch search failed", error);
     res.status(500).json({ error: "Failed to fetch projects" });
@@ -47,13 +47,13 @@ router.post("/", async (req, res) => {
       name: req.body.name,
       description: req.body.description,
       createdAt: new Date().toISOString(),
-      status: req.body.status || "active"
+      status: req.body.status || "active",
     };
 
     const response = await client.index({
       index: INDEX_NAME,
       body: project,
-      refresh: true
+      refresh: true,
     });
 
     res.status(201).json({ id: response.body._id, ...project });
@@ -73,7 +73,7 @@ router.get("/:id", async (req, res) => {
 
     const response = await client.get({
       index: INDEX_NAME,
-      id: req.params.id
+      id: req.params.id,
     });
 
     res.json({ id: response.body._id, ...response.body._source });
@@ -97,7 +97,7 @@ router.delete("/:id", async (req, res) => {
     await client.delete({
       index: INDEX_NAME,
       id: req.params.id,
-      refresh: true
+      refresh: true,
     });
 
     res.status(204).send();

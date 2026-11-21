@@ -319,8 +319,7 @@ test("подава активната GitHub owner сесия и не пада �
   const originalRepository = process.env.GITHUB_REPOSITORY;
   const originalToken = process.env.GITHUB_TOKEN;
   process.env.GITHUB_API_URL = "https://github.test";
-  process.env.GITHUB_REPOSITORY =
-    "radostinvgeorgiev-commits/sunchron-backend";
+  process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
   process.env.GITHUB_TOKEN = "configured-read-token";
   let calls = 0;
   global.fetch = async (_url, options) => {
@@ -348,10 +347,13 @@ test("подава активната GitHub owner сесия и не пада �
       },
     });
     assert.match(result.output, /oauth12/u);
-    assert.equal(isActiveAuthorizedGitHubSession({
-      accessToken: "oauth-read-token",
-      login: "radostinvgeorgiev-commits",
-    }), true);
+    assert.equal(
+      isActiveAuthorizedGitHubSession({
+        accessToken: "oauth-read-token",
+        login: "radostinvgeorgiev-commits",
+      }),
+      true,
+    );
 
     await assert.rejects(
       () =>
@@ -434,7 +436,10 @@ test("връща фокусиран статус за директния AI CORE
     {},
   );
 
-  assert.match(report, /реалният запис се изпълнява чрез свързания GitHub Write API/u);
+  assert.match(
+    report,
+    /реалният запис се изпълнява чрез свързания GitHub Write API/u,
+  );
   assert.match(report, /отделен branch/u);
   assert.match(report, /Pull Request/u);
   assert.match(report, /main не се променя директно/u);
@@ -452,11 +457,7 @@ test("не изпълнява способност за потвърждение
 test("всеки регистриран основен инструмент има изпълним адаптер", () => {
   registerCoreTools();
   for (const { id } of listTools()) {
-    assert.equal(
-      isToolExecutable(id),
-      true,
-      id,
-    );
+    assert.equal(isToolExecutable(id), true, id);
   }
 });
 

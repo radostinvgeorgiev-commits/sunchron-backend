@@ -55,7 +55,10 @@ import {
   formatWebSearchResult,
   searchWeb,
 } from "../services/webSearchService.js";
-import { isCodeTaskConfigured, prepareCodeTask } from "../services/codeTaskService.js";
+import {
+  isCodeTaskConfigured,
+  prepareCodeTask,
+} from "../services/codeTaskService.js";
 import {
   isMergedBranchCleanupPlanRequest,
   prepareMergedBranchCleanup,
@@ -247,9 +250,9 @@ export function getToolRuntimeAvailability(
       return configured(
         Boolean(
           env.GOOGLE_CLOUD_PROJECT ||
-            env.GCLOUD_PROJECT ||
-            env.GCP_PROJECT_ID ||
-            (env.K_SERVICE && env.K_REVISION),
+          env.GCLOUD_PROJECT ||
+          env.GCP_PROJECT_ID ||
+          (env.K_SERVICE && env.K_REVISION),
         ),
         "Google Cloud runtime не е конфигуриран.",
       );
@@ -257,9 +260,9 @@ export function getToolRuntimeAvailability(
       return configured(
         Boolean(
           env.GOOGLE_CLOUD_PROJECT ||
-            env.GCLOUD_PROJECT ||
-            env.GCP_PROJECT_ID ||
-            (env.K_SERVICE && env.K_REVISION),
+          env.GCLOUD_PROJECT ||
+          env.GCP_PROJECT_ID ||
+          (env.K_SERVICE && env.K_REVISION),
         ),
         "Google Cloud write runtime не е конфигуриран.",
       );
@@ -309,12 +312,7 @@ export async function buildIntegrationStatusReport(
     ].join("\n");
   }
 
-  const [
-    githubRead,
-    memory,
-    googleCloud,
-    googleConnected,
-  ] = await Promise.all([
+  const [githubRead, memory, googleCloud, googleConnected] = await Promise.all([
     checkedStatus(checkGitHub),
     checkedStatus(checkMemory),
     checkedStatus(checkGoogleCloud, (status) => status?.configured === true),
@@ -888,10 +886,7 @@ const executors = Object.freeze({
       ? await confirmGoogleCloudAction({
           ownerId: input.ownerId,
           sessionId: input.sessionId,
-          confirmationId: requiredInput(
-            input.confirmationId,
-            "confirmationId",
-          ),
+          confirmationId: requiredInput(input.confirmationId, "confirmationId"),
         })
       : await prepareGoogleCloudAction({
           ownerId: input.ownerId,
@@ -1068,9 +1063,7 @@ export function extractGitHubTaskNumber(message) {
     !/(?:статус|състояние|какво\s+става|докъде|прослед|провери|готов|ci|checks?|проверки|deployment|деплой)/iu.test(
       text,
     ) ||
-    !/(?:github|ги[тд][\s-]*хъб|задач|issue|pull\s*request|\bpr\b)/iu.test(
-      text,
-    )
+    !/(?:github|ги[тд][\s-]*хъб|задач|issue|pull\s*request|\bpr\b)/iu.test(text)
   ) {
     return null;
   }

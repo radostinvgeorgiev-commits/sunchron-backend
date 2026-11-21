@@ -195,9 +195,7 @@ test("Gemini content is extracted and mapped from the shared chat input", async 
       return new Response(
         JSON.stringify({
           modelVersion: "gemini-test-001",
-          candidates: [
-            { content: { parts: [{ text: "Работи." }] } },
-          ],
+          candidates: [{ content: { parts: [{ text: "Работи." }] } }],
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       );

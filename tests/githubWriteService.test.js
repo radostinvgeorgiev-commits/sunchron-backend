@@ -108,15 +108,13 @@ test("confirmed merge binds the exact head SHA and requires green checks", async
           : calls.length === 3
             ? {
                 total_count: 1,
-                check_runs: [
-                  { status: "completed", conclusion: "success" },
-                ],
+                check_runs: [{ status: "completed", conclusion: "success" }],
               }
             : {
-              sha: "b".repeat(40),
-              merged: true,
-              message: "Pull Request successfully merged",
-            };
+                sha: "b".repeat(40),
+                merged: true,
+                message: "Pull Request successfully merged",
+              };
     return new Response(JSON.stringify(payload), { status: 200 });
   };
 
@@ -165,18 +163,16 @@ test("confirmed merge stops when CI is not green", async () => {
       : /\/check-runs$/u.test(url)
         ? {
             total_count: 1,
-            check_runs: [
-              { status: "completed", conclusion: "failure" },
-            ],
+            check_runs: [{ status: "completed", conclusion: "failure" }],
           }
         : {
-          state: "open",
-          merged: false,
-          base: { ref: "main", sha: baseSha },
-          head: { sha: headSha },
-          mergeable: true,
-          mergeable_state: "clean",
-        };
+            state: "open",
+            merged: false,
+            base: { ref: "main", sha: baseSha },
+            head: { sha: headSha },
+            mergeable: true,
+            mergeable_state: "clean",
+          };
     return new Response(JSON.stringify(payload), { status: 200 });
   };
 

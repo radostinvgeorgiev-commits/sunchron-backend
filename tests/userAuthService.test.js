@@ -79,8 +79,7 @@ test("auth resolves the Supabase URL and key as one atomic connection", () => {
       getUserAuthConfigurationStatus({
         AUTH_BACKEND: "supabase",
         ...partialRuntime,
-        SUPABASE_SESSION_ENCRYPTION_KEY:
-          ENV.SUPABASE_SESSION_ENCRYPTION_KEY,
+        SUPABASE_SESSION_ENCRYPTION_KEY: ENV.SUPABASE_SESSION_ENCRYPTION_KEY,
       }).projectConnection,
       true,
     );
@@ -108,7 +107,8 @@ test("requires dedicated Supabase session protection", () => {
   assert.throws(
     () => encryptUserSession(session("missing-dedicated-key"), fallbackEnv),
     (error) =>
-      error instanceof UserAuthError && error.code === "AUTH_SESSION_KEY_MISSING",
+      error instanceof UserAuthError &&
+      error.code === "AUTH_SESSION_KEY_MISSING",
   );
 });
 

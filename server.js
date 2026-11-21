@@ -5,7 +5,10 @@ import {
   requireOwnerSession,
   requirePrimaryOwner,
 } from "./src/middleware/ownerAuth.js";
-import { createApiRateLimiter, createRateLimiters } from "./src/middleware/rateLimits.js";
+import {
+  createApiRateLimiter,
+  createRateLimiters,
+} from "./src/middleware/rateLimits.js";
 import { startMemoryStartupVerification } from "./src/services/memoryStartupVerificationService.js";
 import { executeCapability } from "./src/tools/capabilityEngine.js";
 import { getAiProviderStatus } from "./src/services/aiCoreService.js";
@@ -149,7 +152,13 @@ app.use("/api/github", oauthRateLimiter, githubOAuthRouter);
 app.use("/mcp", mcpJsonParseErrorHandler, privateApiRateLimiter, mcpRouter);
 
 app.use("/chat", requireOwnerSession, paidAiRateLimiter, chatRouter);
-app.use("/api/code-workspace", requireOwnerSession, requirePrimaryOwner, paidAiRateLimiter, codeWorkspaceRouter);
+app.use(
+  "/api/code-workspace",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  paidAiRateLimiter,
+  codeWorkspaceRouter,
+);
 app.use("/memory", requireOwnerSession, privateApiRateLimiter, memoryRouter);
 app.use(
   "/api/workspaces",

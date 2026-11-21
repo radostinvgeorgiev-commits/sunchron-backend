@@ -20,14 +20,8 @@ test("public responses include the required security headers", async () => {
     response.headers["referrer-policy"],
     "strict-origin-when-cross-origin",
   );
-  assert.equal(
-    response.headers["cross-origin-opener-policy"],
-    "same-origin",
-  );
-  assert.equal(
-    response.headers["cross-origin-resource-policy"],
-    "same-origin",
-  );
+  assert.equal(response.headers["cross-origin-opener-policy"], "same-origin");
+  assert.equal(response.headers["cross-origin-resource-policy"], "same-origin");
   assert.match(
     response.headers["permissions-policy"],
     /camera=\(\).*microphone=\(\).*payment=\(\)/,
@@ -42,10 +36,7 @@ test("public responses include the required security headers", async () => {
     csp,
     /style-src 'self' 'unsafe-inline' https:\/\/cdn\.jsdelivr\.net/,
   );
-  assert.match(
-    csp,
-    /font-src 'self' data: https:\/\/cdn\.jsdelivr\.net/,
-  );
+  assert.match(csp, /font-src 'self' data: https:\/\/cdn\.jsdelivr\.net/);
   assert.match(csp, /connect-src 'self'/);
 });
 

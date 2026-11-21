@@ -33,9 +33,7 @@ test("task run routes always inject the verified owner", async () => {
     .post("/api/task-runs")
     .send({ ownerId: "attacker", title: "Провери задачата", steps: ["Първа"] })
     .expect(201);
-  await request(app)
-    .get("/api/task-runs?status=paused&limit=10")
-    .expect(200);
+  await request(app).get("/api/task-runs?status=paused&limit=10").expect(200);
 
   assert.equal(calls[0][1].ownerId, "verified-owner");
   assert.equal(calls[1][1].ownerId, "verified-owner");

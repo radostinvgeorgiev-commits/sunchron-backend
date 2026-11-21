@@ -307,13 +307,15 @@ test("ordinary messages are not rewritten as contextual confirmations", () => {
 
 test("recognizes a backend project diagnostics request", () => {
   assert.deepEqual(
-    detectCapabilityRequests("Провери състоянието на бекенда в Cloud Run и Cloud Build.").map(
-      ({ capability, action }) => ({ capability, action }),
-    ),
-    [{
-      capability: "infrastructure.googlecloud.diagnostics.read",
-      action: "infrastructure.read",
-    }],
+    detectCapabilityRequests(
+      "Провери състоянието на бекенда в Cloud Run и Cloud Build.",
+    ).map(({ capability, action }) => ({ capability, action })),
+    [
+      {
+        capability: "infrastructure.googlecloud.diagnostics.read",
+        action: "infrastructure.read",
+      },
+    ],
   );
 });
 
@@ -760,8 +762,7 @@ test("an avatar interface improvement routes directly to the code executor", () 
 });
 
 test("an explicit numbered GitHub PR merge routes to the confirmed merge capability", () => {
-  const message =
-    "Провери PR #356 и ако CI е зелено, merge-ни го към main.";
+  const message = "Провери PR #356 и ако CI е зелено, merge-ни го към main.";
   assert.equal(isGitHubPullRequestMergeRequest(message), true);
   assert.deepEqual(
     detectCapabilityRequests(message).map(({ capability }) => capability),

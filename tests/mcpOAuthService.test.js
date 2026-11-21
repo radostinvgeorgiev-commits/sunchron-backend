@@ -928,9 +928,10 @@ test("persists a bounded owner grant and extends it on refresh", async () => {
       client.mappings.get(env.MCP_OAUTH_GRANT_INDEX).properties.expiresAt,
       { type: "date" },
     );
-    assert.deepEqual(await listActiveMcpGrants({ subject: "owner-id", env, client, now }), [
-      initial,
-    ]);
+    assert.deepEqual(
+      await listActiveMcpGrants({ subject: "owner-id", env, client, now }),
+      [initial],
+    );
 
     now += 60_000;
     const refreshed = await exchangeMcpRefreshToken(
@@ -1061,10 +1062,7 @@ test("revokes one or all owner grants and blocks access and refresh", async () =
     ),
     (error) => error.code === "invalid_grant" && error.status === 400,
   );
-  assert.equal(
-    await revokeMcpGrants({ subject: "owner-id", env, client }),
-    1,
-  );
+  assert.equal(await revokeMcpGrants({ subject: "owner-id", env, client }), 1);
   assert.deepEqual(
     await listActiveMcpGrants({ subject: "owner-id", env, client }),
     [],
@@ -1134,8 +1132,7 @@ test("fails closed when revoke-all version conflicts remain active", async () =>
 
   await assert.rejects(
     revokeMcpGrants({ subject: "owner-id", env, client }),
-    (error) =>
-      error.code === "temporarily_unavailable" && error.status === 503,
+    (error) => error.code === "temporarily_unavailable" && error.status === 503,
   );
   assert.equal(attempts, 3);
 });

@@ -322,7 +322,8 @@ body[data-interaction-mode="chat"] .work-pet {
 
 .pet-choice.active {
   background: #f3fbf6;
-  box-shadow: 0 0 0 2px rgba(39, 138, 82, 0.18),
+  box-shadow:
+    0 0 0 2px rgba(39, 138, 82, 0.18),
     0 6px 14px rgba(39, 138, 82, 0.12);
   transform: translateY(-1px);
 }

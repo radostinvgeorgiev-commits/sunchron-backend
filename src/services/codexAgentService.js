@@ -281,7 +281,7 @@ export async function createBoundedSourceSnapshot({
   readSource = (file) => readFile(file.absolutePath, "utf8"),
   maxFiles = MAX_CONTEXT_FILES,
 }) {
-  const files = sourceFiles ?? await collectWorkspaceFiles(workspace);
+  const files = sourceFiles ?? (await collectWorkspaceFiles(workspace));
   if (!files.length) {
     throw new CodexAgentError(
       "Няма разрешени файлове за Codex анализ.",
@@ -357,7 +357,8 @@ export function isCodeWorkspaceSourceFile(path, bytes) {
   if (
     bytes > MAX_SOURCE_FILE_BYTES ||
     parts.some((part) => EXCLUDED_NAMES.has(part) || part.startsWith(".env."))
-  ) return false;
+  )
+    return false;
   return parts.length === 1
     ? ROOT_FILES.has(path) || isAllowedSourceFile(path)
     : ROOT_DIRECTORIES.has(parts[0]) && isAllowedSourceFile(parts.at(-1));

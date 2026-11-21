@@ -18,8 +18,14 @@ test("connection and permission controls lead to real setup actions", async () =
 
   assert.match(app, /data-connect-service="google"/u);
   assert.match(app, /window\.location\.href = "\/api\/google\/connect"/u);
-  assert.match(googleDrive, /window\.location\.href = "\/api\/google\/restore"/u);
-  assert.match(googleApps, /window\.location\.href = "\/api\/google\/restore"/u);
+  assert.match(
+    googleDrive,
+    /window\.location\.href = "\/api\/google\/restore"/u,
+  );
+  assert.match(
+    googleApps,
+    /window\.location\.href = "\/api\/google\/restore"/u,
+  );
   assert.match(app, /function requiresGoogleOAuth\(tool\)/u);
   assert.match(app, /"google-drive-read"/u);
   assert.match(app, /"google-calendar-read"/u);
@@ -44,10 +50,7 @@ test("connection and permission controls lead to real setup actions", async () =
   assert.match(app, /\/api\/github\/disconnect/u);
   assert.match(app, /GitHub Read проверява/u);
   assert.match(app, /AI CORE Code Write подготвя отделен branch/u);
-  assert.match(
-    app,
-    /Не поставяй token или private key в чата/u,
-  );
+  assert.match(app, /Не поставяй token или private key в чата/u);
   assert.doesNotMatch(app, /GITHUB_CLIENT_ID/u);
   assert.doesNotMatch(app, /GITHUB_CLIENT_SECRET/u);
   assert.doesNotMatch(app, /Регистрирай GitHub App/u);

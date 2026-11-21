@@ -95,8 +95,14 @@ test("project diagnostics checks public runtime, MCP, Cloud Run and trigger with
 
   assert.equal(report.status, "pass");
   assert.equal(report.commit.matchesExpected, true);
-  assert.equal(report.checks.cloudRun.latestReadyRevision, "synchron-backend-google-00055-85g");
-  assert.equal(report.checks.cloudRun.latestCreatedRevision, "synchron-backend-google-00056-abc");
+  assert.equal(
+    report.checks.cloudRun.latestReadyRevision,
+    "synchron-backend-google-00055-85g",
+  );
+  assert.equal(
+    report.checks.cloudRun.latestCreatedRevision,
+    "synchron-backend-google-00056-abc",
+  );
   assert.equal(report.checks.cloudRun.service, "synchron-backend-google");
   assert.equal(report.checks.cloudRun.image, "image@sha256:redacted");
   assert.equal(report.checks.cloudRun.appCommit, "commit-1");
@@ -107,22 +113,30 @@ test("project diagnostics checks public runtime, MCP, Cloud Run and trigger with
     requests.find(({ url }) => url.includes("run.googleapis.com"))?.url,
     "https://run.googleapis.com/v2/projects/project-1/locations/europe-west1/services/synchron-backend-google",
   );
-  const cloudBuildListUrl = requests.find(({ url }) => url.includes("/builds?"))?.url;
+  const cloudBuildListUrl = requests.find(({ url }) =>
+    url.includes("/builds?"),
+  )?.url;
   assert.equal(
     cloudBuildListUrl,
     "https://cloudbuild.googleapis.com/v1/projects/project-1/builds?pageSize=10",
   );
   assert.equal(cloudBuildListUrl.includes("orderBy"), false);
   assert.equal(report.safety.secretsDisplayed, false);
-  assert.equal(formatProjectDiagnostics(report).includes("secret-token"), false);
+  assert.equal(
+    formatProjectDiagnostics(report).includes("secret-token"),
+    false,
+  );
   assert.equal(JSON.stringify(report).includes("secret-token"), false);
 });
 
 test("project diagnostics is partial and safe when Cloud identity is unavailable", async () => {
   const fetchImpl = async (url) => {
-    if (url.endsWith("/health")) return response({ status: "ok", commit: "commit-1" });
-    if (url.endsWith("/health/ready")) return response({ status: "ready", commit: "commit-1" });
-    if (url.endsWith("/mcp")) return response({ result: { tools: [{ name: "safe_tool" }] } });
+    if (url.endsWith("/health"))
+      return response({ status: "ok", commit: "commit-1" });
+    if (url.endsWith("/health/ready"))
+      return response({ status: "ready", commit: "commit-1" });
+    if (url.endsWith("/mcp"))
+      return response({ result: { tools: [{ name: "safe_tool" }] } });
     throw new Error("Cloud API should not be called when token is unavailable");
   };
   const report = await getProjectDiagnostics({
@@ -136,6 +150,9 @@ test("project diagnostics is partial and safe when Cloud identity is unavailable
   });
   assert.equal(report.status, "partial");
   assert.equal(report.checks.cloudRun.status, "unavailable");
-  assert.equal(report.checks.cloudBuildTrigger.errorCode, "GOOGLE_CLOUD_TOKEN_UNAVAILABLE");
+  assert.equal(
+    report.checks.cloudBuildTrigger.errorCode,
+    "GOOGLE_CLOUD_TOKEN_UNAVAILABLE",
+  );
   assert.equal(report.safety.arbitraryCommands, false);
 });

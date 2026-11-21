@@ -1,6 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createFirestoreDocumentStore } from "./firestoreDocumentStore.js";
-import { resolveFirestoreDatabaseId, resolveFirestoreProjectId } from "../config/memoryBackend.js";
+import {
+  resolveFirestoreDatabaseId,
+  resolveFirestoreProjectId,
+} from "../config/memoryBackend.js";
 import { normalizeKnowledgeCandidates } from "./knowledgeIngestionService.js";
 
 const DEFAULT_COLLECTION = "synchron-knowledge-v1";
@@ -18,7 +21,9 @@ export function setFirestoreKnowledgeStoreForTests(store) {
 }
 
 function collectionName(env = process.env) {
-  const value = String(env.FIRESTORE_KNOWLEDGE_COLLECTION || DEFAULT_COLLECTION).trim();
+  const value = String(
+    env.FIRESTORE_KNOWLEDGE_COLLECTION || DEFAULT_COLLECTION,
+  ).trim();
   if (!/^[A-Za-z0-9_-]{1,120}$/u.test(value)) {
     const error = new Error("Невалидна knowledge колекция.");
     error.code = "FIRESTORE_NOT_CONFIGURED";
@@ -46,7 +51,9 @@ function knowledgeId(ownerId, candidate) {
   const owner = String(ownerId || "").trim();
   if (!owner) throw new Error("Липсва собственик на знанието.");
   const fingerprint = createHash("sha256")
-    .update(`${owner}\0${candidate.sourceId}\0${candidate.text.toLocaleLowerCase("bg-BG")}`)
+    .update(
+      `${owner}\0${candidate.sourceId}\0${candidate.text.toLocaleLowerCase("bg-BG")}`,
+    )
     .digest("hex")
     .slice(0, 48);
   return `knowledge-${fingerprint}`;
@@ -85,11 +92,14 @@ export async function saveApprovedKnowledgeItems({
     },
   }));
   await store.commitOperations(
-    documents.map(({ id, data }) => ({ type: "set", collection: collectionName(), id, data })),
+    documents.map(({ id, data }) => ({
+      type: "set",
+      collection: collectionName(),
+      id,
+      data,
+    })),
   );
-  return Object.freeze(
-    documents.map(({ id, data }) => ({ id, ...data })),
-  );
+  return Object.freeze(documents.map(({ id, data }) => ({ id, ...data })));
 }
 
 export async function listApprovedKnowledge({
@@ -98,12 +108,19 @@ export async function listApprovedKnowledge({
   limit = MAX_CONTEXT_ITEMS,
   store = getFirestoreStoreOrThrow(),
 } = {}) {
-  const documents = await store.queryEqual(collectionName(), "ownerId", ownerId, 200);
+  const documents = await store.queryEqual(
+    collectionName(),
+    "ownerId",
+    ownerId,
+    200,
+  );
   return documents
     .map((document) => ({ id: document.id, ...document.data }))
     .filter((item) => item.status === "approved")
     .filter((item) => !scope || item.scope === scope)
-    .sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")))
+    .sort((left, right) =>
+      String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")),
+    )
     .slice(0, Math.min(Math.max(Number(limit) || 1, 1), MAX_CONTEXT_ITEMS));
 }
 
@@ -140,7 +157,8 @@ export function createInMemoryKnowledgeStore() {
     },
     async commitOperations(operations) {
       for (const operation of operations) {
-        if (operation.type === "set") documents.set(operation.id, { ...operation.data });
+        if (operation.type === "set")
+          documents.set(operation.id, { ...operation.data });
       }
     },
     async get(_collection, id) {

@@ -75,7 +75,8 @@ const DEFAULT_ADVISOR_REQUESTERS = Object.fromEntries(
 export function getCodeTaskProviderStatus(env = process.env) {
   return Object.entries(CODE_PROVIDERS).map(([id, { key }]) => ({
     id,
-    configured: id === "codex" ? isCodexAgentConfigured(env) : Boolean(env[key]?.trim()),
+    configured:
+      id === "codex" ? isCodexAgentConfigured(env) : Boolean(env[key]?.trim()),
   }));
 }
 
@@ -381,7 +382,12 @@ export async function prepareCodeTask({
     gemini: geminiApiKey,
     grok: grokApiKey,
     claude: claudeApiKey,
-    codex: isCodexAgentConfigured({ OPENAI_API_KEY: apiKey, CODEX_AGENT_ENABLED: process.env.CODEX_AGENT_ENABLED }) ? apiKey : "",
+    codex: isCodexAgentConfigured({
+      OPENAI_API_KEY: apiKey,
+      CODEX_AGENT_ENABLED: process.env.CODEX_AGENT_ENABLED,
+    })
+      ? apiKey
+      : "",
   };
   const providers = Object.keys(CODE_PROVIDERS);
   const configured = providers.filter(
@@ -647,7 +653,9 @@ export function extractCodeTaskConfirmationId(message) {
   if (typeof message !== "string") return null;
   const match = message
     .trim()
-    .match(/^Потвърждавам AI CORE кодова задача:\s*([0-9a-f]{8}-[0-9a-f-]{27,})$/iu);
+    .match(
+      /^Потвърждавам AI CORE кодова задача:\s*([0-9a-f]{8}-[0-9a-f-]{27,})$/iu,
+    );
   return match?.[1] || null;
 }
 
@@ -674,8 +682,7 @@ export async function confirmCodeTask({
     );
   }
   if (
-    confirmation.resource?.ownerFingerprint !==
-      fingerprint("owner", ownerId) ||
+    confirmation.resource?.ownerFingerprint !== fingerprint("owner", ownerId) ||
     confirmation.resource?.githubLoginFingerprint !==
       fingerprint("github-login", githubSession.login)
   ) {
@@ -709,7 +716,9 @@ export async function confirmCodeTask({
         repository: confirmation.resource.repository,
         branchName: confirmation.resource.branch,
         base: confirmation.resource.base,
-        ...(confirmation.resource.baseSha ? { expectedBaseSha: confirmation.resource.baseSha } : {}),
+        ...(confirmation.resource.baseSha
+          ? { expectedBaseSha: confirmation.resource.baseSha }
+          : {}),
         changes: plan.changes,
         commitMessage: plan.commitMessage,
         title: plan.title,

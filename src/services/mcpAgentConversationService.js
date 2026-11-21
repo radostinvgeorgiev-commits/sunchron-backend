@@ -34,7 +34,10 @@ import { getLatestGoogleSessionId } from "./googleDriveService.js";
 import { getLatestAuthorizedGitHubSession } from "./githubOAuthService.js";
 import { recordAuditEvent } from "./permissionService.js";
 import { createTaskConfirmation } from "./confirmationService.js";
-import { confirmTaskWrite, extractTaskConfirmationId } from "./taskConfirmationService.js";
+import {
+  confirmTaskWrite,
+  extractTaskConfirmationId,
+} from "./taskConfirmationService.js";
 
 const MAX_MESSAGE_LENGTH = 6_000;
 const MAX_SESSION_QUESTIONS = 10;
@@ -172,7 +175,10 @@ export async function sendMcpAgentMessage(
     agent,
   };
   const sanitizedWorkContext = sanitizeWorkContext(workContext) || workContext;
-  const safeIdentity = identity || { role: "member", displayName: "Потребител" };
+  const safeIdentity = identity || {
+    role: "member",
+    displayName: "Потребител",
+  };
   const noToolBoundary =
     hasExplicitNoToolBoundary(cleanMessage) ||
     hasExplicitNoAdditionalToolsBoundary(cleanMessage);
@@ -248,7 +254,11 @@ export async function sendMcpAgentMessage(
       sessionId: cleanSessionId,
       response,
       project: Object.freeze({ id: project.id, name: project.name }),
-      agent: Object.freeze({ id: agent.id, name: agent.name, role: agent.role }),
+      agent: Object.freeze({
+        id: agent.id,
+        name: agent.name,
+        role: agent.role,
+      }),
       conversationPersisted: true,
       capabilities: Object.freeze(
         confirmed.results.map((item) => item.capability).filter(Boolean),
@@ -258,7 +268,9 @@ export async function sendMcpAgentMessage(
       plannerErrorCode: null,
       externalActionsExecuted: true,
       codeChanged: confirmed.results.some(
-        (item) => item.capability === "code.write" || item.capability?.startsWith("github."),
+        (item) =>
+          item.capability === "code.write" ||
+          item.capability?.startsWith("github."),
       ),
       turnNumber: previousQuestions + 1,
       turnsRemaining: MAX_SESSION_QUESTIONS - previousQuestions - 1,

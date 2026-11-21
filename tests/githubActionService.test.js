@@ -206,15 +206,10 @@ test("rejects a confirmation when the GitHub identity changes before consumption
 test("extracts only the exact GitHub change confirmation command", () => {
   const id = "123e4567-e89b-12d3-a456-426614174000";
   assert.equal(
-    extractGitHubChangeConfirmationId(
-      `Потвърждавам GitHub промяната: ${id}`,
-    ),
+    extractGitHubChangeConfirmationId(`Потвърждавам GitHub промяната: ${id}`),
     id,
   );
-  assert.equal(
-    extractGitHubChangeConfirmationId(`Потвърждение: ${id}`),
-    null,
-  );
+  assert.equal(extractGitHubChangeConfirmationId(`Потвърждение: ${id}`), null);
 });
 
 test("prepares and confirms a merge only for the exact PR head SHA", async () => {
@@ -225,8 +220,7 @@ test("prepares and confirms a merge only for the exact PR head SHA", async () =>
   const originalApiUrl = process.env.GITHUB_API_URL;
   const originalRepository = process.env.GITHUB_REPOSITORY;
   process.env.GITHUB_API_URL = "https://github.test";
-  process.env.GITHUB_REPOSITORY =
-    "radostinvgeorgiev-commits/sunchron-backend";
+  process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
   global.fetch = async () =>
     new Response(
       JSON.stringify({

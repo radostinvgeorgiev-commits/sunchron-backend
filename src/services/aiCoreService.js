@@ -19,11 +19,11 @@ export const AI_PROVIDERS = new Set([
   "vertex-gemini",
 ]);
 
-export const DEFAULT_OPENAI_CHAT_MODEL = "gpt-5.6-terra";
+export const DEFAULT_OPENAI_CHAT_MODEL = "gpt-4.1-mini";
 export const DEFAULT_CODEX_COUNCIL_MODEL = "gpt-5.3-codex";
-export const DEFAULT_OPENAI_PLANNER_MODEL = "gpt-5.6-luna";
-export const DEFAULT_GEMINI_CHAT_MODEL = "gemini-2.5-flash";
-export const DEFAULT_GROK_CHAT_MODEL = "grok-4.5";
+export const DEFAULT_OPENAI_PLANNER_MODEL = "gpt-4.1-mini";
+export const DEFAULT_GEMINI_CHAT_MODEL = "gemini-2.5-flash-lite";
+export const DEFAULT_GROK_CHAT_MODEL = "grok-3-mini";
 export const DEFAULT_CLAUDE_CHAT_MODEL = "claude-haiku-4-5-20251001";
 
 export class AiCoreError extends Error {

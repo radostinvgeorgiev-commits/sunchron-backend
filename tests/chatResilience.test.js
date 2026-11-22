@@ -337,7 +337,7 @@ test("verified GitHub results bypass AI rewriting", async () => {
     if (String(url).includes("api.openai.com/v1/responses")) {
       openAiCalls += 1;
       const body = JSON.parse(options.body);
-      if (body.model === "gpt-5.6-luna") {
+      if (body.model === "gpt-4.1-mini") {
         return new Response(
           JSON.stringify({
             output: [

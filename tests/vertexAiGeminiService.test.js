@@ -426,7 +426,7 @@ test("AI Core keeps OpenAI default and only explicitly selects configured Vertex
   );
   assert.deepEqual(
     [...AI_PROVIDERS],
-    ["openai", "gemini", "grok", "vertex-gemini"],
+    ["openai", "gemini", "grok", "claude", "vertex-gemini"],
   );
 });
 

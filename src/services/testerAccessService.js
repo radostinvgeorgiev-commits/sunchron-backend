@@ -89,7 +89,7 @@ function getFirestoreStore(env = process.env) {
   return firestoreStore;
 }
 
-async function saveAccessDocument(id, body, { client, env }) {
+async function saveAccessDocument(id, body, { client, env, createOnly }) {
   const backend = resolvePersistenceBackend(env);
   if (!backend) {
     throw new TesterAccessError(
@@ -99,7 +99,7 @@ async function saveAccessDocument(id, body, { client, env }) {
     );
   }
   if (backend === "firestore") {
-    await getFirestoreStore(env).set(id, body);
+    await getFirestoreStore(env).set(id, body, { createOnly });
     return;
   }
   await requireClient(client).index(
@@ -108,6 +108,7 @@ async function saveAccessDocument(id, body, { client, env }) {
       id,
       body,
       refresh: true,
+      ...(createOnly ? { op_type: "create" } : {}),
     },
     ACCESS_REQUEST_OPTIONS,
   );
@@ -167,25 +168,56 @@ function statusCode(error) {
   return error?.statusCode || error?.meta?.statusCode || error?.status;
 }
 
+function isAccessDocumentConflict(error) {
+  return (
+    Number(statusCode(error)) === 409 ||
+    [409, 412].includes(error?.upstreamStatus) ||
+    ["ALREADY_EXISTS", "FAILED_PRECONDITION"].includes(
+      error?.upstreamErrorStatus,
+    )
+  );
+}
+
+function isApprovedAccess(source, userId, provider) {
+  return (
+    source?.userId === userId &&
+    source.status === "approved" &&
+    (!source.authProvider || source.authProvider === provider)
+  );
+}
+
 export async function approveTesterAccess(
   user,
-  { client, env = process.env } = {},
+  { client, env = process.env, createOnly = false } = {},
 ) {
   const userId = cleanUserId(user);
   const documentId = accessDocumentId(user, env);
   const provider = authProvider(user, env);
   const approvedAt = new Date().toISOString();
   try {
-    await saveAccessDocument(
-      documentId,
-      {
-        userId,
-        ...(provider === "supabase" ? {} : { authProvider: provider }),
-        status: "approved",
-        approvedAt,
-      },
-      { client, env },
-    );
+    try {
+      await saveAccessDocument(
+        documentId,
+        {
+          userId,
+          ...(provider === "supabase" ? {} : { authProvider: provider }),
+          status: "approved",
+          approvedAt,
+        },
+        { client, env, createOnly },
+      );
+    } catch (error) {
+      if (!createOnly || !isAccessDocumentConflict(error)) throw error;
+      const existing = await loadAccessDocument(documentId, { client, env });
+      if (!isApprovedAccess(existing, userId, provider)) {
+        throw new TesterAccessError(
+          "Този профил няма одобрен достъп.",
+          403,
+          "TESTER_ACCESS_NOT_APPROVED",
+        );
+      }
+      return { userId, approvedAt: existing.approvedAt };
+    }
   } catch (error) {
     if (error instanceof TesterAccessError) throw error;
     throw new TesterAccessError(
@@ -245,11 +277,7 @@ export async function assertTesterAccess(
       client,
       env,
     });
-    if (
-      source?.userId === userId &&
-      source?.status === "approved" &&
-      (!source.authProvider || source.authProvider === provider)
-    ) {
+    if (isApprovedAccess(source, userId, provider)) {
       return true;
     }
   } catch (error) {

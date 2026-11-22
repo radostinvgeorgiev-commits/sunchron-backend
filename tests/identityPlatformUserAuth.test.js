@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { createIdentityPlatformAuthClient } from "../src/services/identityPlatformAuthClient.js";
 import {
   getUserAuthConfigurationStatus,
   getUserAuthProvider,
   isUserAuthConfigured,
+  registerUser,
   resolveUserSession,
+  signInUser,
   userSessionCookie,
 } from "../src/services/userAuthService.js";
 import {
@@ -228,5 +231,125 @@ test("public sign-in resends verification only after accepting credentials for a
       { code: accepted ? "AUTH_EMAIL_VERIFICATION_RESENT" : "AUTH_INVALID_CREDENTIALS" },
     );
     assert.deepEqual(verificationRequests, accepted ? [pendingSession.access_token] : []);
+  }
+});
+
+test("public registration can be completed after the email or access write fails", async () => {
+  const env = { ...ENV, USER_REGISTRATION_MODE: "public" };
+  const credentials = {
+    email: "retry@example.test",
+    password: "local-test-password",
+  };
+  const user = { localId: "recoverable-user", email: credentials.email };
+  const providerSession = {
+    ...user,
+    idToken: "local-id-token",
+    refreshToken: "local-refresh-token",
+  };
+  const accessId = `identity-platform:${user.localId}`;
+  const upstreamError = (message, status = 400) =>
+    Response.json({ error: { message } }, { status });
+
+  for (const failure of ["email", "access"]) {
+    const store = accessStore();
+    let accountExists = false;
+    let verified = false;
+    let emailSent = false;
+    let failed = false;
+    setFirestoreTesterAccessStoreForTests({
+      ...store,
+      async set(id, data, options) {
+        assert.equal(options.createOnly, true);
+        if (failure === "access" && !failed) {
+          failed = true;
+          throw new Error("Temporary access store failure");
+        }
+        if (store.records.has(id)) {
+          const error = new Error("Document exists");
+          error.upstreamErrorStatus = "ALREADY_EXISTS";
+          throw error;
+        }
+        return store.set(id, data);
+      },
+    });
+    const client = createIdentityPlatformAuthClient({
+      env,
+      async fetchImpl(url, { body }) {
+        switch (new URL(url).pathname.split(":").at(-1)) {
+          case "signUp":
+            if (accountExists) return upstreamError("EMAIL_EXISTS");
+            accountExists = true;
+            return Response.json(providerSession);
+          case "update":
+            return Response.json(providerSession);
+          case "signInWithPassword":
+            if (JSON.parse(body).password !== credentials.password) {
+              return upstreamError("INVALID_LOGIN_CREDENTIALS");
+            }
+            return Response.json(providerSession);
+          case "lookup":
+            return Response.json({
+              users: [{ ...user, emailVerified: verified }],
+            });
+          case "sendOobCode":
+            if (failure === "email" && !failed) {
+              failed = true;
+              return upstreamError("INTERNAL_ERROR", 503);
+            }
+            emailSent = true;
+            return Response.json({});
+          default:
+            assert.fail("Unexpected Identity Platform request");
+        }
+      },
+    });
+    const options = { env, client };
+    await assert.rejects(registerUser(credentials, options), {
+      code:
+        failure === "email"
+          ? "AUTH_UNAVAILABLE"
+          : "TESTER_ACCESS_PERSISTENCE_FAILED",
+    });
+    assert.equal(accountExists, true);
+    assert.equal(store.records.size, 0);
+
+    await assert.rejects(
+      registerUser({ ...credentials, password: "incorrect-password" }, options),
+      { code: "AUTH_INVALID_CREDENTIALS" },
+    );
+    assert.equal(store.records.size, 0);
+
+    if (failure === "email") {
+      await assert.rejects(signInUser(credentials, options), {
+        code: "AUTH_EMAIL_VERIFICATION_RESENT",
+      });
+      verified = true;
+      await assert.rejects(signInUser(credentials, options), {
+        code: "AUTH_REGISTRATION_INCOMPLETE",
+      });
+    }
+
+    const recovered = await registerUser(credentials, options);
+    assert.equal(recovered.user.id, user.localId);
+    assert.equal(recovered.created, false);
+    assert.equal(recovered.confirmationRequired, !verified);
+    assert.equal(Boolean(recovered.session), verified);
+    assert.equal(emailSent, true);
+    const approval = store.records.get(accessId);
+    assert.equal(approval.status, "approved");
+
+    verified = true;
+    assert.equal(
+      (await signInUser(credentials, options)).user.id,
+      user.localId,
+    );
+    assert.equal((await registerUser(credentials, options)).created, false);
+    assert.equal(store.records.get(accessId), approval);
+
+    store.records.set(accessId, { ...approval, status: "revoked" });
+    await assert.rejects(registerUser(credentials, options), {
+      code: "TESTER_ACCESS_NOT_APPROVED",
+    });
+    assert.equal(store.records.get(accessId).status, "revoked");
   }
 });

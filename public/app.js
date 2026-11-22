@@ -7,6 +7,7 @@ const englishAuthErrors = {
   AUTH_INVALID_CREDENTIALS: "The email address or password is incorrect.",
   AUTH_INVITE_INVALID: "Enter a valid early access code.",
   AUTH_REGISTRATION_CLOSED: "Registration is currently closed.",
+  AUTH_REGISTRATION_INCOMPLETE: "Account access is not active. If registration was interrupted, register again with the same email address and password.",
   AUTH_EMAIL_NOT_VERIFIED: "Verify your email address before signing in.",
   AUTH_EMAIL_VERIFICATION_RESENT: "We sent a new verification email. Check your inbox and spam folder, then sign in again.",
   AUTH_UNAVAILABLE: "Sign-in is temporarily unavailable. Try again shortly.",

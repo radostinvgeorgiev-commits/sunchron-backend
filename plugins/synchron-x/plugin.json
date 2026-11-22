@@ -1,0 +1,25 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "synchron-x",
+  "version": "0.1.0",
+  "description": "Ask SYNCHRON-X a question and check your AI credit balance.",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "SYNCHRON-X",
+        "shortDescription": "Ask AI CORE and check your AI credits.",
+        "longDescription": "Connect your SYNCHRON-X account to ask AI CORE a question or check your remaining credits from ChatGPT.",
+        "developerName": "SYNCHRON-X",
+        "supportURL": "https://cloudaicore.com/help",
+        "category": "Productivity",
+        "websiteURL": "https://cloudaicore.com/",
+        "defaultPrompt": [
+          "Ask SYNCHRON-X to turn these notes into a short action plan.",
+          "Check my SYNCHRON-X AI credit balance."
+        ],
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/icon.png"
+      }
+    }
+  }
+}

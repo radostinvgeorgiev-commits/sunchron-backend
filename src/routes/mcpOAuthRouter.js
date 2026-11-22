@@ -25,6 +25,7 @@ const MCP_OAUTH_CONTENT_SECURITY_POLICY = [
   "style-src 'unsafe-inline'",
 ].join("; ");
 const SCOPE_LABELS = Object.freeze({
+  "synchron:chatgpt.ask": "AI отговори и собствен баланс в плъгина SYNCHRON-X",
   "synchron:read": "Четене на разрешените данни и системни статуси",
   "synchron:agent.chat": "Разговор с AI CORE в собствения профил",
   "synchron:memory.write": "Потвърждавани промени в постоянната памет",

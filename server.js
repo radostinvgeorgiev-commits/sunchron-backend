@@ -45,6 +45,7 @@ import {
   createEarlyAccessRouter,
 } from "./src/routes/earlyAccessRouter.js";
 import mcpRouter, { mcpJsonParseErrorHandler } from "./src/routes/mcpRouter.js";
+import { createChatGptMcpRouter, getChatGptMcpResourceMetadata } from "./src/routes/chatGptMcpRouter.js";
 import { createMcpOAuthRouter } from "./src/routes/mcpOAuthRouter.js";
 
 const { oauthRateLimiter, paidAiRateLimiter, privateApiRateLimiter } =
@@ -164,6 +165,12 @@ app.use(
   createEarlyAccessAdminRouter(),
 );
 app.use("/api/github", oauthRateLimiter, githubOAuthRouter);
+const chatGptMcpRouter = createChatGptMcpRouter();
+app.use("/mcp/chatgpt", mcpJsonParseErrorHandler, privateApiRateLimiter, chatGptMcpRouter);
+app.get("/.well-known/oauth-protected-resource/mcp/chatgpt", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json(getChatGptMcpResourceMetadata());
+});
 app.use("/mcp", mcpJsonParseErrorHandler, privateApiRateLimiter, mcpRouter);
 
 app.use(

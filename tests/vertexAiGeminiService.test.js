@@ -419,7 +419,8 @@ test("AI Core keeps OpenAI default and only explicitly selects configured Vertex
         { id: "openai", configured: false },
         { id: "gemini", configured: false },
         { id: "grok", configured: false },
-        { id: "vertex-gemini", configured: true },
+        { id: "claude", configured: false },
+      { id: "vertex-gemini", configured: true },
       ],
     },
   );

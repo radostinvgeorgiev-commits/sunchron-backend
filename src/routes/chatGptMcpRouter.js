@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import express from "express";
 import { validateMcpTransport } from "./mcpRouter.js";
 import { MCP_PROTOCOL_VERSION } from "../services/mcpReadService.js";
@@ -17,18 +19,51 @@ import {
   ProductError,
 } from "../services/productPlansService.js";
 
+import {
+  listConversationMessages,
+  saveConversationTurn,
+} from "../services/memoryService.js";
+import { logSafeError } from "../utils/safeLogging.js";
+
+const widgetUri = "ui://synchron-x/workspace-v1.html";
+const widget = {
+  uri: widgetUri,
+  name: "SYNCHRON-X workspace",
+  mimeType: "text/html;profile=mcp-app",
+};
+const conversationIdPattern =
+  /^chatgpt-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
+
 const securitySchemes = [{ type: "oauth2", scopes: [CHATGPT_MCP_SCOPE] }];
 
 const tools = [
   {
+    name: "open_synchron_x_workspace",
+    title: "Open SYNCHRON-X workspace",
+    description:
+      "Open the interactive SYNCHRON-X workspace in the current ChatGPT conversation.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  {
     name: "ask_synchron_x",
     title: "Ask SYNCHRON-X",
     description:
-      "Get a SYNCHRON-X answer to a specific question using the connected account. Costs three AI credits for standard accounts. Send only the question and context the user chose to share.",
+      "Get a SYNCHRON-X answer to a specific question using the connected account. Costs three AI credits for standard accounts and saves the question and answer to the connected account. Send only the question and context the user chose to share.",
     inputSchema: {
       type: "object",
       properties: {
         question: { type: "string", minLength: 1, maxLength: 6000 },
+        sessionId: { type: "string", pattern: conversationIdPattern.source },
       },
       required: ["question"],
       additionalProperties: false,
@@ -60,7 +95,12 @@ const tools = [
 ].map((tool) => ({
   ...tool,
   securitySchemes,
-  _meta: { securitySchemes },
+  _meta: {
+    securitySchemes,
+    ...(tool.name === "open_synchron_x_workspace"
+      ? { ui: { resourceUri: widgetUri } }
+      : {}),
+  },
 }));
 
 function result(content, metadata) {
@@ -85,8 +125,14 @@ export function createChatGptMcpRouter({
   getUsage = (identity) => getProductPlansService().usage(identity),
   ask = requestAiText,
   budget = publicAiBudgetContext,
+  listMessages = listConversationMessages,
+  saveTurn = saveConversationTurn,
 } = {}) {
   const router = express.Router();
+  const widgetHtml = readFileSync(
+    new URL("./synchron-x-widget.html", import.meta.url),
+    "utf8",
+  );
   const metadata = getChatGptMcpResourceMetadata(env);
   const discovery =
     metadata.authorization_servers[0] +
@@ -119,16 +165,14 @@ export function createChatGptMcpRouter({
     } catch (error) {
       const status = error instanceof McpOAuthError ? error.status : 503;
       if (status !== 401 && status !== 403)
-        return res
-          .status(503)
-          .json({
-            jsonrpc: "2.0",
-            id: req.body.id ?? null,
-            error: {
-              code: -32002,
-              message: "Account validation is temporarily unavailable.",
-            },
-          });
+        return res.status(503).json({
+          jsonrpc: "2.0",
+          id: req.body.id ?? null,
+          error: {
+            code: -32002,
+            message: "Account validation is temporarily unavailable.",
+          },
+        });
       const code = status === 403 ? "insufficient_scope" : "invalid_token";
       const challenge = `Bearer resource_metadata="${discovery}", scope="${CHATGPT_MCP_SCOPE}", error="${code}"`;
       res.set("WWW-Authenticate", challenge);
@@ -155,12 +199,28 @@ export function createChatGptMcpRouter({
       if (method === "initialize")
         return reply({
           protocolVersion: MCP_PROTOCOL_VERSION,
-          capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: "synchron-x", version: "0.1.0" },
+          capabilities: { tools: { listChanged: false }, resources: {} },
+          serverInfo: { name: "synchron-x", version: "0.2.0" },
         });
       if (method === "notifications/initialized") return res.status(202).end();
       if (method === "ping") return reply({});
       if (method === "tools/list") return reply({ tools });
+      if (method === "resources/list") return reply({ resources: [widget] });
+      if (method === "resources/read") {
+        if (params?.uri !== widgetUri)
+          return failure(-32002, "Unknown resource.");
+        return reply({
+          contents: [
+            {
+              ...widget,
+              text: widgetHtml,
+              _meta: {
+                ui: { csp: { resourceDomains: ["https://cloudaicore.com"] } },
+              },
+            },
+          ],
+        });
+      }
       if (method !== "tools/call")
         return failure(-32601, "Unknown MCP method.");
 
@@ -168,17 +228,26 @@ export function createChatGptMcpRouter({
         const args = params?.arguments ?? {};
         if (typeof args !== "object" || Array.isArray(args))
           return failure(-32602, "Expected an argument object.");
+        if (params?.name === "open_synchron_x_workspace") {
+          if (Object.keys(args).length)
+            return failure(-32602, "This tool takes no arguments.");
+          return reply(result("SYNCHRON-X is open."));
+        }
         if (params?.name === "get_synchron_x_balance") {
           if (Object.keys(args).length)
             return failure(-32602, "This tool takes no arguments.");
           const usage = await getUsage(req.owner);
-          return reply(
-            result(
+          return reply({
+            ...result(
               usage.owner
                 ? "Owner account."
                 : `Remaining AI credits: ${usage.remaining}.`,
             ),
-          );
+            structuredContent: {
+              remaining: usage.remaining ?? null,
+              owner: Boolean(usage.owner),
+            },
+          });
         }
         if (params?.name === "ask_synchron_x") {
           const question =
@@ -186,17 +255,45 @@ export function createChatGptMcpRouter({
           if (
             !question ||
             question.length > 6000 ||
-            Object.keys(args).length !== 1
+            (args.sessionId !== undefined &&
+              (typeof args.sessionId !== "string" ||
+                !conversationIdPattern.test(args.sessionId))) ||
+            Object.keys(args).some(
+              (key) => key !== "question" && key !== "sessionId",
+            )
           )
             return failure(
               -32602,
               "Enter a question of up to 6000 characters.",
             );
-          const answer = await ask({
-            provider: "openai",
-            input: [{ role: "user", content: question }],
+          const sessionId = args.sessionId ?? `chatgpt-${randomUUID()}`;
+          const ownerId = req.owner.memoryOwnerId;
+          const history = args.sessionId
+            ? await listMessages(sessionId, 8, ownerId)
+            : [];
+          const input = history
+            .filter(
+              (item) =>
+                ["user", "assistant"].includes(item.role) &&
+                typeof item.content === "string",
+            )
+            .map((item) => ({
+              role: item.role,
+              content: item.content.slice(0, 2000),
+            }));
+          input.push({ role: "user", content: question });
+          const answer = await ask({ provider: "openai", input });
+          let conversationPersisted = true;
+          try {
+            await saveTurn(sessionId, question, answer, ownerId);
+          } catch (error) {
+            conversationPersisted = false;
+            logSafeError("[SYNCHRON-X plugin] Save conversation", error);
+          }
+          return reply({
+            ...result(answer),
+            structuredContent: { answer, sessionId, conversationPersisted },
           });
-          return reply(result(answer));
         }
         return failure(-32602, "Unknown SYNCHRON-X tool.");
       } catch (error) {

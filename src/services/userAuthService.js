@@ -465,6 +465,18 @@ export async function signInUser(
     throw mapAuthError(error, "Имейлът или паролата са неправилни.");
   }
   if (requiresVerifiedIdentityEmail(env) && !data.user.emailVerified) {
+    if (isPublicRegistration(env) && authClient.auth.sendVerificationEmail) {
+      const verification = await authClient.auth.sendVerificationEmail(
+        data.session.access_token,
+      );
+      if (verification.data?.sent === true) {
+        throw new UserAuthError(
+          "Изпратихме ново писмо за потвърждение. Провери пощата и папката за спам, след което влез отново.",
+          403,
+          "AUTH_EMAIL_VERIFICATION_RESENT",
+        );
+      }
+    }
     throw new UserAuthError(
       "Потвърди имейла си, преди да влезеш.",
       403,

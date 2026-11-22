@@ -199,3 +199,34 @@ test("Identity Platform tester approvals persist in Firestore without OpenSearch
     "identity-platform",
   );
 });
+
+test("public sign-in resends verification only after accepting credentials for an unverified account", async () => {
+  const { signInUser } = await import("../src/services/userAuthService.js");
+  const pendingSession = session();
+  const credentials = { email: "friend@example.com", password: "strong-pass-123" };
+  const env = { ...ENV, USER_REGISTRATION_MODE: "public" };
+  for (const accepted of [true, false]) {
+    const verificationRequests = [];
+    await assert.rejects(
+      signInUser(credentials, {
+        env,
+        requireTesterAccess: async () => assert.fail("must verify first"),
+        client: {
+          auth: {
+            async signInWithPassword() {
+              return accepted
+                ? { data: { user: { emailVerified: false }, session: pendingSession } }
+                : { error: { status: 400 } };
+            },
+            async sendVerificationEmail(accessToken) {
+              verificationRequests.push(accessToken);
+              return { data: { sent: true }, error: null };
+            },
+          },
+        },
+      }),
+      { code: accepted ? "AUTH_EMAIL_VERIFICATION_RESENT" : "AUTH_INVALID_CREDENTIALS" },
+    );
+    assert.deepEqual(verificationRequests, accepted ? [pendingSession.access_token] : []);
+  }
+});

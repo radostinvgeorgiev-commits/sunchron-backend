@@ -469,7 +469,7 @@ test("explicit GitHub request still runs when the AI planner returns no tools", 
       })
       .expect(200);
 
-    assert.equal(plannerCalls, 1);
+    assert.equal(plannerCalls, 0);
     assert.equal(githubCalls, 1);
     assert.match(response.text, /Последната реална промяна в GitHub е/u);
     assert.match(response.text, /Planner cannot suppress tools/u);

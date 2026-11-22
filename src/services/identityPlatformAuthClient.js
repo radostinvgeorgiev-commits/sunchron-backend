@@ -136,9 +136,14 @@ export function createIdentityPlatformAuthClient({
             { body: { email, password, returnSecureToken: true } },
           );
           const session = normalizeSession(payload);
-          const user = session
-            ? await lookupUser(session.access_token)
-            : normalizeUser(payload);
+          if (!session)
+            throw upstreamError(502, { error: { message: "SESSION_INCOMPLETE" } });
+          let user;
+          try {
+            user = await lookupUser(session.access_token);
+          } catch {
+            throw upstreamError(502, { error: { message: "PROFILE_LOOKUP_FAILED" } });
+          }
           return {
             data: {
               user,

@@ -8,6 +8,8 @@ const englishAuthErrors = {
   AUTH_INVITE_INVALID: "Enter a valid early access code.",
   AUTH_REGISTRATION_CLOSED: "Registration is currently closed.",
   AUTH_EMAIL_NOT_VERIFIED: "Verify your email address before signing in.",
+  AUTH_EMAIL_VERIFICATION_RESENT: "We sent a new verification email. Check your inbox and spam folder, then sign in again.",
+  AUTH_UNAVAILABLE: "Sign-in is temporarily unavailable. Try again shortly.",
   AUTH_SIGNUP_REJECTED: "The account could not be created. If you already have an account, sign in.",
 };
 

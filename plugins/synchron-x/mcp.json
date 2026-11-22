@@ -1,0 +1,18 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "synchron-x": {
+      "type": "streamable-http",
+      "url": "https://cloudaicore.com/mcp/chatgpt",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": { "mode": "cimd" },
+            "baseScopes": ["synchron:chatgpt.ask"]
+          }
+        }
+      }
+    }
+  }
+}

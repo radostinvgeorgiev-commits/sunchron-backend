@@ -17,6 +17,8 @@ import {
 } from "./firestoreMcpOAuthStore.js";
 
 export const DEFAULT_MCP_RESOURCE_URL = "https://cloudaicore.com/mcp";
+export const CHATGPT_MCP_SCOPE = "synchron:chatgpt.ask";
+export const CHATGPT_MCP_PATH = "/mcp/chatgpt";
 export const MCP_READ_SCOPE = "synchron:read";
 export const MCP_AGENT_CHAT_SCOPE = "synchron:agent.chat";
 export const MCP_MEMORY_WRITE_SCOPE = "synchron:memory.write";
@@ -40,6 +42,7 @@ export const MCP_SCOPES = Object.freeze([
 ]);
 const MCP_AUTHORIZATION_SCOPES = Object.freeze([
   ...MCP_SCOPES,
+  CHATGPT_MCP_SCOPE,
   MCP_OFFLINE_ACCESS_SCOPE,
 ]);
 const MCP_OWNER_ONLY_SCOPES = Object.freeze([
@@ -181,11 +184,19 @@ function recordOpenAiTunnelTokenExchange(
   });
 }
 
+export function resolveChatGptMcpResource(env = process.env) {
+  return resolveMcpIssuerUrl(env) + CHATGPT_MCP_PATH;
+}
+
 function isAllowedMcpResourceUrl(resource, env = process.env) {
   const requested = String(resource || "");
   const canonical = resolveMcpResourceUrl(env);
   const tunnel = resolveOpenAiTunnelResourceUrl(env);
-  return requested === canonical || Boolean(tunnel && requested === tunnel);
+  return (
+    requested === canonical ||
+    requested === resolveChatGptMcpResource(env) ||
+    Boolean(tunnel && requested === tunnel)
+  );
 }
 
 export function resolveMcpIssuerUrl(env = process.env) {
@@ -681,6 +692,12 @@ export async function validateMcpAuthorizationRequest(
   }
 
   const scopes = parseScopes(input?.scope);
+  const forChatGpt = resource === resolveChatGptMcpResource(env);
+  if (forChatGpt ? !scopes.includes(CHATGPT_MCP_SCOPE) ||
+      scopes.some((scope) => scope !== CHATGPT_MCP_SCOPE && scope !== MCP_OFFLINE_ACCESS_SCOPE)
+    : scopes.includes(CHATGPT_MCP_SCOPE)) {
+    throw new McpOAuthError("Права извън обхвата на тази връзка.", 400, "invalid_scope");
+  }
   if (
     googleClient &&
     scopes.some((scope) => !googleClient.allowedScopes.includes(scope))
@@ -2029,6 +2046,7 @@ export function verifyMcpAccessToken(
   authorizationHeader,
   requiredScopes = [MCP_READ_SCOPE],
   env = process.env,
+  { expectedResource } = {},
 ) {
   if (
     typeof authorizationHeader !== "string" ||
@@ -2047,6 +2065,9 @@ export function verifyMcpAccessToken(
     payload.typ !== "access_token" ||
     payload.iss !== resolveMcpIssuerUrl(env) ||
     !isAllowedMcpResourceUrl(payload.aud, env) ||
+    (expectedResource
+      ? payload.aud !== expectedResource
+      : payload.aud === resolveChatGptMcpResource(env)) ||
     payload.nbf > now ||
     payload.exp <= now ||
     !Array.isArray(payload.scopes) ||

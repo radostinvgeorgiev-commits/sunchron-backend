@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   assertMcpGrantActive,
   cleanupExpiredMcpReplayRecords,
+  CHATGPT_MCP_SCOPE,
   consumeMcpGrantOnce,
   createMcpAuthorizationCode,
   exchangeMcpAuthorizationCode,
@@ -326,6 +327,7 @@ test("publishes OAuth 2.1 protected-resource and authorization metadata", () => 
     MCP_GOOGLE_WRITE_SCOPE,
     MCP_AUDIT_READ_SCOPE,
     MCP_INFRASTRUCTURE_WRITE_SCOPE,
+    CHATGPT_MCP_SCOPE,
     MCP_OFFLINE_ACCESS_SCOPE,
   ]);
 });
@@ -1447,4 +1449,38 @@ test("expired durable replay records are cleaned on a bounded schedule", async (
     true,
   );
   assert.equal(calls.length, 2);
+});
+
+test("ChatGPT plugin grants are scoped to the public plugin resource", async () => {
+  const resource = "https://cloudaicore.com/mcp/chatgpt";
+  const input = { ...authorizationInput(), resource, scope: CHATGPT_MCP_SCOPE };
+  const options = { env: ENV, fetchImpl: clientMetadataFetch };
+  await assert.rejects(
+    validateMcpAuthorizationRequest({ ...input, scope: `${CHATGPT_MCP_SCOPE} ${MCP_READ_SCOPE}` }, options),
+    { code: "invalid_scope" },
+  );
+  await assert.rejects(
+    validateMcpAuthorizationRequest({ ...input, resource: ENV.MCP_RESOURCE_URL }, options),
+    { code: "invalid_scope" },
+  );
+
+  const request = await validateMcpAuthorizationRequest(input, options);
+  const code = createMcpAuthorizationCode(
+    request,
+    { id: "plugin-member", memoryOwnerId: "identity-platform:plugin-member", role: "member" },
+    ENV,
+  );
+  const token = await exchangeMcpAuthorizationCode({
+    grant_type: "authorization_code",
+    code,
+    client_id: CLIENT_ID,
+    redirect_uri: REDIRECT_URI,
+    code_verifier: VERIFIER,
+    resource,
+  }, ENV);
+
+  const header = `Bearer ${token.access_token}`;
+  assert.equal(verifyMcpAccessToken(header, [CHATGPT_MCP_SCOPE], ENV, { expectedResource: resource }).role, "member");
+  assert.throws(() => verifyMcpAccessToken(header, [CHATGPT_MCP_SCOPE], ENV), { code: "invalid_token" });
+  assert.throws(() => verifyMcpAccessToken(header, [CHATGPT_MCP_SCOPE], ENV, { expectedResource: ENV.MCP_RESOURCE_URL }), { code: "invalid_token" });
 });

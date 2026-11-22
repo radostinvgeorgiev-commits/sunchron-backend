@@ -471,14 +471,14 @@ export async function signInUser(
       );
       if (verification.data?.sent === true) {
         throw new UserAuthError(
-          "Изпратихме ново писмо за потвърждение. Провери пощата и папката за спам, след което влез отново.",
+          "Изпратихме ново писмо. Отвори линка от последното писмо и натисни „Complete verification“. Провери и папката за спам.",
           403,
           "AUTH_EMAIL_VERIFICATION_RESENT",
         );
       }
     }
     throw new UserAuthError(
-      "Потвърди имейла си, преди да влезеш.",
+      "Отвори линка от писмото и натисни „Complete verification“. После влез.",
       403,
       "AUTH_EMAIL_NOT_VERIFIED",
     );
@@ -486,6 +486,17 @@ export async function signInUser(
   try {
     await requireTesterAccess(data.user, { env });
   } catch (error) {
+    if (
+      isPublicRegistration(env) &&
+      resolveAuthBackend(env) === "identity-platform" &&
+      error?.code === "TESTER_ACCESS_NOT_APPROVED"
+    ) {
+      throw new UserAuthError(
+        "Достъпът до профила още не е активен. Ако регистрацията е прекъснала, повтори я със същия имейл и парола.",
+        403,
+        "AUTH_REGISTRATION_INCOMPLETE",
+      );
+    }
     throw mapTesterAccessError(error);
   }
   return { user: data.user, session: sessionPayload(data.session) };
@@ -505,7 +516,10 @@ export async function registerUser(
       503,
       "AUTH_REGISTRATION_CLOSED",
     );
-  if (!isPublicRegistration(env)) assertTesterInviteCode(inviteCode, env);
+  const publicRegistration = isPublicRegistration(env);
+  const publicIdentityRegistration =
+    publicRegistration && resolveAuthBackend(env) === "identity-platform";
+  if (!publicRegistration) assertTesterInviteCode(inviteCode, env);
   const authClient = client || createAuthClient(env);
 
   let { data, error } = await authClient.auth.signUp({
@@ -518,12 +532,14 @@ export async function registerUser(
   });
   let created = !error && Boolean(data?.user);
 
-  if (
-    !isPublicRegistration(env) &&
+  const retryPublicRegistration =
+    publicIdentityRegistration && error?.upstreamCode === "EMAIL_EXISTS";
+  const retryInvitedRegistration =
+    !publicRegistration &&
     (error ||
       !data?.user ||
-      (!data?.session && data?.confirmationRequired !== true))
-  ) {
+      (!data?.session && data?.confirmationRequired !== true));
+  if (retryPublicRegistration || retryInvitedRegistration) {
     const recovered =
       await authClient.auth.signInWithPassword(cleanCredentials);
     if (!recovered.error && recovered.data?.user && recovered.data?.session) {
@@ -572,7 +588,10 @@ export async function registerUser(
     );
   }
   try {
-    await approveAccess(data.user, { env });
+    await approveAccess(data.user, {
+      env,
+      ...(publicIdentityRegistration ? { createOnly: true } : {}),
+    });
   } catch (error) {
     throw mapTesterAccessError(error);
   }

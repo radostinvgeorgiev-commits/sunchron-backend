@@ -191,7 +191,7 @@ AI единици|AI credits
 Регистрация и вход|Registration and sign-in
 Отвори|Open
 и въведи име, имейл и парола.|and enter your name, email, and password.
-Потвърди имейла си от изпратеното писмо; провери и папката за нежелана поща.|Verify your email using the message we send. Check your spam folder as well.
+Отвори линка от писмото. Ако видиш бутон „Complete verification“, натисни го. Провери и папката за нежелана поща.|Open the link in the email. If you see a Complete verification button, select it. Check your spam folder as well.
 Влез с имейла и паролата си.|Sign in with your email and password.
 Публичната регистрация не изисква покана. Съществуващите профили се запазват. Правата на собственик не се получават с регистрация.|Public registration requires no invitation. Existing accounts remain available. Registration grants member access.
 Ако регистрацията е временно затворена, входът за съществуващи профили остава отделна функция. Не споделяй паролата си в чат. За възстановяване на достъп използвай запитването по-долу; автоматично възстановяване на парола още не е налично в интерфейса.|When registration is temporarily closed, existing accounts can still sign in. Keep your password out of chat. Contact us using the form below to recover access. Self-service password recovery is not yet in the interface.
@@ -272,7 +272,7 @@ AI Council събира мнения от избраните двигатели 
 Създай профил · SYNCHRON-X|Create an account · SYNCHRON-X
 Входът временно не е достъпен.|Sign-in is temporarily unavailable.
 Сесията не беше създадена.|The session could not be started.
-Профилът е създаден. Потвърди имейла си и после влез.|Account created. Verify your email, then sign in.
+Отвори линка от писмото. Ако видиш бутон „Complete verification“, натисни го. После влез.|Open the link in the email. If you see a Complete verification button, select it. Then sign in.
 Собственик · настройки|Owner · settings
 Личен профил|Personal account
 Създай профил с име, имейл, парола и код за ранен достъп.|Create an account using your name, email address, password, and early access code.

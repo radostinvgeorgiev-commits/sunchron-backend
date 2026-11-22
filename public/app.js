@@ -8,8 +8,8 @@ const englishAuthErrors = {
   AUTH_INVITE_INVALID: "Enter a valid early access code.",
   AUTH_REGISTRATION_CLOSED: "Registration is currently closed.",
   AUTH_REGISTRATION_INCOMPLETE: "Account access is not active. If registration was interrupted, register again with the same email address and password.",
-  AUTH_EMAIL_NOT_VERIFIED: "Verify your email address before signing in.",
-  AUTH_EMAIL_VERIFICATION_RESENT: "We sent a new verification email. Check your inbox and spam folder, then sign in again.",
+  AUTH_EMAIL_NOT_VERIFIED: "Open the link in your verification email and select Complete verification. Then sign in.",
+  AUTH_EMAIL_VERIFICATION_RESENT: "We sent a new verification email. Open the latest message, follow its link and select Complete verification. Check your spam folder if needed.",
   AUTH_UNAVAILABLE: "Sign-in is temporarily unavailable. Try again shortly.",
   AUTH_SIGNUP_REJECTED: "The account could not be created. If you already have an account, sign in.",
 };
@@ -294,7 +294,7 @@ async function handleRegistration(event) {
       showLoginForm();
       elements.loginEmail.value = result.user?.email || "";
       setAuthMessage(
-        chatText("Профилът е създаден. Потвърди имейла си и после влез."),
+        chatText("Отвори линка от писмото. Ако видиш бутон „Complete verification“, натисни го. После влез."),
         true,
       );
       return;

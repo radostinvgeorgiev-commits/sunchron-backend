@@ -471,14 +471,14 @@ export async function signInUser(
       );
       if (verification.data?.sent === true) {
         throw new UserAuthError(
-          "Изпратихме ново писмо за потвърждение. Провери пощата и папката за спам, след което влез отново.",
+          "Изпратихме ново писмо. Отвори линка от последното писмо и натисни „Complete verification“. Провери и папката за спам.",
           403,
           "AUTH_EMAIL_VERIFICATION_RESENT",
         );
       }
     }
     throw new UserAuthError(
-      "Потвърди имейла си, преди да влезеш.",
+      "Отвори линка от писмото и натисни „Complete verification“. После влез.",
       403,
       "AUTH_EMAIL_NOT_VERIFIED",
     );

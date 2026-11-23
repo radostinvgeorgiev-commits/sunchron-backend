@@ -522,7 +522,13 @@ function registeredClaudeClient(clientId, env) {
     client_id: CLAUDE_CLIENT_ID,
     client_name: "Claude",
     redirect_uris: [CLAUDE_CALLBACK],
-    allowedScopes: [MCP_READ_SCOPE, MCP_OFFLINE_ACCESS_SCOPE],
+    allowedScopes: [
+      MCP_READ_SCOPE,
+      MCP_AGENT_CHAT_SCOPE,
+      MCP_GITHUB_WRITE_SCOPE,
+      MCP_AUDIT_READ_SCOPE,
+      MCP_OFFLINE_ACCESS_SCOPE,
+    ],
     token_endpoint_auth_method: "none",
   };
 }
@@ -727,7 +733,10 @@ export function createMcpAuthorizationCode(
   if (!identity?.id || !identity?.memoryOwnerId || !identity?.role) {
     throw new McpOAuthError("Липсва валиден AI CORE профил.", 401);
   }
-  if (requiresOwnerRole(request.scopes) && identity.role !== "owner") {
+  if (
+    (request.clientId === CLAUDE_CLIENT_ID || requiresOwnerRole(request.scopes)) &&
+    identity.role !== "owner"
+  ) {
     throw new McpOAuthError(
       "MCP записът е достъпен само за собственика.",
       403,
@@ -783,6 +792,13 @@ export function createMcpConsentToken(
 ) {
   if (!identity?.id) {
     throw new McpOAuthError("Липсва валиден AI CORE профил.", 401);
+  }
+  if (request.clientId === CLAUDE_CLIENT_ID && identity.role !== "owner") {
+    throw new McpOAuthError(
+      "Claude е достъпен само за собственика.",
+      403,
+      "access_denied",
+    );
   }
   return encryptPayload(
     "sx-consent",

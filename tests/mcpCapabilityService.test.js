@@ -6,11 +6,32 @@ import {
   MCP_CAPABILITY_TOOLS,
 } from "../src/services/mcpCapabilityService.js";
 import {
+  CLAUDE_CLIENT_ID,
   MCP_AGENT_CHAT_SCOPE,
   MCP_GOOGLE_WRITE_SCOPE,
   MCP_INFRASTRUCTURE_WRITE_SCOPE,
   MCP_MEMORY_WRITE_SCOPE,
 } from "../src/services/mcpOAuthService.js";
+
+test("Claude prepares only draft pull requests with an isolated confirmation session", async () => {
+  let preparedInput;
+  const handler = createMcpCapabilityHandler({
+    audit: async () => {},
+    resolveLatestGitHubSession: async () => ({}),
+    dependencies: {
+      prepareGitHubChange: async (input) => {
+        preparedInput = input;
+        return { confirmationId: "test-confirmation" };
+      },
+    },
+  });
+  await handler("prepare_github_change", {
+    operation: "create_pr",
+    input: { title: "Test", head: "agent/test", draft: false },
+  }, { ownerId: "owner", identity: { role: "owner", clientId: CLAUDE_CLIENT_ID } });
+  assert.equal(preparedInput.input.draft, true);
+  assert.equal(preparedInput.sessionId, "claude:owner");
+});
 
 test("granular MCP capabilities have unique names, strict schemas and exact scopes", () => {
   const names = MCP_CAPABILITY_TOOLS.map((item) => item.name);

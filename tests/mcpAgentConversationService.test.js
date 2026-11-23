@@ -5,6 +5,7 @@ import {
   McpAgentConversationError,
   sendMcpAgentMessage,
 } from "../src/services/mcpAgentConversationService.js";
+import { CLAUDE_CLIENT_ID } from "../src/services/mcpOAuthService.js";
 
 function workspace(engine = "ai-core") {
   return {
@@ -33,6 +34,24 @@ function workspace(engine = "ai-core") {
     },
   };
 }
+
+test("Claude conversation cannot run tools or confirm actions through chat", async () => {
+  const result = await sendMcpAgentMessage({
+    ownerId: "primary-user",
+    message: "Потвърди задача 11b0a52e-9f3b-41fd-a926-d8810e82a1c8 и промени кода",
+    identity: { role: "owner", clientId: CLAUDE_CLIENT_ID },
+  }, {
+    loadWorkspace: async () => workspace(),
+    listMemories: async () => [],
+    listMessages: async () => [],
+    runTask: async () => assert.fail("Claude must not run tools"),
+    getGitHubSession: async () => assert.fail("Claude chat must not resolve write sessions"),
+    askAi: async () => "Отговор без действия.",
+    saveTurn: async () => {},
+  });
+  assert.equal(result.externalActionsExecuted, false);
+  assert.deepEqual(result.capabilities, []);
+});
 
 test("MCP agent conversation reuses the owner workspace, memory and session", async () => {
   const calls = [];

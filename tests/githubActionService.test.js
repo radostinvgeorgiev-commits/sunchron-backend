@@ -14,6 +14,32 @@ const githubSession = Object.freeze({
   accessToken: "private-session-token",
 });
 
+test("draft pull request setting survives preparation and confirmation", async () => {
+  let confirmation;
+  await prepareGitHubChange({
+    ownerId: "primary-user",
+    sessionId: "session-1",
+    githubSession,
+    operation: "create_pr",
+    input: { head: "agent/test", title: "Test", draft: true },
+  }, { createConfirmation: async (input) => (confirmation = { id: "confirmation-1", ...input }) });
+  assert.equal(confirmation.params.draft, true);
+  await confirmGitHubChange({
+    ownerId: "primary-user",
+    sessionId: "session-1",
+    confirmationId: "confirmation-1",
+    githubSession,
+  }, {
+    validateConfirmation: async () => confirmation,
+    consumeConfirmation: async () => {},
+    executeWrite: async ({ execute }) => execute(),
+    adapters: { createPullRequest: async (input) => {
+      assert.equal(input.draft, true);
+      return {};
+    } },
+  });
+});
+
 test("prepares a bounded GitHub branch without executing it or persisting the token", async () => {
   let confirmation;
   let executed = false;

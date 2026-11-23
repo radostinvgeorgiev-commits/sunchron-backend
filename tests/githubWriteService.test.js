@@ -3,10 +3,30 @@ import test from "node:test";
 
 import {
   createCodeTaskPullRequest,
+  createPullRequest,
   mergePullRequest,
 } from "../src/services/githubWriteService.js";
 
 const repository = "radostinvgeorgiev-commits/sunchron-backend";
+
+test("draft pull request is sent as draft to GitHub", async () => {
+  const originalFetch = global.fetch;
+  try {
+    global.fetch = async (_url, options) => {
+      assert.equal(JSON.parse(options.body).draft, true);
+      return Response.json({ number: 1 });
+    };
+    await createPullRequest({
+      repository,
+      head: "agent/test",
+      title: "Test",
+      draft: true,
+      accessToken: "test-token",
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
 
 test("AI CORE code write creates one atomic tree, commit, branch and pull request", async () => {
   const originalFetch = global.fetch;

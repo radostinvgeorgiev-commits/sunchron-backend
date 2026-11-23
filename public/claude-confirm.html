@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="bg">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Потвърждение на Claude</title>
+  </head>
+  <body>
+    <main>
+      <h1>Потвърждение на Claude</h1>
+      <p>
+        Влез като собственик. Въведи идентификатора на подготвената промяна и
+        прегледай точните данни преди потвърждение.
+      </p>
+      <label for="confirmation">Идентификатор</label>
+      <input id="confirmation" autocomplete="off" />
+      <button id="inspect" type="button">Преглед</button>
+      <pre id="details"></pre>
+      <button id="confirm" type="button" disabled>
+        Потвърди и изпълни веднъж
+      </button>
+      <p id="status" role="status"></p>
+    </main>
+    <script src="/claude-confirm.js" defer></script>
+  </body>
+</html>

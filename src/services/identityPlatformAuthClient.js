@@ -3,6 +3,7 @@ import {
   resolveIdentityPlatformApiKey,
   resolveIdentityPlatformProjectId,
 } from "../config/authBackend.js";
+import { logAuthStep } from "../utils/authLogging.js";
 
 const IDENTITY_TOOLKIT_ORIGIN = "https://identitytoolkit.googleapis.com";
 const SECURE_TOKEN_ORIGIN = "https://securetoken.googleapis.com";
@@ -19,9 +20,20 @@ function upstreamError(status, payload) {
   const error = new Error("Identity Platform request failed.");
   error.status = Number(status) || 503;
   error.code = "IDENTITY_PLATFORM_REQUEST_FAILED";
-  error.upstreamCode = String(payload?.error?.message || "")
-    .split(" : ")[0]
-    .trim();
+  const reason = Array.isArray(payload?.error?.details)
+    ? payload.error.details.find((detail) =>
+        [
+          "API_KEY_INVALID",
+          "API_KEY_HTTP_REFERRER_BLOCKED",
+          "API_KEY_SERVICE_BLOCKED",
+        ].includes(detail?.reason),
+      )?.reason
+    : "";
+  error.upstreamCode =
+    reason ||
+    String(payload?.error?.message || "")
+      .split(" : ")[0]
+      .trim();
   return error;
 }
 
@@ -99,12 +111,18 @@ export function createIdentityPlatformAuthClient({
       error.status = 503;
       error.code = "IDENTITY_PLATFORM_UNAVAILABLE";
       error.cause = cause;
+      logAuthStep(path, "failure", error);
       throw error;
     } finally {
       clearTimeout(timer);
     }
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw upstreamError(response.status, payload);
+    if (!response.ok) {
+      const error = upstreamError(response.status, payload);
+      logAuthStep(path, "failure", error);
+      throw error;
+    }
+    logAuthStep(path, "success");
     return payload;
   }
 
@@ -141,8 +159,9 @@ export function createIdentityPlatformAuthClient({
           let user;
           try {
             user = await lookupUser(session.access_token);
-          } catch {
-            throw upstreamError(502, { error: { message: "PROFILE_LOOKUP_FAILED" } });
+          } catch (error) {
+            error.status = 502;
+            throw error;
           }
           return {
             data: {
@@ -164,21 +183,17 @@ export function createIdentityPlatformAuthClient({
           );
           const displayName = String(options.data?.display_name || "").trim();
           if (displayName && payload.idToken) {
-            try {
-              payload = await request(
-                IDENTITY_TOOLKIT_ORIGIN,
-                "accounts:update",
-                {
-                  body: {
-                    idToken: payload.idToken,
-                    displayName,
-                    returnSecureToken: true,
-                  },
+            payload = await request(
+              IDENTITY_TOOLKIT_ORIGIN,
+              "accounts:update",
+              {
+                body: {
+                  idToken: payload.idToken,
+                  displayName,
+                  returnSecureToken: true,
                 },
-              );
-            } catch {
-              payload.displayName = displayName;
-            }
+              },
+            );
           }
           const user = normalizeUser(payload);
           const session = normalizeSession(payload);

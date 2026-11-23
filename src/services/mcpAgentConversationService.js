@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { CLAUDE_CLIENT_ID } from "./mcpOAuthService.js";
 
 import {
   buildAvatarMessages,
@@ -180,6 +181,7 @@ export async function sendMcpAgentMessage(
     displayName: "Потребител",
   };
   const noToolBoundary =
+    identity?.clientId === CLAUDE_CLIENT_ID ||
     hasExplicitNoToolBoundary(cleanMessage) ||
     hasExplicitNoAdditionalToolsBoundary(cleanMessage);
   const fallbackRequests = noToolBoundary
@@ -195,8 +197,11 @@ export async function sendMcpAgentMessage(
 
   let googleSessionId = null;
   let githubSession = null;
-  const taskConfirmationId = extractTaskConfirmationId(cleanMessage);
+  const taskConfirmationId = identity?.clientId === CLAUDE_CLIENT_ID
+    ? null
+    : extractTaskConfirmationId(cleanMessage);
   if (
+    identity?.clientId !== CLAUDE_CLIENT_ID &&
     /(?:google|drive|драйв|gmail|джимейл|календар|calendar|контакт)/iu.test(
       cleanMessage,
     )
@@ -208,6 +213,7 @@ export async function sendMcpAgentMessage(
     }
   }
   if (
+    identity?.clientId !== CLAUDE_CLIENT_ID &&
     safeIdentity?.role === "owner" &&
     /(?:github|ги[тд][\s-]*хъб|репозитор|хранилищ|код|branch|клон|commit|комит|pull\s*request|\bpr\b)/iu.test(
       cleanMessage,
@@ -277,7 +283,7 @@ export async function sendMcpAgentMessage(
     });
   }
 
-  const taskExecution = await runTask({
+  const taskExecution = identity?.clientId === CLAUDE_CLIENT_ID ? null : await runTask({
     message: cleanMessage,
     fallbackRequests,
     planningAllowed,

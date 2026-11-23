@@ -212,6 +212,7 @@ function normalizeOperation(operation, input = {}) {
       params: {
         title: cleanText(input.title, 240, "PR title", { required: true }),
         body: cleanText(input.body, 20_000, "PR body"),
+        ...(input.draft === true ? { draft: true } : {}),
       },
     };
   }
@@ -445,6 +446,7 @@ export async function confirmGitHubChange(
             body: params.body,
             head: resource.head,
             base: resource.base,
+            ...(params.draft === true ? { draft: true } : {}),
             accessToken,
           });
         case ACTIONS.MERGE_PULL_REQUEST:

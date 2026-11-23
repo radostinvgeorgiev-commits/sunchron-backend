@@ -185,6 +185,17 @@ test("project diagnostics checks public runtime, MCP, Cloud Run and trigger with
   );
   assert.equal(JSON.stringify(report).includes("secret-token"), false);
   assert.doesNotMatch(JSON.stringify(report), /unreported-raw|private-name/u);
+  requests.length = 0;
+  const restricted = await getProjectDiagnostics({
+    env: { GOOGLE_CLOUD_PROJECT: "project-1" },
+    fetchImpl,
+    accessTokenProvider: async () => "test-access",
+    inspectStorage: inspectHealthyStorage,
+    now: () => "2026-08-23T00:00:00.000Z",
+    includeSecretMetadata: false,
+  });
+  assert.equal(restricted.checks.secretManager, undefined);
+  assert.equal(requests.some(({ url }) => url.includes("secretmanager.googleapis.com")), false);
 });
 
 test("project diagnostics is partial and safe when Cloud identity is unavailable", async () => {

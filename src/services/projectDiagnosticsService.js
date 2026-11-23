@@ -352,6 +352,7 @@ export async function getProjectDiagnostics({
   inspectStorage = inspectStorageDependencies,
   now = () => new Date().toISOString(),
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  includeSecretMetadata = true,
 } = {}) {
   const projectId = projectIdFromEnvironment(env);
   const service = clean(
@@ -431,15 +432,18 @@ export async function getProjectDiagnostics({
       monitoring,
       logging,
     });
-    checks.secretManager = await checkCloudRunSecretVersions({
-      check,
-      cloudRun,
-      references: secretReferences,
-      projectId,
-      projectNumber: cloudProject.projectNumber,
-    });
+    if (includeSecretMetadata) {
+      checks.secretManager = await checkCloudRunSecretVersions({
+        check,
+        cloudRun,
+        references: secretReferences,
+        projectId,
+        projectNumber: cloudProject.projectNumber,
+      });
+    }
   } else {
     for (const name of CLOUD_CHECKS) {
+      if (name === "secretManager" && !includeSecretMetadata) continue;
       checks[name] = { status: "unavailable", errorCode: unavailableCode };
     }
   }

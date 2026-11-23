@@ -47,6 +47,8 @@ import {
 import mcpRouter, { mcpJsonParseErrorHandler } from "./src/routes/mcpRouter.js";
 import { createChatGptMcpRouter, getChatGptMcpResourceMetadata } from "./src/routes/chatGptMcpRouter.js";
 import { createMcpOAuthRouter } from "./src/routes/mcpOAuthRouter.js";
+import { createClaudeConfirmationRouter } from "./src/routes/claudeConfirmationRouter.js";
+import { authRequestContext } from "./src/utils/authLogging.js";
 
 const { oauthRateLimiter, paidAiRateLimiter, privateApiRateLimiter } =
   createRateLimiters();
@@ -63,6 +65,7 @@ const app = express();
 
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
+app.use(authRequestContext);
 app.use((_req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
@@ -152,6 +155,7 @@ app.use(
 app.use("/health", healthRouter);
 app.use("/api/public-config", publicConfigRouter);
 app.use("/api/auth", oauthRateLimiter, userAuthRouter);
+app.use("/api/claude-confirmation", requireOwnerSession, requirePrimaryOwner, privateApiRateLimiter, createClaudeConfirmationRouter());
 app.use(
   "/api/early-access",
   createApiRateLimiter({ limit: 10 }),

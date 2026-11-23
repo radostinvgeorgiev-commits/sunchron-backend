@@ -52,7 +52,10 @@ import {
 } from "./memoryService.js";
 import { sendMcpAgentMessage } from "./mcpAgentConversationService.js";
 import { getProjectDiagnostics } from "./projectDiagnosticsService.js";
-import { mcpToolSecuritySchemes } from "./mcpOAuthService.js";
+import {
+  CLAUDE_CLIENT_ID,
+  mcpToolSecuritySchemes,
+} from "./mcpOAuthService.js";
 import {
   listAuditEvents,
   listPermissions,
@@ -769,7 +772,10 @@ export function createMcpCapabilityHandler({
         code: -32602,
       });
     }
-    const sessionId = ownerId;
+    const sessionId =
+      context.identity?.clientId === CLAUDE_CLIENT_ID
+        ? `claude:${ownerId}`
+        : ownerId;
     let result;
 
     if (name === "send_message" || name === "continue_session") {
@@ -1021,7 +1027,11 @@ export function createMcpCapabilityHandler({
         sessionId,
         githubSession,
         operation: args.operation,
-        input: args.input,
+        input:
+          context.identity?.clientId === CLAUDE_CLIENT_ID &&
+          args.operation === "create_pr"
+            ? { ...args.input, draft: true }
+            : args.input,
       });
       result = textResult(
         prepared,
@@ -1069,7 +1079,11 @@ export function createMcpCapabilityHandler({
     } else if (name === "get_google_cloud_project_diagnostics") {
       const diagnostics = await (
         dependencies.getGoogleCloudProjectDiagnostics || getProjectDiagnostics
-      )();
+      )(
+        context.identity?.clientId === CLAUDE_CLIENT_ID
+          ? { includeSecretMetadata: false }
+          : undefined,
+      );
       result = textResult(
         diagnostics,
         `Project diagnostics: ${diagnostics.status || "unknown"}. Read-only проверката е завършена.`,

@@ -17,6 +17,7 @@ import {
   TesterAccessError,
 } from "./testerAccessService.js";
 import { createIdentityPlatformAuthClient } from "./identityPlatformAuthClient.js";
+import { logAuthStep } from "../utils/authLogging.js";
 
 export const USER_SESSION_COOKIE = "synchron_user_session";
 const SESSION_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
@@ -407,6 +408,26 @@ function cleanDisplayName(value, email) {
 }
 
 function mapAuthError(error, fallbackMessage) {
+  const identityErrors = {
+    API_KEY_INVALID: ["auth/invalid-api-key", "Невалиден API ключ за услугата за вход.", 503],
+    INVALID_API_KEY: ["auth/invalid-api-key", "Невалиден API ключ за услугата за вход.", 503],
+    API_KEY_HTTP_REFERRER_BLOCKED: ["auth/unauthorized-domain", "Домейнът или сървърът не са разрешени за услугата за вход.", 503],
+    API_KEY_SERVICE_BLOCKED: ["auth/operation-not-allowed", "API ключът няма достъп до услугата за вход.", 503],
+    INVALID_DOMAIN: ["auth/unauthorized-domain", "Домейнът не е разрешен за услугата за вход.", 503],
+    EMAIL_EXISTS: ["auth/email-already-in-use", "Вече има профил с този имейл. Опитай да влезеш.", 409],
+    WEAK_PASSWORD: ["auth/weak-password", "Паролата е твърде слаба. Избери по-силна парола.", 400],
+    OPERATION_NOT_ALLOWED: ["auth/operation-not-allowed", "Входът с имейл и парола не е активиран.", 503],
+    ADMIN_ONLY_OPERATION: ["auth/operation-not-allowed", "Регистрацията на нови профили не е активирана.", 503],
+    INVALID_LOGIN_CREDENTIALS: ["auth/invalid-credential", "Имейлът или паролата са неправилни.", 401],
+    INVALID_PASSWORD: ["auth/invalid-credential", "Имейлът или паролата са неправилни.", 401],
+    EMAIL_NOT_FOUND: ["auth/invalid-credential", "Имейлът или паролата са неправилни.", 401],
+    USER_DISABLED: ["auth/user-disabled", "Този профил е деактивиран.", 403],
+    TOO_MANY_ATTEMPTS_TRY_LATER: ["auth/too-many-requests", "Твърде много опити. Опитай по-късно.", 429],
+  };
+  const mapped = Object.hasOwn(identityErrors, error?.upstreamCode)
+    ? identityErrors[error.upstreamCode]
+    : null;
+  if (mapped) return new UserAuthError(mapped[1], mapped[2], mapped[0]);
   const status = Number(error?.status);
   if (status === 400 || status === 401) {
     return new UserAuthError(fallbackMessage, 401, "AUTH_INVALID_CREDENTIALS");
@@ -461,14 +482,19 @@ export async function signInUser(
     password: cleanPassword(password),
   };
   const { data, error } = await authClient.auth.signInWithPassword(credentials);
+  logAuthStep("login.credentials", error || !data?.user || !data?.session ? "failure" : "success", error);
   if (error || !data?.user || !data?.session) {
     throw mapAuthError(error, "Имейлът или паролата са неправилни.");
   }
   if (requiresVerifiedIdentityEmail(env) && !data.user.emailVerified) {
+    logAuthStep("login.email_verification", "failure");
     if (isPublicRegistration(env) && authClient.auth.sendVerificationEmail) {
       const verification = await authClient.auth.sendVerificationEmail(
         data.session.access_token,
       );
+      if (verification.error) {
+        throw mapAuthError(verification.error, "Имейлът за потвърждение не можа да бъде изпратен.");
+      }
       if (verification.data?.sent === true) {
         throw new UserAuthError(
           "Изпратихме ново писмо. Отвори линка от последното писмо и натисни „Complete verification“. Провери и папката за спам.",
@@ -476,6 +502,7 @@ export async function signInUser(
           "AUTH_EMAIL_VERIFICATION_RESENT",
         );
       }
+      logAuthStep("login.email_verification", "success");
     }
     throw new UserAuthError(
       "Отвори линка от писмото и натисни „Complete verification“. После влез.",
@@ -485,7 +512,9 @@ export async function signInUser(
   }
   try {
     await requireTesterAccess(data.user, { env });
+    logAuthStep("login.profile", "success");
   } catch (error) {
+    logAuthStep("login.profile", "failure", error);
     if (
       isPublicRegistration(env) &&
       resolveAuthBackend(env) === "identity-platform" &&
@@ -530,6 +559,7 @@ export async function registerUser(
       },
     },
   });
+  logAuthStep("register.signup", error || !data?.user ? "failure" : "success", error);
   let created = !error && Boolean(data?.user);
 
   const retryPublicRegistration =
@@ -592,7 +622,9 @@ export async function registerUser(
       env,
       ...(publicIdentityRegistration ? { createOnly: true } : {}),
     });
+    logAuthStep("register.profile", "success");
   } catch (error) {
+    logAuthStep("register.profile", "failure", error);
     throw mapTesterAccessError(error);
   }
   return {

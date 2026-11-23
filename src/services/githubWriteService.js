@@ -282,6 +282,7 @@ export async function createPullRequest({
   body = "",
   head,
   base = "main",
+  draft = false,
   accessToken,
 }) {
   const repo = repository ?? configuredRepository();
@@ -314,7 +315,7 @@ export async function createPullRequest({
     `/repos/${repo}/pulls`,
     {
       method: "POST",
-      body: JSON.stringify({ title, body, head: writableHead, base }),
+      body: JSON.stringify({ title, body, head: writableHead, base, ...(draft ? { draft: true } : {}) }),
     },
     accessToken,
   );

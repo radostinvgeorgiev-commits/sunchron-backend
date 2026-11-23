@@ -18,12 +18,14 @@ import {
 } from "../services/githubOAuthService.js";
 import { resolveRequestIdentity } from "../middleware/ownerAuth.js";
 import { logSafeError } from "../utils/safeLogging.js";
+import { authRequestContext, logAuthStep } from "../utils/authLogging.js";
 import {
   logCampaignEvent,
   readCampaignAttribution,
 } from "../services/campaignAttribution.js";
 
 const router = express.Router();
+router.use(authRequestContext);
 
 router.use((_req, res, next) => {
   res.setHeader("Cache-Control", "no-store, max-age=0");
@@ -44,6 +46,7 @@ function sendAuthError(res, error) {
 router.get("/session", async (req, res) => {
   try {
     const identity = await resolveRequestIdentity(req, res);
+    logAuthStep("session", identity ? "authenticated" : "anonymous");
     return res.json({
       configured: isUserAuthConfigured(),
       configuration: getUserAuthConfigurationStatus(),
@@ -62,6 +65,7 @@ router.get("/session", async (req, res) => {
         : null,
     });
   } catch (error) {
+    logAuthStep("session", "failure", error);
     return sendAuthError(res, error);
   }
 });
@@ -70,6 +74,7 @@ router.post("/login", async (req, res) => {
   try {
     const result = await signInUser(req.body || {});
     res.setHeader("Set-Cookie", userSessionCookie(result.session));
+    logAuthStep("login.session", "success");
     return res.json({
       authenticated: true,
       user: {
@@ -78,6 +83,7 @@ router.post("/login", async (req, res) => {
       },
     });
   } catch (error) {
+    logAuthStep("login", "failure", error);
     return sendAuthError(res, error);
   }
 });
@@ -95,6 +101,7 @@ router.post("/register", async (req, res) => {
     if (result.session) {
       res.setHeader("Set-Cookie", userSessionCookie(result.session));
     }
+    logAuthStep("register", result.confirmationRequired ? "verification_required" : "success");
     return res.status(201).json({
       authenticated: Boolean(result.session),
       confirmationRequired: result.confirmationRequired,
@@ -104,6 +111,7 @@ router.post("/register", async (req, res) => {
       },
     });
   } catch (error) {
+    logAuthStep("register", "failure", error);
     return sendAuthError(res, error);
   }
 });
@@ -113,7 +121,9 @@ router.post("/logout", async (req, res) => {
     await signOutUser(req.headers.cookie);
     const githubCookies = parseGitHubCookies(req.headers.cookie);
     await disconnectGitHubSession(githubCookies.synchron_github_session);
+    logAuthStep("logout", "success");
   } catch (error) {
+    logAuthStep("logout", "failure", error);
     logSafeError("[User logout]", error);
   }
   res.setHeader("Set-Cookie", [

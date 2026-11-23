@@ -1,6 +1,14 @@
 const chatLocale = globalThis.AiCoreLocale;
 const chatText = (value, values) => chatLocale?.text(value, values) ?? value;
 const englishAuthErrors = {
+  "auth/invalid-api-key": "The sign-in service API key is invalid.",
+  "auth/unauthorized-domain": "The domain or server is not authorized for sign-in.",
+  "auth/email-already-in-use": "An account already exists for this email. Try signing in.",
+  "auth/weak-password": "Choose a stronger password.",
+  "auth/operation-not-allowed": "Email and password sign-in or registration is not enabled.",
+  "auth/invalid-credential": "The email address or password is incorrect.",
+  "auth/user-disabled": "This account is disabled.",
+  "auth/too-many-requests": "Too many attempts. Try again later.",
   AUTH_INVALID_EMAIL: "Enter a valid email address.",
   AUTH_INVALID_NAME: "Enter a valid name.",
   AUTH_INVALID_PASSWORD: "Enter a password between 8 and 128 characters.",

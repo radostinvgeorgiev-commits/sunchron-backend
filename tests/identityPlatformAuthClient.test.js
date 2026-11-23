@@ -240,5 +240,5 @@ test("lookup rejection after valid credentials is classified as a backend failur
   });
   assert.equal(result.data, null);
   assert.equal(result.error.status, 502);
-  assert.equal(result.error.upstreamCode, "PROFILE_LOOKUP_FAILED");
+  assert.equal(result.error.upstreamCode, "INVALID_ID_TOKEN");
 });

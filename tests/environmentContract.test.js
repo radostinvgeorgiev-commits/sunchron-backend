@@ -19,13 +19,11 @@ function environmentKeys(source) {
 
 test("Google Cloud is the only declared runtime environment", () => {
   assert.equal(existsSync(new URL("../.do/app.yaml", import.meta.url)), false);
-  assert.match(envExample, /^MEMORY_BACKEND=firestore$/mu);
-  assert.match(envExample, /^PERSISTENCE_BACKEND=firestore$/mu);
-  assert.match(envExample, /^AUTH_BACKEND=identity-platform$/mu);
-  assert.match(
-    envExample,
-    /^MCP_RESOURCE_URL=https:\/\/cloudaicore\.com\/mcp$/mu,
-  );
+  assert.match(envExample, /^MEMORY_BACKEND=$/mu);
+  assert.match(envExample, /^PERSISTENCE_BACKEND=$/mu);
+  assert.match(envExample, /^AUTH_BACKEND=$/mu);
+  assert.match(envExample, /^MCP_RESOURCE_URL=$/mu);
+  assert.doesNotMatch(envExample, /^[A-Z0-9_]+=.+$/mu);
   assert.doesNotMatch(
     envExample,
     /synchron\.foundation|DigitalOcean|Cloudflare/iu,
@@ -55,9 +53,6 @@ test("multi-engine code execution and protected connections are documented", () 
   assert.doesNotMatch(envExample, /OPENAI_API_KEY=\S+/u);
   assert.doesNotMatch(envExample, /GEMINI_API_KEY=\S+/u);
   assert.doesNotMatch(envExample, /GROK_API_KEY=\S+/u);
-  assert.match(envExample, /^VERTEX_AI_ENABLED=false$/mu);
-  assert.match(envExample, /^VERTEX_AI_LOCATION=us-central1$/mu);
-  assert.match(envExample, /^VERTEX_AI_MODEL=gemini-2\.5-flash$/mu);
 });
 
 test("Cloud Run binds all three AI engines through Secret Manager", () => {

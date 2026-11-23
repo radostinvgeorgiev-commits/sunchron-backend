@@ -8,6 +8,7 @@ import {
   allowsAnonymousMcpTool,
   assertMcpGrantActive,
   buildMcpAuthenticateChallenge,
+  CLAUDE_CLIENT_ID,
   McpOAuthError,
   requiredScopesForMcpTool,
   verifyMcpAccessToken,
@@ -22,6 +23,20 @@ const DEFAULT_ALLOWED_MCP_ORIGINS = Object.freeze([
 const SUPPORTED_MCP_PROTOCOL_VERSIONS = new Set([
   "2025-03-26",
   MCP_PROTOCOL_VERSION,
+]);
+const CLAUDE_TOOLS = new Set([
+  "get_google_cloud_runtime_status",
+  "get_google_cloud_project_diagnostics",
+  "list_recent_errors",
+  "get_github_overview",
+  "get_github_file",
+  "prepare_github_change",
+  "talk_to_ai_core",
+  "send_message",
+  "continue_session",
+  "read_reply",
+  "read_history",
+  "list_threads",
 ]);
 
 function allowedMcpOrigins(env = process.env) {
@@ -152,6 +167,24 @@ export async function requireMcpAuthorization(
           );
   }
   if (identity) {
+    if (
+      identity.clientId === CLAUDE_CLIENT_ID &&
+      (identity.role !== "owner" ||
+        !CLAUDE_TOOLS.has(toolName) ||
+        (toolName === "prepare_github_change" &&
+          !["create_branch", "create_file", "update_file", "create_pr"].includes(
+            req.body?.params?.arguments?.operation,
+          )))
+    ) {
+      return res.status(403).json({
+        jsonrpc: "2.0",
+        id: req.body?.id ?? null,
+        error: {
+          code: -32003,
+          message: "Този инструмент не е разрешен за Claude.",
+        },
+      });
+    }
     req.mcpOwnerId = identity.memoryOwnerId;
     req.mcpAuthentication = { mode: "oauth2", ...identity };
     return next();

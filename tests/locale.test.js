@@ -68,23 +68,25 @@ test("selects a browser language, falls back to English, and honors a saved expl
   for (const dom of [bg, fallback, remembered]) dom.window.close();
 });
 
-test("loads an RTL language catalog and safely falls back when a catalog is unavailable", async () => {
-  const arabic = await render(landing, { path: "/?lang=ar" });
-  assert.equal(arabic.window.document.documentElement.lang, "ar");
-  assert.equal(arabic.window.document.documentElement.dir, "rtl");
-  assert.match(
-    arabic.window.document.querySelector("#publicTitle").textContent,
-    /\p{Script=Arabic}/u,
+test("loads a supported catalog and safely falls back when a catalog is unavailable", async () => {
+  const german = await render(landing, { path: "/?lang=de" });
+  assert.equal(german.window.document.documentElement.lang, "de");
+  assert.equal(german.window.document.documentElement.dir, "ltr");
+  assert.equal(german.window.localStorage.getItem("ai-core-language"), "de");
+  assert.deepEqual(
+    [...german.window.document.querySelector(".language-select").options]
+      .map(({ value }) => value)
+      .sort(),
+    ["bg", "de", "en", "es", "fr", "it", "ro"],
   );
-  assert.equal(arabic.window.localStorage.getItem("ai-core-language"), "ar");
-  assert.ok(
-    arabic.window.document.querySelector(".language-select").options.length >
-      10,
-  );
-  arabic.window.close();
+  german.window.close();
+
+  const unsupported = await render(landing, { path: "/?lang=ar" });
+  assert.equal(unsupported.window.document.documentElement.lang, "en");
+  unsupported.window.close();
 
   const fallback = await render(landing, {
-    path: "/?lang=ar",
+    path: "/?lang=de",
     failCatalog: true,
   });
   assert.equal(fallback.window.document.documentElement.lang, "en");
@@ -124,9 +126,7 @@ test("each additional language offered has a bundled catalog", async () => {
   ]
     .map(({ value }) => value)
     .filter((code) => code !== "en" && code !== "bg");
-  assert.equal(codes.length + 2, 100);
-  assert.ok(codes.includes("nso"));
-  assert.ok(!codes.includes("ns"));
+  assert.deepEqual(codes.sort(), ["de", "es", "fr", "it", "ro"]);
   for (const code of codes) {
     const dictionary = JSON.parse(await readPublic(`locales/${code}.json`));
     assert.ok(Object.keys(dictionary).length >= 60, code);

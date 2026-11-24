@@ -30,6 +30,7 @@ import githubRouter from "./src/routes/githubRouter.js";
 import codeWorkspaceRouter from "./src/routes/codeWorkspaceRouter.js";
 import calendarRouter from "./src/routes/calendarRouter.js";
 import permissionsRouter from "./src/routes/permissionsRouter.js";
+import connectionsRouter from "./src/routes/connectionsRouter.js";
 import googleDriveRouter from "./src/routes/googleDriveRouter.js";
 import githubOAuthRouter from "./src/routes/githubOAuthRouter.js";
 import webSearchRouter from "./src/routes/webSearchRouter.js";
@@ -72,11 +73,11 @@ app.use((_req, res, next) => {
       "form-action 'self'",
       "frame-ancestors 'none'",
       "object-src 'none'",
-      "script-src 'self' https://cdn.jsdelivr.net",
-      "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "connect-src 'self'",
-      "font-src 'self' data: https://cdn.jsdelivr.net",
+      "font-src 'self' data:",
       "media-src 'self'",
       "worker-src 'self'",
       "manifest-src 'self'",
@@ -193,6 +194,12 @@ app.use(
   requireOwnerSession,
   privateApiRateLimiter,
   workspacesRouter,
+);
+app.use(
+  "/api/connections",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  connectionsRouter,
 );
 app.use("/api/tasks", requireOwnerSession, privateApiRateLimiter, tasksRouter);
 app.use(

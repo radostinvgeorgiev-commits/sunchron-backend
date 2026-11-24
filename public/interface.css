@@ -563,3 +563,100 @@ body[data-user-role="owner"] .composer-note {
     width: 40px;
   }
 }
+
+/* Connections: link Claude, ChatGPT and other assistants to AI CORE. */
+.sidebar-nav .sidebar-primary {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(214, 245, 140, 0.45);
+  border-radius: 12px;
+  background: rgba(214, 245, 140, 0.1);
+  color: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sidebar-nav .sidebar-primary:hover,
+.sidebar-nav .sidebar-primary:focus-visible {
+  background: rgba(214, 245, 140, 0.2);
+}
+.connections-intro p {
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+.connection-url {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.connection-url code {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #eef3f1;
+  color: #10332b;
+  overflow-wrap: anywhere;
+}
+.connection-copy,
+.connection-revoke {
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: #1d6b55;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.connection-revoke {
+  background: transparent;
+  color: #9b1c1c;
+  border: 1px solid #f0c2c2;
+}
+.connection-guide {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid #dfe7e4;
+  border-radius: 12px;
+}
+.connection-guide summary {
+  font-weight: 700;
+  cursor: pointer;
+}
+.connection-guide ol {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  line-height: 1.6;
+}
+.connection-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.connection-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #edf1ef;
+}
+.connection-text {
+  flex: 1;
+  display: grid;
+}
+.connection-text small {
+  color: #5b6b66;
+}
+.connection-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22a06b;
+}
+.connection-empty {
+  color: #5b6b66;
+}

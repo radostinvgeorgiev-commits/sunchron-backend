@@ -31,12 +31,13 @@ test("public responses include the required security headers", async () => {
   assert.match(csp, /default-src 'self'/);
   assert.match(csp, /frame-ancestors 'none'/);
   assert.match(csp, /object-src 'none'/);
-  assert.match(csp, /script-src 'self' https:\/\/cdn\.jsdelivr\.net/);
+  assert.match(csp, /script-src 'self'(;|$)/);
+  assert.doesNotMatch(csp, /jsdelivr/);
   assert.match(
     csp,
-    /style-src 'self' 'unsafe-inline' https:\/\/cdn\.jsdelivr\.net/,
+    /style-src 'self' 'unsafe-inline'(;|$)/,
   );
-  assert.match(csp, /font-src 'self' data: https:\/\/cdn\.jsdelivr\.net/);
+  assert.match(csp, /font-src 'self' data:(;|$)/);
   assert.match(csp, /connect-src 'self'/);
 });
 

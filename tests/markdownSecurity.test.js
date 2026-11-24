@@ -66,9 +66,9 @@ test("normal markdown keeps headings, lists, safe links, and code", () => {
 });
 
 test("browser loads the pinned Marked UMD build before the safe renderer", () => {
-  const markedPosition = indexSource.indexOf("marked@18.0.7/lib/marked.umd.js");
+  const markedPosition = indexSource.indexOf("/vendor/marked-18.0.7/marked.umd.js");
   const purifierPosition = indexSource.indexOf(
-    "dompurify@3.4.12/dist/purify.min.js",
+    "/vendor/dompurify-3.4.12/purify.min.js",
   );
   const rendererPosition = indexSource.indexOf("/markdown-renderer.js");
 

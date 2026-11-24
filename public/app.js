@@ -99,6 +99,7 @@ const elements = {
   focusBtn: document.getElementById("focusBtn"),
   toolsBtn: document.getElementById("toolsBtn"),
   memoryBtn: document.getElementById("memoryBtn"),
+  connectionsBtn: document.getElementById("connectionsBtn"),
   permissionsBtn: document.getElementById("permissionsBtn"),
   dataDrawer: document.getElementById("dataDrawer"),
   dataDrawerTitle: document.getElementById("dataDrawerTitle"),
@@ -419,6 +420,7 @@ async function startApplication(user) {
     openSystemConfigurationDrawer,
   );
   elements.memoryBtn.addEventListener("click", openMemoryDrawer);
+  elements.connectionsBtn?.addEventListener("click", openConnectionsDrawer);
   elements.permissionsBtn.addEventListener("click", openPermissionsDrawer);
   elements.closeDataDrawerBtn.addEventListener("click", closeDataDrawer);
   elements.drawerBackdrop.addEventListener("click", closeDataDrawer);
@@ -1162,6 +1164,130 @@ function escapeHtml(value) {
   return div.innerHTML;
 }
 
+const CONNECTION_GUIDES = Object.freeze([
+  {
+    client: "Claude",
+    steps: [
+      "Отвори Claude → Настройки → Connectors.",
+      "Натисни „Add custom connector“, име: AI CORE.",
+      "Постави адреса отгоре и натисни „Connect“.",
+      "Влез с този профил и натисни „Разреши“.",
+    ],
+  },
+  {
+    client: "ChatGPT",
+    steps: [
+      "Отвори ChatGPT → Settings → Apps & Connectors.",
+      "Включи Developer mode и натисни „Create“.",
+      "Постави адреса отгоре, удостоверяване: OAuth.",
+      "Влез с този профил и натисни „Разреши“.",
+    ],
+  },
+]);
+
+function formatConnectionDate(value) {
+  const time = Date.parse(value || "");
+  if (!Number.isFinite(time)) return chatText("неизвестно");
+  return new Date(time).toLocaleDateString(document.documentElement.lang || "bg", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+async function openConnectionsDrawer() {
+  openDataDrawer(chatText("Свържи своите AI асистенти"));
+  renderDrawerLoading();
+  try {
+    const response = await fetch("/api/connections", { cache: "no-store" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Връзките временно не са достъпни.");
+    renderConnections(data);
+  } catch (error) {
+    renderDrawerError(error.message);
+  }
+}
+
+function renderConnections(data) {
+  const mcpUrl = String(data.mcpUrl || "https://cloudaicore.com/mcp");
+  const connections = Array.isArray(data.connections) ? data.connections : [];
+  const connected = connections.length
+    ? connections
+        .map(
+          (item) => `
+        <li class="connection-item">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span class="connection-text">
+            <strong>${escapeHtml(item.client)}</strong>
+            <small>${localizedMarkup("Свързан на")} ${escapeHtml(formatConnectionDate(item.issuedAt))}${
+              item.lastUsedAt
+                ? ` · ${localizedMarkup("последно ползван")} ${escapeHtml(formatConnectionDate(item.lastUsedAt))}`
+                : ""
+            }</small>
+          </span>
+          <button type="button" class="connection-revoke" data-revoke-connection="${escapeHtml(item.grantId)}">${localizedMarkup("Прекъсни")}</button>
+        </li>`,
+        )
+        .join("")
+    : `<li class="connection-empty">${localizedMarkup("Още няма свързани AI асистенти.")}</li>`;
+  const guides = CONNECTION_GUIDES.map(
+    (guide) => `
+      <details class="connection-guide">
+        <summary>${localizedMarkup("Свържи")} ${escapeHtml(guide.client)}</summary>
+        <ol>${guide.steps.map((step) => `<li>${localizedMarkup(step)}</li>`).join("")}</ol>
+      </details>`,
+  ).join("");
+  elements.dataDrawerBody.innerHTML = `
+    <section class="drawer-section connections-intro">
+      <p>${localizedMarkup("Свържи Claude, ChatGPT и други AI асистенти с AI CORE. Всички ще работят с една и съща памет и проекти, а ти одобряваш какво се запазва.")}</p>
+      <div class="connection-url">
+        <code id="connectionMcpUrl">${escapeHtml(mcpUrl)}</code>
+        <button type="button" class="connection-copy" data-copy-connection-url>${localizedMarkup("Копирай адреса")}</button>
+      </div>
+      ${data.configured === false ? `<p class="drawer-state">${localizedMarkup("Свързването временно не е налично.")}</p>` : ""}
+    </section>
+    <section class="drawer-section">
+      <h3>${localizedMarkup("Как да свържеш")}</h3>
+      ${guides}
+    </section>
+    <section class="drawer-section">
+      <h3>${localizedMarkup("Свързани в момента")}</h3>
+      <ul class="connection-list">${connected}</ul>
+    </section>`;
+}
+
+async function handleConnectionAction(event) {
+  const copy = event.target.closest("[data-copy-connection-url]");
+  if (copy) {
+    const url = document.getElementById("connectionMcpUrl")?.textContent || "";
+    try {
+      await navigator.clipboard.writeText(url);
+      copy.textContent = chatText("Копирано");
+    } catch {
+      copy.textContent = chatText("Копирай ръчно");
+    }
+    return true;
+  }
+  const revoke = event.target.closest("[data-revoke-connection]");
+  if (!revoke) return false;
+  if (!window.confirm(chatText("Да прекъсна ли тази връзка? AI асистентът вече няма да вижда паметта ти."))) return true;
+  revoke.disabled = true;
+  try {
+    const response = await fetch("/api/connections/revoke", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ grantId: revoke.dataset.revokeConnection }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Връзката не беше прекъсната.");
+    await openConnectionsDrawer();
+  } catch (error) {
+    revoke.disabled = false;
+    renderDrawerError(error.message);
+  }
+  return true;
+}
+
 async function openMemoryDrawer() {
   openDataDrawer("Памет");
   renderDrawerLoading();
@@ -1453,6 +1579,7 @@ function showPermissionInfo(action) {
 }
 
 async function handleDataDrawerAction(event) {
+  if (await handleConnectionAction(event)) return;
   if (event.target.closest("[data-knowledge-preview]")) {
     await previewKnowledgeArchive();
     return;

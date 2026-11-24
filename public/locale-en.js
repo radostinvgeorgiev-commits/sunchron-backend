@@ -335,5 +335,30 @@ AI задача|AI task
 Одобрение на действия|Action approval
 Работно пространство|Workspace
 Текущ разговор|Current conversation
+Свържи AI|Connect AI
+Свържи своите AI асистенти|Connect your AI assistants
+Свържи Claude, ChatGPT и други AI асистенти с AI CORE. Всички ще работят с една и съща памет и проекти, а ти одобряваш какво се запазва.|Connect Claude, ChatGPT and other AI assistants to AI CORE. They all share one memory and the same projects, and you approve what gets saved.
+Копирай адреса|Copy address
+Копирано|Copied
+Копирай ръчно|Copy it manually
+Как да свържеш|How to connect
+Свържи|Connect
+Свързани в момента|Connected now
+Още няма свързани AI асистенти.|No AI assistants connected yet.
+Свързан на|Connected on
+последно ползван|last used
+неизвестно|unknown
+Прекъсни|Disconnect
+Свързването временно не е налично.|Connecting is temporarily unavailable.
+Да прекъсна ли тази връзка? AI асистентът вече няма да вижда паметта ти.|Disconnect this assistant? It will no longer see your memory.
+Връзките временно не са достъпни.|Connections are temporarily unavailable.
+Връзката не беше прекъсната.|The connection was not removed.
+Отвори Claude → Настройки → Connectors.|Open Claude → Settings → Connectors.
+Натисни „Add custom connector“, име: AI CORE.|Click “Add custom connector” and name it AI CORE.
+Постави адреса отгоре и натисни „Connect“.|Paste the address above and click “Connect”.
+Влез с този профил и натисни „Разреши“.|Sign in with this account and click “Allow”.
+Отвори ChatGPT → Settings → Apps & Connectors.|Open ChatGPT → Settings → Apps & Connectors.
+Включи Developer mode и натисни „Create“.|Turn on Developer mode and click “Create”.
+Постави адреса отгоре, удостоверяване: OAuth.|Paste the address above and choose OAuth authentication.
 `.trim().split("\n").map((line) => line.split("|")),
 );

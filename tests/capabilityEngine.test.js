@@ -26,9 +26,13 @@ test("избира GitHub без AI Core да знае конкретния ин
   assert.equal(result.requiresConfirmation, false);
 });
 
-test("Codex не може да се изпълнява дори със стара конфигурация", () => {
-  assert.throws(() => resolveCapability("code.analyze"), { code: "CAPABILITY_UNAVAILABLE" });
-  assert.equal(isToolExecutable("openai-codex"), false);
+test("избира Codex само за изолиран кодов анализ", () => {
+  const result = resolveCapability("code.analyze");
+  assert.equal(result.tool.id, "openai-codex");
+  assert.equal(result.permission.action, "code.execute.read");
+  assert.equal(result.permission.decision, "allow");
+  assert.equal(result.requiresConfirmation, false);
+  assert.equal(isToolExecutable("openai-codex"), true);
 });
 
 test("маркира опасните действия за потвърждение", () => {
@@ -143,12 +147,12 @@ test("runtime availability blocks configured-looking tools without credentials",
       {},
       { OPENAI_API_KEY: "key", CODEX_AGENT_ENABLED: "false" },
     ).code,
-    "CODEX_AGENT_DISABLED",
+    "CODEX_AGENT_NOT_CONFIGURED",
   );
   assert.equal(
     getToolRuntimeAvailability("openai-codex", {}, { OPENAI_API_KEY: "key" })
       .available,
-    false,
+    true,
   );
   assert.equal(
     getToolRuntimeAvailability(
@@ -157,6 +161,9 @@ test("runtime availability blocks configured-looking tools without credentials",
       {
         GITHUB_CLIENT_ID: "client",
         GITHUB_CLIENT_SECRET: "secret",
+        GITHUB_APP_ID: "app",
+        GITHUB_APP_INSTALLATION_ID: "installation",
+        GITHUB_APP_PRIVATE_KEY: "key",
       },
     ).available,
     true,
@@ -169,9 +176,11 @@ test("runtime availability blocks configured-looking tools without credentials",
         OPENAI_API_KEY: "openai",
         GEMINI_API_KEY: "gemini",
         GROK_API_KEY: "grok",
-        ANTHROPIC_API_KEY: "claude",
         GITHUB_CLIENT_ID: "client",
         GITHUB_CLIENT_SECRET: "secret",
+        GITHUB_APP_ID: "app",
+        GITHUB_APP_INSTALLATION_ID: "installation",
+        GITHUB_APP_PRIVATE_KEY: "key",
       },
     ).available,
     true,
@@ -202,7 +211,7 @@ test("Google Cloud Write accepts the verified Cloud Run runtime markers", () => 
   assert.equal(result.available, true);
 });
 
-test("AI CORE chat requires configured Claude", () => {
+test("AI CORE chat availability accepts a configured non-OpenAI provider", () => {
   const result = getToolRuntimeAvailability(
     "synchron-agent-chat",
     { ownerId: "supabase:test" },
@@ -214,12 +223,12 @@ test("AI CORE chat requires configured Claude", () => {
       OPENSEARCH_PASSWORD: "password",
     },
   );
-  assert.equal(result.available, false);
+  assert.equal(result.available, true);
 });
 
 test("AI CORE chat and memory availability accept Firestore without OpenSearch", () => {
   const env = {
-    ANTHROPIC_API_KEY: "key",
+    OPENAI_API_KEY: "key",
     MEMORY_BACKEND: "firestore",
     GOOGLE_CLOUD_PROJECT: "handy-boulevard-479120-q9",
     FIRESTORE_DATABASE_ID: "(default)",
@@ -251,6 +260,9 @@ test("code.write спира преди multi-engine flow без конфигур
           env: {
             GITHUB_CLIENT_ID: "client",
             GITHUB_CLIENT_SECRET: "secret",
+            GITHUB_APP_ID: "app",
+            GITHUB_APP_INSTALLATION_ID: "installation",
+            GITHUB_APP_PRIVATE_KEY: "key",
           },
           prepareConfirmation: true,
         },
@@ -341,6 +353,9 @@ test("подава активната GitHub owner сесия и не пада �
       githubSession: {
         accessToken: "oauth-read-token",
         login: "radostinvgeorgiev-commits",
+        credentialType: "github-app-installation",
+        repository: "radostinvgeorgiev-commits/sunchron-backend",
+        expiresAt: Date.now() + 60_000,
       },
     });
     assert.match(result.output, /oauth12/u);
@@ -348,6 +363,9 @@ test("подава активната GitHub owner сесия и не пада �
       isActiveAuthorizedGitHubSession({
         accessToken: "oauth-read-token",
         login: "radostinvgeorgiev-commits",
+        credentialType: "github-app-installation",
+        repository: "radostinvgeorgiev-commits/sunchron-backend",
+        expiresAt: Date.now() + 60_000,
       }),
       true,
     );
@@ -388,13 +406,15 @@ test("връща общ статус само след реални провер
       checkMemory: async () => [],
       checkGoogleCloud: async () => ({ configured: true }),
       env: {
-        AI_CORE_PROVIDER: "claude",
+        AI_CORE_PROVIDER: "grok",
         OPENAI_API_KEY: "configured",
         GEMINI_API_KEY: "configured",
         GROK_API_KEY: "configured",
-        ANTHROPIC_API_KEY: "configured",
         GITHUB_CLIENT_ID: "client",
         GITHUB_CLIENT_SECRET: "secret",
+        GITHUB_APP_ID: "app",
+        GITHUB_APP_INSTALLATION_ID: "installation",
+        GITHUB_APP_PRIVATE_KEY: "key",
       },
     },
   );
@@ -408,7 +428,7 @@ test("връща общ статус само след реални провер
   assert.match(report, /GitHub Write — свързан; изисква потвърждение/u);
   assert.match(report, /OpenAI — конфигуриран/u);
   assert.match(report, /Gemini — конфигуриран/u);
-  assert.match(report, /Claude — конфигуриран; основен за разговора/u);
+  assert.match(report, /Grok — конфигуриран; основен за разговора/u);
 });
 
 test("не обявява Google Cloud за работещ без runtime конфигурация", async () => {
@@ -454,7 +474,7 @@ test("не изпълнява способност за потвърждение
 
 test("всеки регистриран основен инструмент има изпълним адаптер", () => {
   registerCoreTools();
-  for (const { id } of listTools().filter(({ enabled }) => enabled)) {
+  for (const { id } of listTools()) {
     assert.equal(isToolExecutable(id), true, id);
   }
 });

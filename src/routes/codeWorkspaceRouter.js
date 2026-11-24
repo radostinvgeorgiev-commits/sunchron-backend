@@ -56,7 +56,7 @@ router.get("/repository", async (req, res) => {
 });
 
 router.post("/prepare", async (req, res) => {
-  const { repository, message, advisorProviders = [] } = req.body || {};
+  const { repository, message } = req.body || {};
   if (repository !== getConfiguredRepository()) {
     return res.status(400).json({
       error: "Избери разрешено хранилище.",
@@ -76,7 +76,6 @@ router.post("/prepare", async (req, res) => {
   const draft = await prepareCodeTask({
     ...req.codeWorkspace,
     message,
-    advisorProviders,
     reviewRepository: repository,
   });
   const {

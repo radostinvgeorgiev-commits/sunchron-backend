@@ -32,9 +32,6 @@ function githubHeaders() {
     "User-Agent": "AI CORE",
     "X-GitHub-Api-Version": "2022-11-28",
   };
-  if (process.env.GITHUB_TOKEN) {
-    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-  }
   return headers;
 }
 

@@ -8,6 +8,7 @@ import {
 } from "../config/memoryBackend.js";
 import {
   getAiProviderStatus,
+  hasConfiguredAiProvider,
   isAiCoreConfigured,
 } from "../services/aiCoreService.js";
 import { answerGitHubReadRequest } from "../services/githubService.js";
@@ -69,6 +70,7 @@ import {
 import {
   getGitHubSession,
   isActiveAuthorizedGitHubSession,
+  isGitHubOAuthConfigured,
 } from "../services/githubOAuthService.js";
 import {
   formatGoogleCloudRuntimeStatus,
@@ -86,6 +88,10 @@ import {
   formatSystemConfigurationReport,
   getSystemConfigurationReport,
 } from "../services/systemConfigurationService.js";
+import {
+  isCodexAgentConfigured,
+  runCodexProjectAnalysis,
+} from "../services/codexAgentService.js";
 import {
   findToolsByCapability,
   listTools,
@@ -148,7 +154,7 @@ export function getToolRuntimeAvailability(
 
   switch (toolId) {
     case "synchron-agent-chat":
-      if (!isAiCoreConfigured(env) || !isMemoryBackendConfigured(env)) {
+      if (!hasConfiguredAiProvider(env) || !isMemoryBackendConfigured(env)) {
         return configured(
           false,
           "AI CORE разговорът или постоянната история не са конфигурирани.",
@@ -166,7 +172,7 @@ export function getToolRuntimeAvailability(
     case "github-write":
       if (
         !isCodeTaskConfigured(env) ||
-        !hasEnvironment(env, "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET")
+        !isGitHubOAuthConfigured(env)
       ) {
         return configured(
           false,
@@ -180,7 +186,7 @@ export function getToolRuntimeAvailability(
         "CAPABILITY_AUTH_REQUIRED",
       );
     case "github-confirmed-write":
-      if (!hasEnvironment(env, "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET")) {
+      if (!isGitHubOAuthConfigured(env)) {
         return configured(
           false,
           "Потвърждаваният GitHub запис не е конфигуриран.",
@@ -231,9 +237,9 @@ export function getToolRuntimeAvailability(
       );
     case "openai-codex":
       return configured(
-        false,
-        "Codex агентът е изключен.",
-        "CODEX_AGENT_DISABLED",
+        isCodexAgentConfigured(env),
+        "Codex агентът не е конфигуриран.",
+        "CODEX_AGENT_NOT_CONFIGURED",
       );
     case "google-firestore-memory":
       return configured(
@@ -322,13 +328,14 @@ export async function buildIntegrationStatusReport(
     ["Google Cloud Read", googleCloud],
     ["AI CORE разговор", isAiCoreConfigured(env)],
     ["OpenAI Web Search", Boolean(env.OPENAI_API_KEY)],
+    ["Codex", isCodexAgentConfigured(env)],
   ];
   const sessionTools = [
     [
       "GitHub Write",
       Boolean(input.githubSessionId) &&
         isCodeTaskConfigured(env) &&
-        hasEnvironment(env, "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"),
+        isGitHubOAuthConfigured(env),
       "изисква потвърждение",
     ],
     [
@@ -347,7 +354,6 @@ export async function buildIntegrationStatusReport(
     openai: "OpenAI",
     gemini: "Gemini",
     grok: "Grok",
-    claude: "Claude",
     "vertex-gemini": "Vertex Gemini",
   };
 
@@ -632,6 +638,23 @@ const executors = Object.freeze({
         confirmationId: prepared.confirmationId,
         confirmationType: "capability",
       },
+    };
+  },
+  "openai-codex": async ({ input }) => {
+    const result = await runCodexProjectAnalysis({
+      message: input.message,
+      projectId: input.workContext?.project?.id,
+      projectName: input.workContext?.project?.name,
+      projectObjective: input.workContext?.project?.objective,
+      previousRun: input.workContext?.project?.run,
+      model:
+        input.workContext?.agent?.model === "auto"
+          ? undefined
+          : input.workContext?.agent?.model,
+    });
+    return {
+      output: result.output,
+      metadata: Object.freeze({ projectRun: result.projectRun }),
     };
   },
   "google-calendar-read": async ({ input }) => {

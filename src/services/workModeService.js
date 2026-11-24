@@ -35,7 +35,7 @@ const AGENT_ROLES = Object.freeze({
       "Изготвяй използваеми резултати, планове и файлово съдържание, но не твърди, че код или файл е записан без реален изпълним инструмент.",
   },
   coder: {
-    label: "Разработчик",
+    label: "Codex разработчик",
     guidance:
       "Анализирай реалния код в изолирана област. Не твърди, че промяна е записана, преди да има потвърден write процес.",
   },
@@ -43,6 +43,7 @@ const AGENT_ROLES = Object.freeze({
 
 const AGENT_ENGINES = Object.freeze({
   "ai-core": { label: "AI CORE" },
+  codex: { label: "Codex" },
 });
 
 const PROJECT_RUN_STATUSES = new Set([
@@ -88,13 +89,6 @@ const AGENT_MODELS = Object.freeze({
     apiModel: "grok-4.5",
   },
 });
-
-function workAgentModelLabel(id) {
-  const model = AGENT_MODELS[id];
-  return model.provider && model.provider !== "claude"
-    ? `${model.label} (стара настройка; основният двигател е Claude)`
-    : model.label;
-}
 
 function cleanText(value, maxLength) {
   if (typeof value !== "string") return "";
@@ -203,7 +197,7 @@ export function buildWorkModeContext(value) {
     `Изпълнител: ${AGENT_ENGINES[context.agent.engine].label}`,
     `Роля: ${role.label}`,
     `Любимец на агента: ${WORK_PETS[context.agent.petId]}`,
-    `Модел: ${workAgentModelLabel(context.agent.model)}`,
+    `Модел: ${AGENT_MODELS[context.agent.model].label}`,
     `Начин на работа: ${role.guidance}`,
     context.agent.purpose
       ? `Допълнителен фокус от потребителя: ${context.agent.purpose}`
@@ -250,7 +244,7 @@ export function buildWorkContextStatusReply(value) {
   }
   return [
     `Агент: ${context.agent.name}`,
-    `Модел: ${workAgentModelLabel(context.agent.model)}`,
+    `Модел: ${AGENT_MODELS[context.agent.model].label}`,
     `Роля: ${AGENT_ROLES[context.agent.role].label}`,
     `Изпълнител: ${AGENT_ENGINES[context.agent.engine].label}`,
     `Любимец: ${WORK_PETS[context.agent.petId]}`,
@@ -296,24 +290,51 @@ export function hasExplicitNoAdditionalToolsBoundary(message) {
 }
 
 export function routeSelectedWorkAgentCapabilities(requests, value, message) {
-  if (hasExplicitNoToolBoundary(message)) return [];
+  const context = sanitizeWorkContext(value);
   const safeRequests = Array.isArray(requests) ? requests : [];
-  if (isRuntimeAiIdentityRequest(message)) {
-    return safeRequests.filter(({ capability }) => !String(capability || "").startsWith("code."));
+  if (context?.agent?.engine !== "codex") return safeRequests;
+
+  const nonCodeRequests = safeRequests.filter(
+    ({ capability }) => !String(capability || "").startsWith("code."),
+  );
+  if (hasExplicitNoToolBoundary(message)) return [];
+  if (isRuntimeAiIdentityRequest(message)) return nonCodeRequests;
+  if (
+    /^(?:добър ден|добро утро|добър вечер|здравей(?:те)?|здрасти|hi|hello)[.!?\s]*$/iu.test(
+      cleanText(message, 8000),
+    )
+  ) {
+    return nonCodeRequests;
   }
-  return safeRequests;
+  const codeReadRequests = safeRequests.filter(({ capability }) =>
+    ["code.read", "code.task-status"].includes(capability),
+  );
+  const hasCodeWrite = safeRequests.some(
+    ({ capability }) => capability === "code.write",
+  );
+  if (codeReadRequests.length && !hasCodeWrite) {
+    return [...codeReadRequests, ...nonCodeRequests];
+  }
+  return [
+    {
+      capability: "code.analyze",
+      action: "code.execute.read",
+      message: cleanText(message, 8000),
+    },
+    ...nonCodeRequests,
+  ];
 }
 
 export function resolveWorkAgentModel(value) {
   const id = cleanText(value, 40);
-  return Object.hasOwn(AGENT_MODELS, id) && AGENT_MODELS[id].provider === "claude"
+  return Object.hasOwn(AGENT_MODELS, id)
     ? AGENT_MODELS[id].apiModel || undefined
     : undefined;
 }
 
 export function resolveWorkAgentProvider(value) {
   const id = cleanText(value, 40);
-  return Object.hasOwn(AGENT_MODELS, id) && AGENT_MODELS[id].provider === "claude"
+  return Object.hasOwn(AGENT_MODELS, id)
     ? AGENT_MODELS[id].provider || undefined
     : undefined;
 }

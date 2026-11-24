@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { configureGitHubAppFixture, githubAppFetchFixture } from "./githubAppFixture.js";
+
+configureGitHubAppFixture();
 import request from "supertest";
 
 process.env.NODE_ENV = "test";
 process.env.OPENAI_API_KEY = "test-openai-key";
-process.env.ANTHROPIC_API_KEY = "test-claude-key";
-process.env.AI_CORE_PROVIDER = "claude";
 process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 delete process.env.OPENSEARCH_HOST;
 delete process.env.OPENSEARCH_USERNAME;
@@ -87,25 +88,27 @@ function createProfileClient() {
 
 const ownerSession = await createGitHubSession(
   { access_token: "test-owner-token" },
-  async () =>
-    new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
-      status: 200,
-    }),
+  githubAppFetchFixture(),
 );
 const OWNER_COOKIE = `synchron_github_session=${ownerSession.id}`;
 
-test("every real chat request sends Core Profile and owner memory to Claude", async () => {
+test("every real chat request sends Core Profile and owner memory to OpenAI", async () => {
   setOpenSearchClientForTests(createProfileClient());
   const originalFetch = globalThis.fetch;
   const openAiInputs = [];
 
   globalThis.fetch = async (url, options = {}) => {
-    assert.equal(String(url), "https://api.anthropic.com/v1/messages");
+    assert.equal(String(url), "https://api.openai.com/v1/responses");
     const body = JSON.parse(options.body);
-    openAiInputs.push([{ role: "system", content: body.system }, ...body.messages]);
+    openAiInputs.push(body.input);
     return new Response(
       JSON.stringify({
-        content: [{ type: "text", text: "Проверен отговор." }],
+        output: [
+          {
+            type: "message",
+            content: [{ type: "output_text", text: "Проверен отговор." }],
+          },
+        ],
       }),
       { status: 200, headers: { "content-type": "application/json" } },
     );

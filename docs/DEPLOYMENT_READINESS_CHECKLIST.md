@@ -12,8 +12,8 @@
 - Storage: Firestore за памет и operational state.
 - Auth: Identity Platform.
 - MCP endpoint: `https://cloudaicore.com/mcp`.
-- AI providers: Claude е основен; OpenAI, Gemini и Grok са незадължителни
-  съветници. Codex е изключен. Това описва кода, не непременно live revision.
+- AI providers: OpenAI Responses API е основен, а Gemini, Grok, Claude и Codex
+  са допълнителни двигатели само при валидна конфигурация.
 
 ## 2. Преди merge
 
@@ -22,10 +22,6 @@
 - [ ] `npm test` минава.
 - [ ] `git diff --check` минава.
 - [ ] Няма промяна на production secrets.
-- [ ] Поведението на production Cloud Build trigger-а е проверено; няма
-      автоматичен deployment път, който заобикаля отделното owner confirmation.
-- [ ] Собственикът е осигурил `ANTHROPIC_API_KEY` и е проверил
-      `AI_CORE_PROVIDER` и правото на runtime identity да използва секрета.
 - [ ] Няма direct push към `main`.
 - [ ] Няма нов външен side effect без owner confirmation gate.
 - [ ] Отворените PR-и са проверени за конфликт или дублиране.
@@ -41,8 +37,6 @@
 
 ## 4. Acceptance преди deployment
 
-- [ ] Staging acceptance е минал за същия exact SHA; виж
-      `STAGING_AND_RELEASE_GATES.md`.
 - [ ] A1: стабилен owner разговор е проверен в browser.
 - [ ] A2: memory lifecycle е проверен с тестов факт и отделни потвърждения.
 - [ ] A3: неразрешено действие се отказва без външен side effect.
@@ -56,8 +50,8 @@
 - [ ] `/health/ready` остава `ready`.
 - [ ] `/health/storage-report` остава healthy.
 - [ ] Production smoke е зелен.
-- [ ] Browser smoke: сайтът зарежда, Claude отговаря и Council използва
-      наличните съветници; при отказ на Claude показва грешка без fallback.
+- [ ] Browser smoke: сайтът зарежда, AI разговорът отговаря, Council режимът не
+      губи наличните отговори при частичен provider failure.
 - [ ] Ако има проблем, използвай `OPERATIONS_RUNBOOK.md` за rollback.
 
 ## 6. Блокиращи условия

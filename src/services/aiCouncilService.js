@@ -1,5 +1,5 @@
 import {
-  DEFAULT_CLAUDE_CHAT_MODEL,
+  DEFAULT_CODEX_COUNCIL_MODEL,
   DEFAULT_GEMINI_CHAT_MODEL,
   DEFAULT_GROK_CHAT_MODEL,
   DEFAULT_OPENAI_CHAT_MODEL,
@@ -9,6 +9,7 @@ import {
   requestClaudeResponse,
   requestOpenAIResponse,
 } from "./aiCoreService.js";
+import { isCodexAgentConfigured } from "./codexAgentService.js";
 import { replyLanguageInstruction } from "../config/replyLanguage.js";
 
 const MAX_REQUEST_LENGTH = 6_000;
@@ -45,6 +46,7 @@ const PROVIDER_LABELS = Object.freeze({
   gemini: "Gemini",
   grok: "Grok",
   claude: "Claude",
+  codex: "Codex",
 });
 
 export class AiCouncilError extends Error {
@@ -159,7 +161,6 @@ function arbiterPrompt(message, responses, language) {
   return [
     "Ти си арбитърът на AI CORE Council.",
     "Сравни наличните независими предложения. Върни само JSON по зададената схема.",
-    JSON.stringify(COUNCIL_SCHEMA),
     replyLanguageInstruction(language) + " Apply this to JSON text values; keep schema keys and enums unchanged.",
     "Избери вариант, който е най-безопасен, проверим и минимален. Ако има разногласие, кажи го в rationale или risks.",
     "Не изпълнявай инструменти и не измисляй факти, които липсват в предложенията.",
@@ -208,18 +209,24 @@ export async function runAiCouncil({
   geminiApiKey = process.env.GEMINI_API_KEY,
   grokApiKey = process.env.GROK_API_KEY,
   claudeApiKey = process.env.ANTHROPIC_API_KEY,
-  selectedProviders = ["openai", "gemini", "grok", "claude"],
+  codexApiKey = isCodexAgentConfigured()
+    ? process.env.OPENAI_API_KEY
+    : undefined,
+  selectedProviders = ["openai", "gemini", "grok"],
   advisorRequesters = {
     openai: requestOpenAIResponse,
     gemini: requestGeminiResponse,
     grok: requestGrokResponse,
     claude: requestClaudeResponse,
+    codex: requestOpenAIResponse,
   },
-  arbiterRequester = requestClaudeResponse,
+  arbiterRequester = requestOpenAIResponse,
   openAiModel = process.env.AI_CORE_COUNCIL_MODEL || DEFAULT_OPENAI_CHAT_MODEL,
   geminiModel = process.env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
   grokModel = process.env.GROK_MODEL || DEFAULT_GROK_CHAT_MODEL,
-  claudeModel = process.env.ANTHROPIC_MODEL || DEFAULT_CLAUDE_CHAT_MODEL,
+  claudeModel = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001",
+  codexModel = process.env.AI_CORE_COUNCIL_CODEX_MODEL ||
+    DEFAULT_CODEX_COUNCIL_MODEL,
   advisorTimeoutMs = Math.min(
     getAiProviderTimeoutMs(
       "openai",
@@ -238,7 +245,7 @@ export async function runAiCouncil({
     ),
   ),
   arbiterTimeoutMs = getAiProviderTimeoutMs(
-    "claude",
+    "openai",
     process.env,
     DEFAULT_COUNCIL_ARBITER_TIMEOUT_MS,
   ),
@@ -256,6 +263,7 @@ export async function runAiCouncil({
     gemini: { provider: "gemini", apiKey: geminiApiKey, model: geminiModel },
     grok: { provider: "grok", apiKey: grokApiKey, model: grokModel },
     claude: { provider: "claude", apiKey: claudeApiKey, model: claudeModel },
+    codex: { provider: "codex", apiKey: codexApiKey, model: codexModel },
   };
   if (
     !Array.isArray(selectedProviders) ||
@@ -270,9 +278,6 @@ export async function runAiCouncil({
       "AI_COUNCIL_INVALID_PROVIDERS",
     );
   }
-  if (!claudeApiKey) {
-    throw new AiCouncilError("Claude не е конфигуриран.", 503, "CLAUDE_NOT_CONFIGURED");
-  }
   const providers = selectedProviders.map((id) => available[id]);
   const settled = await Promise.allSettled(
     providers.map(async ({ provider, apiKey, model }) => {
@@ -283,8 +288,8 @@ export async function runAiCouncil({
           apiKey,
           model,
           input,
-          verbosity: "low",
-          reasoningEffort: "medium",
+          verbosity: provider === "codex" ? null : "low",
+          reasoningEffort: provider === "codex" ? "low" : "medium",
         },
         advisorTimeoutMs,
         "AI_COUNCIL_ADVISOR_TIMEOUT",
@@ -313,29 +318,42 @@ export async function runAiCouncil({
       "AI_COUNCIL_ADVISORS_FAILED",
     );
   }
-  if (normalizedResponses.length === 1 && normalizedResponses[0].provider === "claude")
-    return Object.freeze({
+  const fallback = () =>
+    Object.freeze({
       question: task,
       responses: normalizedResponses,
       unavailableProviders,
-      partial: unavailableProviders.length > 0,
-      recommendation: normalizedResponses[0].text,
+      partial: true,
+      recommendation: language && language !== "bg"
+        ? "Review the available answers above. No combined recommendation was generated."
+        : "Прегледай наличните отговори по-горе. Обща препоръка не е изготвена.",
       rationale: language && language !== "bg"
-        ? "Only one selected AI model answered. Independent verification is unavailable."
-        : "Отговор от един избран AI двигател; няма независима проверка.",
+        ? "The synthesis model did not return a valid result. Available answers are shown above."
+        : "Арбитърът не върна валиден отговор; получените предложения са запазени.",
       risks: Object.freeze([]),
       nextSteps: Object.freeze([]),
       confidence: "low",
       arbiter: null,
     });
+  if (normalizedResponses.length === 1)
+    return Object.freeze({
+      ...fallback(),
+      partial: unavailableProviders.length > 0,
+      recommendation: normalizedResponses[0].text,
+      rationale: language && language !== "bg"
+        ? "Only one selected AI model answered. Independent verification is unavailable."
+        : "Отговор от един избран AI двигател; няма независима проверка.",
+      confidence: "low",
+    });
+  if (!openAiApiKey) return fallback();
 
   let synthesis;
   try {
     synthesis = await requestWithTimeout(
       arbiterRequester,
       {
-        apiKey: claudeApiKey,
-        model: claudeModel,
+        apiKey: openAiApiKey,
+        model: openAiModel,
         input: [
           {
             role: "user",
@@ -351,7 +369,7 @@ export async function runAiCouncil({
       "AI_COUNCIL_ARBITER_TIMEOUT",
     );
   } catch {
-    throw new AiCouncilError("Claude не отговори. Council не изготви решение.", 503, "CLAUDE_UNAVAILABLE");
+    return fallback();
   }
 
   try {
@@ -380,12 +398,12 @@ export async function runAiCouncil({
       nextSteps: boundedList(parsed?.nextSteps),
       confidence,
       arbiter: Object.freeze({
-        provider: "claude",
-        model: synthesis?.model || claudeModel,
+        provider: synthesis?.provider || "openai",
+        model: synthesis?.model || openAiModel,
       }),
     });
   } catch {
-    throw new AiCouncilError("Claude не върна валидно Council решение.", 502, "AI_COUNCIL_INVALID_SYNTHESIS");
+    return fallback();
   }
 }
 

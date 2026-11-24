@@ -82,10 +82,10 @@ test("uses the owner OAuth token before the configured public read token", async
   assert.equal(summary.private, true);
 });
 
-test("preserves the configured GITHUB_TOKEN read contract", async () => {
+test("does not use a legacy GITHUB_TOKEN for anonymous reads", async () => {
   process.env.GITHUB_TOKEN = "configured-read-token";
   global.fetch = async (_url, options) => {
-    assert.equal(options.headers.Authorization, "Bearer configured-read-token");
+    assert.equal(options.headers.Authorization, undefined);
     return jsonResponse({
       full_name: process.env.GITHUB_REPOSITORY,
       default_branch: "main",

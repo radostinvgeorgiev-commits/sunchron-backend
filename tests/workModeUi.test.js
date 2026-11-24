@@ -71,7 +71,7 @@ test("Chat and Work are available with projects, agents, and pet state", async (
   assert.match(workMode, /name: "Организирай"/u);
   assert.match(workMode, /name: "Напиши"/u);
   assert.match(workMode, /documents: "Документи и поща"/u);
-  assert.doesNotMatch(workMode, /codex: "Codex · branch\/PR кодов изпълнител"/u);
+  assert.match(workMode, /codex: "Codex · branch\/PR кодов изпълнител"/u);
   assert.match(workMode, /label: "Капка"/u);
   assert.match(workMode, /label: "Искра"/u);
   assert.match(workMode, /label: "Бухал"/u);
@@ -223,7 +223,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   agentForm.querySelector("input").value = "Тестов ръководител";
   agentForm.querySelector("#newWorkAgentRole").value = "organizer";
   agentForm.querySelector("#newWorkAgentModel").value = "gpt-5.6-sol";
-  agentForm.querySelector("#newWorkAgentEngine").value = "ai-core";
+  agentForm.querySelector("#newWorkAgentEngine").value = "codex";
   agentForm.querySelector("textarea").value = "Води проверимите етапи";
   agentForm.dispatchEvent(
     new dom.window.Event("submit", { bubbles: true, cancelable: true }),
@@ -232,7 +232,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   const agentPayload = dom.window.SynchronWorkMode.getRequestPayload();
   assert.equal(agentPayload.workContext.agent.name, "Тестов ръководител");
   assert.equal(agentPayload.workContext.agent.model, "gpt-5.6-sol");
-  assert.equal(agentPayload.workContext.agent.engine, "ai-core");
+  assert.equal(agentPayload.workContext.agent.engine, "codex");
   assert.equal(agentPayload.workContext.agent.petId, "robot");
 
   const editAgent = [...dom.window.document.querySelectorAll("button")].find(

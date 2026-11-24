@@ -31,7 +31,6 @@ function stagingConfiguration() {
     mcpResourceUrl: "https://synchron-backend-staging-example-ew.a.run.app/mcp",
     secrets: Object.fromEntries(
       [
-        "ANTHROPIC_API_KEY",
         "OPENAI_API_KEY",
         "GEMINI_API_KEY",
         "GROK_API_KEY",
@@ -55,7 +54,6 @@ function stagingConfiguration() {
 
 function cloudRunDescription() {
   const aliases = {
-    ANTHROPIC_API_KEY: "anthropic-api-key",
     OPENAI_API_KEY: "openai-api-key",
     GEMINI_API_KEY: "gemini-api-key",
     GROK_API_KEY: "grok-api-key",
@@ -68,7 +66,6 @@ function cloudRunDescription() {
     MCP_OAUTH_SECRET: "mcp-oauth-secret",
   };
   const secretEnv = [
-    "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
     "GEMINI_API_KEY",
     "GROK_API_KEY",
@@ -131,7 +128,6 @@ test("Cloud Run staging renderer pins image, secrets, scaling and service identi
   assert.doesNotMatch(rendered, /__[A-Z0-9_]+__/u);
   assert.match(rendered, new RegExp(`image: ".*@sha256:${DIGEST}"`, "u"));
   assert.match(rendered, /run\.googleapis\.com\/secrets:/u);
-  assert.match(rendered, /name: ANTHROPIC_API_KEY\s+valueFrom:/u);
   assert.match(
     rendered,
     /openai-api-key:projects\/975434100844\/secrets\/synchron-openai-api-key/u,

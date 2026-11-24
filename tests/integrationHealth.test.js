@@ -8,13 +8,14 @@ const KEYS = [
   "OPENAI_API_KEY",
   "GEMINI_API_KEY",
   "GROK_API_KEY",
-  "ANTHROPIC_API_KEY",
-  "AI_CORE_PROVIDER",
   "MEMORY_BACKEND",
   "PERSISTENCE_BACKEND",
   "GOOGLE_CLOUD_PROJECT",
   "GITHUB_CLIENT_ID",
   "GITHUB_CLIENT_SECRET",
+  "GITHUB_APP_ID",
+  "GITHUB_APP_INSTALLATION_ID",
+  "GITHUB_APP_PRIVATE_KEY",
 ];
 
 test("integration status exposes Google Cloud and the three-engine code council without secrets", () => {
@@ -24,7 +25,6 @@ test("integration status exposes Google Cloud and the three-engine code council 
   for (const key of KEYS) process.env[key] = `secret-${key}`;
   process.env.MEMORY_BACKEND = "firestore";
   process.env.PERSISTENCE_BACKEND = "firestore";
-  process.env.AI_CORE_PROVIDER = "claude";
   resetToolRegistryForTests();
   try {
     const status = getIntegrationStatus({ githubAuthenticated: true });
@@ -56,21 +56,24 @@ test("integration status exposes Google Cloud and the three-engine code council 
   }
 });
 
-test("AI CORE Code Write requires Claude even when another advisor is available", () => {
+test("AI CORE Code Write is configured when one engine is available", () => {
   const original = Object.fromEntries(
     KEYS.map((key) => [key, process.env[key]]),
   );
   process.env.OPENAI_API_KEY = "openai";
   delete process.env.GEMINI_API_KEY;
   delete process.env.GROK_API_KEY;
-  delete process.env.ANTHROPIC_API_KEY;
   process.env.GITHUB_CLIENT_ID = "client";
   process.env.GITHUB_CLIENT_SECRET = "secret";
+  process.env.GITHUB_APP_ID = "app";
+  process.env.GITHUB_APP_INSTALLATION_ID = "installation";
+  process.env.GITHUB_APP_PRIVATE_KEY = "key";
   resetToolRegistryForTests();
   try {
     const status = getIntegrationStatus({ githubAuthenticated: true });
     const codeWrite = status.tools.find(({ id }) => id === "github-write");
-    assert.equal(codeWrite.configured, false);
+    assert.equal(codeWrite.configured, true);
+    assert.equal(codeWrite.healthStatus, "healthy");
   } finally {
     for (const [key, value] of Object.entries(original)) {
       if (value === undefined) delete process.env[key];

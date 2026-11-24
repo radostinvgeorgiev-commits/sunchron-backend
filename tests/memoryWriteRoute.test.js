@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { configureGitHubAppFixture, githubAppFetchFixture } from "./githubAppFixture.js";
+
+configureGitHubAppFixture();
 import request from "supertest";
 
 process.env.NODE_ENV = "test";
 process.env.OPENAI_API_KEY = "test-openai-key";
-process.env.ANTHROPIC_API_KEY = "test-claude-key";
-process.env.AI_CORE_PROVIDER = "claude";
 process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 process.env.GITHUB_SESSION_ENCRYPTION_KEY =
   "memory-write-route-test-encryption-key";
@@ -113,17 +114,19 @@ test("chat never persists an ordinary fact and writes an explicit fact only afte
   setOpenSearchClientForTests(client);
   const ownerSession = await createGitHubSession(
     { access_token: "test-owner-token" },
-    async () =>
-      new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
-        status: 200,
-      }),
+    githubAppFetchFixture(),
   );
   const ownerCookie = `synchron_github_session=${ownerSession.id}`;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () =>
     new Response(
       JSON.stringify({
-        content: [{ type: "text", text: "Разбрах." }],
+        output: [
+          {
+            type: "message",
+            content: [{ type: "output_text", text: "Разбрах." }],
+          },
+        ],
       }),
       { status: 200, headers: { "content-type": "application/json" } },
     );
@@ -188,10 +191,7 @@ test("chat deletes only after a durable UUID confirmation and blocks replay", as
   );
   const ownerSession = await createGitHubSession(
     { access_token: "test-owner-token-delete" },
-    async () =>
-      new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
-        status: 200,
-      }),
+    githubAppFetchFixture(),
   );
   const ownerCookie = `synchron_github_session=${ownerSession.id}`;
   const sessionId = "memory-delete-route";

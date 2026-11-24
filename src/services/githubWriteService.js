@@ -23,7 +23,7 @@ function requireToken(accessToken) {
   const token =
     typeof accessToken === "string" && accessToken.trim()
       ? accessToken.trim()
-      : process.env.GITHUB_TOKEN;
+      : null;
   if (!token) {
     throw new GitHubServiceError(
       "Липсва потвърдена GitHub сесия за запис.",

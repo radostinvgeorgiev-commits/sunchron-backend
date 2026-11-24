@@ -261,6 +261,9 @@ test("GitHub MCP read capabilities use the active owner OAuth session", async ()
     resolveLatestGitHubSession: async () => ({
       accessToken: "mcp-oauth-token",
       login: "radostinvgeorgiev-commits",
+      credentialType: "github-app-installation",
+      repository: "radostinvgeorgiev-commits/sunchron-backend",
+      expiresAt: Date.now() + 60_000,
     }),
     dependencies: {
       getGitHubOverview: async (input) => {

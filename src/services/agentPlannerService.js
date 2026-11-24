@@ -1,6 +1,6 @@
 import {
-  DEFAULT_CLAUDE_CHAT_MODEL,
-  requestClaudeResponse,
+  DEFAULT_OPENAI_PLANNER_MODEL,
+  requestOpenAIText,
 } from "./aiCoreService.js";
 
 const DEFAULT_PLANNER_TIMEOUT_MS = 30000;
@@ -247,13 +247,14 @@ export function shouldUseAgentPlanner(message, fallbackRequests = []) {
 }
 
 export async function planCapabilities({
-  claudeApiKey = process.env.ANTHROPIC_API_KEY,
-  claudeModel = process.env.ANTHROPIC_MODEL || DEFAULT_CLAUDE_CHAT_MODEL,
+  openAiApiKey = process.env.OPENAI_API_KEY,
+  openAiModel = process.env.OPENAI_PLANNER_MODEL ||
+    DEFAULT_OPENAI_PLANNER_MODEL,
   message,
   fetchImpl = fetch,
-  timeoutMs = process.env.ANTHROPIC_TIMEOUT_MS,
+  timeoutMs = process.env.OPENAI_PLANNER_TIMEOUT_MS,
 }) {
-  if (!claudeApiKey) {
+  if (!openAiApiKey) {
     throw new AgentPlannerError(
       "AI планировчикът не е конфигуриран.",
       "AGENT_PLANNER_NOT_CONFIGURED",
@@ -268,14 +269,15 @@ export async function planCapabilities({
 
   try {
     const plannerInput = `${PLANNER_INSTRUCTIONS}\n\n[ЗАЯВКА]\n${message}`;
-    const response = await requestClaudeResponse({
-      apiKey: claudeApiKey,
+    const content = await requestOpenAIText({
+      apiKey: openAiApiKey,
       input: [{ role: "user", content: plannerInput }],
-      model: claudeModel,
+      model: openAiModel,
       fetchImpl,
       signal: controller.signal,
+      verbosity: "low",
     });
-    const plan = extractJsonObject(response.text);
+    const plan = extractJsonObject(content);
     return sanitizeCapabilityPlan(plan, message);
   } catch (error) {
     if (error instanceof AgentPlannerError) throw error;

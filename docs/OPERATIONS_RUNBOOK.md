@@ -49,26 +49,19 @@ trigger-а и после стартира само този SHA.
 заявките могат да върнат реален резултат в разговора; write заявките спират на
 точна confirmation стъпка и не променят външна система преди owner потвърждение.
 
-Claude не се приема за работещ само защото е видим в UI. Провери Anthropic API
-конфигурацията, capability gate-а, audit следата и краен acceptance тест.
-Codex е изключен като изпълнител. Production write действия остават blocked
-без owner confirmation.
+Claude и Codex не се приемат за работещи само защото са видими в UI. За всеки
+двигател се проверяват конфигурацията, capability gate-ът, audit следата и
+краен acceptance тест. Production write действия остават blocked без owner
+confirmation.
 
 ## Кодова задача
 
-1. Влез като owner и свържи GitHub OAuth. Интеграцията заявява `public_repo`
-   и връща към `https://cloudaicore.com/api/github/callback`; backend-ът
-   ограничава code операции до конфигурираното repository и owner профила.
-   OAuth scope-ът обаче важи за публичните repositories, до които има достъп
-   профилът, не само за едно хранилище. За криптографски по-тесен repository
-   grant е нужна отделна GitHub App интеграция.
-2. Провери read-only repository access преди да свързваш други интеграции.
-3. Задай точна, ограничена кодова задача. Claude е единственият изпълнител
-   по подразбиране; допълнителните съветници се избират изрично.
-4. Провери плана и списъка с файлове; потвърди само точния confirmation id.
-5. Провери създадения branch/PR diff и CI. Merge остава отделно owner решение.
-6. След отделно одобрен merge и deployment изчакай exact-SHA Cloud Run
-   deployment и тествай в браузър.
+1. Влез като owner и свържи GitHub OAuth.
+2. Задай точна, ограничена задача.
+3. Провери предложенията на OpenAI, Gemini и Grok и списъка с файлове.
+4. Потвърди само точния confirmation id.
+5. Провери PR diff и CI.
+6. След merge изчакай exact-SHA Cloud Run deployment и тествай в браузър.
 
 ## Rollback
 

@@ -45,10 +45,11 @@
     organizer: "Организатор",
     documents: "Документи и поща",
     builder: "Създател на проекти",
-    coder: "Разработчик",
+    coder: "Codex разработчик",
   });
   const ENGINE_OPTIONS = Object.freeze({
     "ai-core": "AI CORE",
+    codex: "Codex · branch/PR кодов изпълнител",
   });
   const MODEL_OPTIONS = Object.freeze({
     auto: "Автоматичен · препоръчано",
@@ -111,9 +112,9 @@
       id: "codex-agent",
       name: "Код",
       role: "coder",
-      model: "auto",
+      model: "gpt-5.6-terra",
       purpose: "Подготвя code diff в branch/PR поток след owner потвърждение.",
-      engine: "ai-core",
+      engine: "codex",
       petId: "spark",
     }),
   ]);
@@ -330,11 +331,29 @@
 
     if (!projects.length) projects.push(...fallback.projects);
     if (!agents.length) agents.push(...fallback.agents);
+    if (
+      !agents.some((agent) => agent.engine === "codex") &&
+      agents.length < 12
+    ) {
+      agents.push(fallback.agents.find((agent) => agent.engine === "codex"));
+    }
     if ((Number.parseInt(value.version, 10) || 0) < STORAGE_VERSION) {
       for (const defaultAgent of fallback.agents) {
         if (agents.length >= 12) break;
         if (!agents.some((agent) => agent.id === defaultAgent.id)) {
           agents.push({ ...defaultAgent });
+        }
+      }
+      for (const defaultAgent of fallback.agents) {
+        const existing = agents.find((agent) => agent.id === defaultAgent.id);
+        if (existing) {
+          Object.assign(existing, {
+            name: defaultAgent.name,
+            role: defaultAgent.role,
+            model: defaultAgent.model,
+            purpose: defaultAgent.purpose,
+            engine: defaultAgent.engine,
+          });
         }
       }
     }
@@ -354,13 +373,7 @@
       : fallback.petId;
     if ((Number.parseInt(value.version, 10) || 0) < STORAGE_VERSION) {
       const activeAgent = agents.find((agent) => agent.id === activeAgentId);
-      const savedAgent = Array.isArray(value.agents)
-        ? value.agents.find((agent) => agent?.id === activeAgentId)
-        : null;
-      if (activeAgent && !PETS.some((pet) => pet.id === savedAgent?.petId) &&
-          PETS.some((pet) => pet.id === value.petId)) {
-        activeAgent.petId = petId;
-      }
+      if (activeAgent) activeAgent.petId = petId;
     }
 
     return {
@@ -1055,8 +1068,7 @@
     for (const [id, label] of Object.entries(MODEL_OPTIONS)) {
       const option = document.createElement("option");
       option.value = id;
-      option.textContent = id === "auto" ? label : `${label} · стара настройка`;
-      option.disabled = id !== "auto";
+      option.textContent = label;
       model.appendChild(option);
     }
     form.appendChild(model);
@@ -1154,8 +1166,7 @@
     for (const [id, label] of Object.entries(MODEL_OPTIONS)) {
       const option = document.createElement("option");
       option.value = id;
-      option.textContent = id === "auto" ? label : `${label} · стара настройка`;
-      option.disabled = id !== "auto" && id !== agent.model;
+      option.textContent = label;
       model.appendChild(option);
     }
     model.value = agent.model;

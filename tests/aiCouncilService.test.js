@@ -45,12 +45,9 @@ test("council asks OpenAI, Gemini and Grok before a bounded synthesis", async ()
     openAiApiKey: "openai-key",
     geminiApiKey: "gemini-key",
     grokApiKey: "grok-key",
-    claudeApiKey: "claude-key",
-    selectedProviders: ["openai", "gemini", "grok"],
     advisorRequesters,
     arbiterRequester: async (input) => {
       calls.push(["arbiter", input]);
-      assert.match(input.input[0].content, /"recommendation"/u);
       return {
         provider: "openai",
         model: "gpt-test",
@@ -70,7 +67,6 @@ test("council asks OpenAI, Gemini and Grok before a bounded synthesis", async ()
     ["openai", "gemini", "grok", "arbiter"],
   );
   assert.equal(council.responses.length, 3);
-  assert.equal(council.arbiter.provider, "claude");
   assert.equal(council.recommendation, "Избери минималната проверима промяна.");
   assert.match(formatAiCouncilReply(council), /избраните AI двигатели/u);
 });
@@ -81,15 +77,13 @@ const options = {
   openAiApiKey: "a",
   geminiApiKey: "b",
   grokApiKey: "c",
-  claudeApiKey: "d",
-  selectedProviders: ["openai", "gemini", "grok"],
   advisorRequesters: { openai: answer, gemini: answer, grok: answer },
   arbiterRequester: async () => {
     throw new Error("private provider detail");
   },
 };
 
-test("Claude can synthesize available answers when an advisor hangs", async () => {
+test("returns completed answers when an advisor hangs and arbiter fails", async () => {
   const result = await runAiCouncil({
     ...options,
     advisorTimeoutMs: 10,
@@ -97,18 +91,15 @@ test("Claude can synthesize available answers when an advisor hangs", async () =
       ...options.advisorRequesters,
       gemini: () => new Promise(() => {}),
     },
-    arbiterRequester: async () => ({
-      text: JSON.stringify({ recommendation: "Извод", rationale: "Причина", risks: [], nextSteps: [], confidence: "low" }),
-    }),
   });
   assert.equal(result.responses.length, 2);
   assert.deepEqual(result.unavailableProviders, ["gemini"]);
-  assert.equal(result.arbiter.provider, "claude");
+  assert.equal(result.arbiter, null);
   assert.match(formatAiCouncilReply(result), /Не отговориха: Gemini/);
   assert.doesNotMatch(JSON.stringify(result), /private provider detail/);
 });
 
-test("synthesizes one advisor through Claude, rejecting empty and invalid answers", async () => {
+test("works with one configured advisor, rejecting empty and invalid answers", async () => {
   const result = await runAiCouncil({
     ...options,
     openAiApiKey: "",
@@ -116,27 +107,24 @@ test("synthesizes one advisor through Claude, rejecting empty and invalid answer
       ...options.advisorRequesters,
       grok: async () => ({ text: "" }),
     },
-    arbiterRequester: async () => ({
-      text: JSON.stringify({ recommendation: "Извод", rationale: "Причина", risks: [], nextSteps: [], confidence: "low" }),
-    }),
   });
   assert.equal(result.responses.length, 1);
   assert.equal(result.responses[0].provider, "gemini");
   assert.equal(result.confidence, "low");
 });
 
-test("fails closed on malformed or hanging Claude synthesis", async () => {
+test("retains answers on malformed or hanging synthesis", async () => {
   for (const arbiterRequester of [
     async () => ({ text: "bad json" }),
     () => new Promise(() => {}),
   ]) {
-    await assert.rejects(() => runAiCouncil({
-        ...options,
-        arbiterRequester,
-        arbiterTimeoutMs: 10,
-      }),
-      (error) => ["AI_COUNCIL_INVALID_SYNTHESIS", "CLAUDE_UNAVAILABLE"].includes(error.code),
-    );
+    const result = await runAiCouncil({
+      ...options,
+      arbiterRequester,
+      arbiterTimeoutMs: 10,
+    });
+    assert.equal(result.responses.length, 3);
+    assert.equal(result.arbiter, null);
   }
 });
 
@@ -162,8 +150,6 @@ test("council bounds a verbose advisor", async () => {
     openAiApiKey: "openai-key",
     geminiApiKey: "gemini-key",
     grokApiKey: "grok-key",
-    claudeApiKey: "claude-key",
-    selectedProviders: ["openai", "gemini", "grok"],
     advisorRequesters: {
       openai: async () => ({ model: "openai-test", text: verbose }),
       gemini: async () => ({ model: "gemini-test", text: "Gemini." }),
@@ -220,7 +206,7 @@ test("selected providers exclude others and preserve partial answers", async () 
 });
 
 test("rejects unsupported and duplicate Council provider selection", async () => {
-  for (const selectedProviders of [[], ["claude", "claude"], ["unknown"], ["codex"]]) {
+  for (const selectedProviders of [[], ["claude", "claude"], ["unknown"]]) {
     await assert.rejects(
       () => runAiCouncil({ message: "Тест", selectedProviders }),
       (error) =>
@@ -228,11 +214,4 @@ test("rejects unsupported and duplicate Council provider selection", async () =>
         error.code === "AI_COUNCIL_INVALID_PROVIDERS",
     );
   }
-});
-
-test("council requires Claude even when advisors are configured", async () => {
-  await assert.rejects(
-    () => runAiCouncil({ ...options, claudeApiKey: "" }),
-    (error) => error.code === "CLAUDE_NOT_CONFIGURED",
-  );
 });

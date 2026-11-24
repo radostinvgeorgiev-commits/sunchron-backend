@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
+import { configureGitHubAppFixture, githubAppFetchFixture } from "./githubAppFixture.js";
+
+configureGitHubAppFixture();
 
 import { createFirestoreMcpOAuthStore } from "../src/services/firestoreMcpOAuthStore.js";
 import { createFirestoreOAuthSessionStore } from "../src/services/firestoreOAuthSessionStore.js";
@@ -282,10 +285,7 @@ test("GitHub and Google sessions persist encrypted through Firestore", async () 
       setFirestoreGoogleSessionStoreForTests(googleStore);
       const githubSession = await createGitHubSession(
         { access_token: "private-github-token" },
-        async () =>
-          new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
-            status: 200,
-          }),
+        githubAppFetchFixture({ token: "private-github-token" }),
       );
       const googleSessionId = await createGoogleSession({
         access_token: "private-google-token",

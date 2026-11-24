@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import request from "supertest";
+import { configureGitHubAppFixture, githubAppFetchFixture } from "./githubAppFixture.js";
 
+configureGitHubAppFixture();
 const repository = "radostinvgeorgiev-commits/sunchron-backend";
 const sha = "a".repeat(40);
 const newCommit = "c".repeat(40);
@@ -53,7 +55,7 @@ async function setup(
     const login = repository.split("/")[0];
     const session = await createGitHubSession(
       { access_token: "fake-owner-token" },
-      async () => Response.json({ login }),
+      githubAppFetchFixture({ login, token: "fake-owner-token" }),
     );
     return `synchron_github_session=${session.id}`;
   }
@@ -179,11 +181,11 @@ async function setup(
   };
 }
 
-const prepare = (cookie, advisorProviders = []) =>
+const prepare = (cookie) =>
   request(app)
     .post("/api/code-workspace/prepare")
     .set("Cookie", cookie)
-    .send({ repository, message: "Update src/example.js.", advisorProviders });
+    .send({ repository, message: "Update src/example.js." });
 
 const confirm = (cookie, confirmationId) =>
   request(app)
@@ -208,10 +210,9 @@ test("an owner can review a pinned diff, approve the exact change once and see C
   assert.equal(draft.baseSha, sha);
   assert.deepEqual(
     draft.council.map(({ provider }) => provider),
-    ["claude"],
+    ["openai", "gemini", "grok", "claude", "codex"],
   );
-  assert.deepEqual(draft.unavailableProviders, []);
-  assert.equal(draft.executor.provider, "claude");
+  assert.equal(draft.executor.provider, "codex");
   assert.equal(draft.review[0].check.status, "passed");
   assert.match(
     draft.review[0].diff,
@@ -263,10 +264,10 @@ test("confirming a review whose base moved does not create a commit", async (t) 
   assert.deepEqual(writes, []);
 });
 
-test("Code only contacts optional advisors when explicitly selected", async (t) => {
-  const unavailable = ["openai", "gemini", "grok"];
+test("Code uses a single responsive engine when the other four fail", async (t) => {
+  const unavailable = ["openai", "gemini", "grok", "codex"];
   const { cookie, calls, writes } = await setup(t, changed, { unavailable });
-  const { body: draft } = await prepare(cookie, unavailable).expect(200);
+  const { body: draft } = await prepare(cookie).expect(200);
   assert.deepEqual(
     draft.council.map(({ provider }) => provider),
     ["claude"],
@@ -281,29 +282,32 @@ test("Code only contacts optional advisors when explicitly selected", async (t) 
   assert.deepEqual(writes, []);
 });
 
-test("Code does not fall back when Claude fails to produce a plan", async (t) => {
+test("Code tries another responsive engine if Codex fails to produce a plan", async (t) => {
   const { cookie, calls } = await setup(t, changed, {
     unavailable: ["openai", "grok"],
-    badPlanners: ["claude"],
+    badPlanners: ["codex"],
   });
-  await prepare(cookie).expect(502);
+  const { body: draft } = await prepare(cookie).expect(200);
+  assert.equal(draft.executor.provider, "gemini");
   assert.deepEqual(
     calls.filter(({ planning }) => planning).map(({ provider }) => provider),
-    ["claude"],
+    ["codex", "gemini"],
   );
+  assert.ok(draft.confirmationId);
 });
 
-test("Code does not fall back to selected advisors when Claude is unavailable", async (t) => {
-  const unavailable = ["claude"];
-  const advisors = ["openai", "gemini", "grok"];
-  const { cookie, confirmations, writes, calls } = await setup(t, changed, {
-    unavailable,
+test("Code keeps available advice when no engine can prepare a valid diff", async (t) => {
+  const { cookie, confirmations, writes } = await setup(t, changed, {
+    unavailable: ["openai", "grok", "claude", "codex"],
+    badPlanners: ["gemini"],
   });
-  await prepare(cookie, advisors).expect(502);
+  const { body: draft } = await prepare(cookie).expect(200);
+  assert.deepEqual(
+    draft.advice.map(({ provider }) => provider),
+    ["gemini"],
+  );
+  assert.equal(draft.confirmationId, undefined);
+  assert.deepEqual(draft.review, []);
   assert.equal(confirmations.size, 0);
   assert.deepEqual(writes, []);
-  assert.deepEqual(
-    calls.filter(({ planning }) => planning).map(({ provider }) => provider),
-    ["claude"],
-  );
 });

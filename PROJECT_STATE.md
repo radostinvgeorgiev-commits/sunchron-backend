@@ -29,27 +29,9 @@ MCP URL: https://cloudaicore.com/mcp. OAuth е authorization code с PKCE S256.
 сайта и Cloud Run не са реализирани. Cloud Logging диагностиката показва
 наличие на скорошна грешка, а не съдържанието на произволни логове.
 
-В кода Claude е основният двигател за разговор, Council решение и кодов план.
-OpenAI, Gemini и Grok остават незадължителни съветници; Codex е изключен,
-а старите workspace идентичности и настройки се запазват. Няма автоматичен
-fallback при липсващ или недостъпен Claude. Конфигурационни имена:
-`AI_CORE_PROVIDER`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`,
-`ANTHROPIC_TIMEOUT_MS`. Свързването на Claude.ai към MCP OAuth е отделно от
-Anthropic API за двигателя. Действителната production конфигурация и
-достъпността на Anthropic API не са проверени. Claude може да подготвя
-ограничен GitHub кодов план; записът изисква отделно потвърждение и създава
-branch/commit/PR. Кодови задачи използват Claude самостоятелно по подразбиране;
-други модели се викат само ако изрично са избрани. Чатът не стартира произволни
-shell команди, не изпълнява локално пълните тестове и не merge/deploy-ва.
-За Cloud Run Anthropic secret достъпът трябва да е даден на staging runtime
-service account само върху конкретния staging secret, не на Claude.ai клиента
-и не с project-wide Owner/Secret Manager права.
-
 ## Decisions
 - 2026-11-23: Owner поиска разговор с AI CORE и подготовка на код; разговорът
   не изпълнява инструменти и не потвърждава действия.
-- 2026-11-24: Интеграциите се приемат поетапно: първо GitHub code workflow,
-  после staging Claude API и едва след това останалите връзки.
 - 2026-11-23: Owner разреши подготовка на deployment с отделно свое
   потвърждение, но предпочете ограничен достъп без права към secrets пред
   пълен Cloud Run достъп. Deployment не е разрешен през Claude: произволен
@@ -58,17 +40,11 @@ service account само върху конкретния staging secret, не н
   потвърждение; текущата реализация все още изисква потвърждение и за тях.
 - 2026-11-23: Няма browser Firebase SDK; ключът на сървъра не трябва да се
   настройва като browser-only HTTP-referrer ключ.
-- 2026-11-23: Owner избра Claude за основен двигател без автоматичен fallback;
-  другите доставчици остават съветници, а Codex е деактивиран с legacy съвместимост.
-- 2026-11-24: Кодовите задачи не викат платени съветници по подразбиране;
-  избягва се допълнителен доставчик/API разход, освен при изричен избор.
-- 2026-11-24: Staging се проверява преди production. Не се стартира deployment,
-  докато няма потвърден staging проект/услуга и оторизиран deployment път.
+- 2026-11-24: Запазват се съществуващите AI двигатели и Codex. Claude е
+  външен MCP клиент, не основен двигател. GitHub достъпът се ограничава чрез
+  GitHub App до едно хранилище; настройката и реалната връзка не са проверени.
 
 ## Next step
-Owner да свърже GitHub OAuth в сайта и да провери read-only repository access,
-след това подготви една bounded code task и прегледа confirmation/PR пътя.
-После потвърди staging конфигурацията и оторизиран Cloud Shell/deployment път,
-secret-level `roles/secretmanager.secretAccessor` за Anthropic staging secret
-и изпълни еднократен Claude acceptance тест. Production deployment изисква
-отделно owner решение и проверен Cloud Build trigger.
+Преглед на PR и CI, проверка на Google Cloud настройките и истински тест с
+отделен профил след одобрено сливане и deployment от собственика. GitHub App
+трябва да се конфигурира преди GitHub връзката да работи отново.

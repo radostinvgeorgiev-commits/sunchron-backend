@@ -21,31 +21,29 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     secret(
       "OPENAI_API_KEY",
       "AI ядро",
-      "Незадължителен съветник, търсене и анализ.",
+      "Разговор, планиране, търсене и анализ.",
+      { requiredNow: true },
     ),
-    secret("ANTHROPIC_API_KEY", "AI ядро", "Основен Claude двигател.", { requiredNow: true }),
-    general("ANTHROPIC_MODEL", "AI ядро", "Модел за Claude.", { hasDefault: true }),
-    general("ANTHROPIC_TIMEOUT_MS", "AI ядро", "Максимално време за Claude.", { hasDefault: true }),
     general(
       "AI_CORE_PROVIDER",
       "AI ядро",
-      "Основният разговорен доставчик е Claude.",
+      "Разговорен доставчик: openai, gemini, grok или vertex-gemini. По подразбиране е openai.",
       { hasDefault: true },
     ),
-    general("OPENAI_CHAT_MODEL", "AI ядро", "Модел за OpenAI съветник.", {
+    general("OPENAI_CHAT_MODEL", "AI ядро", "Модел за основния разговор.", {
       hasDefault: true,
     }),
     general(
       "AI_CORE_COUNCIL_MODEL",
       "AI ядро",
-      "Моделът на OpenAI съветника в Council.",
+      "Моделът, който сравнява отговорите на OpenAI, Gemini и Grok.",
       { hasDefault: true },
     ),
     general(
       "OPENAI_PLANNER_MODEL",
       "AI ядро",
-      "Наследена настройка за планировчика.",
-      { hasDefault: true, state: "compatibility" },
+      "Модел за планиране на инструментите.",
+      { hasDefault: true },
     ),
     general(
       "OPENAI_DOCUMENT_MODEL",
@@ -71,8 +69,8 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general(
       "OPENAI_PLANNER_TIMEOUT_MS",
       "AI ядро",
-      "Наследен лимит за планировчика.",
-      { hasDefault: true, state: "compatibility" },
+      "Максимално време за плана на агента.",
+      { hasDefault: true },
     ),
     general(
       "OPENAI_RESPONSES_URL",
@@ -343,6 +341,9 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     secret("GITHUB_CLIENT_SECRET", "GitHub", "OAuth тайна за GitHub.", {
       requiredNow: true,
     }),
+    general("GITHUB_APP_ID", "GitHub", "Идентификатор на GitHub App.", { requiredNow: true }),
+    general("GITHUB_APP_INSTALLATION_ID", "GitHub", "Идентификатор на GitHub App инсталацията.", { requiredNow: true }),
+    secret("GITHUB_APP_PRIVATE_KEY", "GitHub", "Частен ключ на GitHub App.", { requiredNow: true }),
     general(
       "GITHUB_REDIRECT_URI",
       "GitHub",
@@ -376,13 +377,6 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general("GITHUB_API_URL", "GitHub", "Незадължителен GitHub API адрес.", {
       hasDefault: true,
     }),
-    secret(
-      "GITHUB_TOKEN",
-      "GitHub",
-      "Стар резервен token за директни GitHub заявки; сегашният поток използва OAuth.",
-      { state: "compatibility" },
-    ),
-
     secret(
       "GOOGLE_CLIENT_ID",
       "Google",

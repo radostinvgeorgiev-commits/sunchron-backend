@@ -10,25 +10,18 @@
 - Google Cloud Run production runtime;
 - Firestore за памет, задачи, workspace, OAuth сесии, потвърждения и audit;
 - Google Identity Platform за вход и тестови профили;
-- Claude чрез Anthropic API като основен разговорен и coding двигател;
-- OpenAI, Gemini и Grok като незадължителни съветници при конфигурирани ключове;
-- Кодови задачи използват Claude самостоятелно по подразбиране; допълнителните
-  модели се извикват само при изрично избиране на съветници.
-- Codex е изключен като изпълнител; запазват се старите профили и настройки;
+- OpenAI Responses API за основния разговор и coding ролята;
+- Gemini, Grok и Claude като допълнителни AI двигатели при конфигурирани ключове;
+- Codex като водещ code/ops изпълнител в owner-controlled branch/PR поток;
 - GitHub OAuth за read и защитени branch/commit/PR операции;
 - Google OAuth за Drive, Gmail и Calendar;
 - OAuth-защитен MCP адрес: `https://cloudaicore.com/mcp`.
 
 Task Orchestrator разделя заявката на стъпки, избира capability и изпълнява
-реалния адаптер. При кодова задача наличните съветници предлагат решения.
-Claude подготвя ограничен набор от цели файлове, а записът
+реалния адаптер. При кодова задача трите AI двигателя първо предлагат решения.
+OpenAI coding моделът синтезира ограничен набор от цели файлове, а записът
 започва само след точно еднократно потвърждение. `main` никога не се променя
 директно от задачата.
-
-Когато Claude не е достъпен, няма автоматично превключване към друг двигател.
-Настройките `AI_CORE_PROVIDER`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` и
-`ANTHROPIC_TIMEOUT_MS` се управляват от собственика; свързването на Claude.ai
-към MCP OAuth е отделно от Anthropic API за основния двигател.
 
 В production default backend-ите са Firestore и Identity Platform; legacy
 OpenSearch/Supabase се използват само при изрична конфигурация.
@@ -57,7 +50,6 @@ Firestore + Identity Platform проверки, актуален MCP катал�
 Виж:
 
 - `docs/OPERATIONS_RUNBOOK.md`
-- `docs/STAGING_AND_RELEASE_GATES.md`
 - `docs/CURRENT_PRODUCT_ACCEPTANCE.md`
 - `docs/DEPLOYMENT_READINESS_CHECKLIST.md`
 - `docs/OWNER_ACCEPTANCE_RUNBOOK.md`

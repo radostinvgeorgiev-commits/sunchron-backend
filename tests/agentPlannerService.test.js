@@ -11,7 +11,7 @@ import {
 
 test("planner keeps temporary calendar text inside a memory request out of tools", async () => {
   const requests = await planCapabilities({
-    claudeApiKey: "claude-key",
+    openAiApiKey: "openai-key",
     message: [
       "Запомни като постоянна памет следните факти.",
       "Временна информация: утре трябва да проверя календара — не записвай това като постоянен факт.",
@@ -19,10 +19,16 @@ test("planner keeps temporary calendar text inside a memory request out of tools
     ].join(" "),
     fetchImpl: async (_url, options) => {
       const request = JSON.parse(options.body);
-      assert.match(request.messages[0].content, /Само споменаване/u);
+      assert.equal(request.store, false);
+      assert.match(request.input[0].content, /Само споменаване/u);
       return new Response(
         JSON.stringify({
-          content: [{ type: "text", text: '{"calls":[]}' }],
+          output: [
+            {
+              type: "message",
+              content: [{ type: "output_text", text: '{"calls":[]}' }],
+            },
+          ],
         }),
         {
           status: 200,
@@ -39,14 +45,17 @@ test("planner creates a single GitHub read and write plan for one implementation
   const message =
     "Провери main и промени цвета на бутона Памет в GitHub хранилището.";
   const requests = await planCapabilities({
-    claudeApiKey: "claude-key",
+    openAiApiKey: "openai-key",
     message,
     fetchImpl: async () =>
       new Response(
         JSON.stringify({
-          content: [
+          output: [
             {
-              type: "text",
+              type: "message",
+              content: [
+                {
+                  type: "output_text",
                   text: [
                     "```json",
                     '{"calls":[',
@@ -56,6 +65,8 @@ test("planner creates a single GitHub read and write plan for one implementation
                     "]}",
                     "```",
                   ].join("\n"),
+                },
+              ],
             },
           ],
         }),
@@ -81,20 +92,25 @@ test("planner creates a single GitHub read and write plan for one implementation
   );
 });
 
-test("planner uses Claude as the primary provider", async () => {
+test("planner uses OpenAI Responses as the primary provider", async () => {
   const requests = await planCapabilities({
-    claudeApiKey: "claude-key",
+    openAiApiKey: "openai-key",
     message: "Провери Supabase.",
     fetchImpl: async (url, options) => {
-      assert.equal(url, "https://api.anthropic.com/v1/messages");
+      assert.equal(url, "https://api.openai.com/v1/responses");
       const body = JSON.parse(options.body);
-      assert.match(body.model, /^claude-/u);
+      assert.equal(body.model, "gpt-4.1-mini");
       return new Response(
         JSON.stringify({
-          content: [
+          output: [
             {
-              type: "text",
+              type: "message",
+              content: [
+                {
+                  type: "output_text",
                   text: '{"calls":[{"capability":"database.status","request":"Провери статуса на Supabase."}]}',
+                },
+              ],
             },
           ],
         }),
@@ -106,11 +122,11 @@ test("planner uses Claude as the primary provider", async () => {
   assert.equal(requests[0].capability, "database.status");
 });
 
-test("planner does not use another provider when Claude is unavailable", async () => {
+test("planner does not call the removed DigitalOcean agent when OpenAI is unavailable", async () => {
   const calledUrls = [];
   await assert.rejects(
     planCapabilities({
-      claudeApiKey: "claude-key",
+      openAiApiKey: "openai-key",
       message: "Провери Supabase.",
       fetchImpl: async (url) => {
         calledUrls.push(String(url));
@@ -121,7 +137,7 @@ test("planner does not use another provider when Claude is unavailable", async (
   );
 
   assert.equal(calledUrls.length, 1);
-  assert.match(calledUrls[0], /api\.anthropic\.com\/v1\/messages/u);
+  assert.match(calledUrls[0], /api\.openai\.com\/v1\/responses/u);
 });
 
 test("sanitizer rejects unknown capabilities and keeps valid scopes", () => {

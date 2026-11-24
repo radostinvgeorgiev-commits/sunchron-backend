@@ -3,7 +3,6 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const REQUIRED_SECRET_ENV = Object.freeze([
-  "ANTHROPIC_API_KEY",
   "OPENAI_API_KEY",
   "GEMINI_API_KEY",
   "GROK_API_KEY",
@@ -16,7 +15,6 @@ const REQUIRED_SECRET_ENV = Object.freeze([
   "MCP_OAUTH_SECRET",
 ]);
 const SECRET_ALIASES = Object.freeze({
-  ANTHROPIC_API_KEY: "anthropic-api-key",
   OPENAI_API_KEY: "openai-api-key",
   GEMINI_API_KEY: "gemini-api-key",
   GROK_API_KEY: "grok-api-key",

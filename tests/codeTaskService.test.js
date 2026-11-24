@@ -34,7 +34,7 @@ function advisor(provider) {
   });
 }
 
-test("Claude prepares the plan with optional advisors before confirmation", async () => {
+test("three engines are consulted before a bounded code confirmation is created", async () => {
   let storedConfirmation;
   const prepared = await prepareCodeTask({
     ownerId: "owner-1",
@@ -44,8 +44,6 @@ test("Claude prepares the plan with optional advisors before confirmation", asyn
     apiKey: "openai-key",
     geminiApiKey: "gemini-key",
     grokApiKey: "grok-key",
-    claudeApiKey: "claude-key",
-    advisorProviders: ["openai", "gemini", "grok"],
     createWorkspace: async () => ({
       root: "C:/nonexistent-ai-core-code-task-test",
       workspace: "C:/nonexistent-ai-core-code-task-test/source",
@@ -55,9 +53,8 @@ test("Claude prepares the plan with optional advisors before confirmation", asyn
       openai: advisor("openai"),
       gemini: advisor("gemini"),
       grok: advisor("grok"),
-      claude: advisor("claude"),
     },
-    plannerRequester: async ({ input }) => {
+    responseRequester: async ({ input }) => {
       assert.match(input[0].content, /openai \/ openai-test-model/u);
       assert.match(input[0].content, /gemini \/ gemini-test-model/u);
       assert.match(input[0].content, /grok \/ grok-test-model/u);
@@ -77,68 +74,18 @@ test("Claude prepares the plan with optional advisors before confirmation", asyn
 
   assert.deepEqual(
     prepared.council.map(({ provider }) => provider),
-    ["claude", "openai", "gemini", "grok"],
+    ["openai", "gemini", "grok"],
   );
   assert.equal(prepared.files[0].path, "public/avatar-proof.js");
   assert.equal(storedConfirmation.action, "github.write:code_task");
   assert.match(prepared.output, /Още не е записано нищо/u);
-  assert.match(prepared.output, /Водещ кодов изпълнител: Claude/u);
+  assert.match(prepared.output, /Водещ кодов изпълнител: Codex/u);
   assert.equal(
     extractCodeTaskConfirmationId(
       `Потвърждавам AI CORE кодова задача: ${prepared.confirmationId}`,
     ),
     prepared.confirmationId,
   );
-});
-
-test("code tasks use Claude alone unless optional advisors are selected", async () => {
-  let advisorCalls = 0;
-  let plannerCalls = 0;
-  const prepared = await prepareCodeTask({
-    ownerId: "owner-1",
-    sessionId: "session-1",
-    githubSessionId: "github-session",
-    message: "Добави проверим UI модул.",
-    apiKey: "openai-key",
-    geminiApiKey: "gemini-key",
-    grokApiKey: "grok-key",
-    claudeApiKey: "claude-key",
-    createWorkspace: async () => ({
-      root: "C:/nonexistent-ai-core-code-task-test",
-      workspace: "C:/nonexistent-ai-core-code-task-test/source",
-    }),
-    createSnapshot: async () => ({ text: "source" }),
-    advisorRequesters: {
-      openai: async () => {
-        advisorCalls += 1;
-        return advisor("openai")();
-      },
-      gemini: async () => {
-        advisorCalls += 1;
-        return advisor("gemini")();
-      },
-      grok: async () => {
-        advisorCalls += 1;
-        return advisor("grok")();
-      },
-    },
-    plannerRequester: async ({ apiKey }) => {
-      plannerCalls += 1;
-      assert.equal(apiKey, "claude-key");
-      return { ...plan, text: JSON.stringify(plan), model: "claude-test-model" };
-    },
-    resolveGitHubSession: async () => githubSession,
-    createConfirmation: async () => ({
-      id: "44444444-4444-4444-8444-444444444444",
-      expiresAt: Date.now() + 60_000,
-    }),
-  });
-
-  assert.equal(advisorCalls, 0);
-  assert.equal(plannerCalls, 1);
-  assert.deepEqual(prepared.council, [
-    { provider: "claude", model: "claude-test-model" },
-  ]);
 });
 
 test("confirmation creates exactly one branch commit and pull request operation", async () => {
@@ -151,7 +98,6 @@ test("confirmation creates exactly one branch commit and pull request operation"
     apiKey: "openai-key",
     geminiApiKey: "gemini-key",
     grokApiKey: "grok-key",
-    claudeApiKey: "claude-key",
     createWorkspace: async () => ({
       root: "C:/nonexistent-ai-core-code-task-test",
       workspace: "C:/nonexistent-ai-core-code-task-test/source",
@@ -161,9 +107,8 @@ test("confirmation creates exactly one branch commit and pull request operation"
       openai: advisor("openai"),
       gemini: advisor("gemini"),
       grok: advisor("grok"),
-      claude: advisor("claude"),
     },
-    plannerRequester: async () => ({ text: JSON.stringify(plan) }),
+    responseRequester: async () => ({ text: JSON.stringify(plan) }),
     resolveGitHubSession: async () => githubSession,
     createConfirmation: async (confirmation) => {
       storedConfirmation = {
@@ -225,7 +170,7 @@ test("code task stops when no engine is configured", async () => {
         claudeApiKey: "",
         resolveGitHubSession: async () => githubSession,
       }),
-    (error) => error.code === "CLAUDE_NOT_CONFIGURED",
+    (error) => error.code === "CODE_TASK_COUNCIL_NOT_CONFIGURED",
   );
 });
 
@@ -239,7 +184,6 @@ test("normalizes safe repository-relative paths returned by the coding model", a
     apiKey: "openai-key",
     geminiApiKey: "gemini-key",
     grokApiKey: "grok-key",
-    claudeApiKey: "claude-key",
     createWorkspace: async () => ({
       root: "C:/nonexistent-ai-core-code-task-test",
       workspace: "C:/nonexistent-ai-core-code-task-test/source",
@@ -249,9 +193,8 @@ test("normalizes safe repository-relative paths returned by the coding model", a
       openai: advisor("openai"),
       gemini: advisor("gemini"),
       grok: advisor("grok"),
-      claude: advisor("claude"),
     },
-    plannerRequester: async () => ({
+    responseRequester: async () => ({
       text: JSON.stringify({
         ...plan,
         changes: [{ ...plan.changes[0], path: ".\\public\\avatar-proof.js" }],
@@ -296,16 +239,14 @@ test("blocks a coding plan that collapses a large existing file", async () => {
         apiKey: "openai-key",
         geminiApiKey: "gemini-key",
         grokApiKey: "grok-key",
-        claudeApiKey: "claude-key",
         createWorkspace: async () => ({ root, workspace }),
         createSnapshot: async () => ({ text: "public/work-mode.css" }),
         advisorRequesters: {
           openai: advisor("openai"),
           gemini: advisor("gemini"),
           grok: advisor("grok"),
-          claude: advisor("claude"),
         },
-        plannerRequester: async () => ({
+        responseRequester: async () => ({
           text: JSON.stringify({
             ...plan,
             changes: [

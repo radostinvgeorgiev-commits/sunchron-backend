@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import request from "supertest";
+import { configureGitHubAppFixture, githubAppFetchFixture } from "./githubAppFixture.js";
 
+configureGitHubAppFixture();
 process.env.NODE_ENV = "test";
 process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 delete process.env.OPENSEARCH_HOST;
@@ -57,10 +59,7 @@ test("blocks personal data and paid AI routes without owner sign-in", async () =
 test("allows the verified repository owner through the private boundary", async () => {
   const session = await createGitHubSession(
     { access_token: "test-owner-token" },
-    async () =>
-      new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
-        status: 200,
-      }),
+    githubAppFetchFixture(),
   );
 
   const response = await request(app)
@@ -78,10 +77,7 @@ test("GitHub API reads use the verified owner OAuth session", async () => {
   process.env.GITHUB_TOKEN = "configured-read-token";
   const session = await createGitHubSession(
     { access_token: "oauth-router-token" },
-    async () =>
-      new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
-        status: 200,
-      }),
+    githubAppFetchFixture({ token: "oauth-router-token" }),
   );
   global.fetch = async (_url, options) => {
     assert.equal(options.headers.Authorization, "Bearer oauth-router-token");

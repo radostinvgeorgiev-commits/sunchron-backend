@@ -11,7 +11,6 @@ import { createFirestoreOAuthSessionStore } from "./firestoreOAuthSessionStore.j
 const GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const GITHUB_USER_URL = "https://api.github.com/user";
-const GITHUB_OAUTH_SCOPE = "public_repo";
 export const DEFAULT_GITHUB_REDIRECT_URI =
   "https://cloudaicore.com/api/github/callback";
 const DEFAULT_GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
@@ -58,7 +57,7 @@ function configuration() {
   const clientId = process.env.GITHUB_CLIENT_ID;
   const clientSecret = process.env.GITHUB_CLIENT_SECRET;
   const redirectUri = resolveGitHubRedirectUri();
-  if (!clientId || !clientSecret) {
+  if (!isGitHubOAuthConfigured()) {
     throw new GitHubOAuthError(
       "GitHub връзката не е конфигурирана.",
       503,
@@ -68,9 +67,13 @@ function configuration() {
   return { clientId, clientSecret, redirectUri };
 }
 
-export function isGitHubOAuthConfigured() {
+export function isGitHubOAuthConfigured(env = process.env) {
   return Boolean(
-    process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET,
+    env.GITHUB_CLIENT_ID &&
+      env.GITHUB_CLIENT_SECRET &&
+      env.GITHUB_APP_ID &&
+      env.GITHUB_APP_INSTALLATION_ID &&
+      env.GITHUB_APP_PRIVATE_KEY,
   );
 }
 
@@ -147,7 +150,6 @@ export function buildGitHubAuthorizationUrl(state) {
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
-    scope: GITHUB_OAUTH_SCOPE,
     state,
   });
   return `${GITHUB_AUTHORIZE_URL}?${params}`;
@@ -264,12 +266,82 @@ function isExpired(expiresAt) {
 }
 
 export function isActiveAuthorizedGitHubSession(session, env = process.env) {
+  const repository = env.GITHUB_REPOSITORY || DEFAULT_GITHUB_REPOSITORY;
   return Boolean(
     typeof session?.accessToken === "string" &&
     session.accessToken.trim() &&
+    session.credentialType === "github-app-installation" &&
+    session.repository?.toLowerCase() === repository.trim().toLowerCase() &&
+    typeof session.expiresAt === "number" &&
     !isExpired(session.expiresAt) &&
     isAuthorizedGitHubLogin(session.login, env),
   );
+}
+
+async function createRepositoryInstallationToken(fetchImpl, env = process.env) {
+  const appId = String(env.GITHUB_APP_ID || "").trim();
+  const installationId = String(env.GITHUB_APP_INSTALLATION_ID || "").trim();
+  const privateKey = env.GITHUB_APP_PRIVATE_KEY;
+  const repository = String(env.GITHUB_REPOSITORY || DEFAULT_GITHUB_REPOSITORY).trim();
+  const parts = repository.split("/");
+  if (
+    !/^[1-9]\d*$/u.test(appId) ||
+    !/^[1-9]\d*$/u.test(installationId) ||
+    typeof privateKey !== "string" ||
+    !privateKey.trim() ||
+    parts.length !== 2 ||
+    !parts.every((part) => /^[A-Za-z0-9_.-]+$/u.test(part))
+  ) {
+    throw new GitHubOAuthError(
+      "GitHub App не е конфигурирано за едно хранилище.",
+      503,
+      "GITHUB_APP_NOT_CONFIGURED",
+    );
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ iat: now - 60, exp: now + 540, iss: appId })).toString("base64url");
+  let jwt;
+  try {
+    const unsigned = `${header}.${payload}`;
+    jwt = `${unsigned}.${crypto.sign("RSA-SHA256", Buffer.from(unsigned), privateKey).toString("base64url")}`;
+  } catch {
+    throw new GitHubOAuthError("Невалиден GitHub App ключ.", 503, "GITHUB_APP_KEY_INVALID");
+  }
+  const response = await fetchImpl(
+    `https://api.github.com/app/installations/${installationId}/access_tokens`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${jwt}`,
+        "User-Agent": "AI CORE",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        repositories: [parts[1]],
+        permissions: { contents: "write", pull_requests: "write", issues: "write", actions: "read", checks: "read" },
+      }),
+    },
+  );
+  if (!response.ok) {
+    throw new GitHubOAuthError("GitHub App достъпът не може да бъде издаден.", 502, "GITHUB_APP_TOKEN_FAILED");
+  }
+  const data = await response.json();
+  const expiresAt = Date.parse(data?.expires_at);
+  if (
+    typeof data?.token !== "string" ||
+    !data.token.trim() ||
+    !Number.isFinite(expiresAt) ||
+    expiresAt <= Date.now() ||
+    !Array.isArray(data.repositories) ||
+    data.repositories.length !== 1 ||
+    data.repositories[0]?.full_name?.toLowerCase() !== repository.toLowerCase()
+  ) {
+    throw new GitHubOAuthError("GitHub App достъпът не е ограничен до избраното хранилище.", 403, "GITHUB_APP_REPOSITORY_MISMATCH");
+  }
+  return { accessToken: data.token, expiresAt, repository, credentialType: "github-app-installation" };
 }
 
 async function persistSession(id, session, env = process.env) {
@@ -326,17 +398,17 @@ async function loadSession(id, env = process.env) {
 }
 
 export async function createGitHubSession(tokens, fetchImpl = fetch) {
+  if (typeof tokens?.scope === "string" && tokens.scope.trim()) {
+    throw new GitHubOAuthError("Изисква се GitHub App без широк OAuth scope.", 403, "GITHUB_APP_SCOPE_INVALID");
+  }
   const login = await fetchGitHubLogin(tokens.access_token, fetchImpl);
+  if (!isAuthorizedGitHubLogin(login)) {
+    throw new GitHubOAuthError("Този GitHub профил няма достъп до личната система.", 403, "OWNER_GITHUB_LOGIN_REQUIRED");
+  }
+  const installation = await createRepositoryInstallationToken(fetchImpl);
   const id = createGitHubNonce();
   const session = {
-    accessToken: tokens.access_token,
-    refreshToken: tokens.refresh_token,
-    expiresAt: tokens.expires_in
-      ? Date.now() + Number(tokens.expires_in) * 1000
-      : null,
-    refreshTokenExpiresAt: tokens.refresh_token_expires_in
-      ? Date.now() + Number(tokens.refresh_token_expires_in) * 1000
-      : null,
+    ...installation,
     login,
     createdAt: Date.now(),
   };

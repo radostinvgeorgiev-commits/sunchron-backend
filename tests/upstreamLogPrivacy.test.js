@@ -95,6 +95,7 @@ test("GitHub write failure logs status without the upstream response body", asyn
         path: "test.txt",
         content: "test",
         message: "test",
+        accessToken: "test-token",
       }),
     );
   } finally {

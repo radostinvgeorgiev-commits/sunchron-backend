@@ -25,7 +25,7 @@ const VALID_ROLES = new Set([
   "builder",
   "coder",
 ]);
-const VALID_ENGINES = new Set(["ai-core"]);
+const VALID_ENGINES = new Set(["ai-core", "codex"]);
 const VALID_RUN_STATUSES = new Set([
   "complete",
   "ready_for_next_step",
@@ -85,9 +85,9 @@ const DEFAULT_AGENTS = Object.freeze([
     id: "codex-agent",
     name: "Код",
     role: "coder",
-    model: "auto",
-    purpose: "Подготвя кодови промени за потвърждение.",
-    engine: "ai-core",
+    model: "gpt-5.6-terra",
+    purpose: "Анализира кода в изолирана област без запис и без интернет.",
+    engine: "codex",
     petId: "spark",
   }),
 ]);
@@ -272,11 +272,26 @@ export function normalizeWorkspaceState(value, { now } = {}) {
 
   if (!projects.length) projects.push(...fallback.projects);
   if (!agents.length) agents.push(...fallback.agents);
+  if (!agents.some((agent) => agent.engine === "codex") && agents.length < 12) {
+    agents.push(fallback.agents.find((agent) => agent.engine === "codex"));
+  }
   if ((Number.parseInt(value.version, 10) || 0) < WORKSPACE_VERSION) {
     for (const defaultAgent of fallback.agents) {
       if (agents.length >= 12) break;
       if (!agents.some((agent) => agent.id === defaultAgent.id)) {
         agents.push({ ...defaultAgent });
+      }
+    }
+    for (const defaultAgent of fallback.agents) {
+      const existing = agents.find((agent) => agent.id === defaultAgent.id);
+      if (existing) {
+        Object.assign(existing, {
+          name: defaultAgent.name,
+          role: defaultAgent.role,
+          model: defaultAgent.model,
+          purpose: defaultAgent.purpose,
+          engine: defaultAgent.engine,
+        });
       }
     }
   }
@@ -292,12 +307,7 @@ export function normalizeWorkspaceState(value, { now } = {}) {
   const petId = VALID_PETS.has(value.petId) ? value.petId : "robot";
   if ((Number.parseInt(value.version, 10) || 0) < WORKSPACE_VERSION) {
     const activeAgent = agents.find((agent) => agent.id === activeAgentId);
-    const savedAgent = Array.isArray(value.agents)
-      ? value.agents.find((agent) => agent?.id === activeAgentId)
-      : null;
-    if (activeAgent && !VALID_PETS.has(savedAgent?.petId) && VALID_PETS.has(value.petId)) {
-      activeAgent.petId = petId;
-    }
+    if (activeAgent) activeAgent.petId = petId;
   }
 
   return {

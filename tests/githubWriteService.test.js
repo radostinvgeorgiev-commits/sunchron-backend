@@ -9,6 +9,20 @@ import {
 
 const repository = "radostinvgeorgiev-commits/sunchron-backend";
 
+test("does not use a legacy GITHUB_TOKEN for writes", async () => {
+  const original = process.env.GITHUB_TOKEN;
+  process.env.GITHUB_TOKEN = "legacy-token";
+  try {
+    await assert.rejects(
+      () => createPullRequest({ repository, head: "agent/test", title: "Test" }),
+      (error) => error.code === "GITHUB_TOKEN_MISSING",
+    );
+  } finally {
+    if (original === undefined) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = original;
+  }
+});
+
 test("draft pull request is sent as draft to GitHub", async () => {
   const originalFetch = global.fetch;
   try {

@@ -1077,6 +1077,104 @@ export async function saveConversationTurn(
   }
 }
 
+export const MAX_IMPORTED_CONVERSATION_MESSAGES = 50;
+export const MAX_IMPORTED_MESSAGE_LENGTH = 12000;
+const IMPORTED_CONVERSATION_SOURCES = Object.freeze(["claude", "chatgpt", "other"]);
+const IMPORTED_SESSION_PATTERN =
+  /^(claude|chatgpt|other)-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
+
+export function isImportedConversationSessionId(sessionId, source) {
+  const match = IMPORTED_SESSION_PATTERN.exec(String(sessionId || ""));
+  return Boolean(match) && (!source || match[1] === source);
+}
+
+function conversationImportError(message) {
+  return Object.assign(new Error(message), {
+    code: "CONVERSATION_IMPORT_INVALID",
+    status: 400,
+  });
+}
+
+// Saves a conversation held in another AI client (for example Claude) as an
+// AI CORE thread for the same owner. A new thread gets a "<source>-<uuid>"
+// id; an existing imported thread of the same source can be extended.
+export async function saveImportedConversation(
+  { source = "claude", sessionId, messages } = {},
+  ownerId = OWNER_ID,
+  { now = Date.now } = {},
+) {
+  if (!IMPORTED_CONVERSATION_SOURCES.includes(source)) {
+    throw conversationImportError("Непознат източник на разговора.");
+  }
+  if (sessionId !== undefined && !isImportedConversationSessionId(sessionId, source)) {
+    throw conversationImportError(
+      "Може да се продължи само разговор, запазен от същия източник.",
+    );
+  }
+  if (
+    !Array.isArray(messages) ||
+    messages.length < 1 ||
+    messages.length > MAX_IMPORTED_CONVERSATION_MESSAGES
+  ) {
+    throw conversationImportError(
+      `Изпрати от 1 до ${MAX_IMPORTED_CONVERSATION_MESSAGES} съобщения.`,
+    );
+  }
+  const cleaned = messages.map((message) => {
+    const role = message?.role;
+    const content =
+      typeof message?.content === "string" ? message.content.trim() : "";
+    if (
+      !["user", "assistant"].includes(role) ||
+      !content ||
+      content.length > MAX_IMPORTED_MESSAGE_LENGTH
+    ) {
+      throw conversationImportError(
+        `Всяко съобщение има роля user или assistant и текст до ${MAX_IMPORTED_MESSAGE_LENGTH} знака.`,
+      );
+    }
+    return { role, content };
+  });
+  const targetSessionId = sessionId || `${source}-${randomUUID()}`;
+  await ensureConversationIndex();
+  const timestamp = now();
+  const documents = cleaned.map((message, index) => ({
+    id: randomUUID(),
+    data: {
+      ownerId,
+      sessionId: targetSessionId,
+      role: message.role,
+      content: message.content,
+      source,
+      createdAt: new Date(timestamp + index).toISOString(),
+    },
+  }));
+  if (usesFirestoreMemory()) {
+    await getFirestoreStoreOrThrow().commitConversationDocuments(documents);
+  } else {
+    const response = await getClientOrThrow().bulk({
+      refresh: true,
+      body: documents.flatMap((document) => [
+        { index: { _index: CONVERSATION_INDEX, _id: document.id } },
+        document.data,
+      ]),
+    });
+    const result = response.body || response;
+    if (result?.errors) {
+      throw Object.assign(
+        new Error("Разговорът не можа да бъде записан изцяло в постоянната памет."),
+        { code: "CONVERSATION_PERSISTENCE_FAILED", status: 502 },
+      );
+    }
+  }
+  return {
+    sessionId: targetSessionId,
+    source,
+    saved: documents.length,
+    appended: Boolean(sessionId),
+  };
+}
+
 export function buildMemoryContext(memories, { personName = "Радко" } = {}) {
   const personal = memories.filter(
     (memory) => (memory.scope || "personal") === "personal",

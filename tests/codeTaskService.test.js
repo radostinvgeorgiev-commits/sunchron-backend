@@ -45,6 +45,7 @@ test("Claude prepares the plan with optional advisors before confirmation", asyn
     geminiApiKey: "gemini-key",
     grokApiKey: "grok-key",
     claudeApiKey: "claude-key",
+    advisorProviders: ["openai", "gemini", "grok"],
     createWorkspace: async () => ({
       root: "C:/nonexistent-ai-core-code-task-test",
       workspace: "C:/nonexistent-ai-core-code-task-test/source",
@@ -76,7 +77,7 @@ test("Claude prepares the plan with optional advisors before confirmation", asyn
 
   assert.deepEqual(
     prepared.council.map(({ provider }) => provider),
-    ["openai", "gemini", "grok", "claude"],
+    ["claude", "openai", "gemini", "grok"],
   );
   assert.equal(prepared.files[0].path, "public/avatar-proof.js");
   assert.equal(storedConfirmation.action, "github.write:code_task");
@@ -88,6 +89,56 @@ test("Claude prepares the plan with optional advisors before confirmation", asyn
     ),
     prepared.confirmationId,
   );
+});
+
+test("code tasks use Claude alone unless optional advisors are selected", async () => {
+  let advisorCalls = 0;
+  let plannerCalls = 0;
+  const prepared = await prepareCodeTask({
+    ownerId: "owner-1",
+    sessionId: "session-1",
+    githubSessionId: "github-session",
+    message: "Добави проверим UI модул.",
+    apiKey: "openai-key",
+    geminiApiKey: "gemini-key",
+    grokApiKey: "grok-key",
+    claudeApiKey: "claude-key",
+    createWorkspace: async () => ({
+      root: "C:/nonexistent-ai-core-code-task-test",
+      workspace: "C:/nonexistent-ai-core-code-task-test/source",
+    }),
+    createSnapshot: async () => ({ text: "source" }),
+    advisorRequesters: {
+      openai: async () => {
+        advisorCalls += 1;
+        return advisor("openai")();
+      },
+      gemini: async () => {
+        advisorCalls += 1;
+        return advisor("gemini")();
+      },
+      grok: async () => {
+        advisorCalls += 1;
+        return advisor("grok")();
+      },
+    },
+    plannerRequester: async ({ apiKey }) => {
+      plannerCalls += 1;
+      assert.equal(apiKey, "claude-key");
+      return { ...plan, text: JSON.stringify(plan), model: "claude-test-model" };
+    },
+    resolveGitHubSession: async () => githubSession,
+    createConfirmation: async () => ({
+      id: "44444444-4444-4444-8444-444444444444",
+      expiresAt: Date.now() + 60_000,
+    }),
+  });
+
+  assert.equal(advisorCalls, 0);
+  assert.equal(plannerCalls, 1);
+  assert.deepEqual(prepared.council, [
+    { provider: "claude", model: "claude-test-model" },
+  ]);
 });
 
 test("confirmation creates exactly one branch commit and pull request operation", async () => {

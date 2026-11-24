@@ -320,7 +320,7 @@ function repositoryTaskGuidance(message) {
 function codeTaskPrompt(message, snapshot, council) {
   return [
     "Ти си водещият изпълнител на кодови задачи в AI CORE.",
-    "Използвай наличните предложения и обясни избора чрез summary и reason полетата.",
+    "Използвай наличните предложения, ако има такива, и обясни избора чрез summary и reason полетата.",
     "Върни само JSON обект, който съответства на тази схема:",
     JSON.stringify(CODE_TASK_SCHEMA),
     "Подготви една минимална production промяна по заявката.",
@@ -354,6 +354,7 @@ export async function prepareCodeTask({
   geminiApiKey = process.env.GEMINI_API_KEY,
   grokApiKey = process.env.GROK_API_KEY,
   claudeApiKey = process.env.ANTHROPIC_API_KEY,
+  advisorProviders = [],
   sourceDirectory = process.cwd(),
   plannerRequester = requestClaudeResponse,
   advisorRequesters = DEFAULT_ADVISOR_REQUESTERS,
@@ -372,13 +373,26 @@ export async function prepareCodeTask({
     grok: grokApiKey,
     claude: claudeApiKey,
   };
-  const providers = Object.keys(CODE_PROVIDERS);
-  const configured = providers.filter(
+  const optionalProviders = Object.keys(CODE_PROVIDERS).filter(
+    (provider) => provider !== "claude",
+  );
+  if (
+    !Array.isArray(advisorProviders) ||
+    new Set(advisorProviders).size !== advisorProviders.length ||
+    advisorProviders.some((provider) => !optionalProviders.includes(provider))
+  ) {
+    throw new CodeTaskError(
+      "Невалиден избор на AI съветници.",
+      400,
+      "CODE_TASK_INVALID_ADVISORS",
+    );
+  }
+  const configured = advisorProviders.filter(
     (provider) =>
       keys[provider]?.trim() &&
       typeof advisorRequesters[provider] === "function",
   );
-  if (!keys.claude?.trim() || !configured.includes("claude")) {
+  if (!keys.claude?.trim()) {
     throw new CodeTaskError(
       "Claude не е конфигуриран за кодови задачи.",
       503,
@@ -429,39 +443,23 @@ export async function prepareCodeTask({
         };
       }),
     );
-    const councilResponses = advisorResults.flatMap((result) =>
+    const advisorResponses = advisorResults.flatMap((result) =>
       result.status === "fulfilled" ? [result.value] : [],
     );
-    if (!councilResponses.length) {
-      throw new CodeTaskError(
-        "Claude не отговори. Кодовата задача е спряна без друг изпълнител.",
-        503,
-        "CLAUDE_UNAVAILABLE",
-      );
-    }
-    const participants = councilResponses.map(
-      ({ provider, model: advisorModel }) => ({
-        provider,
-        model: advisorModel,
-      }),
+    const answered = new Set(
+      advisorResponses.map(({ provider }) => provider),
     );
-    const answered = new Set(participants.map(({ provider }) => provider));
-    if (!answered.has("claude")) {
-      throw new CodeTaskError(
-        "Claude не отговори. Кодовата задача е спряна без друг изпълнител.",
-        503,
-        "CLAUDE_UNAVAILABLE",
-      );
-    }
-    const unavailableProviders = providers.filter(
+    const unavailableProviders = advisorProviders.filter(
       (provider) => !answered.has(provider),
     );
-    const council = councilResponses
-      .map(
-        ({ provider, model: advisorModel, text }) =>
-          `[${provider} / ${advisorModel}]\n${text}`,
-      )
-      .join("\n\n");
+    const council = advisorResponses.length
+      ? advisorResponses
+          .map(
+            ({ provider, model: advisorModel, text }) =>
+              `[${provider} / ${advisorModel}]\n${text}`,
+          )
+          .join("\n\n")
+      : "Няма избрани външни съветници. Claude подготвя плана самостоятелно.";
     const repository = getConfiguredRepository();
     const planInput = [
       { role: "user", content: codeTaskPrompt(task, snapshot.text, council) },
@@ -481,7 +479,6 @@ export async function prepareCodeTask({
         provider: "claude",
         model:
           (typeof response.model === "string" && response.model.trim()) ||
-          participants.find((entry) => entry.provider === "claude")?.model ||
           CODE_PROVIDERS.claude.label,
       };
     } catch (error) {
@@ -492,6 +489,13 @@ export async function prepareCodeTask({
         "CODE_TASK_EXECUTOR_FAILED",
       );
     }
+    const participants = [
+      { provider: executor.provider, model: executor.model },
+      ...advisorResponses.map(({ provider, model: advisorModel }) => ({
+        provider,
+        model: advisorModel,
+      })),
+    ];
     let changes = plan.changes;
     let review;
     const originals = new Map();

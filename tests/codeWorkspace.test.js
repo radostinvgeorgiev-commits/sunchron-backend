@@ -179,11 +179,11 @@ async function setup(
   };
 }
 
-const prepare = (cookie) =>
+const prepare = (cookie, advisorProviders = []) =>
   request(app)
     .post("/api/code-workspace/prepare")
     .set("Cookie", cookie)
-    .send({ repository, message: "Update src/example.js." });
+    .send({ repository, message: "Update src/example.js.", advisorProviders });
 
 const confirm = (cookie, confirmationId) =>
   request(app)
@@ -208,8 +208,9 @@ test("an owner can review a pinned diff, approve the exact change once and see C
   assert.equal(draft.baseSha, sha);
   assert.deepEqual(
     draft.council.map(({ provider }) => provider),
-    ["openai", "gemini", "grok", "claude"],
+    ["claude"],
   );
+  assert.deepEqual(draft.unavailableProviders, []);
   assert.equal(draft.executor.provider, "claude");
   assert.equal(draft.review[0].check.status, "passed");
   assert.match(
@@ -262,10 +263,10 @@ test("confirming a review whose base moved does not create a commit", async (t) 
   assert.deepEqual(writes, []);
 });
 
-test("Code uses Claude when optional advisors fail", async (t) => {
+test("Code only contacts optional advisors when explicitly selected", async (t) => {
   const unavailable = ["openai", "gemini", "grok"];
   const { cookie, calls, writes } = await setup(t, changed, { unavailable });
-  const { body: draft } = await prepare(cookie).expect(200);
+  const { body: draft } = await prepare(cookie, unavailable).expect(200);
   assert.deepEqual(
     draft.council.map(({ provider }) => provider),
     ["claude"],
@@ -292,12 +293,17 @@ test("Code does not fall back when Claude fails to produce a plan", async (t) =>
   );
 });
 
-test("Code stops when Claude is unavailable despite available advisors", async (t) => {
-  const { cookie, confirmations, writes } = await setup(t, changed, {
-    unavailable: ["openai", "grok", "claude", "codex"],
-    badPlanners: ["gemini"],
+test("Code does not fall back to selected advisors when Claude is unavailable", async (t) => {
+  const unavailable = ["claude"];
+  const advisors = ["openai", "gemini", "grok"];
+  const { cookie, confirmations, writes, calls } = await setup(t, changed, {
+    unavailable,
   });
-  await prepare(cookie).expect(503);
+  await prepare(cookie, advisors).expect(502);
   assert.equal(confirmations.size, 0);
   assert.deepEqual(writes, []);
+  assert.deepEqual(
+    calls.filter(({ planning }) => planning).map(({ provider }) => provider),
+    ["claude"],
+  );
 });

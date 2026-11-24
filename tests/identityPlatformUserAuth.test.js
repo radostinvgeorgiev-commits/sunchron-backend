@@ -324,9 +324,12 @@ test("public registration can be completed after the email or access write fails
         code: "AUTH_EMAIL_VERIFICATION_RESENT",
       });
       verified = true;
-      await assert.rejects(signInUser(credentials, options), {
-        code: "AUTH_REGISTRATION_INCOMPLETE",
-      });
+      // A verified public account is not locked out by a missing access record.
+      assert.equal(
+        (await signInUser(credentials, options)).user.id,
+        user.localId,
+      );
+      assert.equal(store.records.size, 0);
     }
 
     const recovered = await registerUser(credentials, options);
@@ -352,4 +355,77 @@ test("public registration can be completed after the email or access write fails
     });
     assert.equal(store.records.get(accessId).status, "revoked");
   }
+});
+
+test("public mode lets a verified account in without a tester record, invite mode does not", async () => {
+  const verifiedUser = {
+    id: "public-verified-user",
+    email: "new@example.test",
+    emailVerified: true,
+    authProvider: "identity-platform",
+  };
+  const client = {
+    auth: {
+      async signInWithPassword() {
+        return { data: { user: verifiedUser, session: session() }, error: null };
+      },
+      async getUser() {
+        return { data: { user: verifiedUser }, error: null };
+      },
+    },
+  };
+  const credentials = { email: verifiedUser.email, password: "strong-pass-123" };
+
+  for (const mode of ["public", "invite"]) {
+    const env = { ...ENV, USER_REGISTRATION_MODE: mode };
+    setFirestoreTesterAccessStoreForTests(accessStore());
+    const cookie = userSessionCookie(session(), env);
+    if (mode === "public") {
+      const signedIn = await signInUser(credentials, { env, client });
+      assert.equal(signedIn.user.id, verifiedUser.id);
+      const resolved = await resolveUserSession(cookie, { env, client });
+      assert.equal(resolved.user.id, verifiedUser.id);
+      assert.equal(resolved.user.role, "member");
+    } else {
+      await assert.rejects(signInUser(credentials, { env, client }), {
+        code: "TESTER_ACCESS_NOT_APPROVED",
+      });
+      assert.equal(await resolveUserSession(cookie, { env, client }), null);
+    }
+  }
+});
+
+test("public mode still blocks a revoked account", async () => {
+  const env = { ...ENV, USER_REGISTRATION_MODE: "public" };
+  const user = {
+    id: "revoked-user",
+    email: "revoked@example.test",
+    emailVerified: true,
+    authProvider: "identity-platform",
+  };
+  const store = accessStore();
+  store.records.set(`identity-platform:${user.id}`, {
+    userId: user.id,
+    authProvider: "identity-platform",
+    status: "revoked",
+  });
+  setFirestoreTesterAccessStoreForTests(store);
+  const client = {
+    auth: {
+      async signInWithPassword() {
+        return { data: { user, session: session() }, error: null };
+      },
+      async getUser() {
+        return { data: { user }, error: null };
+      },
+    },
+  };
+  await assert.rejects(
+    signInUser({ email: user.email, password: "strong-pass-123" }, { env, client }),
+    { code: "ACCOUNT_ACCESS_REVOKED", status: 403 },
+  );
+  assert.equal(
+    await resolveUserSession(userSessionCookie(session(), env), { env, client }),
+    null,
+  );
 });

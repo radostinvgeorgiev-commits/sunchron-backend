@@ -139,8 +139,8 @@ SYNCHRON-X — начало|SYNCHRON-X home
 Проверка дали плащанията са активни…|Checking whether payments are available…
 Обнови|Refresh
 Старт|Starter
-10 AI единици еднократно за 30 дни.|A one-time allocation of 10 AI credits valid for 30 days.
-До 3 стандартни опита към AI двигател|Up to 3 standard AI request attempts
+30 AI единици еднократно за 30 дни.|A one-time allocation of 30 AI credits valid for 30 days.
+До 10 стандартни опита към AI двигател|Up to 10 standard AI request attempts
 Лична история и контролирана памет|Private history and memory you control
 Без банкова карта|No payment card required
 Личен|Personal
@@ -165,7 +165,7 @@ AI Council, включително обобщаване|AI Council, including sy
 Четене на запазен разговор|Reading a saved conversation
 Без AI единици|No AI credits used
 Опитите към резервен двигател също използват единици. Опит, изпратен към доставчик, може да изразходва ресурс дори при грешка или прекъсване. AI Council изисква поне 18 свободни единици преди начало, а се отчита по 3 за всеки реален опит. Потребителските отговори са до 1024 изходни токена на опит; дългият контекст се ограничава.|Fallback attempts also use credits. An attempt sent to a provider can consume resources even if it fails or is interrupted. AI Council requires at least 18 available credits to start and uses 3 per actual attempt. Member responses are limited to 1,024 output tokens per attempt, and long contexts are capped.
-Единиците са вътрешна мярка за достъп, не пари и не токени на конкретен доставчик. Не се теглят като пари. При изчерпване заявките спират; няма автоматично презареждане. Нов закупен пакет добавя единици и осигурява поне още 30 дни валидност за наличния баланс. Началните 10 единици не се възстановяват ежемесечно.|Credits measure access within AI CORE. They are neither provider tokens nor redeemable for cash. Requests stop when credits run out, and automatic top-ups are disabled. Buying a package adds credits and extends the existing balance for at least 30 more days. The initial 10 credits are a one-time allocation.
+Единиците са вътрешна мярка за достъп, не пари и не токени на конкретен доставчик. Не се теглят като пари. При изчерпване заявките спират; няма автоматично презареждане. Нов закупен пакет добавя единици и осигурява поне още 30 дни валидност за наличния баланс. Началните 30 единици не се възстановяват ежемесечно.|Credits measure access within AI CORE. They are neither provider tokens nor redeemable for cash. Requests stop when credits run out, and automatic top-ups are disabled. Buying a package adds credits and extends the existing balance for at least 30 more days. The initial 30 credits are a one-time allocation.
 Преди плащане|Before paying
 Пакетите включват само функциите, достъпни за потребителски профил. Инфраструктурни операции, кодови промени и външни интеграции на собственика не се предоставят на всеки регистриран профил. AI може да греши. Наличността на отделен двигател зависи от конфигурацията и доставчика.|Packages cover features available to member accounts. Infrastructure operations, code changes, and the owner's external integrations are restricted. AI may make mistakes. Individual model availability depends on configuration and the provider.
 Цената при активирана продажба е крайната сума в евро за показания пакет. Платените покупки остават изключени до настройване на платежния оператор, търговските данни, условията за продажба и проверка на разходите. Няма да приемаме плащане, преди тези стъпки да са завършени.|When sales open, the displayed price is the total in euros for that package. Purchases remain disabled until payment processing, merchant details, sales terms, and cost checks are complete.
@@ -330,7 +330,7 @@ AI задача|AI task
 пространство|workspace
 с AI.|with AI.
 Виж плановете|View plans
-Започни с 10 AI единици. Без банкова карта.|Start with 10 AI credits. No payment card required.
+Започни с 30 AI единици. Без банкова карта.|Start with 30 AI credits. No payment card required.
 Разговори и анализ|Conversations and analysis
 Пиши, анализирай и сравнявай отговори с AI Council.|Write, analyze, and compare answers with AI Council.
 Одобрение на действия|Action approval

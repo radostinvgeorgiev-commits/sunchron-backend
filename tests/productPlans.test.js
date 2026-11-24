@@ -51,12 +51,14 @@ function memoryStore() {
 test("concurrent usage cannot overspend or cross user boundaries", async () => {
   const store = memoryStore();
   const service = createProductPlansService({ store, now });
+  await service.reserve(member, 18);
+  await service.reserve(member, 9);
   const results = await Promise.allSettled(
-    Array.from({ length: 6 }, () => service.reserve(member, 3)),
+    Array.from({ length: 3 }, () => service.reserve(member, 2)),
   );
-  assert.equal(results.filter((r) => r.status === "fulfilled").length, 3);
+  assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
   assert.equal((await service.usage(member)).remaining, 1);
-  assert.equal((await service.usage(other)).remaining, 10);
+  assert.equal((await service.usage(other)).remaining, 30);
   assert.ok(
     store.rows.has(ACCOUNT_COLLECTION + "/" + productAccountId(member)),
   );
@@ -102,8 +104,8 @@ test("paid fulfillment is idempotent, validates amounts and never trusts a brows
   const service = createProductPlansService({ store, now });
   const session = paidSession();
   await Promise.all([service.fulfill(session), service.fulfill(session)]);
-  assert.equal((await service.usage(member)).remaining, 110);
-  assert.equal((await service.usage(other)).remaining, 10);
+  assert.equal((await service.usage(member)).remaining, 130);
+  assert.equal((await service.usage(other)).remaining, 30);
   await assert.rejects(
     () => service.fulfill({ ...session, amount_total: 1 }),
     (e) => e.code === "PAYMENT_INVALID",
@@ -293,4 +295,31 @@ test("public budgets cap provider output and charge each attempt before network 
     assert.equal(publicAiOutputLimit(), null);
   });
   assert.equal(reserved, 18);
+});
+
+test("legacy free accounts get the starter difference exactly once", async () => {
+  const store = memoryStore();
+  const id = productAccountId(member);
+  store.rows.set(ACCOUNT_COLLECTION + "/" + id, {
+    data: { plan: "free", remaining: 4, expiresAt: now() + 86400000, createdAt: now() },
+    updateTime: "legacy",
+  });
+  const service = createProductPlansService({ store, now });
+  assert.equal((await service.usage(member)).remaining, 24);
+  await service.reserve(member, 3);
+  assert.equal((await service.usage(member)).remaining, 21);
+  assert.equal(store.rows.get(ACCOUNT_COLLECTION + "/" + id).data.starterCredits, 30);
+  await service.reserve(member, 3);
+  assert.equal((await service.usage(member)).remaining, 18);
+});
+
+test("paid accounts are not topped up by the starter change", async () => {
+  const store = memoryStore();
+  const id = productAccountId(member);
+  store.rows.set(ACCOUNT_COLLECTION + "/" + id, {
+    data: { plan: "personal", remaining: 50, expiresAt: now() + 86400000, createdAt: now() },
+    updateTime: "paid",
+  });
+  const service = createProductPlansService({ store, now });
+  assert.equal((await service.usage(member)).remaining, 50);
 });

@@ -4,6 +4,7 @@ import { getOpenSearchClient } from "../config/opensearch.js";
 import { resolveAuthBackend } from "../config/authBackend.js";
 import { resolvePersistenceBackend } from "../config/memoryBackend.js";
 import { createFirestoreTesterAccessStore } from "./firestoreTesterAccessStore.js";
+import { logSafeError } from "../utils/safeLogging.js";
 
 const DEFAULT_INDEX = "synchron-tester-access-v1";
 const ACCESS_REQUEST_OPTIONS = Object.freeze({
@@ -257,6 +258,37 @@ export async function approveTesterEmail(
     );
   }
   return { emailHash, approvedAt };
+}
+
+// Public registration: every verified account may sign in unless an access
+// record explicitly withholds it (for example status "revoked"). A missing
+// record or a temporary storage failure must not lock real users out.
+export async function assertPublicAccountAccess(
+  user,
+  { client, env = process.env, logError = logSafeError } = {},
+) {
+  const userId = cleanUserId(user);
+  const provider = authProvider(user, env);
+  let source = null;
+  try {
+    source = await loadAccessDocument(accessDocumentId(user, env), {
+      client,
+      env,
+    });
+  } catch (error) {
+    if (Number(statusCode(error)) !== 404) {
+      logError("[Public account access]", error);
+    }
+    return true;
+  }
+  if (source && !isApprovedAccess(source, userId, provider)) {
+    throw new TesterAccessError(
+      "Този профил няма одобрен достъп.",
+      403,
+      "TESTER_ACCESS_NOT_APPROVED",
+    );
+  }
+  return true;
 }
 
 export async function assertTesterAccess(

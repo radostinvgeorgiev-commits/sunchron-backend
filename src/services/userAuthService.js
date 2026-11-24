@@ -13,6 +13,7 @@ import {
 } from "../config/authBackend.js";
 import {
   approveTesterAccess,
+  assertPublicAccountAccess,
   assertTesterAccess,
   TesterAccessError,
 } from "./testerAccessService.js";
@@ -443,6 +444,14 @@ function mapTesterAccessError(error) {
   );
 }
 
+// Public registration admits every verified account unless its access record
+// is explicitly withheld; invite mode keeps the approved-tester boundary.
+function accountAccessCheck(env = process.env) {
+  return isPublicRegistration(env)
+    ? assertPublicAccountAccess
+    : assertTesterAccess;
+}
+
 function requiresVerifiedIdentityEmail(env = process.env) {
   return (
     resolveAuthBackend(env) === "identity-platform" &&
@@ -453,7 +462,11 @@ function requiresVerifiedIdentityEmail(env = process.env) {
 
 export async function signInUser(
   { email, password },
-  { env = process.env, client, requireTesterAccess = assertTesterAccess } = {},
+  {
+    env = process.env,
+    client,
+    requireTesterAccess = accountAccessCheck(env),
+  } = {},
 ) {
   const authClient = client || createAuthClient(env);
   const credentials = {
@@ -633,7 +646,11 @@ function publicUser(user, env = process.env) {
 
 export async function resolveUserSession(
   cookieHeader,
-  { env = process.env, client, requireTesterAccess = assertTesterAccess } = {},
+  {
+    env = process.env,
+    client,
+    requireTesterAccess = accountAccessCheck(env),
+  } = {},
 ) {
   const encrypted = parseCookies(cookieHeader)[USER_SESSION_COOKIE];
   const storedSession = decryptUserSession(encrypted, env);

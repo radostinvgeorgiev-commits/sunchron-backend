@@ -6,7 +6,7 @@ export const PRODUCT_PLANS = Object.freeze([
     id: "free",
     name: "Старт",
     amountCents: 0,
-    credits: 10,
+    credits: 30,
     days: 30,
   }),
   Object.freeze({
@@ -24,6 +24,7 @@ export const PRODUCT_PLANS = Object.freeze([
     days: 30,
   }),
 ]);
+const FREE_PLAN = PRODUCT_PLANS.find((plan) => plan.id === "free");
 export const PUBLIC_REQUEST_CREDITS = 3;
 export const COUNCIL_REQUEST_CREDITS = 18;
 export const ACCOUNT_COLLECTION = "synchron-product-accounts-v1";
@@ -58,8 +59,8 @@ export function createProductPlansService({
   const db = () => (runtimeStore ||= createFirestoreDocumentStore({ env }));
   const initial = () => ({
     plan: "free",
-    remaining: 10,
-    expiresAt: now() + 30 * 86400000,
+    remaining: FREE_PLAN.credits,
+    expiresAt: now() + FREE_PLAN.days * 86400000,
     createdAt: now(),
   });
   async function account(id) {

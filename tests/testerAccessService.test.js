@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   approveTesterAccess,
   approveTesterEmail,
+  assertPublicAccountAccess,
   assertTesterAccess,
   TesterAccessError,
 } from "../src/services/testerAccessService.js";
@@ -149,5 +150,52 @@ test("OpenSearch failures fail closed", async () => {
       error instanceof TesterAccessError &&
       error.code === "TESTER_ACCESS_UNAVAILABLE" &&
       error.status === 503,
+  );
+});
+
+test("public accounts pass without an access record", async () => {
+  const client = createClient();
+  assert.equal(
+    await assertPublicAccountAccess({ id: "new-public-user" }, { client }),
+    true,
+  );
+});
+
+test("public accounts with an approved record pass", async () => {
+  const client = createClient();
+  await approveTesterAccess({ id: "approved-public" }, { client });
+  assert.equal(
+    await assertPublicAccountAccess({ id: "approved-public" }, { client }),
+    true,
+  );
+});
+
+test("public accounts with a revoked record stay blocked", async () => {
+  const client = createClient();
+  client.records.set("revoked-public", {
+    userId: "revoked-public",
+    status: "revoked",
+  });
+  await assert.rejects(
+    assertPublicAccountAccess({ id: "revoked-public" }, { client }),
+    (error) =>
+      error instanceof TesterAccessError &&
+      error.code === "TESTER_ACCESS_NOT_APPROVED" &&
+      error.status === 403,
+  );
+});
+
+test("a public account is not locked out by a temporary storage failure", async () => {
+  const client = {
+    async get() {
+      throw new Error("cluster unavailable");
+    },
+  };
+  assert.equal(
+    await assertPublicAccountAccess(
+      { id: "public-user" },
+      { client, logError: () => {} },
+    ),
+    true,
   );
 });

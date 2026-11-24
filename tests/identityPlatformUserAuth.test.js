@@ -422,7 +422,7 @@ test("public mode still blocks a revoked account", async () => {
   };
   await assert.rejects(
     signInUser({ email: user.email, password: "strong-pass-123" }, { env, client }),
-    { code: "AUTH_REGISTRATION_INCOMPLETE" },
+    { code: "ACCOUNT_ACCESS_REVOKED", status: 403 },
   );
   assert.equal(
     await resolveUserSession(userSessionCookie(session(), env), { env, client }),

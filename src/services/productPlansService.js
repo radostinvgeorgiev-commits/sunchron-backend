@@ -25,6 +25,7 @@ export const PRODUCT_PLANS = Object.freeze([
   }),
 ]);
 const FREE_PLAN = PRODUCT_PLANS.find((plan) => plan.id === "free");
+const LEGACY_STARTER_CREDITS = 10;
 export const PUBLIC_REQUEST_CREDITS = 3;
 export const COUNCIL_REQUEST_CREDITS = 18;
 export const ACCOUNT_COLLECTION = "synchron-product-accounts-v1";
@@ -62,12 +63,27 @@ export function createProductPlansService({
     remaining: FREE_PLAN.credits,
     expiresAt: now() + FREE_PLAN.days * 86400000,
     createdAt: now(),
+    starterCredits: FREE_PLAN.credits,
   });
+  // Free accounts created when the starter allocation was 10 receive the
+  // difference once. The grant is persisted with the next CAS write, so a
+  // retry or a concurrent read can never apply it twice.
+  function withStarterCredits(data) {
+    if (data?.plan !== "free") return data;
+    const granted = Number(data.starterCredits) || LEGACY_STARTER_CREDITS;
+    if (granted >= FREE_PLAN.credits) return data;
+    return {
+      ...data,
+      remaining: (Number(data.remaining) || 0) + FREE_PLAN.credits - granted,
+      starterCredits: FREE_PLAN.credits,
+    };
+  }
   async function account(id) {
     const row = await db().get(ACCOUNT_COLLECTION, id, {
       includeMetadata: true,
     });
-    return row || { data: initial(), updateTime: null };
+    if (!row) return { data: initial(), updateTime: null };
+    return { ...row, data: withStarterCredits(row.data) };
   }
   function balance(data) {
     return data.expiresAt > now()

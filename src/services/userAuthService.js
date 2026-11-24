@@ -684,7 +684,11 @@ export async function resolveUserSession(
   try {
     await requireTesterAccess(user, { env });
   } catch (error) {
-    if (error?.code === "TESTER_ACCESS_NOT_APPROVED") return null;
+    if (
+      error?.code === "TESTER_ACCESS_NOT_APPROVED" ||
+      error?.code === "ACCOUNT_ACCESS_REVOKED"
+    )
+      return null;
     throw error;
   }
 

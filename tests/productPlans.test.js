@@ -296,3 +296,30 @@ test("public budgets cap provider output and charge each attempt before network 
   });
   assert.equal(reserved, 18);
 });
+
+test("legacy free accounts get the starter difference exactly once", async () => {
+  const store = memoryStore();
+  const id = productAccountId(member);
+  store.rows.set(ACCOUNT_COLLECTION + "/" + id, {
+    data: { plan: "free", remaining: 4, expiresAt: now() + 86400000, createdAt: now() },
+    updateTime: "legacy",
+  });
+  const service = createProductPlansService({ store, now });
+  assert.equal((await service.usage(member)).remaining, 24);
+  await service.reserve(member, 3);
+  assert.equal((await service.usage(member)).remaining, 21);
+  assert.equal(store.rows.get(ACCOUNT_COLLECTION + "/" + id).data.starterCredits, 30);
+  await service.reserve(member, 3);
+  assert.equal((await service.usage(member)).remaining, 18);
+});
+
+test("paid accounts are not topped up by the starter change", async () => {
+  const store = memoryStore();
+  const id = productAccountId(member);
+  store.rows.set(ACCOUNT_COLLECTION + "/" + id, {
+    data: { plan: "personal", remaining: 50, expiresAt: now() + 86400000, createdAt: now() },
+    updateTime: "paid",
+  });
+  const service = createProductPlansService({ store, now });
+  assert.equal((await service.usage(member)).remaining, 50);
+});

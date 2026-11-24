@@ -262,13 +262,15 @@ export async function approveTesterEmail(
 
 // Public registration: every verified account may sign in unless an access
 // record explicitly withholds it (for example status "revoked"). A missing
-// record or a temporary storage failure must not lock real users out.
+// record is not a reason to block. A storage failure fails closed with a
+// temporary 503, so a revoked account cannot get back in during an outage.
 export async function assertPublicAccountAccess(
   user,
   { client, env = process.env, logError = logSafeError } = {},
 ) {
   const userId = cleanUserId(user);
   const provider = authProvider(user, env);
+  if (isPrimaryUser(userId, provider, env)) return true;
   let source = null;
   try {
     source = await loadAccessDocument(accessDocumentId(user, env), {
@@ -276,19 +278,33 @@ export async function assertPublicAccountAccess(
       env,
     });
   } catch (error) {
+    if (error instanceof TesterAccessError) throw error;
     if (Number(statusCode(error)) !== 404) {
       logError("[Public account access]", error);
+      throw new TesterAccessError(
+        "Проверката на достъпа временно не е достъпна. Опитай отново след малко.",
+        503,
+        "TESTER_ACCESS_UNAVAILABLE",
+      );
     }
-    return true;
   }
   if (source && !isApprovedAccess(source, userId, provider)) {
     throw new TesterAccessError(
-      "Този профил няма одобрен достъп.",
+      "Достъпът до този профил е спрян. Свържи се с поддръжката.",
       403,
-      "TESTER_ACCESS_NOT_APPROVED",
+      "ACCOUNT_ACCESS_REVOKED",
     );
   }
   return true;
+}
+
+function isPrimaryUser(userId, provider, env = process.env) {
+  const primaryUserId = String(
+    env.SYNCHRON_PRIMARY_USER_ID ||
+      (provider === "supabase" ? env.SYNCHRON_PRIMARY_SUPABASE_USER_ID : "") ||
+      "",
+  ).trim();
+  return Boolean(primaryUserId) && userId === primaryUserId;
 }
 
 export async function assertTesterAccess(
@@ -297,12 +313,7 @@ export async function assertTesterAccess(
 ) {
   const userId = cleanUserId(user);
   const provider = authProvider(user, env);
-  const primaryUserId = String(
-    env.SYNCHRON_PRIMARY_USER_ID ||
-      (provider === "supabase" ? env.SYNCHRON_PRIMARY_SUPABASE_USER_ID : "") ||
-      "",
-  ).trim();
-  if (primaryUserId && userId === primaryUserId) return true;
+  if (isPrimaryUser(userId, provider, env)) return true;
 
   try {
     const source = await loadAccessDocument(accessDocumentId(user, env), {

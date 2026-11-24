@@ -180,21 +180,51 @@ test("public accounts with a revoked record stay blocked", async () => {
     assertPublicAccountAccess({ id: "revoked-public" }, { client }),
     (error) =>
       error instanceof TesterAccessError &&
-      error.code === "TESTER_ACCESS_NOT_APPROVED" &&
+      error.code === "ACCOUNT_ACCESS_REVOKED" &&
       error.status === 403,
   );
 });
 
-test("a public account is not locked out by a temporary storage failure", async () => {
+test("a storage failure fails closed so a revoked account cannot slip in", async () => {
   const client = {
     async get() {
       throw new Error("cluster unavailable");
     },
   };
-  assert.equal(
-    await assertPublicAccountAccess(
+  await assert.rejects(
+    assertPublicAccountAccess(
       { id: "public-user" },
       { client, logError: () => {} },
+    ),
+    (error) =>
+      error instanceof TesterAccessError &&
+      error.code === "TESTER_ACCESS_UNAVAILABLE" &&
+      error.status === 503,
+  );
+});
+
+test("a missing storage configuration is not treated as access", async () => {
+  await assert.rejects(
+    assertPublicAccountAccess(
+      { id: "public-user" },
+      { env: { USER_AUTH_BACKEND: "", MEMORY_BACKEND: "invalid-backend" } },
+    ),
+    (error) =>
+      error instanceof TesterAccessError &&
+      error.code === "TESTER_ACCESS_UNAVAILABLE",
+  );
+});
+
+test("the primary user passes public access even with a stale record", async () => {
+  const client = createClient();
+  client.records.set("owner-user", {
+    userId: "owner-user",
+    status: "revoked",
+  });
+  assert.equal(
+    await assertPublicAccountAccess(
+      { id: "owner-user" },
+      { client, env: { ...process.env, SYNCHRON_PRIMARY_USER_ID: "owner-user" } },
     ),
     true,
   );

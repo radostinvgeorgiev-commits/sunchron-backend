@@ -140,7 +140,7 @@ SYNCHRON-X — начало|SYNCHRON-X home
 Обнови|Refresh
 Старт|Starter
 30 AI единици еднократно за 30 дни.|A one-time allocation of 30 AI credits valid for 30 days.
-До 3 стандартни опита към AI двигател|Up to 3 standard AI request attempts
+До 10 стандартни опита към AI двигател|Up to 10 standard AI request attempts
 Лична история и контролирана памет|Private history and memory you control
 Без банкова карта|No payment card required
 Личен|Personal

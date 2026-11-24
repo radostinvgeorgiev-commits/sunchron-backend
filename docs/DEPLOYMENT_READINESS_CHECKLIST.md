@@ -22,6 +22,8 @@
 - [ ] `npm test` минава.
 - [ ] `git diff --check` минава.
 - [ ] Няма промяна на production secrets.
+- [ ] Поведението на production Cloud Build trigger-а е проверено; няма
+      автоматичен deployment път, който заобикаля отделното owner confirmation.
 - [ ] Собственикът е осигурил `ANTHROPIC_API_KEY` и е проверил
       `AI_CORE_PROVIDER` и правото на runtime identity да използва секрета.
 - [ ] Няма direct push към `main`.
@@ -39,6 +41,8 @@
 
 ## 4. Acceptance преди deployment
 
+- [ ] Staging acceptance е минал за същия exact SHA; виж
+      `STAGING_AND_RELEASE_GATES.md`.
 - [ ] A1: стабилен owner разговор е проверен в browser.
 - [ ] A2: memory lifecycle е проверен с тестов факт и отделни потвърждения.
 - [ ] A3: неразрешено действие се отказва без външен side effect.

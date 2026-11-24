@@ -55,6 +55,7 @@ Firestore + Identity Platform проверки, актуален MCP катал�
 Виж:
 
 - `docs/OPERATIONS_RUNBOOK.md`
+- `docs/STAGING_AND_RELEASE_GATES.md`
 - `docs/CURRENT_PRODUCT_ACCEPTANCE.md`
 - `docs/DEPLOYMENT_READINESS_CHECKLIST.md`
 - `docs/OWNER_ACCEPTANCE_RUNBOOK.md`

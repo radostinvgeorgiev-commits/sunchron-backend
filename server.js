@@ -31,6 +31,7 @@ import codeWorkspaceRouter from "./src/routes/codeWorkspaceRouter.js";
 import calendarRouter from "./src/routes/calendarRouter.js";
 import permissionsRouter from "./src/routes/permissionsRouter.js";
 import connectionsRouter from "./src/routes/connectionsRouter.js";
+import memoryInboxRouter from "./src/routes/memoryInboxRouter.js";
 import googleDriveRouter from "./src/routes/googleDriveRouter.js";
 import githubOAuthRouter from "./src/routes/githubOAuthRouter.js";
 import webSearchRouter from "./src/routes/webSearchRouter.js";
@@ -194,6 +195,12 @@ app.use(
   requireOwnerSession,
   privateApiRateLimiter,
   workspacesRouter,
+);
+app.use(
+  "/api/memory-inbox",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  memoryInboxRouter,
 );
 app.use(
   "/api/connections",

@@ -360,5 +360,17 @@ AI задача|AI task
 Отвори ChatGPT → Settings → Apps & Connectors.|Open ChatGPT → Settings → Apps & Connectors.
 Включи Developer mode и натисни „Create“.|Turn on Developer mode and click “Create”.
 Постави адреса отгоре, удостоверяване: OAuth.|Paste the address above and choose OAuth authentication.
+Входящи|Inbox
+Редактирай факта|Edit the fact
+Проект|Project
+Лично|Personal
+Запази|Save
+Отхвърли|Dismiss
+Няма нови предложения.|No new suggestions.
+Когато Claude, ChatGPT или AI CORE предложат нещо за запомняне, ще го видиш тук и ще решиш дали да се запази.|When Claude, ChatGPT or AI CORE suggest something to remember, it shows up here and you decide whether to keep it.
+Тук AI асистентите ти предлагат какво да запомнят. Нищо не влиза в паметта без твоето одобрение.|Your AI assistants suggest what to remember here. Nothing enters your memory without your approval.
+Входящите временно не са достъпни.|The inbox is temporarily unavailable.
+Действието не беше изпълнено.|The action was not completed.
+Редактирай|Edit
 `.trim().split("\n").map((line) => line.split("|")),
 );

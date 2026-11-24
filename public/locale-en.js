@@ -110,7 +110,6 @@ SYNCHRON-X — начало|SYNCHRON-X home
 Режим|Mode
 Попитай избраните AI двигатели|Ask the selected AI models
 Попитай избраните AI двигатели и сравни отговорите|Ask selected AI models and compare their answers
-Избери любимец|Choose a companion
 Проекти и работни режими|Projects and work modes
 Избор на AI двигатели|AI model selection
 Инструменти за разговора|Conversation tools

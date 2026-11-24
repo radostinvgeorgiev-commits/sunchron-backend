@@ -41,7 +41,8 @@ MCP URL: https://cloudaicore.com/mcp. OAuth е authorization code с PKCE S256.
 - 2026-11-23: Няма browser Firebase SDK; ключът на сървъра не трябва да се
   настройва като browser-only HTTP-referrer ключ.
 - 2026-11-24: Запазват се съществуващите AI двигатели и Codex. Claude е
-  външен MCP клиент, не основен двигател. GitHub достъпът се ограничава чрез
+  външен MCP клиент, не основен двигател; вътрешният път към Anthropic API е
+  изключен. GitHub достъпът се ограничава чрез
   GitHub App до едно хранилище; настройката и реалната връзка не са проверени.
 
 ## Next step

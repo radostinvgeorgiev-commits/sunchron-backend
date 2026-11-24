@@ -15,7 +15,6 @@ export const AI_PROVIDERS = new Set([
   "openai",
   "gemini",
   "grok",
-  "claude",
   "vertex-gemini",
 ]);
 
@@ -24,7 +23,6 @@ export const DEFAULT_CODEX_COUNCIL_MODEL = "gpt-5.3-codex";
 export const DEFAULT_OPENAI_PLANNER_MODEL = "gpt-4.1-mini";
 export const DEFAULT_GEMINI_CHAT_MODEL = "gemini-2.5-flash-lite";
 export const DEFAULT_GROK_CHAT_MODEL = "grok-3-mini";
-export const DEFAULT_CLAUDE_CHAT_MODEL = "claude-haiku-4-5-20251001";
 
 export class AiCoreError extends Error {
   constructor(message, code = "AI_CORE_ERROR", status = 502) {
@@ -334,68 +332,6 @@ export async function requestGrokResponse({
   };
 }
 
-export async function requestClaudeResponse({
-  apiKey = process.env.ANTHROPIC_API_KEY,
-  apiUrl = "https://api.anthropic.com/v1/messages",
-  input,
-  model = process.env.ANTHROPIC_MODEL || DEFAULT_CLAUDE_CHAT_MODEL,
-  fetchImpl = fetch,
-  signal,
-  maxTokens = 2048,
-}) {
-  if (!apiKey) {
-    throw new AiCoreError(
-      "Claude не е конфигуриран.",
-      "CLAUDE_NOT_CONFIGURED",
-      503,
-    );
-  }
-  const normalized = normalizeChatMessages(input);
-  const system = normalized.filter((item) => item.role === "system").map((item) => item.content).join("\n\n");
-  const messages = normalized.filter((item) => item.role !== "system").map(({ role, content }) => ({
-    role: role === "assistant" ? "assistant" : "user",
-    content,
-  }));
-  await reservePublicAiCall(input, "claude", model);
-  const response = await fetchImpl(apiUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: publicAiOutputLimit() || maxTokens,
-      ...(system ? { system } : {}),
-      messages,
-    }),
-    signal,
-  });
-  if (!response.ok) {
-    console.error(`[Claude] Upstream request failed: ${response.status}`);
-    throw new AiCoreError(
-      `Claude върна грешка ${response.status}.`,
-      "CLAUDE_UPSTREAM_ERROR",
-      response.status,
-    );
-  }
-  const data = await response.json();
-  const text = Array.isArray(data?.content)
-    ? data.content
-        .filter((item) => item?.type === "text")
-        .map((item) => item.text || "")
-        .join("\n")
-        .trim()
-    : "";
-  if (!text)
-    throw new AiCoreError(
-      "Claude не върна текстов отговор.",
-      "CLAUDE_EMPTY_RESPONSE",
-    );
-  return { text, provider: "claude", model: data?.model || model };
-}
-
 export function normalizeAiProvider(value) {
   const provider = typeof value === "string" ? value.trim().toLowerCase() : "";
   return AI_PROVIDERS.has(provider) ? provider : null;
@@ -417,8 +353,6 @@ export function isAiProviderConfigured(provider, env = process.env) {
       return Boolean(env.GEMINI_API_KEY);
     case "grok":
       return Boolean(env.GROK_API_KEY);
-    case "claude":
-      return Boolean(env.ANTHROPIC_API_KEY);
     case "vertex-gemini":
       return isVertexAiConfigured(env);
     default:
@@ -462,7 +396,6 @@ export function getAiProviderTimeoutMs(
     openai: "OPENAI_TIMEOUT_MS",
     gemini: "GEMINI_TIMEOUT_MS",
     grok: "GROK_TIMEOUT_MS",
-    claude: "ANTHROPIC_TIMEOUT_MS",
   }[normalizeAiProvider(provider)];
   if (normalizeAiProvider(provider) === "vertex-gemini") {
     return resolveVertexAiTimeoutMs(env);
@@ -478,7 +411,6 @@ export function getDefaultChatModel(provider, env = process.env) {
     openai: env.OPENAI_CHAT_MODEL || DEFAULT_OPENAI_CHAT_MODEL,
     gemini: env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
     grok: env.GROK_MODEL || DEFAULT_GROK_CHAT_MODEL,
-    claude: env.ANTHROPIC_MODEL || DEFAULT_CLAUDE_CHAT_MODEL,
     "vertex-gemini": resolveVertexAiModel(env),
   }[provider];
 }
@@ -510,8 +442,6 @@ export async function requestAiResponse({ provider, ...options } = {}) {
       return requestGeminiResponse(options);
     case "grok":
       return requestGrokResponse(options);
-    case "claude":
-      return requestClaudeResponse(options);
     case "vertex-gemini":
       return requestVertexAiGeminiResponse(options);
     default:

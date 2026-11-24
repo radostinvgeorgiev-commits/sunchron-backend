@@ -167,7 +167,6 @@ test("code task stops when no engine is configured", async () => {
         apiKey: "",
         geminiApiKey: "",
         grokApiKey: "",
-        claudeApiKey: "",
         resolveGitHubSession: async () => githubSession,
       }),
     (error) => error.code === "CODE_TASK_COUNCIL_NOT_CONFIGURED",

@@ -4,7 +4,6 @@ import { relative, resolve } from "node:path";
 
 import {
   DEFAULT_CODEX_COUNCIL_MODEL,
-  requestClaudeResponse,
   requestGeminiResponse,
   requestGrokResponse,
   requestOpenAIResponse,
@@ -54,11 +53,6 @@ const CODE_PROVIDERS = {
     request: requestGeminiResponse,
   },
   grok: { label: "Grok", key: "GROK_API_KEY", request: requestGrokResponse },
-  claude: {
-    label: "Claude",
-    key: "ANTHROPIC_API_KEY",
-    request: requestClaudeResponse,
-  },
   codex: {
     label: "Codex",
     key: "OPENAI_API_KEY",
@@ -361,7 +355,6 @@ export async function prepareCodeTask({
   apiKey = process.env.OPENAI_API_KEY,
   geminiApiKey = process.env.GEMINI_API_KEY,
   grokApiKey = process.env.GROK_API_KEY,
-  claudeApiKey = process.env.ANTHROPIC_API_KEY,
   codexModel = process.env.AI_CORE_COUNCIL_CODEX_MODEL ||
     DEFAULT_CODEX_COUNCIL_MODEL,
   model = process.env.OPENAI_CODEX_MODEL,
@@ -381,7 +374,6 @@ export async function prepareCodeTask({
     openai: apiKey,
     gemini: geminiApiKey,
     grok: grokApiKey,
-    claude: claudeApiKey,
     codex: isCodexAgentConfigured({
       OPENAI_API_KEY: apiKey,
       CODEX_AGENT_ENABLED: process.env.CODEX_AGENT_ENABLED,
@@ -481,7 +473,7 @@ export async function prepareCodeTask({
     let plan;
     let executor;
     let planError;
-    for (const provider of ["codex", "openai", "gemini", "grok", "claude"]) {
+    for (const provider of ["codex", "openai", "gemini", "grok"]) {
       if (!answered.has(provider) || planDeadline.aborted) continue;
       const requester =
         provider === "openai" ? responseRequester : advisorRequesters[provider];

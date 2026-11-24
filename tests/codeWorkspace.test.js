@@ -18,7 +18,6 @@ Object.assign(process.env, {
   OPENAI_API_KEY: "test-openai",
   GEMINI_API_KEY: "test-gemini",
   GROK_API_KEY: "test-grok",
-  ANTHROPIC_API_KEY: "test-claude",
   CODEX_AGENT_ENABLED: "true",
   AI_CORE_COUNCIL_CODEX_MODEL: "gpt-5.3-codex",
 });
@@ -103,14 +102,6 @@ async function setup(
         "grok",
         input.response_format?.type === "json_object",
         (text) => ({ choices: [{ message: { content: text } }] }),
-      );
-    }
-    if (parsed.hostname === "api.anthropic.com") {
-      const input = JSON.parse(options.body);
-      return engineReply(
-        "claude",
-        input.messages[0].content.includes("Върни само JSON"),
-        (text) => ({ content: [{ type: "text", text }] }),
       );
     }
     assert.equal(parsed.hostname, "api.github.com");
@@ -210,7 +201,7 @@ test("an owner can review a pinned diff, approve the exact change once and see C
   assert.equal(draft.baseSha, sha);
   assert.deepEqual(
     draft.council.map(({ provider }) => provider),
-    ["openai", "gemini", "grok", "claude", "codex"],
+    ["openai", "gemini", "grok", "codex"],
   );
   assert.equal(draft.executor.provider, "codex");
   assert.equal(draft.review[0].check.status, "passed");
@@ -264,20 +255,20 @@ test("confirming a review whose base moved does not create a commit", async (t) 
   assert.deepEqual(writes, []);
 });
 
-test("Code uses a single responsive engine when the other four fail", async (t) => {
-  const unavailable = ["openai", "gemini", "grok", "codex"];
+test("Code uses Codex when the other configured engines fail", async (t) => {
+  const unavailable = ["openai", "gemini", "grok"];
   const { cookie, calls, writes } = await setup(t, changed, { unavailable });
   const { body: draft } = await prepare(cookie).expect(200);
   assert.deepEqual(
     draft.council.map(({ provider }) => provider),
-    ["claude"],
+    ["codex"],
   );
   assert.deepEqual(draft.unavailableProviders, unavailable);
-  assert.equal(draft.executor.provider, "claude");
+  assert.equal(draft.executor.provider, "codex");
   assert.ok(draft.confirmationId);
   assert.deepEqual(
     calls.filter(({ planning }) => planning),
-    [{ provider: "claude", planning: true }],
+    [{ provider: "codex", planning: true }],
   );
   assert.deepEqual(writes, []);
 });
@@ -298,13 +289,13 @@ test("Code tries another responsive engine if Codex fails to produce a plan", as
 
 test("Code keeps available advice when no engine can prepare a valid diff", async (t) => {
   const { cookie, confirmations, writes } = await setup(t, changed, {
-    unavailable: ["openai", "grok", "claude", "codex"],
-    badPlanners: ["gemini"],
+    unavailable: ["openai", "grok"],
+    badPlanners: ["gemini", "codex"],
   });
   const { body: draft } = await prepare(cookie).expect(200);
   assert.deepEqual(
     draft.advice.map(({ provider }) => provider),
-    ["gemini"],
+    ["gemini", "codex"],
   );
   assert.equal(draft.confirmationId, undefined);
   assert.deepEqual(draft.review, []);

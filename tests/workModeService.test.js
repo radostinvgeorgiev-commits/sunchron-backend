@@ -96,7 +96,6 @@ test("the available personal-agent models are explicit and server-owned", () => 
       "gpt-5.6-terra",
       "gpt-5.6-luna",
       "gpt-4.1-mini",
-      "claude-haiku-4-5-20251001",
       "gemini-2.5-flash-lite",
       "grok-3-mini",
       "gemini-2.5-flash",

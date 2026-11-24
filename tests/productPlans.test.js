@@ -234,7 +234,6 @@ test("public budgets cap provider output and charge each attempt before network 
     requestOpenAIResponse,
     requestGeminiResponse,
     requestGrokResponse,
-    requestClaudeResponse,
   } = await import("../src/services/aiCoreService.js");
   let reserved = 0,
     calls = 0;
@@ -250,7 +249,6 @@ test("public budgets cap provider output and charge each attempt before network 
       ["openai", requestOpenAIResponse],
       ["gemini", requestGeminiResponse],
       ["grok", requestGrokResponse],
-      ["claude", requestClaudeResponse],
     ]) {
       await invoke({
         apiKey: "test",
@@ -280,6 +278,7 @@ test("public budgets cap provider output and charge each attempt before network 
       () => reservePublicAiCall("x".repeat(32001)),
       (e) => e.code === "AI_CONTEXT_LIMIT",
     );
+    await reservePublicAiCall("short");
     await reservePublicAiCall("short");
     await reservePublicAiCall("short");
     await assert.rejects(

@@ -6,7 +6,6 @@ import {
   getAiProviderTimeoutMs,
   requestGeminiResponse,
   requestGrokResponse,
-  requestClaudeResponse,
   requestOpenAIResponse,
 } from "./aiCoreService.js";
 import { isCodexAgentConfigured } from "./codexAgentService.js";
@@ -45,7 +44,6 @@ const PROVIDER_LABELS = Object.freeze({
   openai: "OpenAI",
   gemini: "Gemini",
   grok: "Grok",
-  claude: "Claude",
   codex: "Codex",
 });
 
@@ -208,7 +206,6 @@ export async function runAiCouncil({
   openAiApiKey = process.env.OPENAI_API_KEY,
   geminiApiKey = process.env.GEMINI_API_KEY,
   grokApiKey = process.env.GROK_API_KEY,
-  claudeApiKey = process.env.ANTHROPIC_API_KEY,
   codexApiKey = isCodexAgentConfigured()
     ? process.env.OPENAI_API_KEY
     : undefined,
@@ -217,14 +214,12 @@ export async function runAiCouncil({
     openai: requestOpenAIResponse,
     gemini: requestGeminiResponse,
     grok: requestGrokResponse,
-    claude: requestClaudeResponse,
     codex: requestOpenAIResponse,
   },
   arbiterRequester = requestOpenAIResponse,
   openAiModel = process.env.AI_CORE_COUNCIL_MODEL || DEFAULT_OPENAI_CHAT_MODEL,
   geminiModel = process.env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
   grokModel = process.env.GROK_MODEL || DEFAULT_GROK_CHAT_MODEL,
-  claudeModel = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001",
   codexModel = process.env.AI_CORE_COUNCIL_CODEX_MODEL ||
     DEFAULT_CODEX_COUNCIL_MODEL,
   advisorTimeoutMs = Math.min(
@@ -262,7 +257,6 @@ export async function runAiCouncil({
     openai: { provider: "openai", apiKey: openAiApiKey, model: openAiModel },
     gemini: { provider: "gemini", apiKey: geminiApiKey, model: geminiModel },
     grok: { provider: "grok", apiKey: grokApiKey, model: grokModel },
-    claude: { provider: "claude", apiKey: claudeApiKey, model: claudeModel },
     codex: { provider: "codex", apiKey: codexApiKey, model: codexModel },
   };
   if (

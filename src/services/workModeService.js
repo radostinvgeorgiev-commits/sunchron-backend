@@ -70,7 +70,6 @@ const AGENT_MODELS = Object.freeze({
     apiModel: "gpt-5.6-luna",
   },
   "gpt-4.1-mini": { label: "GPT-4.1 mini (икономичен)", provider: "openai", apiModel: "gpt-4.1-mini" },
-  "claude-haiku-4-5-20251001": { label: "Claude Haiku 4.5 (икономичен)", provider: "claude", apiModel: "claude-haiku-4-5-20251001" },
   "gemini-2.5-flash-lite": { label: "Gemini 2.5 Flash Lite (икономичен)", provider: "gemini", apiModel: "gemini-2.5-flash-lite" },
   "grok-3-mini": { label: "Grok 3 Mini (икономичен)", provider: "grok", apiModel: "grok-3-mini" },
   "gemini-2.5-flash": {

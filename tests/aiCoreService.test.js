@@ -21,6 +21,32 @@ test("AI CORE reports any configured chat provider", () => {
   assert.equal(hasConfiguredAiProvider({}), false);
 });
 
+test("Claude is not an internal provider even when an Anthropic key is present", async () => {
+  let requests = 0;
+  const env = {
+    AI_CORE_PROVIDER: "claude",
+    ANTHROPIC_API_KEY: "test-only",
+  };
+  assert.equal(hasConfiguredAiProvider(env), false);
+  assert.equal(getAiProviderStatus(env).selectedProvider, null);
+  assert.equal(
+    getAiProviderStatus(env).providers.some(({ id }) => id === "claude"),
+    false,
+  );
+  await assert.rejects(
+    requestAiResponse({
+      provider: "claude",
+      env,
+      apiKey: "test-only",
+      fetchImpl: async () => {
+        requests += 1;
+      },
+    }),
+    { code: "AI_PROVIDER_INVALID" },
+  );
+  assert.equal(requests, 0);
+});
+
 test("OpenAI Responses output text is extracted from typed output items", () => {
   assert.equal(
     extractOpenAIOutputText({
@@ -265,7 +291,6 @@ test("generic AI dispatch and status are explicit without exposing keys", async 
     { id: "openai", configured: true },
     { id: "gemini", configured: false },
     { id: "grok", configured: true },
-    { id: "claude", configured: false },
     { id: "vertex-gemini", configured: false },
   ]);
   assert.doesNotMatch(JSON.stringify(status), /secret/u);

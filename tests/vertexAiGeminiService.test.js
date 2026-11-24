@@ -419,14 +419,13 @@ test("AI Core keeps OpenAI default and only explicitly selects configured Vertex
         { id: "openai", configured: false },
         { id: "gemini", configured: false },
         { id: "grok", configured: false },
-        { id: "claude", configured: false },
-      { id: "vertex-gemini", configured: true },
+        { id: "vertex-gemini", configured: true },
       ],
     },
   );
   assert.deepEqual(
     [...AI_PROVIDERS],
-    ["openai", "gemini", "grok", "claude", "vertex-gemini"],
+    ["openai", "gemini", "grok", "vertex-gemini"],
   );
 });
 

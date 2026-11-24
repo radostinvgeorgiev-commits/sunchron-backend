@@ -48,7 +48,10 @@ import {
 import {
   listConversationMessages,
   listConversationSummaries,
+  MAX_IMPORTED_CONVERSATION_MESSAGES,
+  MAX_IMPORTED_MESSAGE_LENGTH,
   normalizeProfileMemoryDraft,
+  saveImportedConversation,
 } from "./memoryService.js";
 import { sendMcpAgentMessage } from "./mcpAgentConversationService.js";
 import { getProjectDiagnostics } from "./projectDiagnosticsService.js";
@@ -177,6 +180,43 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
         agentId: { type: "string", minLength: 1, maxLength: 80 },
       },
       required: ["sessionId", "message"],
+      additionalProperties: false,
+    },
+    REVERSIBLE_WRITE,
+  ),
+  tool(
+    "save_conversation",
+    "Запази разговора в AI CORE",
+    "Запазва текущия разговор от Claude (или друг AI клиент) като нишка в AI CORE за текущия профил, за да може да се продължи по-късно оттук или от сайта. Изпращай само съобщенията, които потребителят иска да запази. Без sessionId създава нова нишка; с sessionId от предишен запис добавя новите съобщения към нея. Не записва факти в постоянната памет.",
+    {
+      type: "object",
+      properties: {
+        source: {
+          type: "string",
+          enum: ["claude", "chatgpt", "other"],
+          default: "claude",
+        },
+        sessionId: { type: "string", minLength: 1, maxLength: 160 },
+        messages: {
+          type: "array",
+          minItems: 1,
+          maxItems: MAX_IMPORTED_CONVERSATION_MESSAGES,
+          items: {
+            type: "object",
+            properties: {
+              role: { type: "string", enum: ["user", "assistant"] },
+              content: {
+                type: "string",
+                minLength: 1,
+                maxLength: MAX_IMPORTED_MESSAGE_LENGTH,
+              },
+            },
+            required: ["role", "content"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["messages"],
       additionalProperties: false,
     },
     REVERSIBLE_WRITE,
@@ -712,6 +752,7 @@ function permissionAction(name) {
       "list_threads",
       "read_history",
       "continue_session",
+      "save_conversation",
     ].includes(name)
   ) {
     return "agent.chat";
@@ -809,6 +850,23 @@ export function createMcpCapabilityHandler({
           `Прочетени са ${items.length} съобщения от AI CORE нишката.`,
         );
       }
+    } else if (name === "save_conversation") {
+      const saved = await (
+        dependencies.saveImportedConversation || saveImportedConversation
+      )(
+        {
+          source: args.source || "claude",
+          sessionId: args.sessionId,
+          messages: args.messages,
+        },
+        ownerId,
+      );
+      result = textResult(
+        saved,
+        saved.appended
+          ? `Добавени са ${saved.saved} съобщения към нишка ${saved.sessionId}.`
+          : `Разговорът е запазен в AI CORE като нишка ${saved.sessionId} (${saved.saved} съобщения).`,
+      );
     } else if (name === "propose_memory_change") {
       const item = normalizeProfileMemoryDraft(
         args.fact,

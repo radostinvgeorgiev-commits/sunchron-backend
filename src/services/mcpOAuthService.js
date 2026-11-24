@@ -328,6 +328,7 @@ export function requiredScopesForMcpTool(name) {
       "list_threads",
       "read_history",
       "continue_session",
+      "save_conversation",
     ].includes(name)
   ) {
     return [MCP_AGENT_CHAT_SCOPE];

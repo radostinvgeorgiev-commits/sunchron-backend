@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const REQUIRED_SECRETS = Object.freeze([
+  "ANTHROPIC_API_KEY",
   "OPENAI_API_KEY",
   "GEMINI_API_KEY",
   "GROK_API_KEY",
@@ -16,6 +17,7 @@ const REQUIRED_SECRETS = Object.freeze([
 ]);
 
 const SECRET_PLACEHOLDERS = Object.freeze({
+  ANTHROPIC_API_KEY: "ANTHROPIC_API_KEY",
   OPENAI_API_KEY: "OPENAI_API_KEY",
   GEMINI_API_KEY: "GEMINI_API_KEY",
   GROK_API_KEY: "GROK_API_KEY",

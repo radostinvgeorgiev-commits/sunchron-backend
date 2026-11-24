@@ -254,18 +254,19 @@ test("Grok uses the xAI-compatible chat completion contract", async () => {
 
 test("generic AI dispatch and status are explicit without exposing keys", async () => {
   const status = getAiProviderStatus({
-    AI_CORE_PROVIDER: "grok",
+    AI_CORE_PROVIDER: "claude",
     OPENAI_API_KEY: "openai-secret",
     GEMINI_API_KEY: "",
     GROK_API_KEY: "grok-secret",
+    ANTHROPIC_API_KEY: "claude-secret",
   });
-  assert.equal(status.selectedProvider, "grok");
+  assert.equal(status.selectedProvider, "claude");
   assert.equal(status.configured, true);
   assert.deepEqual(status.providers, [
     { id: "openai", configured: true },
     { id: "gemini", configured: false },
     { id: "grok", configured: true },
-    { id: "claude", configured: false },
+    { id: "claude", configured: true },
     { id: "vertex-gemini", configured: false },
   ]);
   assert.doesNotMatch(JSON.stringify(status), /secret/u);

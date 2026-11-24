@@ -4,6 +4,8 @@ import request from "supertest";
 
 process.env.NODE_ENV = "test";
 process.env.OPENAI_API_KEY = "test-openai-key";
+process.env.ANTHROPIC_API_KEY = "test-claude-key";
+process.env.AI_CORE_PROVIDER = "claude";
 process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 process.env.GITHUB_SESSION_ENCRYPTION_KEY =
   "memory-write-route-test-encryption-key";
@@ -121,12 +123,7 @@ test("chat never persists an ordinary fact and writes an explicit fact only afte
   globalThis.fetch = async () =>
     new Response(
       JSON.stringify({
-        output: [
-          {
-            type: "message",
-            content: [{ type: "output_text", text: "Разбрах." }],
-          },
-        ],
+        content: [{ type: "text", text: "Разбрах." }],
       }),
       { status: 200, headers: { "content-type": "application/json" } },
     );

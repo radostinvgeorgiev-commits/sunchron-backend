@@ -4,6 +4,8 @@ import request from "supertest";
 
 process.env.NODE_ENV = "test";
 process.env.OPENAI_API_KEY = "test-openai-key";
+process.env.ANTHROPIC_API_KEY = "test-claude-key";
+process.env.AI_CORE_PROVIDER = "claude";
 process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 delete process.env.OPENSEARCH_HOST;
 delete process.env.OPENSEARCH_USERNAME;
@@ -21,14 +23,14 @@ const ownerSession = await createGitHubSession(
 );
 const OWNER_COOKIE = `synchron_github_session=${ownerSession.id}`;
 
-test("Work answers a greeting through a backup engine when Grok fails", async (t) => {
+test("Work does not fall back when Claude fails", async (t) => {
   const previous = {
     AI_CORE_PROVIDER: process.env.AI_CORE_PROVIDER,
     GROK_API_KEY: process.env.GROK_API_KEY,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   };
   Object.assign(process.env, {
-    AI_CORE_PROVIDER: "grok",
+    AI_CORE_PROVIDER: "claude",
     GROK_API_KEY: "test-grok-key",
     GEMINI_API_KEY: "test-gemini-key",
   });
@@ -42,12 +44,8 @@ test("Work answers a greeting through a backup engine when Grok fails", async (t
   t.mock.method(globalThis, "fetch", async (url) => {
     const host = new URL(url).hostname;
     hosts.push(host);
-    if (host === "api.x.ai") return new Response("", { status: 503 });
-    assert.equal(host, "generativelanguage.googleapis.com");
-    return Response.json({
-      modelVersion: "gemini-test",
-      candidates: [{ content: { parts: [{ text: "Добър ден!" }] } }],
-    });
+    assert.equal(host, "api.anthropic.com");
+    return new Response("", { status: 503 });
   });
   const response = await request(app)
     .post("/chat/chat")
@@ -59,13 +57,12 @@ test("Work answers a greeting through a backup engine when Grok fails", async (t
       workContext: { agent: { name: "Код", role: "coder", engine: "codex" } },
     })
     .expect(200);
-  assert.deepEqual(hosts, ["api.x.ai", "generativelanguage.googleapis.com"]);
-  assert.match(response.text, /Добър ден!/u);
-  assert.match(response.text, /"provider":"gemini","model":"gemini-test"/u);
-  assert.doesNotMatch(response.text, /event: error|code\.analyze/u);
+  assert.deepEqual(hosts, ["api.anthropic.com"]);
+  assert.match(response.text, /event: error/u);
+  assert.doesNotMatch(response.text, /"provider":"gemini"|code\.analyze/u);
 });
 
-test("Work Council sends a Codex-only selection to the coding model", async (t) => {
+test("Work Council rejects a legacy Codex-only selection", async (t) => {
   const requests = [];
   t.mock.method(globalThis, "fetch", async (url, options) => {
     assert.equal(String(url), "https://api.openai.com/v1/responses");
@@ -86,13 +83,9 @@ test("Work Council sends a Codex-only selection to the coding model", async (t) 
       councilProviders: ["codex"],
     })
     .expect(200);
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].model, "gpt-5.3-codex");
-  assert.equal(requests[0].store, false);
-  assert.equal(requests[0].tools, undefined);
-  assert.match(response.text, /"provider":"codex","model":"codex-verified"/u);
-  assert.match(response.text, /Отговор от Codex\./u);
-  assert.doesNotMatch(response.text, /event: error/u);
+  assert.equal(requests.length, 0);
+  assert.match(response.text, /event: error/u);
+  assert.match(response.text, /Невалиден избор/u);
 });
 
 test("chat rejects oversized messages before calling paid AI", async () => {
@@ -119,17 +112,12 @@ test("normal AI chat continues when persistent memory is unavailable", async () 
   const originalFetch = globalThis.fetch;
   let aiRequest;
   globalThis.fetch = async (url, options = {}) => {
-    if (String(url) === "https://api.openai.com/v1/responses") {
+    if (String(url) === "https://api.anthropic.com/v1/messages") {
       aiRequest = JSON.parse(options.body);
     }
     return new Response(
       JSON.stringify({
-        output: [
-          {
-            type: "message",
-            content: [{ type: "output_text", text: "Работя нормално." }],
-          },
-        ],
+        content: [{ type: "text", text: "Работя нормално." }],
       }),
       {
         status: 200,
@@ -157,7 +145,7 @@ test("normal AI chat continues when persistent memory is unavailable", async () 
 
     assert.match(response.text, /Работя нормално\./u);
     assert.deepEqual(
-      aiRequest.input.slice(-3).map(({ role, content }) => ({ role, content })),
+      aiRequest.messages.slice(-3).map(({ role, content }) => ({ role, content })),
       [
         { role: "user", content: "Предложи една проверка." },
         {
@@ -179,15 +167,10 @@ test("normal AI chat continues when persistent memory is unavailable", async () 
 test("normal chat emits a bounded memory candidate without writing it", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
-    if (String(url) === "https://api.openai.com/v1/responses") {
+    if (String(url) === "https://api.anthropic.com/v1/messages") {
       return new Response(
         JSON.stringify({
-          output: [
-            {
-              type: "message",
-              content: [{ type: "output_text", text: "Разбрах те." }],
-            },
-          ],
+          content: [{ type: "text", text: "Разбрах те." }],
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
@@ -216,24 +199,19 @@ test("normal chat emits a bounded memory candidate without writing it", async ()
   }
 });
 
-test("normal chat uses OpenAI Responses without the removed DigitalOcean agent", async () => {
+test("normal chat uses Claude without another primary engine", async () => {
   const originalFetch = globalThis.fetch;
   const originalOpenAiKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = "test-openai-key";
 
   globalThis.fetch = async (url, options = {}) => {
-    assert.equal(String(url), "https://api.openai.com/v1/responses");
+    assert.equal(String(url), "https://api.anthropic.com/v1/messages");
     const body = JSON.parse(options.body);
-    assert.equal(body.store, false);
+    assert.ok(body.messages.length);
     return new Response(
       JSON.stringify({
-        model: "gpt-5.6-terra-verified",
-        output: [
-          {
-            type: "message",
-            content: [{ type: "output_text", text: "Отговор от OpenAI." }],
-          },
-        ],
+        model: "claude-verified",
+        content: [{ type: "text", text: "Отговор от Claude." }],
       }),
       { status: 200, headers: { "content-type": "application/json" } },
     );
@@ -246,9 +224,9 @@ test("normal chat uses OpenAI Responses without the removed DigitalOcean agent",
       .send({ sessionId: "openai-primary-test", message: "Здравей" })
       .expect(200);
 
-    assert.match(response.text, /Отговор от OpenAI\./u);
-    assert.match(response.text, /"provider":"openai"/u);
-    assert.match(response.text, /"model":"gpt-5.6-terra-verified"/u);
+    assert.match(response.text, /Отговор от Claude\./u);
+    assert.match(response.text, /"provider":"claude"/u);
+    assert.match(response.text, /"model":"claude-verified"/u);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
@@ -256,23 +234,13 @@ test("normal chat uses OpenAI Responses without the removed DigitalOcean agent",
   }
 });
 
-test("runtime model question answers from verified OpenAI response metadata", async () => {
+test("runtime model question answers from verified Claude response metadata", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () =>
     new Response(
       JSON.stringify({
-        model: "gpt-5.6-terra-verified",
-        output: [
-          {
-            type: "message",
-            content: [
-              {
-                type: "output_text",
-                text: "Не мога да проверя локалните файлове.",
-              },
-            ],
-          },
-        ],
+        model: "claude-verified",
+        content: [{ type: "text", text: "Не мога да проверя локалните файлове." }],
       }),
       { status: 200, headers: { "content-type": "application/json" } },
     );
@@ -289,11 +257,11 @@ test("runtime model question answers from verified OpenAI response metadata", as
 
     assert.match(
       response.text,
-      /Този отговор реално е обработен от openai · gpt-5\.6-terra-verified\./u,
+      /Този отговор реално е обработен от claude · claude-verified\./u,
     );
     assert.doesNotMatch(response.text, /Не мога да проверя локалните файлове/u);
-    assert.match(response.text, /"provider":"openai"/u);
-    assert.match(response.text, /"model":"gpt-5.6-terra-verified"/u);
+    assert.match(response.text, /"provider":"claude"/u);
+    assert.match(response.text, /"model":"claude-verified"/u);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -318,8 +286,8 @@ test("normal chat does not call the removed DigitalOcean agent when OpenAI is un
       .expect(200);
 
     assert.equal(calledUrls.length, 1);
-    assert.match(calledUrls[0], /api\.openai\.com\/v1\/responses/u);
-    assert.match(response.text, /Връзката с AI ядрото/u);
+    assert.match(calledUrls[0], /api\.anthropic\.com\/v1\/messages/u);
+    assert.match(response.text, /Връзката с Claude/u);
     assert.doesNotMatch(response.text, /"provider":"digitalocean"/u);
   } finally {
     globalThis.fetch = originalFetch;
@@ -330,27 +298,20 @@ test("normal chat does not call the removed DigitalOcean agent when OpenAI is un
 
 test("verified GitHub results bypass AI rewriting", async () => {
   const originalFetch = globalThis.fetch;
-  let openAiCalls = 0;
+  let claudeCalls = 0;
   let githubCalls = 0;
 
   globalThis.fetch = async (url, options = {}) => {
-    if (String(url).includes("api.openai.com/v1/responses")) {
-      openAiCalls += 1;
+    if (String(url).includes("api.anthropic.com/v1/messages")) {
+      claudeCalls += 1;
       const body = JSON.parse(options.body);
-      if (body.model === "gpt-4.1-mini") {
+      if (body.messages[0].content.includes("планировчикът на AI CORE")) {
         return new Response(
           JSON.stringify({
-            output: [
-              {
-                type: "message",
-                content: [
-                  {
-                    type: "output_text",
-                    text: '{"calls":[{"capability":"code.read","request":"Покажи последния commit в GitHub."}]}',
-                  },
-                ],
-              },
-            ],
+            content: [{
+              type: "text",
+              text: '{"calls":[{"capability":"code.read","request":"Покажи последния commit в GitHub."}]}',
+            }],
           }),
           {
             status: 200,
@@ -396,7 +357,7 @@ test("verified GitHub results bypass AI rewriting", async () => {
       })
       .expect(200);
 
-    assert.equal(openAiCalls, 1);
+    assert.equal(claudeCalls, 1);
     assert.equal(githubCalls, 1);
     assert.match(response.text, /Последната реална промяна в GitHub е/u);
     assert.match(response.text, /abc1234 — Agentic result/u);
@@ -537,9 +498,9 @@ test("independent tools still run when the OpenAI key is unavailable", async () 
   }
 });
 
-test("normal chat reports only the missing AI connection", async () => {
-  const originalOpenAiKey = process.env.OPENAI_API_KEY;
-  delete process.env.OPENAI_API_KEY;
+test("normal chat reports missing Claude even with other providers configured", async () => {
+  const originalClaudeKey = process.env.ANTHROPIC_API_KEY;
+  delete process.env.ANTHROPIC_API_KEY;
 
   try {
     const response = await request(app)
@@ -549,11 +510,11 @@ test("normal chat reports only the missing AI connection", async () => {
       .expect(200);
 
     assert.match(response.text, /event: error/u);
-    assert.match(response.text, /AI разговорът временно не е конфигуриран/u);
+    assert.match(response.text, /Claude не е конфигуриран/u);
     assert.match(response.text, /Независимите инструменти остават достъпни/u);
   } finally {
-    if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
-    else process.env.OPENAI_API_KEY = originalOpenAiKey;
+    if (originalClaudeKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = originalClaudeKey;
   }
 });
 
@@ -615,9 +576,10 @@ test("Work uses stored project conversations and ignores client-provided links",
   });
   let input;
   t.mock.method(globalThis, "fetch", async (url, options) => {
-    assert.equal(String(url), "https://api.openai.com/v1/responses");
-    input = JSON.parse(options.body).input;
-    return Response.json({ output_text: "Проектът е в срок." });
+    assert.equal(String(url), "https://api.anthropic.com/v1/messages");
+    const body = JSON.parse(options.body);
+    input = [{ role: "system", content: body.system }, ...body.messages];
+    return Response.json({ content: [{ type: "text", text: "Проектът е в срок." }] });
   });
   const result = await request(app)
     .post("/chat/chat")
@@ -653,9 +615,9 @@ test("Work uses stored project conversations and ignores client-provided links",
   assert.equal(input.at(-1).content, "Обобщи контекста.");
 });
 
-test("Work keeps trying available models when a selected model fails and another times out", async (t) => {
+test("Work ignores legacy selected models and does not fall back when Claude fails", async (t) => {
   const config = {
-    AI_CORE_PROVIDER: "grok",
+    AI_CORE_PROVIDER: "claude",
     OPENAI_CHAT_MODEL: "gpt-5.6-terra",
     OPENAI_TIMEOUT_MS: "15",
     GEMINI_API_KEY: "test-gemini",
@@ -675,26 +637,9 @@ test("Work keeps trying available models when a selected model fails and another
   const calls = [];
   t.mock.method(globalThis, "fetch", async (url, options) => {
     const host = new URL(url).hostname;
-    calls.push(
-      host === "api.openai.com" ? JSON.parse(options.body).model : host,
-    );
-    if (host === "api.openai.com") {
-      if (calls.length === 1) return new Response(null, { status: 404 });
-      await new Promise((resolve, reject) => {
-        options.signal.addEventListener(
-          "abort",
-          () => reject(options.signal.reason),
-          { once: true },
-        );
-      });
-    }
-    if (host === "generativelanguage.googleapis.com")
-      return new Response(null, { status: 503 });
-    assert.equal(host, "api.x.ai");
-    return Response.json({
-      model: "grok-test",
-      choices: [{ message: { content: "Работният чат отговаря." } }],
-    });
+    calls.push(host);
+    assert.equal(host, "api.anthropic.com");
+    return new Response(null, { status: 503 });
   });
 
   const response = await request(app)
@@ -711,13 +656,7 @@ test("Work keeps trying available models when a selected model fails and another
     })
     .expect(200);
 
-  assert.deepEqual(calls, [
-    "gpt-5.6-sol",
-    "gpt-5.6-terra",
-    "generativelanguage.googleapis.com",
-    "api.x.ai",
-  ]);
-  assert.match(response.text, /Работният чат отговаря\./u);
-  assert.match(response.text, /"provider":"grok","model":"grok-test"/u);
-  assert.doesNotMatch(response.text, /event: error/u);
+  assert.deepEqual(calls, ["api.anthropic.com"]);
+  assert.match(response.text, /event: error/u);
+  assert.doesNotMatch(response.text, /"provider":"grok"/u);
 });

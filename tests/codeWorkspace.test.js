@@ -208,9 +208,9 @@ test("an owner can review a pinned diff, approve the exact change once and see C
   assert.equal(draft.baseSha, sha);
   assert.deepEqual(
     draft.council.map(({ provider }) => provider),
-    ["openai", "gemini", "grok", "claude", "codex"],
+    ["openai", "gemini", "grok", "claude"],
   );
-  assert.equal(draft.executor.provider, "codex");
+  assert.equal(draft.executor.provider, "claude");
   assert.equal(draft.review[0].check.status, "passed");
   assert.match(
     draft.review[0].diff,
@@ -262,8 +262,8 @@ test("confirming a review whose base moved does not create a commit", async (t) 
   assert.deepEqual(writes, []);
 });
 
-test("Code uses a single responsive engine when the other four fail", async (t) => {
-  const unavailable = ["openai", "gemini", "grok", "codex"];
+test("Code uses Claude when optional advisors fail", async (t) => {
+  const unavailable = ["openai", "gemini", "grok"];
   const { cookie, calls, writes } = await setup(t, changed, { unavailable });
   const { body: draft } = await prepare(cookie).expect(200);
   assert.deepEqual(
@@ -280,32 +280,24 @@ test("Code uses a single responsive engine when the other four fail", async (t) 
   assert.deepEqual(writes, []);
 });
 
-test("Code tries another responsive engine if Codex fails to produce a plan", async (t) => {
+test("Code does not fall back when Claude fails to produce a plan", async (t) => {
   const { cookie, calls } = await setup(t, changed, {
     unavailable: ["openai", "grok"],
-    badPlanners: ["codex"],
+    badPlanners: ["claude"],
   });
-  const { body: draft } = await prepare(cookie).expect(200);
-  assert.equal(draft.executor.provider, "gemini");
+  await prepare(cookie).expect(502);
   assert.deepEqual(
     calls.filter(({ planning }) => planning).map(({ provider }) => provider),
-    ["codex", "gemini"],
+    ["claude"],
   );
-  assert.ok(draft.confirmationId);
 });
 
-test("Code keeps available advice when no engine can prepare a valid diff", async (t) => {
+test("Code stops when Claude is unavailable despite available advisors", async (t) => {
   const { cookie, confirmations, writes } = await setup(t, changed, {
     unavailable: ["openai", "grok", "claude", "codex"],
     badPlanners: ["gemini"],
   });
-  const { body: draft } = await prepare(cookie).expect(200);
-  assert.deepEqual(
-    draft.advice.map(({ provider }) => provider),
-    ["gemini"],
-  );
-  assert.equal(draft.confirmationId, undefined);
-  assert.deepEqual(draft.review, []);
+  await prepare(cookie).expect(503);
   assert.equal(confirmations.size, 0);
   assert.deepEqual(writes, []);
 });

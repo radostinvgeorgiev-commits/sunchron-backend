@@ -98,7 +98,6 @@ import {
 import {
   getAiProviderTimeoutMs,
   getConfiguredAiProvider,
-  getDefaultChatModel,
   isAiProviderConfigured,
   requestAiResponse,
 } from "../services/aiCoreService.js";
@@ -154,7 +153,6 @@ import {
 const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
 const DEFAULT_AI_TIMEOUT_MS = 120000;
-const WORK_ATTEMPT_TIMEOUT_MS = 30_000;
 const MAX_CHAT_MESSAGE_LENGTH = 6_000;
 const MAX_CHAT_SESSION_ID_LENGTH = 160;
 const SAFE_CHAT_SESSION_ID_PATTERN = /^[a-z0-9:_-]+$/iu;
@@ -1103,7 +1101,7 @@ export async function loadChatMemoryContext({
 }
 
 router.post("/chat", async (req, res) => {
-  const openAiApiKey = process.env.OPENAI_API_KEY;
+  const claudeApiKey = process.env.ANTHROPIC_API_KEY;
   const {
     sessionId,
     message,
@@ -2049,9 +2047,9 @@ router.post("/chat", async (req, res) => {
     planningAllowed:
       capabilityPlanningAllowed &&
       !memoryAction &&
-      Boolean(openAiApiKey) &&
+      aiProvider === "claude" && Boolean(claudeApiKey) &&
       !hasExplicitNoAdditionalToolsBoundary(taskMessage),
-    plannerContext: { openAiApiKey },
+    plannerContext: { claudeApiKey },
     planFn: planCapabilities,
     shouldPlanFn: shouldUseAgentPlanner,
     normalizeRequests: normalizeCapabilityRequests,
@@ -2178,53 +2176,14 @@ router.post("/chat", async (req, res) => {
   const attempts = aiProviderConfigured
     ? [{ provider: aiProvider, model: preferredModel }]
     : [];
-  if (isWork) {
-    if (
-      aiProviderConfigured &&
-      preferredModel &&
-      preferredModel !== getDefaultChatModel(aiProvider)
-    ) {
-      attempts.push({ provider: aiProvider });
-    }
-    if (!capabilityResults.length) {
-      for (const provider of ["gemini", "openai", "grok", "vertex-gemini"]) {
-        if (provider !== aiProvider && isAiProviderConfigured(provider)) {
-          attempts.push({ provider });
-        }
-      }
-    }
-  }
-  const sendCapabilityFallback = async () => {
-    const fullReply = [...capabilityReplies, memoryReply]
-      .filter(Boolean)
-      .join("\n\n");
-    const conversationPersisted = await saveConversationTurnBestEffort(
-      cleanSessionId,
-      cleanMessage,
-      fullReply,
-      ownerId,
-    );
-    sendEvent("token", { token: fullReply });
-    sendDone({
-      ok: true,
-      capabilities: capabilityResults.map(({ request }) => request.capability),
-      task: taskResult,
-      ...(taskRunId ? { taskRunId } : {}),
-      mode: "deterministic-fallback",
-      memoryAvailable,
-      ...getConversationPersistenceMetadata(conversationPersisted),
-    });
-  };
   if (!attempts.length) {
     if (capabilityReplies.length) {
-      await sendCapabilityFallback();
-      res.end();
-      return;
+      sendEvent("token", { token: capabilityReplies.join("\n\n") });
     }
     sendEvent("error", {
       status: 503,
       message:
-        "AI разговорът временно не е конфигуриран. Независимите инструменти остават достъпни.",
+        "Claude не е конфигуриран като основен AI двигател. Независимите инструменти остават достъпни.",
     });
     res.end();
     return;
@@ -2263,7 +2222,6 @@ router.post("/chat", async (req, res) => {
 
   const abortController = new AbortController();
   let timedOut = false;
-  let attemptTimedOut = false;
   let timeoutHandle;
   const cleanup = () => {
     clearHeartbeat();
@@ -2277,55 +2235,24 @@ router.post("/chat", async (req, res) => {
     cleanup();
     if (!res.writableEnded) abortUpstream();
   });
-  const aiTimeoutMs =
-    attempts.length > 1
-      ? DEFAULT_AI_TIMEOUT_MS
-      : getAiProviderTimeoutMs(
-          attempts[0].provider,
-          process.env,
-          DEFAULT_AI_TIMEOUT_MS,
-        );
+  const aiTimeoutMs = getAiProviderTimeoutMs(
+    attempts[0].provider,
+    process.env,
+    DEFAULT_AI_TIMEOUT_MS,
+  );
   timeoutHandle = setTimeout(() => {
     timedOut = true;
     abortUpstream();
   }, aiTimeoutMs);
 
   try {
-    let aiResponse;
-    for (const [index, attempt] of attempts.entries()) {
-      const deadline =
-        attempts.length > 1
-          ? AbortSignal.timeout(
-              Math.min(
-                WORK_ATTEMPT_TIMEOUT_MS,
-                getAiProviderTimeoutMs(attempt.provider),
-              ),
-            )
-          : null;
-      const signal = deadline
-        ? AbortSignal.any([abortController.signal, deadline])
-        : abortController.signal;
-      try {
-        if (index > 0 || attempt.provider !== aiProvider) {
-          sendEvent("activity", {
-            message: "Работният чат опитва резервен модел.",
-          });
-        }
-        aiResponse = await requestAiResponse({
-          ...attempt,
-          input: messages,
-          signal,
-          reasoningEffort: "low",
-          verbosity: "medium",
-        });
-        break;
-      } catch (error) {
-        attemptTimedOut = deadline?.aborted === true;
-        if (index === attempts.length - 1 || abortController.signal.aborted)
-          throw error;
-        logSafeError("[AI Core] Work provider attempt failed", error);
-      }
-    }
+    const aiResponse = await requestAiResponse({
+      ...attempts[0],
+      input: messages,
+      signal: abortController.signal,
+      reasoningEffort: "low",
+      verbosity: "medium",
+    });
     const fullReply = isRuntimeAiIdentityRequest(cleanMessage)
       ? `Този отговор реално е обработен от ${aiResponse.provider} · ${aiResponse.model}.`
       : aiResponse.text;
@@ -2371,22 +2298,21 @@ router.post("/chat", async (req, res) => {
   } catch (error) {
     if (abortController.signal.aborted && !timedOut) return;
     logSafeError("[AI Core] Failure", error);
-    if (isWork && capabilityReplies.length) {
-      await sendCapabilityFallback();
-      return;
+    if (capabilityReplies.length) {
+      sendEvent("token", { token: capabilityReplies.join("\n\n") });
     }
     sendEvent("error", {
-      status: timedOut || attemptTimedOut ? 504 : 502,
+      status: timedOut ? 504 : 502,
       code: safeErrorCode(
         error,
-        timedOut || attemptTimedOut ? "AI_TIMEOUT" : "AI_UPSTREAM_ERROR",
+        timedOut ? "AI_TIMEOUT" : "AI_UPSTREAM_ERROR",
       ),
       message:
-        timedOut || attemptTimedOut
-          ? "AI ядрото се забави прекалено. Опитай отново."
+        timedOut
+          ? "Claude се забави прекалено. Опитай отново."
           : isWork
-            ? "Работният чат не получи отговор от наличните AI модели. Опитай отново."
-            : "Връзката с AI ядрото беше прекъсната. Опитай отново.",
+            ? "Работният чат не получи отговор от Claude. Опитай отново."
+            : "Връзката с Claude беше прекъсната. Опитай отново.",
     });
   } finally {
     cleanup();

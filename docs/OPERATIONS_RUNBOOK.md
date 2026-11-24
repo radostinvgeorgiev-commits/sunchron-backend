@@ -49,16 +49,16 @@ trigger-а и после стартира само този SHA.
 заявките могат да върнат реален резултат в разговора; write заявките спират на
 точна confirmation стъпка и не променят външна система преди owner потвърждение.
 
-Claude и Codex не се приемат за работещи само защото са видими в UI. За всеки
-двигател се проверяват конфигурацията, capability gate-ът, audit следата и
-краен acceptance тест. Production write действия остават blocked без owner
-confirmation.
+Claude не се приема за работещ само защото е видим в UI. Провери Anthropic API
+конфигурацията, capability gate-а, audit следата и краен acceptance тест.
+Codex е изключен като изпълнител. Production write действия остават blocked
+без owner confirmation.
 
 ## Кодова задача
 
 1. Влез като owner и свържи GitHub OAuth.
 2. Задай точна, ограничена задача.
-3. Провери предложенията на OpenAI, Gemini и Grok и списъка с файлове.
+3. Провери плана на Claude, наличните съвети и списъка с файлове.
 4. Потвърди само точния confirmation id.
 5. Провери PR diff и CI.
 6. След merge изчакай exact-SHA Cloud Run deployment и тествай в браузър.

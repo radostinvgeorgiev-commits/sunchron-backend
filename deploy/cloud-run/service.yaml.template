@@ -17,7 +17,7 @@ spec:
         autoscaling.knative.dev/maxScale: "2"
         run.googleapis.com/execution-environment: gen2
         run.googleapis.com/cpu-throttling: "true"
-        run.googleapis.com/secrets: "openai-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__OPENAI_API_KEY_SECRET__,gemini-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GEMINI_API_KEY_SECRET__,grok-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GROK_API_KEY_SECRET__,identity-platform-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__IDENTITY_PLATFORM_API_KEY_SECRET__,user-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__USER_SESSION_ENCRYPTION_KEY_SECRET__,github-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GITHUB_SESSION_ENCRYPTION_KEY_SECRET__,google-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GOOGLE_SESSION_ENCRYPTION_KEY_SECRET__,tester-invite-code:projects/__GCP_PROJECT_NUMBER__/secrets/__SYNCHRON_TEST_INVITE_CODE_SECRET__,mcp-access-token:projects/__GCP_PROJECT_NUMBER__/secrets/__MCP_ACCESS_TOKEN_SECRET__,mcp-oauth-secret:projects/__GCP_PROJECT_NUMBER__/secrets/__MCP_OAUTH_SECRET_NAME__"
+        run.googleapis.com/secrets: "anthropic-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__ANTHROPIC_API_KEY_SECRET__,openai-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__OPENAI_API_KEY_SECRET__,gemini-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GEMINI_API_KEY_SECRET__,grok-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GROK_API_KEY_SECRET__,identity-platform-api-key:projects/__GCP_PROJECT_NUMBER__/secrets/__IDENTITY_PLATFORM_API_KEY_SECRET__,user-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__USER_SESSION_ENCRYPTION_KEY_SECRET__,github-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GITHUB_SESSION_ENCRYPTION_KEY_SECRET__,google-session-key:projects/__GCP_PROJECT_NUMBER__/secrets/__GOOGLE_SESSION_ENCRYPTION_KEY_SECRET__,tester-invite-code:projects/__GCP_PROJECT_NUMBER__/secrets/__SYNCHRON_TEST_INVITE_CODE_SECRET__,mcp-access-token:projects/__GCP_PROJECT_NUMBER__/secrets/__MCP_ACCESS_TOKEN_SECRET__,mcp-oauth-secret:projects/__GCP_PROJECT_NUMBER__/secrets/__MCP_OAUTH_SECRET_NAME__"
       labels:
         app: synchron-backend
     spec:
@@ -36,14 +36,17 @@ spec:
             - name: APP_COMMIT_SHA
               value: "__COMMIT_SHA__"
             - name: AI_CORE_PROVIDER
-              value: openai
+              value: claude
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: anthropic-api-key
+                  key: "__ANTHROPIC_API_KEY_VERSION__"
             - name: OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: openai-api-key
                   key: "__OPENAI_API_KEY_VERSION__"
-            - name: OPENAI_CODEX_MODEL
-              value: gpt-5.6-terra
             - name: AI_CORE_COUNCIL_MODEL
               value: gpt-5.6-terra
             - name: GEMINI_API_KEY

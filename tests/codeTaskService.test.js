@@ -34,7 +34,7 @@ function advisor(provider) {
   });
 }
 
-test("three engines are consulted before a bounded code confirmation is created", async () => {
+test("Claude prepares the plan with optional advisors before confirmation", async () => {
   let storedConfirmation;
   const prepared = await prepareCodeTask({
     ownerId: "owner-1",
@@ -44,6 +44,7 @@ test("three engines are consulted before a bounded code confirmation is created"
     apiKey: "openai-key",
     geminiApiKey: "gemini-key",
     grokApiKey: "grok-key",
+    claudeApiKey: "claude-key",
     createWorkspace: async () => ({
       root: "C:/nonexistent-ai-core-code-task-test",
       workspace: "C:/nonexistent-ai-core-code-task-test/source",
@@ -53,8 +54,9 @@ test("three engines are consulted before a bounded code confirmation is created"
       openai: advisor("openai"),
       gemini: advisor("gemini"),
       grok: advisor("grok"),
+      claude: advisor("claude"),
     },
-    responseRequester: async ({ input }) => {
+    plannerRequester: async ({ input }) => {
       assert.match(input[0].content, /openai \/ openai-test-model/u);
       assert.match(input[0].content, /gemini \/ gemini-test-model/u);
       assert.match(input[0].content, /grok \/ grok-test-model/u);
@@ -74,12 +76,12 @@ test("three engines are consulted before a bounded code confirmation is created"
 
   assert.deepEqual(
     prepared.council.map(({ provider }) => provider),
-    ["openai", "gemini", "grok"],
+    ["openai", "gemini", "grok", "claude"],
   );
   assert.equal(prepared.files[0].path, "public/avatar-proof.js");
   assert.equal(storedConfirmation.action, "github.write:code_task");
   assert.match(prepared.output, /Още не е записано нищо/u);
-  assert.match(prepared.output, /Водещ кодов изпълнител: Codex/u);
+  assert.match(prepared.output, /Водещ кодов изпълнител: Claude/u);
   assert.equal(
     extractCodeTaskConfirmationId(
       `Потвърждавам AI CORE кодова задача: ${prepared.confirmationId}`,
@@ -98,6 +100,7 @@ test("confirmation creates exactly one branch commit and pull request operation"
     apiKey: "openai-key",
     geminiApiKey: "gemini-key",
     grokApiKey: "grok-key",
+    claudeApiKey: "claude-key",
     createWorkspace: async () => ({
       root: "C:/nonexistent-ai-core-code-task-test",
       workspace: "C:/nonexistent-ai-core-code-task-test/source",
@@ -107,8 +110,9 @@ test("confirmation creates exactly one branch commit and pull request operation"
       openai: advisor("openai"),
       gemini: advisor("gemini"),
       grok: advisor("grok"),
+      claude: advisor("claude"),
     },
-    responseRequester: async () => ({ text: JSON.stringify(plan) }),
+    plannerRequester: async () => ({ text: JSON.stringify(plan) }),
     resolveGitHubSession: async () => githubSession,
     createConfirmation: async (confirmation) => {
       storedConfirmation = {
@@ -170,7 +174,7 @@ test("code task stops when no engine is configured", async () => {
         claudeApiKey: "",
         resolveGitHubSession: async () => githubSession,
       }),
-    (error) => error.code === "CODE_TASK_COUNCIL_NOT_CONFIGURED",
+    (error) => error.code === "CLAUDE_NOT_CONFIGURED",
   );
 });
 
@@ -184,6 +188,7 @@ test("normalizes safe repository-relative paths returned by the coding model", a
     apiKey: "openai-key",
     geminiApiKey: "gemini-key",
     grokApiKey: "grok-key",
+    claudeApiKey: "claude-key",
     createWorkspace: async () => ({
       root: "C:/nonexistent-ai-core-code-task-test",
       workspace: "C:/nonexistent-ai-core-code-task-test/source",
@@ -193,8 +198,9 @@ test("normalizes safe repository-relative paths returned by the coding model", a
       openai: advisor("openai"),
       gemini: advisor("gemini"),
       grok: advisor("grok"),
+      claude: advisor("claude"),
     },
-    responseRequester: async () => ({
+    plannerRequester: async () => ({
       text: JSON.stringify({
         ...plan,
         changes: [{ ...plan.changes[0], path: ".\\public\\avatar-proof.js" }],
@@ -239,14 +245,16 @@ test("blocks a coding plan that collapses a large existing file", async () => {
         apiKey: "openai-key",
         geminiApiKey: "gemini-key",
         grokApiKey: "grok-key",
+        claudeApiKey: "claude-key",
         createWorkspace: async () => ({ root, workspace }),
         createSnapshot: async () => ({ text: "public/work-mode.css" }),
         advisorRequesters: {
           openai: advisor("openai"),
           gemini: advisor("gemini"),
           grok: advisor("grok"),
+          claude: advisor("claude"),
         },
-        responseRequester: async () => ({
+        plannerRequester: async () => ({
           text: JSON.stringify({
             ...plan,
             changes: [

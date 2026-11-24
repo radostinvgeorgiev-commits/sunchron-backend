@@ -83,7 +83,7 @@ test("workspace state is bounded and strips untrusted values", () => {
   assert.equal(state.agents[0].role, "general");
   assert.equal(state.agents[0].model, "auto");
   assert.equal(state.agents[0].engine, "ai-core");
-  assert.ok(state.agents.some((agent) => agent.engine === "codex"));
+  assert.ok(state.agents.some((agent) => agent.id === "codex-agent" && agent.engine === "ai-core"));
   assert.ok(state.agents.some((agent) => agent.role === "researcher"));
   assert.ok(state.agents.some((agent) => agent.role === "organizer"));
   assert.ok(state.agents.some((agent) => agent.role === "documents"));
@@ -149,6 +149,29 @@ test("legacy workspaces receive specialized agents with their own pets", () => {
         engine: "codex",
       },
     ],
+  });
+
+  test("legacy Codex agent keeps its identity and custom settings without executing Codex", () => {
+    const state = normalizeWorkspaceState({
+      version: 4,
+      activeAgentId: "codex-agent",
+      agents: [{
+        id: "codex-agent",
+        name: "Моят кодов агент",
+        role: "coder",
+        model: "gpt-5.6-terra",
+        purpose: "Моят запазен фокус",
+        engine: "codex",
+        petId: "cat",
+      }],
+    });
+    const agent = state.agents.find(({ id }) => id === "codex-agent");
+    assert.equal(state.activeAgentId, "codex-agent");
+    assert.equal(agent.name, "Моят кодов агент");
+    assert.equal(agent.purpose, "Моят запазен фокус");
+    assert.equal(agent.model, "gpt-5.6-terra");
+    assert.equal(agent.engine, "ai-core");
+    assert.equal(agent.petId, "cat");
   });
 
   assert.equal(state.version, 6);
@@ -220,7 +243,7 @@ test("workspace state is saved in an isolated hashed document", async () => {
   assert.doesNotMatch(JSON.stringify(indexed.body), /primary-user/u);
   assert.equal(result.state.mode, "work");
   assert.equal(result.state.agents[0].model, "gpt-5.6-terra");
-  assert.ok(result.state.agents.some((agent) => agent.engine === "codex"));
+  assert.ok(result.state.agents.every((agent) => agent.engine === "ai-core"));
   assert.equal(result.state.projects[0].run.nextStep, "Продължи");
   assert.equal(result.persisted, true);
 });

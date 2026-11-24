@@ -21,7 +21,6 @@ import {
   getMcpOAuthRuntimeStatus,
   isMcpOAuthConfigured,
 } from "../services/mcpOAuthService.js";
-import { isCodexAgentConfigured } from "../services/codexAgentService.js";
 import {
   getCodeTaskProviderStatus,
   isCodeTaskConfigured,
@@ -445,17 +444,10 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
       configured: Boolean(process.env.OPENAI_API_KEY),
     },
     "openai-codex": {
-      configured: isCodexAgentConfigured(),
-      runtimeEnabled:
-        String(process.env.CODEX_AGENT_ENABLED || "").toLowerCase() !== "false",
-      availabilityCode:
-        String(process.env.CODEX_AGENT_ENABLED || "").toLowerCase() === "false"
-          ? "CODEX_AGENT_DISABLED"
-          : null,
-      availabilityReason:
-        String(process.env.CODEX_AGENT_ENABLED || "").toLowerCase() === "false"
-          ? "Codex агентът е изключен от конфигурацията."
-          : null,
+      configured: false,
+      runtimeEnabled: false,
+      availabilityCode: "CODEX_AGENT_DISABLED",
+      availabilityReason: "Codex агентът е изключен.",
     },
     "google-cloud-read": {
       configured: googleCloud.configured,

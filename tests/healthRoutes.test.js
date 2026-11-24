@@ -22,7 +22,7 @@ test("readiness accepts the selected AI provider and a healthy Firestore probe",
   const result = await getReadinessStatus({
     env: {
       NODE_ENV: "test",
-      OPENAI_API_KEY: "key",
+      ANTHROPIC_API_KEY: "key",
       MEMORY_BACKEND: "firestore",
       GOOGLE_CLOUD_PROJECT: "project-1",
     },
@@ -33,14 +33,14 @@ test("readiness accepts the selected AI provider and a healthy Firestore probe",
   });
   assert.equal(result.status, "ready");
   assert.equal(result.checks.memory.backend, "firestore");
-  assert.equal(result.checks.chatAgent.primaryProvider, "openai");
+  assert.equal(result.checks.chatAgent.primaryProvider, "claude");
   assert.deepEqual(
     result.checks.chatAgent.providers.find(({ id }) => id === "vertex-gemini"),
     { id: "vertex-gemini", configured: false },
   );
 });
 
-test("readiness follows an explicitly selected Vertex provider", async () => {
+test("readiness rejects a legacy non-Claude primary provider", async () => {
   const baseEnv = {
     NODE_ENV: "test",
     AI_CORE_PROVIDER: "vertex-gemini",
@@ -58,12 +58,12 @@ test("readiness follows an explicitly selected Vertex provider", async () => {
     loadMemoryVerificationStatus: () => ({ status: "not-required" }),
   };
   const ready = await getReadinessStatus({ env: baseEnv, ...options });
-  assert.equal(ready.status, "ready");
-  assert.equal(ready.checks.chatAgent.primaryProvider, "vertex-gemini");
-  assert.equal(ready.checks.chatAgent.ready, true);
+  assert.equal(ready.status, "not-ready");
+  assert.equal(ready.checks.chatAgent.primaryProvider, null);
+  assert.equal(ready.checks.chatAgent.ready, false);
 
   const notReady = await getReadinessStatus({
-    env: { ...baseEnv, VERTEX_AI_PROJECT_ID: "invalid project" },
+    env: { ...baseEnv, AI_CORE_PROVIDER: "claude" },
     ...options,
   });
   assert.equal(notReady.status, "not-ready");

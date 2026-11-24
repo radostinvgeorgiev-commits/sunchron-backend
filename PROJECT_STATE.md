@@ -29,6 +29,15 @@ MCP URL: https://cloudaicore.com/mcp. OAuth е authorization code с PKCE S256.
 сайта и Cloud Run не са реализирани. Cloud Logging диагностиката показва
 наличие на скорошна грешка, а не съдържанието на произволни логове.
 
+В кода Claude е основният двигател за разговор, Council решение и кодов план.
+OpenAI, Gemini и Grok остават незадължителни съветници; Codex е изключен,
+а старите workspace идентичности и настройки се запазват. Няма автоматичен
+fallback при липсващ или недостъпен Claude. Конфигурационни имена:
+`AI_CORE_PROVIDER`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`,
+`ANTHROPIC_TIMEOUT_MS`. Свързването на Claude.ai към MCP OAuth е отделно от
+Anthropic API за двигателя. Действителната production конфигурация и
+достъпността на Anthropic API не са проверени.
+
 ## Decisions
 - 2026-11-23: Owner поиска разговор с AI CORE и подготовка на код; разговорът
   не изпълнява инструменти и не потвърждава действия.
@@ -40,6 +49,8 @@ MCP URL: https://cloudaicore.com/mcp. OAuth е authorization code с PKCE S256.
   потвърждение; текущата реализация все още изисква потвърждение и за тях.
 - 2026-11-23: Няма browser Firebase SDK; ключът на сървъра не трябва да се
   настройва като browser-only HTTP-referrer ключ.
+- 2026-11-23: Owner избра Claude за основен двигател без автоматичен fallback;
+  другите доставчици остават съветници, а Codex е деактивиран с legacy съвместимост.
 
 ## Next step
 Преглед на PR и CI, проверка на Google Cloud настройките и истински тест с

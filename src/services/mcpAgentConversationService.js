@@ -193,7 +193,7 @@ export async function sendMcpAgentMessage(
   const planningAllowed =
     !noToolBoundary &&
     canPlanCapabilities(safeIdentity) &&
-    Boolean(process.env.OPENAI_API_KEY);
+    Boolean(process.env.ANTHROPIC_API_KEY);
 
   let googleSessionId = null;
   let githubSession = null;
@@ -287,7 +287,7 @@ export async function sendMcpAgentMessage(
     message: cleanMessage,
     fallbackRequests,
     planningAllowed,
-    plannerContext: { openAiApiKey: process.env.OPENAI_API_KEY },
+    plannerContext: { claudeApiKey: process.env.ANTHROPIC_API_KEY },
     planFn: plan,
     shouldPlanFn: shouldPlan,
     normalizeRequests: (requests) =>

@@ -104,21 +104,22 @@ test("the available personal-agent models are explicit and server-owned", () => 
       "grok-4.5",
     ],
   );
-  assert.equal(resolveWorkAgentModel("gpt-5.6-sol"), "gpt-5.6-sol");
-  assert.equal(resolveWorkAgentModel("gpt-5.6-terra"), "gpt-5.6-terra");
-  assert.equal(resolveWorkAgentModel("gemini-2.5-flash"), "gemini-2.5-flash");
+  assert.equal(resolveWorkAgentModel("gpt-5.6-sol"), undefined);
+  assert.equal(resolveWorkAgentModel("gpt-5.6-terra"), undefined);
+  assert.equal(resolveWorkAgentModel("gemini-2.5-flash"), undefined);
   assert.equal(
     resolveWorkAgentModel("vertex-gemini-2.5-flash"),
-    "gemini-2.5-flash",
+    undefined,
   );
-  assert.equal(resolveWorkAgentModel("grok-4.5"), "grok-4.5");
-  assert.equal(resolveWorkAgentProvider("gpt-5.6-sol"), "openai");
-  assert.equal(resolveWorkAgentProvider("gemini-2.5-flash"), "gemini");
+  assert.equal(resolveWorkAgentModel("grok-4.5"), undefined);
+  assert.equal(resolveWorkAgentProvider("gpt-5.6-sol"), undefined);
+  assert.equal(resolveWorkAgentProvider("gemini-2.5-flash"), undefined);
   assert.equal(
     resolveWorkAgentProvider("vertex-gemini-2.5-flash"),
-    "vertex-gemini",
+    undefined,
   );
-  assert.equal(resolveWorkAgentProvider("grok-4.5"), "grok");
+  assert.equal(resolveWorkAgentProvider("grok-4.5"), undefined);
+  assert.equal(resolveWorkAgentProvider("claude-haiku-4-5-20251001"), "claude");
   assert.equal(resolveWorkAgentProvider("auto"), undefined);
   assert.equal(resolveWorkAgentModel("unknown"), undefined);
   assert.equal(resolveWorkAgentModel("auto"), undefined);
@@ -131,10 +132,10 @@ test("the available personal-agent roles are explicit", () => {
   );
 });
 
-test("the available agent engines are explicit and Codex replaces code writes with isolated analysis", () => {
+test("legacy Codex contexts use AI CORE without substituting a code executor", () => {
   assert.deepEqual(
     listWorkAgentEngines().map(({ id }) => id),
-    ["ai-core", "codex"],
+    ["ai-core"],
   );
   const requests = routeSelectedWorkAgentCapabilities(
     [
@@ -158,7 +159,8 @@ test("the available agent engines are explicit and Codex replaces code writes wi
   assert.deepEqual(
     requests.map(({ capability, action }) => ({ capability, action })),
     [
-      { capability: "code.analyze", action: "code.execute.read" },
+      { capability: "code.read", action: "github.read" },
+      { capability: "code.write", action: "github.write" },
       { capability: "web.search", action: "web.read" },
     ],
   );
@@ -273,7 +275,7 @@ test("active work context questions use verified state instead of chat history",
     reply,
     [
       "Агент: AI CORE Ръководител SOL",
-      "Модел: GPT-5.6 Sol",
+      "Модел: GPT-5.6 Sol (стара настройка; основният двигател е Claude)",
       "Роля: Организатор",
       "Изпълнител: AI CORE",
       "Любимец: Кори",

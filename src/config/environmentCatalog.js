@@ -21,29 +21,31 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     secret(
       "OPENAI_API_KEY",
       "AI ядро",
-      "Разговор, планиране, търсене и анализ.",
-      { requiredNow: true },
+      "Незадължителен съветник, търсене и анализ.",
     ),
+    secret("ANTHROPIC_API_KEY", "AI ядро", "Основен Claude двигател.", { requiredNow: true }),
+    general("ANTHROPIC_MODEL", "AI ядро", "Модел за Claude.", { hasDefault: true }),
+    general("ANTHROPIC_TIMEOUT_MS", "AI ядро", "Максимално време за Claude.", { hasDefault: true }),
     general(
       "AI_CORE_PROVIDER",
       "AI ядро",
-      "Разговорен доставчик: openai, gemini, grok или vertex-gemini. По подразбиране е openai.",
+      "Основният разговорен доставчик е Claude.",
       { hasDefault: true },
     ),
-    general("OPENAI_CHAT_MODEL", "AI ядро", "Модел за основния разговор.", {
+    general("OPENAI_CHAT_MODEL", "AI ядро", "Модел за OpenAI съветник.", {
       hasDefault: true,
     }),
     general(
       "AI_CORE_COUNCIL_MODEL",
       "AI ядро",
-      "Моделът, който сравнява отговорите на OpenAI, Gemini и Grok.",
+      "Моделът на OpenAI съветника в Council.",
       { hasDefault: true },
     ),
     general(
       "OPENAI_PLANNER_MODEL",
       "AI ядро",
-      "Модел за планиране на инструментите.",
-      { hasDefault: true },
+      "Наследена настройка за планировчика.",
+      { hasDefault: true, state: "compatibility" },
     ),
     general(
       "OPENAI_DOCUMENT_MODEL",
@@ -69,8 +71,8 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general(
       "OPENAI_PLANNER_TIMEOUT_MS",
       "AI ядро",
-      "Максимално време за плана на агента.",
-      { hasDefault: true },
+      "Наследен лимит за планировчика.",
+      { hasDefault: true, state: "compatibility" },
     ),
     general(
       "OPENAI_RESPONSES_URL",

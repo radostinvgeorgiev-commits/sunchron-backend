@@ -8,7 +8,6 @@ import {
 } from "../config/memoryBackend.js";
 import {
   getAiProviderStatus,
-  hasConfiguredAiProvider,
   isAiCoreConfigured,
 } from "../services/aiCoreService.js";
 import { answerGitHubReadRequest } from "../services/githubService.js";
@@ -88,10 +87,6 @@ import {
   getSystemConfigurationReport,
 } from "../services/systemConfigurationService.js";
 import {
-  isCodexAgentConfigured,
-  runCodexProjectAnalysis,
-} from "../services/codexAgentService.js";
-import {
   findToolsByCapability,
   listTools,
   registerCoreTools,
@@ -153,7 +148,7 @@ export function getToolRuntimeAvailability(
 
   switch (toolId) {
     case "synchron-agent-chat":
-      if (!hasConfiguredAiProvider(env) || !isMemoryBackendConfigured(env)) {
+      if (!isAiCoreConfigured(env) || !isMemoryBackendConfigured(env)) {
         return configured(
           false,
           "AI CORE разговорът или постоянната история не са конфигурирани.",
@@ -236,9 +231,9 @@ export function getToolRuntimeAvailability(
       );
     case "openai-codex":
       return configured(
-        isCodexAgentConfigured(env),
-        "Codex агентът не е конфигуриран.",
-        "CODEX_AGENT_NOT_CONFIGURED",
+        false,
+        "Codex агентът е изключен.",
+        "CODEX_AGENT_DISABLED",
       );
     case "google-firestore-memory":
       return configured(
@@ -327,7 +322,6 @@ export async function buildIntegrationStatusReport(
     ["Google Cloud Read", googleCloud],
     ["AI CORE разговор", isAiCoreConfigured(env)],
     ["OpenAI Web Search", Boolean(env.OPENAI_API_KEY)],
-    ["Codex", isCodexAgentConfigured(env)],
   ];
   const sessionTools = [
     [
@@ -353,6 +347,7 @@ export async function buildIntegrationStatusReport(
     openai: "OpenAI",
     gemini: "Gemini",
     grok: "Grok",
+    claude: "Claude",
     "vertex-gemini": "Vertex Gemini",
   };
 
@@ -637,23 +632,6 @@ const executors = Object.freeze({
         confirmationId: prepared.confirmationId,
         confirmationType: "capability",
       },
-    };
-  },
-  "openai-codex": async ({ input }) => {
-    const result = await runCodexProjectAnalysis({
-      message: input.message,
-      projectId: input.workContext?.project?.id,
-      projectName: input.workContext?.project?.name,
-      projectObjective: input.workContext?.project?.objective,
-      previousRun: input.workContext?.project?.run,
-      model:
-        input.workContext?.agent?.model === "auto"
-          ? undefined
-          : input.workContext?.agent?.model,
-    });
-    return {
-      output: result.output,
-      metadata: Object.freeze({ projectRun: result.projectRun }),
     };
   },
   "google-calendar-read": async ({ input }) => {

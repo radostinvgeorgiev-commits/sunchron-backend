@@ -404,9 +404,9 @@ export function normalizeAiProvider(value) {
 export function getConfiguredAiProvider(env = process.env) {
   const configuredProvider = env.AI_CORE_PROVIDER;
   if (configuredProvider === undefined || configuredProvider === "") {
-    return "openai";
+    return "claude";
   }
-  return normalizeAiProvider(configuredProvider);
+  return normalizeAiProvider(configuredProvider) === "claude" ? "claude" : null;
 }
 
 export function isAiProviderConfigured(provider, env = process.env) {

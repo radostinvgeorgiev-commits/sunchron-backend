@@ -26,13 +26,9 @@ test("избира GitHub без AI Core да знае конкретния ин
   assert.equal(result.requiresConfirmation, false);
 });
 
-test("избира Codex само за изолиран кодов анализ", () => {
-  const result = resolveCapability("code.analyze");
-  assert.equal(result.tool.id, "openai-codex");
-  assert.equal(result.permission.action, "code.execute.read");
-  assert.equal(result.permission.decision, "allow");
-  assert.equal(result.requiresConfirmation, false);
-  assert.equal(isToolExecutable("openai-codex"), true);
+test("Codex не може да се изпълнява дори със стара конфигурация", () => {
+  assert.throws(() => resolveCapability("code.analyze"), { code: "CAPABILITY_UNAVAILABLE" });
+  assert.equal(isToolExecutable("openai-codex"), false);
 });
 
 test("маркира опасните действия за потвърждение", () => {
@@ -147,12 +143,12 @@ test("runtime availability blocks configured-looking tools without credentials",
       {},
       { OPENAI_API_KEY: "key", CODEX_AGENT_ENABLED: "false" },
     ).code,
-    "CODEX_AGENT_NOT_CONFIGURED",
+    "CODEX_AGENT_DISABLED",
   );
   assert.equal(
     getToolRuntimeAvailability("openai-codex", {}, { OPENAI_API_KEY: "key" })
       .available,
-    true,
+    false,
   );
   assert.equal(
     getToolRuntimeAvailability(
@@ -173,6 +169,7 @@ test("runtime availability blocks configured-looking tools without credentials",
         OPENAI_API_KEY: "openai",
         GEMINI_API_KEY: "gemini",
         GROK_API_KEY: "grok",
+        ANTHROPIC_API_KEY: "claude",
         GITHUB_CLIENT_ID: "client",
         GITHUB_CLIENT_SECRET: "secret",
       },
@@ -205,7 +202,7 @@ test("Google Cloud Write accepts the verified Cloud Run runtime markers", () => 
   assert.equal(result.available, true);
 });
 
-test("AI CORE chat availability accepts a configured non-OpenAI provider", () => {
+test("AI CORE chat requires configured Claude", () => {
   const result = getToolRuntimeAvailability(
     "synchron-agent-chat",
     { ownerId: "supabase:test" },
@@ -217,12 +214,12 @@ test("AI CORE chat availability accepts a configured non-OpenAI provider", () =>
       OPENSEARCH_PASSWORD: "password",
     },
   );
-  assert.equal(result.available, true);
+  assert.equal(result.available, false);
 });
 
 test("AI CORE chat and memory availability accept Firestore without OpenSearch", () => {
   const env = {
-    OPENAI_API_KEY: "key",
+    ANTHROPIC_API_KEY: "key",
     MEMORY_BACKEND: "firestore",
     GOOGLE_CLOUD_PROJECT: "handy-boulevard-479120-q9",
     FIRESTORE_DATABASE_ID: "(default)",
@@ -391,10 +388,11 @@ test("връща общ статус само след реални провер
       checkMemory: async () => [],
       checkGoogleCloud: async () => ({ configured: true }),
       env: {
-        AI_CORE_PROVIDER: "grok",
+        AI_CORE_PROVIDER: "claude",
         OPENAI_API_KEY: "configured",
         GEMINI_API_KEY: "configured",
         GROK_API_KEY: "configured",
+        ANTHROPIC_API_KEY: "configured",
         GITHUB_CLIENT_ID: "client",
         GITHUB_CLIENT_SECRET: "secret",
       },
@@ -410,7 +408,7 @@ test("връща общ статус само след реални провер
   assert.match(report, /GitHub Write — свързан; изисква потвърждение/u);
   assert.match(report, /OpenAI — конфигуриран/u);
   assert.match(report, /Gemini — конфигуриран/u);
-  assert.match(report, /Grok — конфигуриран; основен за разговора/u);
+  assert.match(report, /Claude — конфигуриран; основен за разговора/u);
 });
 
 test("не обявява Google Cloud за работещ без runtime конфигурация", async () => {
@@ -456,7 +454,7 @@ test("не изпълнява способност за потвърждение
 
 test("всеки регистриран основен инструмент има изпълним адаптер", () => {
   registerCoreTools();
-  for (const { id } of listTools()) {
+  for (const { id } of listTools().filter(({ enabled }) => enabled)) {
     assert.equal(isToolExecutable(id), true, id);
   }
 });

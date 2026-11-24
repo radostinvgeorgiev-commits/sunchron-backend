@@ -251,7 +251,7 @@ export function registerCoreTools() {
       capabilityPermissions: {
         "code.analyze": "code.execute.read",
       },
-      enabled: true,
+      enabled: false,
       requiresConfirmation: false,
       healthStatus: "unavailable",
     },

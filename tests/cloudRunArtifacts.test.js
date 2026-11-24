@@ -50,6 +50,7 @@ test("Cloud Run template uses liveness without dependency-heavy readiness", asyn
     /name: IDENTITY_PLATFORM_REQUIRE_EMAIL_VERIFICATION\s+value: "true"/u,
   );
   assert.match(template, /__IDENTITY_PLATFORM_API_KEY_SECRET__/u);
+  assert.match(template, /__ANTHROPIC_API_KEY_SECRET__/u);
   assert.match(template, /__GEMINI_API_KEY_SECRET__/u);
   assert.match(template, /__GROK_API_KEY_SECRET__/u);
   assert.match(template, /name: GROK_MODEL\s+value: grok-4\.5/u);
@@ -70,7 +71,7 @@ test("Cloud Run template uses liveness without dependency-heavy readiness", asyn
   assert.doesNotMatch(template, /readinessProbe:/u);
   assert.match(template, /name: SYNCHRON_TEST_INVITE_CODE/u);
   assert.doesNotMatch(template, /name: TESTER_INVITE_CODE/u);
-  assert.equal((template.match(/secretKeyRef:/gu) || []).length, 10);
+  assert.equal((template.match(/secretKeyRef:/gu) || []).length, 11);
   assert.doesNotMatch(template, /gcloud\s+(run|secrets)/iu);
 });
 

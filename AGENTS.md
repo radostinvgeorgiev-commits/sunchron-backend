@@ -6,7 +6,7 @@ AI CORE е лична AI операционна система с постоян
 разрешени инструменти за реални задачи. Аватарът е нейният видим интерфейс, а
 не отделен продукт.
 
-## Текуща production архитектура
+## Целева архитектура в това хранилище
 
 - repository: `radostinvgeorgiev-commits/sunchron-backend`, branch `main`;
 - canonical site: `https://cloudaicore.com`;
@@ -14,14 +14,15 @@ AI CORE е лична AI операционна система с постоян
 - памет, сесии, потвърждения и audit: Firestore;
 - потребители: Google Identity Platform;
 - тайни: Google Secret Manager и runtime service identity;
-- AI: OpenAI Responses API по подразбиране, с Gemini, Grok и Claude като
-  допълнителни двигатели;
+- AI: Claude е основен двигател, а OpenAI, Gemini и Grok са незадължителни
+  съветници; няма автоматично заместване при отказ на Claude;
 - изпълнение: Task Orchestrator → Capability Engine → Tool Registry;
-- защитен кодов цикъл: OpenAI, Gemini, Grok, Claude и Codex участват, когато
-  са конфигурирани. Планът се подготвя от отговорил двигател с приоритет за
-  Codex. Потребителят потвърждава точния diff, след което се
+- защитен кодов цикъл: Claude подготвя плана след консултация с наличните
+  съветници. Codex не е активен изпълнител. Потребителят потвърждава точния diff, след което се
   създават отделен branch, commit и Pull Request;
 - MCP: `https://cloudaicore.com/mcp` с OAuth и owner-only write scopes.
+
+Тази архитектура не доказва, че текущият production deployment вече я използва.
 
 Не фиксирай SHA или брой тестове в този файл. Преди промяна проверявай
 актуалния `main`, работното дърво, `/health`, `/health/ready` и

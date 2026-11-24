@@ -9,6 +9,10 @@
   "memoryOwnerId": "synchron-gcp-staging-owner",
   "mcpResourceUrl": "__REPLACE_HTTPS_CLOUD_RUN_URL__/mcp",
   "secrets": {
+    "ANTHROPIC_API_KEY": {
+      "name": "__ANTHROPIC_SECRET_NAME__",
+      "version": "__FIXED_NUMERIC_VERSION__"
+    },
     "OPENAI_API_KEY": {
       "name": "synchron-openai-api-key",
       "version": "__FIXED_NUMERIC_VERSION__"

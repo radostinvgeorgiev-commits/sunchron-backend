@@ -3,7 +3,6 @@ import { readFile, rm } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 
 import {
-  DEFAULT_CODEX_COUNCIL_MODEL,
   requestClaudeResponse,
   requestGeminiResponse,
   requestGrokResponse,
@@ -17,7 +16,6 @@ import {
 import {
   createBoundedSourceSnapshot,
   createIsolatedSourceWorkspace,
-  isCodexAgentConfigured,
 } from "./codexAgentService.js";
 import {
   loadCodeWorkspaceSource,
@@ -59,11 +57,6 @@ const CODE_PROVIDERS = {
     key: "ANTHROPIC_API_KEY",
     request: requestClaudeResponse,
   },
-  codex: {
-    label: "Codex",
-    key: "OPENAI_API_KEY",
-    request: requestOpenAIResponse,
-  },
 };
 const DEFAULT_ADVISOR_REQUESTERS = Object.fromEntries(
   Object.entries(CODE_PROVIDERS).map(([provider, { request }]) => [
@@ -75,13 +68,12 @@ const DEFAULT_ADVISOR_REQUESTERS = Object.fromEntries(
 export function getCodeTaskProviderStatus(env = process.env) {
   return Object.entries(CODE_PROVIDERS).map(([id, { key }]) => ({
     id,
-    configured:
-      id === "codex" ? isCodexAgentConfigured(env) : Boolean(env[key]?.trim()),
+    configured: Boolean(env[key]?.trim()),
   }));
 }
 
 export function isCodeTaskConfigured(env = process.env) {
-  return getCodeTaskProviderStatus(env).some(({ configured }) => configured);
+  return Boolean(env.ANTHROPIC_API_KEY?.trim());
 }
 
 const CODE_TASK_SCHEMA = Object.freeze({
@@ -362,11 +354,8 @@ export async function prepareCodeTask({
   geminiApiKey = process.env.GEMINI_API_KEY,
   grokApiKey = process.env.GROK_API_KEY,
   claudeApiKey = process.env.ANTHROPIC_API_KEY,
-  codexModel = process.env.AI_CORE_COUNCIL_CODEX_MODEL ||
-    DEFAULT_CODEX_COUNCIL_MODEL,
-  model = process.env.OPENAI_CODEX_MODEL,
   sourceDirectory = process.cwd(),
-  responseRequester = requestOpenAIResponse,
+  plannerRequester = requestClaudeResponse,
   advisorRequesters = DEFAULT_ADVISOR_REQUESTERS,
   createWorkspace = createIsolatedSourceWorkspace,
   createSnapshot = createBoundedSourceSnapshot,
@@ -382,12 +371,6 @@ export async function prepareCodeTask({
     gemini: geminiApiKey,
     grok: grokApiKey,
     claude: claudeApiKey,
-    codex: isCodexAgentConfigured({
-      OPENAI_API_KEY: apiKey,
-      CODEX_AGENT_ENABLED: process.env.CODEX_AGENT_ENABLED,
-    })
-      ? apiKey
-      : "",
   };
   const providers = Object.keys(CODE_PROVIDERS);
   const configured = providers.filter(
@@ -395,11 +378,11 @@ export async function prepareCodeTask({
       keys[provider]?.trim() &&
       typeof advisorRequesters[provider] === "function",
   );
-  if (!configured.length) {
+  if (!keys.claude?.trim() || !configured.includes("claude")) {
     throw new CodeTaskError(
-      "Няма конфигуриран AI двигател за кодови задачи.",
+      "Claude не е конфигуриран за кодови задачи.",
       503,
-      "CODE_TASK_COUNCIL_NOT_CONFIGURED",
+      "CLAUDE_NOT_CONFIGURED",
     );
   }
   const source =
@@ -434,9 +417,8 @@ export async function prepareCodeTask({
           apiKey: keys[provider],
           input: advisorInput,
           signal: advisorSignal,
-          ...(provider === "codex"
-            ? { model: codexModel, verbosity: null, reasoningEffort: "low" }
-            : { verbosity: "low", reasoningEffort: "medium" }),
+          verbosity: "low",
+          reasoningEffort: "medium",
         });
         const text = typeof result?.text === "string" ? result.text.trim() : "";
         if (!text) throw new Error("Липсва отговор от двигателя.");
@@ -452,9 +434,9 @@ export async function prepareCodeTask({
     );
     if (!councilResponses.length) {
       throw new CodeTaskError(
-        "Нито един от наличните AI двигатели не върна отговор. Опитай отново.",
+        "Claude не отговори. Кодовата задача е спряна без друг изпълнител.",
         503,
-        "CODE_TASK_COUNCIL_FAILED",
+        "CLAUDE_UNAVAILABLE",
       );
     }
     const participants = councilResponses.map(
@@ -464,6 +446,13 @@ export async function prepareCodeTask({
       }),
     );
     const answered = new Set(participants.map(({ provider }) => provider));
+    if (!answered.has("claude")) {
+      throw new CodeTaskError(
+        "Claude не отговори. Кодовата задача е спряна без друг изпълнител.",
+        503,
+        "CLAUDE_UNAVAILABLE",
+      );
+    }
     const unavailableProviders = providers.filter(
       (provider) => !answered.has(provider),
     );
@@ -477,69 +466,30 @@ export async function prepareCodeTask({
     const planInput = [
       { role: "user", content: codeTaskPrompt(task, snapshot.text, council) },
     ];
-    const planDeadline = AbortSignal.timeout(110_000);
     let plan;
     let executor;
-    let planError;
-    for (const provider of ["codex", "openai", "gemini", "grok", "claude"]) {
-      if (!answered.has(provider) || planDeadline.aborted) continue;
-      const requester =
-        provider === "openai" ? responseRequester : advisorRequesters[provider];
-      const codingModel =
-        provider === "codex"
-          ? codexModel
-          : provider === "openai"
-            ? model
-            : undefined;
-      try {
-        const response = await requester({
-          apiKey: keys[provider],
-          ...(codingModel ? { model: codingModel } : {}),
-          signal: AbortSignal.any([planDeadline, AbortSignal.timeout(45_000)]),
-          input: planInput,
-          verbosity: provider === "codex" ? null : "low",
-          reasoningEffort: "high",
-          jsonMode: true,
-          maxTokens: 8192,
-          outputSchema: CODE_TASK_SCHEMA,
-          outputSchemaName: "ai_core_code_task",
-        });
-        plan = validatePlan(response?.text, process.env);
-        executor = {
-          role: ["openai", "codex"].includes(provider) ? "codex" : "coding",
-          provider,
-          model:
-            (typeof response.model === "string" && response.model.trim()) ||
-            codingModel ||
-            participants.find((entry) => entry.provider === provider)?.model ||
-            CODE_PROVIDERS[provider].label,
-        };
-        break;
-      } catch (error) {
-        planError ||= error instanceof CodeTaskError ? error : null;
-      }
-    }
-    if (!plan || !executor) {
-      if (source) {
-        return {
-          repository,
-          baseSha: source.baseSha,
-          title: "Предложения от наличните двигатели",
-          summary:
-            "Получих предложения. Двигателите не успяха да подготвят проверим diff.",
-          advice: councilResponses,
-          review: [],
-          council: participants,
-          unavailableProviders,
-        };
-      }
-      throw (
-        planError ||
-        new CodeTaskError(
-          "Отговорилите AI двигатели не подготвиха проверим кодов план.",
-          502,
-          "CODE_TASK_EXECUTOR_FAILED",
-        )
+    try {
+      const response = await plannerRequester({
+        apiKey: keys.claude,
+        signal: AbortSignal.timeout(45_000),
+        input: planInput,
+        maxTokens: 8192,
+      });
+      plan = validatePlan(response?.text, process.env);
+      executor = {
+        role: "coding",
+        provider: "claude",
+        model:
+          (typeof response.model === "string" && response.model.trim()) ||
+          participants.find((entry) => entry.provider === "claude")?.model ||
+          CODE_PROVIDERS.claude.label,
+      };
+    } catch (error) {
+      if (error instanceof CodeTaskError) throw error;
+      throw new CodeTaskError(
+        "Claude не подготви проверим кодов план.",
+        502,
+        "CODE_TASK_EXECUTOR_FAILED",
       );
     }
     let changes = plan.changes;
@@ -634,7 +584,7 @@ export async function prepareCodeTask({
               `Недостъпни ${unavailableProviders.map((id) => CODE_PROVIDERS[id].label).join(", ")}.`,
             ]
           : []),
-        `Водещ кодов изпълнител: ${executor.provider === "openai" ? "Codex роля през OpenAI" : CODE_PROVIDERS[executor.provider].label} (${executor.model}).`,
+        `Водещ кодов изпълнител: ${CODE_PROVIDERS[executor.provider].label} (${executor.model}).`,
         `Задача: ${plan.summary}`,
         `Клон: ${branch}`,
         "Файлове:",

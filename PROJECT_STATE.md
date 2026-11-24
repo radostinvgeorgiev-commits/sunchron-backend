@@ -48,6 +48,8 @@ service account само върху конкретния staging secret, не н
 ## Decisions
 - 2026-11-23: Owner поиска разговор с AI CORE и подготовка на код; разговорът
   не изпълнява инструменти и не потвърждава действия.
+- 2026-11-24: Интеграциите се приемат поетапно: първо GitHub code workflow,
+  после staging Claude API и едва след това останалите връзки.
 - 2026-11-23: Owner разреши подготовка на deployment с отделно свое
   потвърждение, но предпочете ограничен достъп без права към secrets пред
   пълен Cloud Run достъп. Deployment не е разрешен през Claude: произволен
@@ -64,7 +66,9 @@ service account само върху конкретния staging secret, не н
   докато няма потвърден staging проект/услуга и оторизиран deployment път.
 
 ## Next step
-Потвърждаване на staging конфигурацията и оторизиран Cloud Shell/deployment
-път, secret-level `roles/secretmanager.secretAccessor` за Anthropic staging
-secret, след което еднократен Claude acceptance тест. Production deployment
-изисква отделно owner решение и проверен Cloud Build trigger.
+Owner да свърже GitHub OAuth в сайта и да провери read-only repository access,
+след това подготви една bounded code task и прегледа confirmation/PR пътя.
+После потвърди staging конфигурацията и оторизиран Cloud Shell/deployment път,
+secret-level `roles/secretmanager.secretAccessor` за Anthropic staging secret
+и изпълни еднократен Claude acceptance тест. Production deployment изисква
+отделно owner решение и проверен Cloud Build trigger.

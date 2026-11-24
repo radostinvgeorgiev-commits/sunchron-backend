@@ -55,6 +55,13 @@ unknown.
 - [ ] Set every staging Secret Manager reference to a fixed numeric version.
       Use staging secrets only; never put secret values in repository files,
       workflow logs, or this checklist.
+- [ ] For Claude API access, grant `roles/secretmanager.secretAccessor` to the
+      staging Cloud Run runtime service account on only the staging secret
+      referenced by `ANTHROPIC_API_KEY`. Do not grant project-wide Secret
+      Accessor, Secret Manager Admin, or Owner to the runtime identity.
+- [ ] Keep deployment permissions separate from the runtime identity. Claude
+      needs no Cloud Run Admin permission to answer requests; production
+      deployment remains an owner-confirmed exact-SHA Cloud Build action.
 - [ ] Verify Cloud Run IAM has no public invoker, and verify the ingress and
       access design before accepting authenticated staging checks.
 - [ ] Deploy only after the owner has reviewed the exact target project,

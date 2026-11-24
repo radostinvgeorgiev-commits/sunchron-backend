@@ -41,6 +41,9 @@ Anthropic API за двигателя. Действителната production �
 branch/commit/PR. Кодови задачи използват Claude самостоятелно по подразбиране;
 други модели се викат само ако изрично са избрани. Чатът не стартира произволни
 shell команди, не изпълнява локално пълните тестове и не merge/deploy-ва.
+За Cloud Run Anthropic secret достъпът трябва да е даден на staging runtime
+service account само върху конкретния staging secret, не на Claude.ai клиента
+и не с project-wide Owner/Secret Manager права.
 
 ## Decisions
 - 2026-11-23: Owner поиска разговор с AI CORE и подготовка на код; разговорът
@@ -62,5 +65,6 @@ shell команди, не изпълнява локално пълните те
 
 ## Next step
 Потвърждаване на staging конфигурацията и оторизиран Cloud Shell/deployment
-път, след което еднократен Claude acceptance тест. Production deployment изисква
-отделно owner решение и проверен Cloud Build trigger.
+път, secret-level `roles/secretmanager.secretAccessor` за Anthropic staging
+secret, след което еднократен Claude acceptance тест. Production deployment
+изисква отделно owner решение и проверен Cloud Build trigger.

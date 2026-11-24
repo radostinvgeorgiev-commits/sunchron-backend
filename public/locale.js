@@ -34,11 +34,9 @@
   const rtl = new Set(["ar", "fa", "he", "ps", "sd", "ur", "yi"]);
 
   const currentLabels = {
-    ar: ["الخادم متصل", "الخادم غير متصل", "إجراءات المحادثة", "تنزيل المحادثة"],
     de: ["Server ist online", "Server ist offline", "Unterhaltungsaktionen", "Unterhaltung herunterladen"],
     es: ["Servidor en línea", "Servidor sin conexión", "Acciones de conversación", "Descargar conversación"],
     fr: ["Serveur en ligne", "Serveur hors ligne", "Actions de la conversation", "Télécharger la conversation"],
-    tr: ["Sunucu çevrimiçi", "Sunucu çevrimdışı", "Sohbet işlemleri", "Sohbeti indir"],
   };
   const currentLabelKeys = [
     "Server online",

@@ -61,7 +61,8 @@ const AGENT_MODELS = Object.freeze({
     apiModel: "gpt-5.6-luna",
   },
   "gpt-4.1-mini": { label: "GPT-4.1 mini (икономичен)", provider: "openai", apiModel: "gpt-4.1-mini" },
-  "claude-haiku-4-5-20251001": { label: "Claude Haiku 4.5 (икономичен)", provider: "claude", apiModel: "claude-haiku-4-5-20251001" },
+  // Old id kept so saved agents still resolve; it now calls Claude Haiku 5.5.
+  "claude-haiku-4-5-20251001": { label: "Claude Haiku 5.5 (икономичен)", provider: "claude", apiModel: "claude-haiku-5-5" },
   // Kept under the old id so saved agents still resolve; Google retired
   // gemini-2.5-flash-lite and the API now answers 404.
   "gemini-2.5-flash-lite": { label: "Gemini 3.5 Flash Lite (икономичен)", provider: "gemini", apiModel: "gemini-3.5-flash-lite" },

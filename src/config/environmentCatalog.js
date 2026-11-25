@@ -27,7 +27,7 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general(
       "AI_CORE_PROVIDER",
       "AI ядро",
-      "Разговорен доставчик: openai, gemini, grok или vertex-gemini. По подразбиране е openai.",
+      "Разговорен доставчик: claude, openai, gemini, grok или vertex-gemini. По подразбиране е claude (Claude Haiku 5.5); остави го празно, за да важи изборът в кода.",
       { hasDefault: true },
     ),
     general("OPENAI_CHAT_MODEL", "AI ядро", "Модел за основния разговор.", {

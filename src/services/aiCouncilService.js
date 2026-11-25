@@ -1,4 +1,5 @@
 import {
+  DEFAULT_CLAUDE_CHAT_MODEL,
   DEFAULT_CODEX_COUNCIL_MODEL,
   DEFAULT_GEMINI_CHAT_MODEL,
   DEFAULT_GROK_CHAT_MODEL,
@@ -243,7 +244,7 @@ export async function runAiCouncil({
   openAiModel = process.env.AI_CORE_COUNCIL_MODEL || DEFAULT_OPENAI_CHAT_MODEL,
   geminiModel = process.env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
   grokModel = process.env.GROK_MODEL || DEFAULT_GROK_CHAT_MODEL,
-  claudeModel = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001",
+  claudeModel = process.env.ANTHROPIC_MODEL || DEFAULT_CLAUDE_CHAT_MODEL,
   codexModel = process.env.AI_CORE_COUNCIL_CODEX_MODEL ||
     DEFAULT_CODEX_COUNCIL_MODEL,
   advisorTimeoutMs = Math.min(

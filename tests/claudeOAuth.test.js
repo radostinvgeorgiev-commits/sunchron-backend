@@ -46,8 +46,8 @@ test("Claude is opt-in and fails closed for callbacks, scopes and PKCE", async (
     { redirect_uri: "https://evil.example/api/mcp/auth_callback" },
     { redirect_uri: CLAUDE_CALLBACK + "?next=evil" },
     { client_id: "synchron-claude-evil" },
-    { scope: "synchron:github.write" },
-    { scope: "synchron:google.read" },
+    { scope: "synchron:chatgpt.ask" },
+    { scope: "synchron:unknown" },
     { code_challenge_method: "plain" },
     { resource: "https://evil.example/mcp" },
   ])
@@ -119,12 +119,21 @@ test("one Claude sign-in grants the read and chat tools, never write scopes", as
     );
     assert.deepEqual(request.scopes, [...CLAUDE_SCOPES]);
   }
+  // A fresh connect may ask for every advertised scope; it is narrowed to the
+  // Claude bundle, never widened to a write scope.
   for (const scope of [
     "synchron:memory.write",
     "synchron:tasks.write",
     "synchron:agent.chat synchron:infrastructure.write",
-    "synchron:chatgpt.ask",
-  ])
+    "synchron:read synchron:agent.chat synchron:memory.write synchron:tasks.write synchron:github.write synchron:google.read synchron:google.write synchron:audit.read synchron:infrastructure.write",
+  ]) {
+    const narrowed = await validateMcpAuthorizationRequest(
+      { ...input, scope },
+      { env, fetchImpl: noFetch },
+    );
+    assert.deepEqual(narrowed.scopes, [...CLAUDE_SCOPES]);
+  }
+  for (const scope of ["synchron:chatgpt.ask", "synchron:read synchron:unknown"])
     await assert.rejects(
       validateMcpAuthorizationRequest(
         { ...input, scope },

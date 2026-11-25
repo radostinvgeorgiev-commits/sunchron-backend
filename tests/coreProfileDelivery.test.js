@@ -4,6 +4,7 @@ import request from "supertest";
 
 process.env.NODE_ENV = "test";
 process.env.OPENAI_API_KEY = "test-openai-key";
+process.env.AI_CORE_PROVIDER = "openai";
 process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 delete process.env.OPENSEARCH_HOST;
 delete process.env.OPENSEARCH_USERNAME;

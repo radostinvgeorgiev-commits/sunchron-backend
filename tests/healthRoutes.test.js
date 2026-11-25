@@ -22,6 +22,7 @@ test("readiness accepts the selected AI provider and a healthy Firestore probe",
   const result = await getReadinessStatus({
     env: {
       NODE_ENV: "test",
+      AI_CORE_PROVIDER: "openai",
       OPENAI_API_KEY: "key",
       MEMORY_BACKEND: "firestore",
       GOOGLE_CLOUD_PROJECT: "project-1",

@@ -24,7 +24,10 @@ export const DEFAULT_CODEX_COUNCIL_MODEL = "gpt-5.3-codex";
 export const DEFAULT_OPENAI_PLANNER_MODEL = "gpt-4.1-mini";
 export const DEFAULT_GEMINI_CHAT_MODEL = "gemini-3.5-flash-lite";
 export const DEFAULT_GROK_CHAT_MODEL = "grok-3-mini";
-export const DEFAULT_CLAUDE_CHAT_MODEL = "claude-haiku-4-5-20251001";
+export const DEFAULT_CLAUDE_CHAT_MODEL = "claude-haiku-5-5";
+// Used when AI_CORE_PROVIDER is not set in Cloud Run. Keep provider and model
+// choices here in code; only API keys belong in the runtime environment.
+export const DEFAULT_AI_PROVIDER = "claude";
 
 export class AiCoreError extends Error {
   constructor(message, code = "AI_CORE_ERROR", status = 502) {
@@ -413,7 +416,7 @@ export function normalizeAiProvider(value) {
 export function getConfiguredAiProvider(env = process.env) {
   const configuredProvider = env.AI_CORE_PROVIDER;
   if (configuredProvider === undefined || configuredProvider === "") {
-    return "openai";
+    return DEFAULT_AI_PROVIDER;
   }
   return normalizeAiProvider(configuredProvider);
 }

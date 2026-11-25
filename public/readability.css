@@ -1,0 +1,57 @@
+/* Readability layer: larger, bolder, black text across the site.
+   Loaded last so it overrides the theme files. The dark sign-in panel keeps
+   its own light text colors; only light surfaces turn black. */
+
+html {
+  font-size: 112.5%; /* 18px base: every rem-based size grows by 12.5% */
+}
+
+:root {
+  --sx-ink: #000;
+  --sx-muted: #1f1f1f;
+}
+
+body {
+  color: #000;
+  font-weight: 600;
+  -webkit-font-smoothing: antialiased;
+}
+
+strong,
+b,
+h1,
+h2,
+h3,
+h4,
+th,
+summary,
+button,
+label {
+  font-weight: 800;
+}
+
+/* Standard size step: chat text 19px instead of 16px. The larger steps
+   (32/48/60 px) from accessibility.css stay as they are. */
+:root[data-font-level="standard"] .message,
+:root:not([data-font-level]) .message {
+  font-size: 19px;
+  line-height: 1.55;
+}
+
+.message.agent,
+.message.agent p,
+.message.agent li {
+  color: #000 !important;
+}
+
+input,
+textarea,
+select {
+  color: #000;
+  font-weight: 600;
+}
+
+::placeholder {
+  color: #3a3a3a;
+  opacity: 1;
+}

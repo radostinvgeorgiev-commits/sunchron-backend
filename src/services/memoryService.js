@@ -580,6 +580,13 @@ export async function listProfileMemories(options = {}) {
   }
   const consolidated = consolidateMemoryView(memories);
   if (requestedScope === "personal") return consolidated;
+  // The AI CORE product definition is the owner's project context only;
+  // customer accounts never see it as their own memory.
+  if (ownerId !== OWNER_ID) {
+    return requestedScope === "project"
+      ? consolidated.filter((memory) => memory.scope === "project")
+      : consolidated;
+  }
 
   const currentProjectMemories = consolidated.filter(
     (memory) =>
@@ -1214,7 +1221,10 @@ export async function saveImportedConversation(
   };
 }
 
-export function buildMemoryContext(memories, { personName = "Радко" } = {}) {
+export function buildMemoryContext(
+  memories,
+  { personName = "Радко", includeProjectIdentity = true } = {},
+) {
   const personal = memories.filter(
     (memory) => (memory.scope || "personal") === "personal",
   );
@@ -1222,20 +1232,22 @@ export function buildMemoryContext(memories, { personName = "Радко" } = {})
     (memory) =>
       memory.scope === "project" && !isSupersededProjectDefinition(memory.fact),
   );
-  const project = storedProject.some(
+  const hasStoredDefinition = storedProject.some(
     (memory) =>
       normalizeFact(memory.fact) === normalizeFact(PROJECT_DEFINITION),
-  )
-    ? storedProject
-    : [
-        {
-          id: CANONICAL_PROJECT_MEMORY_ID,
-          fact: PROJECT_DEFINITION,
-          scope: "project",
-          readOnly: true,
-        },
-        ...storedProject,
-      ];
+  );
+  const project =
+    !includeProjectIdentity || hasStoredDefinition
+      ? storedProject
+      : [
+          {
+            id: CANONICAL_PROJECT_MEMORY_ID,
+            fact: PROJECT_DEFINITION,
+            scope: "project",
+            readOnly: true,
+          },
+          ...storedProject,
+        ];
   const format = (items, emptyText) =>
     items.length
       ? items.map((item, index) => `${index + 1}. ${item.fact}`).join("\n")

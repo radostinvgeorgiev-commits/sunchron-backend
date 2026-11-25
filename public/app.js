@@ -267,10 +267,33 @@ async function handleLogin(event) {
     if (!session.authenticated) throw new Error(chatText("Сесията не беше създадена."));
     await startApplication(session.user);
   } catch (error) {
+    // Identity Platform answers the same for "no account" and "wrong
+    // password". New visitors often type a new password into the sign-in
+    // form, so offer registration with the same email right away.
+    if (error.code === "AUTH_INVALID_CREDENTIALS" && state.registrationEnabled) {
+      offerRegistration(elements.loginEmail.value);
+      return;
+    }
     setAuthMessage(error.message);
   } finally {
     setAuthBusy(false);
   }
+}
+
+function offerRegistration(email) {
+  setAuthMessage(
+    chatText("Имейлът или паролата не съвпадат. Ако още нямаш профил, създай го — имейлът е попълнен."),
+  );
+  const link = document.createElement("button");
+  link.type = "button";
+  link.className = "auth-link auth-offer-register";
+  link.textContent = chatText("Създай профил с този имейл");
+  link.addEventListener("click", () => {
+    showRegisterForm();
+    elements.registerEmail.value = String(email || "").trim();
+    elements.registerName.focus();
+  });
+  elements.authMessage?.append(document.createElement("br"), link);
 }
 
 async function handleForgotPassword() {
@@ -285,7 +308,7 @@ async function handleForgotPassword() {
   try {
     await submitAuth("/api/auth/password-reset", { email });
     setAuthMessage(
-      chatText("Ако има профил с този имейл, изпратихме писмо с линк за нова парола. Провери и папката за спам."),
+      chatText("Ако има профил с този имейл, изпратихме писмо с линк за нова парола (от noreply, провери и „Спам“/„Промоции“). Ако писмо не дойде до 5 минути, най-вероятно още нямаш профил — натисни „Създай безплатен профил“."),
       true,
     );
   } catch (error) {
@@ -295,8 +318,30 @@ async function handleForgotPassword() {
   }
 }
 
+// The browser's own validation bubbles are easy to miss on phones (a short
+// password simply did nothing), so registration is checked here and the
+// reason is written in the visible message area.
+function registrationProblem() {
+  const name = elements.registerName.value.trim();
+  const email = elements.registerEmail.value.trim();
+  const password = elements.registerPassword.value;
+  if (!name) return [elements.registerName, chatText("Напиши име.")];
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email))
+    return [elements.registerEmail, chatText("Имейлът не изглежда правилен. Провери за интервал или липсваща буква.")];
+  if (password.length < 8)
+    return [elements.registerPassword, chatText("Паролата трябва да е поне 8 знака.")];
+  return null;
+}
+
 async function handleRegistration(event) {
   event.preventDefault();
+  const problem = registrationProblem();
+  if (problem) {
+    setAuthMessage(problem[1]);
+    problem[0].focus();
+    return;
+  }
+  elements.registerEmail.value = elements.registerEmail.value.trim();
   setAuthBusy(true);
   setAuthMessage();
   try {
@@ -367,6 +412,7 @@ function applyAuthenticatedUser(user) {
 async function init() {
   elements.loginForm.addEventListener("submit", handleLogin);
   elements.forgotPasswordBtn?.addEventListener("click", handleForgotPassword);
+  elements.registerForm.noValidate = true;
   elements.registerForm.addEventListener("submit", handleRegistration);
   elements.showRegisterBtn.addEventListener("click", showRegisterForm);
   elements.backToLoginBtn.addEventListener("click", showLoginForm);

@@ -315,7 +315,7 @@ test("public registration can be completed after the email or access write fails
 
     await assert.rejects(
       registerUser({ ...credentials, password: "incorrect-password" }, options),
-      { code: "AUTH_INVALID_CREDENTIALS" },
+      { code: "AUTH_EMAIL_EXISTS", status: 409 },
     );
     assert.equal(store.records.size, 0);
 

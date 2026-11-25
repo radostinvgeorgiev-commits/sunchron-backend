@@ -20,7 +20,11 @@ AI CORE ти помага да анализираш информация, да �
 Име|Name
 Код за ранен достъп|Early access code
 Това поле се използва само при ограничена регистрация.|This field is used only when registration requires an invitation.
-С регистрацията се създава личен профил. Няма автоматични плащания.|Registration creates a personal account. There are no automatic payments.
+С регистрацията приемаш|By registering, you accept the
+Общите условия|Terms
+и|and
+Политиката за поверителност|Privacy Policy
+. Няма автоматични плащания.|. There are no automatic payments.
 Как работи услугата|How the service works
 Създай профил|Create an account
 Назад към входа|Back to sign-in
@@ -206,8 +210,9 @@ AI Council събира мнения от избраните двигатели 
 Плащанията, когато са активирани, се правят в защитена страница на Stripe. Не изпращай данни за карта в разговор. Пакетът се активира от проверено потвърждение на платежния оператор, а не от връщането на страницата. Пакетите са еднократни, валидни 30 дни, без автоматично подновяване.|When enabled, payments take place on a secure Stripe page. Keep card details out of chat. A package is activated after verified payment confirmation from the provider. Packages are one-time purchases, valid for 30 days, with no automatic renewal.
 Данни и контрол|Data and controls
 За профила се обработват имейл, име и данни за удостоверяване чрез Google Identity Platform. Разговорите, паметта и работните данни се съхраняват във Firestore. Текстът на заявката и нужният контекст се изпращат на избрания AI доставчик. Плащането се обработва от платежния оператор; приложението не съхранява номера на карта.|Account name, email, and authentication data are processed using Google Identity Platform. Firestore stores conversations, memory, and workspace data. Your request and required context are sent to the selected AI provider. Payments are handled by the payment processor. The app does not store card numbers.
-Можеш да преглеждаш паметта и да потвърждаваш конкретни записи и изтривания от интерфейса. Износът на разговор е твоя отговорност и може да съдържа лична информация. За изтриване на целия профил, корекция или копие на данните използвай запитването по-долу; няма да изтрием профил без потвърждаване на самоличността.|You can review memory and confirm individual saves or deletions in the interface. Conversation exports may contain personal information and are your responsibility. To delete your account or request a correction or data copy, use the form below. Account deletion requires identity verification.
-Не въвеждай чужди чувствителни данни без основание. Окончателната политика за поверителност и сроковете за съхранение трябва да бъдат публикувани преди търговското активиране.|Enter other people's sensitive information only when you have a valid reason. The final privacy policy and retention periods must be published before commercial launch.
+Можеш да преглеждаш паметта и да потвърждаваш конкретни записи и изтривания от интерфейса. От менюто на профила → „Моите данни“ можеш да изтеглиш копие на всички данни и да изтриеш профила си.|You can review memory and confirm individual saves or deletions in the interface. From the profile menu → “My data” you can download a copy of all your data and delete your account.
+Не въвеждай чужди чувствителни данни без основание. Подробности има в|Enter other people's sensitive information only when you have a valid reason. Details are in the
+Общите условия.|Terms.
 Поддръжка и условия за продажба|Support and sales terms
 Използвай|Use
 формата за запитване|the inquiry form

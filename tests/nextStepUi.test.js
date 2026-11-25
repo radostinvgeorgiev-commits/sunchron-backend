@@ -59,3 +59,9 @@ test("registration explains a short password instead of silently not submitting"
   assert.match(app, /registerForm\.noValidate = true/u);
   assert.match(app, /Паролата трябва да е поне 8 знака/u);
 });
+
+test("each remembered fact shows when it was saved and who confirmed it", () => {
+  assert.match(app, /function memoryProvenance\(item\)/u);
+  assert.match(app, /потвърдено от теб/u);
+  assert.match(app, /Нищо не се записва без твое „да“/u);
+});

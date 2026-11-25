@@ -31,6 +31,7 @@ test("granular MCP capabilities have unique names, strict schemas and exact scop
       "revoke_project_role",
       "update_cloud_run_service_account",
       "run_cloud_build_trigger",
+      "use_latest_secret_version",
     ],
   );
   assert.deepEqual(

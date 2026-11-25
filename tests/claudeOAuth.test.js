@@ -110,6 +110,7 @@ test("one Claude sign-in grants the read and chat tools, never write scopes", as
     "synchron:read",
     "synchron:agent.chat",
     "synchron:read offline_access",
+    "synchron:audit.read",
     undefined,
   ]) {
     const request = await validateMcpAuthorizationRequest(

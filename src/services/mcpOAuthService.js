@@ -523,10 +523,13 @@ export const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
 // Claude asks for the scope of whichever tool it called first and, on a 403,
 // for the missing scope alone. One sign-in therefore always grants the whole
 // Claude bundle, so a later chat tool does not trap the connector in
-// "Sign-in required". Write and owner-only scopes stay out of it.
+// "Sign-in required". Claude is owner-only, so the read-only audit scope
+// (action history, recent errors, runtime logs) is part of the bundle too.
+// Write scopes stay out of it.
 export const CLAUDE_SCOPES = Object.freeze([
   MCP_READ_SCOPE,
   MCP_AGENT_CHAT_SCOPE,
+  MCP_AUDIT_READ_SCOPE,
   MCP_OFFLINE_ACCESS_SCOPE,
 ]);
 

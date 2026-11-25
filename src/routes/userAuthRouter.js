@@ -18,6 +18,12 @@ import {
   parseGitHubCookies,
 } from "../services/githubOAuthService.js";
 import { resolveRequestIdentity } from "../middleware/ownerAuth.js";
+import {
+  clearGoogleSignInStateCookie,
+  finishGoogleSignIn,
+  isGoogleSignInEnabled,
+  startGoogleSignIn,
+} from "../services/googleSignInService.js";
 import { logSafeError } from "../utils/safeLogging.js";
 import {
   logCampaignEvent,
@@ -50,6 +56,7 @@ router.get("/session", async (req, res) => {
       configuration: getUserAuthConfigurationStatus(),
       registrationEnabled: isUserRegistrationEnabled(),
       registrationMode: isPublicRegistration() ? "public" : "invite",
+      googleSignIn: isGoogleSignInEnabled(),
       authProvider: getUserAuthProvider(),
       authenticated: Boolean(identity),
       user: identity
@@ -106,6 +113,37 @@ router.post("/register", async (req, res) => {
     });
   } catch (error) {
     return sendAuthError(res, error);
+  }
+});
+
+router.get("/google/start", (_req, res) => {
+  try {
+    const { url, cookie } = startGoogleSignIn();
+    res.setHeader("Set-Cookie", cookie);
+    return res.redirect(302, url);
+  } catch (error) {
+    logSafeError("[Google sign-in] start", error);
+    return res.redirect(302, `/?auth_error=${encodeURIComponent(error.code || "AUTH_GOOGLE_FAILED")}`);
+  }
+});
+
+router.get("/google/callback", async (req, res) => {
+  try {
+    const result = await finishGoogleSignIn({
+      code: req.query.code,
+      state: req.query.state,
+      error: req.query.error,
+      cookieHeader: req.headers.cookie,
+    });
+    res.setHeader("Set-Cookie", [
+      userSessionCookie(result.session),
+      clearGoogleSignInStateCookie(),
+    ]);
+    return res.redirect(302, "/");
+  } catch (error) {
+    logSafeError("[Google sign-in] callback", error);
+    res.setHeader("Set-Cookie", clearGoogleSignInStateCookie());
+    return res.redirect(302, `/?auth_error=${encodeURIComponent(error.code || "AUTH_GOOGLE_FAILED")}`);
   }
 });
 

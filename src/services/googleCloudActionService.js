@@ -31,13 +31,26 @@ const ACTIONS = Object.freeze({
   UPDATE_CLOUD_RUN_SERVICE_ACCOUNT:
     "infrastructure.write:update_cloud_run_service_account",
   RUN_CLOUD_BUILD_TRIGGER: "infrastructure.write:run_cloud_build_trigger",
+  USE_LATEST_SECRET_VERSION:
+    "infrastructure.write:use_latest_secret_version",
 });
+
+// Environment variables whose secret reference may be moved to "latest".
+// The secret value itself is never read or returned.
+const LATEST_SECRET_ENV_NAMES = Object.freeze([
+  "ANTHROPIC_API_KEY",
+  "OPENAI_API_KEY",
+  "GEMINI_API_KEY",
+  "GROK_API_KEY",
+]);
+const CLOUD_RUN_V2_API = "https://run.googleapis.com/v2";
 
 const OPERATION_ACTIONS = Object.freeze({
   grant_project_role: ACTIONS.GRANT_PROJECT_ROLE,
   revoke_project_role: ACTIONS.REVOKE_PROJECT_ROLE,
   update_cloud_run_service_account: ACTIONS.UPDATE_CLOUD_RUN_SERVICE_ACCOUNT,
   run_cloud_build_trigger: ACTIONS.RUN_CLOUD_BUILD_TRIGGER,
+  use_latest_secret_version: ACTIONS.USE_LATEST_SECRET_VERSION,
 });
 
 export class GoogleCloudActionError extends Error {
@@ -265,6 +278,22 @@ function normalizeOperation(operation, input = {}, env = process.env) {
     };
   }
 
+  if (operation === "use_latest_secret_version") {
+    const envName = cleanText(input.envName, 40, "envName", { required: true });
+    if (!LATEST_SECRET_ENV_NAMES.includes(envName)) {
+      throw new GoogleCloudActionError(
+        `Разрешени са само: ${LATEST_SECRET_ENV_NAMES.join(", ")}.`,
+        403,
+        "GOOGLE_CLOUD_SECRET_ENV_PROTECTED",
+      );
+    }
+    return {
+      action,
+      resource: normalizeCloudRunTarget(input, env),
+      params: { envName },
+    };
+  }
+
   if (operation === "run_cloud_build_trigger") {
     const target = normalizeCloudBuildTarget(input, env);
     return {
@@ -465,6 +494,47 @@ async function updateCloudRunServiceAccount({
   );
 }
 
+// Points one secret-backed environment variable of the current Cloud Run
+// service at the newest enabled secret version and rolls out a new revision.
+export async function useLatestSecretVersion({
+  projectId,
+  serviceName,
+  region,
+  envName,
+  fetchImpl,
+}) {
+  const url = `${CLOUD_RUN_V2_API}/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(region)}/services/${encodeURIComponent(serviceName)}`;
+  const service = await googleJsonRequest(url, { fetchImpl });
+  const containers = service?.template?.containers;
+  let secretName = null;
+  let previousVersion = null;
+  for (const container of Array.isArray(containers) ? containers : []) {
+    for (const variable of Array.isArray(container.env) ? container.env : []) {
+      const ref = variable?.valueSource?.secretKeyRef;
+      if (variable?.name === envName && ref?.secret) {
+        secretName = String(ref.secret).split("/").pop();
+        previousVersion = ref.version || null;
+        ref.version = "latest";
+      }
+    }
+  }
+  if (!secretName) {
+    throw new GoogleCloudActionError(
+      `${envName} не е свързан с тайна в Cloud Run услугата.`,
+      404,
+      "GOOGLE_CLOUD_SECRET_ENV_NOT_FOUND",
+    );
+  }
+  // A fixed revision name would block the new rollout; Cloud Run names it.
+  delete service.template.revision;
+  await googleJsonRequest(url, {
+    method: "PATCH",
+    body: { template: service.template, ...(service.etag ? { etag: service.etag } : {}) },
+    fetchImpl,
+  });
+  return { envName, secret: secretName, previousVersion, version: "latest" };
+}
+
 function triggerBranch(payload) {
   return (
     payload?.github?.push?.branch ||
@@ -590,6 +660,13 @@ export async function confirmGoogleCloudAction(
       return (adapters.changeProjectRole || changeProjectRole)({
         ...resource,
         grant: false,
+        fetchImpl,
+      });
+    }
+    if (confirmation.action === ACTIONS.USE_LATEST_SECRET_VERSION) {
+      return (adapters.useLatestSecretVersion || useLatestSecretVersion)({
+        ...resource,
+        envName: params.envName,
         fetchImpl,
       });
     }

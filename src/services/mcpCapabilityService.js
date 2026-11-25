@@ -527,7 +527,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "prepare_google_cloud_action",
     "Подготви Google Cloud промяна",
-    "Подготвя точна IAM промяна, смяна на service identity на текущата Cloud Run услуга или стартиране на съществуващия synchron-main-deploy Cloud Build trigger за точен commit SHA. Не променя нищо без отделно потвърждение.",
+    "Подготвя точна IAM промяна, смяна на service identity на текущата Cloud Run услуга, превключване на AI ключ (ANTHROPIC/OPENAI/GEMINI/GROK_API_KEY) към последната версия на тайната му или стартиране на съществуващия synchron-main-deploy Cloud Build trigger за точен commit SHA. Не чете стойности на тайни и не променя нищо без отделно потвърждение.",
     {
       type: "object",
       properties: {
@@ -538,6 +538,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
             "revoke_project_role",
             "update_cloud_run_service_account",
             "run_cloud_build_trigger",
+            "use_latest_secret_version",
           ],
         },
         input: { type: "object", additionalProperties: true },

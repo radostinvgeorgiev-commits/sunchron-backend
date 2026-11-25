@@ -54,3 +54,8 @@ test("a single-advisor Council answer is shown once", async () => {
   assert.equal(reply.match(/Отговор\./gu).length, 1);
   assert.doesNotMatch(reply, /Обща препоръка/u);
 });
+
+test("registration explains a short password instead of silently not submitting", () => {
+  assert.match(app, /registerForm\.noValidate = true/u);
+  assert.match(app, /Паролата трябва да е поне 8 знака/u);
+});

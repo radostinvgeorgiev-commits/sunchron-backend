@@ -318,8 +318,30 @@ async function handleForgotPassword() {
   }
 }
 
+// The browser's own validation bubbles are easy to miss on phones (a short
+// password simply did nothing), so registration is checked here and the
+// reason is written in the visible message area.
+function registrationProblem() {
+  const name = elements.registerName.value.trim();
+  const email = elements.registerEmail.value.trim();
+  const password = elements.registerPassword.value;
+  if (!name) return [elements.registerName, chatText("Напиши име.")];
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email))
+    return [elements.registerEmail, chatText("Имейлът не изглежда правилен. Провери за интервал или липсваща буква.")];
+  if (password.length < 8)
+    return [elements.registerPassword, chatText("Паролата трябва да е поне 8 знака.")];
+  return null;
+}
+
 async function handleRegistration(event) {
   event.preventDefault();
+  const problem = registrationProblem();
+  if (problem) {
+    setAuthMessage(problem[1]);
+    problem[0].focus();
+    return;
+  }
+  elements.registerEmail.value = elements.registerEmail.value.trim();
   setAuthBusy(true);
   setAuthMessage();
   try {
@@ -390,6 +412,7 @@ function applyAuthenticatedUser(user) {
 async function init() {
   elements.loginForm.addEventListener("submit", handleLogin);
   elements.forgotPasswordBtn?.addEventListener("click", handleForgotPassword);
+  elements.registerForm.noValidate = true;
   elements.registerForm.addEventListener("submit", handleRegistration);
   elements.showRegisterBtn.addEventListener("click", showRegisterForm);
   elements.backToLoginBtn.addEventListener("click", showLoginForm);

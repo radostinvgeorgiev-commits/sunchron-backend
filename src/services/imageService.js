@@ -1,4 +1,5 @@
 import { DEFAULT_CLAUDE_CHAT_MODEL, reportAiUsage } from "./aiCoreService.js";
+import { publicAiOutputLimit, reservePublicAiFile } from "./publicAiBudget.js";
 
 const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
@@ -108,6 +109,7 @@ export async function analyzeImage({
     );
   }
 
+  await reservePublicAiFile("openai", model);
   const response = await fetchImpl(inferenceUrl, {
     method: "POST",
     headers: {
@@ -174,6 +176,7 @@ export async function analyzeImage({
 async function analyzeWithClaude({ validated, prompt, context, fetchImpl, apiKey, model, signal }) {
   const base64 = validated.dataUrl.slice(`data:${validated.mimeType};base64,`.length);
   const isPdf = validated.mimeType === "application/pdf";
+  await reservePublicAiFile("claude", model);
   const response = await fetchImpl(ANTHROPIC_MESSAGES_URL, {
     method: "POST",
     headers: {
@@ -183,7 +186,7 @@ async function analyzeWithClaude({ validated, prompt, context, fetchImpl, apiKey
     },
     body: JSON.stringify({
       model,
-      max_tokens: 2048,
+      max_tokens: publicAiOutputLimit() || 2048,
       ...(context ? { system: context } : {}),
       messages: [
         {

@@ -1455,7 +1455,11 @@ function renderConnections(data) {
         )
         .join("")
     : `<li class="connection-empty">${localizedMarkup("Още няма свързани AI асистенти.")}</li>`;
-  const guides = CONNECTION_GUIDES.map(
+  // Claude is the owner's personal connector; the server refuses members.
+  const ownerView = document.body.dataset.userRole === "owner";
+  const guides = CONNECTION_GUIDES.filter(
+    (guide) => guide.client !== "Claude" || ownerView,
+  ).map(
     (guide) => `
       <details class="connection-guide">
         <summary>${localizedMarkup("Свържи")} ${escapeHtml(guide.client)}</summary>

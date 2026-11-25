@@ -9,6 +9,7 @@ import {
   validateMcpAuthorizationRequest,
   createMcpAuthorizationCode,
   exchangeMcpAuthorizationCode,
+  createMcpConsentToken,
   verifyMcpAccessToken,
   resetMcpOAuthStateForTests,
 } from "../src/services/mcpOAuthService.js";
@@ -136,7 +137,7 @@ test("one Claude sign-in grants the read and chat tools, never write scopes", as
   );
   const code = createMcpAuthorizationCode(
     request,
-    { id: "claude-member", memoryOwnerId: "claude-member-memory", role: "member" },
+    { id: "claude-owner", memoryOwnerId: "claude-owner-memory", role: "owner" },
     env,
   );
   const token = await exchangeMcpAuthorizationCode(
@@ -164,6 +165,32 @@ test("one Claude sign-in grants the read and chat tools, never write scopes", as
     verifyMcpAccessToken(
       `Bearer ${token.access_token}`,
       requiredScopesForMcpTool("confirm_memory_write"),
+      env,
+    ),
+  );
+});
+
+test("Claude is the owner's connector: members are refused at every step", async () => {
+  resetMcpOAuthStateForTests();
+  const request = await validateMcpAuthorizationRequest(input, {
+    env,
+    fetchImpl: noFetch,
+  });
+  for (const role of ["member", "tester"]) {
+    const member = { id: `claude-${role}`, memoryOwnerId: `m-${role}`, role };
+    assert.throws(
+      () => createMcpConsentToken(request, member, env),
+      (error) => error.status === 403 && error.code === "access_denied",
+    );
+    assert.throws(
+      () => createMcpAuthorizationCode(request, member, env),
+      (error) => error.status === 403,
+    );
+  }
+  assert.ok(
+    createMcpConsentToken(
+      request,
+      { id: "o", memoryOwnerId: "o", role: "owner" },
       env,
     ),
   );

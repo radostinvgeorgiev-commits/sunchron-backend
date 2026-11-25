@@ -15,6 +15,7 @@ import {
   saveConversationTurn,
 } from "../services/memoryService.js";
 import { extractMemoryCandidates } from "../services/memoryCandidateService.js";
+import { PUBLIC_FILE_CREDITS } from "../services/publicAiBudget.js";
 import {
   buildProjectConversationReference,
   sanitizeAssistantHistory,
@@ -1173,7 +1174,7 @@ router.post("/chat", async (req, res) => {
   }
   if (!ownerToolsAllowed) {
     // Reserve the worst-case cost, including implicit Council and fallback calls.
-    if (image || councilIntentId)
+    if (councilIntentId)
       return res
         .status(403)
         .json({
@@ -1182,7 +1183,10 @@ router.post("/chat", async (req, res) => {
         });
     try {
       const usage = await getProductPlansService().usage(req.owner);
-      if (usage.remaining < (councilRequested ? 18 : 3))
+      if (
+        usage.remaining <
+        (councilRequested ? 18 : image ? PUBLIC_FILE_CREDITS : 3)
+      )
         return res
           .status(402)
           .json({
@@ -1366,13 +1370,6 @@ router.post("/chat", async (req, res) => {
   );
 
   if (image) {
-    if (!ownerToolsAllowed) {
-      return res.status(403).json({
-        error:
-          "Снимките и външните инструменти още не са включени за тестовите профили.",
-        code: "TESTER_TOOL_DISABLED",
-      });
-    }
     try {
       validateImageInput(image);
     } catch (error) {

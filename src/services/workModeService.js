@@ -67,10 +67,12 @@ const AGENT_MODELS = Object.freeze({
   // gemini-2.5-flash-lite and the API now answers 404.
   "gemini-2.5-flash-lite": { label: "Gemini 3.5 Flash Lite (икономичен)", provider: "gemini", apiModel: "gemini-3.5-flash-lite" },
   "grok-3-mini": { label: "Grok 3 Mini (икономичен)", provider: "grok", apiModel: "grok-3-mini" },
+  // Old id kept so saved agents still resolve; Google retired
+  // gemini-2.5-flash and the API now answers 404.
   "gemini-2.5-flash": {
-    label: "Gemini 2.5 Flash",
+    label: "Gemini 3.8 Flash",
     provider: "gemini",
-    apiModel: "gemini-2.5-flash",
+    apiModel: "gemini-3.8-flash",
   },
   "vertex-gemini-2.5-flash": {
     label: "Vertex Gemini 2.5 Flash",

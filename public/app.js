@@ -843,12 +843,17 @@ function prepareVoiceInput() {
   recognition.onend = () => setListening(false);
   recognition.onerror = (event) => {
     setListening(false);
-    if (event.error !== "aborted" && event.error !== "no-speech") {
-      appendMessage(
-        "agent",
-        chatText("Гласовото въвеждане не можа да стартира. Провери достъпа до микрофона."),
-      );
-    }
+    if (event.error === "aborted" || event.error === "no-speech") return;
+    const reasons = {
+      "not-allowed": "Микрофонът е забранен за сайта. Разреши го: iPhone → Настройки → Safari → Микрофон, или от иконата „aA“ в адресната лента.",
+      "service-not-allowed": "Разпознаването на говор е изключено. На iPhone включи Настройки → Siri и Диктовка. Можеш да ползваш и микрофона на клавиатурата.",
+      network: "Разпознаването на говор има нужда от интернет. Провери връзката.",
+      "audio-capture": "Не намирам микрофон. Провери дали друго приложение не го използва.",
+    };
+    appendMessage(
+      "agent",
+      chatText(reasons[event.error] || "Гласовото въвеждане не можа да стартира. Провери достъпа до микрофона."),
+    );
   };
   recognition.onresult = (event) => {
     let transcript = "";
@@ -880,8 +885,14 @@ function toggleVoiceInput() {
   if (!state.recognition || state.chatBusy) return;
   if (state.listening) {
     state.recognition.stop();
-  } else {
+    return;
+  }
+  try {
     state.recognition.start();
+  } catch {
+    // start() throws if a previous session is still closing; reset it.
+    state.recognition.abort();
+    setListening(false);
   }
 }
 

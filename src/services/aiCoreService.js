@@ -35,6 +35,9 @@ let aiUsageRecorder = null;
 export function setAiUsageRecorder(recorder) {
   aiUsageRecorder = typeof recorder === "function" ? recorder : null;
 }
+export function reportAiUsage(provider, model, inputTokens, outputTokens) {
+  return withUsage({ provider, model }, inputTokens, outputTokens).usage;
+}
 function withUsage(result, inputTokens, outputTokens) {
   const usage = {
     inputTokens: Math.max(0, Number(inputTokens) || 0),

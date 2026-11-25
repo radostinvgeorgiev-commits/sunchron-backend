@@ -66,3 +66,5 @@ select {
 
 .memory-provenance { display: block; margin-top: 4px; font-size: .78rem; color: #1f1f1f; font-weight: 600; }
 .memory-intro { margin: 0 0 12px; font-weight: 700; color: #000; }
+
+.message-file { font-weight: 800; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.18); margin-bottom: 6px; }

@@ -413,7 +413,10 @@ async function startApplication(user) {
   });
   elements.authGate.hidden = true;
   elements.appShell.hidden = false;
-  if (user?.role === "owner") globalThis.SynchronCodeWorkspace?.afterSignIn();
+  if (user?.role === "owner") {
+    globalThis.SynchronCodeWorkspace?.afterSignIn();
+    globalThis.SynchronAiSpend?.start();
+  }
   updateSessionDisplay();
 
   elements.sendBtn.addEventListener("click", sendMessage);

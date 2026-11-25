@@ -16,7 +16,12 @@ import {
 } from "./src/middleware/rateLimits.js";
 import { startMemoryStartupVerification } from "./src/services/memoryStartupVerificationService.js";
 import { executeCapability } from "./src/tools/capabilityEngine.js";
-import { getAiProviderStatus } from "./src/services/aiCoreService.js";
+import {
+  getAiProviderStatus,
+  setAiUsageRecorder,
+} from "./src/services/aiCoreService.js";
+import { getAiSpendService } from "./src/services/aiSpendService.js";
+import createAiSpendRouter from "./src/routes/aiSpendRouter.js";
 import {
   logCampaignEvent,
   readCampaignAttribution,
@@ -184,6 +189,13 @@ app.use(
   chatRouter,
 );
 app.use(
+  "/api/ai-spend",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  privateApiRateLimiter,
+  createAiSpendRouter(),
+);
+app.use(
   "/api/code-workspace",
   requireOwnerSession,
   requirePrimaryOwner,
@@ -308,6 +320,7 @@ app.get("/register", (_req, res) => {
 
 if (process.env.NODE_ENV !== "test") {
   if (isOpenSearchMemoryConfigured(process.env)) createOpenSearchClient();
+  setAiUsageRecorder((usage) => getAiSpendService().record(usage));
   startServer();
 }
 

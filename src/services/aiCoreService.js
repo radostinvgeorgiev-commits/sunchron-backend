@@ -29,6 +29,30 @@ export const DEFAULT_CLAUDE_CHAT_MODEL = "claude-haiku-5-5";
 // choices here in code; only API keys belong in the runtime environment.
 export const DEFAULT_AI_PROVIDER = "claude";
 
+// Token usage of every successful AI call is handed to one recorder, set at
+// startup (aiSpendService). It must never break or slow down a reply.
+let aiUsageRecorder = null;
+export function setAiUsageRecorder(recorder) {
+  aiUsageRecorder = typeof recorder === "function" ? recorder : null;
+}
+function withUsage(result, inputTokens, outputTokens) {
+  const usage = {
+    inputTokens: Math.max(0, Number(inputTokens) || 0),
+    outputTokens: Math.max(0, Number(outputTokens) || 0),
+  };
+  if (!usage.inputTokens && !usage.outputTokens) return result;
+  if (aiUsageRecorder) {
+    try {
+      Promise.resolve(
+        aiUsageRecorder({ provider: result.provider, model: result.model, ...usage }),
+      ).catch(() => {});
+    } catch {
+      // usage accounting is best effort
+    }
+  }
+  return { ...result, usage };
+}
+
 export class AiCoreError extends Error {
   constructor(message, code = "AI_CORE_ERROR", status = 502) {
     super(message);
@@ -187,14 +211,18 @@ export async function requestOpenAIResponse({
       "OPENAI_EMPTY_RESPONSE",
     );
   }
-  return {
-    text,
-    provider: "openai",
-    model:
-      typeof data?.model === "string" && data.model.trim()
-        ? data.model.trim()
-        : model,
-  };
+  return withUsage(
+    {
+      text,
+      provider: "openai",
+      model:
+        typeof data?.model === "string" && data.model.trim()
+          ? data.model.trim()
+          : model,
+    },
+    data?.usage?.input_tokens,
+    data?.usage?.output_tokens,
+  );
 }
 
 export async function requestGeminiResponse({
@@ -275,14 +303,19 @@ export async function requestGeminiResponse({
       "GEMINI_EMPTY_RESPONSE",
     );
   }
-  return {
-    text,
-    provider: "gemini",
-    model:
-      typeof data?.modelVersion === "string" && data.modelVersion.trim()
-        ? data.modelVersion.trim()
-        : model,
-  };
+  return withUsage(
+    {
+      text,
+      provider: "gemini",
+      model:
+        typeof data?.modelVersion === "string" && data.modelVersion.trim()
+          ? data.modelVersion.trim()
+          : model,
+    },
+    data?.usageMetadata?.promptTokenCount,
+    (Number(data?.usageMetadata?.candidatesTokenCount) || 0) +
+      (Number(data?.usageMetadata?.thoughtsTokenCount) || 0),
+  );
 }
 
 export async function requestGrokResponse({
@@ -336,14 +369,18 @@ export async function requestGrokResponse({
       "GROK_EMPTY_RESPONSE",
     );
   }
-  return {
-    text,
-    provider: "grok",
-    model:
-      typeof data?.model === "string" && data.model.trim()
-        ? data.model.trim()
-        : model,
-  };
+  return withUsage(
+    {
+      text,
+      provider: "grok",
+      model:
+        typeof data?.model === "string" && data.model.trim()
+          ? data.model.trim()
+          : model,
+    },
+    data?.usage?.prompt_tokens,
+    data?.usage?.completion_tokens,
+  );
 }
 
 // Claude rejects (400) a conversation that starts with an assistant turn or
@@ -446,7 +483,13 @@ export async function requestClaudeResponse({
       "Claude не върна текстов отговор.",
       "CLAUDE_EMPTY_RESPONSE",
     );
-  return { text, provider: "claude", model: data?.model || model };
+  return withUsage(
+    { text, provider: "claude", model: data?.model || model },
+    (Number(data?.usage?.input_tokens) || 0) +
+      (Number(data?.usage?.cache_read_input_tokens) || 0) +
+      (Number(data?.usage?.cache_creation_input_tokens) || 0),
+    data?.usage?.output_tokens,
+  );
 }
 
 export function normalizeAiProvider(value) {

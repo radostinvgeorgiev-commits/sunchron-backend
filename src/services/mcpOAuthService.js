@@ -530,6 +530,18 @@ export const CLAUDE_SCOPES = Object.freeze([
   MCP_OFFLINE_ACCESS_SCOPE,
 ]);
 
+// Claude is the owner's personal connector; member accounts are refused at
+// consent, code, refresh and on every tool call, so an old grant stops too.
+function assertClientAllowedForRole(clientId, role, code = "access_denied") {
+  if (clientId === CLAUDE_CLIENT_ID && role !== "owner") {
+    throw new McpOAuthError(
+      "Claude е достъпен само за собственика на AI CORE.",
+      403,
+      code,
+    );
+  }
+}
+
 function registeredClaudeClient(clientId, env) {
   if (clientId !== CLAUDE_CLIENT_ID || env.MCP_CLAUDE_OAUTH_ENABLED !== "true")
     return null;
@@ -743,6 +755,7 @@ export function createMcpAuthorizationCode(
   if (!identity?.id || !identity?.memoryOwnerId || !identity?.role) {
     throw new McpOAuthError("Липсва валиден AI CORE профил.", 401);
   }
+  assertClientAllowedForRole(request.clientId, identity.role);
   if (requiresOwnerRole(request.scopes) && identity.role !== "owner") {
     throw new McpOAuthError(
       "MCP записът е достъпен само за собственика.",
@@ -800,6 +813,7 @@ export function createMcpConsentToken(
   if (!identity?.id) {
     throw new McpOAuthError("Липсва валиден AI CORE профил.", 401);
   }
+  assertClientAllowedForRole(request.clientId, identity.role);
   return encryptPayload(
     "sx-consent",
     {
@@ -1936,6 +1950,7 @@ export async function exchangeMcpRefreshToken(
       "invalid_grant",
     );
   }
+  assertClientAllowedForRole(payload.clientId, payload.role, "invalid_grant");
   const grantPayload = withMcpGrantId(payload);
   if (payload.grantId) {
     await assertMcpGrantActive(payload, {
@@ -2097,6 +2112,7 @@ export function verifyMcpAccessToken(
       "invalid_token",
     );
   }
+  assertClientAllowedForRole(payload.clientId, payload.role);
   if (
     requiredScopes.some((scope) => !payload.scopes.includes(scope)) ||
     (requiresOwnerRole(requiredScopes) && payload.role !== "owner")

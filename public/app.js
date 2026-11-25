@@ -2194,7 +2194,20 @@ function showAiResponseSource(message, provider, model, linkedProjectContext) {
         : linkedProjectContext === null
           ? "Работа без активен проект"
           : "";
-  source.textContent = [cleanProvider, cleanModel, context]
+  const providerNames = {
+    openai: "OpenAI",
+    gemini: "Gemini",
+    "vertex-gemini": "Vertex Gemini",
+    grok: "Grok",
+    claude: "Claude",
+    codex: "Codex",
+  };
+  source.textContent = [
+    chatText("Отговаря агентът"),
+    providerNames[cleanProvider] || cleanProvider,
+    cleanModel,
+    context,
+  ]
     .filter(Boolean)
     .join(" · ");
   source.setAttribute("aria-label", "AI доставчик и модел");
@@ -2265,10 +2278,7 @@ function resolveNextStep(replyText, result = {}) {
       displayText: parsedReply.displayText,
     };
   }
-  return {
-    step: "Продължи с една конкретна задача по този отговор.",
-    displayText: parsedReply.displayText,
-  };
+  return { step: "", displayText: parsedReply.displayText };
 }
 
 function showNextStep(message, replyText, result) {
@@ -2281,9 +2291,19 @@ function showNextStep(message, replyText, result) {
     renderAgentText(message, next.displayText);
   }
 
-  globalThis.SynchronTaskJournal?.setNextStep(next.step, {
-    detail: "Записано автоматично от последния отговор на AI CORE.",
-  });
+  // Only steps that come from a real project run, council or task go to the
+  // journal automatically. A step the model wrote in free text is shown but
+  // saved only when Радко presses the button, so invented items never pile up.
+  const fromStructuredResult = Boolean(
+    result?.projectRun?.nextStep ||
+      result?.council?.nextSteps?.[0] ||
+      result?.task?.status,
+  );
+  if (fromStructuredResult) {
+    globalThis.SynchronTaskJournal?.setNextStep(next.step, {
+      detail: "Записано автоматично от последния отговор на AI CORE.",
+    });
+  }
 
   const card = document.createElement("section");
   card.className = "next-step-card";
@@ -2295,8 +2315,15 @@ function showNextStep(message, replyText, result) {
   step.textContent = next.step;
   const openButton = document.createElement("button");
   openButton.type = "button";
-  openButton.textContent = chatText("Отвори в Дневника");
+  openButton.textContent = chatText(
+    fromStructuredResult ? "Отвори в Дневника" : "Добави в Дневника",
+  );
   openButton.addEventListener("click", () => {
+    if (!fromStructuredResult) {
+      globalThis.SynchronTaskJournal?.setNextStep(next.step, {
+        detail: "Добавено от Радко от отговор на AI CORE.",
+      });
+    }
     globalThis.SynchronTaskJournal?.openCurrentNext();
   });
   card.append(label, step, openButton);

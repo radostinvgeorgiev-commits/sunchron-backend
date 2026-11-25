@@ -1618,6 +1618,25 @@ async function openMemoryDrawer() {
   }
 }
 
+// Each remembered fact says when it was saved and who confirmed it, so an
+// invented "fact" can be spotted and removed.
+function memoryProvenance(item) {
+  const source = String(item?.source || "");
+  const who = source === "system-canonical"
+    ? chatText("основа на системата")
+    : /confirmed|confirmation|approved|import/u.test(source)
+      ? chatText("потвърдено от теб")
+      : source
+        ? chatText("източник: {source}", { source })
+        : "";
+  const when = item?.updatedAt || item?.createdAt;
+  const date = when && !Number.isNaN(Date.parse(when))
+    ? new Date(when).toLocaleDateString("bg-BG")
+    : "";
+  const text = [date && chatText("записано {date}", { date }), who].filter(Boolean).join(" · ");
+  return text ? `<small class="memory-provenance">${escapeHtml(text)}</small>` : "";
+}
+
 function renderMemoryItems() {
   const personal = state.memoryItems.filter(
     (item) => (item.scope || "personal") === "personal",
@@ -1639,6 +1658,7 @@ function renderMemoryItems() {
                         <div>
                           ${item.readOnly ? '<span class="memory-badge">Текуща основа</span>' : ""}
                           <p>${escapeHtml(item.fact)}</p>
+                          ${memoryProvenance(item)}
                         </div>
                         ${
                           item.readOnly
@@ -1661,7 +1681,8 @@ function renderMemoryItems() {
             }
         </section>`;
   elements.dataDrawerBody.innerHTML =
-    `<section class="memory-policy-card">
+    `<p class="memory-intro">${escapeHtml(chatText("Това е всичко, което AI CORE помни за теб. Нищо не се записва без твое „да“, а всеки запис можеш да поправиш или изтриеш."))}</p>
+    <section class="memory-policy-card">
       <strong>Правило за запомняне</strong>
       <p>AI CORE никога не запомня автоматично. Избери дали да пита преди всеки запис или напълно да забрани записването.</p>
       <div class="memory-policy-actions">

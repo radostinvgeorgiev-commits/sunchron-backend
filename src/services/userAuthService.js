@@ -288,7 +288,7 @@ function deriveSessionKey(env = process.env) {
   return cachedEncryptionKey;
 }
 
-function sessionPayload(session) {
+export function sessionPayload(session) {
   if (
     typeof session?.access_token !== "string" ||
     typeof session?.refresh_token !== "string"

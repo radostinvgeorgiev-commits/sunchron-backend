@@ -280,6 +280,25 @@ async function handleLogin(event) {
   }
 }
 
+const GOOGLE_SIGN_IN_ERRORS = Object.freeze({
+  AUTH_GOOGLE_CANCELLED: "Входът с Google беше отказан.",
+  AUTH_GOOGLE_STATE_INVALID: "Входът с Google изтече. Опитай пак.",
+  AUTH_GOOGLE_DISABLED: "Входът с Google още не е включен.",
+  AUTH_GOOGLE_PROVIDER_DISABLED: "Входът с Google още не е включен.",
+});
+
+function showGoogleSignInError() {
+  const params = new URLSearchParams(globalThis.location?.search || "");
+  const code = params.get("auth_error");
+  if (!code) return;
+  setAuthMessage(
+    chatText(GOOGLE_SIGN_IN_ERRORS[code] || "Входът с Google не успя. Опитай пак или влез с имейл."),
+  );
+  params.delete("auth_error");
+  const rest = params.toString();
+  globalThis.history?.replaceState?.({}, "", `${globalThis.location.pathname}${rest ? `?${rest}` : ""}`);
+}
+
 function offerRegistration(email) {
   setAuthMessage(
     chatText("Имейлът или паролата не съвпадат. Ако още нямаш профил, създай го — имейлът е попълнен."),
@@ -426,6 +445,9 @@ async function init() {
     elements.registerInviteCode.disabled = state.registrationMode !== "invite";
     elements.registerInviteCode.required = state.registrationMode === "invite";
     elements.showRegisterBtn.hidden = !state.registrationEnabled;
+    const googleSignInBtn = document.getElementById("googleSignInBtn");
+    if (googleSignInBtn) googleSignInBtn.hidden = session.googleSignIn !== true;
+    showGoogleSignInError();
     if (session.authenticated) {
       await startApplication(session.user);
       return;

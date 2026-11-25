@@ -155,6 +155,37 @@ export function createIdentityPlatformAuthClient({
           return { data: null, error };
         }
       },
+      // Google sign-in: exchanges a Google ID token for an Identity Platform
+      // session. Creates the account on first use; Google emails are verified.
+      async signInWithGoogleIdToken({ idToken, requestUri }) {
+        try {
+          const payload = await request(
+            IDENTITY_TOOLKIT_ORIGIN,
+            "accounts:signInWithIdp",
+            {
+              body: {
+                postBody: new URLSearchParams({
+                  id_token: idToken,
+                  providerId: "google.com",
+                }).toString(),
+                requestUri,
+                returnSecureToken: true,
+                returnIdpCredential: true,
+              },
+            },
+          );
+          const session = normalizeSession(payload);
+          if (!session)
+            throw upstreamError(502, { error: { message: "SESSION_INCOMPLETE" } });
+          const user = await lookupUser(session.access_token);
+          return {
+            data: { user, session, isNewUser: payload.isNewUser === true },
+            error: null,
+          };
+        } catch (error) {
+          return { data: null, error };
+        }
+      },
       async signUp({ email, password, options = {} }) {
         try {
           let payload = await request(

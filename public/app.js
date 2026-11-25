@@ -61,6 +61,7 @@ const elements = {
   registerBtn: document.getElementById("registerBtn"),
   backToLoginBtn: document.getElementById("backToLoginBtn"),
   authMessage: document.getElementById("authMessage"),
+  forgotPasswordBtn: document.getElementById("forgotPasswordBtn"),
   chatMessages: document.getElementById("chatMessages"),
   chatInput: document.getElementById("chatInput"),
   sendBtn: document.getElementById("sendBtn"),
@@ -272,6 +273,28 @@ async function handleLogin(event) {
   }
 }
 
+async function handleForgotPassword() {
+  const email = elements.loginEmail.value.trim();
+  if (!email) {
+    setAuthMessage(chatText("Въведи имейла си в полето отгоре и натисни отново."));
+    elements.loginEmail.focus();
+    return;
+  }
+  setAuthBusy(true);
+  setAuthMessage();
+  try {
+    await submitAuth("/api/auth/password-reset", { email });
+    setAuthMessage(
+      chatText("Ако има профил с този имейл, изпратихме писмо с линк за нова парола. Провери и папката за спам."),
+      true,
+    );
+  } catch (error) {
+    setAuthMessage(error.message);
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
 async function handleRegistration(event) {
   event.preventDefault();
   setAuthBusy(true);
@@ -343,6 +366,7 @@ function applyAuthenticatedUser(user) {
 
 async function init() {
   elements.loginForm.addEventListener("submit", handleLogin);
+  elements.forgotPasswordBtn?.addEventListener("click", handleForgotPassword);
   elements.registerForm.addEventListener("submit", handleRegistration);
   elements.showRegisterBtn.addEventListener("click", showRegisterForm);
   elements.backToLoginBtn.addEventListener("click", showLoginForm);

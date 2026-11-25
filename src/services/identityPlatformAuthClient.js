@@ -240,6 +240,16 @@ export function createIdentityPlatformAuthClient({
           return { data: null, error };
         }
       },
+      async sendPasswordResetEmail(email) {
+        try {
+          await request(IDENTITY_TOOLKIT_ORIGIN, "accounts:sendOobCode", {
+            body: { requestType: "PASSWORD_RESET", email },
+          });
+          return { data: { sent: true }, error: null };
+        } catch (error) {
+          return { data: null, error };
+        }
+      },
       async deleteAccount(accessToken) {
         try {
           await request(IDENTITY_TOOLKIT_ORIGIN, "accounts:delete", {

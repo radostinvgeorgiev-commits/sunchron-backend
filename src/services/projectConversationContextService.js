@@ -58,6 +58,27 @@ export async function loadProjectConversationContext({
   };
 }
 
+// A "Следва:" line is an instruction the model gave itself; replayed in
+// later context it reads like a fact (an invented "ЛИПА-742" spread this
+// way). Strip those lines from earlier AI replies before they are reused.
+export function stripReplayedNextSteps(content) {
+  return String(content || "")
+    .split("\n")
+    .filter((line) => !/^\s*(?:[-*•]\s*)?(?:\*\*)?(?:Следва|Следваща стъпка)(?:\*\*)?\s*:/iu.test(line))
+    .join("\n")
+    .trim();
+}
+
+export function sanitizeAssistantHistory(messages = []) {
+  return messages
+    .map((message) =>
+      message?.role === "assistant"
+        ? { ...message, content: stripReplayedNextSteps(message.content) }
+        : message,
+    )
+    .filter((message) => typeof message?.content !== "string" || message.content);
+}
+
 export function buildProjectConversationReference(context, maxLength = 16_000) {
   if (!context) return "";
   const { name, objective, decisions, conversations } = context;
@@ -71,7 +92,7 @@ export function buildProjectConversationReference(context, maxLength = 16_000) {
   }
   for (const conversation of conversations) {
     const bounded = [];
-    for (const message of [...conversation].reverse()) {
+    for (const message of [...sanitizeAssistantHistory(conversation)].reverse()) {
       bounded.unshift(message);
       if (
         JSON.stringify({

@@ -32,6 +32,7 @@ import calendarRouter from "./src/routes/calendarRouter.js";
 import permissionsRouter from "./src/routes/permissionsRouter.js";
 import connectionsRouter from "./src/routes/connectionsRouter.js";
 import memoryInboxRouter from "./src/routes/memoryInboxRouter.js";
+import accountRouter from "./src/routes/accountRouter.js";
 import googleDriveRouter from "./src/routes/googleDriveRouter.js";
 import githubOAuthRouter from "./src/routes/githubOAuthRouter.js";
 import webSearchRouter from "./src/routes/webSearchRouter.js";
@@ -197,6 +198,12 @@ app.use(
   workspacesRouter,
 );
 app.use(
+  "/api/account",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  accountRouter,
+);
+app.use(
   "/api/memory-inbox",
   requireOwnerSession,
   privateApiRateLimiter,
@@ -278,6 +285,12 @@ app.get("/", (_req, res) => {
 
 app.get("/developers", (_req, res) =>
   res.sendFile("public/developers.html", { root: process.cwd() }),
+);
+app.get("/privacy", (_req, res) =>
+  res.sendFile("public/privacy.html", { root: process.cwd() }),
+);
+app.get("/terms", (_req, res) =>
+  res.sendFile("public/terms.html", { root: process.cwd() }),
 );
 app.get("/help", (_req, res) =>
   res.sendFile("public/help.html", { root: process.cwd() }),

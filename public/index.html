@@ -38,7 +38,7 @@
       href="/assets/20260806-green-chat-v1/synchron-vision.css"
     />
     <link rel="stylesheet" href="/workspace-refresh.css?v=20261121" />
-    <link rel="stylesheet" href="/interface.css?v=20261125-inbox" />
+    <link rel="stylesheet" href="/interface.css?v=20261125-my-data" />
     <link
       rel="stylesheet"
       href="/vendor/fontawesome-6.7.2/css/all.min.css"
@@ -170,8 +170,9 @@
               </small>
             </div>
             <p>
-              С регистрацията се създава личен профил. Няма автоматични
-              плащания. <a href="/help">Как работи услугата</a>.
+              С регистрацията приемаш <a href="/terms">Общите условия</a> и
+              <a href="/privacy">Политиката за поверителност</a>. Няма
+              автоматични плащания.
             </p>
             <button id="registerBtn" class="auth-primary" type="submit">
               Създай профил
@@ -259,6 +260,10 @@
           <button id="profileStatusBtn" type="button">
             <i class="fa-solid fa-sliders"></i>
             <span>Състояние и настройки</span>
+          </button>
+          <button id="myDataBtn" type="button" data-member-only>
+            <i class="fa-solid fa-shield-halved"></i>
+            <span>Моите данни</span>
           </button>
           <button
             id="sidebarLogoutBtn"

@@ -108,6 +108,17 @@ export function createFirestoreMemoryStore({
         })),
       );
     },
+    async deleteConversationDocuments(ids) {
+      for (let index = 0; index < ids.length; index += 400) {
+        await store.commitOperations(
+          ids.slice(index, index + 400).map((id) => ({
+            type: "delete",
+            collection: conversationCollection,
+            id,
+          })),
+        );
+      }
+    },
     commitConversationDocuments(documents) {
       return store.commitOperations(
         documents.map(({ id, data }) => ({

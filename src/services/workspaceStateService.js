@@ -468,3 +468,19 @@ export async function saveWorkspaceState(
   }
   return { state, persisted: true, updatedAt };
 }
+
+export async function deleteWorkspaceState(
+  ownerId,
+  { client, env = process.env } = {},
+) {
+  const documentId = workspaceDocumentId(ownerId);
+  if (persistenceBackend(env) === "firestore") {
+    await getFirestoreStore(env).delete(documentId);
+    return true;
+  }
+  await requireClient(client).delete(
+    { index: indexName(env), id: documentId },
+    { ignore: [404] },
+  );
+  return true;
+}

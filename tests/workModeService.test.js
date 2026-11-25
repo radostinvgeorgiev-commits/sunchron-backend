@@ -106,7 +106,7 @@ test("the available personal-agent models are explicit and server-owned", () => 
   );
   assert.equal(resolveWorkAgentModel("gpt-5.6-sol"), "gpt-5.6-sol");
   assert.equal(resolveWorkAgentModel("gpt-5.6-terra"), "gpt-5.6-terra");
-  assert.equal(resolveWorkAgentModel("gemini-2.5-flash"), "gemini-2.5-flash");
+  assert.equal(resolveWorkAgentModel("gemini-2.5-flash"), "gemini-3.8-flash");
   assert.equal(
     resolveWorkAgentModel("vertex-gemini-2.5-flash"),
     "gemini-2.5-flash",

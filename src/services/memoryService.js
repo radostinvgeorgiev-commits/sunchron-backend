@@ -934,6 +934,45 @@ export async function listConversationMessages(
   return hits.map((hit) => ({ id: hit._id, ...hit._source })).reverse();
 }
 
+export async function listAllConversationMessages(ownerId = OWNER_ID) {
+  await ensureConversationIndex();
+  if (usesFirestoreMemory()) {
+    const documents =
+      await getFirestoreStoreOrThrow().listConversationDocuments(ownerId);
+    return documents.map((document) => ({ id: document.id, ...document.data }));
+  }
+  const response = await getClientOrThrow().search({
+    index: CONVERSATION_INDEX,
+    body: {
+      size: 10_000,
+      sort: [{ createdAt: { order: "asc" } }],
+      query: { term: { ownerId } },
+    },
+  });
+  const hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
+  return hits.map((hit) => ({ id: hit._id, ...hit._source }));
+}
+
+export async function deleteAllConversations(ownerId = OWNER_ID) {
+  await ensureConversationIndex();
+  if (usesFirestoreMemory()) {
+    const store = getFirestoreStoreOrThrow();
+    let deleted = 0;
+    for (;;) {
+      const documents = await store.listConversationDocuments(ownerId);
+      if (!documents.length) return deleted;
+      await store.deleteConversationDocuments(documents.map(({ id }) => id));
+      deleted += documents.length;
+    }
+  }
+  const response = await getClientOrThrow().deleteByQuery({
+    index: CONVERSATION_INDEX,
+    refresh: true,
+    body: { query: { term: { ownerId } } },
+  });
+  return response.body?.deleted ?? response.deleted ?? 0;
+}
+
 export function conversationTitleFromMessages(messages) {
   const firstUserMessage = messages.find(
     (message) =>

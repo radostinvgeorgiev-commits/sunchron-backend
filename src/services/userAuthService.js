@@ -184,7 +184,7 @@ function normalizeRemoteSession(payload) {
   };
 }
 
-function createAuthClient(env = process.env) {
+export function createAuthClient(env = process.env) {
   const config = requireAuthConfig(env);
   if (config.backend === "identity-platform") {
     return createIdentityPlatformAuthClient({ env });

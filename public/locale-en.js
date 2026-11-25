@@ -372,5 +372,18 @@ AI задача|AI task
 Входящите временно не са достъпни.|The inbox is temporarily unavailable.
 Действието не беше изпълнено.|The action was not completed.
 Редактирай|Edit
+Моите данни|My data
+Изтегли данните си|Download your data
+Копие на паметта, разговорите, проектите, предложенията и връзките ти във формат JSON.|A copy of your memory, conversations, projects, suggestions and connections as JSON.
+Изтегли копие|Download a copy
+Изтрий профила|Delete account
+Изтрива окончателно паметта, разговорите, проектите, предложенията и профила за вход и прекъсва свързаните AI асистенти. Счетоводните документи за плащания се пазят, както изисква законът.|Permanently deletes your memory, conversations, projects, suggestions and sign-in account and disconnects your AI assistants. Payment accounting records are kept as the law requires.
+Напиши ИЗТРИЙ за потвърждение|Type ИЗТРИЙ to confirm
+Изтрий профила завинаги|Delete account permanently
+Изтриване…|Deleting…
+Профилът не беше изтрит.|The account was not deleted.
+Профилът е изтрит.|The account has been deleted.
+Поверителност|Privacy
+Общи условия|Terms
 `.trim().split("\n").map((line) => line.split("|")),
 );

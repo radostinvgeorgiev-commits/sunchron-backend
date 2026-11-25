@@ -733,3 +733,27 @@ body[data-user-role="owner"] .composer-note {
   margin: 6px 0 12px;
   color: #5b6b66;
 }
+
+/* My data: export and account deletion. */
+.my-data-download {
+  display: inline-block;
+  text-decoration: none;
+}
+.my-data-danger {
+  border-top: 1px solid #f0c2c2;
+}
+.my-data-delete {
+  display: grid;
+  gap: 6px;
+  max-width: 360px;
+}
+.my-data-delete input {
+  padding: 9px 10px;
+  border: 1px solid #b9cbc4;
+  border-radius: 8px;
+  font: inherit;
+}
+.my-data-delete button {
+  margin-top: 6px;
+  justify-self: start;
+}

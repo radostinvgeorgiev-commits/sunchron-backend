@@ -76,6 +76,7 @@ const elements = {
   toggleStatusBtn: document.getElementById("toggleStatusBtn"),
   profileActions: document.getElementById("profileActions"),
   profileStatusBtn: document.getElementById("profileStatusBtn"),
+  myDataBtn: document.getElementById("myDataBtn"),
   sidebarLogoutBtn: document.getElementById("sidebarLogoutBtn"),
   closeContextBtn: document.getElementById("closeContextBtn"),
   statusPanel: document.getElementById("statusPanel"),
@@ -335,6 +336,9 @@ function applyAuthenticatedUser(user) {
   for (const item of document.querySelectorAll("[data-owner-only]")) {
     item.hidden = !isOwner;
   }
+  for (const item of document.querySelectorAll("[data-member-only]")) {
+    item.hidden = isOwner;
+  }
 }
 
 async function init() {
@@ -407,6 +411,7 @@ async function startApplication(user) {
   elements.newChatBtn.addEventListener("click", startNewChat);
   elements.toggleStatusBtn.addEventListener("click", toggleProfileActions);
   elements.profileStatusBtn.addEventListener("click", openStatus);
+  elements.myDataBtn?.addEventListener("click", openMyDataDrawer);
   elements.sidebarLogoutBtn.addEventListener("click", handleLogout);
   elements.closeContextBtn.addEventListener("click", closeStatus);
   elements.chatMessages.addEventListener("click", handleMessageAction);
@@ -1166,6 +1171,66 @@ function escapeHtml(value) {
   const div = document.createElement("div");
   div.textContent = String(value ?? "");
   return div.innerHTML;
+}
+
+function openMyDataDrawer() {
+  openDataDrawer(chatText("Моите данни"));
+  elements.dataDrawerBody.innerHTML = `
+    <section class="drawer-section">
+      <h3>${localizedMarkup("Изтегли данните си")}</h3>
+      <p>${localizedMarkup("Копие на паметта, разговорите, проектите, предложенията и връзките ти във формат JSON.")}</p>
+      <a class="connection-copy my-data-download" href="/api/account/export" download>${localizedMarkup("Изтегли копие")}</a>
+    </section>
+    <section class="drawer-section my-data-danger">
+      <h3>${localizedMarkup("Изтрий профила")}</h3>
+      <p>${localizedMarkup("Изтрива окончателно паметта, разговорите, проектите, предложенията и профила за вход и прекъсва свързаните AI асистенти. Счетоводните документи за плащания се пазят, както изисква законът.")}</p>
+      <form class="my-data-delete" data-account-delete>
+        <label for="accountDeletePassword">${localizedMarkup("Парола")}</label>
+        <input id="accountDeletePassword" type="password" autocomplete="current-password" required />
+        <label for="accountDeleteConfirm">${localizedMarkup("Напиши ИЗТРИЙ за потвърждение")}</label>
+        <input id="accountDeleteConfirm" type="text" autocomplete="off" required />
+        <button type="submit" class="connection-revoke">${localizedMarkup("Изтрий профила завинаги")}</button>
+        <p class="my-data-status" role="status" hidden></p>
+      </form>
+    </section>
+    <section class="drawer-section">
+      <p><a href="/privacy">${localizedMarkup("Поверителност")}</a> · <a href="/terms">${localizedMarkup("Общи условия")}</a></p>
+    </section>`;
+  elements.dataDrawerBody
+    .querySelector("[data-account-delete]")
+    ?.addEventListener("submit", submitAccountDeletion);
+}
+
+async function submitAccountDeletion(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const status = form.querySelector(".my-data-status");
+  const button = form.querySelector("button[type=submit]");
+  button.disabled = true;
+  status.hidden = false;
+  status.textContent = chatText("Изтриване…");
+  try {
+    const response = await fetch("/api/account/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        password: form.querySelector("#accountDeletePassword").value,
+        confirm: form.querySelector("#accountDeleteConfirm").value.trim(),
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Профилът не беше изтрит.");
+    status.textContent = chatText("Профилът е изтрит.");
+    try {
+      localStorage.clear();
+    } catch {
+      // Storage may be unavailable; the server-side data is already gone.
+    }
+    window.location.assign("/");
+  } catch (error) {
+    status.textContent = error.message;
+    button.disabled = false;
+  }
 }
 
 const INBOX_SOURCES = Object.freeze({

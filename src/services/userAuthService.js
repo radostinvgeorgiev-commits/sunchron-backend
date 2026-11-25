@@ -594,6 +594,13 @@ export async function registerUser(
     );
   }
 
+  if (retryPublicRegistration && error) {
+    throw new UserAuthError(
+      "Вече има профил с този имейл. Влез с паролата си или натисни „Забравена парола“.",
+      409,
+      "AUTH_EMAIL_EXISTS",
+    );
+  }
   if (error || !data?.user) {
     throw mapAuthError(
       error,

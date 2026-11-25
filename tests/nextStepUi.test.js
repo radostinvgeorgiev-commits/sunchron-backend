@@ -37,3 +37,9 @@ test("Council без собствен nextSteps показва конкретн�
   assert.match(app, /result\?\.mode === "council"/u);
   assert.match(app, /натисни „Изпълни препоръката“/u);
 });
+
+test("a failed sign-in offers registration with the same email", () => {
+  assert.match(app, /error\.code === "AUTH_INVALID_CREDENTIALS" && state\.registrationEnabled/u);
+  assert.match(app, /Създай профил с този имейл/u);
+  assert.match(app, /най-вероятно още нямаш профил/u);
+});

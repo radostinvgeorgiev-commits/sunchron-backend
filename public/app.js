@@ -267,10 +267,33 @@ async function handleLogin(event) {
     if (!session.authenticated) throw new Error(chatText("Сесията не беше създадена."));
     await startApplication(session.user);
   } catch (error) {
+    // Identity Platform answers the same for "no account" and "wrong
+    // password". New visitors often type a new password into the sign-in
+    // form, so offer registration with the same email right away.
+    if (error.code === "AUTH_INVALID_CREDENTIALS" && state.registrationEnabled) {
+      offerRegistration(elements.loginEmail.value);
+      return;
+    }
     setAuthMessage(error.message);
   } finally {
     setAuthBusy(false);
   }
+}
+
+function offerRegistration(email) {
+  setAuthMessage(
+    chatText("Имейлът или паролата не съвпадат. Ако още нямаш профил, създай го — имейлът е попълнен."),
+  );
+  const link = document.createElement("button");
+  link.type = "button";
+  link.className = "auth-link auth-offer-register";
+  link.textContent = chatText("Създай профил с този имейл");
+  link.addEventListener("click", () => {
+    showRegisterForm();
+    elements.registerEmail.value = String(email || "").trim();
+    elements.registerName.focus();
+  });
+  elements.authMessage?.append(document.createElement("br"), link);
 }
 
 async function handleForgotPassword() {
@@ -285,7 +308,7 @@ async function handleForgotPassword() {
   try {
     await submitAuth("/api/auth/password-reset", { email });
     setAuthMessage(
-      chatText("Ако има профил с този имейл, изпратихме писмо с линк за нова парола. Провери и папката за спам."),
+      chatText("Ако има профил с този имейл, изпратихме писмо с линк за нова парола (от noreply, провери и „Спам“/„Промоции“). Ако писмо не дойде до 5 минути, най-вероятно още нямаш профил — натисни „Създай безплатен профил“."),
       true,
     );
   } catch (error) {

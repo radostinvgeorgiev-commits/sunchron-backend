@@ -346,6 +346,41 @@ export async function requestGrokResponse({
   };
 }
 
+// Claude rejects (400) a conversation that starts with an assistant turn or
+// ends with one (newer models do not support assistant prefill). Merge
+// consecutive turns of the same role and keep the last turn from the user.
+export function toClaudeMessages(normalized) {
+  const merged = [];
+  for (const { role, content } of normalized) {
+    if (role === "system") continue;
+    const claudeRole = role === "assistant" ? "assistant" : "user";
+    const last = merged[merged.length - 1];
+    if (last && last.role === claudeRole) {
+      last.content = `${last.content}\n\n${content}`;
+    } else {
+      merged.push({ role: claudeRole, content });
+    }
+  }
+  while (merged.length && merged[0].role !== "user") merged.shift();
+  while (merged.length && merged[merged.length - 1].role !== "user") merged.pop();
+  return merged;
+}
+
+// Anthropic error bodies carry a type and a short message and never echo the
+// API key, so they are safe to log and are what makes a 400 diagnosable.
+async function describeClaudeError(response) {
+  try {
+    const body = await response.json();
+    const type = String(body?.error?.type || "").slice(0, 60);
+    const message = String(body?.error?.message || "")
+      .replace(/sk-ant-[A-Za-z0-9_-]+/gu, "[key]")
+      .slice(0, 300);
+    return type || message ? ` ${type}: ${message}` : "";
+  } catch {
+    return "";
+  }
+}
+
 export async function requestClaudeResponse({
   apiKey = process.env.ANTHROPIC_API_KEY,
   apiUrl = "https://api.anthropic.com/v1/messages",
@@ -364,10 +399,14 @@ export async function requestClaudeResponse({
   }
   const normalized = normalizeChatMessages(input);
   const system = normalized.filter((item) => item.role === "system").map((item) => item.content).join("\n\n");
-  const messages = normalized.filter((item) => item.role !== "system").map(({ role, content }) => ({
-    role: role === "assistant" ? "assistant" : "user",
-    content,
-  }));
+  const messages = toClaudeMessages(normalized);
+  if (!messages.length) {
+    throw new AiCoreError(
+      "Няма потребителско съобщение за Claude.",
+      "CLAUDE_EMPTY_REQUEST",
+      400,
+    );
+  }
   await reservePublicAiCall(input, "claude", model);
   const response = await fetchImpl(apiUrl, {
     method: "POST",
@@ -385,7 +424,9 @@ export async function requestClaudeResponse({
     signal,
   });
   if (!response.ok) {
-    console.error(`[Claude] Upstream request failed: ${response.status}`);
+    console.error(
+      `[Claude] Upstream request failed: ${response.status}${await describeClaudeError(response)}`,
+    );
     throw new AiCoreError(
       `Claude върна грешка ${response.status}.`,
       "CLAUDE_UPSTREAM_ERROR",

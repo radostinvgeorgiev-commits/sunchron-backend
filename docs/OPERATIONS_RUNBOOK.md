@@ -16,6 +16,16 @@ curl --fail --silent --show-error https://cloudaicore.com/api/auth/session
 и Identity Platform. Health status не доказва, че нов потребител реално може
 да се регистрира — това се тества с изолиран профил.
 
+### Един merge наведнъж
+
+Всеки merge в `main` пуска отделен Cloud Build (`synchron-main-deploy`).
+Когато няколко merge-а влязат един след друг, builds се застъпват и
+последният може да се провали (на 25.11.2026 build-ът за `86e6d31` завърши с
+FAILURE, докато предишният още се публикуваше). Прави merge, изчакай
+`Production smoke check` за точния SHA и чак тогава следващия. Ако build се
+провали така, нов commit в `main` (например следващ PR) публикува всичко
+натрупано.
+
 ## MCP
 
 Изпрати JSON-RPC `tools/list` към `https://cloudaicore.com/mcp`. Каталогът

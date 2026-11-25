@@ -308,7 +308,10 @@ export function buildAvatarMessages(
   const systemContext = [
     assistantContext,
     replyLanguageInstruction(interaction.language),
-    buildMemoryContext(memories, { personName }),
+    buildMemoryContext(memories, {
+      personName,
+      includeProjectIdentity: !isMemberIdentity(identity),
+    }),
     buildKnowledgeContext(knowledge),
     interaction.mode === "work"
       ? buildWorkModeContext(interaction.workContext)

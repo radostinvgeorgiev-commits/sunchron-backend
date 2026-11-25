@@ -50,12 +50,31 @@ const PROVIDER_LABELS = Object.freeze({
 });
 
 export class AiCouncilError extends Error {
-  constructor(message, status = 502, code = "AI_COUNCIL_ERROR") {
+  constructor(message, status = 502, code = "AI_COUNCIL_ERROR", failures = []) {
     super(message);
     this.name = "AiCouncilError";
     this.status = status;
     this.code = code;
+    this.failures = failures;
   }
+}
+
+// Safe per-provider failure summary: provider id, error code and the HTTP
+// status returned by the provider. Never includes response bodies or keys.
+export function providerFailureSummary(provider, reason) {
+  const code = String(reason?.code || "");
+  const status = Number(reason?.status);
+  return Object.freeze({
+    provider,
+    code: /^[A-Z0-9_]{3,80}$/u.test(code)
+      ? code
+      : reason?.message === "not_configured"
+        ? "NOT_CONFIGURED"
+        : "UNKNOWN",
+    ...(Number.isInteger(status) && status >= 100 && status < 600
+      ? { status }
+      : {}),
+  });
 }
 
 export function isMultiEngineCouncilRequest(message) {
@@ -311,11 +330,26 @@ export async function runAiCouncil({
       .filter((_, index) => settled[index].status === "rejected")
       .map(({ provider }) => provider),
   );
+  const failures = providers
+    .map(({ provider }, index) =>
+      settled[index].status === "rejected"
+        ? providerFailureSummary(provider, settled[index].reason)
+        : null,
+    )
+    .filter(Boolean);
+  if (failures.length) {
+    console.error(
+      `[AI Council] Provider failures: ${failures
+        .map((item) => `${item.provider}:${item.code}:${item.status ?? "-"}`)
+        .join(", ")}`,
+    );
+  }
   if (!normalizedResponses.length) {
     throw new AiCouncilError(
       "Нито един AI двигател не върна отговор. Опитай отново.",
       503,
       "AI_COUNCIL_ADVISORS_FAILED",
+      failures,
     );
   }
   const fallback = () =>

@@ -1233,6 +1233,28 @@ async function submitAccountDeletion(event) {
   }
 }
 
+const PROVIDER_LABELS = Object.freeze({
+  openai: "OpenAI",
+  gemini: "Gemini",
+  grok: "Grok",
+  claude: "Claude",
+  codex: "Codex",
+});
+
+function describeAiError(data) {
+  const base = data?.message || chatText("AI агентът върна грешка.");
+  const details = [];
+  if (Array.isArray(data?.failures)) {
+    for (const item of data.failures.slice(0, 5)) {
+      const name = PROVIDER_LABELS[item?.provider] || "AI";
+      details.push(item?.status ? `${name}: ${item.status}` : `${name}: ${item?.code || "?"}`);
+    }
+  } else if (Number.isInteger(data?.upstreamStatus)) {
+    details.push(`${chatText("код")} ${data.upstreamStatus}`);
+  }
+  return details.length ? `${base} (${details.join(", ")})` : base;
+}
+
 const INBOX_SOURCES = Object.freeze({
   claude: "Claude",
   chatgpt: "ChatGPT",
@@ -2856,7 +2878,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
           fullText += parsed.data.token;
           renderAgentText(responseBubble, fullText);
         } else if (parsed.event === "error") {
-          throw new Error(parsed.data?.message || "AI агентът върна грешка.");
+          throw new Error(describeAiError(parsed.data));
         } else if (
           parsed.event === "activity" &&
           typeof parsed.data?.message === "string"

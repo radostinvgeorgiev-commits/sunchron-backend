@@ -660,3 +660,76 @@ body[data-user-role="owner"] .composer-note {
 .connection-empty {
   color: #5b6b66;
 }
+
+/* Memory inbox: approve what AI assistants suggest remembering. */
+.inbox-count {
+  margin-left: auto;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #d6f58c;
+  color: #10332b;
+  font-size: 12px;
+  text-align: center;
+}
+.inbox-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.inbox-item {
+  padding: 12px;
+  border: 1px solid #dfe7e4;
+  border-radius: 12px;
+  background: #fff;
+}
+.inbox-fact {
+  margin: 0 0 6px;
+  line-height: 1.5;
+}
+.inbox-edit {
+  width: 100%;
+  min-height: 72px;
+  margin-bottom: 6px;
+  padding: 8px;
+  border: 1px solid #b9cbc4;
+  border-radius: 8px;
+  font: inherit;
+}
+.inbox-item small {
+  color: #5b6b66;
+}
+.inbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.inbox-approve,
+.inbox-secondary {
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.inbox-approve {
+  border: 0;
+  background: #1d6b55;
+  color: #fff;
+}
+.inbox-secondary {
+  border: 1px solid #c9d6d1;
+  background: transparent;
+  color: #10332b;
+}
+.inbox-empty {
+  padding: 16px;
+  border: 1px dashed #c9d6d1;
+  border-radius: 12px;
+}
+.inbox-empty p {
+  margin: 6px 0 12px;
+  color: #5b6b66;
+}

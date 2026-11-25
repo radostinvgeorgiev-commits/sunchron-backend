@@ -100,6 +100,8 @@ const elements = {
   toolsBtn: document.getElementById("toolsBtn"),
   memoryBtn: document.getElementById("memoryBtn"),
   connectionsBtn: document.getElementById("connectionsBtn"),
+  inboxBtn: document.getElementById("inboxBtn"),
+  inboxCount: document.getElementById("inboxCount"),
   permissionsBtn: document.getElementById("permissionsBtn"),
   dataDrawer: document.getElementById("dataDrawer"),
   dataDrawerTitle: document.getElementById("dataDrawerTitle"),
@@ -421,6 +423,8 @@ async function startApplication(user) {
   );
   elements.memoryBtn.addEventListener("click", openMemoryDrawer);
   elements.connectionsBtn?.addEventListener("click", openConnectionsDrawer);
+  elements.inboxBtn?.addEventListener("click", openInboxDrawer);
+  refreshInboxCount();
   elements.permissionsBtn.addEventListener("click", openPermissionsDrawer);
   elements.closeDataDrawerBtn.addEventListener("click", closeDataDrawer);
   elements.drawerBackdrop.addEventListener("click", closeDataDrawer);
@@ -1164,6 +1168,115 @@ function escapeHtml(value) {
   return div.innerHTML;
 }
 
+const INBOX_SOURCES = Object.freeze({
+  claude: "Claude",
+  chatgpt: "ChatGPT",
+  gemini: "Gemini",
+  "ai-core": "AI CORE",
+  other: "AI",
+});
+
+function setInboxCount(count) {
+  if (!elements.inboxCount) return;
+  elements.inboxCount.textContent = count > 99 ? "99+" : String(count);
+  elements.inboxCount.hidden = !count;
+}
+
+async function refreshInboxCount() {
+  if (!elements.inboxBtn) return;
+  try {
+    const response = await fetch("/api/memory-inbox", { cache: "no-store" });
+    if (!response.ok) return;
+    const data = await response.json();
+    setInboxCount(Array.isArray(data.items) ? data.items.length : 0);
+  } catch {
+    // The badge is optional; the drawer shows errors when opened.
+  }
+}
+
+async function openInboxDrawer() {
+  openDataDrawer(chatText("Входящи"));
+  renderDrawerLoading();
+  try {
+    const response = await fetch("/api/memory-inbox", { cache: "no-store" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Входящите временно не са достъпни.");
+    const items = Array.isArray(data.items) ? data.items : [];
+    setInboxCount(items.length);
+    renderInbox(items);
+  } catch (error) {
+    renderDrawerError(error.message);
+  }
+}
+
+function renderInbox(items) {
+  const list = items.length
+    ? items
+        .map(
+          (item) => `
+      <li class="inbox-item" data-inbox-id="${escapeHtml(item.id)}">
+        <p class="inbox-fact">${escapeHtml(item.fact)}</p>
+        <textarea class="inbox-edit" maxlength="500" hidden aria-label="${localizedMarkup("Редактирай факта")}">${escapeHtml(item.fact)}</textarea>
+        <small>${escapeHtml(INBOX_SOURCES[item.source] || "AI")} · ${localizedMarkup(item.scope === "project" ? "Проект" : "Лично")} · ${escapeHtml(formatConnectionDate(item.createdAt))}</small>
+        <div class="inbox-actions">
+          <button type="button" class="inbox-approve" data-inbox-approve>${localizedMarkup("Запази")}</button>
+          <button type="button" class="inbox-secondary" data-inbox-edit>${localizedMarkup("Редактирай")}</button>
+          <button type="button" class="inbox-secondary" data-inbox-dismiss>${localizedMarkup("Отхвърли")}</button>
+        </div>
+      </li>`,
+        )
+        .join("")
+    : `<li class="inbox-empty">
+        <strong>${localizedMarkup("Няма нови предложения.")}</strong>
+        <p>${localizedMarkup("Когато Claude, ChatGPT или AI CORE предложат нещо за запомняне, ще го видиш тук и ще решиш дали да се запази.")}</p>
+        <button type="button" class="connection-copy" data-open-connections>${localizedMarkup("Свържи AI")}</button>
+      </li>`;
+  elements.dataDrawerBody.innerHTML = `
+    <section class="drawer-section">
+      <p>${localizedMarkup("Тук AI асистентите ти предлагат какво да запомнят. Нищо не влиза в паметта без твоето одобрение.")}</p>
+      <ul class="inbox-list">${list}</ul>
+    </section>`;
+}
+
+async function handleInboxAction(event) {
+  if (event.target.closest("[data-open-connections]")) {
+    await openConnectionsDrawer();
+    return true;
+  }
+  const item = event.target.closest("[data-inbox-id]");
+  if (!item) return false;
+  const id = item.dataset.inboxId;
+  if (event.target.closest("[data-inbox-edit]")) {
+    const editor = item.querySelector(".inbox-edit");
+    editor.hidden = !editor.hidden;
+    item.querySelector(".inbox-fact").hidden = !editor.hidden;
+    if (!editor.hidden) editor.focus();
+    return true;
+  }
+  const approve = event.target.closest("[data-inbox-approve]");
+  const dismiss = event.target.closest("[data-inbox-dismiss]");
+  if (!approve && !dismiss) return false;
+  for (const button of item.querySelectorAll("button")) button.disabled = true;
+  try {
+    const editor = item.querySelector(".inbox-edit");
+    const response = await fetch(
+      `/api/memory-inbox/${encodeURIComponent(id)}/${approve ? "approve" : "dismiss"}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(approve && !editor.hidden ? { fact: editor.value } : {}),
+      },
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Действието не беше изпълнено.");
+    await openInboxDrawer();
+  } catch (error) {
+    for (const button of item.querySelectorAll("button")) button.disabled = false;
+    renderDrawerError(error.message);
+  }
+  return true;
+}
+
 const CONNECTION_GUIDES = Object.freeze([
   {
     client: "Claude",
@@ -1580,6 +1693,7 @@ function showPermissionInfo(action) {
 
 async function handleDataDrawerAction(event) {
   if (await handleConnectionAction(event)) return;
+  if (await handleInboxAction(event)) return;
   if (event.target.closest("[data-knowledge-preview]")) {
     await previewKnowledgeArchive();
     return;

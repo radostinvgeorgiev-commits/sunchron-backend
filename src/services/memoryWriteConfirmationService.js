@@ -65,7 +65,7 @@ function confirmationError(error) {
   );
 }
 
-async function assertMemoryWriteAllowed(
+export async function assertMemoryWriteAllowed(
   ownerId,
   loadWorkspace = loadWorkspaceState,
   env = process.env,

@@ -38,7 +38,7 @@
       href="/assets/20260806-green-chat-v1/synchron-vision.css"
     />
     <link rel="stylesheet" href="/workspace-refresh.css?v=20261121" />
-    <link rel="stylesheet" href="/interface.css?v=20261125-connections" />
+    <link rel="stylesheet" href="/interface.css?v=20261125-inbox" />
     <link
       rel="stylesheet"
       href="/vendor/fontawesome-6.7.2/css/all.min.css"
@@ -300,6 +300,11 @@
           <div id="conversationList" class="conversation-list"></div>
         </div>
         <nav class="sidebar-nav" aria-label="Основно меню">
+          <button id="inboxBtn" class="sidebar-primary" type="button">
+            <i class="fa-solid fa-inbox" aria-hidden="true"></i
+            ><span>Входящи</span
+            ><span id="inboxCount" class="inbox-count" hidden></span>
+          </button>
           <button id="connectionsBtn" class="sidebar-primary" type="button">
             <i class="fa-solid fa-plug" aria-hidden="true"></i
             ><span>Свържи AI</span>

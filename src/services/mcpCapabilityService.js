@@ -54,6 +54,7 @@ import {
   saveImportedConversation,
 } from "./memoryService.js";
 import { sendMcpAgentMessage } from "./mcpAgentConversationService.js";
+import { suggestMemory } from "./memorySuggestionService.js";
 import { getProjectDiagnostics } from "./projectDiagnosticsService.js";
 import { mcpToolSecuritySchemes } from "./mcpOAuthService.js";
 import {
@@ -180,6 +181,26 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
         agentId: { type: "string", minLength: 1, maxLength: 80 },
       },
       required: ["sessionId", "message"],
+      additionalProperties: false,
+    },
+    REVERSIBLE_WRITE,
+  ),
+  tool(
+    "suggest_memory",
+    "Предложи факт за паметта",
+    "Изпраща факт към „Входящи“ в AI CORE. Потребителят го одобрява, редактира или отхвърля в сайта; нищо не влиза в постоянната памет без неговото одобрение. Използвай за трайни факти, решения и предпочитания, които ще са полезни в бъдещи разговори.",
+    {
+      type: "object",
+      properties: {
+        fact: { type: "string", minLength: 1, maxLength: 500 },
+        scope: MEMORY_SCOPE_SCHEMA,
+        source: {
+          type: "string",
+          enum: ["claude", "chatgpt", "gemini", "other"],
+          default: "claude",
+        },
+      },
+      required: ["fact"],
       additionalProperties: false,
     },
     REVERSIBLE_WRITE,
@@ -753,6 +774,7 @@ function permissionAction(name) {
       "read_history",
       "continue_session",
       "save_conversation",
+      "suggest_memory",
     ].includes(name)
   ) {
     return "agent.chat";
@@ -850,6 +872,21 @@ export function createMcpCapabilityHandler({
           `Прочетени са ${items.length} съобщения от AI CORE нишката.`,
         );
       }
+    } else if (name === "suggest_memory") {
+      const suggestion = await (
+        dependencies.suggestMemory || suggestMemory
+      )({
+        ownerId,
+        fact: args.fact,
+        scope: args.scope || "personal",
+        source: args.source || "claude",
+      });
+      result = textResult(
+        suggestion,
+        suggestion.duplicate
+          ? "Това предложение вече чака във „Входящи“ в AI CORE."
+          : "Предложението е във „Входящи“ в AI CORE и чака одобрение. Паметта не е променена.",
+      );
     } else if (name === "save_conversation") {
       const saved = await (
         dependencies.saveImportedConversation || saveImportedConversation

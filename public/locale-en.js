@@ -390,5 +390,6 @@ AI задача|AI task
 Профилът е изтрит.|The account has been deleted.
 Поверителност|Privacy
 Общи условия|Terms
+код|code
 `.trim().split("\n").map((line) => line.split("|")),
 );

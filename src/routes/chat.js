@@ -1951,6 +1951,9 @@ router.post("/chat", async (req, res) => {
           error instanceof AiCouncilError
             ? error.message
             : "AI Council не успя да завърши обсъждането.",
+        ...(error instanceof AiCouncilError && error.failures?.length
+          ? { failures: error.failures }
+          : {}),
       });
     }
     res.end();
@@ -2384,6 +2387,12 @@ router.post("/chat", async (req, res) => {
         error,
         timedOut || attemptTimedOut ? "AI_TIMEOUT" : "AI_UPSTREAM_ERROR",
       ),
+      ...(Number.isInteger(error?.status) &&
+      error.status >= 400 &&
+      error.status < 600 &&
+      /_UPSTREAM_ERROR$/u.test(String(error?.code || ""))
+        ? { upstreamStatus: error.status }
+        : {}),
       message:
         timedOut || attemptTimedOut
           ? "AI ядрото се забави прекалено. Опитай отново."

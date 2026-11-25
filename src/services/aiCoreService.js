@@ -100,6 +100,13 @@ export function extractGrokOutputText(data) {
     .join("");
 }
 
+// Only reasoning models (gpt-5 family, o-series, codex) accept the
+// `reasoning` and `text.verbosity` parameters; older chat models such as
+// gpt-4.1-mini reject them with HTTP 400.
+export function supportsOpenAIReasoning(model) {
+  return /^(gpt-5|o\d|codex)/iu.test(String(model || "").trim());
+}
+
 export async function requestOpenAIResponse({
   apiKey = process.env.OPENAI_API_KEY,
   responsesUrl = process.env.OPENAI_RESPONSES_URL ||
@@ -125,7 +132,7 @@ export async function requestOpenAIResponse({
     .replace(/[^A-Za-z0-9_-]/gu, "_")
     .slice(0, 64);
   const textOptions = {
-    ...(verbosity ? { verbosity } : {}),
+    ...(verbosity && supportsOpenAIReasoning(model) ? { verbosity } : {}),
     ...(outputSchema && typeof outputSchema === "object"
       ? {
           format: {
@@ -148,7 +155,9 @@ export async function requestOpenAIResponse({
     body: JSON.stringify({
       model,
       input,
-      reasoning: { effort: reasoningEffort },
+      ...(supportsOpenAIReasoning(model) && reasoningEffort
+        ? { reasoning: { effort: reasoningEffort } }
+        : {}),
       ...(Object.keys(textOptions).length ? { text: textOptions } : {}),
       store: false,
       ...(publicAiOutputLimit()

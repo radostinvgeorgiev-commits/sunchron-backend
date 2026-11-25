@@ -43,3 +43,14 @@ test("a failed sign-in offers registration with the same email", () => {
   assert.match(app, /Създай профил с този имейл/u);
   assert.match(app, /най-вероятно още нямаш профил/u);
 });
+
+test("a single-advisor Council answer is shown once", async () => {
+  const { formatAiCouncilReply } = await import("../src/services/aiCouncilService.js");
+  const reply = formatAiCouncilReply({
+    responses: [{ provider: "claude", model: "claude-haiku-5-5", text: "Отговор." }],
+    recommendation: "Отговор.",
+    rationale: "x",
+  });
+  assert.equal(reply.match(/Отговор\./gu).length, 1);
+  assert.doesNotMatch(reply, /Обща препоръка/u);
+});

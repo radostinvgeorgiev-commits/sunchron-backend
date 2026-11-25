@@ -461,6 +461,26 @@ export function formatAiCouncilReply(council, language) {
   const unavailable = (council?.unavailableProviders || [])
     .map((provider) => PROVIDER_LABELS[provider] || provider)
     .join(", ");
+  // With a single advisor the "combined recommendation" is the same text
+  // again; show the answer once.
+  const singleAnswer =
+    (council?.responses || []).length === 1 &&
+    String(council?.recommendation || "").trim() ===
+      String(council.responses[0].text || "").trim();
+  if (singleAnswer) {
+    return [
+      english ? "## AI CORE Council" : "## AI CORE Council",
+      unavailable
+        ? english ? `No answer from: ${unavailable}.` : `Не отговориха: ${unavailable}.`
+        : "",
+      answers,
+      english
+        ? "\nOne model answered, so there is nothing to compare. Changes or external actions require separate confirmation."
+        : "\nОтговори един модел, затова няма сравнение. Промяна или външно действие изисква отделно потвърждение.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
   return [
     english ? "## AI CORE Council — selected models" : "## AI CORE Council — избраните AI двигатели",
     unavailable

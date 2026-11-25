@@ -24,7 +24,7 @@ test("public responses include the required security headers", async () => {
   assert.equal(response.headers["cross-origin-resource-policy"], "same-origin");
   assert.match(
     response.headers["permissions-policy"],
-    /camera=\(\).*microphone=\(\).*payment=\(\)/,
+    /camera=\(\).*microphone=\(self\).*payment=\(\)/,
   );
 
   const csp = response.headers["content-security-policy"];

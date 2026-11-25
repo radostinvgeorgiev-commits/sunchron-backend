@@ -390,6 +390,12 @@ test("връща общ статус само след реални провер
       checkGitHub: async () => true,
       checkMemory: async () => [],
       checkGoogleCloud: async () => ({ configured: true }),
+      probeProviders: async () => [
+        { id: "openai", label: "OpenAI", configured: true, working: true, model: "gpt-x" },
+        { id: "gemini", label: "Gemini", configured: true, working: false, reason: "моделът не съществува" },
+        { id: "grok", label: "Grok", configured: true, working: true, model: "grok-x" },
+        { id: "claude", label: "Claude", configured: false, working: false, reason: "няма ключ" },
+      ],
       env: {
         AI_CORE_PROVIDER: "grok",
         OPENAI_API_KEY: "configured",
@@ -408,9 +414,11 @@ test("връща общ статус само след реални провер
   assert.match(report, /Google Cloud Read/u);
   assert.match(report, /Google Drive — изисква Google вход/u);
   assert.match(report, /GitHub Write — свързан; изисква потвърждение/u);
-  assert.match(report, /OpenAI — конфигуриран/u);
-  assert.match(report, /Gemini — конфигуриран/u);
-  assert.match(report, /Grok — конфигуриран; основен за разговора/u);
+  assert.match(report, /✅ OpenAI — работи \(gpt-x\)/u);
+  assert.match(report, /❌ Gemini — моделът не съществува/u);
+  assert.match(report, /✅ Grok — работи \(grok-x\); основен за разговора/u);
+  assert.match(report, /— Claude — няма ключ/u);
+  assert.doesNotMatch(report, /конфигуриран;/u);
 });
 
 test("не обявява Google Cloud за работещ без runtime конфигурация", async () => {

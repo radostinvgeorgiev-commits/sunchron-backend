@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  requestPasswordReset,
   clearUserSessionCookie,
   getUserAuthConfigurationStatus,
   getUserAuthProvider,
@@ -103,6 +104,15 @@ router.post("/register", async (req, res) => {
         email: result.user.email,
       },
     });
+  } catch (error) {
+    return sendAuthError(res, error);
+  }
+});
+
+router.post("/password-reset", async (req, res) => {
+  try {
+    await requestPasswordReset({ email: req.body?.email });
+    return res.status(202).json({ sent: true });
   } catch (error) {
     return sendAuthError(res, error);
   }

@@ -713,3 +713,39 @@ export async function signOutUser(
     // The local cookie is cleared even when the upstream session has expired.
   }
 }
+
+// Sends a password reset email. The response never reveals whether an
+// account exists for the address.
+export async function requestPasswordReset(
+  { email },
+  { env = process.env, client } = {},
+) {
+  const cleanAddress = cleanEmail(email);
+  const authClient = client || createAuthClient(env);
+  if (typeof authClient?.auth?.sendPasswordResetEmail !== "function") {
+    throw new UserAuthError(
+      "Смяната на парола временно не е достъпна.",
+      503,
+      "AUTH_PASSWORD_RESET_UNAVAILABLE",
+    );
+  }
+  const { error } = await authClient.auth.sendPasswordResetEmail(cleanAddress);
+  const upstream = [error?.upstreamCode, error?.code, error?.message]
+    .filter(Boolean)
+    .join(" ");
+  if (error && !/EMAIL_NOT_FOUND|USER_NOT_FOUND/u.test(upstream)) {
+    if (Number(error?.status) === 429 || /TOO_MANY/u.test(upstream)) {
+      throw new UserAuthError(
+        "Твърде много опити. Опитай отново след малко.",
+        429,
+        "AUTH_RATE_LIMITED",
+      );
+    }
+    throw new UserAuthError(
+      "Писмото за нова парола не можа да бъде изпратено. Опитай отново.",
+      503,
+      "AUTH_PASSWORD_RESET_FAILED",
+    );
+  }
+  return { sent: true };
+}

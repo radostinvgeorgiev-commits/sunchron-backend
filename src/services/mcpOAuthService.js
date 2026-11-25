@@ -729,8 +729,13 @@ export async function validateMcpAuthorizationRequest(
     : scopes.includes(CHATGPT_MCP_SCOPE)) {
     throw new McpOAuthError("Права извън обхвата на тази връзка.", 400, "invalid_scope");
   }
+  // Claude may ask for every scope the protected-resource metadata lists
+  // (including write scopes) on a fresh connect. Its token is always the fixed
+  // Claude bundle, so the request is narrowed instead of refused; write and
+  // other non-bundle scopes are simply not granted.
   if (
     googleClient &&
+    !googleClient.grantedScopes &&
     scopes.some((scope) => !googleClient.allowedScopes.includes(scope))
   ) {
     throw new McpOAuthError(

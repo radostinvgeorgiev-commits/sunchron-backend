@@ -748,15 +748,15 @@ function handleImageSelection(event) {
   const file = event.target.files?.[0];
   if (!file) return;
 
-  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
   if (!allowedTypes.includes(file.type)) {
-    appendMessage("agent", "❌ Поддържат се само JPEG, PNG и WebP снимки.");
+    appendMessage("agent", "❌ Поддържат се JPEG, PNG и WebP снимки и PDF документи.");
     clearPendingImage();
     return;
   }
 
   if (file.size > 5 * 1024 * 1024) {
-    appendMessage("agent", "❌ Снимката трябва да бъде до 5 MB.");
+    appendMessage("agent", "❌ Файлът трябва да е до 5 MB.");
     clearPendingImage();
     return;
   }
@@ -768,8 +768,15 @@ function handleImageSelection(event) {
       mimeType: file.type,
       name: file.name,
     };
-    elements.attachmentImage.src = reader.result;
-    elements.attachmentName.textContent = file.name;
+    // A PDF has no picture preview; the file name is enough.
+    if (file.type === "application/pdf") {
+      elements.attachmentImage.removeAttribute("src");
+      elements.attachmentImage.hidden = true;
+    } else {
+      elements.attachmentImage.hidden = false;
+      elements.attachmentImage.src = reader.result;
+    }
+    elements.attachmentName.textContent = file.type === "application/pdf" ? `📄 ${file.name}` : file.name;
     elements.attachmentPreview.hidden = false;
     elements.chatInput.focus();
   };
@@ -2937,7 +2944,11 @@ async function sendMessage({ councilIntentId = "" } = {}) {
   const image = state.pendingImage;
   if ((!text && !image) || state.chatBusy) return;
 
-  const messageText = text || "Какво виждаш на тази снимка?";
+  const messageText =
+    text ||
+    (image?.mimeType === "application/pdf"
+      ? "Обобщи този документ."
+      : "Какво виждаш на тази снимка?");
   const councilMode = state.councilMode;
   const councilProviders = Array.from(
     document.querySelectorAll('input[name="councilProvider"]:checked'),
@@ -3160,7 +3171,12 @@ function appendMessage(role, text, image = null, options = {}) {
   const div = document.createElement("div");
   div.className = `message ${role}`;
   div.dataset.rawText = text;
-  if (image?.dataUrl) {
+  if (image?.dataUrl && image.mimeType === "application/pdf") {
+    const file = document.createElement("div");
+    file.className = "message-file";
+    file.textContent = `📄 ${image.name || "документ.pdf"}`;
+    div.appendChild(file);
+  } else if (image?.dataUrl) {
     const preview = document.createElement("img");
     preview.className = "message-image";
     preview.src = image.dataUrl;

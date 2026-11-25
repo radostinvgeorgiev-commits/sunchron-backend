@@ -1,4 +1,12 @@
-const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+import { DEFAULT_CLAUDE_CHAT_MODEL, reportAiUsage } from "./aiCoreService.js";
+
+const ALLOWED_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]);
+const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export class ImageServiceError extends Error {
@@ -22,7 +30,7 @@ export function validateImageInput(image) {
     !ALLOWED_IMAGE_TYPES.has(mimeType)
   ) {
     throw new ImageServiceError(
-      "Поддържат се само JPEG, PNG и WebP снимки.",
+      "Поддържат се само JPEG, PNG и WebP снимки и PDF документи.",
       415,
       "UNSUPPORTED_IMAGE",
     );
@@ -67,9 +75,31 @@ export async function analyzeImage({
     "https://api.openai.com/v1/chat/completions",
   modelAccessKey = process.env.OPENAI_API_KEY,
   model = process.env.OPENAI_VISION_MODEL || "gpt-4o-mini",
+  claudeAccessKey = process.env.ANTHROPIC_API_KEY,
+  claudeModel = process.env.ANTHROPIC_MODEL || DEFAULT_CLAUDE_CHAT_MODEL,
   signal,
 }) {
   const validated = validateImageInput(image);
+  // Claude reads both pictures and PDF documents; OpenAI vision stays as the
+  // fallback for pictures when no Claude key is configured.
+  if (claudeAccessKey) {
+    return analyzeWithClaude({
+      validated,
+      prompt,
+      context,
+      fetchImpl,
+      apiKey: claudeAccessKey,
+      model: claudeModel,
+      signal,
+    });
+  }
+  if (validated.mimeType === "application/pdf") {
+    throw new ImageServiceError(
+      "Четенето на PDF изисква Claude ключ.",
+      503,
+      "DOCUMENT_READER_NOT_CONFIGURED",
+    );
+  }
   if (!modelAccessKey) {
     throw new ImageServiceError(
       "Разпознаването на снимки не е конфигурирано.",
@@ -138,5 +168,64 @@ export async function analyzeImage({
     );
   }
 
+  return text;
+}
+
+async function analyzeWithClaude({ validated, prompt, context, fetchImpl, apiKey, model, signal }) {
+  const base64 = validated.dataUrl.slice(`data:${validated.mimeType};base64,`.length);
+  const isPdf = validated.mimeType === "application/pdf";
+  const response = await fetchImpl(ANTHROPIC_MESSAGES_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 2048,
+      ...(context ? { system: context } : {}),
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: isPdf ? "document" : "image",
+              source: { type: "base64", media_type: validated.mimeType, data: base64 },
+            },
+            {
+              type: "text",
+              text: prompt || (isPdf ? "Обобщи този документ." : "Какво виждаш на тази снимка?"),
+            },
+          ],
+        },
+      ],
+    }),
+    signal,
+  });
+  if (!response.ok) {
+    console.error(`[Claude vision] Upstream request failed: ${response.status}`);
+    throw new ImageServiceError(
+      `Четенето на ${isPdf ? "документа" : "снимката"} върна грешка ${response.status}.`,
+      502,
+      "VISION_UPSTREAM_ERROR",
+    );
+  }
+  const data = await response.json();
+  const text = Array.isArray(data?.content)
+    ? data.content
+        .filter((item) => item?.type === "text")
+        .map((item) => item.text || "")
+        .join("\n")
+        .trim()
+    : "";
+  if (!text) {
+    throw new ImageServiceError(
+      isPdf ? "Не получих отговор за документа." : "Не получих описание на снимката.",
+      502,
+      "EMPTY_VISION_RESPONSE",
+    );
+  }
+  reportAiUsage("claude", data?.model || model, data?.usage?.input_tokens, data?.usage?.output_tokens);
   return text;
 }

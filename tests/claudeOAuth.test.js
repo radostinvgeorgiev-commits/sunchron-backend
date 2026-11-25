@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   CLAUDE_CLIENT_ID,
   CLAUDE_CALLBACK,
+  CLAUDE_SCOPES,
+  requiredScopesForMcpTool,
   validateMcpAuthorizationRequest,
   createMcpAuthorizationCode,
   exchangeMcpAuthorizationCode,
@@ -99,4 +101,70 @@ test("Claude completes PKCE exchange and tokens cannot be used by another client
     ),
   );
   await assert.rejects(exchangeMcpAuthorizationCode(exchange, env));
+});
+
+test("one Claude sign-in grants the read and chat tools, never write scopes", async () => {
+  resetMcpOAuthStateForTests();
+  for (const scope of [
+    "synchron:read",
+    "synchron:agent.chat",
+    "synchron:read offline_access",
+    undefined,
+  ]) {
+    const request = await validateMcpAuthorizationRequest(
+      { ...input, scope },
+      { env, fetchImpl: noFetch },
+    );
+    assert.deepEqual(request.scopes, [...CLAUDE_SCOPES]);
+  }
+  for (const scope of [
+    "synchron:memory.write",
+    "synchron:tasks.write",
+    "synchron:agent.chat synchron:infrastructure.write",
+    "synchron:chatgpt.ask",
+  ])
+    await assert.rejects(
+      validateMcpAuthorizationRequest(
+        { ...input, scope },
+        { env, fetchImpl: noFetch },
+      ),
+    );
+
+  const request = await validateMcpAuthorizationRequest(
+    { ...input, scope: "synchron:read" },
+    { env, fetchImpl: noFetch },
+  );
+  const code = createMcpAuthorizationCode(
+    request,
+    { id: "claude-member", memoryOwnerId: "claude-member-memory", role: "member" },
+    env,
+  );
+  const token = await exchangeMcpAuthorizationCode(
+    {
+      grant_type: "authorization_code",
+      code,
+      client_id: CLAUDE_CLIENT_ID,
+      redirect_uri: CLAUDE_CALLBACK,
+      code_verifier: verifier,
+      resource: env.MCP_RESOURCE_URL,
+    },
+    env,
+  );
+  assert.ok(token.refresh_token);
+  for (const tool of ["save_conversation", "read_history", "get_project_context"])
+    assert.ok(
+      verifyMcpAccessToken(
+        `Bearer ${token.access_token}`,
+        requiredScopesForMcpTool(tool),
+        env,
+      ),
+      tool,
+    );
+  assert.throws(() =>
+    verifyMcpAccessToken(
+      `Bearer ${token.access_token}`,
+      requiredScopesForMcpTool("confirm_memory_write"),
+      env,
+    ),
+  );
 });

@@ -1394,8 +1394,9 @@ const CONNECTION_GUIDES = Object.freeze([
     steps: [
       "Отвори Claude → Настройки → Connectors.",
       "Натисни „Add custom connector“, име: AI CORE.",
-      "Постави адреса отгоре и натисни „Connect“.",
-      "Влез с този профил и натисни „Разреши“.",
+      "Постави адреса отгоре.",
+      "В „Advanced settings“ въведи Client ID: synchron-claude. Client secret остава празно.",
+      "Натисни „Connect“, влез с този профил и натисни „Разреши“.",
     ],
   },
   {

@@ -520,6 +520,15 @@ export const GOOGLE_AGENT_CLIENT_IDS = Object.freeze([
 
 export const CLAUDE_CLIENT_ID = "synchron-claude";
 export const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
+// Claude asks for the scope of whichever tool it called first and, on a 403,
+// for the missing scope alone. One sign-in therefore always grants the whole
+// Claude bundle, so a later chat tool does not trap the connector in
+// "Sign-in required". Write and owner-only scopes stay out of it.
+export const CLAUDE_SCOPES = Object.freeze([
+  MCP_READ_SCOPE,
+  MCP_AGENT_CHAT_SCOPE,
+  MCP_OFFLINE_ACCESS_SCOPE,
+]);
 
 function registeredClaudeClient(clientId, env) {
   if (clientId !== CLAUDE_CLIENT_ID || env.MCP_CLAUDE_OAUTH_ENABLED !== "true")
@@ -528,7 +537,8 @@ function registeredClaudeClient(clientId, env) {
     client_id: CLAUDE_CLIENT_ID,
     client_name: "Claude",
     redirect_uris: [CLAUDE_CALLBACK],
-    allowedScopes: [MCP_READ_SCOPE, MCP_OFFLINE_ACCESS_SCOPE],
+    allowedScopes: CLAUDE_SCOPES,
+    grantedScopes: CLAUDE_SCOPES,
     token_endpoint_auth_method: "none",
   };
 }
@@ -721,7 +731,7 @@ export async function validateMcpAuthorizationRequest(
     state,
     codeChallenge,
     resource,
-    scopes,
+    scopes: googleClient?.grantedScopes ? [...googleClient.grantedScopes] : scopes,
   };
 }
 

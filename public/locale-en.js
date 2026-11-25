@@ -361,6 +361,9 @@ AI задача|AI task
 Отвори Claude → Настройки → Connectors.|Open Claude → Settings → Connectors.
 Натисни „Add custom connector“, име: AI CORE.|Click “Add custom connector” and name it AI CORE.
 Постави адреса отгоре и натисни „Connect“.|Paste the address above and click “Connect”.
+Постави адреса отгоре.|Paste the address above.
+В „Advanced settings“ въведи Client ID: synchron-claude. Client secret остава празно.|In “Advanced settings”, enter Client ID: synchron-claude. Leave Client secret empty.
+Натисни „Connect“, влез с този профил и натисни „Разреши“.|Click “Connect”, sign in with this account and click “Allow”.
 Влез с този профил и натисни „Разреши“.|Sign in with this account and click “Allow”.
 Отвори ChatGPT → Settings → Apps & Connectors.|Open ChatGPT → Settings → Apps & Connectors.
 Включи Developer mode и натисни „Create“.|Turn on Developer mode and click “Create”.

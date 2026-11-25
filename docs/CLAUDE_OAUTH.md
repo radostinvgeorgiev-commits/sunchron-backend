@@ -8,11 +8,15 @@
 - URL: https://cloudaicore.com/mcp
 - Authentication: Sign in now
 - OAuth client: Use your own OAuth client
-- Client ID: synchron-claude
+- Client ID: synchron-claude (в Advanced settings; без него Claude опитва
+  динамична регистрация, която AI CORE не поддържа)
 - Client secret: празно (public client с PKCE S256)
 - Callback: https://claude.ai/api/mcp/auth_callback
 
-Позволени са само synchron:read и offline_access. Не се споделят токени.
+Един вход дава synchron:read, synchron:agent.chat и offline_access, каквото
+и да поиска Claude. Claude иска правото на първия извикан инструмент, а при
+403 само липсващото; без пакета конекторът остава в „Sign-in required“.
+Права за запис и owner-only права се отказват. Не се споделят токени.
 Реалният consent се преглежда преди предоставяне на достъп. Наличието на
 конектор в списъка не доказва успешно удостоверяване или изпълнение.
 

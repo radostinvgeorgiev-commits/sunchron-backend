@@ -209,11 +209,24 @@ export const MCP_TOOLS = Object.freeze([
   ...MCP_CAPABILITY_TOOLS,
 ]);
 
+const MAX_STRUCTURED_TEXT_LENGTH = 50_000;
+
+// Clients that only read `content` (Claude among them) otherwise see just the
+// one-line summary. Per the MCP spec, structured results are also returned as
+// serialized JSON in a text block. The data is the same already-sanitized
+// structuredContent, so nothing new is exposed.
 function textResult(data, summary) {
-  return {
-    structuredContent: data,
-    content: [{ type: "text", text: summary }],
-  };
+  const content = [{ type: "text", text: summary }];
+  if (data !== undefined) {
+    let json = JSON.stringify(data);
+    if (typeof json === "string" && json !== "{}") {
+      if (json.length > MAX_STRUCTURED_TEXT_LENGTH) {
+        json = `${json.slice(0, MAX_STRUCTURED_TEXT_LENGTH)}…`;
+      }
+      content.push({ type: "text", text: json });
+    }
+  }
+  return { structuredContent: data, content };
 }
 
 function safeLimit(value, fallback = 20) {

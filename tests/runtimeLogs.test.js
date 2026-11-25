@@ -76,4 +76,6 @@ test("the MCP log tool is owner-only and read-only", async () => {
   );
   const { result } = await handler("read_runtime_logs", {}, { ownerId: "owner", identity: { role: "owner" } });
   assert.equal(result.structuredContent.count, 0);
+  // Clients that only read `content` still get the entries as JSON.
+  assert.deepEqual(JSON.parse(result.content[1].text), result.structuredContent);
 });

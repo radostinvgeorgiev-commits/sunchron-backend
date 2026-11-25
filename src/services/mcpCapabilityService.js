@@ -55,6 +55,7 @@ import {
 } from "./memoryService.js";
 import { sendMcpAgentMessage } from "./mcpAgentConversationService.js";
 import { suggestMemory } from "./memorySuggestionService.js";
+import { readRuntimeLogs } from "./runtimeLogService.js";
 import { getProjectDiagnostics } from "./projectDiagnosticsService.js";
 import { mcpToolSecuritySchemes } from "./mcpOAuthService.js";
 import {
@@ -332,6 +333,25 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
     {
       type: "object",
       properties: { limit: { type: "integer", minimum: 1, maximum: 100 } },
+      additionalProperties: false,
+    },
+  ),
+  tool(
+    "read_runtime_logs",
+    "Прочети логовете на сървъра",
+    "Само за собственика. Показва последните записи от Cloud Run логовете на AI CORE (по подразбиране предупреждения и грешки за последния час). Ключове, токени и имейли са скрити. Само четене.",
+    {
+      type: "object",
+      properties: {
+        minutes: { type: "integer", minimum: 1, maximum: 1440, default: 60 },
+        severity: {
+          type: "string",
+          enum: ["DEFAULT", "INFO", "WARNING", "ERROR"],
+          default: "WARNING",
+        },
+        limit: { type: "integer", minimum: 1, maximum: 100, default: 50 },
+        contains: { type: "string", minLength: 1, maxLength: 80 },
+      },
       additionalProperties: false,
     },
   ),
@@ -991,6 +1011,20 @@ export function createMcpCapabilityHandler({
       result = textResult(
         { tools, permissions: listPermissions() },
         `Проверени са ${tools.length} инструмента и ${listPermissions().length} разрешения.`,
+      );
+    } else if (name === "read_runtime_logs") {
+      if (context.identity?.role && context.identity.role !== "owner") {
+        throw Object.assign(new Error("Само за собственика."), { code: -32602 });
+      }
+      const logs = await (dependencies.readRuntimeLogs || readRuntimeLogs)({
+        minutes: args.minutes,
+        severity: args.severity,
+        limit: args.limit,
+        contains: args.contains,
+      });
+      result = textResult(
+        logs,
+        `Прочетени са ${logs.count} записа от логовете за последните ${logs.minutes} минути.`,
       );
     } else if (
       name === "list_action_history" ||

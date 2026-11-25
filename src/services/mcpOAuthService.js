@@ -379,7 +379,11 @@ export function requiredScopesForMcpTool(name) {
   ) {
     return [MCP_GOOGLE_WRITE_SCOPE];
   }
-  if (["list_action_history", "list_recent_errors"].includes(name)) {
+  if (
+    ["list_action_history", "list_recent_errors", "read_runtime_logs"].includes(
+      name,
+    )
+  ) {
     return [MCP_AUDIT_READ_SCOPE];
   }
   if (["prepare_github_change", "confirm_github_change"].includes(name)) {

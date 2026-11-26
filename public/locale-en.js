@@ -470,6 +470,12 @@ AI задача|AI task
 Свържи Google|Connect Google
 Търсене в интернет|Web search
 Google Календар|Google Calendar
+Запис от среща|Meeting recording
+Обобщение, решения и задачи|Summary, decisions and tasks
+Записът е над 30 MB. Изпрати по-кратък запис или само звука.|The recording is over 30 MB. Send a shorter one or the audio only.
+🎧 Слушам записа… При дълга среща това отнема около минута.|🎧 Listening to the recording… A long meeting takes about a minute.
+Записът не можа да се обработи. Опитай пак.|The recording could not be processed. Try again.
+Текстът на записа е запазен в „Моите файлове“, за да питаш аватара за срещата.|The recording's text is saved in My files, so you can ask your avatar about the meeting.
 YouTube видео|YouTube video
 Карти и места|Maps and places
 Обобщи това видео:|Summarize this video:

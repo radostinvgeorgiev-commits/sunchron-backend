@@ -1268,19 +1268,62 @@ function toolState(tool, googleConnected, githubConnected) {
   ) {
     return { label: "Иска свързване", className: "confirm" };
   }
-  if (tool.id === "openai-codex") {
-    return { label: "Готово · вътрешен инструмент", className: "allow" };
-  }
-  if (tool.id === "github-read" && githubConnected) {
-    return { label: "Свързано · GitHub Read", className: "allow" };
+  // "Работи" only after a real call answers (see checkToolsLive). Until then
+  // the badge says what is known: it is set up, and whether it is checked.
+  if (LIVE_TOOL_CHECKS[tool.id]) {
+    return { label: "Проверявам…", className: "confirm" };
   }
   if (
     ["github-write", "github-confirmed-write"].includes(tool.id) &&
     githubConnected
   ) {
-    return { label: "Свързано · потвърждение преди запис", className: "allow" };
+    return { label: "Свързано · пише само след потвърждение", className: "allow" };
   }
-  return { label: "Работи", className: "allow" };
+  return { label: "Настроен · без жива проверка", className: "confirm" };
+}
+
+// Which live check proves each tool works: a read-only call made when the
+// tools list opens.
+const LIVE_TOOL_CHECKS = {
+  "google-drive-read": "google:drive",
+  "gmail-read": "google:gmail",
+  "google-calendar-read": "google:calendar",
+  "google-contacts": "google:contacts",
+  "github-read": "github",
+};
+
+async function checkToolsLive(container) {
+  const badges = [...container.querySelectorAll("[data-live-check]")];
+  if (!badges.length) return;
+  const [google, github] = await Promise.all([
+    fetch("/api/google/check", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .catch(() => null),
+    badges.some((badge) => badge.dataset.liveCheck === "github")
+      ? fetch("/api/github/status", { cache: "no-store" })
+          .then(async (response) => ({ ok: response.ok, data: await response.json().catch(() => ({})) }))
+          .catch(() => ({ ok: false, data: {} }))
+      : null,
+  ]);
+  const time = new Date().toLocaleTimeString("bg-BG", { hour: "2-digit", minute: "2-digit" });
+  for (const badge of badges) {
+    const [kind, service] = badge.dataset.liveCheck.split(":");
+    let result = { ok: false, reason: "Проверката не мина." };
+    if (kind === "google") {
+      result = google?.services?.[service] || { ok: false, reason: google ? "Google не е свързан." : "Проверката не мина." };
+    } else if (kind === "github") {
+      result = github?.ok ? { ok: true } : { ok: false, reason: github?.data?.error || "GitHub не отговори." };
+    }
+    badge.className = `permission-badge ${result.ok ? "allow" : "deny"}`;
+    badge.textContent = result.ok ? `Работи · проверено ${time}` : "Не отговаря";
+    badge.title = result.ok ? "Истинско четене току-що мина успешно." : result.reason || "";
+    if (!result.ok && result.reason) {
+      const note = document.createElement("small");
+      note.className = "tool-live-reason";
+      note.textContent = result.reason;
+      badge.after(note);
+    }
+  }
 }
 
 function toolStatusActions(tool, status, googleConnected, githubConnected) {
@@ -1303,9 +1346,11 @@ function toolStatusActions(tool, status, googleConnected, githubConnected) {
       '<button type="button" class="tool-connect-btn" data-github-setup>Настрой GitHub</button>';
   }
 
+  const ready = !action && LIVE_TOOL_CHECKS[tool.id];
+  const live = ready ? ` data-live-check="${LIVE_TOOL_CHECKS[tool.id]}"` : "";
   return `
     <div class="tool-status-actions">
-      <span class="permission-badge ${status.className}">${status.label}</span>
+      <span class="permission-badge ${status.className}"${live}>${status.label}</span>
       ${action}
     </div>`;
 }
@@ -1470,8 +1515,8 @@ async function openToolsDrawer() {
           <span class="permission-badge allow">Отвори</span>
         </button>
         <article class="permission-card tool-status-card">
-          <div><strong>Снимки</strong><p>JPEG, PNG и WebP до 5 MB.</p></div>
-          <span class="permission-badge allow">Работи</span>
+          <div><strong>Снимки</strong><p>JPEG, PNG и WebP до 5 MB. Проверява се в самопроверката.</p></div>
+          <span class="permission-badge confirm">Настроен · без жива проверка</span>
         </article>
         ${tools
           .map((tool) => {
@@ -1498,6 +1543,7 @@ async function openToolsDrawer() {
           })
           .join("")}
       </section>`;
+    void checkToolsLive(elements.dataDrawerBody);
   } catch (error) {
     renderDrawerError(error.message);
   }

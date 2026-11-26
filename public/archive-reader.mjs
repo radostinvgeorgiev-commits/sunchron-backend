@@ -410,7 +410,8 @@ export async function readPersonalArchive(blob, onProgress = () => {}) {
   let total = 0;
   for (const [index, entry] of entries.entries()) {
     onProgress(index + 1, entries.length);
-    if (total >= MAX_TOTAL_TEXT) break;
+    // Skip a file that would go past the budget before it is unpacked.
+    if (total + (entry.uncompressedSize || 0) > MAX_TOTAL_TEXT) continue;
     const big = CHAT_EXPORTS.some((pattern) => pattern.test(entry.name));
     const text = await readZipText(blob, entry, big ? MAX_CHAT_EXPORT_BYTES : MAX_ENTRY_BYTES);
     if (!text) continue;

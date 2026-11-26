@@ -13,6 +13,7 @@ export function createDailyPlanRouter({ service }) {
       const result = await service.plan(req.owner, {
         googleSessionId: parseCookies(req.headers.cookie).synchron_google_session || "",
         note: typeof req.body?.note === "string" ? req.body.note : "",
+        period: req.body?.period === "week" ? "week" : "day",
       });
       if (!result.text) throw new Error("empty plan");
       res.json(result);

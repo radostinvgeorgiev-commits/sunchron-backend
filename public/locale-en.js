@@ -72,6 +72,10 @@ AI предлага, ти одобряваш, системата изпълня�
 С какво започваме?|What shall we start with?
 Подреди деня|Plan my day
 Моят ден|My day
+Моята седмица|My week
+🗓️ Подготвям прегледа на седмицата…|🗓️ Preparing your week…
+✓ Идва сам всеки понеделник · изключи|✓ Comes by itself every Monday · turn off
+Показвай ми седмицата сама всеки понеделник|Show me my week by itself every Monday
 Планът ти за днес от календара и пощата|Today’s plan from your calendar and mail
 Помогни ми да реша|Help me decide
 Плюсове, минуси и тежест — решаваш ти|Pros, cons and weights — you decide

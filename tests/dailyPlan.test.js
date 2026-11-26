@@ -69,3 +69,32 @@ test("the route is for every signed-in account and charged as a request", () => 
   assert.match(read("../src/routes/dailyPlanRouter.js"), /router\.post\("\/", publicAiBudgetContext/u);
   assert.match(read("../public/ui-refresh.js"), /data-plus="day"/u);
 });
+
+test("„Моята седмица“ reads seven days of the calendar and asks for a weekly review", async () => {
+  let asked = null;
+  let calendarPeriod = "";
+  const service = createDailyPlanService({
+    askAi: async ({ input }) => {
+      asked = input;
+      return "Седмицата";
+    },
+    profileContext: async () => "",
+    belongs: async () => true,
+    calendar: async (_id, period) => {
+      calendarPeriod = period;
+      return [];
+    },
+    mail: async () => [],
+  });
+  const result = await service.plan({ memoryOwnerId: "u1" }, { googleSessionId: "g", period: "week" });
+  assert.equal(result.text, "Седмицата");
+  assert.equal(calendarPeriod, "week");
+  assert.match(asked[0].content, /прегледа му за седмицата/u);
+  assert.match(asked[1].content, /няма събития в следващите 7 дни/u);
+  // Anything else falls back to the day plan.
+  await service.plan({ memoryOwnerId: "u1" }, { googleSessionId: "g", period: "year" });
+  assert.equal(calendarPeriod, "day");
+  assert.match(asked[0].content, /плана му за днес/u);
+  const router = await import("node:fs").then((fs) => fs.readFileSync(new URL("../src/routes/dailyPlanRouter.js", import.meta.url), "utf8"));
+  assert.match(router, /period: req\.body\?\.period === "week" \? "week" : "day"/u);
+});

@@ -125,7 +125,7 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.click("#attachBtn");
     expect((await page.locator(".plus-menu > button:visible").count()) === 6, "менюто „+“ не е с 6 реда");
     await page.keyboard.press("Escape");
-    expect((await page.locator(".mine-group [data-plus]").count()) === 4, "няма група „Моят аватар“");
+    expect((await page.locator(".mine-group [data-plus]").count()) === 5, "няма група „Моят аватар“");
     expect((await page.locator(".mine-group #memoryBtn").count()) === 1, "„Памет“ не е в групата");
   });
   await step(`${label}: обикновен акаунт няма превключвател „Чат/Работа“`, async () => {
@@ -277,6 +277,13 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     );
     expect((await page.evaluate(() => localStorage.getItem("aicore-morning-plan"))) === "on", "изборът не се запази");
   });
+  await step(`${label}: „Моята седмица“ показва прегледа и може да идва сама всеки понеделник`, async () => {
+    await openMine("week");
+    await page.waitForTimeout(600);
+    expect((await last().innerText()).includes("Трите най-важни за седмицата"), "прегледът не се показа");
+    await last().locator('.morning-toggle[data-period="week"]').click();
+    expect((await page.evaluate(() => localStorage.getItem("aicore-weekly-plan"))) === "on", "изборът не се запази");
+  });
   await step(`${label}: „Нарисувай картинка“ показва картинката`, async () => {
     await page.fill("#chatInput", "котка на луната");
     await page.click("#attachBtn");
@@ -379,15 +386,23 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect((await page.inputValue(".share-link input")).includes("/s/"), "няма линк");
     await page.click(".share-close");
   });
-  await step(`${label}: „всяка сутрин“ пуска плана сам при първото отваряне за деня`, async () => {
-    await page.evaluate(() => localStorage.setItem("aicore-morning-plan-day", "2000-01-01"));
+  await step(`${label}: „всяка сутрин“ и „всеки понеделник“ идват сами при първото отваряне`, async () => {
+    await page.evaluate(() => {
+      localStorage.setItem("aicore-morning-plan-day", "2000-01-01");
+      localStorage.setItem("aicore-weekly-plan-day", "2000-01-03");
+    });
     await page.reload();
-    await page.waitForTimeout(2500);
+    await page.waitForTimeout(3500);
+    const turns = await page.locator(".assistant-turn").allInnerTexts();
+    expect(turns.some((turn) => turn.includes("Трите най-важни за седмицата")), "седмицата не дойде сама");
     expect((await last().innerText()).includes("Най-важното днес"), "планът не дойде сам");
     await page.reload();
     await page.waitForTimeout(2000);
     expect(!(await page.locator(".assistant-turn").last().innerText().catch(() => "")).includes("Най-важното днес"), "планът дойде втори път в същия ден");
-    await page.evaluate(() => localStorage.removeItem("aicore-morning-plan"));
+    await page.evaluate(() => {
+      localStorage.removeItem("aicore-morning-plan");
+      localStorage.removeItem("aicore-weekly-plan");
+    });
   });
   await step(`${label}: без грешки в страницата накрая`, async () => expect(!errors.length, errors[0]));
   await page.close();

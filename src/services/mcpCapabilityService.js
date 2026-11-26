@@ -73,6 +73,7 @@ import {
   TASK_MANAGEMENT_STATUSES,
 } from "./taskManagementService.js";
 import { loadWorkspaceState } from "./workspaceStateService.js";
+import { formatSelfTest, runSelfTest } from "./selfTestService.js";
 import {
   getToolRuntimeAvailability,
   isToolExecutable,
@@ -567,6 +568,12 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
     "get_google_cloud_project_diagnostics",
     "Провери състоянието на AI CORE проекта",
     "Проверява само за четене сайта, MCP, Cloud Run, Cloud Build, Firestore, Monitoring, Logging, Cloud Resource Manager и метаданни за версии на тайни за текущия проект.",
+    { type: "object", properties: {}, additionalProperties: false },
+  ),
+  tool(
+    "run_ai_core_self_test",
+    "Пусни самопроверка на AI CORE",
+    "Само за собственика. Прави реални проверки отвътре: чат с всеки конфигуриран модел, гласово разпознаване с тестов запис, четене на PDF, създаване/отваряне/спиране на линк за споделяне и списъците с модели и асистенти. Струва няколко цента AI заявки, пипа само собствени тестови данни и ги изтрива.",
     { type: "object", properties: {}, additionalProperties: false },
   ),
   tool(
@@ -1210,6 +1217,9 @@ export function createMcpCapabilityHandler({
         changed,
         "Точната потвърдена Google Cloud промяна е изпълнена.",
       );
+    } else if (name === "run_ai_core_self_test") {
+      const report = await (dependencies.runSelfTest || runSelfTest)();
+      result = textResult(report, formatSelfTest(report));
     } else if (name === "get_google_cloud_project_diagnostics") {
       const diagnostics = await (
         dependencies.getGoogleCloudProjectDiagnostics || getProjectDiagnostics

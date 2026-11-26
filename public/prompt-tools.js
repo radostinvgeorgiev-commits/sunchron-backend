@@ -82,7 +82,28 @@
   picker.className = "assistant-picker";
   picker.hidden = true;
   picker.setAttribute("role", "menu");
-  composer.prepend(picker);
+  // The specialist is chosen at the top, next to the model, the same way:
+  // one button that shows who answers and opens the list.
+  const headerButton = document.createElement("button");
+  headerButton.type = "button";
+  headerButton.id = "assistantPickerBtn";
+  headerButton.className = "model-picker-btn assistant-picker-btn";
+  headerButton.setAttribute("aria-haspopup", "menu");
+  headerButton.setAttribute("aria-expanded", "false");
+  headerButton.innerHTML = `<i class="fa-solid fa-user-tie" aria-hidden="true"></i><strong></strong><i class="fa-solid fa-chevron-down" aria-hidden="true"></i>`;
+  const modelTitle = document.querySelector(".chat-toolbar .model-title");
+  if (modelTitle) {
+    const holder = document.createElement("div");
+    holder.className = "assistant-title";
+    holder.append(headerButton, picker);
+    modelTitle.after(holder);
+  } else {
+    composer.prepend(picker);
+  }
+  const openPicker = (open) => {
+    picker.hidden = !open;
+    headerButton.setAttribute("aria-expanded", String(open));
+  };
 
   // The specialist's tools, with a "connect" button right where it is needed.
   const toolBar = document.createElement("div");
@@ -162,13 +183,28 @@
 
   const setAssistant = (assistant) => {
     current = assistant || null;
-    chip.hidden = !current;
+    // The header button already says who answers; the chip stays only as
+    // the hook the robot and older code look for.
+    chip.hidden = true;
     if (current) {
       chip.querySelector("i").className = `fa-solid ${current.icon || "fa-user-tie"}`;
       chip.querySelector("span").textContent = `${text("Асистент")}: ${text(current.label)}`;
     }
+    headerButton.querySelector("i").className = `fa-solid ${current?.icon || "fa-user-tie"}`;
+    headerButton.querySelector("strong").textContent = current ? text(current.label) : text("Специалист");
+    headerButton.classList.toggle("chosen", Boolean(current));
+    headerButton.title = current ? text(current.label) : text("Избери специалист");
     void renderTools(current);
   };
+  setAssistant(null);
+  headerButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (picker.hidden) renderPicker();
+    openPicker(picker.hidden);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") openPicker(false);
+  });
   chip.querySelector("button").addEventListener("click", () => setAssistant(null));
   $("newChatBtn")?.addEventListener("click", () => setAssistant(null));
 
@@ -188,7 +224,7 @@
     add.querySelector("strong").textContent = text("Нов мой асистент");
     add.querySelector("small").textContent = text("Име и указания как да отговаря");
     add.addEventListener("click", () => {
-      picker.hidden = true;
+      openPicker(false);
       openForm(
         {
           title: text("Нов асистент"),
@@ -205,12 +241,27 @@
         },
       );
     });
+    const none = document.createElement("button");
+    none.type = "button";
+    none.className = "assistant-none";
+    none.setAttribute("role", "menuitemradio");
+    none.setAttribute("aria-checked", String(!current));
+    none.innerHTML = `<i class="fa-solid fa-robot" aria-hidden="true"></i><span><strong></strong><small></small></span>`;
+    none.querySelector("strong").textContent = text("Без специалист");
+    none.querySelector("small").textContent = text("Обикновен разговор с AI CORE");
+    none.addEventListener("click", () => {
+      setAssistant(null);
+      openPicker(false);
+      input.focus();
+    });
     picker.replaceChildren(
+      none,
       ...[...own, ...assistants].map((assistant) => {
         const item = document.createElement("button");
         item.type = "button";
         item.setAttribute("role", "menuitemradio");
         item.setAttribute("aria-checked", String(current?.id === assistant.id));
+        item.dataset.assistant = assistant.id;
         item.innerHTML = `<i class="fa-solid" aria-hidden="true"></i><span><strong></strong><small></small></span>`;
         item.querySelector("i").classList.add(assistant.icon || "fa-user-tie");
         item.querySelector("strong").textContent = text(assistant.label);
@@ -229,7 +280,7 @@
         }
         item.addEventListener("click", () => {
           setAssistant(assistant);
-          picker.hidden = true;
+          openPicker(false);
           input.focus();
         });
         if (assistant.own) {
@@ -254,53 +305,20 @@
   };
   document.addEventListener("aicore:pick-assistant", () => {
     renderPicker();
-    picker.hidden = false;
+    openPicker(true);
   });
   document.addEventListener("click", (event) => {
-    if (!picker.hidden && !event.target.closest?.(".assistant-picker, .plus-menu")) {
-      picker.hidden = true;
+    if (!picker.hidden && !event.target.closest?.(".assistant-picker, .assistant-picker-btn, .plus-menu")) {
+      openPicker(false);
     }
   });
-  // The start screen shows every assistant, so people find them without
-  // opening the "+" menu.
-  const renderStartRow = () => {
-    const start = $("quickStart");
-    if (!start || !assistants.length) return;
-    let row = start.querySelector(".assistant-row");
-    if (!row) {
-      row = document.createElement("div");
-      row.className = "assistant-row";
-      row.setAttribute("aria-label", text("Говори с асистент"));
-      start.appendChild(row);
-    }
-    const title = document.createElement("p");
-    title.className = "assistant-row-title";
-    title.textContent = text("Или говори с асистент");
-    row.replaceChildren(
-      title,
-      ...assistants.map((assistant) => {
-        const item = document.createElement("button");
-        item.type = "button";
-        item.dataset.assistant = assistant.id;
-        item.title = text(assistant.hint || "");
-        item.innerHTML = `<i class="fa-solid" aria-hidden="true"></i><span></span>`;
-        item.querySelector("i").classList.add(assistant.icon || "fa-user-tie");
-        item.querySelector("span").textContent = text(assistant.label);
-        item.addEventListener("click", () => {
-          setAssistant(assistant);
-          input.focus();
-        });
-        return item;
-      }),
-    );
-  };
   const loadAssistants = () =>
     fetch("/chat/assistants", { credentials: "same-origin" })
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         if (!Array.isArray(data?.items)) return;
         assistants = data.items;
-        renderStartRow();
+        if (!picker.hidden) renderPicker();
       })
       .catch(() => {});
   loadAssistants();

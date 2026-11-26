@@ -17,7 +17,8 @@
     menu.hidden = true;
     menu.setAttribute("role", "menu");
     // Everyday actions only. The person's own things (avatar, day, Google,
-    // causes) live in the "Моят аватар" group of the side menu.
+    // causes) live in the "Моят аватар" group of the side menu, and the
+    // specialist is picked at the top next to the model.
     menu.innerHTML = `
       <button type="button" role="menuitem" data-plus="file">
         <i class="fa-solid fa-paperclip" aria-hidden="true"></i>
@@ -30,10 +31,6 @@
       <button type="button" role="menuitem" data-plus="draw">
         <i class="fa-solid fa-palette" aria-hidden="true"></i>
         <span>${text("Нарисувай картинка")}<small>${text("От описанието в полето")}</small></span>
-      </button>
-      <button type="button" role="menuitem" data-plus="assistant">
-        <i class="fa-solid fa-user-tie" aria-hidden="true"></i>
-        <span>${text("Асистент")}<small>${text("Лекар, юрист, учител, готвач…")}</small></span>
       </button>
       <button type="button" role="menuitem" data-plus="knowledge">
         <i class="fa-solid fa-folder-open" aria-hidden="true"></i>

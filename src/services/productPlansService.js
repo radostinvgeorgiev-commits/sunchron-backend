@@ -6,28 +6,31 @@ export const PRODUCT_PLANS = Object.freeze([
     id: "free",
     name: "Старт",
     amountCents: 0,
-    credits: 30,
+    credits: 100,
     days: 30,
   }),
   Object.freeze({
     id: "personal",
     name: "Личен",
-    amountCents: 990,
-    credits: 100,
+    amountCents: 299,
+    credits: 300,
     days: 30,
   }),
   Object.freeze({
     id: "professional",
     name: "Професионален",
-    amountCents: 2490,
-    credits: 350,
+    amountCents: 999,
+    credits: 1100,
     days: 30,
   }),
 ]);
 const FREE_PLAN = PRODUCT_PLANS.find((plan) => plan.id === "free");
 const LEGACY_STARTER_CREDITS = 10;
-export const PUBLIC_REQUEST_CREDITS = 3;
-export const COUNCIL_REQUEST_CREDITS = 18;
+// Prices are the real cost plus a small reserve. One credit covers the most
+// expensive single member request (about 0.8 euro cents at full context);
+// a typical request costs far less.
+export const PUBLIC_REQUEST_CREDITS = 1;
+export const COUNCIL_REQUEST_CREDITS = 6;
 export const ACCOUNT_COLLECTION = "synchron-product-accounts-v1";
 const LEDGER_COLLECTION = "synchron-product-events-v1";
 export class ProductError extends Error {
@@ -69,6 +72,17 @@ export function createProductPlansService({
   // difference once. The grant is persisted with the next CAS write, so a
   // retry or a concurrent read can never apply it twice.
   function withStarterCredits(data) {
+    // The free allocation renews every 30 days, and an expired paid plan
+    // falls back to it, so nobody is left without a way to use the site.
+    if (data && Number(data.expiresAt) <= now() && data.plan !== "owner") {
+      return {
+        ...data,
+        plan: "free",
+        remaining: FREE_PLAN.credits,
+        expiresAt: now() + FREE_PLAN.days * 86400000,
+        starterCredits: FREE_PLAN.credits,
+      };
+    }
     if (data?.plan !== "free") return data;
     const granted = Number(data.starterCredits) || LEGACY_STARTER_CREDITS;
     if (granted >= FREE_PLAN.credits) return data;

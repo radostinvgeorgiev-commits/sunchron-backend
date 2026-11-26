@@ -1,4 +1,8 @@
-import { getProductPlansService } from "../services/productPlansService.js";
+import {
+  COUNCIL_REQUEST_CREDITS,
+  getProductPlansService,
+  PUBLIC_REQUEST_CREDITS,
+} from "../services/productPlansService.js";
 import {
   listAssistantPresets,
   resolveAssistantPreset,
@@ -1318,7 +1322,11 @@ router.post("/chat", async (req, res) => {
       const usage = await getProductPlansService().usage(req.owner);
       if (
         usage.remaining <
-        (councilRequested ? 18 : image ? PUBLIC_FILE_CREDITS : 3)
+        (councilRequested
+          ? COUNCIL_REQUEST_CREDITS
+          : image
+            ? PUBLIC_FILE_CREDITS
+            : PUBLIC_REQUEST_CREDITS)
       )
         return res
           .status(402)

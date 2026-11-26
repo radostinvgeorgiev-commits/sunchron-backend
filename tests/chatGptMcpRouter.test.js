@@ -107,8 +107,8 @@ test("ChatGPT plugin exposes only its own tools and reserves credits for the ver
   }).expect(200);
   assert.equal(turns[1][0], sessionId);
   assert.deepEqual(reservations, [
-    [member, 3, { provider: "openai", model: "test" }],
-    [member, 3, { provider: "openai", model: "test" }],
+    [member, 1, { provider: "openai", model: "test" }],
+    [member, 1, { provider: "openai", model: "test" }],
   ]);
 
   const requests = [];

@@ -79,7 +79,7 @@ AI предлага, ти одобряваш, системата изпълня�
 Готова за изпращане|Ready to send
 Изпрати|Send
 Ти контролираш паметта, инструментите и разрешенията.|You control memory, tools, and permissions.
-3 единици на AI опит; Council до 18.|3 credits per AI request attempt. Council uses up to 18.
+1 единица на AI опит; Council до 6.|1 credit per AI request attempt. Council uses up to 6.
 Потребление|Usage
 Състояние|Status
 Сесия|Session
@@ -142,33 +142,38 @@ SYNCHRON-X — начало|SYNCHRON-X home
 Проверка дали плащанията са активни…|Checking whether payments are available…
 Обнови|Refresh
 Старт|Starter
-30 AI единици еднократно за 30 дни.|A one-time allocation of 30 AI credits valid for 30 days.
-До 10 стандартни опита към AI двигател|Up to 10 standard AI request attempts
+100 AI единици на всеки 30 дни.|100 AI credits every 30 days.
+До 100 стандартни опита към AI двигател|Up to 100 standard AI request attempts
 Лична история и контролирана памет|Private history and memory you control
 Без банкова карта|No payment card required
 Личен|Personal
-9,90 € / 30 дни|€9.90 per 30 days
-100 AI единици.|100 AI credits.
-До 33 стандартни опита или комбинация с AI Council|Up to 33 standard attempts or a mix with AI Council
+2,99 € / 30 дни|€2.99 per 30 days
+300 AI единици.|300 AI credits.
+До 300 стандартни опита или комбинация с AI Council|Up to 300 standard attempts or a mix with AI Council
 История, проекти и контролирана памет|History, projects, and memory you control
 Самостоятелно подновяване|Manual renewal
 Проверка на плащанията…|Checking payments…
 Професионален|Professional
-24,90 € / 30 дни|€24.90 per 30 days
-350 AI единици.|350 AI credits.
-До 116 стандартни опита или комбинация с AI Council|Up to 116 standard attempts or a mix with AI Council
+9,99 € / 30 дни|€9.99 per 30 days
+1100 AI единици.|1,100 AI credits.
+До 1100 стандартни опита или комбинация с AI Council|Up to 1,100 standard attempts or a mix with AI Council
 По-голям бюджет за работа с няколко двигателя|More credits for working with several models
 Как се изразходват единиците|How credits are used
+Къде отива всеки лев|Where every lev goes
+Цената е реалната себестойност: AI заявките в най-скъпия случай (около 0,8 евроцента на единица) и таксата за плащане, плюс малък запас около 10% за сървъри и грешки.|The price is the real cost: AI requests in the most expensive case (about 0.8 euro cents per credit) and the payment fee, plus a small reserve of about 10% for servers and errors.
+Всичко над реалните разходи е предназначено за каузи, които хората сами предлагат и избират в „Каузи“. Никой не прибира печалба от тях.|Everything above the real costs is meant for causes that people propose and choose themselves in “Causes”. Nobody takes a profit from it.
+Управлението на проекта получава фиксирано възнаграждение, което ще бъде обявено тук публично, щом бъде определено.|The people running the project receive a fixed fee, which will be published here once it is set.
+Фондацията още не е регистрирана. Затова засега пари за каузи не се събират и не се разпределят.|The foundation is not registered yet, so no money for causes is collected or distributed for now.
 Действие|Action
 Разход|Cost
 Един опит към AI двигател|One AI request attempt
-3 единици|3 credits
+1 единица|1 credit
 AI Council, включително обобщаване|AI Council, including synthesis
-До 18 единици, според броя реални опити|Up to 18 credits, depending on the number of attempts
+До 6 единици, според броя реални опити|Up to 6 credits, depending on the number of attempts
 Четене на запазен разговор|Reading a saved conversation
 Без AI единици|No AI credits used
-Опитите към резервен двигател също използват единици. Опит, изпратен към доставчик, може да изразходва ресурс дори при грешка или прекъсване. AI Council изисква поне 18 свободни единици преди начало, а се отчита по 3 за всеки реален опит. Потребителските отговори са до 1024 изходни токена на опит; дългият контекст се ограничава.|Fallback attempts also use credits. An attempt sent to a provider can consume resources even if it fails or is interrupted. AI Council requires at least 18 available credits to start and uses 3 per actual attempt. Member responses are limited to 1,024 output tokens per attempt, and long contexts are capped.
-Единиците са вътрешна мярка за достъп, не пари и не токени на конкретен доставчик. Не се теглят като пари. При изчерпване заявките спират; няма автоматично презареждане. Нов закупен пакет добавя единици и осигурява поне още 30 дни валидност за наличния баланс. Началните 30 единици не се възстановяват ежемесечно.|Credits measure access within AI CORE. They are neither provider tokens nor redeemable for cash. Requests stop when credits run out, and automatic top-ups are disabled. Buying a package adds credits and extends the existing balance for at least 30 more days. The initial 30 credits are a one-time allocation.
+Опитите към резервен двигател също използват единици. Опит, изпратен към доставчик, може да изразходва ресурс дори при грешка или прекъсване. AI Council изисква поне 6 свободни единици преди начало, а се отчита по 1 за всеки реален опит. Снимка или PDF струва 2 единици. Потребителските отговори са до 1024 изходни токена на опит; дългият контекст се ограничава.|Fallback attempts also use credits. An attempt sent to a provider can consume resources even if it fails or is interrupted. AI Council requires at least 6 available credits to start and uses 1 per actual attempt. A picture or PDF costs 2 credits. Member responses are limited to 1,024 output tokens per attempt, and long contexts are capped.
+Единиците са вътрешна мярка за достъп, не пари и не токени на конкретен доставчик. Не се теглят като пари. При изчерпване заявките спират; няма автоматично презареждане. Нов закупен пакет добавя единици и осигурява поне още 30 дни валидност за наличния баланс. Безплатните 100 единици се подновяват на всеки 30 дни.|Credits measure access within AI CORE. They are neither provider tokens nor redeemable for cash. Requests stop when credits run out, and automatic top-ups are disabled. Buying a package adds credits and extends the existing balance for at least 30 more days. The free 100 credits renew every 30 days.
 Преди плащане|Before paying
 Пакетите включват само функциите, достъпни за потребителски профил. Инфраструктурни операции, кодови промени и външни интеграции на собственика не се предоставят на всеки регистриран профил. AI може да греши. Наличността на отделен двигател зависи от конфигурацията и доставчика.|Packages cover features available to member accounts. Infrastructure operations, code changes, and the owner's external integrations are restricted. AI may make mistakes. Individual model availability depends on configuration and the provider.
 Цената при активирана продажба е крайната сума в евро за показания пакет. Платените покупки остават изключени до настройване на платежния оператор, търговските данни, условията за продажба и проверка на разходите. Няма да приемаме плащане, преди тези стъпки да са завършени.|When sales open, the displayed price is the total in euros for that package. Purchases remain disabled until payment processing, merchant details, sales terms, and cost checks are complete.
@@ -204,7 +209,7 @@ AI Council събира мнения от избраните двигатели 
 Операции по облачната инфраструктура, код и външни приложения изискват допълнителни права и точни потвърждения. Потребителските пакети не дават достъп до инструментите и данните на собственика.|Cloud, code, and connected-app operations require additional permissions and specific confirmations. Member packages do not grant access to the owner's tools or data.
 Потребление и плащания|Usage and payments
 В „|In 
-“ виждаш свободните единици и валидността. Всеки реален опит към AI доставчик използва 3 единици, включително резервни опити. Council изисква 18 свободни единици преди начало и допуска до 6 опита, включително обобщаване. Неизползваните опити не се отчитат.| you can see your remaining credits and their validity. Each actual AI provider attempt uses 3 credits, including fallbacks. Council requires 18 available credits to start and allows up to 6 attempts, including synthesis. Unused attempts are not charged.
+“ виждаш свободните единици и валидността. Всеки реален опит към AI доставчик използва 1 единица, включително резервни опити. Council изисква 6 свободни единици преди начало и допуска до 6 опита, включително обобщаване. Неизползваните опити не се отчитат.| you can see your remaining credits and their validity. Each actual AI provider attempt uses 1 credit, including fallbacks. Council requires 6 available credits to start and allows up to 6 attempts, including synthesis. Unused attempts are not charged.
 Опит към доставчика се отчита преди изпращане, защото може да има разход и при прекъснат отговор. При временна техническа грешка се свържи с нас за преглед на потреблението. Няма автоматична гаранция за възстановяване на единици. Неизпратени към доставчик заявки поради липса на конфигурация не се отчитат.|A provider attempt is recorded before it is sent because an interrupted response may still incur costs. Contact us to review usage after a temporary error. Credits are not automatically refunded. Requests blocked by missing provider configuration are not charged.
 За контрол на разходите публичните отговори имат лимит 1024 изходни токена на опит и до 32 000 знака сериализиран контекст. Общият капацитет също се ограничава; възможни са временни ограничения при натоварване.|To control costs, public responses are capped at 1,024 output tokens per attempt and up to 32,000 characters of serialized context. Overall capacity is also limited, so high demand may cause temporary restrictions.
 Плащанията, когато са активирани, се правят в защитена страница на Stripe. Не изпращай данни за карта в разговор. Пакетът се активира от проверено потвърждение на платежния оператор, а не от връщането на страницата. Пакетите са еднократни, валидни 30 дни, без автоматично подновяване.|When enabled, payments take place on a secure Stripe page. Keep card details out of chat. A package is activated after verified payment confirmation from the provider. Packages are one-time purchases, valid for 30 days, with no automatic renewal.
@@ -258,7 +263,7 @@ AI Council събира мнения от избраните двигатели 
 Защитена сесия; само текущият профил, оставащи единици и валидност.|Authenticated session. Returns the current account, remaining credits, and expiration.
 Защитена сесия,|Authenticated session,
 ; цена само от сървърния каталог. Работи само след активирани плащания.|. The server catalog supplies the price. Requires payments to be enabled.
-Тарифата е 3 единици на реален опит към доставчик, максимум 6 опита в една публична задача. Разходът се записва преди доставчика в Firestore с условни атомарни операции. При недостъпно отчитане публичните AI заявки се отказват. Пълно счетоводство на фактурираните токени по доставчик не е налично; единиците са продуктова квота.|Actual provider attempts use 3 credits each, with up to 6 attempts per public task. Usage is recorded in Firestore with conditional atomic operations before contacting the provider. Public AI requests are refused when usage accounting is unavailable. Credits are a product quota. Full accounting of provider-billed tokens is not available.
+Тарифата е 1 единица на реален опит към доставчик, максимум 6 опита в една публична задача. Разходът се записва преди доставчика в Firestore с условни атомарни операции. При недостъпно отчитане публичните AI заявки се отказват. Пълно счетоводство на фактурираните токени по доставчик не е налично; единиците са продуктова квота.|Actual provider attempts use 1 credit each, with up to 6 attempts per public task. Usage is recorded in Firestore with conditional atomic operations before contacting the provider. Public AI requests are refused when usage accounting is unavailable. Credits are a product quota. Full accounting of provider-billed tokens is not available.
 Грешки и повторни опити|Errors and retries
 Какво означава|Meaning
 Нужен е вход или валиден OAuth достъп.|Sign-in or valid OAuth access is required.
@@ -334,7 +339,7 @@ AI задача|AI task
 пространство|workspace
 с AI.|with AI.
 Виж плановете|View plans
-Започни с 30 AI единици. Без банкова карта.|Start with 30 AI credits. No payment card required.
+Започни със 100 AI единици всеки месец. Без банкова карта.|Start with 100 AI credits every month. No payment card required.
 Разговори и анализ|Conversations and analysis
 Пиши, анализирай и сравнявай отговори с AI Council.|Write, analyze, and compare answers with AI Council.
 Одобрение на действия|Action approval

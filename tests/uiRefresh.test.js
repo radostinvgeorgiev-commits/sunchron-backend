@@ -30,3 +30,12 @@ test("ui-refresh loads after every other stylesheet", () => {
   const links = [...html.matchAll(/<link rel="stylesheet" href="([^"?]+)/gu)].map((m) => m[1]);
   assert.equal(links.at(-1), "/ui-refresh.css");
 });
+
+test("the side menu has the person's own things and the + menu stays short", async () => {
+  const { readFileSync } = await import("node:fs");
+  const js = readFileSync(new URL("../public/ui-refresh.js", import.meta.url), "utf8");
+  assert.match(js, /mine-group/u);
+  assert.match(js, /data-plus="models"/u);
+  const menu = js.slice(js.indexOf("menu.innerHTML"), js.indexOf("composer.prepend(menu)"));
+  assert.doesNotMatch(menu, /data-plus="(avatar|day|google|causes)"/u);
+});

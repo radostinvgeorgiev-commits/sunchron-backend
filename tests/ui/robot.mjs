@@ -51,6 +51,14 @@ async function openPage(origin, viewport, path = "/") {
 async function signedInFlows(origin, requests, label, viewport, feedback) {
   const { page, errors } = await openPage(origin, viewport);
   const last = () => page.locator(".assistant-turn").last();
+  // The person's own things are in the "Моят аватар" group of the side menu.
+  const openMine = async (key) => {
+    if (await page.locator("#mobileMenuBtn").isVisible()) {
+      await page.click("#mobileMenuBtn");
+      await page.waitForTimeout(300);
+    }
+    await page.click(`.mine-group [data-plus="${key}"]`);
+  };
   const send = async (text) => {
     await page.fill("#chatInput", text);
     await page.click("#sendBtn");
@@ -112,6 +120,13 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.click("#sendBtn");
     await page.waitForTimeout(900);
     expect(requests.at(-1).assistant === "lawyer", "асистентът не е изпратен");
+  });
+  await step(`${label}: менюто „+“ е кратко, личното е в „Моят аватар“`, async () => {
+    await page.click("#attachBtn");
+    expect((await page.locator(".plus-menu > button:visible").count()) === 6, "менюто „+“ не е с 6 реда");
+    await page.keyboard.press("Escape");
+    expect((await page.locator(".mine-group [data-plus]").count()) === 4, "няма група „Моят аватар“");
+    expect((await page.locator(".mine-group #memoryBtn").count()) === 1, "„Памет“ не е в групата");
   });
   await step(`${label}: асистент от началния екран`, async () => {
     const fresh = (await page.locator("#mobileNewChatBtn").isVisible()) ? "#mobileNewChatBtn" : "#newChatBtn";
@@ -190,15 +205,13 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.click(".knowledge-dialog .share-close");
   });
   await step(`${label}: „Моят аватар“ — запиши, отвори пак, изтрий`, async () => {
-    await page.click("#attachBtn");
-    await page.click('[data-plus="avatar"]');
+    await openMine("avatar");
     await page.waitForTimeout(400);
     await page.fill('.avatar-form textarea[name="about"]', "Казвам се Робот и проверявам сайта.");
     await page.click(".avatar-save");
     await page.waitForTimeout(400);
     await page.click(".avatar-dialog .share-close");
-    await page.click("#attachBtn");
-    await page.click('[data-plus="avatar"]');
+    await openMine("avatar");
     await page.waitForTimeout(400);
     expect(
       (await page.inputValue('.avatar-form textarea[name="about"]')).includes("Робот"),
@@ -210,8 +223,7 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.click(".avatar-dialog .share-close");
   });
   await step(`${label}: „Моят Google“ показва бутона за свързване`, async () => {
-    await page.click("#attachBtn");
-    await page.click('[data-plus="google"]');
+    await openMine("google");
     await page.waitForTimeout(500);
     expect(await page.locator("#connectGoogleDrive").isVisible(), "няма бутон за свързване");
     expect((await page.locator("#restoreGoogleDrive").count()) === 0, "бутонът за възстановяване се вижда");
@@ -220,8 +232,7 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
   });
   await step(`${label}: „Чернова от мое име“ записва отговор като чернова`, async () => {
     await page.evaluate(() => fetch("/__robot/google-connected"));
-    await page.click("#attachBtn");
-    await page.click('[data-plus="google"]');
+    await openMine("google");
     await page.waitForTimeout(500);
     await page.click("#openMyMail");
     await page.waitForTimeout(500);
@@ -235,8 +246,7 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.waitForTimeout(200);
   });
   await step(`${label}: „Моят ден“ показва плана в разговора`, async () => {
-    await page.click("#attachBtn");
-    await page.click('[data-plus="day"]');
+    await openMine("day");
     await page.waitForTimeout(600);
     const reply = await last().innerText();
     expect(reply.includes("Най-важното днес"), "планът не се показа");
@@ -273,8 +283,7 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect(!(await page.locator(".doc-panel").isVisible()), "панелът не се затвори");
   });
   await step(`${label}: „Каузи“ — предложи, харесай, изтрий`, async () => {
-    await page.click("#attachBtn");
-    await page.click('[data-plus="causes"]');
+    await openMine("causes");
     await page.waitForTimeout(400);
     await page.fill(".causes-form input", "Детска площадка");
     await page.fill(".causes-form textarea", "Нова площадка за децата в квартала.");
@@ -304,6 +313,7 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
   });
   await step(`${label}: Съвет в колони`, async () => {
     await page.click("#attachBtn");
+    await page.click('[data-plus="models"]');
     await page.click('[data-plus="council"]');
     await send("Въпрос за Съвета");
     await page.waitForTimeout(900);
@@ -322,6 +332,7 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
   await step(`${label}: сляпо сравнение`, async () => {
     await page.fill("#chatInput", "Кое е по-добро?");
     await page.click("#attachBtn");
+    await page.click('[data-plus="models"]');
     await page.click('[data-plus="compare"]');
     await page.waitForTimeout(500);
     const box = page.locator(".compare-box").last();

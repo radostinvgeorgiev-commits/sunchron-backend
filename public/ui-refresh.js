@@ -16,14 +16,12 @@
     menu.className = "plus-menu";
     menu.hidden = true;
     menu.setAttribute("role", "menu");
+    // Everyday actions only. The person's own things (avatar, day, Google,
+    // causes) live in the "Моят аватар" group of the side menu.
     menu.innerHTML = `
       <button type="button" role="menuitem" data-plus="file">
         <i class="fa-solid fa-paperclip" aria-hidden="true"></i>
         <span>${text("Снимка или PDF")}<small>${text("AI CORE ще го прочете")}</small></span>
-      </button>
-      <button type="button" role="menuitem" data-plus="council">
-        <i class="fa-solid fa-people-group" aria-hidden="true"></i>
-        <span>${text("Съвет от модели")}<small>${text("Питай няколко AI и сравни")}</small></span>
       </button>
       <button type="button" role="menuitem" data-plus="search">
         <i class="fa-solid fa-globe" aria-hidden="true"></i>
@@ -33,33 +31,25 @@
         <i class="fa-solid fa-palette" aria-hidden="true"></i>
         <span>${text("Нарисувай картинка")}<small>${text("От описанието в полето")}</small></span>
       </button>
-      <button type="button" role="menuitem" data-plus="day">
-        <i class="fa-solid fa-sun" aria-hidden="true"></i>
-        <span>${text("Моят ден")}<small>${text("Аватарът подготвя плана ти за днес")}</small></span>
-      </button>
-      <button type="button" role="menuitem" data-plus="google">
-        <i class="fa-brands fa-google" aria-hidden="true"></i>
-        <span>${text("Моят Google")}<small>${text("Свържи Drive, Поща и Календар")}</small></span>
-      </button>
-      <button type="button" role="menuitem" data-plus="causes">
-        <i class="fa-solid fa-hand-holding-heart" aria-hidden="true"></i>
-        <span>${text("Каузи")}<small>${text("Предложи кауза и подкрепи с харесване")}</small></span>
-      </button>
-      <button type="button" role="menuitem" data-plus="avatar">
-        <i class="fa-solid fa-user-astronaut" aria-hidden="true"></i>
-        <span>${text("Моят аватар")}<small>${text("Кой съм, как говоря, целите ми")}</small></span>
+      <button type="button" role="menuitem" data-plus="assistant">
+        <i class="fa-solid fa-user-tie" aria-hidden="true"></i>
+        <span>${text("Асистент")}<small>${text("Лекар, юрист, учител, готвач…")}</small></span>
       </button>
       <button type="button" role="menuitem" data-plus="knowledge">
         <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
         <span>${text("Моите файлове")}<small>${text("AI търси в тях при всеки въпрос")}</small></span>
       </button>
-      <button type="button" role="menuitem" data-plus="compare">
+      <button type="button" role="menuitem" data-plus="models" aria-expanded="false">
         <i class="fa-solid fa-scale-unbalanced" aria-hidden="true"></i>
-        <span>${text("Сляпо сравнение")}<small>${text("Два модела, ти избираш по-добрия")}</small></span>
+        <span>${text("Сравни модели")}<small>${text("Няколко AI на един въпрос")}</small></span>
       </button>
-      <button type="button" role="menuitem" data-plus="assistant">
-        <i class="fa-solid fa-user-tie" aria-hidden="true"></i>
-        <span>${text("Асистент")}<small>${text("Юрист, учител, преводач…")}</small></span>
+      <button type="button" role="menuitem" data-plus="council" class="plus-sub" hidden>
+        <i class="fa-solid fa-people-group" aria-hidden="true"></i>
+        <span>${text("Съвет от модели")}<small>${text("Питай няколко AI и сравни")}</small></span>
+      </button>
+      <button type="button" role="menuitem" data-plus="compare" class="plus-sub" hidden>
+        <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
+        <span>${text("Сляпо сравнение")}<small>${text("Два модела, ти избираш по-добрия")}</small></span>
       </button>`;
     composer.prepend(menu);
 
@@ -70,8 +60,13 @@
       <button type="button" aria-label="${text("Изключи Съвета")}">✕</button>`;
     composer.prepend(chip);
 
+    const showModels = (open) => {
+      for (const sub of menu.querySelectorAll(".plus-sub")) sub.hidden = !open;
+      menu.querySelector('[data-plus="models"]')?.setAttribute("aria-expanded", String(open));
+    };
     const close = () => {
       menu.hidden = true;
+      showModels(false);
       attach.setAttribute("aria-expanded", "false");
     };
     const syncChip = () => {
@@ -98,39 +93,88 @@
       },
       true,
     );
-    menu.addEventListener("click", (event) => {
-      const item = event.target.closest("[data-plus]");
-      if (!item) return;
-      close();
-      if (item.dataset.plus === "file") $("imageInput")?.click();
-      if (item.dataset.plus === "council") council?.click();
-      if (item.dataset.plus === "search") {
+    // One handler for the "+" menu and the "Моят аватар" side group.
+    const run = (key) => {
+      if (key === "file") $("imageInput")?.click();
+      if (key === "council") council?.click();
+      if (key === "search") {
         document.dispatchEvent(new CustomEvent("aicore:web-search"));
       }
-      if (item.dataset.plus === "google") $("googleDriveBtn")?.click();
-      if (item.dataset.plus === "draw") {
+      if (key === "google") $("googleDriveBtn")?.click();
+      if (key === "draw") {
         document.dispatchEvent(new CustomEvent("aicore:draw-image"));
       }
-      if (item.dataset.plus === "day") {
+      if (key === "day") {
         document.dispatchEvent(new CustomEvent("aicore:daily-plan"));
       }
-      if (item.dataset.plus === "causes") {
+      if (key === "causes") {
         document.dispatchEvent(new CustomEvent("aicore:causes"));
       }
-      if (item.dataset.plus === "avatar") {
+      if (key === "avatar") {
         document.dispatchEvent(new CustomEvent("aicore:avatar-profile"));
       }
-      if (item.dataset.plus === "knowledge") {
+      if (key === "knowledge") {
         document.dispatchEvent(new CustomEvent("aicore:knowledge-files"));
       }
-      if (item.dataset.plus === "compare") {
+      if (key === "compare") {
         document.dispatchEvent(new CustomEvent("aicore:blind-compare"));
       }
-      if (item.dataset.plus === "assistant") {
+      if (key === "assistant") {
         document.dispatchEvent(new CustomEvent("aicore:pick-assistant"));
       }
       setTimeout(syncChip, 0);
+    };
+    menu.addEventListener("click", (event) => {
+      const item = event.target.closest("[data-plus]");
+      if (!item) return;
+      if (item.dataset.plus === "models") {
+        showModels(menu.querySelector(".plus-sub")?.hidden ?? false);
+        return;
+      }
+      close();
+      run(item.dataset.plus);
     });
+
+    // "Моят аватар": the person's own things, always in the side menu.
+    const nav = document.querySelector(".sidebar-nav");
+    if (nav) {
+      const mine = document.createElement("div");
+      mine.className = "mine-group";
+      mine.setAttribute("role", "group");
+      mine.setAttribute("aria-label", text("Моят аватар"));
+      mine.innerHTML = `
+        <p class="mine-title">${text("Моят аватар")}</p>
+        <button type="button" data-plus="avatar">
+          <i class="fa-solid fa-user-astronaut" aria-hidden="true"></i><span>${text("Кой съм аз")}</span>
+        </button>
+        <button type="button" data-plus="day">
+          <i class="fa-solid fa-sun" aria-hidden="true"></i><span>${text("Моят ден")}</span>
+        </button>
+        <button type="button" data-plus="google">
+          <i class="fa-brands fa-google" aria-hidden="true"></i><span>${text("Моят Google")}</span>
+        </button>
+        <button type="button" data-plus="causes">
+          <i class="fa-solid fa-hand-holding-heart" aria-hidden="true"></i><span>${text("Каузи")}</span>
+        </button>`;
+      // "Памет" (what the avatar remembers) belongs here too.
+      const memory = $("memoryBtn");
+      if (memory) mine.appendChild(memory);
+      nav.prepend(mine);
+      // "Свържи AI" is for linking other AI apps; it goes under "Още".
+      const more = nav.querySelector(".sidebar-group");
+      const connections = $("connectionsBtn");
+      if (more && connections) {
+        connections.classList.remove("sidebar-primary");
+        more.querySelector("summary")?.after(connections);
+      }
+      mine.addEventListener("click", (event) => {
+        const item = event.target.closest("[data-plus]");
+        if (!item) return;
+        // On a phone the side menu covers the chat; close it first.
+        if ($("sidebar")?.classList.contains("mobile-visible")) $("mobileMenuBtn")?.click();
+        run(item.dataset.plus);
+      });
+    }
     chip.querySelector("button").addEventListener("click", () => {
       if (council?.getAttribute("aria-pressed") === "true") council.click();
       syncChip();

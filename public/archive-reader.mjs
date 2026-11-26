@@ -1,7 +1,10 @@
-// Reads a personal archive (.zip from Facebook "Download your information" or
-// Google Takeout) inside the browser. Only the person's own texts are kept;
-// other people's messages never leave the device.
+// Reads a personal archive (.zip from Facebook "Download your information",
+// Google Takeout, or the data export of ChatGPT or Claude) inside the
+// browser. Only the person's own texts are kept; other people's messages
+// never leave the device.
 const MAX_ENTRY_BYTES = 40 * 1024 * 1024;
+// Years of AI chats make one big conversations.json; it is read once.
+const MAX_CHAT_EXPORT_BYTES = 250 * 1024 * 1024;
 export const ARCHIVE_TEXT_LIMIT = 190_000;
 
 function readUint64(view, offset) {
@@ -66,8 +69,8 @@ export async function listZipEntries(blob) {
   return entries;
 }
 
-export async function readZipText(blob, entry) {
-  if (entry.uncompressedSize > MAX_ENTRY_BYTES) return "";
+export async function readZipText(blob, entry, maxBytes = MAX_ENTRY_BYTES) {
+  if (entry.uncompressedSize > maxBytes) return "";
   const header = new DataView(await blob.slice(entry.localOffset, entry.localOffset + 30).arrayBuffer());
   if (header.getUint32(0, true) !== 0x04034b50) return "";
   const start = entry.localOffset + 30 + header.getUint16(26, true) + header.getUint16(28, true);
@@ -178,7 +181,64 @@ export function extractTakeout(files) {
   ].filter(({ text }) => text.length >= 20);
 }
 
+const isoSeconds = (value) => {
+  const ms = Date.parse(value || "");
+  return Number.isFinite(ms) ? ms / 1000 : 0;
+};
+const titled = (title, text) => (title ? `[${String(title).trim()}] ${text}` : text);
+
+// ChatGPT and Claude exports: only what the person wrote, never the AI's
+// answers, so the avatar learns how the person thinks and what they asked.
+export function extractAiChats(files) {
+  const chatgpt = [];
+  const claude = [];
+  const claudeMemory = [];
+  for (const [name, text] of files) {
+    if (/(^|\/)memories\.json$/u.test(name)) {
+      for (const item of [].concat(parse(text) || [])) {
+        const memory = typeof item?.conversations_memory === "string" ? item.conversations_memory : "";
+        if (memory.trim()) claudeMemory.push({ at: 0, label: "", text: memory });
+      }
+      continue;
+    }
+    if (!/(^|\/)conversations(-\d+)?\.json$/u.test(name)) continue;
+    const data = parse(text);
+    if (!Array.isArray(data)) continue;
+    for (const chat of data) {
+      if (chat?.mapping && typeof chat.mapping === "object") {
+        for (const node of Object.values(chat.mapping)) {
+          const message = node?.message;
+          if (message?.author?.role !== "user") continue;
+          const body = (message.content?.parts || []).filter((part) => typeof part === "string").join("\n").trim();
+          if (!body) continue;
+          const at = message.create_time || chat.create_time || 0;
+          chatgpt.push({ at, label: day(at), text: titled(chat.title, body) });
+        }
+      } else if (Array.isArray(chat?.chat_messages)) {
+        for (const message of chat.chat_messages) {
+          if (message?.sender !== "human") continue;
+          const parts = Array.isArray(message.content)
+            ? message.content.filter((part) => part?.type === "text" && typeof part.text === "string").map((part) => part.text)
+            : [];
+          const body = (parts.join("\n") || message.text || "").trim();
+          if (!body) continue;
+          const at = isoSeconds(message.created_at || chat.created_at);
+          claude.push({ at, label: day(at), text: titled(chat.name, body) });
+        }
+      }
+    }
+  }
+  return [
+    { name: "ChatGPT: какво съм писал", text: packLines(chatgpt) },
+    { name: "Claude: какво съм писал", text: packLines(claude) },
+    { name: "Claude: какво е запомнил за мен", text: packLines(claudeMemory) },
+  ].filter(({ text }) => text.length >= 20);
+}
+
+const CHAT_EXPORTS = [/(^|\/)conversations(-\d+)?\.json$/u, /(^|\/)memories\.json$/u];
+
 const WANTED = [
+  ...CHAT_EXPORTS,
   /profile_information\/profile_information\.json$/u,
   /\/posts\/your_posts[^/]*\.json$/u,
   /comments_and_reactions\/comments[^/]*\.json$/u,
@@ -193,15 +253,16 @@ export async function readPersonalArchive(blob, onProgress = () => {}) {
   const files = [];
   for (const [index, entry] of entries.entries()) {
     onProgress(index + 1, entries.length);
-    const text = await readZipText(blob, entry);
+    const big = CHAT_EXPORTS.some((pattern) => pattern.test(entry.name));
+    const text = await readZipText(blob, entry, big ? MAX_CHAT_EXPORT_BYTES : MAX_ENTRY_BYTES);
     if (text) files.push([entry.name, text]);
   }
-  const results = [...extractFacebook(files), ...extractTakeout(files)];
+  const results = [...extractFacebook(files), ...extractTakeout(files), ...extractAiChats(files)];
   if (!results.length) {
     const html = entries.length === 0;
     throw new Error(
       html
-        ? "Не намерих текстове в архива. За Facebook избери формат JSON при изтеглянето; за Google — Keep или Календар."
+        ? "Не намерих текстове в архива. За Facebook избери формат JSON при изтеглянето; за Google — Keep или Календар; за ChatGPT и Claude — архива от „Изнеси данните“."
         : "В архива няма твои текстове, които да се добавят.",
     );
   }

@@ -51,14 +51,14 @@ function memoryStore() {
 test("concurrent usage cannot overspend or cross user boundaries", async () => {
   const store = memoryStore();
   const service = createProductPlansService({ store, now });
-  await service.reserve(member, 18);
-  await service.reserve(member, 9);
+  for (let i = 0; i < 5; i += 1) await service.reserve(member, 18);
+  await service.reserve(member, 7);
   const results = await Promise.allSettled(
     Array.from({ length: 3 }, () => service.reserve(member, 2)),
   );
   assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
   assert.equal((await service.usage(member)).remaining, 1);
-  assert.equal((await service.usage(other)).remaining, 30);
+  assert.equal((await service.usage(other)).remaining, 100);
   assert.ok(
     store.rows.has(ACCOUNT_COLLECTION + "/" + productAccountId(member)),
   );
@@ -95,7 +95,7 @@ function paidSession() {
     mode: "payment",
     payment_status: "paid",
     currency: "eur",
-    amount_total: 990,
+    amount_total: 299,
     metadata: { account: productAccountId(member), plan: "personal" },
   };
 }
@@ -104,8 +104,8 @@ test("paid fulfillment is idempotent, validates amounts and never trusts a brows
   const service = createProductPlansService({ store, now });
   const session = paidSession();
   await Promise.all([service.fulfill(session), service.fulfill(session)]);
-  assert.equal((await service.usage(member)).remaining, 130);
-  assert.equal((await service.usage(other)).remaining, 30);
+  assert.equal((await service.usage(member)).remaining, 400);
+  assert.equal((await service.usage(other)).remaining, 100);
   await assert.rejects(
     () => service.fulfill({ ...session, amount_total: 1 }),
     (e) => e.code === "PAYMENT_INVALID",
@@ -115,19 +115,34 @@ test("paid fulfillment is idempotent, validates amounts and never trusts a brows
     (e) => e.code === "PAYMENT_INVALID",
   );
 });
-test("expired trial does not renew itself; paid credits extend access", async () => {
+test("the free allocation renews every 30 days; paid credits add to it", async () => {
   const store = memoryStore();
   let clock = now();
   const service = createProductPlansService({ store, now: () => clock });
-  await service.reserve(member, 3);
-  clock += 31 * 86400000;
-  assert.equal((await service.usage(member)).remaining, 0);
+  for (let i = 0; i < 5; i += 1) await service.reserve(member, 18);
+  await service.reserve(member, 10);
   await assert.rejects(
-    () => service.reserve(member, 3),
+    () => service.reserve(member, 1),
     (e) => e.code === "AI_CREDITS_EXHAUSTED",
   );
-  await service.fulfill(paidSession());
+  clock += 31 * 86400000;
   assert.equal((await service.usage(member)).remaining, 100);
+  await service.reserve(member, 1);
+  assert.equal((await service.usage(member)).remaining, 99);
+  await service.fulfill(paidSession());
+  assert.equal((await service.usage(member)).remaining, 399);
+});
+
+test("an expired paid plan falls back to the free allocation", async () => {
+  const store = memoryStore();
+  store.rows.set(ACCOUNT_COLLECTION + "/" + productAccountId(member), {
+    data: { plan: "personal", remaining: 5, expiresAt: now() - 1, createdAt: now() },
+    updateTime: "old",
+  });
+  const service = createProductPlansService({ store, now });
+  const usage = await service.usage(member);
+  assert.equal(usage.plan, "free");
+  assert.equal(usage.remaining, 100);
 });
 test("webhook signatures reject tampering and old timestamps", () => {
   const env = { STRIPE_WEBHOOK_SECRET: "whsec_test" };
@@ -173,7 +188,7 @@ test("checkout is disabled until merchant, economics and payment configuration a
     },
   });
   const params = new URLSearchParams(request.options.body);
-  assert.equal(params.get("line_items[0][price_data][unit_amount]"), "990");
+  assert.equal(params.get("line_items[0][price_data][unit_amount]"), "299");
   assert.equal(params.get("mode"), "payment");
   assert.equal(params.get("metadata[account]"), productAccountId(member));
   assert.equal(result.url, "https://checkout.stripe.com/c/pay/test");
@@ -259,7 +274,7 @@ test("public budgets cap provider output and charge each attempt before network 
         input: [{ role: "user", content: "Hello" }],
         fetchImpl: async (_url, opts) => {
           calls++;
-          assert.equal(reserved, calls * 3);
+          assert.equal(reserved, calls);
           const body = JSON.parse(opts.body);
           const max =
             body.max_output_tokens ||
@@ -294,7 +309,7 @@ test("public budgets cap provider output and charge each attempt before network 
     await reservePublicAiCall("x".repeat(32001));
     assert.equal(publicAiOutputLimit(), null);
   });
-  assert.equal(reserved, 18);
+  assert.equal(reserved, 6);
 });
 
 test("legacy free accounts get the starter difference exactly once", async () => {
@@ -305,12 +320,12 @@ test("legacy free accounts get the starter difference exactly once", async () =>
     updateTime: "legacy",
   });
   const service = createProductPlansService({ store, now });
-  assert.equal((await service.usage(member)).remaining, 24);
+  assert.equal((await service.usage(member)).remaining, 94);
   await service.reserve(member, 3);
-  assert.equal((await service.usage(member)).remaining, 21);
-  assert.equal(store.rows.get(ACCOUNT_COLLECTION + "/" + id).data.starterCredits, 30);
+  assert.equal((await service.usage(member)).remaining, 91);
+  assert.equal(store.rows.get(ACCOUNT_COLLECTION + "/" + id).data.starterCredits, 100);
   await service.reserve(member, 3);
-  assert.equal((await service.usage(member)).remaining, 18);
+  assert.equal((await service.usage(member)).remaining, 88);
 });
 
 test("paid accounts are not topped up by the starter change", async () => {

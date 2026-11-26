@@ -1,5 +1,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { getProductPlansService, ProductError } from "./productPlansService.js";
+import {
+  getProductPlansService,
+  ProductError,
+  PUBLIC_REQUEST_CREDITS,
+} from "./productPlansService.js";
 const context = new AsyncLocalStorage();
 export function createPublicAiBudgetContext({
   reserve = (identity, credits, details) =>
@@ -15,7 +19,7 @@ export function publicAiOutputLimit() {
   return context.getStore() ? 1024 : null;
 }
 // A picture or PDF costs more than a text turn: one call, fixed price.
-export const PUBLIC_FILE_CREDITS = 6;
+export const PUBLIC_FILE_CREDITS = 2;
 export async function reservePublicAiFile(provider = "", model = "") {
   const scope = context.getStore();
   if (!scope) return;
@@ -44,7 +48,7 @@ export async function reservePublicAiCall(input, provider = "", model = "") {
       429,
     );
   scope.calls++;
-  await scope.reserve(scope.identity, 3, { provider, model });
+  await scope.reserve(scope.identity, PUBLIC_REQUEST_CREDITS, { provider, model });
 }
 // Turning speech into text is cheap: one credit per recording.
 export const PUBLIC_VOICE_CREDITS = 1;

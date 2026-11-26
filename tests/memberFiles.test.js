@@ -32,6 +32,6 @@ test("members can attach files; the attach button is no longer owner-only", () =
   const chat = readFileSync(new URL("../src/routes/chat.js", import.meta.url), "utf8");
   const html = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
   assert.doesNotMatch(chat, /TESTER_TOOL_DISABLED/u);
-  assert.match(chat, /image \? PUBLIC_FILE_CREDITS : 3/u);
+  assert.match(chat, /image\s*\?\s*PUBLIC_FILE_CREDITS\s*:\s*PUBLIC_REQUEST_CREDITS/u);
   assert.doesNotMatch(html, /class="attach-btn"\s+type="button"\s+data-owner-only/u);
 });

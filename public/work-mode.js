@@ -500,6 +500,9 @@
       : "Разговор";
     elements.agentLabel.textContent = agent?.name || "AI CORE";
     activateMobileCommand(isWork ? "work" : "chat");
+    // The header model picker shows chat models in "Чат" and the work
+    // agent's models in "Работа".
+    document.dispatchEvent(new CustomEvent("aicore:mode-changed", { detail: { mode: workState.mode } }));
   }
 
   function setMode(mode) {
@@ -1269,6 +1272,17 @@
   }
 
   globalThis.SynchronWorkMode = Object.freeze({
+    mode: () => workState?.mode || "chat",
+    agentModel: () => activeAgent()?.model || "auto",
+    agentName: () => activeAgent()?.name || "",
+    setAgentModel: (id) => {
+      const agent = activeAgent();
+      if (!agent || !Object.hasOwn(MODEL_OPTIONS, id)) return false;
+      agent.model = id;
+      saveState();
+      renderMode();
+      return true;
+    },
     flushProjectContext,
     getRequestPayload,
     init,

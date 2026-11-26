@@ -339,6 +339,18 @@ export const CHAT_MODEL_CHOICES = Object.freeze([
   { id: "vertex-glm-5.2", label: "GLM 5.2", hint: "Силен отворен модел, 2 единици" },
 ]);
 
+// Models offered in the header picker while in "Работа" (the work agent's
+// model). Same ids as the agent editor in public/work-mode.js.
+export const WORK_MODEL_CHOICES = Object.freeze([
+  { id: "auto", label: "Автоматичен", hint: "Препоръчано" },
+  { id: "gpt-5.6-sol", label: "GPT-5.6 Sol", hint: "Най-високо качество" },
+  { id: "gpt-5.6-terra", label: "GPT-5.6 Terra", hint: "Балансиран" },
+  { id: "gpt-5.6-luna", label: "GPT-5.6 Luna", hint: "Бърз" },
+  { id: "gemini-2.5-flash", label: "Gemini 3.8 Flash", hint: "Google" },
+  { id: "vertex-gemini-2.5-flash", label: "Vertex Gemini", hint: "Google Cloud" },
+  { id: "grok-4.5", label: "Grok 4.5", hint: "xAI" },
+]);
+
 export function resolveChatModelChoice(value) {
   const id = cleanText(value, 40);
   return id !== "auto" && CHAT_MODEL_CHOICES.some((choice) => choice.id === id)

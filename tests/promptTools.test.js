@@ -40,7 +40,9 @@ test("the page has the assistant picker and the / prompts", () => {
   const ui = readFileSync(new URL("../public/ui-refresh.js", import.meta.url), "utf8");
   const app = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
   assert.match(html, /src="\/prompt-tools\.js/);
-  assert.match(ui, /data-plus="assistant"/);
+  // The specialist is picked at the top next to the model, not from "+".
+  assert.doesNotMatch(ui, /data-plus="assistant"/);
+  assert.match(tools, /id = "assistantPickerBtn"/);
   assert.match(tools, /fetch\("\/chat\/assistants"/);
   assert.match(tools, /className = "slash-menu"/);
   assert.match(app, /assistant: globalThis\.SynchronUi\.assistant\(\)/);
@@ -54,7 +56,7 @@ test("the new assistants exist and the health ones point to real help", () => {
   assert.match(resolveAssistantPreset("doctor").instruction, /112/u);
   assert.match(resolveAssistantPreset("listener").instruction, /112/u);
   const tools = readFileSync(new URL("../public/prompt-tools.js", import.meta.url), "utf8");
-  assert.match(tools, /assistant-row/u);
+  assert.doesNotMatch(tools, /assistant-row/u);
 });
 
 test("every specialist lists its tools, and the role knows about them", async () => {

@@ -17,7 +17,8 @@
     menu.hidden = true;
     menu.setAttribute("role", "menu");
     // Everyday actions only. The person's own things (avatar, day, Google,
-    // causes) live in the "Моят аватар" group of the side menu.
+    // causes) live in the "Моят аватар" group of the side menu, and the
+    // specialist is picked at the top next to the model.
     menu.innerHTML = `
       <button type="button" role="menuitem" data-plus="file">
         <i class="fa-solid fa-paperclip" aria-hidden="true"></i>
@@ -34,10 +35,6 @@
       <button type="button" role="menuitem" data-plus="draw">
         <i class="fa-solid fa-palette" aria-hidden="true"></i>
         <span>${text("Нарисувай картинка")}<small>${text("От описанието в полето")}</small></span>
-      </button>
-      <button type="button" role="menuitem" data-plus="assistant">
-        <i class="fa-solid fa-user-tie" aria-hidden="true"></i>
-        <span>${text("Асистент")}<small>${text("Лекар, юрист, учител, готвач…")}</small></span>
       </button>
       <button type="button" role="menuitem" data-plus="knowledge">
         <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
@@ -272,7 +269,14 @@
   };
   if (!button || !label || !menu) return;
 
+  // "Работа" has its own models: the active work agent's. The same button
+  // shows them while the mode is "Работа", so each mode lists only its own.
+  let workChoices = [];
+  const work = () => globalThis.SynchronWorkMode;
+  const inWork = () => document.body.dataset.interactionMode === "work" && Boolean(work()?.setAgentModel);
   const render = () => {
+    if (inWork()) return renderWork();
+    button.dataset.pickerMode = "chat";
     const chosen = choices.find((choice) => choice.id === current) || choices[0];
     label.textContent = chosen
       ? chosen.id === "auto"
@@ -304,6 +308,36 @@
       }),
     );
   };
+  function renderWork() {
+    button.dataset.pickerMode = "work";
+    const currentWork = work().agentModel();
+    const chosen = workChoices.find((choice) => choice.id === currentWork) || workChoices[0];
+    label.textContent = chosen ? (chosen.id === "auto" ? text("Автоматичен") : chosen.label) : "AI CORE";
+    const title = document.createElement("p");
+    title.className = "model-picker-group";
+    title.textContent = `${text("Модели за работа")}${work().agentName() ? ` · ${work().agentName()}` : ""}`;
+    menu.replaceChildren(
+      title,
+      ...workChoices.map((choice) => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.setAttribute("role", "menuitemradio");
+        item.setAttribute("aria-checked", String(choice.id === currentWork));
+        item.disabled = choice.available === false;
+        item.innerHTML = `<span><strong></strong><small></small></span><i class="fa-solid fa-check" aria-hidden="true"></i>`;
+        item.querySelector("strong").textContent = text(choice.label);
+        item.querySelector("small").textContent =
+          choice.available === false ? text("Не е свързан") : text(choice.hint || "");
+        item.addEventListener("click", () => {
+          work().setAgentModel(choice.id);
+          close();
+          render();
+        });
+        return item;
+      }),
+    );
+  }
+  document.addEventListener("aicore:mode-changed", () => render());
   const close = () => {
     menu.hidden = true;
     button.setAttribute("aria-expanded", "false");
@@ -328,4 +362,11 @@
       render();
     })
     .catch(() => render());
+  fetch("/chat/work-models", { credentials: "same-origin" })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((data) => {
+      workChoices = Array.isArray(data?.items) ? data.items : [];
+      render();
+    })
+    .catch(() => {});
 })();

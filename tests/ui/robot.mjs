@@ -63,6 +63,14 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.fill("#chatInput", text);
     await page.click("#sendBtn");
   };
+  const pickSpecialist = async (id) => {
+    await page.click("#assistantPickerBtn");
+    await page.click(`.assistant-picker button[data-assistant="${id}"]`);
+  };
+  const pickNone = async () => {
+    await page.click("#assistantPickerBtn");
+    await page.click(".assistant-picker .assistant-none");
+  };
 
   await step(`${label}: страницата зарежда без грешки`, async () => {
     expect(await page.locator("#chatInput").isVisible(), "няма поле за писане");
@@ -107,10 +115,9 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect(!(await page.locator("#chatInput").isDisabled()), "полето остана заключено");
   });
   await step(`${label}: асистент и подсказка с „/“`, async () => {
-    await page.click("#attachBtn");
-    await page.click('[data-plus="assistant"]');
+    await page.click("#assistantPickerBtn");
     await page.locator(".assistant-picker button", { hasText: "Юрист" }).click();
-    expect(await page.locator(".assistant-chip").isVisible(), "няма надпис за асистента");
+    expect((await page.textContent("#assistantPickerBtn")).includes("Юрист"), "горе не пише избрания специалист");
     await page.type("#chatInput", "/об");
     await page.waitForTimeout(200);
     expect(await page.locator(".slash-menu").isVisible(), "няма меню с подсказки");
@@ -123,10 +130,26 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
   });
   await step(`${label}: менюто „+“ е кратко, личното е в „Моят аватар“`, async () => {
     await page.click("#attachBtn");
-    expect((await page.locator(".plus-menu > button:visible").count()) === 7, "менюто „+“ не е със 7 реда");
+    expect((await page.locator(".plus-menu > button:visible").count()) === 6, "менюто „+“ не е с 6 реда");
+    expect(!(await page.locator('.plus-menu [data-plus="assistant"]').count()), "специалистът е и в „+“ (двоен бутон)");
     await page.keyboard.press("Escape");
     expect((await page.locator(".mine-group [data-plus]").count()) === 7, "няма група „Моят аватар“");
     expect((await page.locator(".mine-group #memoryBtn").count()) === 1, "„Памет“ не е в групата");
+  });
+  await step(`${label}: „Чат“ показва моделите за чат, „Работа“ — моделите за работа`, async () => {
+    await page.click("#workModeToolbarBtn");
+    await page.waitForTimeout(300);
+    await page.click("#modelPickerBtn");
+    let menu = await page.locator("#modelPickerMenu").innerText();
+    expect(menu.includes("GPT-5.6 Sol") && !menu.includes("Gemini 3.5 Flash Lite"), `в „Работа“ се виждат чат модели: ${menu}`);
+    await page.locator("#modelPickerMenu button", { hasText: "GPT-5.6 Sol" }).click();
+    expect((await page.textContent("#modelPickerLabel")).includes("GPT-5.6 Sol"), "моделът за работа не се избра");
+    await page.click("#chatModeBtn");
+    await page.waitForTimeout(300);
+    await page.click("#modelPickerBtn");
+    menu = await page.locator("#modelPickerMenu").innerText();
+    expect(menu.includes("Gemini 3.5 Flash Lite") && !menu.includes("GPT-5.6 Sol"), `в „Чат“ се виждат модели за работа: ${menu}`);
+    await page.keyboard.press("Escape");
   });
   await step(`${label}: обикновен акаунт няма превключвател „Чат/Работа“`, async () => {
     expect(await page.locator("#interactionModeBar").isVisible(), "собственикът не вижда превключвателя");
@@ -147,32 +170,35 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect((await page.inputValue("#chatInput")).includes("Решението остава мое"), "картата не попълни полето");
     await page.fill("#chatInput", "");
   });
-  await step(`${label}: асистент от началния екран`, async () => {
+  await step(`${label}: специалист от бутона горе, до модела; един „Нов разговор“`, async () => {
     const fresh = (await page.locator("#mobileNewChatBtn").isVisible()) ? "#mobileNewChatBtn" : "#newChatBtn";
     await page.click(fresh);
     await page.waitForTimeout(400);
-    const doctor = page.locator('.assistant-row button[data-assistant="doctor"]');
-    expect(await doctor.isVisible(), "няма ред с асистенти на началния екран");
-    await doctor.click();
-    expect((await page.textContent(".assistant-chip")).includes("Лекар"), "асистентът не е избран");
+    const newChats = await page.locator("#newChatBtn:visible, #mobileNewChatBtn:visible").count();
+    expect(newChats === 1, `бутоните „Нов разговор“ на екрана са ${newChats}`);
+    expect(!(await page.locator("#quickStart .assistant-row").count()), "специалистите са и на началния екран (двойни бутони)");
+    expect(await page.locator("#assistantPickerBtn").isVisible(), "няма бутон за специалист горе");
+    await page.click("#assistantPickerBtn");
+    await page.locator(".assistant-picker button", { hasText: "Лекар" }).click();
+    expect((await page.textContent("#assistantPickerBtn")).includes("Лекар"), "специалистът не е избран");
     await send("Какво значи висок холестерол?");
     await page.waitForTimeout(900);
-    expect(requests.at(-1).assistant === "doctor", "асистентът не е изпратен");
-    await page.click(".assistant-chip button");
+    expect(requests.at(-1).assistant === "doctor", "специалистът не е изпратен");
+    await pickNone();
   });
   await step(`${label}: специалистът показва инструментите си, а списък става задачи`, async () => {
     const fresh = (await page.locator("#mobileNewChatBtn").isVisible()) ? "#mobileNewChatBtn" : "#newChatBtn";
     await page.click(fresh);
     await page.waitForTimeout(400);
-    await page.click('.assistant-row button[data-assistant="accountant"]');
+    await pickSpecialist("accountant");
     await page.locator(".assistant-tools .assistant-tool").first().waitFor({ timeout: 5000 });
     const tools = await page.locator(".assistant-tools").innerText();
     expect(tools.includes("Gmail") && tools.includes("Търсене в интернет"), `няма инструменти: ${tools}`);
     expect(await page.locator(".assistant-tools .assistant-tool-connect").isVisible(), "няма „Свържи Google“");
     expect(await page.locator('.assistant-tools [data-tool="gmail"]').isDisabled(), "Gmail работи без връзка");
-    await page.click(".assistant-chip button");
+    await pickNone();
     expect(await page.locator(".assistant-tools").isHidden(), "инструментите останаха без асистент");
-    await page.click('.assistant-row button[data-assistant="chef"]');
+    await pickSpecialist("chef");
     await page.locator(".assistant-tools .assistant-tool").first().waitFor({ timeout: 5000 });
     expect(!(await page.locator(".assistant-tools .assistant-tool-connect").count()), "готвачът не иска Google");
     await page.click('.assistant-tools [data-tool="youtube"]');
@@ -197,7 +223,7 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.evaluate(async (ids) => {
       for (const id of ids) await fetch(`/api/todos/${id}`, { method: "DELETE" });
     }, after.slice(0, 3).map((item) => item.id));
-    await page.click(".assistant-chip button");
+    await pickNone();
   });
   await step(`${label}: запис от среща става обобщение и задачи`, async () => {
     await page.click("#attachBtn");
@@ -220,18 +246,17 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     }, after.slice(0, 2).map((item) => item.id));
   });
   await step(`${label}: собствен асистент`, async () => {
-    await page.click("#attachBtn");
-    await page.click('[data-plus="assistant"]');
+    await page.click("#assistantPickerBtn");
     await page.click(".assistant-picker .library-add");
     await page.fill(".library-form input", "Моят счетоводител");
     await page.fill(".library-form textarea", "Отговаряй като счетоводител.");
     await page.click(".library-form .primary");
     await page.waitForTimeout(400);
-    expect((await page.textContent(".assistant-chip")).includes("Моят счетоводител"), "асистентът не е избран");
+    expect((await page.textContent("#assistantPickerBtn")).includes("Моят счетоводител"), "асистентът не е избран");
     await send("Въпрос към моя асистент");
     await page.waitForTimeout(900);
     expect(String(requests.at(-1).assistant).startsWith("custom:"), "собственият асистент не е изпратен");
-    await page.click(".assistant-chip button");
+    await pickNone();
   });
   await step(`${label}: собствена подсказка`, async () => {
     await page.type("#chatInput", "/зап");
@@ -655,10 +680,12 @@ async function liveSignedIn(origin) {
     await page.locator("#chatInput").waitFor({ state: "visible", timeout: 20000 });
     expect(await page.locator("#sendBtn").isVisible(), "няма бутон за изпращане");
   });
-  await step("Жив сайт: началният екран има асистентите и разговора с глас", async () => {
-    await page.waitForFunction(() => document.querySelectorAll("#quickStart .assistant-row [data-assistant]").length >= 13, null, { timeout: 8000 }).catch(() => {});
-    const shown = await page.locator("#quickStart .assistant-row [data-assistant]").count();
-    expect(shown >= 13, `няма 13 асистента (вижда: ${shown})`);
+  await step("Жив сайт: специалистите се избират горе, има и разговор с глас", async () => {
+    await page.click("#assistantPickerBtn");
+    await page.waitForFunction(() => document.querySelectorAll(".assistant-picker [data-assistant]").length >= 13, null, { timeout: 8000 }).catch(() => {});
+    const shown = await page.locator(".assistant-picker [data-assistant]").count();
+    expect(shown >= 13, `няма 13 специалиста (вижда: ${shown})`);
+    await page.keyboard.press("Escape");
     expect(await page.locator("#talkBtn").isVisible(), "няма бутон за разговор с глас");
   });
   await step("Жив сайт: групата „Моят аватар“ е пълна", async () => {

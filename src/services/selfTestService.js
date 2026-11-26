@@ -8,6 +8,7 @@ import { createKnowledgeFilesService } from "./knowledgeFilesService.js";
 import { createUserLibraryService } from "./userLibraryService.js";
 import { buildAvatarProfileContext, createAvatarProfileService } from "./avatarProfileService.js";
 import { transcribeVoice } from "./voiceTranscriptionService.js";
+import { parseMeetingUpload, transcribeMeeting } from "./meetingNotesService.js";
 import { CHAT_MODEL_CHOICES, resolveWorkAgentProvider } from "./workModeService.js";
 import { probeVertexOpenModels } from "./vertexOpenModelsService.js";
 
@@ -93,6 +94,7 @@ export async function runSelfTest({
   env = process.env,
   askAi = requestAiText,
   transcribe = transcribeVoice,
+  readMeeting = transcribeMeeting,
   readDocument = analyzeImage,
   shareService,
   knowledgeService,
@@ -122,6 +124,15 @@ export async function runSelfTest({
       { env },
     );
     return `приет от ${result.provider}; тестовият запис е тишина, затова качеството не се проверява`;
+  });
+
+  // The meeting path uploads to Gemini's Files API; silence keeps it cheap.
+  const meeting = check("Запис от среща · качване и четене", async () => {
+    if (!env.GEMINI_API_KEY && !env.OPENAI_API_KEY) throw skip("няма ключ за разпознаване");
+    const result = await readMeeting(parseMeetingUpload({ bytes: silentWav(), mimeType: "audio/wav", name: "self-test.wav" }), { env });
+    return result.provider === "gemini"
+      ? "Gemini прие и прочете записа"
+      : `прочетен през ${result.provider}; Gemini не го прие (виж логовете „[Meeting]“)`;
   });
 
   const pdf = check("PDF · четене на документ", async () => {
@@ -227,7 +238,7 @@ export async function runSelfTest({
     ].join("; ");
   });
 
-  const checks = await Promise.all([...chatChecks, voice, pdf, share, knowledge, library, avatar, lists, openModels]);
+  const checks = await Promise.all([...chatChecks, voice, meeting, pdf, share, knowledge, library, avatar, lists, openModels]);
   const failed = checks.filter(({ status }) => status === "fail").length;
   return {
     status: failed ? "fail" : "pass",

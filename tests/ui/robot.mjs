@@ -123,7 +123,7 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
   });
   await step(`${label}: менюто „+“ е кратко, личното е в „Моят аватар“`, async () => {
     await page.click("#attachBtn");
-    expect((await page.locator(".plus-menu > button:visible").count()) === 6, "менюто „+“ не е с 6 реда");
+    expect((await page.locator(".plus-menu > button:visible").count()) === 7, "менюто „+“ не е със 7 реда");
     await page.keyboard.press("Escape");
     expect((await page.locator(".mine-group [data-plus]").count()) === 7, "няма група „Моят аватар“");
     expect((await page.locator(".mine-group #memoryBtn").count()) === 1, "„Памет“ не е в групата");
@@ -198,6 +198,26 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
       for (const id of ids) await fetch(`/api/todos/${id}`, { method: "DELETE" });
     }, after.slice(0, 3).map((item) => item.id));
     await page.click(".assistant-chip button");
+  });
+  await step(`${label}: запис от среща става обобщение и задачи`, async () => {
+    await page.click("#attachBtn");
+    const chooser = page.waitForEvent("filechooser", { timeout: 5000 });
+    await page.click('.plus-menu [data-plus="meeting"]');
+    await (await chooser).setFiles({ name: "среща.m4a", mimeType: "audio/mp4", buffer: Buffer.alloc(4096, 1) });
+    await last().locator(".answer-todos").waitFor({ timeout: 8000 });
+    const sent = requests.find((item) => item.meeting);
+    expect(sent?.type === "audio/mp4" && sent.name === "среща.m4a" && sent.size === 4096, `записът не стигна: ${JSON.stringify(sent)}`);
+    const answer = await last().innerText();
+    expect(answer.includes("Среща за бюджета") && answer.includes("Моите файлове"), `няма обобщение: ${answer.slice(0, 200)}`);
+    expect((await last().locator(".answer-todos").innerText()).includes("(2)"), "бутонът не брои 2 задачи");
+    const before = await page.evaluate(async () => (await (await fetch("/api/todos")).json()).items.length);
+    await last().locator(".answer-todos").click();
+    await page.waitForTimeout(400);
+    const after = await page.evaluate(async () => (await (await fetch("/api/todos")).json()).items);
+    expect(after.length === before + 2, "задачите от срещата не се добавиха");
+    await page.evaluate(async (ids) => {
+      for (const id of ids) await fetch(`/api/todos/${id}`, { method: "DELETE" });
+    }, after.slice(0, 2).map((item) => item.id));
   });
   await step(`${label}: собствен асистент`, async () => {
     await page.click("#attachBtn");

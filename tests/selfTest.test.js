@@ -88,6 +88,10 @@ test("all checks pass, Grok without a key is skipped, nothing secret is returned
     env,
     askAi: async ({ input }) => `Числото е ${echoMarker(input[0].content)}.`,
     transcribe: async () => ({ text: "", provider: "openai" }),
+    readMeeting: async (upload) => {
+      assert.equal(upload.type, "audio/wav");
+      return { text: "", provider: "gemini" };
+    },
     readDocument: async ({ image }) =>
       echoMarker(Buffer.from(image.dataUrl.split(",")[1], "base64").toString("latin1")),
     shareService: memoryShare(),
@@ -95,12 +99,13 @@ test("all checks pass, Grok without a key is skipped, nothing secret is returned
     libraryService: memoryLibrary(),
     avatarProfileService: memoryAvatar(),
   });
+  assert.equal(report.checks.find(({ name }) => name.startsWith("Запис от среща")).detail, "Gemini прие и прочете записа");
   assert.equal(report.status, "pass");
   assert.equal(report.failed, 0);
   assert.equal(report.checks.find(({ name }) => name === "Чат · grok").status, "skipped");
   assert.equal(report.checks.find(({ name }) => name === "Чат · vertex-gemini").status, "skipped");
-  assert.equal(report.checks.length, 13);
-  assert.match(formatSelfTest(report), /10 минаха, 0 не минаха, 3 пропуснати/u);
+  assert.equal(report.checks.length, 14);
+  assert.match(formatSelfTest(report), /11 минаха, 0 не минаха, 3 пропуснати/u);
   assert.doesNotMatch(JSON.stringify(report), /"a"|"o"|"g"/u);
 });
 
@@ -112,6 +117,7 @@ test("a failing provider is reported as a failure with a short reason", async ()
       return echoMarker(input[0].content);
     },
     transcribe: async () => ({ text: "", provider: "openai" }),
+    readMeeting: async () => ({ text: "", provider: "gemini" }),
     readDocument: async () => "нищо",
     shareService: memoryShare(),
     knowledgeService: memoryKnowledge(),

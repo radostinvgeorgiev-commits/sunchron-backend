@@ -27,6 +27,10 @@
         <i class="fa-solid fa-globe" aria-hidden="true"></i>
         <span>${text("Търси в интернет")}<small>${text("Актуален отговор с източници")}</small></span>
       </button>
+      <button type="button" role="menuitem" data-plus="meeting">
+        <i class="fa-solid fa-microphone-lines" aria-hidden="true"></i>
+        <span>${text("Запис от среща")}<small>${text("Обобщение, решения и задачи")}</small></span>
+      </button>
       <button type="button" role="menuitem" data-plus="draw">
         <i class="fa-solid fa-palette" aria-hidden="true"></i>
         <span>${text("Нарисувай картинка")}<small>${text("От описанието в полето")}</small></span>
@@ -101,6 +105,9 @@
         document.dispatchEvent(new CustomEvent("aicore:web-search"));
       }
       if (key === "google") $("googleDriveBtn")?.click();
+      if (key === "meeting") {
+        document.dispatchEvent(new CustomEvent("aicore:meeting"));
+      }
       if (key === "draw") {
         document.dispatchEvent(new CustomEvent("aicore:draw-image"));
       }

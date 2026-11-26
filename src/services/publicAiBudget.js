@@ -41,6 +41,16 @@ export async function reservePublicAiFile(provider = "", model = "") {
   scope.calls++;
   await scope.reserve(scope.identity, PUBLIC_FILE_CREDITS, { provider, model });
 }
+// A meeting recording is priced by size: 2 units per started 10 MB
+// (about 10 minutes of a phone voice memo), whatever the number of calls.
+export function meetingCredits(bytes = 0) {
+  return PUBLIC_FILE_CREDITS * Math.max(1, Math.ceil(Number(bytes || 0) / (10 * 1024 * 1024)));
+}
+export async function reservePublicAiMeeting(bytes, provider = "", model = "") {
+  const scope = context.getStore();
+  if (!scope) return;
+  await scope.reserve(scope.identity, meetingCredits(bytes), { provider, model });
+}
 export const PUBLIC_CONTEXT_LIMIT = 32000;
 // A member's long conversation used to stop with "Контекстът е твърде дълъг"
 // after about ten exchanges. Instead the oldest turns are left out, as a person

@@ -179,6 +179,20 @@ export function startStubServer(port = 0) {
       });
       return undefined;
     }
+    if (p === "/chat/meeting" && req.method === "POST") {
+      let size = 0;
+      req.on("data", (chunk) => (size += chunk.length));
+      req.on("end", () => {
+        requests.push({ meeting: true, type: req.headers["content-type"], name: decodeURIComponent(req.headers["x-file-name"] || ""), size });
+        json(res, {
+          text: "## Среща за бюджета\n\nОбсъдихме бюджета за декември.\n\n**Решения:**\n- Бюджетът остава същият\n\n**Задачи:**\n- Иван: оферта до петък\n- Мария: таблица с разходите",
+          title: "Среща за бюджета",
+          tasks: ["Иван: оферта до петък", "Мария: таблица с разходите"],
+          savedToFiles: true,
+        });
+      });
+      return;
+    }
     if (p === "/chat/search" && req.method === "POST") {
       return json(res, { text: "Намерен отговор.", sources: [{ title: "Източник едно", url: "https://example.com/a" }] });
     }

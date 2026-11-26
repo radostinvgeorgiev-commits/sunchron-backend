@@ -527,6 +527,16 @@ async function startApplication(user) {
   elements.imagesBtn.addEventListener("click", openImagePicker);
   elements.toolsBtn.addEventListener("click", openToolsDrawer);
   document.getElementById("activityBtn")?.addEventListener("click", openActivityDrawer);
+  // Projects and Код live in the menu, so the phone header keeps one row.
+  for (const [menuId, targetId] of [
+    ["projectsMenuBtn", "workContextBtn"],
+    ["codeMenuBtn", "codeWorkspaceBtn"],
+  ]) {
+    document.getElementById(menuId)?.addEventListener("click", () => {
+      closeSidebar();
+      document.getElementById(targetId)?.click();
+    });
+  }
   elements.systemConfigurationBtn.addEventListener(
     "click",
     openSystemConfigurationDrawer,
@@ -1295,6 +1305,27 @@ const LIVE_TOOL_CHECKS = {
   "github-read": "github",
 };
 
+// Tells the server which tools showed as not working (names and badge text
+// only), so a problem is seen without the owner sending a screenshot.
+function reportBrokenTools(container) {
+  if (document.body.dataset.userRole !== "owner") return;
+  const items = [...container.querySelectorAll(".permission-badge.deny")].map((badge) => {
+    const card = badge.closest("article") || badge.parentElement;
+    return {
+      name: card?.querySelector("strong, h3")?.textContent || "",
+      label: badge.textContent || "",
+      reason: badge.title || card?.querySelector(".tool-live-reason")?.textContent || "",
+    };
+  });
+  if (!items.length) return;
+  fetch("/api/tools/report", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items }),
+  }).catch(() => {});
+}
+
 async function checkToolsLive(container) {
   const badges = [...container.querySelectorAll("[data-live-check]")];
   if (!badges.length) return;
@@ -1556,7 +1587,7 @@ async function openToolsDrawer() {
           })
           .join("")}
       </section>`;
-    void checkToolsLive(elements.dataDrawerBody);
+    void checkToolsLive(elements.dataDrawerBody).finally(() => reportBrokenTools(elements.dataDrawerBody));
   } catch (error) {
     renderDrawerError(error.message);
   }

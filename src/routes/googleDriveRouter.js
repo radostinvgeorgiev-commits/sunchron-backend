@@ -15,6 +15,7 @@ import {
   listDriveFiles,
   searchGoogleContacts,
   parseCookies,
+  saveAnswerToGoogle,
   sessionBelongsTo,
 } from "../services/googleDriveService.js";
 import { logSafeError } from "../utils/safeLogging.js";
@@ -236,6 +237,22 @@ router.post("/gmail/reply-draft", publicAiBudgetContext, async (req, res) => {
     if (!(error instanceof GoogleDriveError) && !(error instanceof ProductError)) {
       logSafeError("[Gmail reply draft]", error);
     }
+    sendError(res, error);
+  }
+});
+
+// Saves one answer as a Google Doc or Sheet in the person's own Drive.
+router.post("/save", async (req, res) => {
+  try {
+    const { kind, title, text } = req.body || {};
+    res.json(
+      await saveAnswerToGoogle(await sessionId(req), {
+        kind: kind === "sheet" ? "sheet" : "doc",
+        title: typeof title === "string" ? title : "",
+        text: typeof text === "string" ? text : "",
+      }),
+    );
+  } catch (error) {
     sendError(res, error);
   }
 });

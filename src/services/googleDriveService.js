@@ -213,6 +213,8 @@ export function buildAuthorizationUrl(state) {
       "openid",
       "email",
       "https://www.googleapis.com/auth/drive.readonly",
+      // Only files AI CORE itself creates (answers saved as Docs/Sheets).
+      "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/gmail.readonly",
       "https://www.googleapis.com/auth/gmail.compose",
       "https://www.googleapis.com/auth/gmail.modify",
@@ -514,6 +516,164 @@ export async function listDriveFiles(id, fetchImpl = fetch) {
   const response = await driveFetch(id, `/files?${params}`, {}, fetchImpl);
   const data = await response.json();
   return Array.isArray(data.files) ? data.files : [];
+}
+
+const DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files";
+const SAVE_KINDS = Object.freeze({
+  doc: { mimeType: "application/vnd.google-apps.document", source: "text/html" },
+  sheet: { mimeType: "application/vnd.google-apps.spreadsheet", source: "text/csv" },
+});
+const MAX_SAVE_CHARS = 200_000;
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/gu, "&amp;")
+    .replace(/</gu, "&lt;")
+    .replace(/>/gu, "&gt;")
+    .replace(/"/gu, "&quot;");
+}
+
+function inlineHtml(text) {
+  return escapeHtml(text)
+    .replace(/\*\*([^*]+)\*\*/gu, "<b>$1</b>")
+    .replace(/`([^`]+)`/gu, "<code>$1</code>");
+}
+
+function tableCells(line) {
+  return line.trim().replace(/^\|/u, "").replace(/\|$/u, "").split("|").map((cell) => cell.trim());
+}
+
+const isTableLine = (line) => /^\s*\|.*\|\s*$/u.test(line);
+const isDividerLine = (line) => /^\s*\|?[\s:|-]+\|?\s*$/u.test(line) && line.includes("-");
+
+// Simple Markdown to HTML, enough for Google Docs to keep headings, lists,
+// bold text and tables from an answer.
+export function answerToHtml(text) {
+  const lines = String(text || "").split(/\r?\n/u);
+  const out = [];
+  let list = null;
+  const closeList = () => {
+    if (list) out.push(`</${list}>`);
+    list = null;
+  };
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (isTableLine(line) && isDividerLine(lines[index + 1] || "")) {
+      closeList();
+      const head = tableCells(line);
+      const rows = [];
+      index += 2;
+      while (index < lines.length && isTableLine(lines[index])) {
+        rows.push(tableCells(lines[index]));
+        index += 1;
+      }
+      index -= 1;
+      out.push(
+        `<table border="1"><tr>${head.map((cell) => `<th>${inlineHtml(cell)}</th>`).join("")}</tr>${rows
+          .map((row) => `<tr>${row.map((cell) => `<td>${inlineHtml(cell)}</td>`).join("")}</tr>`)
+          .join("")}</table>`,
+      );
+      continue;
+    }
+    const heading = /^(#{1,6})\s+(.*)$/u.exec(line);
+    const bullet = /^\s*[-*•]\s+(.*)$/u.exec(line);
+    const numbered = /^\s*\d+[.)]\s+(.*)$/u.exec(line);
+    if (heading) {
+      closeList();
+      const level = Math.min(heading[1].length, 3);
+      out.push(`<h${level}>${inlineHtml(heading[2])}</h${level}>`);
+    } else if (bullet || numbered) {
+      const kind = bullet ? "ul" : "ol";
+      if (list !== kind) {
+        closeList();
+        out.push(`<${kind}>`);
+        list = kind;
+      }
+      out.push(`<li>${inlineHtml((bullet || numbered)[1])}</li>`);
+    } else if (!line.trim()) {
+      closeList();
+    } else {
+      closeList();
+      out.push(`<p>${inlineHtml(line)}</p>`);
+    }
+  }
+  closeList();
+  return `<html><head><meta charset="utf-8"></head><body>${out.join("")}</body></html>`;
+}
+
+function csvCell(value) {
+  const clean = String(value).replace(/\*\*/gu, "");
+  return /[",\n]/u.test(clean) ? `"${clean.replace(/"/gu, '""')}"` : clean;
+}
+
+// Every Markdown table in the answer, one after another, as CSV.
+export function answerTablesToCsv(text) {
+  const lines = String(text || "").split(/\r?\n/u);
+  const rows = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!isTableLine(lines[index]) || !isDividerLine(lines[index + 1] || "")) continue;
+    if (rows.length) rows.push([]);
+    rows.push(tableCells(lines[index]));
+    index += 2;
+    while (index < lines.length && isTableLine(lines[index])) {
+      rows.push(tableCells(lines[index]));
+      index += 1;
+    }
+  }
+  return rows.length ? rows.map((row) => row.map(csvCell).join(",")).join("\n") : "";
+}
+
+// Saves an answer as a new Google Doc or Sheet in the person's own Drive.
+// drive.file lets AI CORE touch only the files it creates.
+export async function saveAnswerToGoogle(
+  id,
+  { kind = "doc", title = "", text = "" } = {},
+  fetchImpl = fetch,
+) {
+  const target = SAVE_KINDS[kind];
+  const body = String(text || "");
+  if (!target || !body.trim() || body.length > MAX_SAVE_CHARS) {
+    throw new GoogleDriveError("Няма какво да се запази.", 400, "GOOGLE_SAVE_INVALID");
+  }
+  const content = kind === "sheet" ? answerTablesToCsv(body) : answerToHtml(body);
+  if (!content) {
+    throw new GoogleDriveError(
+      "В отговора няма таблица за Google Таблици.",
+      400,
+      "GOOGLE_SAVE_NO_TABLE",
+    );
+  }
+  const name =
+    String(title || "")
+      .replace(/[\u0000-\u001f\u007f]/gu, " ")
+      .trim()
+      .slice(0, 120) || "AI CORE";
+  const boundary = `aicore${createNonce()}`;
+  const multipart = [
+    `--${boundary}`,
+    "Content-Type: application/json; charset=UTF-8",
+    "",
+    JSON.stringify({ name, mimeType: target.mimeType }),
+    `--${boundary}`,
+    `Content-Type: ${target.source}; charset=UTF-8`,
+    "",
+    content,
+    `--${boundary}--`,
+    "",
+  ].join("\r\n");
+  const response = await googleFetch(
+    id,
+    `${DRIVE_UPLOAD_URL}?uploadType=multipart&fields=id,name,webViewLink`,
+    {
+      method: "POST",
+      headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
+      body: multipart,
+    },
+    fetchImpl,
+    "Google Drive",
+  );
+  const data = await response.json();
+  return { id: data.id, name: data.name || name, url: data.webViewLink || null, kind };
 }
 
 export async function downloadDriveFile(id, fileId, fetchImpl = fetch) {

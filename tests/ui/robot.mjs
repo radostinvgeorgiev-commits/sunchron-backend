@@ -97,6 +97,16 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect(requests.at(-1).model === "claude-haiku-4-5-20251001", "друг модел не е изпратен");
     expect((await page.locator(".user-turn").count()) === 1, "старият въпрос остана два пъти");
   });
+  await step(`${label}: „Запази в Google“ прави Google документ от отговора`, async () => {
+    await last().locator('[data-action="save-google"]').click();
+    const kinds = await page.locator(".save-google-menu button").allInnerTexts();
+    expect(kinds.join("|") === "Google документ", `менюто е ${kinds.join("|")}`);
+    await page.locator(".save-google-menu button", { hasText: "Google документ" }).click();
+    const note = last().locator(".save-google-note");
+    await note.locator("a").waitFor({ timeout: 5000 });
+    expect((await note.innerText()).includes("Запазено като Google документ"), "няма потвърждение");
+    expect((await note.locator("a").getAttribute("href")).startsWith("https://docs.google.com/document/"), "няма линк към документа");
+  });
   await step(`${label}: редакция на изпратено съобщение`, async () => {
     await page.locator(".user-turn").first().locator('[data-action="edit"]').click();
     await page.fill(".message-edit textarea", "Здравей, редактирано");

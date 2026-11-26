@@ -2659,6 +2659,9 @@ function createAssistantTurn(text = "", showActions = true) {
         <button type="button" data-action="retry-model" class="retry-action" title="${localizedMarkup("Пробвай с друг модел")}" aria-label="${localizedMarkup("Пробвай с друг модел")}">
             <i class="fa-solid fa-shuffle"></i>
         </button>
+        <button type="button" data-action="save-google" title="${localizedMarkup("Запази в Google")}" aria-label="${localizedMarkup("Запази в Google")}">
+            <i class="fa-brands fa-google-drive"></i>
+        </button>
         <button type="button" data-action="open-panel" title="${localizedMarkup("Отвори отстрани")}" aria-label="${localizedMarkup("Отвори отстрани")}">
             <i class="fa-solid fa-up-right-from-square"></i>
         </button>
@@ -3411,6 +3414,11 @@ async function handleMessageAction(event) {
     return;
   }
 
+  if (action === "save-google") {
+    openSaveGoogleMenu(button, turn, text);
+    return;
+  }
+
   if (action === "copy") {
     await copyText(text);
     const icon = button.querySelector("i");
@@ -3506,6 +3514,98 @@ function openRetryModelMenu(button, onPick) {
   setTimeout(() => {
     document.addEventListener("click", () => menu.remove(), { once: true });
   });
+}
+
+// Saves an answer as a new Google Doc, or its tables as a Google Sheet, in
+// the person's own Drive. Each account uses its own Google connection.
+const ANSWER_TABLE_PATTERN = /^\s*\|.*\|\s*\n\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/mu;
+
+function openSaveGoogleMenu(button, turn, text) {
+  document.querySelector(".retry-model-menu")?.remove();
+  const menu = document.createElement("div");
+  menu.className = "retry-model-menu save-google-menu";
+  menu.setAttribute("role", "menu");
+  const choices = [{ kind: "doc", label: "Google документ" }];
+  if (ANSWER_TABLE_PATTERN.test(text)) choices.push({ kind: "sheet", label: "Google таблица" });
+  for (const choice of choices) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.setAttribute("role", "menuitem");
+    item.dataset.saveKind = choice.kind;
+    item.textContent = chatText(choice.label);
+    item.addEventListener("click", (event) => {
+      event.stopPropagation();
+      menu.remove();
+      void saveAnswerToGoogle(button, turn, text, choice.kind);
+    });
+    menu.appendChild(item);
+  }
+  button.closest(".message-actions")?.appendChild(menu);
+  setTimeout(() => {
+    document.addEventListener("click", () => menu.remove(), { once: true });
+  });
+}
+
+function showSaveGoogleNote(turn, message, url = "", linkLabel = "") {
+  const actions = turn.querySelector(".message-actions");
+  let note = turn.querySelector(".save-google-note");
+  if (!note) {
+    note = document.createElement("div");
+    note.className = "save-google-note";
+    note.setAttribute("role", "status");
+    actions?.after(note);
+  }
+  note.textContent = chatText(message);
+  // An error may carry a "[Свържи Google](url)" link; only same-site links.
+  const linked = /\[([^\]]+)\]\((https:\/\/cloudaicore\.com\/[^)\s]*)\)/u.exec(message);
+  if (linked) {
+    note.textContent = chatText(message.replace(linked[0], "").trim()) + " ";
+    url = linked[2];
+    linkLabel = linked[1];
+  }
+  if (url) {
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = chatText(linkLabel || "Отвори");
+    note.appendChild(link);
+  }
+}
+
+async function saveAnswerToGoogle(button, turn, text, kind) {
+  const question = previousUserTurn(turn)?.__request?.text || "";
+  const title = (question || text).replace(/\s+/gu, " ").trim().slice(0, 80);
+  button.disabled = true;
+  showSaveGoogleNote(turn, "Запазвам в Google…");
+  try {
+    const response = await fetch("/api/google/save", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, title, text }),
+    });
+    const data = await response.json().catch(() => null);
+    if (response.ok && data?.url) {
+      showSaveGoogleNote(
+        turn,
+        kind === "sheet" ? "Запазено като Google таблица." : "Запазено като Google документ.",
+        data.url,
+        "Отвори",
+      );
+      logAction(kind === "sheet" ? "Отговорът е запазен като Google таблица" : "Отговорът е запазен като Google документ");
+      return;
+    }
+    if (response.status === 401 && !data?.error?.includes("](")) {
+      showSaveGoogleNote(turn, "Google не е свързан.", "/api/google/connect", "Свържи Google");
+      return;
+    }
+    showSaveGoogleNote(turn, data?.error || "Google не прие файла. Опитай пак.");
+  } catch {
+    showSaveGoogleNote(turn, "Няма връзка. Опитай пак.");
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function startEditingMessage(userTurn) {

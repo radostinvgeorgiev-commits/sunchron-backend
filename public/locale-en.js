@@ -52,6 +52,15 @@ AI предлага, ти одобряваш, системата изпълня�
 Модели за работа|Models for work
 Избери специалист|Choose a specialist
 Без специалист|No specialist
+Запази в Google|Save to Google
+Google документ|Google Doc
+Google таблица|Google Sheet
+Запазвам в Google…|Saving to Google…
+Запазено като Google таблица.|Saved as a Google Sheet.
+Запазено като Google документ.|Saved as a Google Doc.
+Google не е свързан.|Google is not connected.
+Google не прие файла. Опитай пак.|Google did not accept the file. Try again.
+Няма връзка. Опитай пак.|No connection. Try again.
 Обикновен разговор с AI CORE|A regular chat with AI CORE
 Разговори|Conversations
 Работа|Work

@@ -128,6 +128,8 @@
   background: transparent; color: #000; font-weight: 700; text-align: left;
 }
 .retry-model-menu button:hover { background: #eef3f0; }
+.save-google-note { margin: 2px 0 8px; font-size: 14px; color: #33413a; }
+.save-google-note a { color: #2f6b52; font-weight: 700; }
 
 /* Editing a sent message. */
 .message-edit { display: flex; flex-direction: column; gap: 8px; width: min(100%, 680px); margin-left: auto; }

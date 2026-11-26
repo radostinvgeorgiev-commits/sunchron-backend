@@ -386,3 +386,19 @@ test("paid accounts are not topped up by the starter change", async () => {
   const service = createProductPlansService({ store, now });
   assert.equal((await service.usage(member)).remaining, 50);
 });
+
+test("the shared cap lets about 30–50 people use AI on the same day", async () => {
+  const { PUBLIC_DAILY_CREDIT_CAP, PUBLIC_MONTHLY_CREDIT_CAP } = await import(
+    "../src/services/productPlansService.js"
+  );
+  assert.equal(PUBLIC_DAILY_CREDIT_CAP, 1000);
+  assert.equal(PUBLIC_MONTHLY_CREDIT_CAP, 10_000);
+  const store = memoryStore();
+  const service = createProductPlansService({ store, now });
+  // 301 units in one day: the old cap of 300 stopped everybody here.
+  for (let person = 0; person < 4; person++) {
+    const someone = { role: "member", memoryOwnerId: `identity-platform:busy-${person}` };
+    for (let turn = 0; turn < 25; turn++) await service.reserve(someone, 3);
+  }
+  await service.reserve(other, 1);
+});

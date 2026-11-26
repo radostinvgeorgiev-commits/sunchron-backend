@@ -61,6 +61,8 @@ import { getDailyPlanService } from "./src/services/dailyPlanService.js";
 import { getCausesService } from "./src/services/causesService.js";
 import { getAvatarProfileService } from "./src/services/avatarProfileService.js";
 import { createPersonalTodoRouter } from "./src/routes/personalTodoRouter.js";
+import { createAvatarLinkRouter, createAvatarVisitorRouter } from "./src/routes/avatarLinkRouter.js";
+import { getAvatarLinkService } from "./src/services/avatarLinkService.js";
 import { getPersonalTodoService } from "./src/services/personalTodoService.js";
 import { createKnowledgeFilesRouter } from "./src/routes/knowledgeFilesRouter.js";
 import { getKnowledgeFilesService } from "./src/services/knowledgeFilesService.js";
@@ -300,6 +302,25 @@ app.use(
 app.get("/status", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.sendFile("status.html", { root: "public" });
+});
+// "Питай моя аватар": the person's own link, and the public visitor side.
+// Visitors are limited per address here and per link per day in the service.
+app.use(
+  "/api/avatar-link",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  createAvatarLinkRouter({ service: getAvatarLinkService() }),
+);
+app.use(
+  "/api/avatar-visit",
+  createApiRateLimiter({ limit: 30, code: "AVATAR_VISIT_RATE_LIMIT" }),
+  createAvatarVisitorRouter({ service: getAvatarLinkService() }),
+);
+app.get("/a/:token", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.sendFile("avatar.html", { root: "public" });
 });
 app.get("/s/:token", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");

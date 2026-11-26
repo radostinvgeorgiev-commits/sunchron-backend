@@ -205,13 +205,20 @@
       }),
     );
   };
-  fetch("/chat/assistants", { credentials: "same-origin" })
-    .then((response) => (response.ok ? response.json() : null))
-    .then((data) => {
-      assistants = Array.isArray(data?.items) ? data.items : [];
-      renderStartRow();
-    })
-    .catch(() => {});
+  const loadAssistants = () =>
+    fetch("/chat/assistants", { credentials: "same-origin" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!Array.isArray(data?.items)) return;
+        assistants = data.items;
+        renderStartRow();
+      })
+      .catch(() => {});
+  loadAssistants();
+  // Before sign-in the list is refused; load it again once the person is in.
+  document.addEventListener("aicore:signed-in", () => {
+    if (!assistants.length) loadAssistants();
+  });
 
   // ---- "/" prompts --------------------------------------------------------
   const PROMPTS = [

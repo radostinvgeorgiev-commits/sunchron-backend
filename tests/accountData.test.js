@@ -69,6 +69,8 @@ function deletionDeps(calls, { signIn } = {}) {
     clearMemories: async (scope, ownerId) => (calls.push(["memories", scope, ownerId]), 3),
     deleteConversations: async (ownerId) => (calls.push(["conversations", ownerId]), 5),
     deleteWorkspace: async (ownerId) => calls.push(["workspace", ownerId]),
+    forgetAvatarLink: async (ownerId) => calls.push(["avatar-link", ownerId]),
+    clearTodos: async (ownerId) => calls.push(["todos", ownerId]),
     audit: async (event) => calls.push(["audit", event.action]),
   };
 }
@@ -106,6 +108,8 @@ test("deletion requires the phrase and a fresh password check, then removes ever
     ["memories", undefined, "owner-1"],
     ["conversations", "owner-1"],
     ["workspace", "owner-1"],
+    ["avatar-link", "owner-1"],
+    ["todos", "owner-1"],
     ["deleteAccount", "fresh"],
     ["audit", "account.delete"],
   ]);

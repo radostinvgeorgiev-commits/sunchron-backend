@@ -24,6 +24,8 @@ const TYPES = { ".js": "text/javascript", ".mjs": "text/javascript", ".css": "te
 export function startStubServer(port = 0) {
   const requests = [];
   const todos = [];
+  let avatarLink = { active: false, card: {} };
+  const visitorQuestions = [];
   const feedback = [];
   let library = { assistants: [], prompts: [] };
   let files = [];
@@ -70,6 +72,29 @@ export function startStubServer(port = 0) {
     }
     if (p === "/api/images" && req.method === "POST") {
       return json(res, { image: "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==", prompt: "котка" });
+    }
+    if (p === "/api/avatar-link") {
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        if (req.method === "PUT") avatarLink = { active: true, url: `http://${req.headers.host}/a/AbCdEfGhIjKlMnOpQrStUvWxYz012345`, card: JSON.parse(body).card, usedToday: 0, perDay: 30 };
+        if (req.method === "DELETE") avatarLink = { active: false, card: avatarLink.card };
+        return json(res, avatarLink);
+      });
+      return undefined;
+    }
+    if (p.startsWith("/api/avatar-visit/")) {
+      if (!avatarLink.active) return json(res, { error: "Този аватар не е достъпен или линкът е спрян." }, 404);
+      if (p.endsWith("/ask")) {
+        let body = "";
+        req.on("data", (chunk) => (body += chunk));
+        req.on("end", () => {
+          visitorQuestions.push(JSON.parse(body));
+          json(res, { answer: `Работното време на ${avatarLink.card.name} е от 9 до 17 ч.` });
+        });
+        return undefined;
+      }
+      return json(res, { name: avatarLink.card.name, intro: avatarLink.card.intro });
     }
     if (p.startsWith("/api/todos")) {
       let body = "";
@@ -227,6 +252,7 @@ export function startStubServer(port = 0) {
     const hashed = p.match(/^\/assets\/[^/]+\/(.+)$/u);
     if (hashed) p = `/${hashed[1]}`;
     if (p.startsWith("/s/")) p = "/shared.html";
+    if (p.startsWith("/a/")) p = "/avatar.html";
     if (p === "/status") p = "/status.html";
     if (p === "/") p = "/index.html";
     const file = path.join(root, path.normalize(p));

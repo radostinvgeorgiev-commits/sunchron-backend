@@ -125,7 +125,7 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.click("#attachBtn");
     expect((await page.locator(".plus-menu > button:visible").count()) === 6, "менюто „+“ не е с 6 реда");
     await page.keyboard.press("Escape");
-    expect((await page.locator(".mine-group [data-plus]").count()) === 6, "няма група „Моят аватар“");
+    expect((await page.locator(".mine-group [data-plus]").count()) === 7, "няма група „Моят аватар“");
     expect((await page.locator(".mine-group #memoryBtn").count()) === 1, "„Памет“ не е в групата");
   });
   await step(`${label}: обикновен акаунт няма превключвател „Чат/Работа“`, async () => {
@@ -312,6 +312,35 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
   });
   // Close the window even when a check above failed, so the next steps can click.
   if (await page.locator(".todo-dialog").isVisible()) await page.locator(".todo-dialog .share-close").click();
+  await step(`${label}: „Питай моя аватар“: линк, въпрос от посетител и спиране`, async () => {
+    await openMine("link");
+    const box = page.locator(".avatar-link-dialog");
+    await box.waitFor({ state: "visible", timeout: 5000 });
+    await box.locator("#avatarLinkName").fill("Мария");
+    await box.locator("#avatarLinkKnowledge").fill("Работя от 9 до 17 ч.");
+    await box.locator(".avatar-link-save").click();
+    await page.waitForFunction(() => document.querySelector(".avatar-link-url input")?.value.includes("/a/"), null, { timeout: 5000 }).catch(() => {});
+    const url = await box.locator(".avatar-link-url input").inputValue();
+    expect(url.includes("/a/"), "няма линк");
+    const visitor = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: "bg-BG" });
+    // Wait for the card to load instead of a fixed pause; the CI machine is slower than a laptop.
+    const nameShown = (want) => visitor.waitForFunction((text) => document.getElementById("avatarName")?.textContent.includes(text), want, { timeout: 8000 }).catch(() => {});
+    await visitor.goto(url, { waitUntil: "domcontentloaded" });
+    await nameShown("Мария");
+    const shownName = await visitor.textContent("#avatarName");
+    expect(shownName.includes("Мария"), `посетителят не вижда името (вижда: ${shownName.trim().slice(0, 80)})`);
+    await visitor.fill("#avatarQuestion", "Кога работиш?");
+    await visitor.click("#avatarAsk button");
+    await visitor.waitForFunction(() => document.querySelectorAll(".shared-message.agent").length >= 2 && !document.getElementById("avatarAsk")?.dataset.busy, null, { timeout: 8000 }).catch(() => {});
+    expect((await visitor.locator(".shared-message.agent").last().innerText()).includes("9 до 17"), "няма отговор за посетителя");
+    await box.locator(".avatar-link-stop").click();
+    await page.waitForTimeout(400);
+    await visitor.reload();
+    await nameShown("не е достъпен");
+    expect((await visitor.textContent("#avatarName")).includes("не е достъпен"), "спреният линк още работи");
+    await visitor.close();
+  });
+  if (await page.locator(".avatar-link-dialog").isVisible()) await page.locator(".avatar-link-dialog .share-close").click();
   await step(`${label}: „Нарисувай картинка“ показва картинката`, async () => {
     await page.fill("#chatInput", "котка на луната");
     await page.click("#attachBtn");
@@ -568,8 +597,9 @@ async function liveSignedIn(origin) {
     expect(await page.locator("#sendBtn").isVisible(), "няма бутон за изпращане");
   });
   await step("Жив сайт: началният екран има асистентите и разговора с глас", async () => {
-    await page.waitForTimeout(1500);
-    expect((await page.locator("#quickStart .assistant-row [data-assistant]").count()) >= 13, "няма 13 асистента");
+    await page.waitForFunction(() => document.querySelectorAll("#quickStart .assistant-row [data-assistant]").length >= 13, null, { timeout: 8000 }).catch(() => {});
+    const shown = await page.locator("#quickStart .assistant-row [data-assistant]").count();
+    expect(shown >= 13, `няма 13 асистента (вижда: ${shown})`);
     expect(await page.locator("#talkBtn").isVisible(), "няма бутон за разговор с глас");
   });
   await step("Жив сайт: групата „Моят аватар“ е пълна", async () => {

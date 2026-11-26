@@ -597,8 +597,9 @@ async function liveSignedIn(origin) {
     expect(await page.locator("#sendBtn").isVisible(), "няма бутон за изпращане");
   });
   await step("Жив сайт: началният екран има асистентите и разговора с глас", async () => {
-    await page.waitForTimeout(1500);
-    expect((await page.locator("#quickStart .assistant-row [data-assistant]").count()) >= 13, "няма 13 асистента");
+    await page.waitForFunction(() => document.querySelectorAll("#quickStart .assistant-row [data-assistant]").length >= 13, null, { timeout: 8000 }).catch(() => {});
+    const shown = await page.locator("#quickStart .assistant-row [data-assistant]").count();
+    expect(shown >= 13, `няма 13 асистента (вижда: ${shown})`);
     expect(await page.locator("#talkBtn").isVisible(), "няма бутон за разговор с глас");
   });
   await step("Жив сайт: групата „Моят аватар“ е пълна", async () => {

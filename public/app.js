@@ -484,6 +484,9 @@ async function startApplication(user) {
   });
   elements.authGate.hidden = true;
   elements.appShell.hidden = false;
+  // Parts that loaded before sign-in (e.g. the assistants row) reload now,
+  // so signing in with a password needs no page refresh.
+  document.dispatchEvent(new CustomEvent("aicore:signed-in"));
   if (user?.role === "owner") {
     globalThis.SynchronCodeWorkspace?.afterSignIn();
     globalThis.SynchronAiSpend?.start();

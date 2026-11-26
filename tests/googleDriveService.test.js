@@ -574,3 +574,24 @@ test("an empty Drive file is reported as empty without asking a model", async ()
     else process.env.OPENAI_API_KEY = saved;
   }
 });
+
+test("a member's first Google connection asks only for scopes Google's free check covers", async () => {
+  const { buildAuthorizationUrl, GOOGLE_EXTRA_SCOPES } = await import("../src/services/googleDriveService.js");
+  const saved = { ...process.env };
+  process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "client";
+  process.env.GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "secret";
+  process.env.GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || "https://example.test/api/google/callback";
+  try {
+    const member = new URL(buildAuthorizationUrl("s", [], { owner: false })).searchParams.get("scope");
+    assert.doesNotMatch(member, /gmail\.readonly|gmail\.modify|gmail\.compose|drive\.readonly/u);
+    assert.match(member, /gmail\.send/u);
+    assert.match(member, /calendar\.events/u);
+    assert.match(member, /drive\.file/u);
+    const owner = new URL(buildAuthorizationUrl("s")).searchParams.get("scope");
+    assert.match(owner, /gmail\.readonly/u);
+    const gmail = new URL(buildAuthorizationUrl("s", ["gmail"], { owner: false })).searchParams.get("scope");
+    assert.equal(gmail, `openid email ${GOOGLE_EXTRA_SCOPES.gmail}`);
+  } finally {
+    process.env = saved;
+  }
+});

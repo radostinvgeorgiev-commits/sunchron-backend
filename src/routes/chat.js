@@ -317,6 +317,17 @@ function memberAssistantContext(personName) {
   ].join("\n");
 }
 
+// The owner's Council knows the AI CORE project; a member's Council knows
+// that member's own avatar profile and never the project's facts.
+export function buildCouncilContext({ owner, avatarProfile = "", projectReference = "" }) {
+  return [
+    ...(owner ? PROJECT_BASE_CONTEXT.slice(0, 8) : [avatarProfile]),
+    projectReference,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export function buildAvatarMessages(
   memories,
   history,
@@ -2068,12 +2079,14 @@ router.post("/chat", async (req, res) => {
         language,
         selectedProviders:
           councilProviders === undefined ? undefined : councilProviders,
-        context: [
-          ...PROJECT_BASE_CONTEXT.slice(0, 8),
-          buildProjectConversationReference(projectConversationContext, 5_500),
-        ]
-          .filter(Boolean)
-          .join("\n"),
+        context: buildCouncilContext({
+          owner: ownerToolsAllowed,
+          avatarProfile,
+          projectReference: buildProjectConversationReference(
+            projectConversationContext,
+            5_500,
+          ),
+        }),
       });
       let councilIntent = null;
       try {

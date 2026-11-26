@@ -5,7 +5,7 @@ import {
 } from "./googleAdcAuth.js";
 
 const DEFAULT_VERTEX_AI_LOCATION = "us-central1";
-const DEFAULT_VERTEX_AI_MODEL = "gemini-2.5-flash";
+const DEFAULT_VERTEX_AI_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_VERTEX_AI_TIMEOUT_MS = 30_000;
 const CLOUD_RUN_VERTEX_AI_LOCATION = "global";
 const CLOUD_RUN_VERTEX_AI_MODEL = "gemini-3.5-flash-lite";

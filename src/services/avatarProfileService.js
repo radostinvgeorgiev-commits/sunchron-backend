@@ -87,7 +87,13 @@ export function createAvatarProfileService({ store, env = process.env, now = () 
       return "";
     }
   }
-  return { read, save, contextFor };
+  // Account deletion: the description goes with the account.
+  async function forget(ownerId) {
+    await db().commitOperations([
+      { type: "delete", collection: AVATAR_PROFILE_COLLECTION, id: documentId(ownerId) },
+    ]);
+  }
+  return { read, save, contextFor, forget };
 }
 
 let defaultService;

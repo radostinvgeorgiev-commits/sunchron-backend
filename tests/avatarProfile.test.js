@@ -20,7 +20,8 @@ function memoryStore() {
       return data ? { data: structuredClone(data) } : null;
     },
     async commitOperations([op]) {
-      docs.set(`${op.collection}/${op.id}`, structuredClone(op.data));
+      if (op.type === "delete") docs.delete(`${op.collection}/${op.id}`);
+      else docs.set(`${op.collection}/${op.id}`, structuredClone(op.data));
     },
   };
 }
@@ -53,6 +54,10 @@ test("each account has its own profile and can erase it", async () => {
   await service.save("maria", {});
   assert.equal(await service.contextFor("maria"), "");
   await assert.rejects(() => service.read(""), { code: "AVATAR_PROFILE_OWNER_REQUIRED" });
+  // Deleting the account removes the profile itself, not only its text.
+  await service.forget("ivan");
+  assert.equal(store.docs.size, 1);
+  assert.equal((await service.read("ivan")).about, "");
 });
 
 test("a storage problem never stops the chat", async () => {

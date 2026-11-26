@@ -526,6 +526,7 @@ async function startApplication(user) {
   elements.sidebarBackdrop.addEventListener("click", closeSidebar);
   elements.imagesBtn.addEventListener("click", openImagePicker);
   elements.toolsBtn.addEventListener("click", openToolsDrawer);
+  document.getElementById("activityBtn")?.addEventListener("click", openActivityDrawer);
   elements.systemConfigurationBtn.addEventListener(
     "click",
     openSystemConfigurationDrawer,
@@ -1683,6 +1684,53 @@ function escapeHtml(value) {
   const div = document.createElement("div");
   div.textContent = String(value ?? "");
   return div.innerHTML;
+}
+
+// The owner's „Активност“: daily counts of people, messages and visits
+// from each ad variant. Numbers only; nothing about who.
+async function openActivityDrawer() {
+  openDataDrawer(chatText("Активност"));
+  renderDrawerLoading();
+  try {
+    const response = await fetch("/api/activity?days=14", { cache: "no-store" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Активността временно не е достъпна.");
+    const days = Array.isArray(data.days) ? data.days : [];
+    const total = (field) => days.reduce((sum, day) => sum + (Number(day[field]) || 0), 0);
+    const ads = (day) =>
+      ["landing_variant_1", "landing_variant_2", "landing_variant_3"]
+        .map((field) => Number(day[field]) || 0)
+        .join(" / ");
+    const peak = Math.max(1, ...days.map((day) => Number(day.active) || 0));
+    const rows = days
+      .map(
+        (day) => `
+        <tr>
+          <td>${escapeHtml(day.date.slice(5).split("-").reverse().join("."))}</td>
+          <td><span class="activity-bar" style="width:${Math.round(((Number(day.active) || 0) / peak) * 100)}%"></span>${Number(day.active) || 0}</td>
+          <td>${Number(day.messages) || 0}</td>
+          <td>${Number(day.registrations) || 0}</td>
+          <td>${escapeHtml(ads(day))}</td>
+        </tr>`,
+      )
+      .join("");
+    elements.dataDrawerBody.innerHTML = `
+      <div class="activity-totals">
+        <div><strong>${total("active")}</strong><span>${localizedMarkup("активни (сбор по дни)")}</span></div>
+        <div><strong>${total("messages")}</strong><span>${localizedMarkup("съобщения")}</span></div>
+        <div><strong>${total("registrations")}</strong><span>${localizedMarkup("нови профили")}</span></div>
+        <div><strong>${total("landing_variant_1") + total("landing_variant_2") + total("landing_variant_3")}</strong><span>${localizedMarkup("дошли от реклама")}</span></div>
+      </div>
+      <p class="activity-note">${localizedMarkup("Последните 14 дни. Само бройки, без имена и без текст от разговорите. Рекламата е по варианти 1 / 2 / 3.")}</p>
+      <div class="activity-table-wrap">
+        <table class="activity-table">
+          <thead><tr><th>${localizedMarkup("Ден")}</th><th>${localizedMarkup("Активни")}</th><th>${localizedMarkup("Съобщения")}</th><th>${localizedMarkup("Нови")}</th><th>${localizedMarkup("Реклама")}</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  } catch (error) {
+    renderDrawerError(error.message);
+  }
 }
 
 function openMyDataDrawer() {

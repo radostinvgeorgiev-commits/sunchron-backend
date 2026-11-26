@@ -42,6 +42,8 @@ import webSearchRouter from "./src/routes/webSearchRouter.js";
 import publicConfigRouter from "./src/routes/publicConfigRouter.js";
 import userAuthRouter, { handleGoogleSignInCallback } from "./src/routes/userAuthRouter.js";
 import { isGoogleSignInCallback } from "./src/services/googleSignInService.js";
+import { getActivityService } from "./src/services/activityService.js";
+import { logSafeError } from "./src/utils/safeLogging.js";
 import testerAuthAdminRouter from "./src/routes/testerAuthAdminRouter.js";
 import systemRouter from "./src/routes/systemRouter.js";
 import workspacesRouter from "./src/routes/workspacesRouter.js";
@@ -193,6 +195,21 @@ app.use(
   requirePrimaryOwner,
   privateApiRateLimiter,
   createEarlyAccessAdminRouter(),
+);
+// The owner's „Активност“ page: daily counts only, no personal data.
+app.get(
+  "/api/activity",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  privateApiRateLimiter,
+  async (req, res) => {
+    try {
+      res.json({ days: await getActivityService().summary(req.query.days) });
+    } catch (error) {
+      logSafeError("[Activity] summary", error);
+      res.status(503).json({ error: "Активността временно не е достъпна." });
+    }
+  },
 );
 app.use("/api/github", oauthRateLimiter, githubOAuthRouter);
 const chatGptMcpRouter = createChatGptMcpRouter();

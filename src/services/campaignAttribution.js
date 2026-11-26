@@ -1,3 +1,5 @@
+import { campaignField, recordActivity } from "./activityService.js";
+
 const trackedVariants = new Set([
   "variant-1",
   "variant-2",
@@ -23,7 +25,15 @@ export function readCampaignAttribution(query) {
   };
 }
 
+const EVENT_FIELDS = Object.freeze({
+  campaign_landing: (attribution) => campaignField("landing", attribution),
+  campaign_registration: () => "registrations_campaign",
+  campaign_early_access: () => "early_access",
+});
+
 export function logCampaignEvent(event, attribution) {
   if (!attribution) return;
   console.info(JSON.stringify({ event, ...attribution }));
+  const field = EVENT_FIELDS[event]?.(attribution);
+  if (field) recordActivity({ [field]: 1 });
 }

@@ -32,10 +32,27 @@ export async function reservePublicAiFile(provider = "", model = "") {
   scope.calls++;
   await scope.reserve(scope.identity, PUBLIC_FILE_CREDITS, { provider, model });
 }
+export const PUBLIC_CONTEXT_LIMIT = 32000;
+// A member's long conversation used to stop with "Контекстът е твърде дълъг"
+// after about ten exchanges. Instead the oldest turns are left out, as a person
+// forgets the start of a long talk; the instructions and the newest message
+// always stay. Only applies inside a member's request (the owner has no cap).
+export function fitPublicAiInput(input, limit = PUBLIC_CONTEXT_LIMIT) {
+  if (!context.getStore() || !Array.isArray(input)) return input;
+  const size = (items) => JSON.stringify(items).length;
+  if (size(input) <= limit) return input;
+  const kept = [...input];
+  const lastIndex = () => kept.length - 1;
+  for (let index = 0; index < lastIndex() && size(kept) > limit; ) {
+    if (kept[index]?.role === "system") index++;
+    else kept.splice(index, 1);
+  }
+  return kept;
+}
 export async function reservePublicAiCall(input, provider = "", model = "") {
   const scope = context.getStore();
   if (!scope) return;
-  if (JSON.stringify(input || "").length > 32000)
+  if (JSON.stringify(input || "").length > PUBLIC_CONTEXT_LIMIT)
     throw new ProductError(
       "Контекстът е твърде дълъг. Започни нов разговор.",
       "AI_CONTEXT_LIMIT",

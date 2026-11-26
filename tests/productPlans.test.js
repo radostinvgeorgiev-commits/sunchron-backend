@@ -312,6 +312,54 @@ test("public budgets cap provider output and charge each attempt before network 
   assert.equal(reserved, 6);
 });
 
+// A member's long conversation keeps going: the oldest turns are left out
+// instead of the request stopping with "Контекстът е твърде дълъг".
+test("a long member conversation drops its oldest turns and still answers", async () => {
+  const { createPublicAiBudgetContext } = await import("../src/services/publicAiBudget.js");
+  const { requestAiResponse } = await import("../src/services/aiCoreService.js");
+  const reply = "Подробен отговор с план и стъпки. ".repeat(80);
+  const input = [{ role: "system", content: "Правила на аватара." }];
+  for (let turn = 0; turn < 12; turn++) {
+    input.push({ role: "user", content: `Въпрос ${turn}` });
+    input.push({ role: "assistant", content: reply });
+  }
+  input.push({ role: "user", content: "Последен въпрос" });
+  assert.ok(JSON.stringify(input).length > 32000);
+  const middleware = createPublicAiBudgetContext({ reserve: async () => {} });
+  let sent;
+  await middleware({ owner: member }, {}, async () => {
+    const result = await requestAiResponse({
+      provider: "claude",
+      apiKey: "test",
+      input,
+      fetchImpl: async (_url, opts) => {
+        sent = JSON.parse(opts.body);
+        return { ok: true, json: async () => ({ content: [{ type: "text", text: "ok" }] }) };
+      },
+    });
+    assert.equal(result.text, "ok");
+  });
+  assert.equal(sent.system, "Правила на аватара.");
+  assert.equal(sent.messages.at(-1).content, "Последен въпрос");
+  assert.equal(sent.messages[0].role, "user");
+  assert.ok(JSON.stringify(sent).length <= 33000);
+  assert.ok(sent.messages.length > 3, "keeps the recent turns");
+  // The owner's request is not trimmed.
+  let ownerSent;
+  await createPublicAiBudgetContext()({ owner: { role: "owner" } }, {}, async () => {
+    await requestAiResponse({
+      provider: "claude",
+      apiKey: "test",
+      input,
+      fetchImpl: async (_url, opts) => {
+        ownerSent = JSON.parse(opts.body);
+        return { ok: true, json: async () => ({ content: [{ type: "text", text: "ok" }] }) };
+      },
+    });
+  });
+  assert.equal(ownerSent.messages.length, 25);
+});
+
 test("legacy free accounts get the starter difference exactly once", async () => {
   const store = memoryStore();
   const id = productAccountId(member);

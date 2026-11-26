@@ -57,6 +57,24 @@ test("from Facebook only the person's own posts, comments and messages are kept"
   assert.doesNotMatch(all, /Тайна на Иван/u);
 });
 
+test("Facebook: message requests count, a chat with a namesake stays on the device", () => {
+  const me = mojibake("Радко Георгиев");
+  const files = [
+    ["x/personal_information/profile_information/profile_information.json", JSON.stringify({ profile_v2: { name: { full_name: me } } })],
+    ["x/your_facebook_activity/messages/message_requests/maria_1/message_1.json", JSON.stringify({
+      participants: [{ name: me }, { name: mojibake("Мария") }],
+      messages: [{ sender_name: me, timestamp_ms: 1700000200000, content: mojibake("Благодаря за поканата.") }],
+    })],
+    ["x/your_facebook_activity/messages/inbox/group_1/message_1.json", JSON.stringify({
+      participants: [{ name: me }, { name: me }, { name: mojibake("Иван") }],
+      messages: [{ sender_name: me, timestamp_ms: 1700000300000, content: mojibake("Думи на съименника") }],
+    })],
+  ];
+  const all = extractFacebook(files).map(({ text }) => text).join("\n");
+  assert.match(all, /Благодаря за поканата\./u);
+  assert.doesNotMatch(all, /съименника/u);
+});
+
 test("from Google Takeout come Keep notes and calendar events", () => {
   const parts = extractTakeout([
     ["Takeout/Keep/Бележка.json", JSON.stringify({ title: "Пазар", textContent: "мляко и хляб за седмицата", userEditedTimestampUsec: 1.7e15 })],

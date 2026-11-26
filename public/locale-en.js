@@ -510,5 +510,38 @@ YouTube видео|YouTube video
 Какво имам в календара тази седмица?|What is on my calendar this week?
 Покажи последните ми писма в Gmail|Show my latest Gmail messages
 Покажи последните ми файлове в Google Drive|Show my latest files in Google Drive
+Добавки|Add-ons
+Магазин|Store
+Моите добавки|My add-ons
+За преглед|To review
+Пусни|Run
+Пробвай|Try it
+Промени|Edit
+Изпрати за преглед|Send for review
+Махни от магазина|Remove from store
+Одобри|Approve
+Откажи|Reject
+Прати в чата|Send to chat
+Виж кода|View code
+Само за мен|Only me
+Чака преглед|Awaiting review
+В магазина|In the store
+Отказана|Rejected
+Чете от|Reads from
+Име|Name
+Какво прави|What it does
+Адрес за данни (по желание)|Data address (optional)
+Код (JavaScript)|Code (JavaScript)
+Проба: какво пише човекът|Test: what the person types
+Пускам в затворената среда…|Running in the sandbox…
+Изпратено за преглед.|Sent for review.
+Записано. Вижда я само ти, докато не я изпратиш за преглед.|Saved. Only you can see it until you send it for review.
+Още няма одобрени добавки. Направи първата в „Моите добавки“.|No approved add-ons yet. Make the first one in “My add-ons”.
+Няма добавки за преглед.|Nothing to review.
+Добавки, направени от хората и одобрени. Всяка работи в затворена среда и не вижда твоите данни.|Add-ons made by people and approved. Each runs in a sandbox and cannot see your data.
+Какво да получи добавката (по желание)|What to give the add-on (optional)
+Бележка към автора (по желание)|Note to the author (optional)
+Бележка от прегледа|Review note
+Одобрена. Вече е в магазина.|Approved. It is now in the store.
 `.trim().split("\n").map((line) => line.split("|")),
 );

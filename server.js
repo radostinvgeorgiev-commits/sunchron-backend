@@ -65,9 +65,11 @@ import { getDailyPlanService } from "./src/services/dailyPlanService.js";
 import { getCausesService } from "./src/services/causesService.js";
 import { getAvatarProfileService } from "./src/services/avatarProfileService.js";
 import { createPersonalTodoRouter } from "./src/routes/personalTodoRouter.js";
+import { createAddonRouter } from "./src/routes/addonRouter.js";
 import { createAvatarLinkRouter, createAvatarVisitorRouter } from "./src/routes/avatarLinkRouter.js";
 import { getAvatarLinkService } from "./src/services/avatarLinkService.js";
 import { getPersonalTodoService } from "./src/services/personalTodoService.js";
+import { getAddonService } from "./src/services/addonService.js";
 import { createKnowledgeFilesRouter } from "./src/routes/knowledgeFilesRouter.js";
 import { getKnowledgeFilesService } from "./src/services/knowledgeFilesService.js";
 import { getUserLibraryService } from "./src/services/userLibraryService.js";
@@ -324,6 +326,14 @@ app.use(
   requireOwnerSession,
   privateApiRateLimiter,
   createPersonalTodoRouter({ service: getPersonalTodoService() }),
+);
+// "Добавки": each person's own small programs, run in a closed sandbox; the
+// store shows only what the owner approved. No AI is used, so no AI budget.
+app.use(
+  "/api/addons",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  createAddonRouter({ service: getAddonService() }),
 );
 app.use(
   "/api/feedback",

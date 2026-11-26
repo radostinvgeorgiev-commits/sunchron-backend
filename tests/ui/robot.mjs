@@ -143,7 +143,7 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect((await page.locator(".plus-menu > button:visible").count()) === 6, "менюто „+“ не е с 6 реда");
     expect(!(await page.locator('.plus-menu [data-plus="assistant"]').count()), "специалистът е и в „+“ (двоен бутон)");
     await page.keyboard.press("Escape");
-    expect((await page.locator(".mine-group [data-plus]").count()) === 7, "няма група „Моят аватар“");
+    expect((await page.locator(".mine-group [data-plus]").count()) === 8, "няма група „Моят аватар“");
     expect((await page.locator(".mine-group #memoryBtn").count()) === 1, "„Памет“ не е в групата");
   });
   await step(`${label}: „Чат“ показва моделите за чат, „Работа“ — моделите за работа`, async () => {
@@ -234,6 +234,40 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
       for (const id of ids) await fetch(`/api/todos/${id}`, { method: "DELETE" });
     }, after.slice(0, 3).map((item) => item.id));
     await pickNone();
+  });
+  await step(`${label}: „Добавки“: пиша код, пробвам го, одобрявам го и всеки го пуска`, async () => {
+    await openMine("addons");
+    const box = page.locator(".addon-dialog");
+    await box.waitFor({ state: "visible", timeout: 5000 });
+    await box.locator('[data-tab="mine"]').click();
+    const name = `Времето ${label}`;
+    await box.locator('.addon-editor [name="name"]').fill(name);
+    await box.locator(".addon-test").click();
+    await box.locator(".addon-editor + .addon-output").waitFor({ state: "visible", timeout: 8000 });
+    const tried = await box.locator(".addon-editor + .addon-output").innerText();
+    expect(tried.includes("7.5°C"), `пробата не върна времето: ${tried}`);
+    await box.locator(".addon-save").click();
+    const mineRow = box.locator(".addon-mine .addon-item", { hasText: name });
+    await mineRow.waitFor({ timeout: 5000 });
+    expect((await mineRow.innerText()).includes("Само за мен"), "новата добавка не е лична");
+    await mineRow.locator('[data-action="submit"]').click();
+    await mineRow.locator(".addon-pending").waitFor({ timeout: 5000 });
+    await box.locator('[data-tab="review"]').click();
+    const reviewRow = box.locator(".addon-review .addon-item", { hasText: name });
+    await reviewRow.waitFor({ timeout: 5000 });
+    expect((await reviewRow.locator(".addon-code").textContent()).includes("function run"), "прегледът не показва кода");
+    await reviewRow.locator('[data-action="approve"]').click();
+    await reviewRow.waitFor({ state: "detached", timeout: 5000 });
+    await box.locator('[data-tab="store"]').click();
+    const storeRow = box.locator('[data-pane="store"] .addon-item', { hasText: name });
+    await storeRow.waitFor({ timeout: 5000 });
+    await storeRow.locator('[data-action="run-store"]').click();
+    await storeRow.locator(".addon-output").waitFor({ state: "visible", timeout: 8000 });
+    expect((await storeRow.locator(".addon-output").innerText()).includes("7.5°C"), "добавката от магазина не работи");
+    await storeRow.locator('[data-action="to-chat"]').click();
+    expect((await page.inputValue("#chatInput")).includes("7.5°C"), "резултатът не стигна до чата");
+    expect(await box.isHidden(), "прозорецът не се затвори");
+    await page.fill("#chatInput", "");
   });
   await step(`${label}: запис от среща става обобщение и задачи`, async () => {
     await page.click("#attachBtn");
@@ -733,7 +767,7 @@ async function liveSignedIn(origin) {
   });
   await step("Жив сайт: групата „Моят аватар“ е пълна", async () => {
     const buttons = await page.locator(".mine-group [data-plus]").count();
-    expect(buttons === 7, `групата не е със 7 бутона (вижда: ${buttons})`);
+    expect(buttons === 8, `групата не е с 8 бутона (вижда: ${buttons})`);
     expect((await page.locator('.mine-group [data-plus="link"]').count()) === 1, "няма „Питай моя аватар“");
     expect((await page.locator(".mine-group #memoryBtn").count()) === 1, "„Памет“ не е в групата");
   });

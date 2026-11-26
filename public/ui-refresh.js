@@ -117,6 +117,9 @@
       if (key === "todos") {
         document.dispatchEvent(new CustomEvent("aicore:todos"));
       }
+      if (key === "addons") {
+        document.dispatchEvent(new CustomEvent("aicore:addons"));
+      }
       if (key === "link") {
         document.dispatchEvent(new CustomEvent("aicore:avatar-link"));
       }
@@ -174,6 +177,9 @@
         </button>
         <button type="button" data-plus="google">
           <i class="fa-brands fa-google" aria-hidden="true"></i><span>${text("Моят Google")}</span>
+        </button>
+        <button type="button" data-plus="addons">
+          <i class="fa-solid fa-puzzle-piece" aria-hidden="true"></i><span>${text("Добавки")}</span>
         </button>
         <button type="button" data-plus="causes">
           <i class="fa-solid fa-hand-holding-heart" aria-hidden="true"></i><span>${text("Каузи")}</span>

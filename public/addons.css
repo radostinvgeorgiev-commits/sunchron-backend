@@ -1,0 +1,29 @@
+/* "Добавки": the store, the person's own workshop and the owner's review. */
+.share-card.addon-card { width: min(640px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; box-sizing: border-box; }
+.addon-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 4px; }
+.addon-tabs button {
+  padding: 7px 12px; border-radius: 999px; border: 1px solid #c9d0cc; background: #fff; color: #000; font: inherit; font-weight: 700;
+}
+.addon-tabs button[aria-selected="true"] { background: #000; border-color: #000; color: #fff; }
+.addon-tabs button[hidden], .addon-dialog section[hidden], .addon-output[hidden] { display: none; }
+.addon-editor { display: grid; gap: 8px; }
+.addon-editor label { display: grid; gap: 4px; font-size: .9rem; font-weight: 700; }
+.addon-editor input, .addon-editor textarea, .addon-input, .addon-note {
+  width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid #c9d0cc; border-radius: 10px; font: inherit; font-weight: 400; color: #000;
+}
+.addon-editor textarea, .addon-code, .addon-output {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85rem;
+}
+.addon-code, .addon-output {
+  margin: 8px 0 0; padding: 10px; border-radius: 10px; background: #f3f5f4; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto;
+}
+.addon-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+.addon-item { padding: 12px; border: 1px solid #dde3e0; border-radius: 14px; display: grid; gap: 6px; }
+.addon-item-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; overflow-wrap: anywhere; }
+.addon-desc, .addon-url { margin: 0; font-size: .9rem; overflow-wrap: anywhere; }
+.addon-url { color: #5d6b66; }
+.addon-item .share-actions { margin-top: 4px; }
+.addon-badge { padding: 2px 9px; border-radius: 999px; font-size: .78rem; font-weight: 700; background: #eef1f0; white-space: nowrap; }
+.addon-pending { background: #fff4d6; }
+.addon-public { background: rgba(20, 108, 82, .12); color: #146c52; }
+.addon-rejected { background: #fde8e6; color: #a3261c; }

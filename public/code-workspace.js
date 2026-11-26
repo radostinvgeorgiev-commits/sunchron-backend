@@ -22,7 +22,6 @@
     gemini: "Gemini",
     grok: "Grok",
     claude: "Claude",
-    codex: "Codex",
   };
   let draft;
   let result;

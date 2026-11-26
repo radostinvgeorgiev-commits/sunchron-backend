@@ -101,7 +101,7 @@ function resolveSelection(state, projectId, agentId) {
   }
   if (agent.engine !== "ai-core") {
     throw new McpAgentConversationError(
-      "Този MCP инструмент разговаря само с AI CORE. Codex остава отделен изолиран изпълнител.",
+      "Този MCP инструмент разговаря само с AI CORE. Кодовият агент (Claude) остава отделен изолиран изпълнител.",
       -32602,
     );
   }

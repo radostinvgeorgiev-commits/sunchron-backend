@@ -20,16 +20,54 @@ import {
   runCodexReadAnalysis,
 } from "../src/services/codexAgentService.js";
 
-test("Codex configuration reuses the OpenAI key and has an explicit kill switch", () => {
-  assert.equal(isCodexAgentConfigured({ OPENAI_API_KEY: "key" }), true);
+test("the code agent runs on the Claude key and has an explicit kill switch", () => {
+  assert.equal(isCodexAgentConfigured({ ANTHROPIC_API_KEY: "key" }), true);
+  assert.equal(isCodexAgentConfigured({ OPENAI_API_KEY: "key" }), false);
   assert.equal(
     isCodexAgentConfigured({
-      OPENAI_API_KEY: "key",
+      ANTHROPIC_API_KEY: "key",
       CODEX_AGENT_ENABLED: "false",
     }),
     false,
   );
   assert.equal(isCodexAgentConfigured({}), false);
+});
+
+test("the code agent asks Claude for JSON and keeps only the JSON object", async () => {
+  const { requestClaudeStructured, resolveCodeAgentModel } = await import(
+    "../src/services/codexAgentService.js"
+  );
+  assert.equal(resolveCodeAgentModel("gpt-5.6-terra", {}), "claude-haiku-5-5");
+  assert.equal(resolveCodeAgentModel("claude-haiku-4-5-20251001", {}), "claude-haiku-5-5");
+  assert.equal(resolveCodeAgentModel("claude-sonnet-5-5", {}), "claude-sonnet-5-5");
+  assert.equal(
+    resolveCodeAgentModel(undefined, { CLAUDE_CODE_MODEL: "claude-sonnet-5-5" }),
+    "claude-sonnet-5-5",
+  );
+  let sent;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    sent = JSON.parse(init.body);
+    return new Response(
+      JSON.stringify({
+        model: "claude-haiku-5-5",
+        content: [{ type: "text", text: 'Ето:\n```json\n{"status":"complete"}\n```' }],
+      }),
+      { status: 200 },
+    );
+  };
+  try {
+    const result = await requestClaudeStructured({
+      apiKey: "k",
+      model: "claude-haiku-5-5",
+      input: [{ role: "user", content: "Провери." }],
+      outputSchema: { type: "object" },
+    });
+    assert.equal(result.text, '{"status":"complete"}');
+    assert.match(sent.messages.at(-1).content, /Върни САМО един JSON обект/u);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("isolated Codex workspace copies source but excludes secrets and dependencies", async () => {

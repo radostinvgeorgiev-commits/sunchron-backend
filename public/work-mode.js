@@ -7,11 +7,11 @@
     organizer: "Организатор",
     documents: "Документи и поща",
     builder: "Създател на проекти",
-    coder: "Codex разработчик",
+    coder: "Код разработчик (Claude)",
   });
   const ENGINE_OPTIONS = Object.freeze({
     "ai-core": "AI CORE",
-    codex: "Codex · branch/PR кодов изпълнител",
+    codex: "Claude код · анализ и branch/PR",
   });
   const MODEL_OPTIONS = Object.freeze({
     auto: "Автоматичен · препоръчано",
@@ -70,8 +70,8 @@
       id: "codex-agent",
       name: "Код",
       role: "coder",
-      model: "gpt-5.6-terra",
-      purpose: "Подготвя code diff в branch/PR поток след owner потвърждение.",
+      model: "auto",
+      purpose: "Claude подготвя code diff в branch/PR поток след owner потвърждение.",
       engine: "codex",
     }),
   ]);

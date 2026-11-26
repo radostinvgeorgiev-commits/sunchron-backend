@@ -66,15 +66,9 @@ test("Work answers a greeting through a backup engine when Grok fails", async (t
   assert.doesNotMatch(response.text, /event: error|code\.analyze/u);
 });
 
-test("Work Council sends a Codex-only selection to the coding model", async (t) => {
-  const requests = [];
-  t.mock.method(globalThis, "fetch", async (url, options) => {
-    assert.equal(String(url), "https://api.openai.com/v1/responses");
-    requests.push(JSON.parse(options.body));
-    return Response.json({
-      model: "codex-verified",
-      output_text: "Отговор от Codex.",
-    });
+test("Codex is no longer a Council choice", async (t) => {
+  const fetchMock = t.mock.method(globalThis, "fetch", async () => {
+    throw new Error("no AI call expected");
   });
   const response = await request(app)
     .post("/chat/chat")
@@ -87,13 +81,9 @@ test("Work Council sends a Codex-only selection to the coding model", async (t) 
       councilProviders: ["codex"],
     })
     .expect(200);
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].model, "gpt-5.3-codex");
-  assert.equal(requests[0].store, false);
-  assert.equal(requests[0].tools, undefined);
-  assert.match(response.text, /"provider":"codex","model":"codex-verified"/u);
-  assert.match(response.text, /Отговор от Codex\./u);
-  assert.doesNotMatch(response.text, /event: error/u);
+  assert.equal(fetchMock.mock.callCount(), 0);
+  assert.match(response.text, /event: error/u);
+  assert.match(response.text, /Невалиден избор на AI двигатели/u);
 });
 
 test("chat rejects oversized messages before calling paid AI", async () => {

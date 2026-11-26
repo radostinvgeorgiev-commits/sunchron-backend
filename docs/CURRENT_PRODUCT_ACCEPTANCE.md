@@ -11,8 +11,9 @@
 - Claude Haiku 5.5 е разговорният двигател по подразбиране; OpenAI, Gemini и
   Grok са допълнителни двигатели при валидна конфигурация. Изборът на модел в
   чата приема само икономичните модели.
-- Claude участва само при конфигуриран `ANTHROPIC_API_KEY`; Codex участва само
-  като защитен code/analysis изпълнител и не прави direct push към `main`.
+- Claude участва само при конфигуриран `ANTHROPIC_API_KEY`. Claude е и
+  кодовият агент (анализ и branch/PR); Codex вече не се използва и нищо не
+  прави direct push към `main`.
 - Production defaults са Firestore + Identity Platform; legacy OpenSearch и
   Supabase се включват само при изрична конфигурация.
 - Task Orchestrator може да планира multi-step задачи.
@@ -21,7 +22,8 @@
 - Сайтът има Council режим, който пита избраните налични AI двигатели, показва
   наличните отговори при частичен отказ и отделна структурирана препоръка преди
   изпълнение.
-- Codex е водещ code/ops изпълнител в branch/PR поток под owner confirmation.
+- Claude е водещ кодов изпълнител в branch/PR поток под owner confirmation;
+  OpenAI, Gemini и Grok дават предложения и са резерва.
 - AI CORE Code Write подготвя ограничен multi-engine plan и след точно
   потвърждение създава отделен branch, commit и Pull Request.
 - MCP има OAuth boundary и актуален каталог.
@@ -38,7 +40,7 @@
 5. A5 остава незавършен, докато няма реален staging fault-injection/recovery
    тест, а не само локален тест.
 6. Browser acceptance след PR промени трябва да се изпълни преди merge/deploy.
-7. Claude и Codex не се приемат за работещи само защото са показани в UI;
+7. Claude и кодовият агент не се приемат за работещи само защото са показани в UI;
    трябва да имат конфигурация, capability gate, audit и краен тест.
 
 ## Задължителни проверки преди deployment

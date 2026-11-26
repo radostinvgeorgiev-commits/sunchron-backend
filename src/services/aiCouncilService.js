@@ -1,6 +1,5 @@
 import {
   DEFAULT_CLAUDE_CHAT_MODEL,
-  DEFAULT_CODEX_COUNCIL_MODEL,
   DEFAULT_GEMINI_CHAT_MODEL,
   DEFAULT_GROK_CHAT_MODEL,
   DEFAULT_OPENAI_CHAT_MODEL,
@@ -10,7 +9,6 @@ import {
   requestClaudeResponse,
   requestOpenAIResponse,
 } from "./aiCoreService.js";
-import { isCodexAgentConfigured } from "./codexAgentService.js";
 import { replyLanguageInstruction } from "../config/replyLanguage.js";
 
 const MAX_REQUEST_LENGTH = 6_000;
@@ -71,7 +69,6 @@ const PROVIDER_LABELS = Object.freeze({
   gemini: "Gemini",
   grok: "Grok",
   claude: "Claude",
-  codex: "Codex",
 });
 
 export class AiCouncilError extends Error {
@@ -255,16 +252,12 @@ export async function runAiCouncil({
   geminiApiKey = process.env.GEMINI_API_KEY,
   grokApiKey = process.env.GROK_API_KEY,
   claudeApiKey = process.env.ANTHROPIC_API_KEY,
-  codexApiKey = isCodexAgentConfigured()
-    ? process.env.OPENAI_API_KEY
-    : undefined,
   selectedProviders = ["openai", "gemini", "grok"],
   advisorRequesters = {
     openai: requestOpenAIResponse,
     gemini: requestGeminiResponse,
     grok: requestGrokResponse,
     claude: requestClaudeResponse,
-    codex: requestOpenAIResponse,
   },
   arbiterRequester = requestOpenAIResponse,
   claudeArbiterRequester = requestClaudeResponse,
@@ -272,8 +265,6 @@ export async function runAiCouncil({
   geminiModel = process.env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
   grokModel = process.env.GROK_MODEL || DEFAULT_GROK_CHAT_MODEL,
   claudeModel = process.env.ANTHROPIC_MODEL || DEFAULT_CLAUDE_CHAT_MODEL,
-  codexModel = process.env.AI_CORE_COUNCIL_CODEX_MODEL ||
-    DEFAULT_CODEX_COUNCIL_MODEL,
   advisorTimeoutMs = Math.min(
     getAiProviderTimeoutMs(
       "openai",
@@ -310,7 +301,6 @@ export async function runAiCouncil({
     gemini: { provider: "gemini", apiKey: geminiApiKey, model: geminiModel },
     grok: { provider: "grok", apiKey: grokApiKey, model: grokModel },
     claude: { provider: "claude", apiKey: claudeApiKey, model: claudeModel },
-    codex: { provider: "codex", apiKey: codexApiKey, model: codexModel },
   };
   if (
     !Array.isArray(selectedProviders) ||
@@ -335,8 +325,8 @@ export async function runAiCouncil({
           apiKey,
           model,
           input,
-          verbosity: provider === "codex" ? null : "low",
-          reasoningEffort: provider === "codex" ? "low" : "medium",
+          verbosity: "low",
+          reasoningEffort: "medium",
         },
         advisorTimeoutMs,
         "AI_COUNCIL_ADVISOR_TIMEOUT",

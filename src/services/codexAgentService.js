@@ -10,7 +10,54 @@ import {
 import { tmpdir } from "node:os";
 import { extname, join, relative, resolve, sep } from "node:path";
 
-import { requestOpenAIResponse } from "./aiCoreService.js";
+import {
+  DEFAULT_CLAUDE_CHAT_MODEL,
+  requestClaudeResponse,
+} from "./aiCoreService.js";
+
+// The code agent (internal id "codex", kept for saved workspaces) now runs on
+// Claude. Claude has no schema-enforced output here, so the schema is spelled
+// out in the request and the JSON is taken out of the reply.
+export async function requestClaudeStructured({
+  outputSchema,
+  input,
+  maxTokens = 4096,
+  ...options
+}) {
+  const instruction = outputSchema
+    ? `\n\nВърни САМО един JSON обект без обяснения и без markdown, по тази схема:\n${JSON.stringify(outputSchema)}`
+    : "";
+  const messages = Array.isArray(input)
+    ? input.map((item, index) =>
+        index === input.length - 1 && item?.role === "user"
+          ? { ...item, content: `${item.content}${instruction}` }
+          : item,
+      )
+    : input;
+  const result = await requestClaudeResponse({
+    apiKey: options.apiKey,
+    model: options.model,
+    signal: options.signal,
+    input: messages,
+    maxTokens,
+  });
+  const text = String(result?.text || "").trim();
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  return {
+    ...result,
+    text: start >= 0 && end > start ? text.slice(start, end + 1) : text,
+  };
+}
+
+export function resolveCodeAgentModel(model, env = process.env) {
+  const value = typeof model === "string" ? model.trim() : "";
+  if (/^claude-/iu.test(value)) {
+    // Saved workspaces may hold the older Haiku id; it maps to Haiku 5.5.
+    return /^claude-haiku-4/iu.test(value) ? DEFAULT_CLAUDE_CHAT_MODEL : value;
+  }
+  return String(env.CLAUDE_CODE_MODEL || "").trim() || DEFAULT_CLAUDE_CHAT_MODEL;
+}
 
 const DEFAULT_TIMEOUT_MS = 180000;
 const MAX_OUTPUT_LENGTH = 12000;
@@ -185,7 +232,7 @@ function parsePositiveInteger(value, fallback) {
 
 export function isCodexAgentConfigured(env = process.env) {
   return Boolean(
-    cleanText(env.OPENAI_API_KEY, 10000) &&
+    cleanText(env.ANTHROPIC_API_KEY, 10000) &&
     cleanText(env.CODEX_AGENT_ENABLED, 20).toLowerCase() !== "false",
   );
 }
@@ -282,7 +329,7 @@ export async function createBoundedSourceSnapshot({
   const files = sourceFiles ?? (await collectWorkspaceFiles(workspace));
   if (!files.length) {
     throw new CodexAgentError(
-      "Няма разрешени файлове за Codex анализ.",
+      "Няма разрешени файлове за кодов анализ.",
       "CODEX_SOURCE_EMPTY",
       422,
     );
@@ -472,7 +519,7 @@ function buildPrompt({
 }) {
   const previous = normalizePreviousRun(previousRun);
   return [
-    "Ти си Codex специалистът на AI CORE.",
+    "Ти си кодовият специалист на AI CORE (Claude).",
     "Работиш само за анализ на приложеното ограничено копие на кода.",
     "Нямаш shell или право да изпълняваш кода. Не твърди, че си изпълнил команда или тест.",
     "Не променяй файлове, не използвай интернет и не изпълнявай външни действия.",
@@ -510,14 +557,14 @@ function parseProjectResult(value, previousRun) {
     parsed = JSON.parse(value);
   } catch {
     throw new CodexAgentError(
-      "Codex върна невалиден структуриран резултат.",
+      "Кодовият агент върна невалиден структуриран резултат.",
       "CODEX_AGENT_INVALID_RESULT",
       502,
     );
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new CodexAgentError(
-      "Codex върна невалиден структуриран резултат.",
+      "Кодовият агент върна невалиден структуриран резултат.",
       "CODEX_AGENT_INVALID_RESULT",
       502,
     );
@@ -536,7 +583,7 @@ function parseProjectResult(value, previousRun) {
     : [];
   if (!summary) {
     throw new CodexAgentError(
-      "Codex приключи без валидно резюме.",
+      "Кодовият агент приключи без валидно резюме.",
       "CODEX_AGENT_EMPTY_RESULT",
       502,
     );
@@ -557,7 +604,7 @@ function parseProjectResult(value, previousRun) {
 
 function formatProjectResult(result) {
   return [
-    "Codex провери кода.",
+    "Claude провери кода.",
     "",
     `Резултат: ${result.summary}`,
     ...(result.evidence.length
@@ -578,26 +625,26 @@ export async function runCodexProjectAnalysis({
   projectName,
   projectObjective,
   previousRun,
-  apiKey = process.env.OPENAI_API_KEY,
-  model = process.env.OPENAI_CODEX_MODEL,
+  apiKey = process.env.ANTHROPIC_API_KEY,
+  model,
   sourceDirectory = process.cwd(),
   timeoutMs = process.env.CODEX_AGENT_TIMEOUT_MS,
   env = process.env,
-  responseRequester = requestOpenAIResponse,
+  responseRequester = requestClaudeStructured,
   createWorkspace = createIsolatedSourceWorkspace,
   createSnapshot = createBoundedSourceSnapshot,
 }) {
   const cleanMessage = cleanText(message, 8000);
   if (!cleanMessage) {
     throw new CodexAgentError(
-      "Липсва задача за Codex.",
+      "Липсва задача за кодовия агент.",
       "CODEX_TASK_REQUIRED",
       400,
     );
   }
   if (!cleanText(apiKey, 10000)) {
     throw new CodexAgentError(
-      "Codex агентът не е конфигуриран.",
+      "Кодовият агент (Claude) не е конфигуриран.",
       "CODEX_AGENT_NOT_CONFIGURED",
       503,
     );
@@ -630,7 +677,7 @@ export async function runCodexProjectAnalysis({
           }),
         },
       ],
-      model: cleanText(model, 80) || undefined,
+      model: resolveCodeAgentModel(cleanText(model, 80), env),
       signal: controller.signal,
       verbosity: "low",
       reasoningEffort: "medium",
@@ -640,13 +687,13 @@ export async function runCodexProjectAnalysis({
     const output = cleanOutput(result?.text, MAX_OUTPUT_LENGTH);
     if (!output) {
       throw new CodexAgentError(
-        "Codex приключи без валиден резултат.",
+        "Кодовият агент приключи без валиден резултат.",
         "CODEX_AGENT_EMPTY_RESULT",
       );
     }
     if (containsSecret(output, env, [apiKey])) {
       throw new CodexAgentError(
-        "Codex резултатът беше блокиран от защитата за тайни.",
+        "Резултатът от кодовия агент беше блокиран от защитата за тайни.",
         "CODEX_AGENT_SECRET_BLOCKED",
         503,
       );
@@ -663,13 +710,13 @@ export async function runCodexProjectAnalysis({
     if (error instanceof CodexAgentError) throw error;
     if (controller.signal.aborted) {
       throw new CodexAgentError(
-        "Codex не отговори навреме.",
+        "Кодовият агент не отговори навреме.",
         "CODEX_AGENT_TIMEOUT",
         504,
       );
     }
     throw new CodexAgentError(
-      "Codex временно не е достъпен.",
+      "Кодовият агент временно не е достъпен.",
       "CODEX_AGENT_UNAVAILABLE",
       502,
     );

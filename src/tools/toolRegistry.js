@@ -242,8 +242,8 @@ export function registerCoreTools() {
     },
     {
       id: "openai-codex",
-      provider: "openai",
-      name: "Codex",
+      provider: "anthropic",
+      name: "Claude код",
       version: "1.0.0",
       category: "code",
       capabilities: ["code.analyze"],

@@ -69,7 +69,7 @@ test("Chat and Work are available with projects and agents, without pets", async
   assert.match(workMode, /name: "Организирай"/u);
   assert.match(workMode, /name: "Напиши"/u);
   assert.match(workMode, /documents: "Документи и поща"/u);
-  assert.match(workMode, /codex: "Codex · branch\/PR кодов изпълнител"/u);
+  assert.match(workMode, /codex: "Claude код · анализ и branch\/PR"/u);
   assert.match(workMode, /\/api\/workspaces/u);
   assert.match(workMode, /защитения ти профил/u);
   assert.match(workMode, /function recordActivity/u);

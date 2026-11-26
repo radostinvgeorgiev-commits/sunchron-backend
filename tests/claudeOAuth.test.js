@@ -205,3 +205,10 @@ test("Claude is the owner's connector: members are refused at every step", async
     ),
   );
 });
+
+test("Claude may prepare Google Cloud actions but no other writes", () => {
+  assert.ok(CLAUDE_SCOPES.includes("synchron:infrastructure.write"));
+  for (const scope of ["synchron:memory.write", "synchron:tasks.write", "synchron:github.write", "synchron:google.write"]) {
+    assert.ok(!CLAUDE_SCOPES.includes(scope), scope);
+  }
+});

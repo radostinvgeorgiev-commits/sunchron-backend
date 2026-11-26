@@ -12,6 +12,12 @@ import { getUserLibraryService } from "../services/userLibraryService.js";
 import { getAvatarProfileService } from "../services/avatarProfileService.js";
 import { searchWeb } from "../services/webSearchService.js";
 import {
+  formatMeetingNotes,
+  MAX_MEETING_BYTES,
+  MeetingError,
+  processMeetingRecording,
+} from "../services/meetingNotesService.js";
+import {
   GeminiToolError,
   isPlacesRequest,
   isYoutubeRequest,
@@ -1274,6 +1280,57 @@ export function createWebSearchChatHandler({
   };
 }
 router.post("/search", createWebSearchChatHandler());
+
+// A meeting recording ("+" → Запис от среща): text, summary, decisions and
+// tasks. The text is kept in „Моите файлове“ so the avatar can answer about
+// the meeting later; the summary is saved as a normal chat turn.
+export function createMeetingNotesHandler({
+  process = processMeetingRecording,
+  saveTurn = saveConversationTurnBestEffort,
+  files = () => getKnowledgeFilesService(),
+} = {}) {
+  return async (req, res) => {
+    const sessionId = String(req.get("x-session-id") || "").trim();
+    if (!sessionId || sessionId.length > 160 || !SAFE_CHAT_SESSION_ID_PATTERN.test(sessionId)) {
+      return res.status(400).json({ error: "Невалиден разговор.", code: "CHAT_SESSION_INVALID" });
+    }
+    let name = "";
+    try {
+      name = decodeURIComponent(String(req.get("x-file-name") || ""));
+    } catch {
+      name = "";
+    }
+    try {
+      const notes = await process({ bytes: Buffer.isBuffer(req.body) ? req.body : null, mimeType: req.get("content-type"), name });
+      const ownerId = req.owner.memoryOwnerId;
+      let savedToFiles = false;
+      try {
+        const date = new Date().toISOString().slice(0, 10);
+        await files().add(ownerId, {
+          name: `Среща ${date}: ${notes.title}`.slice(0, 80),
+          text: `${formatMeetingNotes(notes)}\n\nТекст на записа:\n${notes.transcript}`,
+        });
+        savedToFiles = true;
+      } catch (error) {
+        logSafeError("[Meeting] Knowledge file not saved", error);
+      }
+      const text = formatMeetingNotes(notes);
+      await saveTurn(sessionId, `🎙️ Запис от среща: ${notes.name}`, text, ownerId);
+      return res.json({ text, title: notes.title, tasks: notes.tasks, savedToFiles });
+    } catch (error) {
+      if (error instanceof MeetingError || (error?.status && error?.code)) {
+        return res.status(error.status).json({ error: error.message, code: error.code });
+      }
+      logSafeError("[Meeting] Failure", error);
+      return res.status(502).json({ error: "Записът не можа да се обработи. Опитай пак.", code: "MEETING_FAILED" });
+    }
+  };
+}
+router.post(
+  "/meeting",
+  express.raw({ type: ["audio/*", "video/*"], limit: MAX_MEETING_BYTES }),
+  createMeetingNotesHandler(),
+);
 
 router.get("/assistants", (_req, res) => {
   res.json({ items: listAssistantPresets() });

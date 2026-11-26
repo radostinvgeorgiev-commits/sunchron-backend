@@ -459,5 +459,14 @@ AI задача|AI task
 Забравена парола?|Forgot password?
 Въведи имейла си в полето отгоре и натисни отново.|Enter your email in the field above and try again.
 Ако има профил с този имейл, изпратихме писмо с линк за нова парола. Провери и папката за спам.|If an account exists for this email, we sent a link to set a new password. Check your spam folder too.
+Инструменти:|Tools:
+Свързано|Connected
+Не е свързано|Not connected
+Свържи Google|Connect Google
+Търсене в интернет|Web search
+Google Календар|Google Calendar
+Добави в Моите задачи|Add to My tasks
+Добавено в Моите задачи|Added to My tasks
+Задачите не бяха записани.|The tasks were not saved.
 `.trim().split("\n").map((line) => line.split("|")),
 );

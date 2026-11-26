@@ -56,3 +56,16 @@ test("the new assistants exist and the health ones point to real help", () => {
   const tools = readFileSync(new URL("../public/prompt-tools.js", import.meta.url), "utf8");
   assert.match(tools, /assistant-row/u);
 });
+
+test("every specialist lists its tools, and the role knows about them", async () => {
+  const { ASSISTANT_TOOLS } = await import("../src/services/assistantPresets.js");
+  for (const item of listAssistantPresets()) {
+    assert.ok(item.tools.length > 0, item.id);
+    for (const tool of item.tools) assert.ok(ASSISTANT_TOOLS[tool.id], `${item.id}:${tool.id}`);
+  }
+  const accountant = listAssistantPresets().find(({ id }) => id === "accountant");
+  assert.deepEqual(accountant.tools.map(({ id }) => id), ["web", "drive", "gmail", "files"]);
+  assert.equal(accountant.tools.find(({ id }) => id === "gmail").needs, "google");
+  assert.match(resolveAssistantPreset("chef").instruction, /Моите задачи/u);
+  assert.match(resolveAssistantPreset("accountant").instruction, /Gmail/u);
+});

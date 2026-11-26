@@ -2703,6 +2703,54 @@ function showConversationPersistenceWarning(message) {
 
 // "Откъде знам това": the person's own things the answer is connected to
 // (a file, a remembered fact, an archive note). Shown only when there is one.
+// A list in the answer (steps, a shopping list, a plan) can become the
+// person's own tasks with one press; nothing is saved without it.
+function listItemsFromAnswer(text) {
+  const items = [];
+  for (const line of String(text || "").split("\n")) {
+    const match = /^\s{0,3}(?:[-*•]|\d{1,2}[.)])\s+(?:\[[ xX]\]\s+)?(.+)$/u.exec(line);
+    if (!match) continue;
+    const item = match[1]
+      .replace(/\[([^\]]+)\]\([^)]*\)/gu, "$1")
+      .replace(/[*_`]+/gu, "")
+      .trim();
+    if (item.length >= 2) items.push(item.slice(0, 200));
+  }
+  return items.slice(0, 12);
+}
+
+function offerTodos(message, text) {
+  const turn = message?.closest(".assistant-turn");
+  const items = listItemsFromAnswer(text);
+  if (!turn || items.length < 2 || turn.querySelector(".answer-todos")) return;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "answer-todos";
+  button.innerHTML = '<i class="fa-solid fa-list-check" aria-hidden="true"></i><span></span>';
+  const label = button.querySelector("span");
+  label.textContent = `${chatText("Добави в Моите задачи")} (${items.length})`;
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      const response = await fetch("/api/todos", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || chatText("Задачите не бяха записани."));
+      label.textContent = chatText("Добавено в Моите задачи");
+      button.classList.add("done");
+    } catch (error) {
+      label.textContent = error.message;
+      button.disabled = false;
+    }
+  });
+  const actions = turn.querySelector(".message-actions");
+  turn.insertBefore(button, actions || null);
+}
+
 function showAnswerSources(message, sources) {
   const turn = message?.closest(".assistant-turn");
   const list = Array.isArray(sources) ? sources.slice(0, 4) : [];
@@ -3668,6 +3716,7 @@ async function sendMessage({
             parsed.data?.linkedProjectContext,
           );
           showAnswerSources(responseBubble, parsed.data?.sources);
+          if (interaction?.mode !== "work") offerTodos(responseBubble, fullText);
           showMemoryCandidates(responseBubble, parsed.data?.memoryCandidates);
           showNextStep(responseBubble, fullText, parsed.data);
           if (

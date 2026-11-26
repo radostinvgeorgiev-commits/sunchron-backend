@@ -160,6 +160,35 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect(requests.at(-1).assistant === "doctor", "асистентът не е изпратен");
     await page.click(".assistant-chip button");
   });
+  await step(`${label}: специалистът показва инструментите си, а списък става задачи`, async () => {
+    const fresh = (await page.locator("#mobileNewChatBtn").isVisible()) ? "#mobileNewChatBtn" : "#newChatBtn";
+    await page.click(fresh);
+    await page.waitForTimeout(400);
+    await page.click('.assistant-row button[data-assistant="accountant"]');
+    await page.locator(".assistant-tools .assistant-tool").first().waitFor({ timeout: 5000 });
+    const tools = await page.locator(".assistant-tools").innerText();
+    expect(tools.includes("Gmail") && tools.includes("Търсене в интернет"), `няма инструменти: ${tools}`);
+    expect(await page.locator(".assistant-tools .assistant-tool-connect").isVisible(), "няма „Свържи Google“");
+    await page.click(".assistant-chip button");
+    expect(await page.locator(".assistant-tools").isHidden(), "инструментите останаха без асистент");
+    await page.click('.assistant-row button[data-assistant="chef"]');
+    await page.locator(".assistant-tools .assistant-tool").first().waitFor({ timeout: 5000 });
+    expect(!(await page.locator(".assistant-tools .assistant-tool-connect").count()), "готвачът не иска Google");
+    const before = await page.evaluate(async () => (await (await fetch("/api/todos")).json()).items.length);
+    await send("Направи ми списък за пазар");
+    await last().locator(".answer-todos").waitFor({ timeout: 5000 });
+    expect((await last().locator(".answer-todos").innerText()).includes("(3)"), "бутонът не брои 3 точки");
+    await last().locator(".answer-todos").click();
+    await page.waitForTimeout(400);
+    const after = await page.evaluate(async () => (await (await fetch("/api/todos")).json()).items);
+    expect(after.length === before + 3, `задачите не се добавиха (${before} → ${after.length})`);
+    expect(after.some((item) => item.text === "Яйца"), "звездичките не бяха махнати");
+    // Leave the list as it was, so the later "Моите задачи" step starts clean.
+    await page.evaluate(async (ids) => {
+      for (const id of ids) await fetch(`/api/todos/${id}`, { method: "DELETE" });
+    }, after.slice(0, 3).map((item) => item.id));
+    await page.click(".assistant-chip button");
+  });
   await step(`${label}: собствен асистент`, async () => {
     await page.click("#attachBtn");
     await page.click('[data-plus="assistant"]');

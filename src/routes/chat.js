@@ -2132,14 +2132,17 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
+  // A member reads their own Google here only with their own connection.
+  const memberToolOptions = { ownGoogle: Boolean(googleSessionId) };
   const fallbackCapabilityRequests = !memoryAction
     ? filterCapabilityRequestsForIdentity(
         detectCapabilityRequests(taskMessage),
         req.owner,
+        memberToolOptions,
       )
     : [];
   const normalizeCapabilityRequests = (requests) =>
-    filterCapabilityRequestsForIdentity(requests, req.owner);
+    filterCapabilityRequestsForIdentity(requests, req.owner, memberToolOptions);
   let durableTaskRunId = null;
   const pendingTaskRunWrites = [];
   let taskRunWriteChain = Promise.resolve();

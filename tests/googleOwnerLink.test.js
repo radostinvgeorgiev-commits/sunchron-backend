@@ -5,6 +5,8 @@ import { createGoogleSignInCallbackHandler } from "../src/routes/userAuthRouter.
 
 process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 process.env.USER_SESSION_ENCRYPTION_KEY ||= "test-session-key-with-enough-entropy-123";
+process.env.IDENTITY_PLATFORM_PROJECT_ID ||= "test-identity-project";
+process.env.IDENTITY_PLATFORM_API_KEY ||= "test-identity-platform-api-key-123";
 
 function recorder() {
   return {

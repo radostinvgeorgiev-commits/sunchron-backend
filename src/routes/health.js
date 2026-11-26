@@ -225,11 +225,11 @@ function unavailableDependencyReport() {
     status: "unavailable",
     checkedAt: new Date().toISOString(),
     checks: {
-      opensearch: {
+      firestore: {
         status: "unavailable",
         errorCode: "STORAGE_DEPENDENCY_REPORT_FAILED",
       },
-      supabase: {
+      identityPlatform: {
         status: "unavailable",
         errorCode: "STORAGE_DEPENDENCY_REPORT_FAILED",
       },

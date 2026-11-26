@@ -14,8 +14,8 @@
 - Claude участва само при конфигуриран `ANTHROPIC_API_KEY`. Claude е и
   кодовият агент (анализ и branch/PR); Codex вече не се използва и нищо не
   прави direct push към `main`.
-- Production defaults са Firestore + Identity Platform; legacy OpenSearch и
-  Supabase се включват само при изрична конфигурация.
+- Production defaults са Firestore + Identity Platform. Входът през Supabase е
+  премахнат; legacy OpenSearch се включва само при изрична конфигурация.
 - Task Orchestrator може да планира multi-step задачи.
 - Инструменталните задачи имат owner-scoped durable run с checkpoint-и и
   pause/resume/cancel API.

@@ -719,18 +719,6 @@ export function detectCapabilityRequests(message) {
         message: subtask,
       });
     }
-    if (
-      /(?:supabase|супабейс)/iu.test(subtask) &&
-      /(?:провери|покажи|статус|свързан|работи|достъпен|check|status)/iu.test(
-        subtask,
-      )
-    ) {
-      requests.push({
-        capability: "database.status",
-        action: "database.read",
-        message: subtask,
-      });
-    }
     if (cloudBuildRunRequest && !systemConfigurationRequest) {
       const commitSha = subtask.match(/\b[a-f0-9]{40}\b/iu)?.[0]?.toLowerCase();
       requests.push({

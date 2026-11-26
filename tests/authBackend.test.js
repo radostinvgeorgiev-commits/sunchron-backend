@@ -3,15 +3,15 @@ import test from "node:test";
 
 import { resolveAuthBackend } from "../src/config/authBackend.js";
 
-test("auth defaults to Identity Platform in production and keeps explicit legacy override", () => {
-  assert.equal(resolveAuthBackend({}), "supabase");
+test("Identity Platform is the only sign-in backend; the retired Supabase one is refused", () => {
+  assert.equal(resolveAuthBackend({}), "identity-platform");
   assert.equal(
     resolveAuthBackend({ NODE_ENV: "production" }),
     "identity-platform",
   );
   assert.equal(
     resolveAuthBackend({ NODE_ENV: "production", AUTH_BACKEND: "supabase" }),
-    "supabase",
+    null,
   );
   assert.equal(
     resolveAuthBackend({

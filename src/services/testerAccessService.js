@@ -43,19 +43,18 @@ function cleanUserId(user) {
 }
 
 function authProvider(user, env = process.env) {
-  return user?.authProvider || resolveAuthBackend(env) || "supabase";
+  return user?.authProvider || resolveAuthBackend(env) || "identity-platform";
 }
 
 function accessDocumentId(user, env = process.env) {
   const userId = cleanUserId(user);
   const provider = authProvider(user, env);
-  return provider === "supabase" ? userId : `${provider}:${userId}`;
+  return `${provider}:${userId}`;
 }
 
 function emailApprovalKey(env = process.env) {
   const secret = (
     env.USER_SESSION_ENCRYPTION_KEY ||
-    env.SUPABASE_SESSION_ENCRYPTION_KEY ||
     env.GITHUB_SESSION_ENCRYPTION_KEY ||
     env.MCP_ACCESS_TOKEN ||
     env.SYNCHRON_TEST_INVITE_CODE ||
@@ -201,7 +200,7 @@ export async function approveTesterAccess(
         documentId,
         {
           userId,
-          ...(provider === "supabase" ? {} : { authProvider: provider }),
+          authProvider: provider,
           status: "approved",
           approvedAt,
         },
@@ -306,12 +305,8 @@ export function isConfiguredPrimaryUser(user, env = process.env) {
   return isPrimaryUser(userId, authProvider(user, env), env);
 }
 
-function isPrimaryUser(userId, provider, env = process.env) {
-  const primaryUserId = String(
-    env.SYNCHRON_PRIMARY_USER_ID ||
-      (provider === "supabase" ? env.SYNCHRON_PRIMARY_SUPABASE_USER_ID : "") ||
-      "",
-  ).trim();
+function isPrimaryUser(userId, _provider, env = process.env) {
+  const primaryUserId = String(env.SYNCHRON_PRIMARY_USER_ID || "").trim();
   return Boolean(primaryUserId) && userId === primaryUserId;
 }
 

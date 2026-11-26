@@ -45,11 +45,10 @@ test("invite-approved registration stores a server-side access record", async ()
   );
 
   assert.equal(approved.userId, "user-approved");
-  assert.deepEqual(Object.keys(client.records.get("user-approved")).sort(), [
-    "approvedAt",
-    "status",
-    "userId",
-  ]);
+  assert.deepEqual(
+    Object.keys(client.records.get("identity-platform:user-approved")).sort(),
+    ["approvedAt", "authProvider", "status", "userId"],
+  );
   assert.equal(
     await assertTesterAccess({ id: "user-approved" }, { client }),
     true,
@@ -123,14 +122,14 @@ test("an invite-approved email can recover access without storing a guessable em
   );
 });
 
-test("the configured primary Supabase owner does not need a tester record", async () => {
+test("the configured primary owner does not need a tester record", async () => {
   const client = createClient();
   assert.equal(
     await assertTesterAccess(
       { id: "primary-user-id" },
       {
         client,
-        env: { SYNCHRON_PRIMARY_SUPABASE_USER_ID: "primary-user-id" },
+        env: { SYNCHRON_PRIMARY_USER_ID: "primary-user-id" },
       },
     ),
     true,
@@ -172,7 +171,7 @@ test("public accounts with an approved record pass", async () => {
 
 test("public accounts with a revoked record stay blocked", async () => {
   const client = createClient();
-  client.records.set("revoked-public", {
+  client.records.set("identity-platform:revoked-public", {
     userId: "revoked-public",
     status: "revoked",
   });

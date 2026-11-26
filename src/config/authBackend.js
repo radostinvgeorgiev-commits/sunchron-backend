@@ -1,29 +1,10 @@
-const AUTH_BACKENDS = new Set(["identity-platform", "supabase"]);
-
-function isProductionRuntime(env = process.env) {
-  return (
-    String(env.NODE_ENV || "")
-      .trim()
-      .toLowerCase() === "production"
-  );
-}
-
+// Identity Platform is the only sign-in backend. The old Supabase backend was
+// retired after the accounts moved (2026-11-26).
 export function resolveAuthBackend(env = process.env) {
-  const fallback = String(
-    env.IDENTITY_PLATFORM_PROJECT_ID ||
-      env.GOOGLE_CLOUD_PROJECT ||
-      env.GCLOUD_PROJECT ||
-      env.GCP_PROJECT_ID ||
-      "",
-  ).trim()
-    ? "identity-platform"
-    : isProductionRuntime(env)
-      ? "identity-platform"
-      : "supabase";
-  const requested = String(env.AUTH_BACKEND || fallback)
+  const requested = String(env.AUTH_BACKEND || "identity-platform")
     .trim()
     .toLowerCase();
-  return AUTH_BACKENDS.has(requested) ? requested : null;
+  return requested === "identity-platform" ? requested : null;
 }
 
 export function resolveIdentityPlatformProjectId(env = process.env) {

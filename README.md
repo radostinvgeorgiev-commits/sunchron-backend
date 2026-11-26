@@ -24,8 +24,9 @@ Claude синтезира ограничен набор от цели файло
 започва само след точно еднократно потвърждение. `main` никога не се променя
 директно от задачата.
 
-В production default backend-ите са Firestore и Identity Platform; legacy
-OpenSearch/Supabase се използват само при изрична конфигурация.
+Паметта е във Firestore, а входът е само през Identity Platform. Старият вход
+през Supabase е премахнат; legacy OpenSearch се използва само при изрична
+конфигурация.
 
 ## Локално стартиране
 

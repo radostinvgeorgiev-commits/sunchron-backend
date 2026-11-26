@@ -48,6 +48,9 @@ import systemRouter from "./src/routes/systemRouter.js";
 import workspacesRouter from "./src/routes/workspacesRouter.js";
 import tasksRouter from "./src/routes/tasksRouter.js";
 import taskRunsRouter from "./src/routes/taskRunsRouter.js";
+import { createShareRouter, createSharedReadRouter } from "./src/routes/shareRouter.js";
+import { createShareService } from "./src/services/shareService.js";
+import { listConversationMessages } from "./src/services/memoryService.js";
 import {
   createEarlyAccessAdminRouter,
   createEarlyAccessRouter,
@@ -204,6 +207,27 @@ app.use(
   codeWorkspaceRouter,
 );
 app.use("/memory", requireOwnerSession, privateApiRateLimiter, memoryRouter);
+const shareService = createShareService({
+  listMessages: (sessionId, ownerId) =>
+    listConversationMessages(sessionId, undefined, ownerId),
+});
+app.use(
+  "/api/share",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  createShareRouter({ service: shareService }),
+);
+app.use(
+  "/api/shared",
+  createApiRateLimiter({ limit: 60 }),
+  createSharedReadRouter({ service: shareService }),
+);
+app.get("/s/:token", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.sendFile("shared.html", { root: "public" });
+});
 app.use(
   "/api/workspaces",
   requireOwnerSession,

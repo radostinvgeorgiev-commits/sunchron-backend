@@ -79,7 +79,8 @@ const DEFAULT_AGENTS = Object.freeze([
     name: "Код",
     role: "coder",
     model: "auto",
-    purpose: "Claude анализира кода в изолирана област без запис и без интернет.",
+    purpose:
+      "Claude анализира кода в изолирана област без запис и без интернет.",
     engine: "codex",
   }),
 ]);
@@ -230,7 +231,9 @@ export function normalizeWorkspaceState(value, { now } = {}) {
         role: VALID_ROLES.has(agent?.role) ? agent.role : "general",
         // The code agent runs on Claude now; an older GPT choice becomes auto.
         model:
-          agent?.engine === "codex" ? "auto" : normalizeAgentModel(agent?.model),
+          agent?.engine === "codex"
+            ? "auto"
+            : normalizeAgentModel(agent?.model),
         purpose: cleanText(agent?.purpose, 400),
         engine: VALID_ENGINES.has(agent?.engine) ? agent.engine : "ai-core",
       }))

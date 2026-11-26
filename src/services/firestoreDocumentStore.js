@@ -1,7 +1,9 @@
 import {
   resolveFirestoreDatabaseId,
   resolveFirestoreProjectId,
+  resolvePersistenceBackend,
 } from "../config/memoryBackend.js";
+import { getLocalDocumentStore } from "./localDocumentStore.js";
 
 const FIRESTORE_API_ORIGIN = "https://firestore.googleapis.com";
 const METADATA_TOKEN_URL =
@@ -131,6 +133,10 @@ export function createFirestoreDocumentStore({
   fetchImpl = globalThis.fetch,
   now = () => Date.now(),
 } = {}) {
+  // Development and tests without a Google Cloud project keep the same code
+  // path over an in-process store; production always resolves to Firestore.
+  if (resolvePersistenceBackend(env) === "local")
+    return getLocalDocumentStore();
   if (typeof fetchImpl !== "function") {
     throw configurationError("Липсва HTTP клиент за Firestore.");
   }

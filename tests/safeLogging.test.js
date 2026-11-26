@@ -10,7 +10,6 @@ import {
 
 const SENTINEL = "Bearer private-token personal@example.com private-prompt";
 const SAFE_LOGGING_CALLERS = [
-  "../src/config/opensearch.js",
   "../src/routes/calendarRouter.js",
   "../src/routes/chat.js",
   "../src/routes/githubRouter.js",

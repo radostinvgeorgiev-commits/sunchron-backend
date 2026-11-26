@@ -1,5 +1,4 @@
 import { createHash, randomUUID } from "node:crypto";
-import { getOpenSearchClient } from "../config/opensearch.js";
 import { resolvePersistenceBackend } from "../config/memoryBackend.js";
 import { logSafeError } from "../utils/safeLogging.js";
 import {
@@ -9,8 +8,6 @@ import {
 import { createFirestoreOperationalStore } from "./firestoreOperationalStore.js";
 
 const CONFIRMATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
-const CONFIRMATION_INDEX =
-  process.env.CONFIRMATION_INDEX || "synchron-confirmations-v1";
 
 // Only explicitly listed, narrow write flows may create confirmations.
 // Legacy direct GitHub writes and arbitrary infrastructure writes stay blocked.
@@ -110,69 +107,30 @@ function getFirestoreOperationalStoreOrThrow() {
 }
 
 async function persistConfirmation(confirmation) {
-  if (persistenceBackendOrThrow() === "firestore") {
-    await getFirestoreOperationalStoreOrThrow().saveConfirmation(
-      confirmation.id,
-      encryptGitHubSession(confirmation),
-    );
-    return true;
-  }
-  const client = getOpenSearchClient();
-  if (!client) return false;
-  await client.index({
-    index: CONFIRMATION_INDEX,
-    id: confirmation.id,
-    body: encryptGitHubSession(confirmation),
-    refresh: true,
-  });
+  persistenceBackendOrThrow();
+  await getFirestoreOperationalStoreOrThrow().saveConfirmation(
+    confirmation.id,
+    encryptGitHubSession(confirmation),
+  );
   return true;
 }
 
 async function loadStoredConfirmation(id) {
-  if (persistenceBackendOrThrow() === "firestore") {
-    try {
-      const document =
-        await getFirestoreOperationalStoreOrThrow().getConfirmation(id);
-      return document ? decryptGitHubSession(document.data) : null;
-    } catch {
-      throw persistenceError();
-    }
-  }
-  const client = getOpenSearchClient();
-  if (!client) return null;
+  persistenceBackendOrThrow();
   try {
-    const response = await client.get({
-      index: CONFIRMATION_INDEX,
-      id,
-    });
-    return decryptGitHubSession(response.body?._source ?? response._source);
-  } catch (error) {
-    const status = error?.statusCode || error?.meta?.statusCode;
-    if (status === 404) return null;
+    const document =
+      await getFirestoreOperationalStoreOrThrow().getConfirmation(id);
+    return document ? decryptGitHubSession(document.data) : null;
+  } catch {
     throw persistenceError();
   }
 }
 
 async function removeStoredConfirmation(id) {
-  if (persistenceBackendOrThrow() === "firestore") {
-    try {
-      return await getFirestoreOperationalStoreOrThrow().deleteConfirmation(id);
-    } catch {
-      throw persistenceError();
-    }
-  }
-  const client = getOpenSearchClient();
-  if (!client) return false;
+  persistenceBackendOrThrow();
   try {
-    await client.delete({
-      index: CONFIRMATION_INDEX,
-      id,
-      refresh: true,
-    });
-    return true;
-  } catch (error) {
-    const status = error?.statusCode || error?.meta?.statusCode;
-    if (status === 404) return false;
+    return await getFirestoreOperationalStoreOrThrow().deleteConfirmation(id);
+  } catch {
     throw persistenceError();
   }
 }

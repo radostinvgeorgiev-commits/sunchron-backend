@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { setOpenSearchClientForTests } from "../src/config/opensearch.js";
+import { createFirestoreMemoryStore } from "../src/services/firestoreMemoryStore.js";
+import { createLocalDocumentStore } from "../src/services/localDocumentStore.js";
 import {
   buildMemoryContext,
   deleteProfileMemoryByFact,
@@ -10,100 +11,38 @@ import {
   profileMemoryDocumentId,
   saveConversationTurn,
   saveProfileMemory,
+  setFirestoreMemoryStoreForTests,
 } from "../src/services/memoryService.js";
 
-function createMemoryClient() {
-  const profile = new Map();
-  const conversations = new Map();
-  const operations = [];
+const PROFILE_COLLECTION = "synchron-profile-memory-v1";
 
-  function documents(index) {
-    return index.includes("conversation") ? conversations : profile;
-  }
-
-  function matches(source, filter = []) {
-    return filter.every((item) => {
-      if (item.term) {
-        const [field, expected] = Object.entries(item.term)[0];
-        return source[field] === expected;
-      }
-      if (item.terms) {
-        const [field, expected] = Object.entries(item.terms)[0];
-        return expected.includes(source[field]);
-      }
-      return true;
-    });
-  }
-
+// The Firestore memory store over an in-process document store, installed as
+// the memory service's store for one test.
+function createMemoryClient({ failCommit = false } = {}) {
+  const documents = createLocalDocumentStore();
+  const documentStore = {
+    ...documents,
+    async commitOperations(operations) {
+      if (failCommit) throw new Error("commit unavailable");
+      return documents.commitOperations(operations);
+    },
+  };
+  const store = createFirestoreMemoryStore({ env: {}, documentStore });
+  setFirestoreMemoryStoreForTests(store);
   return {
-    indices: {
-      exists: async () => ({ body: true }),
-      putMapping: async () => ({ body: { acknowledged: true } }),
+    documents,
+    seedProfile(id, data) {
+      return documents.set(PROFILE_COLLECTION, id, data);
     },
-    async search({ index, body }) {
-      const items = [...documents(index).entries()].map(([id, source]) => ({
-        _id: id,
-        _source: source,
-      }));
-      const filters =
-        body.query?.bool?.filter || (body.query?.term ? [body.query] : []);
-      const filtered = items
-        .filter(({ _source }) => matches(_source, filters))
-        .sort((left, right) =>
-          String(
-            right._source.updatedAt || right._source.createdAt,
-          ).localeCompare(
-            String(left._source.updatedAt || left._source.createdAt),
-          ),
-        );
-      return { body: { hits: { hits: filtered.slice(0, body.size || 200) } } };
+    async profileFor(ownerId) {
+      return (
+        await documents.queryEqual(PROFILE_COLLECTION, "ownerId", ownerId)
+      ).map(({ id, data }) => ({ id, ...data }));
     },
-    async index({ index, id, body }) {
-      operations.push({ type: "index", id });
-      documents(index).set(id, structuredClone(body));
-      return { body: { result: "created" } };
-    },
-    async bulk({ body }) {
-      operations.push({ type: "bulk" });
-      for (let index = 0; index < body.length; index += 1) {
-        const operation = body[index];
-        if (operation.delete) {
-          documents(operation.delete._index).delete(operation.delete._id);
-          continue;
-        }
-        if (operation.index) {
-          documents(operation.index._index).set(
-            operation.index._id,
-            structuredClone(body[index + 1]),
-          );
-          index += 1;
-        }
-      }
-      return { body: { errors: false } };
-    },
-    async deleteByQuery({ index, body }) {
-      const filters = body.query?.bool?.filter || [];
-      let deleted = 0;
-      for (const [id, source] of documents(index)) {
-        const comparable = { ...source, _id: id };
-        if (matches(comparable, filters)) {
-          documents(index).delete(id);
-          deleted += 1;
-        }
-      }
-      return { body: { deleted } };
-    },
-    seedProfile(id, source) {
-      profile.set(id, structuredClone(source));
-    },
-    profileFor(ownerId) {
-      return [...profile.entries()]
-        .filter(([, memory]) => memory.ownerId === ownerId)
-        .map(([id, memory]) => ({ id, ...memory }));
-    },
-    operations,
   };
 }
+
+test.after(() => setFirestoreMemoryStoreForTests(null));
 
 test("profile memory IDs are deterministic without exposing owner or topic", () => {
   const first = profileMemoryDocumentId(
@@ -127,10 +66,9 @@ test("profile memory IDs are deterministic without exposing owner or topic", () 
 
 test("old topic key is replaced and a new conversation receives only KAMCHIA-7429", async () => {
   const client = createMemoryClient();
-  setOpenSearchClientForTests(client);
   const ownerId = "owner-a";
 
-  client.seedProfile("legacy-code", {
+  await client.seedProfile("legacy-code", {
     ownerId,
     fact: "моят тестов код е МОРСКИ ФАР 728",
     normalizedFact: "моят тестов код е морски фар 728",
@@ -149,10 +87,6 @@ test("old topic key is replaced and a new conversation receives only KAMCHIA-742
     ownerId,
   );
   assert.equal(saved.replaced, true);
-  assert.deepEqual(
-    client.operations.map(({ type }) => type),
-    ["index", "bulk"],
-  );
 
   const memories = await listProfileMemories({
     scope: "personal",
@@ -162,7 +96,7 @@ test("old topic key is replaced and a new conversation receives only KAMCHIA-742
 
   assert.match(context, /KAMCHIA-7429/u);
   assert.doesNotMatch(context, /МОРСКИ ФАР 728/u);
-  assert.equal(client.profileFor(ownerId).length, 1);
+  assert.equal((await client.profileFor(ownerId)).length, 1);
 
   const freshSession = await listConversationMessages(
     "brand-new-session",
@@ -174,22 +108,6 @@ test("old topic key is replaced and a new conversation receives only KAMCHIA-742
 
 test("concurrent writes for one owner and topic leave one raw document", async () => {
   const client = createMemoryClient();
-  const originalSearch = client.search.bind(client);
-  let waitingSearches = 0;
-  let releaseSearches;
-  const bothSearchesStarted = new Promise((resolve) => {
-    releaseSearches = resolve;
-  });
-  client.search = async (input) => {
-    const result = await originalSearch(input);
-    if (input.index.includes("profile")) {
-      waitingSearches += 1;
-      if (waitingSearches === 2) releaseSearches();
-      await bothSearchesStarted;
-    }
-    return result;
-  };
-  setOpenSearchClientForTests(client);
   const ownerId = "owner-concurrent";
 
   const results = await Promise.all([
@@ -208,14 +126,14 @@ test("concurrent writes for one owner and topic leave one raw document", async (
   ]);
 
   assert.equal(results[0].id, results[1].id);
-  assert.equal(client.profileFor(ownerId).length, 1);
-  assert.match(client.profileFor(ownerId)[0].fact, /син|зелен/u);
+  assert.equal((await client.profileFor(ownerId)).length, 1);
+  assert.match((await client.profileFor(ownerId))[0].fact, /син|зелен/u);
 });
 
-test("failed stable index never deletes the legacy document", async () => {
-  const client = createMemoryClient();
+test("a failed write never deletes the legacy document", async () => {
+  const client = createMemoryClient({ failCommit: true });
   const ownerId = "owner-index-failure";
-  client.seedProfile("legacy-color", {
+  await client.seedProfile("legacy-color", {
     ownerId,
     fact: "Любимият ми цвят е син",
     normalizedFact: "любимият ми цвят е син",
@@ -226,10 +144,6 @@ test("failed stable index never deletes the legacy document", async () => {
     updatedAt: "2026-01-01T00:00:00.000Z",
     source: "legacy",
   });
-  client.index = async () => {
-    throw new Error("index unavailable");
-  };
-  setOpenSearchClientForTests(client);
 
   await assert.rejects(
     () =>
@@ -239,96 +153,15 @@ test("failed stable index never deletes the legacy document", async () => {
         "personal",
         ownerId,
       ),
-    /index unavailable/u,
+    /commit unavailable/u,
   );
 
-  assert.equal(client.profileFor(ownerId).length, 1);
-  assert.equal(client.profileFor(ownerId)[0].id, "legacy-color");
-  assert.deepEqual(client.operations, []);
-});
-
-test("cleanup failure keeps the new stable document available", async () => {
-  const client = createMemoryClient();
-  const ownerId = "owner-cleanup-failure";
-  client.seedProfile("legacy-color", {
-    ownerId,
-    fact: "Любимият ми цвят е син",
-    normalizedFact: "любимият ми цвят е син",
-    memoryKey: "personal:preference:favorite-color",
-    category: "preference",
-    scope: "personal",
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-    source: "legacy",
-  });
-  client.bulk = async () => {
-    throw new Error("cleanup unavailable");
-  };
-  setOpenSearchClientForTests(client);
-
-  const saved = await saveProfileMemory(
-    "Любимият ми цвят е зелен",
-    "failure-test",
-    "personal",
-    ownerId,
-  );
-  const visible = await listProfileMemories({ scope: "personal", ownerId });
-
-  assert.equal(saved.cleanupCompleted, false);
-  assert.equal(client.profileFor(ownerId).length, 2);
-  assert.equal(visible.length, 1);
-  assert.equal(visible[0].fact, "Любимият ми цвят е зелен");
-});
-
-test("partial bulk cleanup is reported without hiding the new document", async () => {
-  const client = createMemoryClient();
-  const ownerId = "owner-partial-cleanup";
-  client.seedProfile("legacy-color", {
-    ownerId,
-    fact: "Любимият ми цвят е син",
-    normalizedFact: "любимият ми цвят е син",
-    memoryKey: "personal:preference:favorite-color",
-    category: "preference",
-    scope: "personal",
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-    source: "legacy",
-  });
-  client.bulk = async () => ({ body: { errors: true } });
-  setOpenSearchClientForTests(client);
-
-  const saved = await saveProfileMemory(
-    "Любимият ми цвят е зелен",
-    "failure-test",
-    "personal",
-    ownerId,
-  );
-  const visible = await listProfileMemories({ scope: "personal", ownerId });
-
-  assert.equal(saved.cleanupCompleted, false);
-  assert.equal(visible.length, 1);
-  assert.equal(visible[0].fact, "Любимият ми цвят е зелен");
-});
-
-test("conversation persistence rejects partial OpenSearch bulk failures", async () => {
-  const client = createMemoryClient();
-  client.bulk = async () => ({ body: { errors: true } });
-  setOpenSearchClientForTests(client);
-
-  await assert.rejects(
-    saveConversationTurn(
-      "partial-conversation",
-      "Въпрос",
-      "Отговор",
-      "owner-partial-conversation",
-    ),
-    (error) => error.code === "CONVERSATION_PERSISTENCE_FAILED",
-  );
+  assert.equal((await client.profileFor(ownerId)).length, 1);
+  assert.equal((await client.profileFor(ownerId))[0].id, "legacy-color");
 });
 
 test("user A never reads user B profile or conversation memory", async () => {
   const client = createMemoryClient();
-  setOpenSearchClientForTests(client);
 
   await saveProfileMemory(
     "моят тестов код е A-111",
@@ -369,7 +202,6 @@ test("user A never reads user B profile or conversation memory", async () => {
 
 test("exact requested fact is deleted", async () => {
   const client = createMemoryClient();
-  setOpenSearchClientForTests(client);
   const ownerId = "owner-exact-delete";
   const fact = "Любимият ми цвят е син";
 
@@ -378,12 +210,11 @@ test("exact requested fact is deleted", async () => {
   const deleted = await deleteProfileMemoryByFact(fact, "personal", ownerId);
 
   assert.equal(deleted, 1);
-  assert.deepEqual(client.profileFor(ownerId), []);
+  assert.deepEqual(await client.profileFor(ownerId), []);
 });
 
 test("old fact from the same topic never deletes the current fact", async () => {
   const client = createMemoryClient();
-  setOpenSearchClientForTests(client);
   const ownerId = "owner-stale-delete";
 
   await saveProfileMemory(
@@ -401,17 +232,16 @@ test("old fact from the same topic never deletes the current fact", async () => 
 
   assert.equal(deleted, 0);
   assert.deepEqual(
-    client.profileFor(ownerId).map(({ fact }) => fact),
+    (await client.profileFor(ownerId)).map(({ fact }) => fact),
     ["Любимият ми цвят е син"],
   );
 });
 
 test("different normalized fact with the same memory key is preserved", async () => {
   const client = createMemoryClient();
-  setOpenSearchClientForTests(client);
   const ownerId = "owner-same-key-delete";
 
-  client.seedProfile("current-color", {
+  await client.seedProfile("current-color", {
     ownerId,
     fact: "Любимият ми цвят е син",
     normalizedFact: "любимият ми цвят е син",
@@ -430,6 +260,9 @@ test("different normalized fact with the same memory key is preserved", async ()
   );
 
   assert.equal(deleted, 0);
-  assert.equal(client.profileFor(ownerId).length, 1);
-  assert.equal(client.profileFor(ownerId)[0].fact, "Любимият ми цвят е син");
+  assert.equal((await client.profileFor(ownerId)).length, 1);
+  assert.equal(
+    (await client.profileFor(ownerId))[0].fact,
+    "Любимият ми цвят е син",
+  );
 });

@@ -10,10 +10,6 @@ import {
 } from "../src/services/permissionService.js";
 
 test.beforeEach(() => {
-  delete process.env.OPENSEARCH_USERNAME;
-  delete process.env.OPENSEARCH_PASSWORD;
-  delete process.env.OPENSEARCH_HOST;
-  delete process.env.OPENSEARCH_PORT;
   resetAuditFallbackForTests();
 });
 
@@ -38,7 +34,7 @@ test("exposes the permission registry without mutable policy objects", () => {
   assert.ok(permissions.every((item) => item.decision));
 });
 
-test("records append-only audit events when OpenSearch is unavailable", async () => {
+test("records append-only audit events in the local store", async () => {
   const saved = await recordAuditEvent({
     action: "github.read",
     outcome: "succeeded",

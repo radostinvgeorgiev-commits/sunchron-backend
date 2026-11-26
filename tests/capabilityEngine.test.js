@@ -217,10 +217,7 @@ test("AI CORE chat availability accepts a configured non-OpenAI provider", () =>
     { ownerId: "supabase:test" },
     {
       GEMINI_API_KEY: "key",
-      OPENSEARCH_HOST: "https://search.example",
-      OPENSEARCH_PORT: "443",
-      OPENSEARCH_USERNAME: "user",
-      OPENSEARCH_PASSWORD: "password",
+      GOOGLE_CLOUD_PROJECT: "handy-boulevard-479120-q9",
     },
   );
   assert.equal(result.available, true);

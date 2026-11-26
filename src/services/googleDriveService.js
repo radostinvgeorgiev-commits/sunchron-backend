@@ -4,7 +4,6 @@ import {
   resolveFirestoreProjectId,
   resolvePersistenceBackend,
 } from "../config/memoryBackend.js";
-import { getOpenSearchClient } from "../config/opensearch.js";
 import { logSafeError } from "../utils/safeLogging.js";
 import { reservePublicAiFile } from "./publicAiBudget.js";
 import { createFirestoreOAuthSessionStore } from "./firestoreOAuthSessionStore.js";
@@ -15,8 +14,6 @@ const DRIVE_API_URL = "https://www.googleapis.com/drive/v3";
 const GMAIL_API_URL = "https://gmail.googleapis.com/gmail/v1";
 const CALENDAR_API_URL = "https://www.googleapis.com/calendar/v3";
 const PEOPLE_API_URL = "https://people.googleapis.com/v1";
-const GOOGLE_SESSION_INDEX =
-  process.env.GOOGLE_SESSION_INDEX || "synchron-google-sessions-v1";
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_CALENDAR_REMINDER_MINUTES = 28 * 24 * 60;
 const GOOGLE_DOC = "application/vnd.google-apps.document";
@@ -134,16 +131,7 @@ async function persistSession(id, session, env = process.env) {
     await getFirestoreSessionStore(env).set(id, encryptGoogleSession(session));
     return true;
   }
-  if (backend !== "opensearch") return false;
-  const client = getOpenSearchClient();
-  if (!client) return false;
-  await client.index({
-    index: GOOGLE_SESSION_INDEX,
-    id,
-    body: encryptGoogleSession(session),
-    refresh: true,
-  });
-  return true;
+  return false;
 }
 
 async function loadSession(id, env = process.env) {
@@ -156,14 +144,6 @@ async function loadSession(id, env = process.env) {
     let payload = null;
     if (backend === "firestore") {
       payload = await getFirestoreSessionStore(env).get(id);
-    } else if (backend === "opensearch") {
-      const client = getOpenSearchClient();
-      if (!client) return null;
-      const response = await client.get({
-        index: GOOGLE_SESSION_INDEX,
-        id,
-      });
-      payload = response.body?._source ?? response._source;
     } else {
       return null;
     }
@@ -330,22 +310,6 @@ export async function disconnectSession(id) {
   const backend = resolvePersistenceBackend(process.env);
   if (backend === "firestore") {
     if (id) await getFirestoreSessionStore().delete(id);
-    return;
-  }
-  if (backend !== "opensearch") return;
-  const client = getOpenSearchClient();
-  if (!id || !client) return;
-  try {
-    await client.delete({
-      index: GOOGLE_SESSION_INDEX,
-      id,
-      refresh: true,
-    });
-  } catch (error) {
-    const status = error?.statusCode || error?.meta?.statusCode;
-    if (status !== 404) {
-      logSafeError("[Google session] Delete failure", error);
-    }
   }
 }
 
@@ -509,14 +473,6 @@ export async function getLatestGoogleSessionId() {
       hits = (await getFirestoreSessionStore().listLatest(100)).map(
         ({ id, payload }) => ({ _id: id, _source: payload }),
       );
-    } else if (backend === "opensearch") {
-      const client = getOpenSearchClient();
-      if (!client) return null;
-      const response = await client.search({
-        index: GOOGLE_SESSION_INDEX,
-        body: { size: 20, sort: [{ updatedAt: { order: "desc" } }] },
-      });
-      hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
     } else {
       return null;
     }
@@ -874,7 +830,9 @@ export async function createGmailDraft(
   fetchImpl = fetch,
 ) {
   const recipient = cleanEmail(to);
-  const thread = /^[A-Za-z0-9_-]{6,64}$/u.test(String(threadId || "")) ? String(threadId) : null;
+  const thread = /^[A-Za-z0-9_-]{6,64}$/u.test(String(threadId || ""))
+    ? String(threadId)
+    : null;
   const cleanBody =
     typeof body === "string" && body.trim() && body.length <= 20_000
       ? body.trim()

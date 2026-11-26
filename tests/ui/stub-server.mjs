@@ -32,6 +32,7 @@ export function startStubServer(port = 0) {
     { id: "style", label: "Как говоря и как да ми отговаряш", max: 800 },
   ];
   let avatarProfile = {};
+  let causes = [];
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://stub");
     let p = url.pathname;
@@ -61,6 +62,29 @@ export function startStubServer(port = 0) {
     if (p.startsWith("/api/knowledge-files/") && req.method === "DELETE") {
       files = files.filter(({ id }) => id !== p.split("/").pop());
       return json(res, { removed: true });
+    }
+    if (p.startsWith("/api/causes")) {
+      const id = p.split("/")[3];
+      const send = () => json(res, { causes, moderator: true });
+      if (req.method === "GET") return send();
+      if (req.method === "DELETE") {
+        causes = causes.filter((cause) => cause.id !== id);
+        return send();
+      }
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        const sent = JSON.parse(body || "{}");
+        if (id) {
+          const cause = causes.find((item) => item.id === id);
+          cause.liked = sent.on !== false;
+          cause.likes += cause.liked ? 1 : -1;
+        } else {
+          causes.push({ id: `c${causes.length}`, title: sent.title, description: sent.description, author: "Робот", likes: 1, liked: true, mine: true });
+        }
+        send();
+      });
+      return undefined;
     }
     if (p === "/api/avatar-profile" && req.method === "GET") {
       return json(res, { profile: avatarProfile, fields: AVATAR_FIELDS });

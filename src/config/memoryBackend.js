@@ -1,6 +1,6 @@
-const MEMORY_BACKENDS = new Set(["firestore", "opensearch"]);
+const MEMORY_BACKENDS = new Set(["firestore"]);
 
-function resolveBackend(value, fallback = "opensearch") {
+function resolveBackend(value, fallback = "firestore") {
   const requested = String(value || fallback)
     .trim()
     .toLowerCase();
@@ -19,7 +19,7 @@ export function resolveMemoryBackend(env = process.env) {
   const fallback =
     isProductionRuntime(env) || resolveFirestoreProjectId(env)
       ? "firestore"
-      : "opensearch";
+      : "firestore";
   return resolveBackend(env.MEMORY_BACKEND, fallback);
 }
 

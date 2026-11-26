@@ -496,3 +496,93 @@ body.talk-mode .voice-btn.listening {
 .activity-table th, .activity-table td { padding: 7px 6px; border-bottom: 1px solid #e3e7e5; text-align: left; white-space: nowrap; }
 .activity-table td:nth-child(2) { position: relative; min-width: 70px; }
 .activity-bar { display: inline-block; height: 8px; margin-right: 6px; border-radius: 4px; background: #2f6b52; vertical-align: middle; max-width: 50px; }
+
+/* One header row: the Чат/Работа switch sits in the header next to the
+   pickers. „Код“ and „Проекти и режими“ open from the menu, so the header
+   has no extra buttons (the coding models are in the model picker). */
+#codeWorkspaceBtn { display: none !important; }
+.app-shell .chat-toolbar > .interaction-mode-bar {
+  display: flex; align-items: center; gap: 6px; flex: 0 0 auto; width: auto !important; min-width: 0 !important; max-width: none;
+  margin: 0; padding: 0 !important; border: 0 !important; min-height: 0;
+  background: transparent !important; box-shadow: none !important; position: static;
+}
+.chat-toolbar > .interaction-mode-bar .interaction-mode-switch { margin: 0; }
+
+@media (max-width: 600px) {
+  .app-shell .chat-toolbar {
+    flex-wrap: nowrap; gap: 2px; min-height: 0 !important;
+    padding: 6px 6px !important;
+  }
+  .app-shell .chat-toolbar::after { display: none; }
+  .chat-toolbar .model-title { order: 0; flex: 1 1 0; min-width: 0; }
+  /* The specialist shows its name once one is chosen; until then only the
+     icon, so the model name has room. */
+  .chat-toolbar .assistant-title { order: 0; flex: 0 1 auto; min-width: 0; max-width: 34%; }
+  .chat-toolbar .assistant-picker-btn:not(.chosen) :is(strong, span) { display: none; }
+  .chat-toolbar :is(.mobile-menu, .mobile-new-chat) { width: 34px; height: 34px; min-width: 34px; flex: 0 0 34px; font-size: 1rem; margin: 0; }
+  .chat-toolbar .mobile-new-chat { margin-left: 0; }
+  .chat-toolbar .chat-options > summary { width: 32px; height: 36px; min-width: 32px; }
+  .chat-toolbar .model-picker-btn {
+    height: 34px; min-height: 34px; padding: 0 4px; gap: 2px; font-size: .82rem;
+    width: auto; max-width: 100%; justify-content: flex-start;
+  }
+  .chat-toolbar .model-picker-btn strong { flex: 0 1 auto; max-width: none; }
+  .chat-toolbar .model-picker-btn :is(strong, span) {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+  }
+  .chat-toolbar .model-picker-btn i { font-size: .7rem; flex: 0 0 auto; }
+  /* The narrow header buttons open their lists across the screen width. */
+  /* Model and specialist sit next to "+"; their lists open upwards across
+     the screen width. */
+  .composer-pickers { grid-area: pick; display: flex; gap: 4px; min-width: 0; align-items: center; }
+  .composer-pickers .model-title { flex: 0 1 auto; min-width: 0; }
+  .composer-pickers .assistant-title { flex: 0 1 auto; min-width: 0; max-width: 45%; }
+  .composer-pickers .model-picker-btn {
+    height: 34px; min-height: 34px; padding: 0 7px; gap: 2px; font-size: .8rem;
+    border-radius: 17px; background: #eef3f0; max-width: 100%; min-width: 0;
+  }
+  .composer-pickers .model-picker-btn :is(strong, span) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .composer-pickers .model-picker-btn i { font-size: .7rem; flex: 0 0 auto; }
+  .composer-pickers .assistant-picker-btn:not(.chosen) :is(strong, span, .fa-chevron-down) { display: none; }
+  .composer-pickers .assistant-picker-btn:not(.chosen) { width: 34px; padding: 0; justify-content: center; }
+  .chat-toolbar .ai-spend, .chat-toolbar .chat-options { margin-left: 0 !important; }
+  .composer-pickers .model-picker-btn .fa-chevron-down { display: none; }
+  .composer-pickers :is(.assistant-picker, .model-picker-menu) {
+    position: fixed !important; left: 8px !important; right: 8px !important;
+    top: auto !important; bottom: 120px !important; width: auto !important; max-width: none !important;
+    max-height: 60vh; overflow: auto; z-index: 200 !important;
+  }
+  .app-shell .chat-toolbar { position: relative; z-index: 40; }
+  .chat-toolbar > .interaction-mode-bar { flex-wrap: nowrap !important; gap: 0 !important; margin-right: auto !important; }
+  .chat-toolbar > .interaction-mode-bar .work-context-controls { display: none !important; }
+  .chat-toolbar > .interaction-mode-bar .interaction-mode-switch { padding: 2px !important; gap: 2px; }
+  .chat-toolbar > .interaction-mode-bar .interaction-mode-switch button {
+    width: 30px !important; min-width: 30px; height: 30px; min-height: 30px !important;
+    padding: 0 !important; justify-content: center;
+  }
+  .chat-toolbar > .interaction-mode-bar .interaction-mode-switch button span { display: none !important; }
+  .chat-toolbar .ai-spend > summary { transform: scale(.8); margin: 0 -3px; }
+
+  /* Composer: the text gets the whole width; the buttons sit under it. */
+  .app-shell .chat-input-area {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas: "text text text text text" "attach pick voice talk send";
+    align-items: center; gap: 4px 4px; padding: 8px 6px 6px !important;
+  }
+  .app-shell .chat-input-area #chatInput { grid-area: text; width: 100%; min-height: 40px; padding: 6px 6px 2px; font-size: 1rem; }
+  .app-shell .chat-input-area #attachBtn { grid-area: attach; }
+  .app-shell .chat-input-area #voiceBtn { grid-area: voice; }
+  .app-shell .chat-input-area #talkBtn { grid-area: talk; }
+  .app-shell .chat-input-area #sendBtn { grid-area: send; }
+  .app-shell .chat-input-area :is(#attachBtn, #voiceBtn, #talkBtn, #sendBtn) {
+    width: 36px; height: 36px; min-width: 36px; min-height: 36px;
+  }
+}
+
+@media (max-width: 600px) {
+  .app-shell .chat-input-area :is(#voiceBtn, #talkBtn) { width: 32px; min-width: 32px; }
+  /* The header has room again, so Чат/Работа keep their names. */
+  .chat-toolbar > .interaction-mode-bar .interaction-mode-switch button { width: auto !important; padding: 0 10px !important; gap: 6px; }
+  .chat-toolbar > .interaction-mode-bar .interaction-mode-switch button span { display: inline !important; }
+}

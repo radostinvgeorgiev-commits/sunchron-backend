@@ -376,3 +376,32 @@
     })
     .catch(() => {});
 })();
+
+(() => {
+  // Phone: the model and specialist pickers sit in the bottom row next to
+  // "+", so the header keeps only a few buttons. On a wide screen they go
+  // back to the header.
+  const phone = window.matchMedia("(max-width: 600px)");
+  const header = document.querySelector(".chat-toolbar");
+  const inputArea = document.querySelector(".chat-input-area");
+  if (!header || !inputArea) return;
+  const slot = document.createElement("div");
+  slot.className = "composer-pickers";
+  inputArea.querySelector("#attachBtn")?.after(slot);
+  const place = () => {
+    const pickers = [
+      document.querySelector(".model-title"),
+      document.querySelector(".assistant-title"),
+    ].filter(Boolean);
+    if (phone.matches) {
+      for (const picker of pickers) if (picker.parentElement !== slot) slot.append(picker);
+    } else {
+      const anchor = header.querySelector(".interaction-mode-bar") || header.querySelector("#mobileNewChatBtn");
+      for (const picker of pickers) if (picker.parentElement !== header) header.insertBefore(picker, anchor);
+    }
+  };
+  place();
+  phone.addEventListener?.("change", place);
+  // The specialist picker is added by another script; place it when it lands.
+  new MutationObserver(place).observe(header, { childList: true });
+})();

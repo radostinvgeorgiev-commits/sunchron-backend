@@ -178,6 +178,13 @@ export function startStubServer(port = 0) {
         ? { connected: true, services: { drive: { ok: true }, gmail: { ok: true }, calendar: { ok: true }, contacts: { ok: false, reason: "Google отказа достъп до контактите." }, youtube: { ok: false, connect: "/api/google/connect?add=youtube", reason: "Още не е разрешен." } } }
         : { connected: false, services: {} });
     }
+    // Web search answers, photos (Claude) does not: both shown truthfully.
+    if (p === "/api/tools/check") {
+      return json(res, { checkedAt: new Date().toISOString(), tools: {
+        "openai-web-search": { ok: true },
+        images: { ok: false, reason: "Claude: претоварен." },
+      } });
+    }
     if (p === "/health/integrations") {
       return json(res, { tools: [
         { id: "gmail-read", name: "Gmail", enabled: true, executable: true, configured: true },

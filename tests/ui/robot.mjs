@@ -402,12 +402,14 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect(gmail.startsWith("Работи · проверено"), `Gmail: ${gmail}`);
     const contacts = page.locator('[data-live-check="google:contacts"]');
     expect((await contacts.innerText()) === "Не отговаря", "отказалите Contacts светят зелено");
-    expect((await page.locator(".tool-live-reason").innerText()).includes("контактите"), "няма причина за отказа");
+    expect((await page.locator(".tool-live-reason", { hasText: "контактите" }).count()) === 1, "няма причина за отказа");
     const youtube = page.locator('[data-live-check="google:youtube"]');
     expect((await youtube.innerText()) === "Още не е разрешен", "неразрешеният YouTube е показан като повреден");
     expect((await page.locator('a.tool-connect-btn[href="/api/google/connect?add=youtube"]').count()) === 1, "няма бутон „Разреши“ за YouTube");
-    const card = await page.locator(".tool-status-card", { hasText: "Търсене в интернет" }).innerText();
-    expect(card.includes("без жива проверка") && !card.includes("Работи"), `търсенето свети без проверка: ${card}`);
+    // Tools without a Google call get their own real check too.
+    await page.locator('[data-live-check="core:openai-web-search"].allow').waitFor({ timeout: 5000 });
+    const photos = await page.locator(".tool-status-card", { hasText: "Снимки" }).innerText();
+    expect(photos.includes("Не отговаря") && photos.includes("претоварен"), `снимките светят без проверка: ${photos}`);
     await page.evaluate(() => fetch("/__robot/google-disconnected"));
     await page.click("#closeDataDrawerBtn");
     await page.waitForTimeout(200);
@@ -764,7 +766,7 @@ async function liveSignedIn(origin) {
   });
   await step("Жив сайт: групата „Моят аватар“ е пълна", async () => {
     const buttons = await page.locator(".mine-group [data-plus]").count();
-    expect(buttons === 7, `групата не е със 7 бутона (вижда: ${buttons})`);
+    expect(buttons === 8, `групата не е с 8 бутона (вижда: ${buttons})`);
     expect((await page.locator('.mine-group [data-plus="link"]').count()) === 1, "няма „Питай моя аватар“");
     expect((await page.locator(".mine-group #memoryBtn").count()) === 1, "„Памет“ не е в групата");
   });

@@ -27,6 +27,7 @@ import {
 
 import chatRouter from "./src/routes/chat.js";
 import healthRouter from "./src/routes/health.js";
+import { checkCoreTools } from "./src/services/toolLiveCheckService.js";
 import memoryRouter from "./src/routes/memoryRouter.js";
 import cloudRouter from "./src/routes/cloudRouter.js";
 import githubRouter from "./src/routes/githubRouter.js";
@@ -210,6 +211,42 @@ app.get(
     } catch (error) {
       logSafeError("[Activity] summary", error);
       res.status(503).json({ error: "Активността временно не е достъпна." });
+    }
+  },
+);
+// What the owner's tools list showed as not working, so Claude can read it in
+// the runtime logs instead of asking the owner for a screenshot. Only tool
+// names, badge text and short reasons; no personal data.
+const clip = (value, max) => String(value ?? "").replace(/[\u0000-\u001f\u007f]/gu, " ").trim().slice(0, max);
+app.post(
+  "/api/tools/report",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  privateApiRateLimiter,
+  (req, res) => {
+    const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 40) : [];
+    for (const item of items) {
+      console.warn(`[Tools] not working: ${clip(item?.name, 60)} — ${clip(item?.label, 60)} — ${clip(item?.reason, 160)}`);
+    }
+    res.status(204).end();
+  },
+);
+// Real read-only checks for the owner's tools list (see toolLiveCheckService).
+app.get(
+  "/api/tools/check",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  privateApiRateLimiter,
+  async (req, res) => {
+    try {
+      res.set("Cache-Control", "no-store");
+      res.json({
+        checkedAt: new Date().toISOString(),
+        tools: await checkCoreTools({ ownerId: req.owner?.memoryOwnerId || "" }),
+      });
+    } catch (error) {
+      logSafeError("[Tools] check", error);
+      res.status(503).json({ error: "Проверката временно не е достъпна." });
     }
   },
 );

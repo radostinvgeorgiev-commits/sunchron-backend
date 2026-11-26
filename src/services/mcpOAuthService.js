@@ -333,6 +333,7 @@ export function requiredScopesForMcpTool(name) {
       "confirm_memory_write",
       "prepare_memory_delete",
       "confirm_memory_delete",
+      "update_avatar_profile",
     ].includes(name)
   ) {
     return [MCP_MEMORY_WRITE_SCOPE];

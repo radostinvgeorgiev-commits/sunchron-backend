@@ -10,7 +10,6 @@ function createWorkModeDom(script, fetchImpl) {
       <button id="chatModeBtn"></button>
       <button id="workModeToolbarBtn"></button>
       <button id="workModeBtn"></button>
-      <button id="workPetBtn"><span id="workPet"></span></button>
       <button id="workContextBtn"><strong id="workProjectLabel"></strong><small id="workAgentLabel"></small></button>
       <aside id="dataDrawer" hidden><h2 id="dataDrawerTitle"></h2><div id="dataDrawerBody"></div></aside>
       <div id="drawerBackdrop" hidden></div>
@@ -24,11 +23,16 @@ function createWorkModeDom(script, fetchImpl) {
   return dom;
 }
 
+function savedWorkStatus(dom, id) {
+  return JSON.parse(dom.window.localStorage.getItem(`synchronWorkMode:${id}`))
+    .workStatus;
+}
+
 function nextTurn() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-test("Chat and Work are available with projects, agents, and pet state", async () => {
+test("Chat and Work are available with projects and agents, without pets", async () => {
   const [html, css, workMode, app] = await Promise.all([
     readFile(new URL("../public/index.html", import.meta.url), "utf8"),
     readFile(new URL("../public/work-mode.css", import.meta.url), "utf8"),
@@ -38,10 +42,9 @@ test("Chat and Work are available with projects, agents, and pet state", async (
 
   assert.match(html, /id="chatModeBtn"/u);
   assert.match(html, /id="workModeToolbarBtn"/u);
-  assert.match(html, /id="workPetBtn"/u);
+  assert.doesNotMatch(html, /workPet|любим/u);
   assert.match(html, /id="workContextBtn"/u);
   assert.match(html, /id="councilModeBtn"/u);
-  assert.match(html, /id="workPet"/u);
   assert.match(html, /\/work-mode\.js\?v=/u);
   assert.ok(
     html.indexOf("/work-mode.js") <
@@ -52,30 +55,21 @@ test("Chat and Work are available with projects, agents, and pet state", async (
     /data-owner-only/u,
   );
 
-  assert.match(css, /data-pet-state="running"/u);
-  assert.match(css, /data-pet-state="needs-input"/u);
-  assert.match(css, /data-pet-state="blocked"/u);
-  assert.match(css, /\.work-pet-button/u);
+  assert.doesNotMatch(css, /pet/u);
   assert.match(css, /\.council-mode-button/u);
-  assert.match(css, /prefers-reduced-motion/u);
 
   assert.match(workMode, /function getRequestPayload/u);
   assert.match(workMode, /function createProjectForm/u);
   assert.match(workMode, /function renderProjectContextForm/u);
   assert.match(workMode, /function createAgentForm/u);
   assert.match(workMode, /function createEditAgentForm/u);
-  assert.match(workMode, /Личният любимец/u);
-  assert.match(workMode, /label: "Кори"/u);
+  assert.doesNotMatch(workMode, /PETS|petId|любим|Кори|Капка|Искра|Бухал|Скала|Мяу/u);
   assert.match(workMode, /name: "Код"/u);
   assert.match(workMode, /name: "Проучи"/u);
   assert.match(workMode, /name: "Организирай"/u);
   assert.match(workMode, /name: "Напиши"/u);
   assert.match(workMode, /documents: "Документи и поща"/u);
-  assert.match(workMode, /codex: "Codex · изолиран кодов анализ"/u);
-  assert.match(workMode, /label: "Капка"/u);
-  assert.match(workMode, /label: "Искра"/u);
-  assert.match(workMode, /label: "Бухал"/u);
-  assert.match(workMode, /label: "Скала"/u);
+  assert.match(workMode, /codex: "Codex · branch\/PR кодов изпълнител"/u);
   assert.match(workMode, /\/api\/workspaces/u);
   assert.match(workMode, /защитения ти профил/u);
   assert.match(workMode, /function recordActivity/u);
@@ -107,7 +101,8 @@ test("work settings are scoped by authenticated user and payload is bounded", as
     script,
     /model: Object\.hasOwn\(MODEL_OPTIONS, agent\?\.model\)/u,
   );
-  assert.match(script, /petId: agentPetId\(agent\)/u);
+  assert.match(script, /vertex-gemini-2\.5-flash/u);
+  assert.doesNotMatch(script, /petId/u);
   assert.match(script, /if \(busy && workState\?\.mode === "work"\)/u);
 });
 
@@ -122,7 +117,6 @@ test("work mode runs in the browser and creates an isolated project payload", as
       <button id="chatModeBtn"></button>
       <button id="workModeToolbarBtn"></button>
       <button id="workModeBtn"></button>
-      <button id="workPetBtn"><span id="workPet"></span></button>
       <button id="workContextBtn"><strong id="workProjectLabel"></strong><small id="workAgentLabel"></small></button>
       <aside id="dataDrawer" hidden><h2 id="dataDrawerTitle"></h2><div id="dataDrawerBody"></div></aside>
       <div id="drawerBackdrop" hidden></div>
@@ -134,16 +128,6 @@ test("work mode runs in the browser and creates an isolated project payload", as
 
   dom.window.eval(script);
   dom.window.SynchronWorkMode.init({ id: "tester-one", role: "tester" });
-  dom.window.document.getElementById("workPetBtn").click();
-  assert.equal(
-    dom.window.document.getElementById("dataDrawerTitle").textContent,
-    "Избери любимец",
-  );
-  assert.ok(dom.window.document.querySelector('[aria-label="Избери Бухал"]'));
-  assert.doesNotMatch(
-    dom.window.document.getElementById("dataDrawerBody").textContent,
-    /Проекти|Лични агенти/u,
-  );
   dom.window.document.getElementById("workModeToolbarBtn").click();
   dom.window.SynchronWorkMode.openManager();
 
@@ -152,7 +136,6 @@ test("work mode runs in the browser and creates an isolated project payload", as
   );
   assert.ok(researcher);
   researcher.click();
-  assert.equal(dom.window.document.getElementById("workPet").textContent, "🦉");
   assert.equal(
     dom.window.SynchronWorkMode.getRequestPayload().workContext.agent.role,
     "researcher",
@@ -232,7 +215,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   assert.equal(agentPayload.workContext.agent.name, "Тестов ръководител");
   assert.equal(agentPayload.workContext.agent.model, "gpt-5.6-sol");
   assert.equal(agentPayload.workContext.agent.engine, "codex");
-  assert.equal(agentPayload.workContext.agent.petId, "robot");
+  assert.equal(agentPayload.workContext.agent.petId, undefined);
 
   const editAgent = [...dom.window.document.querySelectorAll("button")].find(
     (button) =>
@@ -245,7 +228,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   editForm.querySelector("#editWorkAgentRole").value = "builder";
   editForm.querySelector("#editWorkAgentModel").value = "gpt-5.6-terra";
   editForm.querySelector("#editWorkAgentEngine").value = "ai-core";
-  editForm.querySelector("#editWorkAgentPet").value = "owl";
+  assert.equal(editForm.querySelector("#editWorkAgentPet"), null);
   editForm.querySelector("#editWorkAgentPurpose").value =
     "Строи и проверява резултата";
   editForm.dispatchEvent(
@@ -257,7 +240,6 @@ test("work mode runs in the browser and creates an isolated project payload", as
   assert.equal(editedPayload.workContext.agent.role, "builder");
   assert.equal(editedPayload.workContext.agent.model, "gpt-5.6-terra");
   assert.equal(editedPayload.workContext.agent.engine, "ai-core");
-  assert.equal(editedPayload.workContext.agent.petId, "owl");
   assert.equal(
     editedPayload.workContext.agent.purpose,
     "Строи и проверява резултата",
@@ -268,15 +250,9 @@ test("work mode runs in the browser and creates an isolated project payload", as
   );
 
   dom.window.SynchronWorkMode.setBusy(true);
-  assert.equal(
-    dom.window.document.getElementById("workPet").dataset.petState,
-    "running",
-  );
+  assert.equal(savedWorkStatus(dom, "tester-one"), "running");
   dom.window.SynchronWorkMode.onTask({ status: "waiting_confirmation" });
-  assert.equal(
-    dom.window.document.getElementById("workPet").dataset.petState,
-    "needs-input",
-  );
+  assert.equal(savedWorkStatus(dom, "tester-one"), "needs-input");
   dom.window.localStorage.setItem("synchronSessionId", "conversation-1");
   dom.window.SynchronWorkMode.onDone({
     task: { id: "task-codex", status: "completed", verified: true },
@@ -303,30 +279,17 @@ test("work mode runs in the browser and creates an isolated project payload", as
     Array.from(continuedPayload.workContext.project.conversationIds),
     ["conversation-1"],
   );
-  assert.equal(
-    dom.window.document.getElementById("workPet").dataset.petState,
-    "needs-input",
-  );
+  assert.equal(savedWorkStatus(dom, "tester-one"), "needs-input");
 
   dom.window.SynchronWorkMode.openManager();
-  const sparkPet = dom.window.document.querySelector(
-    '[aria-label="Избери Искра"]',
-  );
-  assert.ok(sparkPet);
-  sparkPet.click();
-  assert.equal(dom.window.document.getElementById("workPet").textContent, "🔥");
-  assert.equal(
-    dom.window.document.getElementById("workPet").dataset.petId,
-    "spark",
-  );
-  assert.match(
-    dom.window.localStorage.getItem("synchronWorkMode:tester-one"),
-    /"petId":"spark"/u,
+  assert.doesNotMatch(
+    dom.window.document.getElementById("dataDrawerBody").textContent,
+    /любим/u,
   );
   dom.window.close();
 });
 
-test("legacy favorite stays attached to the active agent after migration", async () => {
+test("legacy stored pet fields are ignored and status migrates", async () => {
   const script = await readFile(
     new URL("../public/work-mode.js", import.meta.url),
     "utf8",
@@ -365,9 +328,8 @@ test("legacy favorite stays attached to the active agent after migration", async
 
   assert.equal(
     dom.window.SynchronWorkMode.getRequestPayload().workContext.agent.petId,
-    "drop",
+    undefined,
   );
-  assert.equal(dom.window.document.getElementById("workPet").textContent, "💧");
   dom.window.close();
 });
 
@@ -519,4 +481,63 @@ test("a pending local project survives reload and replaces stale remote state", 
     null,
   );
   secondDom.window.close();
+});
+
+test("project actions link the current conversation, start a related chat and open it", async () => {
+  const script = await readFile(
+    new URL("../public/work-mode.js", import.meta.url),
+    "utf8",
+  );
+  const dom = createWorkModeDom(script, async () => {
+    throw new Error("Offline workspace");
+  });
+  try {
+    let active = "chat-one";
+    const opened = [];
+    const { document, SynchronWorkMode } = dom.window;
+    SynchronWorkMode.init(
+      { id: "project-owner" },
+      {
+        getActiveId: () => active,
+        list: () => [{ sessionId: "chat-one", title: "Първи разговор" }],
+        open: async (id) => {
+          opened.push(id);
+          active = id;
+        },
+        create: async () => {
+          active = "chat-two";
+          return active;
+        },
+        closeDrawer: () => {
+          document.getElementById("dataDrawer").hidden = true;
+        },
+      },
+    );
+    const click = (label) => {
+      const button = [
+        ...document.querySelectorAll("#dataDrawerBody button"),
+      ].find((item) => item.textContent === label);
+      assert.ok(button, label);
+      button.click();
+    };
+    SynchronWorkMode.openManager();
+    click("Свържи текущия чат");
+    click("Нов чат в проекта");
+    await nextTurn();
+    SynchronWorkMode.openManager();
+    click("Първи разговор");
+    await nextTurn();
+    assert.deepEqual(opened, ["chat-one"]);
+    assert.deepEqual(
+      Array.from(
+        SynchronWorkMode.getRequestPayload().workContext.project
+          .conversationIds,
+      ),
+      ["chat-two", "chat-one"],
+    );
+    SynchronWorkMode.selectConversation("unrelated");
+    assert.equal(SynchronWorkMode.getRequestPayload().mode, "chat");
+  } finally {
+    dom.window.close();
+  }
 });

@@ -83,8 +83,7 @@ test("memory acceptance test uses an isolated owner and leaves real memory uncha
   assert.ok(
     report.steps.some(
       (step) =>
-        step.id === "one-time-confirmed-cleanup" &&
-        step.reusable === false,
+        step.id === "one-time-confirmed-cleanup" && step.reusable === false,
     ),
   );
   assert.match(guardInput.ownerId, /^memory-self-test:radko:/u);

@@ -86,7 +86,11 @@ test("task runs support pause, resume and completion from the last checkpoint", 
   assert.equal(planning.status, "planning");
 
   const paused = await pauseTaskRun(
-    { ownerId: "owner-1", runId: created.id, reason: "Потребителят зададе въпрос." },
+    {
+      ownerId: "owner-1",
+      runId: created.id,
+      reason: "Потребителят зададе въпрос.",
+    },
     options,
   );
   assert.equal(paused.status, "paused");
@@ -119,7 +123,11 @@ test("partial task runs remain resumable after a mixed execution", async () => {
   setFirestoreTaskRunStoreForTests(store);
   const options = { env, now: () => "2026-08-21T10:00:00.000Z" };
   const created = await createTaskRun(
-    { ownerId: "owner-partial", title: "Смесена задача", steps: ["Първа", "Втора"] },
+    {
+      ownerId: "owner-partial",
+      title: "Смесена задача",
+      steps: ["Първа", "Втора"],
+    },
     options,
   );
   await recordTaskRunCheckpoint(
@@ -232,7 +240,8 @@ test("task runs enforce owner isolation and valid transitions", async () => {
         },
         { env },
       ),
-    (error) => error.code === "TASK_RUN_INVALID_TRANSITION" && error.status === 409,
+    (error) =>
+      error.code === "TASK_RUN_INVALID_TRANSITION" && error.status === 409,
   );
 });
 
@@ -254,10 +263,16 @@ test("task run list is owner-scoped and can filter status", async () => {
   );
 
   const items = await listTaskRuns({ ownerId: "owner-1" }, { env });
-  assert.deepEqual(items.map((item) => item.id), ["run-b", "run-a"]);
+  assert.deepEqual(
+    items.map((item) => item.id),
+    ["run-b", "run-a"],
+  );
   const cancelled = await listTaskRuns(
     { ownerId: "owner-1", status: "cancelled" },
     { env },
   );
-  assert.deepEqual(cancelled.map((item) => item.id), ["run-b"]);
+  assert.deepEqual(
+    cancelled.map((item) => item.id),
+    ["run-b"],
+  );
 });

@@ -16,7 +16,6 @@ function createWorkModeDom() {
         <button id="chatModeBtn"></button>
         <button id="workModeToolbarBtn"></button>
         <button id="workModeBtn"></button>
-        <button id="workPetBtn"><span id="workPet"></span></button>
         <button id="workContextBtn"></button>
         <span id="workProjectLabel"></span>
         <span id="workAgentLabel"></span>
@@ -32,7 +31,7 @@ function createWorkModeDom() {
   );
 }
 
-test("avatar picker updates the toolbar, active agent, and local state", () => {
+test("the work toolbar has no pet picker and keeps working", () => {
   const dom = createWorkModeDom();
   const { window } = dom;
   window.fetch = async () => {
@@ -40,32 +39,15 @@ test("avatar picker updates the toolbar, active agent, and local state", () => {
   };
 
   window.eval(workModeSource);
-  window.SynchronWorkMode.init({ id: "avatar-picker-test" });
-  window.document.getElementById("workPetBtn").click();
-
-  const sparkChoice = window.document.querySelector(
-    '.pet-choice[aria-label="Избери Искра"]',
+  window.SynchronWorkMode.init({ id: "no-pets-test" });
+  assert.equal(window.SynchronWorkMode.openPetManager, undefined);
+  window.SynchronWorkMode.openManager();
+  assert.doesNotMatch(
+    window.document.getElementById("dataDrawerBody").textContent,
+    /любим|Кори|Искра/u,
   );
-  assert.ok(sparkChoice);
-  sparkChoice.click();
-
-  assert.equal(window.document.getElementById("workPet").textContent, "🔥");
   assert.equal(
-    window.document.getElementById("workPet").dataset.petId,
-    "spark",
-  );
-  const selectedSparkChoice = window.document.querySelector(
-    '.pet-choice[aria-label="Избери Искра"]',
-  );
-  assert.equal(selectedSparkChoice.classList.contains("active"), true);
-
-  const savedState = JSON.parse(
-    window.localStorage.getItem("synchronWorkMode:avatar-picker-test"),
-  );
-  assert.equal(savedState.petId, "spark");
-  assert.equal(
-    savedState.agents.find((agent) => agent.id === savedState.activeAgentId)
-      .petId,
-    "spark",
+    window.SynchronWorkMode.getRequestPayload().workContext?.agent?.petId,
+    undefined,
   );
 });

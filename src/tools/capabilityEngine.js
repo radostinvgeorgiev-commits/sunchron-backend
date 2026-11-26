@@ -13,6 +13,10 @@ import {
 } from "../services/aiCoreService.js";
 import { answerGitHubReadRequest } from "../services/githubService.js";
 import {
+  formatAiProviderProbe,
+  probeAiProviders,
+} from "../services/aiProviderProbeService.js";
+import {
   createGmailDraft,
   GoogleDriveError,
   hasSession,
@@ -55,7 +59,10 @@ import {
   formatWebSearchResult,
   searchWeb,
 } from "../services/webSearchService.js";
-import { prepareCodeTask } from "../services/codeTaskService.js";
+import {
+  isCodeTaskConfigured,
+  prepareCodeTask,
+} from "../services/codeTaskService.js";
 import {
   isMergedBranchCleanupPlanRequest,
   prepareMergedBranchCleanup,
@@ -64,11 +71,22 @@ import {
   confirmGitHubChange,
   prepareGitHubChange,
 } from "../services/githubActionService.js";
-import { getGitHubSession } from "../services/githubOAuthService.js";
+import {
+  getGitHubSession,
+  isActiveAuthorizedGitHubSession,
+} from "../services/githubOAuthService.js";
 import {
   formatGoogleCloudRuntimeStatus,
   getGoogleCloudRuntimeStatus,
 } from "../services/googleCloudService.js";
+import {
+  confirmGoogleCloudAction,
+  prepareGoogleCloudAction,
+} from "../services/googleCloudActionService.js";
+import {
+  formatProjectDiagnostics,
+  getProjectDiagnostics,
+} from "../services/projectDiagnosticsService.js";
 import {
   formatSystemConfigurationReport,
   getSystemConfigurationReport,
@@ -98,13 +116,50 @@ function hasEnvironment(env, ...names) {
   );
 }
 
+async function resolveGitHubReadOptions(input = {}) {
+  const sessionId =
+    typeof input.githubSessionId === "string"
+      ? input.githubSessionId.trim()
+      : "";
+  if (sessionId) {
+    const session = await getGitHubSession(sessionId);
+    if (!session) {
+      throw new CapabilityError(
+        "GitHub OAuth сесията е невалидна или изтекла.",
+        "GITHUB_SESSION_INVALID",
+        401,
+      );
+    }
+    return { accessToken: session.accessToken };
+  }
+
+  if (input.githubSession) {
+    if (!isActiveAuthorizedGitHubSession(input.githubSession)) {
+      throw new CapabilityError(
+        "Липсва активна собственическа GitHub сесия.",
+        "GITHUB_SESSION_INVALID",
+        401,
+      );
+    }
+    return { accessToken: input.githubSession.accessToken };
+  }
+
+  return {};
+}
+
 export function getToolRuntimeAvailability(
   toolId,
   input = {},
   env = process.env,
 ) {
+  // The reason explains what is missing, so it is only reported when the tool
+  // is not available; an available tool never carries a "not configured" text.
   const configured = (available, reason, code = "CAPABILITY_NOT_CONFIGURED") =>
-    Object.freeze({ available, reason, code });
+    Object.freeze(
+      available
+        ? { available: true, reason: null, code: null }
+        : { available: false, reason, code },
+    );
 
   switch (toolId) {
     case "synchron-agent-chat":
@@ -125,14 +180,8 @@ export function getToolRuntimeAvailability(
       return configured(true, null);
     case "github-write":
       if (
-        !hasEnvironment(
-          env,
-          "OPENAI_API_KEY",
-          "GEMINI_API_KEY",
-          "GROK_API_KEY",
-          "GITHUB_CLIENT_ID",
-          "GITHUB_CLIENT_SECRET",
-        )
+        !isCodeTaskConfigured(env) ||
+        !hasEnvironment(env, "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET")
       ) {
         return configured(
           false,
@@ -141,7 +190,7 @@ export function getToolRuntimeAvailability(
         );
       }
       return configured(
-        Boolean(input.githubSessionId),
+        Boolean(input.githubSessionId || input.githubSession),
         "GitHub Write изисква удостоверена собственическа сесия.",
         "CAPABILITY_AUTH_REQUIRED",
       );
@@ -207,9 +256,25 @@ export function getToolRuntimeAvailability(
         "Google Cloud Memory не е конфигурирана.",
       );
     case "google-cloud-read":
+    case "google-cloud-diagnostics":
       return configured(
-        Boolean(env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT || env.GCP_PROJECT_ID),
+        Boolean(
+          env.GOOGLE_CLOUD_PROJECT ||
+          env.GCLOUD_PROJECT ||
+          env.GCP_PROJECT_ID ||
+          (env.K_SERVICE && env.K_REVISION),
+        ),
         "Google Cloud runtime не е конфигуриран.",
+      );
+    case "google-cloud-write":
+      return configured(
+        Boolean(
+          env.GOOGLE_CLOUD_PROJECT ||
+          env.GCLOUD_PROJECT ||
+          env.GCP_PROJECT_ID ||
+          (env.K_SERVICE && env.K_REVISION),
+        ),
+        "Google Cloud write runtime не е конфигуриран.",
       );
     case "google-firestore-memory":
       return configured(
@@ -238,56 +303,67 @@ export async function buildIntegrationStatusReport(
   input = {},
   {
     checkGitHub = () =>
-      answerGitHubReadRequest("Покажи последния commit в GitHub."),
+      answerGitHubReadRequest(
+        "Покажи последния commit в GitHub.",
+        resolveGitHubReadOptions(input),
+      ),
     checkMemory = () =>
       listProfileMemories({ ownerId: input.ownerId, limit: 1 }),
     checkGoogleCloud = getGoogleCloudRuntimeStatus,
     checkGoogleSession = hasSession,
+    probeProviders = probeAiProviders,
     env = process.env,
   } = {},
 ) {
   if (isGitHubWriteStatusRequest(input.message)) {
     return [
       "Проверих текущия режим за GitHub Write.",
-      "Резултат: AI CORE подготвя директна и ограничена кодова промяна.",
+      "Резултат: AI CORE подготвя diff, а реалният запис се изпълнява чрез свързания GitHub Write API.",
       "След точно потвърждение създава отделен branch, атомарен commit и Pull Request; main не се променя директно.",
     ].join("\n");
   }
 
-  const [
-    githubRead,
-    memory,
-    googleCloud,
-    googleConnected,
-  ] = await Promise.all([
+  const [githubRead, memory, googleCloud, googleConnected, providerProbe] = await Promise.all([
     checkedStatus(checkGitHub),
     checkedStatus(checkMemory),
     checkedStatus(checkGoogleCloud, (status) => status?.configured === true),
     input.googleSessionId
       ? checkedStatus(() => checkGoogleSession(input.googleSessionId))
       : false,
+    probeProviders({ env }).catch(() => []),
   ]);
+  const openAiWorks = providerProbe.some(
+    ({ id, working }) => id === "openai" && working,
+  );
 
   const working = [
     ["GitHub Read", githubRead],
     ["Google Cloud Memory", memory],
     ["Google Cloud Read", googleCloud],
-    ["AI CORE разговор", isAiCoreConfigured(env)],
-    ["OpenAI Web Search", Boolean(env.OPENAI_API_KEY)],
-    ["Codex", isCodexAgentConfigured(env)],
+    [
+      "AI CORE разговор",
+      isAiCoreConfigured(env) &&
+        providerProbe.some(
+          ({ id, working }) =>
+            id === getAiProviderStatus(env).primaryProvider && working,
+        ),
+    ],
+    ["OpenAI Web Search", Boolean(env.OPENAI_API_KEY) && openAiWorks],
+    ["Codex", isCodexAgentConfigured(env) && openAiWorks],
   ];
   const sessionTools = [
     [
       "GitHub Write",
       Boolean(input.githubSessionId) &&
-        hasEnvironment(
-          env,
-          "OPENAI_API_KEY",
-          "GEMINI_API_KEY",
-          "GROK_API_KEY",
-          "GITHUB_CLIENT_ID",
-          "GITHUB_CLIENT_SECRET",
-        ),
+        isCodeTaskConfigured(env) &&
+        hasEnvironment(env, "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"),
+      "изисква потвърждение",
+    ],
+    [
+      "Google Cloud Write",
+      Boolean(
+        env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT || env.GCP_PROJECT_ID,
+      ),
       "изисква потвърждение",
     ],
     ["Google Drive", googleConnected, "изисква Google вход"],
@@ -295,11 +371,6 @@ export async function buildIntegrationStatusReport(
     ["Gmail", googleConnected, "изисква Google вход"],
   ];
   const aiProviderStatus = getAiProviderStatus(env);
-  const providerLabels = {
-    openai: "OpenAI",
-    gemini: "Gemini",
-    grok: "Grok",
-  };
 
   return [
     "Проверих инструментите реално сега.",
@@ -320,13 +391,8 @@ export async function buildIntegrationStatusReport(
       .filter(([, available]) => available)
       .map(([name, , note]) => `• ${name} — свързан; ${note}`),
     "",
-    "AI доставчици:",
-    ...aiProviderStatus.providers.map(
-      ({ id, configured }) =>
-        `• ${providerLabels[id] || id} — ${
-          configured ? "конфигуриран" : "не е конфигуриран"
-        }${id === aiProviderStatus.primaryProvider ? "; основен за разговора" : ""}`,
-    ),
+    "AI доставчици (реална заявка, кеш 10 мин):",
+    ...formatAiProviderProbe(providerProbe, aiProviderStatus.primaryProvider),
   ].join("\n");
 }
 
@@ -391,12 +457,24 @@ function requiredInput(value, label) {
   return value.trim();
 }
 
-function confirmationOutput(prepared, label) {
-  return [
+function extractPullRequestNumber(message) {
+  const text = typeof message === "string" ? message.trim() : "";
+  if (!/(?:merge|сли(?:й|ване)|сл(?:ей|ив)|обедин)/iu.test(text)) return null;
+  const match = text.match(
+    /#\s*(\d{1,10})|(?:pull\s*request|\bpr\b|пул\s*рек)\s*(?:№|номер)?\s*(\d{1,10})|(?:merge|сли(?:й|ване)|сл(?:ей|ив)|обедин)\s+#?\s*(\d{1,10})/iu,
+  );
+  const value = Number(match?.[1] || match?.[2] || match?.[3]);
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+function confirmationOutput(prepared, label, exactCommand = null) {
+  const lines = [
     `${label} е подготвено, но не е изпълнено.`,
     `Потвърждение: ${prepared.confirmationId}.`,
     `Валидно до: ${new Date(prepared.expiresAt).toISOString()}.`,
-  ].join("\n");
+  ];
+  if (exactCommand) lines.push(`За изпълнение изпрати точно: ${exactCommand}`);
+  return lines.join("\n");
 }
 
 const executors = Object.freeze({
@@ -488,6 +566,7 @@ const executors = Object.freeze({
   "synchron-system-inspector": async () =>
     formatSystemConfigurationReport(await getSystemConfigurationReport()),
   "github-read": async ({ capability, input }) => {
+    const readOptions = await resolveGitHubReadOptions(input);
     if (capability === "code.task-status") {
       const issueNumber = extractGitHubTaskNumber(input.message);
       if (!issueNumber) {
@@ -496,21 +575,28 @@ const executors = Object.freeze({
           "MISSING_ISSUE_NUMBER",
         );
       }
-      return answerGitHubReadRequest(input.message);
+      return answerGitHubReadRequest(input.message, readOptions);
     }
     if (isMergedBranchCleanupPlanRequest(input.message)) {
       return prepareMergedBranchCleanup({ ownerId: input.ownerId });
     }
-    return answerGitHubReadRequest(input.message);
+    return answerGitHubReadRequest(input.message, readOptions);
   },
   "github-write": async ({ input }) => {
     const prepared = await prepareCodeTask({
       ownerId: input.ownerId,
       sessionId: input.sessionId,
       githubSessionId: input.githubSessionId,
+      githubSession: input.githubSession,
       message: input.message,
     });
-    return prepared.output;
+    return {
+      output: prepared.output,
+      metadata: {
+        confirmationId: prepared.confirmationId,
+        confirmationType: "code-task",
+      },
+    };
   },
   "github-confirmed-write": async ({ capability, input, confirmed }) => {
     const githubSession =
@@ -529,16 +615,40 @@ const executors = Object.freeze({
       "github.file.create": "create_file",
       "github.file.update": "update_file",
       "github.pull-request.create": "create_pr",
+      "github.pull-request.merge": "merge_pr",
       "github.issue.close": "close_issue",
     };
+    let changeInput = input.change || input;
+    if (capability === "github.pull-request.merge") {
+      const pullNumber = Number(
+        changeInput.pullNumber || extractPullRequestNumber(input.message),
+      );
+      if (!Number.isSafeInteger(pullNumber) || pullNumber <= 0) {
+        throw new CapabilityError(
+          "Липсва номер на Pull Request за сливане.",
+          "MISSING_PULL_REQUEST_NUMBER",
+        );
+      }
+      changeInput = { ...changeInput, pullNumber };
+    }
     const prepared = await prepareGitHubChange({
       ownerId: input.ownerId,
       sessionId: input.sessionId,
       githubSession,
       operation: operations[capability],
-      input: input.change || input,
+      input: changeInput,
     });
-    return confirmationOutput(prepared, "GitHub промяната");
+    return {
+      output: confirmationOutput(
+        prepared,
+        "GitHub промяната",
+        `Потвърждавам GitHub промяната: ${prepared.confirmationId}`,
+      ),
+      metadata: {
+        confirmationId: prepared.confirmationId,
+        confirmationType: "capability",
+      },
+    };
   },
   "openai-codex": async ({ input }) => {
     const result = await runCodexProjectAnalysis({
@@ -589,7 +699,13 @@ const executors = Object.freeze({
       googleSessionId: input.googleSessionId,
       message: input.message,
     });
-    return prepared.output;
+    return {
+      output: prepared.output,
+      metadata: {
+        confirmationId: prepared.confirmationId,
+        confirmationType: "capability",
+      },
+    };
   },
   "google-drive-read": async ({ input }) => {
     const files = await listDriveFiles(input.googleSessionId);
@@ -634,12 +750,18 @@ const executors = Object.freeze({
               sessionId: input.sessionId,
               messageId: input.messageId,
             });
-      return confirmationOutput(
-        prepared,
-        capability === "mail.send"
-          ? "Изпращането на Gmail черновата"
-          : "Преместването на Gmail съобщението в кошчето",
-      );
+      return {
+        output: confirmationOutput(
+          prepared,
+          capability === "mail.send"
+            ? "Изпращането на Gmail черновата"
+            : "Преместването на Gmail съобщението в кошчето",
+        ),
+        metadata: {
+          confirmationId: prepared.confirmationId,
+          confirmationType: "capability",
+        },
+      };
     }
     const messages = input.query
       ? await searchGmailMessages(
@@ -689,7 +811,13 @@ const executors = Object.freeze({
       operation: capability === "contacts.create" ? "create" : "update",
       contact: input.contact,
     });
-    return confirmationOutput(prepared, "Промяната на Google контакта");
+    return {
+      output: confirmationOutput(prepared, "Промяната на Google контакта"),
+      metadata: {
+        confirmationId: prepared.confirmationId,
+        confirmationType: "capability",
+      },
+    };
   },
   "synchron-tasks": async ({ capability, input, confirmed }) => {
     if (capability === "tasks.read" || capability === "tasks.progress") {
@@ -741,7 +869,13 @@ const executors = Object.freeze({
         taskId: input.taskId,
         status: input.status,
       });
-      return confirmationOutput(prepared, "Промяната на статуса");
+      return {
+        output: confirmationOutput(prepared, "Промяната на статуса"),
+        metadata: {
+          confirmationId: prepared.confirmationId,
+          confirmationType: "capability",
+        },
+      };
     }
     const task = await createTaskDraft({
       ownerId: input.ownerId,
@@ -755,6 +889,33 @@ const executors = Object.freeze({
     formatWebSearchResult(await searchWeb(input.message)),
   "google-cloud-read": async () =>
     formatGoogleCloudRuntimeStatus(getGoogleCloudRuntimeStatus()),
+  "google-cloud-diagnostics": async () =>
+    formatProjectDiagnostics(await getProjectDiagnostics()),
+  "google-cloud-write": async ({ input, confirmed }) => {
+    const operationInput = input.input || input;
+    const result = confirmed
+      ? await confirmGoogleCloudAction({
+          ownerId: input.ownerId,
+          sessionId: input.sessionId,
+          confirmationId: requiredInput(input.confirmationId, "confirmationId"),
+        })
+      : await prepareGoogleCloudAction({
+          ownerId: input.ownerId,
+          sessionId: input.sessionId,
+          operation: requiredInput(input.operation, "operation"),
+          input: operationInput,
+        });
+    return {
+      output: confirmed
+        ? "Точната потвърдена Google Cloud промяна е изпълнена."
+        : confirmationOutput(result, "Google Cloud промяната"),
+      metadata: {
+        result,
+        confirmationId: result.confirmationId,
+        confirmationType: "capability",
+      },
+    };
+  },
   "google-firestore-memory": async ({ capability, input }) => {
     if (capability === "memory.verify") {
       const report = await runMemoryAcceptanceTest({
@@ -847,6 +1008,7 @@ export async function executeCapability(capability, input = {}, options = {}) {
         "gmail-read",
         "google-contacts",
         "synchron-tasks",
+        "google-cloud-write",
       ].includes(resolved.tool.id);
     if (!canPrepareConfirmation) {
       throw new CapabilityError(
@@ -912,9 +1074,7 @@ export function extractGitHubTaskNumber(message) {
     !/(?:статус|състояние|какво\s+става|докъде|прослед|провери|готов|ci|checks?|проверки|deployment|деплой)/iu.test(
       text,
     ) ||
-    !/(?:github|ги[тд][\s-]*хъб|задач|issue|pull\s*request|\bpr\b)/iu.test(
-      text,
-    )
+    !/(?:github|ги[тд][\s-]*хъб|задач|issue|pull\s*request|\bpr\b)/iu.test(text)
   ) {
     return null;
   }

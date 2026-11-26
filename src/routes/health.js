@@ -23,6 +23,10 @@ import {
 } from "../services/mcpOAuthService.js";
 import { isCodexAgentConfigured } from "../services/codexAgentService.js";
 import {
+  getCodeTaskProviderStatus,
+  isCodeTaskConfigured,
+} from "../services/codeTaskService.js";
+import {
   createSingleFlightCache,
   inspectStorageBackups,
   inspectStorageDependencies,
@@ -69,9 +73,7 @@ function hasAllEnvironmentVariables(env, ...names) {
   return names.every((name) => Boolean(env[name]));
 }
 
-export function resolveStorageBackupCacheTtlMs(
-  _report,
-) {
+export function resolveStorageBackupCacheTtlMs(_report) {
   return FAILED_BACKUP_CACHE_TTL_MS;
 }
 
@@ -385,13 +387,7 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
       authenticated: true,
     },
     "github-write": {
-      configured:
-        isGitHubOAuthConfigured() &&
-        Boolean(
-          process.env.OPENAI_API_KEY &&
-            process.env.GEMINI_API_KEY &&
-            process.env.GROK_API_KEY,
-        ),
+      configured: isGitHubOAuthConfigured() && isCodeTaskConfigured(),
       authenticated: githubAuthenticated,
       runtimeEnabled: true,
       availabilityCode: null,
@@ -475,6 +471,20 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
           ? "Google Cloud project е конфигуриран, но процесът не е потвърден като Cloud Run runtime."
           : null,
     },
+    "google-cloud-write": {
+      configured: googleCloud.configured,
+      authenticated: true,
+      liveVerified: googleCloud.cloudRunDetected,
+      availabilityCode: googleCloud.configured
+        ? googleCloud.cloudRunDetected
+          ? null
+          : "GOOGLE_CLOUD_RUNTIME_NOT_DETECTED"
+        : "GOOGLE_CLOUD_NOT_CONFIGURED",
+      availabilityReason:
+        googleCloud.configured && !googleCloud.cloudRunDetected
+          ? "Google Cloud project е конфигуриран, но процесът не е потвърден като Cloud Run runtime."
+          : null,
+    },
     "google-firestore-memory": {
       configured: isMemoryBackendConfigured(process.env),
     },
@@ -487,15 +497,16 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
       chatAgent: {
         ...getAiProviderStatus(),
       },
+      codeTask: { providers: getCodeTaskProviderStatus() },
       openai: {
         configured: Boolean(process.env.OPENAI_API_KEY),
       },
       memory: {
         ...configuration["google-firestore-memory"],
-      backend:
-        resolveMemoryBackend(process.env) === "firestore"
-          ? "firestore"
-          : null,
+        backend:
+          resolveMemoryBackend(process.env) === "firestore"
+            ? "firestore"
+            : null,
       },
     },
     tools: listTools().map((tool) => {

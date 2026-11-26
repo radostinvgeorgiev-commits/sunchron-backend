@@ -14,8 +14,11 @@ const CAPABILITY_ACTIONS = Object.freeze({
   "code.read": "github.read",
   "code.task-status": "github.read",
   "code.write": "github.write",
+  "github.pull-request.merge": "github.write",
   "database.status": "database.read",
   "infrastructure.googlecloud.read": "infrastructure.read",
+  "infrastructure.googlecloud.diagnostics.read": "infrastructure.read",
+  "infrastructure.googlecloud.write": "infrastructure.write",
   "files.read": "drive.read",
   "mail.read": "mail.read",
   "memory.read": "memory.read",
@@ -38,8 +41,11 @@ const PLANNER_INSTRUCTIONS = [
   "- code.read: четене и проверка на разрешеното GitHub хранилище",
   "- code.task-status: реално проследяване на конкретна GitHub задача или Pull Request по номер, проверките и production статуса",
   "- code.write: промяна в GitHub; може да е недостъпна и винаги изисква потвърждение",
+  "- github.pull-request.merge: сливане на конкретен Pull Request към main след зелени проверки; винаги изисква точно потвърждение",
   "- database.status: проверка дали Supabase е свързан и отговаря",
   "- infrastructure.googlecloud.read: реална проверка на текущия Google Cloud / Cloud Run runtime без стойности на secrets",
+  "- infrastructure.googlecloud.diagnostics.read: проверка само за четене на Cloud Run, Firestore, Cloud Build, Monitoring, Logging, Cloud Resource Manager и метаданни за версии на тайни",
+  "- infrastructure.googlecloud.write: точна IAM, Cloud Run service identity или synchron-main-deploy Cloud Build trigger промяна; винаги изисква отделно потвърждение и exact 40-символен commit SHA при build",
   "- calendar.read: четене на Google Calendar",
   "- calendar.write: подготвяне на ново Google Calendar събитие или напомняне; винаги изисква точно потвърждение преди запис",
   "- files.read: четене на Google Drive",
@@ -69,9 +75,7 @@ export function hasExplicitReadOnlyBoundary(message) {
   return (
     /(?:само\s+за\s+четене|само\s+прочети|read[\s-]*only)/iu.test(text) ||
     /(?:без|никакви?)\s+(?:кодови\s+)?промени/iu.test(text) ||
-    /(?:покажи|провери)\s+само\s+(?:статуса|статус|състоянието)/iu.test(
-      text,
-    ) ||
+    /(?:покажи|провери)\s+само\s+(?:статуса|статус|състоянието)/iu.test(text) ||
     /(?:^|[.!?]\s*)не\s+(?:прави|извършвай)\s+(?:никакви\s+)?промени(?=\s*[.!?]?\s*$)/iu.test(
       text,
     )
@@ -141,26 +145,48 @@ function cleanScope(value) {
   return value === "personal" || value === "project" ? value : undefined;
 }
 
+function extractCommitSha(value) {
+  const match = String(value || "").match(/\b[a-f0-9]{40}\b/iu);
+  return match?.[0]?.toLowerCase() || null;
+}
+
+function sanitizeCloudBuildInput(call, originalMessage) {
+  const rawInput =
+    call?.input && typeof call.input === "object" && !Array.isArray(call.input)
+      ? call.input
+      : {};
+  const commitSha =
+    typeof rawInput.commitSha === "string"
+      ? rawInput.commitSha.trim().toLowerCase()
+      : typeof call?.commitSha === "string"
+        ? call.commitSha.trim().toLowerCase()
+        : extractCommitSha(originalMessage);
+  if (!/^[a-f0-9]{40}$/u.test(commitSha || "")) return null;
+  const input = { commitSha, branch: "main" };
+  for (const field of ["triggerId", "triggerName", "location"]) {
+    if (typeof rawInput[field] === "string" && rawInput[field].trim()) {
+      input[field] = rawInput[field].trim();
+    }
+  }
+  return input;
+}
+
 export function sanitizeCapabilityPlan(plan, originalMessage) {
   const calls = Array.isArray(plan?.calls) ? plan.calls : [];
   const requests = [];
   const seen = new Set();
-  const statusOnlyRequest =
-    isReadOnlyIntegrationStatusRequest(originalMessage);
+  const statusOnlyRequest = isReadOnlyIntegrationStatusRequest(originalMessage);
 
   for (const call of calls.slice(0, MAX_PLANNED_CALLS)) {
     const capability =
       typeof call?.capability === "string" ? call.capability.trim() : "";
     const action = CAPABILITY_ACTIONS[capability];
     if (!action) continue;
-    if (
-      statusOnlyRequest &&
-      capability !== "system.integrations.status"
-    ) {
+    if (statusOnlyRequest && capability !== "system.integrations.status") {
       continue;
     }
     if (
-      capability === "code.write" &&
+      ["code.write", "github.pull-request.merge"].includes(capability) &&
       hasExplicitReadOnlyBoundary(originalMessage)
     ) {
       continue;
@@ -168,12 +194,25 @@ export function sanitizeCapabilityPlan(plan, originalMessage) {
 
     const plannedRequest =
       typeof call?.request === "string" ? call.request.trim() : "";
-    const requestMessage =
-      capability === "code.write"
-        ? originalMessage
-        : plannedRequest || originalMessage;
+    const requestMessage = ["code.write", "github.pull-request.merge"].includes(
+      capability,
+    )
+      ? originalMessage
+      : plannedRequest || originalMessage;
+    const cloudBuildInput =
+      capability === "infrastructure.googlecloud.write" &&
+      call?.operation === "run_cloud_build_trigger"
+        ? sanitizeCloudBuildInput(call, originalMessage)
+        : null;
+    if (
+      capability === "infrastructure.googlecloud.write" &&
+      call?.operation === "run_cloud_build_trigger" &&
+      !cloudBuildInput
+    ) {
+      continue;
+    }
     const scope = cleanScope(call?.scope);
-    const key = `${capability}\u0000${requestMessage}\u0000${scope || ""}`;
+    const key = `${capability}\u0000${requestMessage}\u0000${scope || ""}\u0000${JSON.stringify(cloudBuildInput)}`;
     if (seen.has(key)) continue;
     seen.add(key);
 
@@ -182,6 +221,9 @@ export function sanitizeCapabilityPlan(plan, originalMessage) {
       action,
       message: requestMessage,
       ...(scope ? { scope } : {}),
+      ...(cloudBuildInput
+        ? { operation: "run_cloud_build_trigger", input: cloudBuildInput }
+        : {}),
     });
   }
 

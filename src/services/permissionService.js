@@ -109,6 +109,12 @@ const POLICY = Object.freeze({
     reason:
       "Инфраструктурният достъп е ограничен само до статус и диагностика.",
   }),
+  "infrastructure.write": Object.freeze({
+    decision: "confirm",
+    risk: "critical",
+    reason:
+      "IAM и Cloud Run промените са ограничени до точен проектен ресурс и изискват отделно потвърждение.",
+  }),
   "image.read": Object.freeze({
     decision: "allow",
     risk: "medium",

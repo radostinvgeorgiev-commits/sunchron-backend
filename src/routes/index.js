@@ -8,7 +8,7 @@ router.get("/status", (req, res) => {
   res.json({
     api: "synchron-backend",
     status: "online",
-    time: new Date().toISOString()
+    time: new Date().toISOString(),
   });
 });
 

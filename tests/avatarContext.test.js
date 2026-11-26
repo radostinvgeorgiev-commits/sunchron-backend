@@ -143,13 +143,15 @@ test("avatar receives approved archive knowledge separately from verified memory
     "Каква е посоката?",
     { role: "owner", displayName: "Радко" },
     { mode: "chat", workContext: null },
-    [{
-      text: "Първият демонстрационен контур е здраве, задачи и памет.",
-      category: "decision",
-      scope: "project",
-      sourceTitle: "Основата",
-      status: "approved",
-    }],
+    [
+      {
+        text: "Първият демонстрационен контур е здраве, задачи и памет.",
+        category: "decision",
+        scope: "project",
+        sourceTitle: "Основата",
+        status: "approved",
+      },
+    ],
   );
 
   assert.match(messages[0].content, /РАЗРЕШЕНО ЗНАНИЕ ОТ АРХИВА/u);

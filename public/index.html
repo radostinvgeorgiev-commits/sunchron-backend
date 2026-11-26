@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#0f5f47" />
+    <meta name="theme-color" content="#102b2a" />
     <meta
       name="description"
       content="SYNCHRON-X е лична AI операционна система за разговори, контролирана памет и изпълнение на разрешени задачи чрез AI CORE."
@@ -22,65 +22,71 @@
     <link rel="canonical" href="https://cloudaicore.com/" />
     <title>SYNCHRON-X · Твоята лична AI система</title>
     <link rel="icon" type="image/png" href="/ai-core-mark.png" />
-    <link rel="apple-touch-icon" href="/ai-core-mark.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="AI CORE" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="stylesheet" href="/styles.css?v=20260727-connection-actions" />
     <link rel="stylesheet" href="/appshell.css?v=20260731-chatgpt-app" />
     <link rel="stylesheet" href="/accessibility.css?v=20260728-font-stepper" />
     <link rel="stylesheet" href="/task-journal.css?v=20260728-task-journal" />
+    <link rel="stylesheet" href="/ai-spend.css?v=20261125" />
     <link rel="stylesheet" href="/auth.css?v=20260801-profile-actions" />
+    <link rel="stylesheet" href="/code-workspace.css" />
     <link
       rel="stylesheet"
-      href="/work-mode.css?v=20260802-pet-picker-button-v2"
+      href="/work-mode.css?v=20261124-no-pets"
     />
     <link
       rel="stylesheet"
       href="/assets/20260806-green-chat-v1/synchron-vision.css"
     />
+    <link rel="stylesheet" href="/workspace-refresh.css?v=20261121" />
+    <link rel="stylesheet" href="/interface.css?v=20261125-my-data" />
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.7.2/css/all.min.css"
+      href="/vendor/fontawesome-6.7.2/css/all.min.css"
     />
-    <script src="https://cdn.jsdelivr.net/npm/marked@18.0.7/lib/marked.umd.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.12/dist/purify.min.js"></script>
+    <script src="/vendor/marked-18.0.7/marked.umd.js"></script>
+    <script src="/vendor/dompurify-3.4.12/purify.min.js"></script>
+    <link rel="stylesheet" href="/locale.css" />
+    <link rel="stylesheet" href="/readability.css?v=20261125" />
+    <link rel="stylesheet" href="/ui-refresh.css?v=20261126" />
+    <script src="/locale-en.js"></script>
+    <script src="/locale.js"></script>
   </head>
   <body>
     <section class="auth-gate" id="authGate" aria-labelledby="publicTitle">
       <div class="auth-shell">
-        <header class="auth-story">
+        <header class="public-header">
           <a class="auth-wordmark" href="/" aria-label="SYNCHRON-X — начало">
             <img src="/ai-core-mark.png" alt="" />
-            <span>
-              <strong>SYNCHRON-X</strong>
-              <small>AI CORE</small>
-            </span>
+            <strong>SYNCHRON-X</strong>
           </a>
-          <p class="auth-kicker">ЛИЧНА AI ОПЕРАЦИОННА СИСТЕМА</p>
-          <h1 id="publicTitle">
-            Един AI център за разговори, памет и реална работа.
-          </h1>
-          <p class="auth-lead">
-            AI CORE подрежда контекста ти, запазва само позволеното и подготвя
-            действията, преди ти да ги одобриш.
-          </p>
-          <div class="auth-trust" aria-label="Основни принципи">
-            <span
-              ><i class="fa-solid fa-shield-halved"></i> Ти даваш правата</span
-            >
-            <span
-              ><i class="fa-solid fa-brain"></i> Ти контролираш паметта</span
-            >
-            <span
-              ><i class="fa-solid fa-check-double"></i> Ти одобряваш
-              действията</span
-            >
-          </div>
-          <p class="auth-stage">
-            Ранен достъп за малка група реални потребители.
-          </p>
+          <nav aria-label="Навигация на сайта">
+            <a href="/plans">Планове</a>
+            <a href="/help">Помощ</a>
+            <a href="/developers">За разработчици</a>
+          </nav>
+          <div data-language-switch></div>
         </header>
 
+        <div class="auth-story">
+          <p class="auth-kicker">AI CORE</p>
+          <h1 id="publicTitle">
+            Твоето работно<br class="hero-break" /> пространство <em>с AI.</em>
+          </h1>
+          <p class="auth-lead">
+            AI CORE ти помага да анализираш информация, да подготвяш текстове и
+            да планираш задачи. Сравнявай отговори от различни AI модели
+            и продължавай оттам, където си спрял, с паметта на проекта.
+          </p>
+          <p class="auth-stage">Започни с 30 AI единици. Без банкова карта.</p>
+        </div>
+
         <div class="auth-card" id="authCard">
-          <p class="auth-card-kicker">СИГУРЕН ДОСТЪП</p>
           <h2 id="authTitle">Вход в AI CORE</h2>
           <p class="auth-intro" id="authIntro">
             Продължи към личното си работно пространство.
@@ -114,10 +120,17 @@
             <button id="loginBtn" class="auth-primary" type="submit">
               Влез
             </button>
+            <button id="forgotPasswordBtn" class="auth-link" type="button">
+              Забравена парола?
+            </button>
           </form>
 
+          <a id="googleSignInBtn" class="auth-google" href="/api/auth/google/start" hidden>
+            <i class="fa-brands fa-google" aria-hidden="true"></i>
+            Продължи с Google
+          </a>
           <a id="showRegisterBtn" class="auth-link" href="/register">
-            Кандидатствай за ранен достъп
+            Създай безплатен профил
           </a>
           <form
             id="registerForm"
@@ -154,20 +167,28 @@
               maxlength="128"
               required
             />
-            <label for="registerInviteCode">Код за ранен достъп</label>
-            <input
-              id="registerInviteCode"
-              name="inviteCode"
-              type="password"
-              autocomplete="off"
-              minlength="8"
-              maxlength="128"
-              aria-describedby="registerInviteHelp"
-              required
-            />
-            <small id="registerInviteHelp" class="auth-field-help">
-              Получаваш кода лично от собственика на SYNCHRON-X.
-            </small>
+            <div id="inviteFields" hidden>
+              <label for="registerInviteCode">Код за ранен достъп</label>
+              <input
+                id="registerInviteCode"
+                disabled
+                name="inviteCode"
+                type="password"
+                autocomplete="off"
+                minlength="8"
+                maxlength="128"
+                aria-describedby="registerInviteHelp"
+                required
+              />
+              <small id="registerInviteHelp" class="auth-field-help">
+                Това поле се използва само при ограничена регистрация.
+              </small>
+            </div>
+            <p>
+              С регистрацията приемаш <a href="/terms">Общите условия</a> и
+              <a href="/privacy">Политиката за поверителност</a>. Няма
+              автоматични плащания.
+            </p>
             <button id="registerBtn" class="auth-primary" type="submit">
               Създай профил
             </button>
@@ -182,9 +203,6 @@
             role="alert"
             aria-live="polite"
           ></p>
-          <p class="auth-privacy">
-            Профилът, разговорите и паметта са отделени за всеки потребител.
-          </p>
           <details class="auth-owner">
             <summary>Вход за собственик</summary>
             <a href="/api/github/connect">
@@ -204,8 +222,8 @@
           <article>
             <i class="fa-regular fa-message"></i>
             <div>
-              <h2>Стабилен разговор</h2>
-              <p>Един AI CORE запазва контекста на работата ти.</p>
+              <h2>Разговори и анализ</h2>
+              <p>Пиши, анализирай и сравнявай отговори с AI Council.</p>
             </div>
           </article>
           <article>
@@ -218,11 +236,15 @@
           <article>
             <i class="fa-solid fa-wand-magic-sparkles"></i>
             <div>
-              <h2>Действия с контрол</h2>
+              <h2>Одобрение на действия</h2>
               <p>AI предлага, ти одобряваш, системата изпълнява.</p>
             </div>
           </article>
         </div>
+        <footer class="public-footer">
+          <span>SYNCHRON-X · AI CORE</span>
+          <a href="/help#merchant">Фирмени данни и контакт</a>
+        </footer>
       </div>
     </section>
 
@@ -232,7 +254,7 @@
           <span class="brand-icon"><img src="/ai-core-mark.png" alt="" /></span>
           <span>
             <strong>AI CORE</strong>
-            <small>Лична AI операционна система</small>
+            <small>SYNCHRON-X</small>
           </span>
         </div>
         <button
@@ -242,7 +264,7 @@
           aria-expanded="false"
           aria-controls="profileActions"
         >
-          <span class="profile-avatar" id="profileAvatar">Р</span>
+          <span class="profile-avatar" id="profileAvatar" aria-hidden="true">AI</span>
           <span
             ><strong id="profileName">Радко</strong
             ><small id="profileRole">Проверка на профила…</small></span
@@ -250,9 +272,17 @@
           <i class="fa-solid fa-ellipsis"></i>
         </button>
         <div id="profileActions" class="profile-actions" hidden>
+          <div class="profile-language">
+            <span>Език</span>
+            <div data-language-switch></div>
+          </div>
           <button id="profileStatusBtn" type="button">
             <i class="fa-solid fa-sliders"></i>
             <span>Състояние и настройки</span>
+          </button>
+          <button id="myDataBtn" type="button" data-member-only>
+            <i class="fa-solid fa-shield-halved"></i>
+            <span>Моите данни</span>
           </button>
           <button
             id="sidebarLogoutBtn"
@@ -267,31 +297,6 @@
           <i class="fa-regular fa-pen-to-square"></i>
           <span>Нов разговор</span>
         </button>
-        <nav class="sidebar-nav" aria-label="Основно меню">
-          <button id="searchChatsBtn" type="button">
-            <i class="fa-solid fa-clock-rotate-left"></i><span>Разговори</span>
-          </button>
-          <button id="workModeBtn" type="button">
-            <i class="fa-solid fa-briefcase"></i><span>Работа</span>
-          </button>
-          <button id="focusBtn" type="button" data-owner-only>
-            <i class="fa-solid fa-bullseye"></i><span>Дневник на задачите</span>
-          </button>
-          <button id="toolsBtn" type="button" data-owner-only>
-            <i class="fa-solid fa-toolbox"></i><span>Инструменти</span>
-          </button>
-          <button id="workCenterBtn" type="button" data-owner-only>
-            <i class="fa-solid fa-table-cells-large"></i
-            ><span>Работен център</span>
-          </button>
-          <span class="sidebar-nav-label">Система</span>
-          <button id="memoryBtn" type="button">
-            <i class="fa-solid fa-brain"></i><span>Памет</span>
-          </button>
-          <button id="permissionsBtn" type="button" data-owner-only>
-            <i class="fa-solid fa-shield-halved"></i><span>Разрешения</span>
-          </button>
-        </nav>
         <div class="tool-hooks" hidden aria-hidden="true">
           <button id="imagesBtn" type="button">Снимки</button>
           <button id="googleDriveBtn" type="button">Google Drive</button>
@@ -303,7 +308,12 @@
           </button>
         </div>
         <div class="sidebar-section">
-          <span>Разговори</span>
+          <div class="conversation-heading">
+            <span>История</span>
+            <button id="searchChatsBtn" type="button" aria-label="Търси разговори" title="Търси разговори">
+              <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            </button>
+          </div>
           <input
             id="conversationSearch"
             class="conversation-search"
@@ -313,6 +323,39 @@
           />
           <div id="conversationList" class="conversation-list"></div>
         </div>
+        <nav class="sidebar-nav" aria-label="Основно меню">
+          <button id="inboxBtn" class="sidebar-primary" type="button">
+            <i class="fa-solid fa-inbox" aria-hidden="true"></i
+            ><span>Входящи</span
+            ><span id="inboxCount" class="inbox-count" hidden></span>
+          </button>
+          <button id="connectionsBtn" class="sidebar-primary" type="button">
+            <i class="fa-solid fa-plug" aria-hidden="true"></i
+            ><span>Свържи AI</span>
+          </button>
+          <details class="sidebar-group">
+            <summary><i class="fa-solid fa-sliders" aria-hidden="true"></i> Ресурси и инструменти</summary>
+          <button id="focusBtn" type="button" data-owner-only>
+            <i class="fa-solid fa-bullseye"></i><span>Дневник на задачите</span>
+          </button>
+          <button id="toolsBtn" type="button" data-owner-only>
+            <i class="fa-solid fa-toolbox"></i><span>Инструменти</span>
+          </button>
+          <button id="workCenterBtn" type="button" data-owner-only>
+            <i class="fa-solid fa-table-cells-large"></i
+            ><span>Работен център</span>
+          </button>
+          <button id="memoryBtn" type="button">
+            <i class="fa-solid fa-brain"></i><span>Памет</span>
+          </button>
+          <button id="permissionsBtn" type="button" data-owner-only>
+            <i class="fa-solid fa-shield-halved"></i><span>Разрешения</span>
+          </button>
+          <a class="product-nav" href="/plans"><i class="fa-solid fa-wallet" aria-hidden="true"></i><span>Планове и потребление</span></a>
+          <a class="product-nav" href="/help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i><span>Помощ и документация</span></a>
+          <a class="product-nav" href="/developers"><i class="fa-solid fa-code" aria-hidden="true"></i><span>За разработчици</span></a>
+          </details>
+        </nav>
       </aside>
 
       <section class="chatPanel" id="chat-container">
@@ -326,9 +369,40 @@
             <i class="fa-solid fa-bars"></i>
           </button>
           <div class="model-title">
-            <strong>AI CORE</strong>
-            <small>Лична AI операционна система</small>
+            <button id="modelPickerBtn" class="model-picker-btn" type="button" aria-haspopup="menu" aria-expanded="false">
+              <strong id="modelPickerLabel">AI CORE</strong>
+              <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+            </button>
+            <div id="modelPickerMenu" class="model-picker-menu" role="menu" hidden></div>
           </div>
+          <button
+            id="mobileNewChatBtn"
+            class="mobile-new-chat"
+            type="button"
+            aria-label="Нов разговор"
+            title="Нов разговор"
+          >
+            <i class="fa-regular fa-pen-to-square" aria-hidden="true"></i>
+          </button>
+          <details class="chat-options" id="chatOptions">
+            <summary aria-label="Действия за разговора" title="Действия за разговора">
+              <i class="fa-solid fa-ellipsis" aria-hidden="true"></i>
+            </summary>
+            <div class="chat-options-menu">
+              <button id="conversationFindBtn" type="button">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                Търси в чата
+              </button>
+              <button id="conversationShareBtn" type="button">
+                <i class="fa-solid fa-link" aria-hidden="true"></i>
+                Сподели разговора
+              </button>
+              <button id="conversationExportBtn" type="button">
+                <i class="fa-solid fa-download" aria-hidden="true"></i>
+                Изтегли разговора
+              </button>
+            </div>
+          </details>
           <div class="status-indicator" aria-live="polite">
             <span id="agentStatusDot" class="offline"></span>
             <span id="agentStatusText">Свързване…</span>
@@ -355,32 +429,30 @@
               <i class="fa-solid fa-briefcase"></i>
               <span>Работа</span>
             </button>
+            <button
+              id="codeWorkspaceBtn"
+              type="button"
+              aria-label="Код"
+              aria-haspopup="dialog"
+              data-owner-only
+              hidden
+            >
+              <i class="fa-solid fa-code" aria-hidden="true"></i>
+              <span>Код</span>
+            </button>
           </div>
           <div class="work-context-controls">
             <button
               id="councilModeBtn"
               class="council-mode-button"
               type="button"
-              aria-label="Попитай трите AI двигателя"
+              aria-label="Попитай избраните AI двигатели"
               aria-pressed="false"
-              title="Попитай OpenAI, Gemini и Grok и сравни отговорите"
+              aria-controls="councilProviderPicker"
+              title="Попитай избраните AI двигатели и сравни отговорите"
             >
               <i class="fa-solid fa-people-group" aria-hidden="true"></i>
-              <span>Три AI</span>
-            </button>
-            <button
-              id="workPetBtn"
-              class="work-pet-button"
-              type="button"
-              aria-label="Избери любимец"
-            >
-              <span
-                id="workPet"
-                class="work-pet"
-                data-pet-state="ready"
-                aria-hidden="true"
-                >🤖</span
-              >
+              <span>AI Council</span>
             </button>
             <button
               id="workContextBtn"
@@ -397,7 +469,99 @@
           </div>
         </div>
 
+        <fieldset
+          id="councilProviderPicker"
+          class="council-provider-picker"
+          aria-label="Избор на AI двигатели"
+          hidden
+        >
+          <label
+            ><input
+              type="checkbox"
+              name="councilProvider"
+              value="openai"
+            />
+            OpenAI</label
+          >
+          <label
+            ><input
+              type="checkbox"
+              name="councilProvider"
+              value="gemini"
+              checked
+            />
+            Gemini</label
+          >
+          <label
+            ><input
+              type="checkbox"
+              name="councilProvider"
+              value="grok"
+            />
+            Grok</label
+          >
+          <label
+            ><input type="checkbox" name="councilProvider" value="claude" checked />
+            Claude</label
+          >
+          <label
+            ><input type="checkbox" name="councilProvider" value="codex" />
+            Codex</label
+          >
+        </fieldset>
+
+        <div class="conversation-find" id="conversationFind" hidden>
+          <label for="conversationQuery">Търси в текущия разговор</label>
+          <input
+            id="conversationQuery"
+            type="search"
+            maxlength="200"
+            placeholder="Дума или фраза"
+          />
+          <button id="conversationFindNext" type="button">Следващ</button>
+          <button
+            id="conversationFindClose"
+            type="button"
+            aria-label="Затвори търсенето"
+          >
+            Затвори
+          </button>
+          <span id="conversationFindCount" role="status"></span>
+        </div>
         <div id="chatMessages" aria-live="polite"></div>
+        <section
+          id="quickStart"
+          class="quick-start"
+          aria-label="Бързо начало"
+          hidden
+        >
+          <h2 id="quickStartGreeting" class="quick-start-greeting">С какво да започнем?</h2>
+          <div>
+            <button
+              type="button"
+              data-starter="Подготви план за задачите ми днес. Първо ме попитай за приоритетите."
+            >
+              <i class="fa-regular fa-calendar-check" aria-hidden="true"></i
+              ><strong>Подреди деня</strong><span>План и ясни приоритети</span>
+            </button>
+            <button
+              type="button"
+              data-starter="Помогни ми да анализирам бизнес отчет. Ще ти изпратя данните; отбелязвай ясно липсващата информация."
+            >
+              <i class="fa-solid fa-chart-simple" aria-hidden="true"></i
+              ><strong>Анализирай отчет</strong
+              ><span>Числа, разлики и изводи</span>
+            </button>
+            <button
+              type="button"
+              data-starter="Помогни ми да напиша кратък професионален отговор. Първо ще ти дам съобщението и контекста. Не изпращай нищо."
+            >
+              <i class="fa-regular fa-pen-to-square" aria-hidden="true"></i
+              ><strong>Подготви отговор</strong
+              ><span>Кратко, ясно и в твой стил</span>
+            </button>
+          </div>
+        </section>
 
         <div id="attachmentPreview" class="attachment-preview" hidden>
           <img id="attachmentImage" alt="Избрана снимка" />
@@ -420,7 +584,6 @@
               id="attachBtn"
               class="attach-btn"
               type="button"
-              data-owner-only
               aria-label="Добави файл"
               title="Добави файл"
             >
@@ -429,7 +592,7 @@
             <input
               id="imageInput"
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
               hidden
             />
             <textarea
@@ -448,14 +611,17 @@
               aria-label="Гласово въвеждане"
               title="Гласово въвеждане"
             >
-              <i class="fa-solid fa-wave-square"></i>
+              <i class="fa-solid fa-microphone"></i>
             </button>
             <button id="sendBtn" type="button" aria-label="Изпрати">
               <i class="fa-solid fa-arrow-up"></i><span>Изпрати</span>
             </button>
           </div>
           <div class="composer-note">
-            Ти контролираш паметта, инструментите и разрешенията.
+            <span class="member-usage-note"
+              >3 единици на AI опит; Council до 18.
+              <a href="/plans">Потребление</a></span
+            >
           </div>
         </div>
       </section>
@@ -494,7 +660,9 @@
           </div>
           <div class="context-box">
             <div class="context-label">Активни интеграции</div>
-            <div class="context-value" id="activeIntegrationsDisplay">Проверка…</div>
+            <div class="context-value" id="activeIntegrationsDisplay">
+              Проверка…
+            </div>
             <small class="status-evidence">
               Показват се само реално конфигурираните и изпълними връзки.
             </small>
@@ -534,40 +702,94 @@
         <div class="data-drawer-body" id="dataDrawerBody"></div>
       </aside>
 
-      <nav class="mobile-command-bar" aria-label="Основна мобилна навигация">
-        <button
-          class="active"
-          type="button"
-          data-command="chat"
-          aria-current="page"
-        >
-          <i class="fa-regular fa-message"></i>
-          <span>Чат</span>
-        </button>
-        <button type="button" data-command="memory">
-          <i class="fa-solid fa-brain"></i>
-          <span>Памет</span>
-        </button>
-        <button type="button" data-command="connections" data-owner-only>
-          <i class="fa-solid fa-plug"></i>
-          <span>Връзки</span>
-        </button>
-        <button type="button" data-command="status">
-          <i class="fa-solid fa-heart-pulse"></i>
-          <span>Статус</span>
-        </button>
-      </nav>
     </main>
 
+    <dialog
+      id="codeWorkspace"
+      class="code-workspace"
+      aria-labelledby="codeWorkspaceTitle"
+    >
+      <header class="code-workspace-header">
+        <h2 id="codeWorkspaceTitle">Код</h2>
+        <form method="dialog">
+          <button type="submit" class="code-workspace-secondary" autofocus>
+            Затвори
+          </button>
+        </form>
+      </header>
+      <div class="code-workspace-body">
+        <form id="codeWorkspaceForm" class="code-workspace-form">
+          <label for="codeWorkspaceRepository">GitHub хранилище</label>
+          <select id="codeWorkspaceRepository" required disabled>
+            <option value="">Избери хранилище</option>
+          </select>
+          <div class="code-workspace-connections">
+            <a id="codeWorkspaceConnect" href="/api/github/connect" hidden
+              >Свържи GitHub</a
+            >
+            <button
+              id="codeWorkspaceReload"
+              type="button"
+              class="code-workspace-secondary"
+              hidden
+            >
+              Зареди отново
+            </button>
+          </div>
+          <label for="codeWorkspaceMessage">Задача</label>
+          <textarea
+            id="codeWorkspaceMessage"
+            rows="5"
+            required
+            maxlength="8000"
+            placeholder="Опиши промяната и посочи конкретни файлове, ако ги знаеш."
+          ></textarea>
+          <button id="codeWorkspaceStart" type="submit" disabled>
+            Подготви промени
+          </button>
+        </form>
+        <section class="code-workspace-output" aria-label="Преглед на задачата">
+          <p id="codeWorkspaceStatus" role="status"></p>
+          <div id="codeWorkspaceReview"></div>
+          <button id="codeWorkspaceConfirm" type="button" hidden>
+            Потвърди и създай PR
+          </button>
+          <div id="codeWorkspaceResult" hidden>
+            <p>
+              <a
+                id="codeWorkspacePr"
+                target="_blank"
+                rel="noopener noreferrer"
+              ></a>
+            </p>
+            <button
+              id="codeWorkspaceRefreshChecks"
+              type="button"
+              class="code-workspace-secondary"
+            >
+              Обнови GitHub проверките
+            </button>
+            <ul id="codeWorkspaceChecks" aria-live="polite"></ul>
+          </div>
+        </section>
+      </div>
+    </dialog>
+
+    <script src="/workspace-refresh.js?v=20261121-menu" defer></script>
     <script src="/markdown-renderer.js?v=20260728-xss"></script>
-    <script src="/work-mode.js?v=20260802-specialized-agents-v1"></script>
+    <script src="/work-mode.js?v=20261124-no-pets"></script>
+    <script src="/code-workspace.js"></script>
     <script src="/assets/20260806-green-chat-v1/app.js"></script>
     <script src="/accessibility.js?v=20260728-font-stepper"></script>
     <script src="/assets/20260730-connections-v1/work-center.js"></script>
     <script src="/task-journal.js?v=20260728-task-journal"></script>
+    <script src="/ai-spend.js?v=20261125"></script>
+    <script src="/pwa.js?v=20261126"></script>
+    <script src="/ui-refresh.js?v=20261126"></script>
+    <script src="/prompt-tools.js?v=20261126"></script>
+    <script src="/share.js?v=20261126"></script>
     <script src="/google-drive.js?v=20260727-connection-actions"></script>
     <script src="/google-apps.js?v=20260727-connection-actions"></script>
     <script src="/assets/20260806-green-chat-v1/synchron-vision.js"></script>
   </body>
 </html>
-

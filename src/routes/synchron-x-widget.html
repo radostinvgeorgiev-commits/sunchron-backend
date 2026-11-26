@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SYNCHRON-X</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #152d30;
+        --muted: #536b70;
+        --line: #dce6e6;
+        --accent: #116952;
+        --side: #eef3f3;
+        font:
+          15px system-ui,
+          sans-serif;
+        color: var(--ink);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+      .workspace {
+        display: grid;
+        grid-template-columns: 190px minmax(0, 1fr);
+        min-height: 390px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        overflow: hidden;
+        background: #fff;
+      }
+      aside {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        background: var(--side);
+        padding: 16px;
+        border-inline-end: 1px solid var(--line);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+      .brand img {
+        width: 36px;
+        height: 36px;
+        object-fit: contain;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 11px;
+      }
+      strong,
+      small {
+        display: block;
+      }
+      small,
+      #credit-label,
+      #status {
+        color: var(--muted);
+      }
+      #credit-label {
+        margin: 0;
+        font-size: 0.85rem;
+        overflow-wrap: anywhere;
+      }
+      main {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 18px;
+      }
+      h1 {
+        font-size: 1.05rem;
+        margin: 0 0 9px;
+      }
+      p {
+        margin: 0;
+      }
+      #messages {
+        min-height: 155px;
+        max-height: 350px;
+        overflow: auto;
+        flex: 1;
+        padding: 3px 3px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .message {
+        border: 1px solid var(--line);
+        border-radius: 11px;
+        padding: 10px;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .message.user {
+        align-self: flex-end;
+        background: #edf5f2;
+      }
+      .message strong {
+        margin-bottom: 4px;
+      }
+      #status {
+        font-size: 0.84rem;
+        min-height: 1.45rem;
+        margin: 5px 0;
+      }
+      form {
+        display: flex;
+        align-items: end;
+        gap: 8px;
+        padding: 8px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+      }
+      textarea {
+        flex: 1;
+        width: 100%;
+        min-width: 0;
+        min-height: 45px;
+        padding: 6px;
+        border: 0;
+        color: var(--ink);
+        resize: vertical;
+        font: inherit;
+      }
+      button,
+      a {
+        font: inherit;
+        color: var(--accent);
+      }
+      button {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 8px 12px;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
+      #send {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      #website {
+        margin-top: auto;
+        font-size: 0.88rem;
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+      @media (max-width: 520px) {
+        .workspace {
+          display: block;
+        }
+        aside {
+          flex-direction: row;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 9px;
+          padding: 11px;
+          border-inline-end: 0;
+          border-bottom: 1px solid var(--line);
+        }
+        #website {
+          margin-top: 0;
+        }
+        main {
+          padding: 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="workspace">
+      <aside aria-label="SYNCHRON-X">
+        <div class="brand">
+          <img src="https://cloudaicore.com/ai-core-mark.png" alt="" />
+          <div><strong>AI CORE</strong><small>SYNCHRON-X</small></div>
+        </div>
+        <button id="new" type="button" disabled>+ New chat</button>
+        <p id="credit-label" role="status"></p>
+        <a
+          id="website"
+          href="https://cloudaicore.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          >Open website ↗</a
+        >
+      </aside>
+      <main>
+        <h1 id="heading">Chat with AI CORE</h1>
+        <div id="messages" role="log" aria-live="polite"></div>
+        <p id="status" role="status"></p>
+        <form id="composer">
+          <textarea
+            id="question"
+            rows="2"
+            maxlength="6000"
+            required
+            disabled
+            aria-label="Message to AI CORE"
+            placeholder="Write to AI CORE"
+          ></textarea>
+          <button id="send" type="submit" disabled>Send</button>
+        </form>
+      </main>
+    </div>
+    <script>
+      (() => {
+        const byId = (id) => document.getElementById(id);
+        const bg = navigator.language.toLowerCase().startsWith("bg");
+        const t = (en, bulgarian) => (bg ? bulgarian : en);
+        document.documentElement.lang = bg ? "bg" : "en";
+        const question = byId("question"),
+          send = byId("send"),
+          reset = byId("new");
+        const status = byId("status"),
+          messages = byId("messages"),
+          credits = byId("credit-label");
+        byId("heading").textContent = t(
+          "Chat with AI CORE",
+          "Разговор с AI CORE",
+        );
+        byId("website").textContent = t("Open website ↗", "Отвори сайта ↗");
+        question.placeholder = t("Write to AI CORE", "Пиши на AI CORE");
+        question.setAttribute("aria-label", question.placeholder);
+        send.textContent = t("Send", "Изпрати");
+        reset.textContent = t("+ New chat", "+ Нов разговор");
+        const pending = new Map();
+        let nextId = 0,
+          sessionId,
+          busy = false,
+          hostOrigin;
+        const post = (message) =>
+          window.parent.postMessage(
+            { jsonrpc: "2.0", ...message },
+            hostOrigin || "*",
+          );
+        function call(method, params) {
+          return new Promise((resolve, reject) => {
+            const id = ++nextId;
+            const timer = setTimeout(() => {
+              pending.delete(id);
+              reject(
+                new Error(
+                  t(
+                    "The request timed out.",
+                    "Заявката отне твърде много време.",
+                  ),
+                ),
+              );
+            }, 45000);
+            pending.set(id, { resolve, reject, timer });
+            post({ id, method, params });
+          });
+        }
+        window.addEventListener("message", (event) => {
+          if (
+            event.source !== window.parent ||
+            (hostOrigin && event.origin !== hostOrigin)
+          )
+            return;
+          const data = event.data;
+          if (data?.jsonrpc !== "2.0" || !pending.has(data.id)) return;
+          const request = pending.get(data.id);
+          pending.delete(data.id);
+          clearTimeout(request.timer);
+          if (!hostOrigin && event.origin !== "null") hostOrigin = event.origin;
+          if (data.error) request.reject(new Error(data.error.message));
+          else request.resolve(data.result);
+        });
+        async function tool(name, args = {}) {
+          const response = await call("tools/call", { name, arguments: args });
+          if (response?.isError) throw new Error(response.content?.[0]?.text);
+          return response?.structuredContent;
+        }
+        async function updateCredits() {
+          try {
+            const balance = await tool("get_synchron_x_balance");
+            if (balance?.owner)
+              credits.textContent = t("Owner account", "Профил на собственик");
+            else if (Number.isFinite(balance?.remaining)) {
+              credits.textContent = t(
+                `${balance.remaining} AI credits · 3 per question`,
+                `${balance.remaining} AI единици · 3 на въпрос`,
+              );
+            }
+          } catch {
+            credits.textContent = t(
+              "Balance unavailable",
+              "Балансът е недостъпен",
+            );
+          }
+        }
+        function append(role, value) {
+          const box = document.createElement("div"),
+            title = document.createElement("strong");
+          box.className = "message " + role;
+          title.textContent = role === "user" ? t("You", "Ти") : "AI CORE";
+          box.append(title, document.createTextNode(value));
+          messages.append(box);
+          messages.scrollTop = messages.scrollHeight;
+        }
+        reset.addEventListener("click", () => {
+          sessionId = undefined;
+          messages.replaceChildren();
+          status.textContent = "";
+          question.focus();
+        });
+        byId("composer").addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const value = question.value.trim();
+          if (busy || !value) return;
+          busy = true;
+          send.disabled = reset.disabled = true;
+          status.textContent = t("AI CORE is answering…", "AI CORE отговаря…");
+          try {
+            const reply = await tool("ask_synchron_x", {
+              question: value,
+              ...(sessionId ? { sessionId } : {}),
+            });
+            if (typeof reply?.answer !== "string")
+              throw new Error(
+                t("No answer received.", "Не получихме отговор."),
+              );
+            append("user", value);
+            append("assistant", reply.answer);
+            sessionId = reply.sessionId;
+            if (question.value.trim() === value) question.value = "";
+            status.textContent = reply.conversationPersisted
+              ? ""
+              : t(
+                  "This turn could not be saved to the website.",
+                  "Този обмен не можа да се запази на сайта.",
+                );
+          } catch (error) {
+            status.textContent =
+              error.message ||
+              t(
+                "Could not send the question.",
+                "Въпросът не можа да бъде изпратен.",
+              );
+          } finally {
+            busy = false;
+            send.disabled = reset.disabled = false;
+            void updateCredits();
+          }
+        });
+        if (window.parent === window) {
+          status.textContent = t(
+            "Open the SYNCHRON-X workspace in ChatGPT to start.",
+            "Отвори SYNCHRON-X в ChatGPT, за да започнеш.",
+          );
+          return;
+        }
+        status.textContent = t("Connecting…", "Свързване…");
+        call("ui/initialize", {
+          appInfo: { name: "synchron-x", version: "0.2.0" },
+          appCapabilities: {},
+          protocolVersion: "2026-01-26",
+        })
+          .then(() => {
+            post({ method: "ui/notifications/initialized", params: {} });
+            question.disabled = send.disabled = reset.disabled = false;
+            status.textContent = "";
+            void updateCredits();
+          })
+          .catch(() => {
+            status.textContent = t(
+              "The workspace could not connect. Reopen it to try again.",
+              "Работното пространство не се свърза. Отвори го отново.",
+            );
+          });
+      })();
+    </script>
+  </body>
+</html>

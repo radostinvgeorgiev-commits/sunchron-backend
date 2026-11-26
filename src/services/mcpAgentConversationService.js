@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 
-import { buildAvatarMessages } from "../routes/chat.js";
+import {
+  buildAvatarMessages,
+  buildCapabilityReplies,
+  detectCapabilityRequests,
+} from "../routes/chat.js";
 import {
   listConversationMessages,
   listProfileMemories,
@@ -9,18 +13,42 @@ import {
 import { requestAiText } from "./aiCoreService.js";
 import { loadWorkspaceState } from "./workspaceStateService.js";
 import {
+  planCapabilities,
+  shouldUseAgentPlanner,
+} from "./agentPlannerService.js";
+import {
+  canPlanCapabilities,
+  filterCapabilityRequestsForIdentity,
+} from "./memberCapabilityPolicy.js";
+import { orchestrateTask } from "./taskOrchestratorService.js";
+import { executeCapability } from "../tools/capabilityEngine.js";
+import {
+  hasExplicitNoAdditionalToolsBoundary,
+  hasExplicitNoToolBoundary,
+  routeSelectedWorkAgentCapabilities,
   resolveWorkAgentModel,
   resolveWorkAgentProvider,
+  sanitizeWorkContext,
 } from "./workModeService.js";
+import { getLatestGoogleSessionId } from "./googleDriveService.js";
+import { getLatestAuthorizedGitHubSession } from "./githubOAuthService.js";
+import { recordAuditEvent } from "./permissionService.js";
+import { createTaskConfirmation } from "./confirmationService.js";
+import {
+  confirmTaskWrite,
+  extractTaskConfirmationId,
+} from "./taskConfirmationService.js";
 
 const MAX_MESSAGE_LENGTH = 6_000;
 const MAX_SESSION_QUESTIONS = 10;
 const SAFE_ID_PATTERN = /^[a-z0-9:_-]+$/iu;
 const BRIDGE_BOUNDARY = [
-  "[MCP МОСТ — САМО РАЗГОВОР]",
-  "Този разговор не може да изпълнява инструменти или външни действия.",
-  "Не променяй код, файлове, GitHub, календар, поща, памет, настройки или инфраструктура.",
-  "Не твърди, че действие е извършено. Върни само текстов отговор за преглед.",
+  "[MCP МОСТ — ПРОВЕРЕН ИНСТРУМЕНТАЛЕН РЕЖИМ]",
+  "Заявките за инструменти се изпълняват само през проверения capability engine на AI CORE.",
+  "Read-only проверките могат да се изпълнят и да върнат реален резултат.",
+  "Записите, изпращанията и инфраструктурните промени никога не се изпълняват директно: подготви точните операции за текущата задача и изчакай едно owner потвърждение за тази задача.",
+  "Не изпълнявай shell команди, произволни URL адреси или действия извън регистрираните инструменти; не показвай secrets.",
+  "Не твърди, че промяна е извършена без потвърден резултат от инструмента.",
   "[КРАЙ НА MCP ГРАНИЦАТА]",
 ].join("\n");
 
@@ -102,6 +130,14 @@ export async function sendMcpAgentMessage(
     askAi = requestAiText,
     saveTurn = saveConversationTurn,
     createSessionId = () => `mcp-${randomUUID()}`,
+    runTask = orchestrateTask,
+    execute = executeCapability,
+    plan = planCapabilities,
+    shouldPlan = shouldUseAgentPlanner,
+    getGoogleSession = getLatestGoogleSessionId,
+    getGitHubSession = getLatestAuthorizedGitHubSession,
+    auditTask = (event) =>
+      recordAuditEvent({ actor: "ai-core-avatar", ...event }),
   } = {},
 ) {
   const cleanOwnerId = cleanRequiredText(ownerId, 200, "проверен профил");
@@ -138,24 +174,173 @@ export async function sendMcpAgentMessage(
     project,
     agent,
   };
+  const sanitizedWorkContext = sanitizeWorkContext(workContext) || workContext;
+  const safeIdentity = identity || {
+    role: "member",
+    displayName: "Потребител",
+  };
+  const noToolBoundary =
+    hasExplicitNoToolBoundary(cleanMessage) ||
+    hasExplicitNoAdditionalToolsBoundary(cleanMessage);
+  const fallbackRequests = noToolBoundary
+    ? []
+    : filterCapabilityRequestsForIdentity(
+        detectCapabilityRequests(cleanMessage),
+        safeIdentity,
+      );
+  const planningAllowed =
+    !noToolBoundary &&
+    canPlanCapabilities(safeIdentity) &&
+    Boolean(process.env.OPENAI_API_KEY);
+
+  let googleSessionId = null;
+  let githubSession = null;
+  const taskConfirmationId = extractTaskConfirmationId(cleanMessage);
+  if (
+    /(?:google|drive|драйв|gmail|джимейл|календар|calendar|контакт)/iu.test(
+      cleanMessage,
+    )
+  ) {
+    try {
+      googleSessionId = await getGoogleSession();
+    } catch {
+      googleSessionId = null;
+    }
+  }
+  if (
+    safeIdentity?.role === "owner" &&
+    /(?:github|ги[тд][\s-]*хъб|репозитор|хранилищ|код|branch|клон|commit|комит|pull\s*request|\bpr\b)/iu.test(
+      cleanMessage,
+    )
+  ) {
+    try {
+      githubSession = await getGitHubSession();
+    } catch {
+      githubSession = null;
+    }
+  }
+
+  if (taskConfirmationId) {
+    if (safeIdentity?.role !== "owner") {
+      throw new McpAgentConversationError(
+        "Записващите действия са достъпни само за собственика.",
+        -32003,
+      );
+    }
+    if (!githubSession) {
+      try {
+        githubSession = await getGitHubSession();
+      } catch {
+        githubSession = null;
+      }
+    }
+    if (!googleSessionId) {
+      try {
+        googleSessionId = await getGoogleSession();
+      } catch {
+        googleSessionId = null;
+      }
+    }
+    const confirmed = await confirmTaskWrite({
+      ownerId: cleanOwnerId,
+      sessionId: cleanSessionId,
+      taskConfirmationId,
+      githubSessionId: githubSession?.id || null,
+      googleSessionId,
+    });
+    const response = `Потвърдената AI CORE задача е изпълнена: ${confirmed.results.length} операции.`;
+    await saveTurn(cleanSessionId, cleanMessage, response, cleanOwnerId);
+    return Object.freeze({
+      sessionId: cleanSessionId,
+      response,
+      project: Object.freeze({ id: project.id, name: project.name }),
+      agent: Object.freeze({
+        id: agent.id,
+        name: agent.name,
+        role: agent.role,
+      }),
+      conversationPersisted: true,
+      capabilities: Object.freeze(
+        confirmed.results.map((item) => item.capability).filter(Boolean),
+      ),
+      task: null,
+      plannerUsed: false,
+      plannerErrorCode: null,
+      externalActionsExecuted: true,
+      codeChanged: confirmed.results.some(
+        (item) =>
+          item.capability === "code.write" ||
+          item.capability?.startsWith("github."),
+      ),
+      turnNumber: previousQuestions + 1,
+      turnsRemaining: MAX_SESSION_QUESTIONS - previousQuestions - 1,
+    });
+  }
+
+  const taskExecution = await runTask({
+    message: cleanMessage,
+    fallbackRequests,
+    planningAllowed,
+    plannerContext: { openAiApiKey: process.env.OPENAI_API_KEY },
+    planFn: plan,
+    shouldPlanFn: shouldPlan,
+    normalizeRequests: (requests) =>
+      filterCapabilityRequestsForIdentity(requests, safeIdentity),
+    routeRequests: (requests) =>
+      routeSelectedWorkAgentCapabilities(
+        requests,
+        sanitizedWorkContext,
+        cleanMessage,
+      ),
+    executeFn: execute,
+    executionContext: {
+      googleSessionId,
+      githubSessionId: githubSession?.id || null,
+      githubSession,
+      ownerId: cleanOwnerId,
+      // MCP confirmations are scoped to the verified owner, while the
+      // conversation history remains isolated by cleanSessionId.
+      sessionId: cleanOwnerId,
+      workContext: sanitizedWorkContext,
+      identity: safeIdentity,
+      prepareConfirmation: true,
+      createTaskConfirmation: (options) =>
+        createTaskConfirmation({
+          ...options,
+          ownerId: cleanOwnerId,
+          sessionId: cleanSessionId,
+        }),
+    },
+    audit: auditTask,
+  });
+  const capabilityResults = taskExecution?.results || [];
+  const capabilityReplies = buildCapabilityReplies(
+    capabilityResults,
+    taskExecution?.taskConfirmation
+      ? { taskConfirmation: taskExecution.taskConfirmation }
+      : {},
+  );
+  const capabilityOutput = capabilityReplies.join("\n\n").trim();
   const input = buildAvatarMessages(
     memories,
     history,
     cleanMessage,
-    bridgeIdentity(identity),
-    { mode: "work", workContext },
+    bridgeIdentity(safeIdentity),
+    { mode: "work", workContext: sanitizedWorkContext },
   ).map((item, index) =>
     index === 0
       ? { ...item, content: `${item.content}\n\n${BRIDGE_BOUNDARY}` }
       : item,
   );
-  const response = await askAi({
-    provider: resolveWorkAgentProvider(agent.model),
-    input,
-    model: resolveWorkAgentModel(agent.model),
-    reasoningEffort: "low",
-    verbosity: "medium",
-  });
+  const response = capabilityOutput
+    ? capabilityOutput
+    : await askAi({
+        provider: resolveWorkAgentProvider(agent.model),
+        input,
+        model: resolveWorkAgentModel(agent.model),
+        reasoningEffort: "low",
+        verbosity: "medium",
+      });
   await saveTurn(cleanSessionId, cleanMessage, response, cleanOwnerId);
 
   return Object.freeze({
@@ -168,6 +353,12 @@ export async function sendMcpAgentMessage(
       role: agent.role,
     }),
     conversationPersisted: true,
+    capabilities: Object.freeze(
+      (taskExecution?.requests || []).map((request) => request.capability),
+    ),
+    task: taskExecution?.task || null,
+    plannerUsed: taskExecution?.plannerUsed === true,
+    plannerErrorCode: taskExecution?.plannerErrorCode || null,
     externalActionsExecuted: false,
     codeChanged: false,
     turnNumber: previousQuestions + 1,

@@ -10,7 +10,6 @@
   --sx-shadow: 0 22px 70px rgba(33, 45, 40, 0.12);
   --sx-radius: 26px;
 }
-
 html,
 body {
   background:
@@ -472,10 +471,6 @@ textarea:focus-visible {
   background: #fff !important;
 }
 
-.mobile-command-bar {
-  display: none;
-}
-
 @media (min-width: 901px) {
   .app-shell > .chatPanel {
     grid-area: auto !important;
@@ -581,21 +576,21 @@ textarea:focus-visible {
 
   #chatMessages {
     padding: 24px 16px !important;
-    scroll-padding-bottom: calc(var(--sx-mobile-occupied-height, 230px) + 24px);
+    scroll-padding-bottom: calc(var(--sx-mobile-occupied-height, 108px) + 24px);
   }
 
   #chatMessages::after {
     content: "";
     width: 100%;
-    min-height: calc(var(--sx-mobile-occupied-height, 230px) + 24px);
-    flex: 0 0 calc(var(--sx-mobile-occupied-height, 230px) + 24px);
+    min-height: calc(var(--sx-mobile-occupied-height, 108px) + 24px);
+    flex: 0 0 calc(var(--sx-mobile-occupied-height, 108px) + 24px);
     pointer-events: none;
   }
 
   .composer-wrap {
     position: fixed;
     right: 0;
-    bottom: calc(70px + env(safe-area-inset-bottom));
+    bottom: 0;
     left: 0;
     z-index: 60;
     padding: 10px 12px !important;
@@ -626,54 +621,6 @@ textarea:focus-visible {
 
   .composer-note {
     display: none;
-  }
-
-  .mobile-command-bar {
-    position: fixed;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 70;
-    min-height: calc(70px + env(safe-area-inset-bottom));
-    padding: 7px 8px max(7px, env(safe-area-inset-bottom));
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
-    gap: 4px;
-    border-top: 1px solid var(--sx-line);
-    background: rgba(248, 252, 250, 0.95);
-    box-shadow: 0 -14px 40px rgba(33, 45, 40, 0.08);
-    backdrop-filter: blur(22px);
-    -webkit-backdrop-filter: blur(22px);
-  }
-
-  .mobile-command-bar button {
-    min-width: 0;
-    min-height: 54px;
-    padding: 5px 2px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    border: 0;
-    border-radius: 15px;
-    color: var(--sx-muted);
-    background: transparent;
-    font-size: 12px;
-    font-weight: 800;
-  }
-
-  .mobile-command-bar button[hidden] {
-    display: none !important;
-  }
-
-  .mobile-command-bar button i {
-    font-size: 20px;
-  }
-
-  .mobile-command-bar button.active {
-    color: var(--sx-accent);
-    background: rgba(20, 108, 82, 0.11);
   }
 
   .data-drawer {
@@ -743,4 +690,3 @@ textarea:focus-visible {
     }
   }
 }
-

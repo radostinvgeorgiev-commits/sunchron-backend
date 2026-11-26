@@ -1,3 +1,19 @@
+const chatLocale = globalThis.AiCoreLocale;
+const chatText = (value, values) => chatLocale?.text(value, values) ?? value;
+const englishAuthErrors = {
+  AUTH_INVALID_EMAIL: "Enter a valid email address.",
+  AUTH_INVALID_NAME: "Enter a valid name.",
+  AUTH_INVALID_PASSWORD: "Enter a password between 8 and 128 characters.",
+  AUTH_INVALID_CREDENTIALS: "The email address or password is incorrect.",
+  AUTH_INVITE_INVALID: "Enter a valid early access code.",
+  AUTH_REGISTRATION_CLOSED: "Registration is currently closed.",
+  AUTH_REGISTRATION_INCOMPLETE: "Account access is not active. If registration was interrupted, register again with the same email address and password.",
+  AUTH_EMAIL_NOT_VERIFIED: "Open the link in your verification email and select Complete verification. Then sign in.",
+  AUTH_EMAIL_VERIFICATION_RESENT: "We sent a new verification email. Open the latest message, follow its link and select Complete verification. Check your spam folder if needed.",
+  AUTH_UNAVAILABLE: "Sign-in is temporarily unavailable. Try again shortly.",
+  AUTH_SIGNUP_REJECTED: "The account could not be created. If you already have an account, sign in.",
+};
+
 const state = {
   sessionId: getOrCreateSessionId(),
   serverOnline: false,
@@ -18,6 +34,7 @@ const state = {
   listening: false,
   authenticatedUser: null,
   registrationEnabled: false,
+  registrationMode: "public",
   applicationStarted: false,
 };
 
@@ -44,10 +61,12 @@ const elements = {
   registerBtn: document.getElementById("registerBtn"),
   backToLoginBtn: document.getElementById("backToLoginBtn"),
   authMessage: document.getElementById("authMessage"),
+  forgotPasswordBtn: document.getElementById("forgotPasswordBtn"),
   chatMessages: document.getElementById("chatMessages"),
   chatInput: document.getElementById("chatInput"),
   sendBtn: document.getElementById("sendBtn"),
   councilModeBtn: document.getElementById("councilModeBtn"),
+  councilProviderPicker: document.getElementById("councilProviderPicker"),
   attachBtn: document.getElementById("attachBtn"),
   imageInput: document.getElementById("imageInput"),
   attachmentPreview: document.getElementById("attachmentPreview"),
@@ -58,6 +77,7 @@ const elements = {
   toggleStatusBtn: document.getElementById("toggleStatusBtn"),
   profileActions: document.getElementById("profileActions"),
   profileStatusBtn: document.getElementById("profileStatusBtn"),
+  myDataBtn: document.getElementById("myDataBtn"),
   sidebarLogoutBtn: document.getElementById("sidebarLogoutBtn"),
   closeContextBtn: document.getElementById("closeContextBtn"),
   statusPanel: document.getElementById("statusPanel"),
@@ -65,7 +85,9 @@ const elements = {
   agentStatusText: document.getElementById("agentStatusText"),
   sessionIdDisplay: document.getElementById("sessionIdDisplay"),
   serverStatusDisplay: document.getElementById("serverStatusDisplay"),
-  activeIntegrationsDisplay: document.getElementById("activeIntegrationsDisplay"),
+  activeIntegrationsDisplay: document.getElementById(
+    "activeIntegrationsDisplay",
+  ),
   taskRunList: document.getElementById("taskRunList"),
   actionsLog: document.getElementById("actionsLog"),
   conversationList: document.getElementById("conversationList"),
@@ -79,6 +101,9 @@ const elements = {
   focusBtn: document.getElementById("focusBtn"),
   toolsBtn: document.getElementById("toolsBtn"),
   memoryBtn: document.getElementById("memoryBtn"),
+  connectionsBtn: document.getElementById("connectionsBtn"),
+  inboxBtn: document.getElementById("inboxBtn"),
+  inboxCount: document.getElementById("inboxCount"),
   permissionsBtn: document.getElementById("permissionsBtn"),
   dataDrawer: document.getElementById("dataDrawer"),
   dataDrawerTitle: document.getElementById("dataDrawerTitle"),
@@ -132,27 +157,31 @@ function setAuthMessage(message = "", success = false) {
 
 function setCouncilMode(enabled) {
   state.councilMode = Boolean(enabled);
+  if (elements.councilProviderPicker) {
+    elements.councilProviderPicker.hidden = !state.councilMode;
+  }
   if (!elements.councilModeBtn) return;
   elements.councilModeBtn.setAttribute(
     "aria-pressed",
     String(state.councilMode),
   );
   elements.councilModeBtn.title = state.councilMode
-    ? "Следващото съобщение ще бъде обсъдено от OpenAI, Gemini и Grok"
-    : "Попитай OpenAI, Gemini и Grok и сравни отговорите";
+    ? chatText("Следващото съобщение ще бъде изпратено до избраните AI двигатели")
+    : chatText("Попитай избраните AI двигатели и сравни отговорите");
 }
 
 function setAuthBusy(isBusy) {
   elements.loginBtn.disabled = isBusy;
   elements.registerBtn.disabled = isBusy;
   elements.authCard?.setAttribute("aria-busy", String(isBusy));
-  elements.loginBtn.textContent = isBusy ? "Влизане…" : "Влез";
-  elements.registerBtn.textContent = isBusy ? "Създаване…" : "Създай профил";
+  elements.loginBtn.textContent = isBusy ? chatText("Влизане…") : chatText("Влез");
+  elements.registerBtn.textContent = isBusy ? chatText("Създаване…") : chatText("Създай профил");
 }
 
 function replaceAuthPath(path) {
   if (globalThis.location?.pathname === path) return;
-  globalThis.history?.replaceState?.({}, "", path);
+  const search = globalThis.location?.search || "";
+  globalThis.history?.replaceState?.({}, "", path + search);
 }
 
 function showLoginForm(event) {
@@ -160,10 +189,10 @@ function showLoginForm(event) {
   elements.loginForm.hidden = false;
   elements.registerForm.hidden = true;
   elements.showRegisterBtn.hidden = !state.registrationEnabled;
-  elements.authTitle.textContent = "Вход в AI CORE";
+  elements.authTitle.textContent = chatText("Вход в AI CORE");
   elements.authIntro.textContent =
-    "Продължи към личното си работно пространство.";
-  document.title = "Вход · SYNCHRON-X";
+    chatText("Продължи към личното си работно пространство.");
+  document.title = chatText("Вход · SYNCHRON-X");
   replaceAuthPath("/");
   setAuthMessage();
   elements.loginEmail.focus();
@@ -175,10 +204,10 @@ function showRegisterForm(event) {
   elements.loginForm.hidden = true;
   elements.registerForm.hidden = false;
   elements.showRegisterBtn.hidden = true;
-  elements.authTitle.textContent = "Създай профил";
+  elements.authTitle.textContent = chatText("Създай профил");
   elements.authIntro.textContent =
-    "Всеки одобрен профил има отделни разговори, проекти и контролирана памет.";
-  document.title = "Създай профил · SYNCHRON-X";
+    chatText("Създай личен профил с отделни разговори, проекти и контролирана памет.");
+  document.title = chatText("Създай профил · SYNCHRON-X");
   replaceAuthPath(REGISTRATION_PATH);
   setAuthMessage();
   elements.registerName.focus();
@@ -193,7 +222,7 @@ function isDirectRegistrationPage() {
 async function readAuthSession() {
   const response = await fetch("/api/auth/session", { cache: "no-store" });
   if (!response.ok) {
-    throw new Error("Входът временно не е достъпен.");
+    throw new Error(chatText("Входът временно не е достъпен."));
   }
   return response.json();
 }
@@ -208,14 +237,18 @@ async function submitAuth(path, body) {
   if (!response.ok) {
     const action = path.endsWith("/register") ? "Регистрацията" : "Входът";
     const error = new Error(
-      data?.error || `${action} не беше успешен (HTTP ${response.status}).`,
+      chatLocale && chatLocale.language !== "bg"
+        ? (Object.hasOwn(englishAuthErrors, data?.code)
+            ? englishAuthErrors[data.code]
+            : `${path.endsWith("/register") ? "Registration" : "Sign-in"} failed (HTTP ${response.status}).`)
+        : data?.error || `${action} не беше успешен (HTTP ${response.status}).`,
     );
     error.code = data?.code || "AUTH_REQUEST_FAILED";
     error.status = response.status;
     throw error;
   }
   if (!data) {
-    throw new Error(`Невалиден отговор от услугата (HTTP ${response.status}).`);
+    throw new Error(chatText("Невалиден отговор от услугата (HTTP {status}).", { status: response.status }));
   }
   return data;
 }
@@ -231,8 +264,72 @@ async function handleLogin(event) {
     });
     elements.loginPassword.value = "";
     const session = await readAuthSession();
-    if (!session.authenticated) throw new Error("Сесията не беше създадена.");
+    if (!session.authenticated) throw new Error(chatText("Сесията не беше създадена."));
     await startApplication(session.user);
+  } catch (error) {
+    // Identity Platform answers the same for "no account" and "wrong
+    // password". New visitors often type a new password into the sign-in
+    // form, so offer registration with the same email right away.
+    if (error.code === "AUTH_INVALID_CREDENTIALS" && state.registrationEnabled) {
+      offerRegistration(elements.loginEmail.value);
+      return;
+    }
+    setAuthMessage(error.message);
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
+const GOOGLE_SIGN_IN_ERRORS = Object.freeze({
+  AUTH_GOOGLE_CANCELLED: "Входът с Google беше отказан.",
+  AUTH_GOOGLE_STATE_INVALID: "Входът с Google изтече. Опитай пак.",
+  AUTH_GOOGLE_DISABLED: "Входът с Google още не е включен.",
+  AUTH_GOOGLE_PROVIDER_DISABLED: "Входът с Google още не е включен.",
+});
+
+function showGoogleSignInError() {
+  const params = new URLSearchParams(globalThis.location?.search || "");
+  const code = params.get("auth_error");
+  if (!code) return;
+  setAuthMessage(
+    chatText(GOOGLE_SIGN_IN_ERRORS[code] || "Входът с Google не успя. Опитай пак или влез с имейл."),
+  );
+  params.delete("auth_error");
+  const rest = params.toString();
+  globalThis.history?.replaceState?.({}, "", `${globalThis.location.pathname}${rest ? `?${rest}` : ""}`);
+}
+
+function offerRegistration(email) {
+  setAuthMessage(
+    chatText("Имейлът или паролата не съвпадат. Ако още нямаш профил, създай го — имейлът е попълнен."),
+  );
+  const link = document.createElement("button");
+  link.type = "button";
+  link.className = "auth-link auth-offer-register";
+  link.textContent = chatText("Създай профил с този имейл");
+  link.addEventListener("click", () => {
+    showRegisterForm();
+    elements.registerEmail.value = String(email || "").trim();
+    elements.registerName.focus();
+  });
+  elements.authMessage?.append(document.createElement("br"), link);
+}
+
+async function handleForgotPassword() {
+  const email = elements.loginEmail.value.trim();
+  if (!email) {
+    setAuthMessage(chatText("Въведи имейла си в полето отгоре и натисни отново."));
+    elements.loginEmail.focus();
+    return;
+  }
+  setAuthBusy(true);
+  setAuthMessage();
+  try {
+    await submitAuth("/api/auth/password-reset", { email });
+    setAuthMessage(
+      chatText("Ако има профил с този имейл, изпратихме писмо с линк за нова парола (от noreply, провери и „Спам“/„Промоции“). Ако писмо не дойде до 5 минути, най-вероятно още нямаш профил — натисни „Създай безплатен профил“."),
+      true,
+    );
   } catch (error) {
     setAuthMessage(error.message);
   } finally {
@@ -240,16 +337,47 @@ async function handleLogin(event) {
   }
 }
 
+// The browser's own validation bubbles are easy to miss on phones (a short
+// password simply did nothing), so registration is checked here and the
+// reason is written in the visible message area.
+function registrationProblem() {
+  const name = elements.registerName.value.trim();
+  const email = elements.registerEmail.value.trim();
+  const password = elements.registerPassword.value;
+  if (!name) return [elements.registerName, chatText("Напиши име.")];
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email))
+    return [elements.registerEmail, chatText("Имейлът не изглежда правилен. Провери за интервал или липсваща буква.")];
+  if (password.length < 8)
+    return [elements.registerPassword, chatText("Паролата трябва да е поне 8 знака.")];
+  return null;
+}
+
 async function handleRegistration(event) {
   event.preventDefault();
+  const problem = registrationProblem();
+  if (problem) {
+    setAuthMessage(problem[1]);
+    problem[0].focus();
+    return;
+  }
+  elements.registerEmail.value = elements.registerEmail.value.trim();
   setAuthBusy(true);
   setAuthMessage();
   try {
+    const params = new URLSearchParams(globalThis.location?.search || "");
     const result = await submitAuth("/api/auth/register", {
       displayName: elements.registerName.value,
       email: elements.registerEmail.value,
       password: elements.registerPassword.value,
       inviteCode: elements.registerInviteCode.value,
+      campaign: params.has("utm_campaign")
+        ? {
+            utm_source: params.get("utm_source"),
+            utm_medium: params.get("utm_medium"),
+            utm_campaign: params.get("utm_campaign"),
+            utm_content: params.get("utm_content"),
+          }
+        : undefined,
     });
     elements.registerPassword.value = "";
     elements.registerInviteCode.value = "";
@@ -257,13 +385,13 @@ async function handleRegistration(event) {
       showLoginForm();
       elements.loginEmail.value = result.user?.email || "";
       setAuthMessage(
-        "Профилът е създаден. Потвърди имейла си и после влез.",
+        chatText("Отвори линка от писмото. Ако видиш бутон „Complete verification“, натисни го. После влез."),
         true,
       );
       return;
     }
     const session = await readAuthSession();
-    if (!session.authenticated) throw new Error("Сесията не беше създадена.");
+    if (!session.authenticated) throw new Error(chatText("Сесията не беше създадена."));
     await startApplication(session.user);
   } catch (error) {
     setAuthMessage(error.message);
@@ -283,22 +411,27 @@ async function handleLogout() {
 
 function applyAuthenticatedUser(user) {
   state.authenticatedUser = user;
-  const displayName = user?.displayName || "Потребител";
+  const displayName = user?.displayName || chatText("Потребител");
   const isOwner = user?.role === "owner";
   elements.profileName.textContent = displayName;
   elements.profileAvatar.textContent =
     displayName.trim().charAt(0).toLocaleUpperCase("bg-BG") || "П";
   elements.profileRole.textContent = isOwner
-    ? "Собственик · настройки"
-    : "Личен профил";
+    ? chatText("Собственик · настройки")
+    : chatText("Личен профил");
   document.body.dataset.userRole = isOwner ? "owner" : "member";
   for (const item of document.querySelectorAll("[data-owner-only]")) {
     item.hidden = !isOwner;
+  }
+  for (const item of document.querySelectorAll("[data-member-only]")) {
+    item.hidden = isOwner;
   }
 }
 
 async function init() {
   elements.loginForm.addEventListener("submit", handleLogin);
+  elements.forgotPasswordBtn?.addEventListener("click", handleForgotPassword);
+  elements.registerForm.noValidate = true;
   elements.registerForm.addEventListener("submit", handleRegistration);
   elements.showRegisterBtn.addEventListener("click", showRegisterForm);
   elements.backToLoginBtn.addEventListener("click", showLoginForm);
@@ -306,7 +439,15 @@ async function init() {
   try {
     const session = await readAuthSession();
     state.registrationEnabled = Boolean(session.registrationEnabled);
+    state.registrationMode = session.registrationMode || "invite";
+    document.getElementById("inviteFields").hidden =
+      state.registrationMode !== "invite";
+    elements.registerInviteCode.disabled = state.registrationMode !== "invite";
+    elements.registerInviteCode.required = state.registrationMode === "invite";
     elements.showRegisterBtn.hidden = !state.registrationEnabled;
+    const googleSignInBtn = document.getElementById("googleSignInBtn");
+    if (googleSignInBtn) googleSignInBtn.hidden = session.googleSignIn !== true;
+    showGoogleSignInError();
     if (session.authenticated) {
       await startApplication(session.user);
       return;
@@ -315,15 +456,11 @@ async function init() {
     elements.appShell.hidden = true;
     if (state.registrationEnabled && isDirectRegistrationPage()) {
       showRegisterForm();
-      setAuthMessage(
-        "Създай профил с име, имейл, парола и код за ранен достъп.",
-        true,
-      );
       return;
     }
     if (!session.configured) {
       setAuthMessage(
-        "Входът с потребителски профили още не е активиран. Собственикът може да влезе с GitHub.",
+        chatText("Входът с потребителски профили още не е активиран. Собственикът може да влезе с GitHub."),
       );
     }
   } catch (error) {
@@ -335,12 +472,25 @@ async function startApplication(user) {
   if (state.applicationStarted) return;
   state.applicationStarted = true;
   applyAuthenticatedUser(user);
-  globalThis.SynchronWorkMode?.init(user);
+  globalThis.SynchronWorkMode?.init(user, {
+    getActiveId: () => state.sessionId,
+    list: () => state.conversations,
+    open: (id) => openConversation(id, { withinProject: true }),
+    create: () => startNewChat({ withinProject: true }),
+    closeDrawer: closeDataDrawer,
+  });
   elements.authGate.hidden = true;
   elements.appShell.hidden = false;
+  if (user?.role === "owner") {
+    globalThis.SynchronCodeWorkspace?.afterSignIn();
+    globalThis.SynchronAiSpend?.start();
+  }
   updateSessionDisplay();
 
-  elements.sendBtn.addEventListener("click", sendMessage);
+  elements.sendBtn.addEventListener("click", () => {
+    if (state.chatBusy) stopGeneration();
+    else sendMessage();
+  });
   elements.councilModeBtn?.addEventListener("click", () => {
     setCouncilMode(!state.councilMode);
   });
@@ -359,6 +509,7 @@ async function startApplication(user) {
   elements.newChatBtn.addEventListener("click", startNewChat);
   elements.toggleStatusBtn.addEventListener("click", toggleProfileActions);
   elements.profileStatusBtn.addEventListener("click", openStatus);
+  elements.myDataBtn?.addEventListener("click", openMyDataDrawer);
   elements.sidebarLogoutBtn.addEventListener("click", handleLogout);
   elements.closeContextBtn.addEventListener("click", closeStatus);
   elements.chatMessages.addEventListener("click", handleMessageAction);
@@ -374,6 +525,9 @@ async function startApplication(user) {
     openSystemConfigurationDrawer,
   );
   elements.memoryBtn.addEventListener("click", openMemoryDrawer);
+  elements.connectionsBtn?.addEventListener("click", openConnectionsDrawer);
+  elements.inboxBtn?.addEventListener("click", openInboxDrawer);
+  refreshInboxCount();
   elements.permissionsBtn.addEventListener("click", openPermissionsDrawer);
   elements.closeDataDrawerBtn.addEventListener("click", closeDataDrawer);
   elements.drawerBackdrop.addEventListener("click", closeDataDrawer);
@@ -398,30 +552,26 @@ function updateSessionDisplay() {
 }
 
 async function showWelcomeMessage() {
-  appendMessage(
+  const welcome = appendMessage(
     "agent",
-    [
-      "## AI CORE",
-      "**Твоята лична AI операционна система.**",
-      "",
-      "Едно AI ядро, постоянна контролирана памет и разрешени инструменти за реални задачи.",
-      "",
-      "AI аватарът е моят начин на общуване. Ти контролираш данните, паметта и рисковите действия.",
-    ].join("\n"),
+    `## ${chatText("С какво започваме?")}`,
     null,
     { remember: false },
   );
+  welcome.closest(".assistant-turn")?.classList.add("welcome-turn");
 }
 
 async function restoreConversation() {
+  const sessionId = state.sessionId;
   state.recentConversationMessages = [];
   try {
     const response = await fetch(
-      "/memory/conversation/" + encodeURIComponent(state.sessionId),
+      "/memory/conversation/" + encodeURIComponent(sessionId),
       { cache: "no-store" },
     );
-    if (!response.ok) throw new Error("Историята не е достъпна.");
+    if (!response.ok) throw new Error(chatText("Историята не е достъпна."));
     const data = await response.json();
+    if (state.sessionId !== sessionId) return;
     const items = Array.isArray(data.items) ? data.items : [];
     if (items.length === 0) {
       await showWelcomeMessage();
@@ -440,17 +590,21 @@ async function restoreConversation() {
     }
     logAction("Възстановена е историята на разговора");
   } catch (error) {
+    if (state.sessionId !== sessionId) return;
     console.error(error);
     await showWelcomeMessage();
     logAction("Историята не можа да бъде възстановена");
   }
 }
 
-async function startNewChat() {
+async function startNewChat({ withinProject = false } = {}) {
   if (state.chatBusy) return;
   closeSidebar();
   clearPendingImage();
-  state.sessionId = createSessionId();
+  const sessionId = createSessionId();
+  state.sessionId = sessionId;
+  if (!withinProject)
+    globalThis.SynchronWorkMode?.selectConversation(sessionId);
   writeLocalStorage("synchronSessionId", state.sessionId);
   state.lastActions = [];
   state.recentConversationMessages = [];
@@ -461,6 +615,7 @@ async function startNewChat() {
   logAction("Започнат е нов разговор");
   renderConversationList();
   elements.chatInput.focus();
+  return sessionId;
 }
 
 async function loadConversations() {
@@ -468,7 +623,7 @@ async function loadConversations() {
     const response = await fetch("/memory/conversations", {
       cache: "no-store",
     });
-    if (!response.ok) throw new Error("Списъкът не е достъпен.");
+    if (!response.ok) throw new Error(chatText("Списъкът не е достъпен."));
     const data = await response.json();
     state.conversations = Array.isArray(data.items) ? data.items : [];
     state.conversationLoadError = "";
@@ -477,7 +632,7 @@ async function loadConversations() {
     console.error(error);
     state.conversations = [];
     state.conversationLoadError =
-      "Историята временно не е достъпна. Опитай отново.";
+      chatText("Историята временно не е достъпна. Опитай отново.");
     renderConversationList();
   }
 }
@@ -503,8 +658,8 @@ function renderConversationList() {
     const empty = document.createElement("p");
     empty.className = "conversation-state";
     empty.textContent = query
-      ? "Няма намерени разговори."
-      : "Все още няма запазени разговори.";
+      ? chatText("Няма намерени разговори.")
+      : chatText("Все още няма запазени разговори.");
     elements.conversationList.appendChild(empty);
     return;
   }
@@ -522,10 +677,15 @@ function renderConversationList() {
 
 async function handleConversationClick(event) {
   const button = event.target.closest("button[data-session-id]");
-  if (!button || state.chatBusy || button.dataset.sessionId === state.sessionId)
-    return;
-  state.sessionId = button.dataset.sessionId;
-  localStorage.setItem("synchronSessionId", state.sessionId);
+  if (button) await openConversation(button.dataset.sessionId);
+}
+
+async function openConversation(sessionId, { withinProject = false } = {}) {
+  if (state.chatBusy || !sessionId || sessionId === state.sessionId) return;
+  state.sessionId = sessionId;
+  if (!withinProject)
+    globalThis.SynchronWorkMode?.selectConversation(sessionId);
+  writeLocalStorage("synchronSessionId", sessionId);
   elements.chatMessages.replaceChildren();
   state.recentConversationMessages = [];
   updateSessionDisplay();
@@ -591,15 +751,15 @@ function handleImageSelection(event) {
   const file = event.target.files?.[0];
   if (!file) return;
 
-  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
   if (!allowedTypes.includes(file.type)) {
-    appendMessage("agent", "❌ Поддържат се само JPEG, PNG и WebP снимки.");
+    appendMessage("agent", "❌ Поддържат се JPEG, PNG и WebP снимки и PDF документи.");
     clearPendingImage();
     return;
   }
 
   if (file.size > 5 * 1024 * 1024) {
-    appendMessage("agent", "❌ Снимката трябва да бъде до 5 MB.");
+    appendMessage("agent", "❌ Файлът трябва да е до 5 MB.");
     clearPendingImage();
     return;
   }
@@ -611,8 +771,15 @@ function handleImageSelection(event) {
       mimeType: file.type,
       name: file.name,
     };
-    elements.attachmentImage.src = reader.result;
-    elements.attachmentName.textContent = file.name;
+    // A PDF has no picture preview; the file name is enough.
+    if (file.type === "application/pdf") {
+      elements.attachmentImage.removeAttribute("src");
+      elements.attachmentImage.hidden = true;
+    } else {
+      elements.attachmentImage.hidden = false;
+      elements.attachmentImage.src = reader.result;
+    }
+    elements.attachmentName.textContent = file.type === "application/pdf" ? `📄 ${file.name}` : file.name;
     elements.attachmentPreview.hidden = false;
     elements.chatInput.focus();
   };
@@ -637,10 +804,10 @@ function openStatus() {
     activeElement === elements.profileStatusBtn
       ? elements.toggleStatusBtn
       : activeElement &&
-    activeElement !== document.body &&
-    typeof activeElement.focus === "function"
-      ? activeElement
-      : elements.toggleStatusBtn;
+          activeElement !== document.body &&
+          typeof activeElement.focus === "function"
+        ? activeElement
+        : elements.toggleStatusBtn;
   closeSidebar();
   elements.statusPanel.classList.add("mobile-visible");
   elements.statusPanel.setAttribute("aria-hidden", "false");
@@ -662,16 +829,41 @@ function closeStatus() {
   }
 }
 
+// iPhone Safari and the home-screen app either lack speech recognition or
+// do not support Bulgarian there; record the voice and let the server turn
+// it into text instead.
+function prefersServerVoice() {
+  const ios =
+    /iPad|iPhone|iPod/u.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  let remembered = false;
+  try {
+    remembered = localStorage.getItem("aiCoreServerVoice") === "1";
+  } catch {
+    // storage unavailable; decide from the device
+  }
+  return ios || remembered;
+}
+
+function canRecordVoice() {
+  return Boolean(
+    window.MediaRecorder && navigator.mediaDevices?.getUserMedia,
+  );
+}
+
 function prepareVoiceInput() {
   const SpeechRecognition =
     window.SpeechRecognition || window.webkitSpeechRecognition;
+  state.serverVoice =
+    canRecordVoice() && (!SpeechRecognition || prefersServerVoice());
+  if (state.serverVoice) return;
   if (!SpeechRecognition) {
     elements.voiceBtn.hidden = true;
     return;
   }
 
   const recognition = new SpeechRecognition();
-  recognition.lang = "bg-BG";
+  recognition.lang = chatLocale?.browserLocale || "bg-BG";
   recognition.continuous = false;
   recognition.interimResults = true;
 
@@ -679,12 +871,36 @@ function prepareVoiceInput() {
   recognition.onend = () => setListening(false);
   recognition.onerror = (event) => {
     setListening(false);
-    if (event.error !== "aborted" && event.error !== "no-speech") {
+    if (event.error === "aborted" || event.error === "no-speech") return;
+    // The browser cannot do it here; use the server from the next tap on.
+    if (
+      canRecordVoice() &&
+      ["service-not-allowed", "network", "language-not-supported"].includes(event.error)
+    ) {
+      state.serverVoice = true;
+      try {
+        localStorage.setItem("aiCoreServerVoice", "1");
+      } catch {
+        // remembered for this visit only
+      }
       appendMessage(
         "agent",
-        "Гласовото въвеждане не можа да стартира. Провери достъпа до микрофона.",
+        chatText("Гласът на браузъра не работи тук. Натисни микрофона пак — ще записвам и ще разпознавам на сървъра."),
+        null,
+        { remember: false },
       );
+      return;
     }
+    const reasons = {
+      "not-allowed": "Микрофонът е забранен за сайта. Разреши го: iPhone → Настройки → Safari → Микрофон, или от иконата „aA“ в адресната лента.",
+      "service-not-allowed": "Разпознаването на говор е изключено. На iPhone включи Настройки → Siri и Диктовка. Можеш да ползваш и микрофона на клавиатурата.",
+      network: "Разпознаването на говор има нужда от интернет. Провери връзката.",
+      "audio-capture": "Не намирам микрофон. Провери дали друго приложение не го използва.",
+    };
+    appendMessage(
+      "agent",
+      chatText(reasons[event.error] || "Гласовото въвеждане не можа да стартира. Провери достъпа до микрофона."),
+    );
   };
   recognition.onresult = (event) => {
     let transcript = "";
@@ -708,25 +924,130 @@ function setListening(isListening) {
   elements.voiceBtn.classList.toggle("listening", isListening);
   elements.voiceBtn.setAttribute("aria-pressed", String(isListening));
   elements.voiceBtn.title = isListening
-    ? "Спри слушането"
-    : "Гласово въвеждане";
+    ? chatText("Спри слушането")
+    : chatText("Гласово въвеждане");
 }
 
-function toggleVoiceInput() {
-  if (!state.recognition || state.chatBusy) return;
-  if (state.listening) {
-    state.recognition.stop();
-  } else {
-    state.recognition.start();
+const MAX_RECORDING_MS = 90_000;
+
+function recordingMimeType() {
+  for (const type of ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"]) {
+    if (window.MediaRecorder?.isTypeSupported?.(type)) return type;
+  }
+  return "";
+}
+
+async function startServerRecording() {
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (error) {
+    appendMessage(
+      "agent",
+      chatText(
+        error?.name === "NotAllowedError"
+          ? "Микрофонът е забранен за сайта. Разреши го: iPhone → Настройки → Safari → Микрофон, или от иконата „aA“ в адресната лента."
+          : "Не намирам микрофон. Провери дали друго приложение не го използва.",
+      ),
+      null,
+      { remember: false },
+    );
+    return;
+  }
+  const mimeType = recordingMimeType();
+  const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+  const chunks = [];
+  recorder.ondataavailable = (event) => {
+    if (event.data?.size) chunks.push(event.data);
+  };
+  recorder.onstop = async () => {
+    clearTimeout(state.recordingTimer);
+    stream.getTracks().forEach((track) => track.stop());
+    state.recorder = null;
+    setListening(false);
+    const blob = new Blob(chunks, { type: (recorder.mimeType || mimeType || "audio/webm") });
+    if (blob.size < 1000) return;
+    await transcribeRecording(blob);
+  };
+  state.recorder = recorder;
+  recorder.start();
+  setListening(true);
+  state.recordingTimer = setTimeout(() => {
+    if (recorder.state === "recording") recorder.stop();
+  }, MAX_RECORDING_MS);
+}
+
+async function transcribeRecording(blob) {
+  const previousPlaceholder = elements.chatInput.placeholder;
+  elements.chatInput.placeholder = chatText("Разпознаване…");
+  elements.voiceBtn.disabled = true;
+  try {
+    const audio = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+    const response = await fetch("/api/voice/transcribe", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        audio,
+        mimeType: blob.type,
+        language: chatLocale?.language || "bg",
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || chatText("Записът не можа да се разпознае."));
+    const heard = String(data.text || "").trim();
+    if (!heard) {
+      logAction("Не чух говор в записа");
+      return;
+    }
+    const current = elements.chatInput.value.trim();
+    elements.chatInput.value = current ? `${current} ${heard}` : heard;
+    resizeChatInput();
+    elements.chatInput.focus();
+  } catch (error) {
+    appendMessage("agent", `❌ ${error.message}`, null, { remember: false });
+  } finally {
+    elements.chatInput.placeholder = previousPlaceholder;
+    elements.voiceBtn.disabled = state.chatBusy;
   }
 }
 
-function isGoogleTool(tool) {
-  return (
-    tool?.provider === "google" ||
-    tool?.id?.startsWith("google-") ||
-    tool?.id === "gmail-read"
-  );
+function toggleVoiceInput() {
+  if (state.chatBusy) return;
+  if (state.serverVoice) {
+    if (state.recorder?.state === "recording") state.recorder.stop();
+    else void startServerRecording();
+    return;
+  }
+  if (!state.recognition) return;
+  if (state.listening) {
+    state.recognition.stop();
+    return;
+  }
+  try {
+    state.recognition.start();
+  } catch {
+    // start() throws if a previous session is still closing; reset it.
+    state.recognition.abort();
+    setListening(false);
+  }
+}
+
+const GOOGLE_OAUTH_TOOL_IDS = new Set([
+  "google-drive-read",
+  "google-calendar-read",
+  "google-calendar-write",
+  "gmail-read",
+  "google-contacts",
+]);
+
+function requiresGoogleOAuth(tool) {
+  return GOOGLE_OAUTH_TOOL_IDS.has(tool?.id);
 }
 
 function toolState(tool, googleConnected, githubConnected) {
@@ -736,7 +1057,10 @@ function toolState(tool, googleConnected, githubConnected) {
   if (!tool.configured) {
     return { label: "Не е конфигуриран", className: "deny" };
   }
-  if (isGoogleTool(tool) && !googleConnected) {
+  if (requiresGoogleOAuth(tool) && !googleConnected) {
+    return { label: "Иска свързване", className: "confirm" };
+  }
+  if (tool.id === "github-read" && !githubConnected) {
     return { label: "Иска свързване", className: "confirm" };
   }
   if (
@@ -745,12 +1069,24 @@ function toolState(tool, googleConnected, githubConnected) {
   ) {
     return { label: "Иска свързване", className: "confirm" };
   }
+  if (tool.id === "openai-codex") {
+    return { label: "Готово · вътрешен инструмент", className: "allow" };
+  }
+  if (tool.id === "github-read" && githubConnected) {
+    return { label: "Свързано · GitHub Read", className: "allow" };
+  }
+  if (
+    ["github-write", "github-confirmed-write"].includes(tool.id) &&
+    githubConnected
+  ) {
+    return { label: "Свързано · потвърждение преди запис", className: "allow" };
+  }
   return { label: "Работи", className: "allow" };
 }
 
 function toolStatusActions(tool, status, googleConnected, githubConnected) {
   let action = "";
-  if (isGoogleTool(tool) && !googleConnected && tool.configured) {
+  if (requiresGoogleOAuth(tool) && !googleConnected && tool.configured) {
     action =
       '<button type="button" class="tool-connect-btn" data-connect-service="google">Свържи Google</button>';
   } else if (
@@ -826,9 +1162,7 @@ function connectionControls(
     ? chatgptConnection.grants
     : [];
   const chatgptScopes = [
-    ...new Set(
-      chatgptGrants.flatMap((grant) => grant.scopes || []),
-    ),
+    ...new Set(chatgptGrants.flatMap((grant) => grant.scopes || [])),
   ];
   const chatgptDescription = chatgptUnavailable
     ? "Състоянието временно не е достъпно"
@@ -868,19 +1202,15 @@ async function openToolsDrawer() {
   openDataDrawer("Инструменти");
   renderDrawerLoading();
   try {
-    const [
-      healthResponse,
-      googleResponse,
-      githubResponse,
-      chatgptResponse,
-    ] = await Promise.all([
-      fetch("/health/integrations", { cache: "no-store" }),
-      fetch("/api/google/status", { cache: "no-store" }).catch(() => null),
-      fetch("/api/github/status", { cache: "no-store" }).catch(() => null),
-      fetch("/permissions/oauth/chatgpt", { cache: "no-store" }).catch(
-        () => null,
-      ),
-    ]);
+    const [healthResponse, googleResponse, githubResponse, chatgptResponse] =
+      await Promise.all([
+        fetch("/health/integrations", { cache: "no-store" }),
+        fetch("/api/google/status", { cache: "no-store" }).catch(() => null),
+        fetch("/api/github/status", { cache: "no-store" }).catch(() => null),
+        fetch("/permissions/oauth/chatgpt", { cache: "no-store" }).catch(
+          () => null,
+        ),
+      ]);
     if (!healthResponse.ok) {
       throw new Error("Състоянието на инструментите не е достъпно.");
     }
@@ -892,13 +1222,11 @@ async function openToolsDrawer() {
       ? await githubResponse.json().catch(() => ({}))
       : {};
     const chatgptData = chatgptResponse?.ok
-      ? await chatgptResponse
-          .json()
-          .catch(() => ({
-            configured: false,
-            connected: false,
-            unavailable: true,
-          }))
+      ? await chatgptResponse.json().catch(() => ({
+          configured: false,
+          connected: false,
+          unavailable: true,
+        }))
       : { configured: false, connected: false, unavailable: true };
     const tools = Array.isArray(data.tools) ? data.tools : [];
     const descriptions = {
@@ -1077,9 +1405,7 @@ function closeDataDrawer() {
   elements.dataDrawer.hidden = true;
   elements.drawerBackdrop.hidden = true;
   if (wasOpen) {
-    document.dispatchEvent(
-      new CustomEvent("synchron:data-drawer-closed"),
-    );
+    document.dispatchEvent(new CustomEvent("synchron:data-drawer-closed"));
   }
 }
 
@@ -1092,10 +1418,334 @@ function renderDrawerError(message) {
   elements.dataDrawerBody.innerHTML = `<div class="drawer-state drawer-error">${escapeHtml(message)}</div>`;
 }
 
+function localizedMarkup(value) {
+  return escapeHtml(chatText(value)).replace(/"/gu, "&quot;");
+}
+
 function escapeHtml(value) {
   const div = document.createElement("div");
   div.textContent = String(value ?? "");
   return div.innerHTML;
+}
+
+function openMyDataDrawer() {
+  openDataDrawer(chatText("Моите данни"));
+  elements.dataDrawerBody.innerHTML = `
+    <section class="drawer-section">
+      <h3>${localizedMarkup("Изтегли данните си")}</h3>
+      <p>${localizedMarkup("Копие на паметта, разговорите, проектите, предложенията и връзките ти във формат JSON.")}</p>
+      <a class="connection-copy my-data-download" href="/api/account/export" download>${localizedMarkup("Изтегли копие")}</a>
+    </section>
+    <section class="drawer-section my-data-danger">
+      <h3>${localizedMarkup("Изтрий профила")}</h3>
+      <p>${localizedMarkup("Изтрива окончателно паметта, разговорите, проектите, предложенията и профила за вход и прекъсва свързаните AI асистенти. Счетоводните документи за плащания се пазят, както изисква законът.")}</p>
+      <form class="my-data-delete" data-account-delete>
+        <label for="accountDeletePassword">${localizedMarkup("Парола")}</label>
+        <input id="accountDeletePassword" type="password" autocomplete="current-password" required />
+        <label for="accountDeleteConfirm">${localizedMarkup("Напиши ИЗТРИЙ за потвърждение")}</label>
+        <input id="accountDeleteConfirm" type="text" autocomplete="off" required />
+        <button type="submit" class="connection-revoke">${localizedMarkup("Изтрий профила завинаги")}</button>
+        <p class="my-data-status" role="status" hidden></p>
+      </form>
+    </section>
+    <section class="drawer-section">
+      <p><a href="/privacy">${localizedMarkup("Поверителност")}</a> · <a href="/terms">${localizedMarkup("Общи условия")}</a></p>
+    </section>`;
+  elements.dataDrawerBody
+    .querySelector("[data-account-delete]")
+    ?.addEventListener("submit", submitAccountDeletion);
+}
+
+async function submitAccountDeletion(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const status = form.querySelector(".my-data-status");
+  const button = form.querySelector("button[type=submit]");
+  button.disabled = true;
+  status.hidden = false;
+  status.textContent = chatText("Изтриване…");
+  try {
+    const response = await fetch("/api/account/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        password: form.querySelector("#accountDeletePassword").value,
+        confirm: form.querySelector("#accountDeleteConfirm").value.trim(),
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Профилът не беше изтрит.");
+    status.textContent = chatText("Профилът е изтрит.");
+    try {
+      localStorage.clear();
+    } catch {
+      // Storage may be unavailable; the server-side data is already gone.
+    }
+    window.location.assign("/");
+  } catch (error) {
+    status.textContent = error.message;
+    button.disabled = false;
+  }
+}
+
+const PROVIDER_LABELS = Object.freeze({
+  openai: "OpenAI",
+  gemini: "Gemini",
+  grok: "Grok",
+  claude: "Claude",
+  codex: "Codex",
+});
+
+function describeAiError(data) {
+  const base = data?.message || chatText("AI агентът върна грешка.");
+  const details = [];
+  if (Array.isArray(data?.failures)) {
+    for (const item of data.failures.slice(0, 5)) {
+      const name = PROVIDER_LABELS[item?.provider] || "AI";
+      details.push(item?.status ? `${name}: ${item.status}` : `${name}: ${item?.code || "?"}`);
+    }
+  } else if (Number.isInteger(data?.upstreamStatus)) {
+    details.push(`${chatText("код")} ${data.upstreamStatus}`);
+  }
+  return details.length ? `${base} (${details.join(", ")})` : base;
+}
+
+const INBOX_SOURCES = Object.freeze({
+  claude: "Claude",
+  chatgpt: "ChatGPT",
+  gemini: "Gemini",
+  "ai-core": "AI CORE",
+  other: "AI",
+});
+
+function setInboxCount(count) {
+  if (!elements.inboxCount) return;
+  elements.inboxCount.textContent = count > 99 ? "99+" : String(count);
+  elements.inboxCount.hidden = !count;
+}
+
+async function refreshInboxCount() {
+  if (!elements.inboxBtn) return;
+  try {
+    const response = await fetch("/api/memory-inbox", { cache: "no-store" });
+    if (!response.ok) return;
+    const data = await response.json();
+    setInboxCount(Array.isArray(data.items) ? data.items.length : 0);
+  } catch {
+    // The badge is optional; the drawer shows errors when opened.
+  }
+}
+
+async function openInboxDrawer() {
+  openDataDrawer(chatText("Входящи"));
+  renderDrawerLoading();
+  try {
+    const response = await fetch("/api/memory-inbox", { cache: "no-store" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Входящите временно не са достъпни.");
+    const items = Array.isArray(data.items) ? data.items : [];
+    setInboxCount(items.length);
+    renderInbox(items);
+  } catch (error) {
+    renderDrawerError(error.message);
+  }
+}
+
+function renderInbox(items) {
+  const list = items.length
+    ? items
+        .map(
+          (item) => `
+      <li class="inbox-item" data-inbox-id="${escapeHtml(item.id)}">
+        <p class="inbox-fact">${escapeHtml(item.fact)}</p>
+        <textarea class="inbox-edit" maxlength="500" hidden aria-label="${localizedMarkup("Редактирай факта")}">${escapeHtml(item.fact)}</textarea>
+        <small>${escapeHtml(INBOX_SOURCES[item.source] || "AI")} · ${localizedMarkup(item.scope === "project" ? "Проект" : "Лично")} · ${escapeHtml(formatConnectionDate(item.createdAt))}</small>
+        <div class="inbox-actions">
+          <button type="button" class="inbox-approve" data-inbox-approve>${localizedMarkup("Запази")}</button>
+          <button type="button" class="inbox-secondary" data-inbox-edit>${localizedMarkup("Редактирай")}</button>
+          <button type="button" class="inbox-secondary" data-inbox-dismiss>${localizedMarkup("Отхвърли")}</button>
+        </div>
+      </li>`,
+        )
+        .join("")
+    : `<li class="inbox-empty">
+        <strong>${localizedMarkup("Няма нови предложения.")}</strong>
+        <p>${localizedMarkup("Когато Claude, ChatGPT или AI CORE предложат нещо за запомняне, ще го видиш тук и ще решиш дали да се запази.")}</p>
+        <button type="button" class="connection-copy" data-open-connections>${localizedMarkup("Свържи AI")}</button>
+      </li>`;
+  elements.dataDrawerBody.innerHTML = `
+    <section class="drawer-section">
+      <p>${localizedMarkup("Тук AI асистентите ти предлагат какво да запомнят. Нищо не влиза в паметта без твоето одобрение.")}</p>
+      <ul class="inbox-list">${list}</ul>
+    </section>`;
+}
+
+async function handleInboxAction(event) {
+  if (event.target.closest("[data-open-connections]")) {
+    await openConnectionsDrawer();
+    return true;
+  }
+  const item = event.target.closest("[data-inbox-id]");
+  if (!item) return false;
+  const id = item.dataset.inboxId;
+  if (event.target.closest("[data-inbox-edit]")) {
+    const editor = item.querySelector(".inbox-edit");
+    editor.hidden = !editor.hidden;
+    item.querySelector(".inbox-fact").hidden = !editor.hidden;
+    if (!editor.hidden) editor.focus();
+    return true;
+  }
+  const approve = event.target.closest("[data-inbox-approve]");
+  const dismiss = event.target.closest("[data-inbox-dismiss]");
+  if (!approve && !dismiss) return false;
+  for (const button of item.querySelectorAll("button")) button.disabled = true;
+  try {
+    const editor = item.querySelector(".inbox-edit");
+    const response = await fetch(
+      `/api/memory-inbox/${encodeURIComponent(id)}/${approve ? "approve" : "dismiss"}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(approve && !editor.hidden ? { fact: editor.value } : {}),
+      },
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Действието не беше изпълнено.");
+    await openInboxDrawer();
+  } catch (error) {
+    for (const button of item.querySelectorAll("button")) button.disabled = false;
+    renderDrawerError(error.message);
+  }
+  return true;
+}
+
+const CONNECTION_GUIDES = Object.freeze([
+  {
+    client: "Claude",
+    steps: [
+      "Отвори Claude → Настройки → Connectors.",
+      "Натисни „Add custom connector“, име: AI CORE.",
+      "Постави адреса отгоре.",
+      "В „Advanced settings“ въведи Client ID: synchron-claude. Client secret остава празно.",
+      "Натисни „Connect“, влез с този профил и натисни „Разреши“.",
+    ],
+  },
+  {
+    client: "ChatGPT",
+    steps: [
+      "Отвори ChatGPT → Settings → Apps & Connectors.",
+      "Включи Developer mode и натисни „Create“.",
+      "Постави адреса отгоре, удостоверяване: OAuth.",
+      "Влез с този профил и натисни „Разреши“.",
+    ],
+  },
+]);
+
+function formatConnectionDate(value) {
+  const time = Date.parse(value || "");
+  if (!Number.isFinite(time)) return chatText("неизвестно");
+  return new Date(time).toLocaleDateString(document.documentElement.lang || "bg", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+async function openConnectionsDrawer() {
+  openDataDrawer(chatText("Свържи своите AI асистенти"));
+  renderDrawerLoading();
+  try {
+    const response = await fetch("/api/connections", { cache: "no-store" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Връзките временно не са достъпни.");
+    renderConnections(data);
+  } catch (error) {
+    renderDrawerError(error.message);
+  }
+}
+
+function renderConnections(data) {
+  const mcpUrl = String(data.mcpUrl || "https://cloudaicore.com/mcp");
+  const connections = Array.isArray(data.connections) ? data.connections : [];
+  const connected = connections.length
+    ? connections
+        .map(
+          (item) => `
+        <li class="connection-item">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span class="connection-text">
+            <strong>${escapeHtml(item.client)}</strong>
+            <small>${localizedMarkup("Свързан на")} ${escapeHtml(formatConnectionDate(item.issuedAt))}${
+              item.lastUsedAt
+                ? ` · ${localizedMarkup("последно ползван")} ${escapeHtml(formatConnectionDate(item.lastUsedAt))}`
+                : ""
+            }</small>
+          </span>
+          <button type="button" class="connection-revoke" data-revoke-connection="${escapeHtml(item.grantId)}">${localizedMarkup("Прекъсни")}</button>
+        </li>`,
+        )
+        .join("")
+    : `<li class="connection-empty">${localizedMarkup("Още няма свързани AI асистенти.")}</li>`;
+  // Claude is the owner's personal connector; the server refuses members.
+  const ownerView = document.body.dataset.userRole === "owner";
+  const guides = CONNECTION_GUIDES.filter(
+    (guide) => guide.client !== "Claude" || ownerView,
+  ).map(
+    (guide) => `
+      <details class="connection-guide">
+        <summary>${localizedMarkup("Свържи")} ${escapeHtml(guide.client)}</summary>
+        <ol>${guide.steps.map((step) => `<li>${localizedMarkup(step)}</li>`).join("")}</ol>
+      </details>`,
+  ).join("");
+  elements.dataDrawerBody.innerHTML = `
+    <section class="drawer-section connections-intro">
+      <p>${localizedMarkup("Свържи Claude, ChatGPT и други AI асистенти с AI CORE. Всички ще работят с една и съща памет и проекти, а ти одобряваш какво се запазва.")}</p>
+      <div class="connection-url">
+        <code id="connectionMcpUrl">${escapeHtml(mcpUrl)}</code>
+        <button type="button" class="connection-copy" data-copy-connection-url>${localizedMarkup("Копирай адреса")}</button>
+      </div>
+      ${data.configured === false ? `<p class="drawer-state">${localizedMarkup("Свързването временно не е налично.")}</p>` : ""}
+    </section>
+    <section class="drawer-section">
+      <h3>${localizedMarkup("Как да свържеш")}</h3>
+      ${guides}
+    </section>
+    <section class="drawer-section">
+      <h3>${localizedMarkup("Свързани в момента")}</h3>
+      <ul class="connection-list">${connected}</ul>
+    </section>`;
+}
+
+async function handleConnectionAction(event) {
+  const copy = event.target.closest("[data-copy-connection-url]");
+  if (copy) {
+    const url = document.getElementById("connectionMcpUrl")?.textContent || "";
+    try {
+      await navigator.clipboard.writeText(url);
+      copy.textContent = chatText("Копирано");
+    } catch {
+      copy.textContent = chatText("Копирай ръчно");
+    }
+    return true;
+  }
+  const revoke = event.target.closest("[data-revoke-connection]");
+  if (!revoke) return false;
+  if (!window.confirm(chatText("Да прекъсна ли тази връзка? AI асистентът вече няма да вижда паметта ти."))) return true;
+  revoke.disabled = true;
+  try {
+    const response = await fetch("/api/connections/revoke", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ grantId: revoke.dataset.revokeConnection }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Връзката не беше прекъсната.");
+    await openConnectionsDrawer();
+  } catch (error) {
+    revoke.disabled = false;
+    renderDrawerError(error.message);
+  }
+  return true;
 }
 
 async function openMemoryDrawer() {
@@ -1118,12 +1768,33 @@ async function openMemoryDrawer() {
         : Promise.resolve({ items: [] }),
     ]);
     state.memoryItems = Array.isArray(data.items) ? data.items : [];
-    state.knowledgeItems = Array.isArray(knowledge.items) ? knowledge.items : [];
+    state.knowledgeItems = Array.isArray(knowledge.items)
+      ? knowledge.items
+      : [];
     state.memoryWorkspace = workspace;
     renderMemoryItems();
   } catch (error) {
     renderDrawerError(error.message);
   }
+}
+
+// Each remembered fact says when it was saved and who confirmed it, so an
+// invented "fact" can be spotted and removed.
+function memoryProvenance(item) {
+  const source = String(item?.source || "");
+  const who = source === "system-canonical"
+    ? chatText("основа на системата")
+    : /confirmed|confirmation|approved|import/u.test(source)
+      ? chatText("потвърдено от теб")
+      : source
+        ? chatText("източник: {source}", { source })
+        : "";
+  const when = item?.updatedAt || item?.createdAt;
+  const date = when && !Number.isNaN(Date.parse(when))
+    ? new Date(when).toLocaleDateString("bg-BG")
+    : "";
+  const text = [date && chatText("записано {date}", { date }), who].filter(Boolean).join(" · ");
+  return text ? `<small class="memory-provenance">${escapeHtml(text)}</small>` : "";
 }
 
 function renderMemoryItems() {
@@ -1147,6 +1818,7 @@ function renderMemoryItems() {
                         <div>
                           ${item.readOnly ? '<span class="memory-badge">Текуща основа</span>' : ""}
                           <p>${escapeHtml(item.fact)}</p>
+                          ${memoryProvenance(item)}
                         </div>
                         ${
                           item.readOnly
@@ -1169,7 +1841,8 @@ function renderMemoryItems() {
             }
         </section>`;
   elements.dataDrawerBody.innerHTML =
-    `<section class="memory-policy-card">
+    `<p class="memory-intro">${escapeHtml(chatText("Това е всичко, което AI CORE помни за теб. Нищо не се записва без твое „да“, а всеки запис можеш да поправиш или изтриеш."))}</p>
+    <section class="memory-policy-card">
       <strong>Правило за запомняне</strong>
       <p>AI CORE никога не запомня автоматично. Избери дали да пита преди всеки запис или напълно да забрани записването.</p>
       <div class="memory-policy-actions">
@@ -1281,13 +1954,11 @@ async function openPermissionsDrawer() {
       ? await githubResponse.json().catch(() => ({}))
       : {};
     const chatgptData = chatgptResponse?.ok
-      ? await chatgptResponse
-          .json()
-          .catch(() => ({
-            configured: false,
-            connected: false,
-            unavailable: true,
-          }))
+      ? await chatgptResponse.json().catch(() => ({
+          configured: false,
+          connected: false,
+          unavailable: true,
+        }))
       : { configured: false, connected: false, unavailable: true };
     const toolMap = new Map(
       (healthData.tools || []).map((tool) => [tool.id, tool]),
@@ -1389,6 +2060,8 @@ function showPermissionInfo(action) {
 }
 
 async function handleDataDrawerAction(event) {
+  if (await handleConnectionAction(event)) return;
+  if (await handleInboxAction(event)) return;
   if (event.target.closest("[data-knowledge-preview]")) {
     await previewKnowledgeArchive();
     return;
@@ -1652,7 +2325,7 @@ function showTypingIndicator() {
         <span class="thinking-avatar" aria-hidden="true">
             <i class="fa-solid fa-atom"></i>
         </span>
-        <span class="thinking-label">Приемам задачата…</span>
+        <span class="thinking-label">${localizedMarkup("Приемам задачата…")}</span>
         <span class="thinking-dots" aria-hidden="true">
             <span></span><span></span><span></span>
         </span>
@@ -1674,9 +2347,25 @@ function removeTypingIndicator() {
   document.getElementById("typingIndicator")?.remove();
 }
 
+globalThis.SynchronChat = {
+  ...(globalThis.SynchronChat || {}),
+  sessionId: () => state.sessionId,
+};
+
+function stopGeneration() {
+  state.chatAbort?.abort();
+}
+
 function setChatBusy(isBusy) {
   state.chatBusy = isBusy;
-  elements.sendBtn.disabled = isBusy;
+  // While an answer streams the send button becomes "Stop", like ChatGPT.
+  elements.sendBtn.disabled = false;
+  elements.sendBtn.classList.toggle("is-stop", isBusy);
+  elements.sendBtn.setAttribute("aria-label", chatText(isBusy ? "Спри" : "Изпрати"));
+  const sendIcon = elements.sendBtn.querySelector("i");
+  if (sendIcon) sendIcon.className = isBusy ? "fa-solid fa-stop" : "fa-solid fa-arrow-up";
+  const sendLabel = elements.sendBtn.querySelector("span");
+  if (sendLabel) sendLabel.textContent = chatText(isBusy ? "Спри" : "Изпрати");
   elements.chatInput.disabled = isBusy;
   elements.newChatBtn.disabled = isBusy;
   elements.attachBtn.disabled = isBusy;
@@ -1709,19 +2398,25 @@ function createAssistantTurn(text = "", showActions = true) {
   actions.innerHTML = `
         <button type="button" data-action="execute-council" class="council-execute-action" hidden>
             <i class="fa-solid fa-play"></i>
-            <span class="action-label">Изпълни препоръката</span>
+            <span class="action-label">${localizedMarkup("Изпълни препоръката")}</span>
         </button>
-        <button type="button" data-action="copy" title="Копирай" aria-label="Копирай">
+        <button type="button" data-action="copy" title="${localizedMarkup("Копирай")}" aria-label="${localizedMarkup("Копирай")}">
             <i class="fa-regular fa-copy"></i>
-            <span class="action-label">Копирай</span>
+            <span class="action-label">${localizedMarkup("Копирай")}</span>
         </button>
-        <button type="button" data-action="speak" title="Прочети на глас" aria-label="Прочети на глас">
+        <button type="button" data-action="retry" class="retry-action" title="${localizedMarkup("Пробвай пак")}" aria-label="${localizedMarkup("Пробвай пак")}">
+            <i class="fa-solid fa-rotate-right"></i>
+        </button>
+        <button type="button" data-action="retry-model" class="retry-action" title="${localizedMarkup("Пробвай с друг модел")}" aria-label="${localizedMarkup("Пробвай с друг модел")}">
+            <i class="fa-solid fa-shuffle"></i>
+        </button>
+        <button type="button" data-action="speak" title="${localizedMarkup("Прочети на глас")}" aria-label="${localizedMarkup("Прочети на глас")}">
             <i class="fa-solid fa-volume-high"></i>
         </button>
-        <button type="button" data-action="like" title="Добър отговор" aria-label="Добър отговор">
+        <button type="button" data-action="like" title="${localizedMarkup("Добър отговор")}" aria-label="${localizedMarkup("Добър отговор")}">
             <i class="fa-regular fa-thumbs-up"></i>
         </button>
-        <button type="button" data-action="dislike" title="Лош отговор" aria-label="Лош отговор">
+        <button type="button" data-action="dislike" title="${localizedMarkup("Лош отговор")}" aria-label="${localizedMarkup("Лош отговор")}">
             <i class="fa-regular fa-thumbs-down"></i>
         </button>
     `;
@@ -1741,6 +2436,51 @@ function showCouncilExecutionAction(message, councilIntentId) {
   button.hidden = false;
 }
 
+// Council answers side by side on a wide screen and as swipeable cards on a
+// phone (Perplexity/ChatHub style). The answers move out of the long text
+// into the cards; the comparison and recommendation stay below them.
+function showCouncilColumns(message, council) {
+  const responses = Array.isArray(council?.responses) ? council.responses : [];
+  if (!message || responses.length < 2) return;
+  const headings = Array.from(message.querySelectorAll("h3"));
+  const isAnswerHeading = (node) =>
+    node?.tagName === "H3" &&
+    responses.some(({ model }) => model && node.textContent.includes(` · ${model}`));
+  const isBoundary = (node) =>
+    node.tagName === "H2" ||
+    (node.tagName === "H3" &&
+      (isAnswerHeading(node) || /^(✅|⚖️|💡)/u.test(node.textContent.trim())));
+  const first = headings.find(isAnswerHeading);
+  if (!first || first.parentElement !== message) return;
+
+  const columns = document.createElement("div");
+  columns.className = "council-columns";
+  columns.setAttribute("aria-label", chatText("Отговорите на моделите"));
+  let node = first;
+  while (node && isAnswerHeading(node)) {
+    const card = document.createElement("section");
+    card.className = "council-card";
+    let sibling = node.nextElementSibling;
+    card.appendChild(node);
+    while (sibling && !isBoundary(sibling)) {
+      const after = sibling.nextElementSibling;
+      card.appendChild(sibling);
+      sibling = after;
+    }
+    columns.appendChild(card);
+    node = sibling;
+  }
+  if (columns.children.length < 2) {
+    // Unexpected layout: put everything back where it was.
+    for (const card of Array.from(columns.children)) {
+      for (const child of Array.from(card.children)) message.insertBefore(child, node);
+    }
+    return;
+  }
+  message.insertBefore(columns, node);
+  message.classList.add("has-council-columns");
+}
+
 function showConversationPersistenceWarning(message) {
   const turn = message?.closest(".assistant-turn");
   if (!turn || turn.querySelector(".conversation-persistence-warning")) return;
@@ -1755,7 +2495,7 @@ function showConversationPersistenceWarning(message) {
   turn.insertBefore(warning, actions || null);
 }
 
-function showAiResponseSource(message, provider, model) {
+function showAiResponseSource(message, provider, model, linkedProjectContext) {
   const turn = message?.closest(".assistant-turn");
   if (!turn || turn.querySelector(".ai-response-source")) return;
 
@@ -1765,11 +2505,150 @@ function showAiResponseSource(message, provider, model) {
 
   const source = document.createElement("div");
   source.className = "ai-response-source";
-  source.textContent = [cleanProvider, cleanModel].filter(Boolean).join(" · ");
+  const context =
+    linkedProjectContext === true
+      ? "Работа със свързани чатове"
+      : linkedProjectContext === false
+        ? "Работа без заредени свързани чатове"
+        : linkedProjectContext === null
+          ? "Работа без активен проект"
+          : "";
+  const providerNames = {
+    openai: "OpenAI",
+    gemini: "Gemini",
+    "vertex-gemini": "Vertex Gemini",
+    grok: "Grok",
+    claude: "Claude",
+    codex: "Codex",
+  };
+  source.textContent = [
+    chatText("Отговаря агентът"),
+    providerNames[cleanProvider] || cleanProvider,
+    cleanModel,
+    context,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   source.setAttribute("aria-label", "AI доставчик и модел");
 
   const actions = turn.querySelector(".message-actions");
   turn.insertBefore(source, actions || null);
+}
+
+function cleanNextStep(value) {
+  if (typeof value !== "string") return "";
+  return value
+    .replace(/^[-*•#\s]+/gu, "")
+    .replace(/\*\*/gu, "")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .slice(0, 240);
+}
+
+function nextStepFromReply(text) {
+  const value = typeof text === "string" ? text.trimEnd() : "";
+  const match = value.match(
+    /(?:^|\n)\s*(?:[-*•]\s*)?(?:\*\*)?(?:Следва|Следваща стъпка)(?:\*\*)?\s*:\s*(.+?)\s*$/iu,
+  );
+  const step = cleanNextStep(match?.[1]);
+  return {
+    step,
+    displayText:
+      step && match && match.index > 0
+        ? value.slice(0, match.index).trimEnd()
+        : value,
+  };
+}
+
+function resolveNextStep(replyText, result = {}) {
+  const parsedReply = nextStepFromReply(replyText);
+  const projectStep = cleanNextStep(result?.projectRun?.nextStep);
+  const councilStep = cleanNextStep(result?.council?.nextSteps?.[0]);
+  if (projectStep || councilStep || parsedReply.step) {
+    return {
+      step: projectStep || councilStep || parsedReply.step,
+      displayText: parsedReply.displayText,
+    };
+  }
+
+  if (result?.mode === "council") {
+    return {
+      step: "Прегледай общата препоръка и натисни „Изпълни препоръката“, ако я одобряваш.",
+      displayText: parsedReply.displayText,
+    };
+  }
+
+  const status = result?.task?.status;
+  if (status === "waiting_confirmation") {
+    return {
+      step: "Прегледай подготвеното действие и използвай показаното точно потвърждение.",
+      displayText: parsedReply.displayText,
+    };
+  }
+  if (status === "partial") {
+    return {
+      step: "Отвори Дневника на задачите и продължи първата незавършена стъпка.",
+      displayText: parsedReply.displayText,
+    };
+  }
+  if (status === "failed") {
+    return {
+      step: "Отвори Дневника на задачите и прегледай причината за неуспешната задача.",
+      displayText: parsedReply.displayText,
+    };
+  }
+  return { step: "", displayText: parsedReply.displayText };
+}
+
+function showNextStep(message, replyText, result) {
+  const turn = message?.closest(".assistant-turn");
+  if (!turn || turn.querySelector(".next-step-card")) return;
+
+  const next = resolveNextStep(replyText, result);
+  if (!next.step) return;
+  if (next.displayText && next.displayText !== String(replyText).trimEnd()) {
+    renderAgentText(message, next.displayText);
+  }
+
+  // Only steps that come from a real project run, council or task go to the
+  // journal automatically. A step the model wrote in free text is shown but
+  // saved only when Радко presses the button, so invented items never pile up.
+  const fromStructuredResult = Boolean(
+    result?.projectRun?.nextStep ||
+      result?.council?.nextSteps?.[0] ||
+      result?.task?.status,
+  );
+  if (fromStructuredResult) {
+    globalThis.SynchronTaskJournal?.setNextStep(next.step, {
+      detail: "Записано автоматично от последния отговор на AI CORE.",
+    });
+  }
+
+  const card = document.createElement("section");
+  card.className = "next-step-card";
+  card.setAttribute("aria-label", "Следваща стъпка");
+
+  const label = document.createElement("strong");
+  label.textContent = chatText("Следва");
+  const step = document.createElement("p");
+  step.textContent = next.step;
+  const openButton = document.createElement("button");
+  openButton.type = "button";
+  openButton.textContent = chatText(
+    fromStructuredResult ? "Отвори в Дневника" : "Добави в Дневника",
+  );
+  openButton.addEventListener("click", () => {
+    if (!fromStructuredResult) {
+      globalThis.SynchronTaskJournal?.setNextStep(next.step, {
+        detail: "Добавено от Радко от отговор на AI CORE.",
+      });
+    }
+    globalThis.SynchronTaskJournal?.openCurrentNext();
+  });
+  card.append(label, step, openButton);
+
+  const actions = turn.querySelector(".message-actions");
+  turn.insertBefore(card, actions || null);
 }
 
 function memoryCandidateCategoryLabel(category) {
@@ -1792,7 +2671,9 @@ function showMemoryCandidates(message, candidates) {
   const safeCandidates = candidates
     .filter(
       (candidate) =>
-        candidate && typeof candidate.fact === "string" && candidate.fact.trim(),
+        candidate &&
+        typeof candidate.fact === "string" &&
+        candidate.fact.trim(),
     )
     .slice(0, 3)
     .map((candidate) => ({
@@ -1901,7 +2782,9 @@ async function saveMemoryCandidate(button, factOverride = "") {
     });
     const saved = await response.json().catch(() => null);
     if (!response.ok) {
-      throw new Error(saved?.error || "Предложението не можа да бъде записано.");
+      throw new Error(
+        saved?.error || "Предложението не можа да бъде записано.",
+      );
     }
     finishMemoryCandidateItem(item, "Записано в постоянната памет.");
     logAction("Запазено е предложение за паметта");
@@ -1935,7 +2818,7 @@ function renderTaskRuns(items) {
   elements.taskRunList.replaceChildren();
   if (!Array.isArray(items) || !items.length) {
     const empty = document.createElement("li");
-    empty.textContent = "Няма запазени изпълнения.";
+    empty.textContent = chatText("Няма запазени изпълнения.");
     elements.taskRunList.appendChild(empty);
     return;
   }
@@ -1944,7 +2827,7 @@ function renderTaskRuns(items) {
     const item = document.createElement("li");
     item.className = "task-run-item";
     const title = document.createElement("strong");
-    title.textContent = run.title || "AI задача";
+    title.textContent = run.title || chatText("AI задача");
     const status = document.createElement("small");
     status.textContent = `${taskRunStatusLabel(run.status)} · ${run.id}`;
     item.append(title, status);
@@ -2004,7 +2887,9 @@ async function previewKnowledgeArchive() {
       : [];
     state.knowledgeImportConfirmation = null;
     renderMemoryItems();
-    logAction(`Прегледани са ${state.knowledgePreview.length} кандидата от архив`);
+    logAction(
+      `Прегледани са ${state.knowledgePreview.length} кандидата от архив`,
+    );
   } catch (error) {
     renderDrawerError(error.message || "Невалиден JSON архив.");
   }
@@ -2016,7 +2901,9 @@ async function prepareKnowledgeArchiveImport() {
       (element) => element.dataset.knowledgeSelect,
     ),
   );
-  const items = state.knowledgePreview.filter((item) => selectedIds.has(item.id));
+  const items = state.knowledgePreview.filter((item) =>
+    selectedIds.has(item.id),
+  );
   if (!items.length) {
     renderDrawerError("Избери поне един кандидат за импорт.");
     return;
@@ -2099,7 +2986,9 @@ async function handleTaskRunAction(event) {
         headers: { "Content-Type": "application/json" },
         body:
           action === "pause"
-            ? JSON.stringify({ reason: "Потребителят спря задачата от панела." })
+            ? JSON.stringify({
+                reason: "Потребителят спря задачата от панела.",
+              })
             : "{}",
       },
     );
@@ -2164,6 +3053,22 @@ async function handleMessageAction(event) {
     return;
   }
 
+  if (action === "retry" || action === "retry-model" || action === "edit") {
+    if (state.chatBusy) return;
+    const userTurn = action === "edit" ? turn : previousUserTurn(turn);
+    if (!userTurn?.__request) return;
+    if (action === "retry") {
+      resendFrom(userTurn, userTurn.__request);
+    } else if (action === "retry-model") {
+      openRetryModelMenu(button, (modelId) =>
+        resendFrom(userTurn, userTurn.__request, modelId),
+      );
+    } else {
+      startEditingMessage(userTurn);
+    }
+    return;
+  }
+
   if (action === "execute-council") {
     elements.chatInput.value = "Изпълни препоръката.";
     resizeChatInput();
@@ -2199,6 +3104,106 @@ async function handleMessageAction(event) {
   }
 }
 
+function previousUserTurn(turn) {
+  let node = turn?.previousElementSibling;
+  while (node && !node.classList.contains("user-turn")) {
+    node = node.previousElementSibling;
+  }
+  return node;
+}
+
+// Retry and edit replace a question and everything after it, like the big
+// chat apps: the old turns leave the screen and the history sent to AI.
+function resendFrom(userTurn, request, modelOverride = "") {
+  let removedUserTurns = 0;
+  let node = userTurn;
+  while (node) {
+    const next = node.nextElementSibling;
+    if (node.classList.contains("user-turn")) removedUserTurns += 1;
+    node.remove();
+    node = next;
+  }
+  const history = state.recentConversationMessages;
+  let cut = history.length;
+  for (let seen = 0; cut > 0 && seen < removedUserTurns; ) {
+    cut -= 1;
+    if (history[cut].role === "user") seen += 1;
+  }
+  state.recentConversationMessages = history.slice(0, cut);
+  logAction(modelOverride ? "Нов опит с друг модел" : "Нов опит");
+  return sendMessage({ resend: request, modelOverride });
+}
+
+function openRetryModelMenu(button, onPick) {
+  document.querySelector(".retry-model-menu")?.remove();
+  const models = (globalThis.SynchronUi?.chatModels?.() || []).filter(
+    (choice) => choice.id !== "auto" && choice.available !== false,
+  );
+  if (!models.length) return;
+  const menu = document.createElement("div");
+  menu.className = "retry-model-menu";
+  menu.setAttribute("role", "menu");
+  for (const choice of models) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.setAttribute("role", "menuitem");
+    item.textContent = chatText(choice.label);
+    item.addEventListener("click", (event) => {
+      event.stopPropagation();
+      menu.remove();
+      onPick(choice.id);
+    });
+    menu.appendChild(item);
+  }
+  button.closest(".message-actions")?.appendChild(menu);
+  setTimeout(() => {
+    document.addEventListener("click", () => menu.remove(), { once: true });
+  });
+}
+
+function startEditingMessage(userTurn) {
+  if (userTurn.querySelector(".message-edit")) return;
+  const message = userTurn.querySelector(".message.user");
+  const editor = document.createElement("div");
+  editor.className = "message-edit";
+  const field = document.createElement("textarea");
+  field.value = userTurn.__request.text;
+  field.rows = Math.min(8, Math.max(2, field.value.split("\n").length));
+  const buttons = document.createElement("div");
+  buttons.className = "message-edit-buttons";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.textContent = chatText("Откажи");
+  const save = document.createElement("button");
+  save.type = "button";
+  save.className = "primary";
+  save.textContent = chatText("Изпрати");
+  buttons.append(cancel, save);
+  editor.append(field, buttons);
+  message.hidden = true;
+  userTurn.querySelector(".message-actions").hidden = true;
+  userTurn.insertBefore(editor, message);
+  field.focus();
+  const close = () => {
+    editor.remove();
+    message.hidden = false;
+    userTurn.querySelector(".message-actions").hidden = false;
+  };
+  cancel.addEventListener("click", close);
+  save.addEventListener("click", () => {
+    const text = field.value.trim();
+    if (!text || state.chatBusy) return;
+    resendFrom(userTurn, { ...userTurn.__request, text });
+  });
+  field.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") close();
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      save.click();
+    }
+  });
+}
+
 async function copyText(text) {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text);
@@ -2229,7 +3234,7 @@ function speakText(text, button) {
   state.speakingButton?.classList.remove("active");
 
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "bg-BG";
+  utterance.lang = chatLocale?.browserLocale || "bg-BG";
   utterance.rate = 1;
   button.classList.add("active");
   state.speakingButton = button;
@@ -2270,19 +3275,41 @@ function parseSseEvent(rawEvent) {
   }
 }
 
-async function sendMessage({ councilIntentId = "" } = {}) {
-  const text = elements.chatInput.value.trim();
-  const image = state.pendingImage;
+async function sendMessage({
+  councilIntentId = "",
+  resend = null,
+  modelOverride = "",
+} = {}) {
+  const text = resend ? String(resend.text || "").trim() : elements.chatInput.value.trim();
+  const image = resend ? resend.image || null : state.pendingImage;
   if ((!text && !image) || state.chatBusy) return;
 
-  const messageText = text || "Какво виждаш на тази снимка?";
-  const councilMode = state.councilMode;
+  const messageText =
+    text ||
+    (image?.mimeType === "application/pdf"
+      ? "Обобщи този документ."
+      : "Какво виждаш на тази снимка?");
+  const councilMode = resend ? false : state.councilMode;
+  const councilProviders = Array.from(
+    document.querySelectorAll('input[name="councilProvider"]:checked'),
+    (input) => input.value,
+  );
+  if (councilMode && !councilProviders.length) {
+    alert("Избери поне един AI двигател.");
+    return;
+  }
   setCouncilMode(false);
   const recentHistory = state.recentConversationMessages.slice(-12);
+  const interaction = globalThis.SynchronWorkMode?.getRequestPayload();
+  const sentSessionId = state.sessionId;
   appendMessage("user", messageText, image);
-  elements.chatInput.value = "";
-  resizeChatInput();
-  clearPendingImage();
+  if (!resend) {
+    elements.chatInput.value = "";
+    resizeChatInput();
+    clearPendingImage();
+  }
+  const abort = new AbortController();
+  state.chatAbort = abort;
   logAction("Изпратено съобщение");
   showTypingIndicator();
   setChatBusy(true);
@@ -2291,17 +3318,28 @@ async function sendMessage({ councilIntentId = "" } = {}) {
   let responseActions = null;
 
   try {
+    if (interaction?.workContext?.project.id) {
+      await globalThis.SynchronWorkMode?.flushProjectContext();
+    }
     const response = await fetch("/chat/chat", {
       method: "POST",
+      signal: abort.signal,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        sessionId: state.sessionId,
+        sessionId: sentSessionId,
         message: messageText,
+        language: chatLocale?.language,
         image,
         council: councilMode,
+        ...(councilMode ? { councilProviders } : {}),
         ...(councilIntentId ? { councilIntentId } : {}),
         recentHistory,
-        ...globalThis.SynchronWorkMode?.getRequestPayload(),
+        model: modelOverride || globalThis.SynchronUi?.chatModel?.() || "auto",
+        ...(resend ? { rewrite: true } : {}),
+        ...(globalThis.SynchronUi?.assistant?.()
+          ? { assistant: globalThis.SynchronUi.assistant() }
+          : {}),
+        ...interaction,
       }),
     });
 
@@ -2319,7 +3357,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
 
     const contentType = response.headers.get("content-type") || "";
     if (!contentType.includes("text/event-stream")) {
-      throw new Error("Сървърът върна неочакван формат.");
+      throw new Error(chatText("Сървърът върна неочакван формат."));
     }
 
     const assistantTurn = createAssistantTurn("", false);
@@ -2349,7 +3387,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
           fullText += parsed.data.token;
           renderAgentText(responseBubble, fullText);
         } else if (parsed.event === "error") {
-          throw new Error(parsed.data?.message || "AI агентът върна грешка.");
+          throw new Error(describeAiError(parsed.data));
         } else if (
           parsed.event === "activity" &&
           typeof parsed.data?.message === "string"
@@ -2364,13 +3402,19 @@ async function sendMessage({ councilIntentId = "" } = {}) {
           logAction(parsed.data.message);
         } else if (parsed.event === "done") {
           completed = true;
-          globalThis.SynchronWorkMode?.onDone(parsed.data);
+          globalThis.SynchronWorkMode?.onDone(parsed.data, {
+            projectId: interaction?.workContext?.project.id,
+            sessionId: sentSessionId,
+            mode: interaction?.mode,
+          });
           showAiResponseSource(
             responseBubble,
             parsed.data?.provider,
             parsed.data?.model,
+            parsed.data?.linkedProjectContext,
           );
           showMemoryCandidates(responseBubble, parsed.data?.memoryCandidates);
+          showNextStep(responseBubble, fullText, parsed.data);
           if (
             parsed.data?.conversationPersisted === false &&
             parsed.data?.warningCode === "CONVERSATION_NOT_SAVED"
@@ -2390,11 +3434,12 @@ async function sendMessage({ councilIntentId = "" } = {}) {
             logAction("Задачата е изпълнена частично");
           }
           if (parsed.data?.mode === "council") {
+            showCouncilColumns(responseBubble, parsed.data?.council);
             showCouncilExecutionAction(
               responseBubble,
               parsed.data?.councilIntentId,
             );
-            logAction("Трите AI двигателя дадоха обща препоръка");
+            logAction("Получен отговор от AI Council");
           }
           if (parsed.data?.taskRunId || parsed.data?.task?.taskRunId) {
             void loadTaskRuns();
@@ -2421,7 +3466,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
     }
 
     if (!completed || !fullText.trim()) {
-      throw new Error("AI отговорът приключи неочаквано.");
+      throw new Error(chatText("AI отговорът приключи неочаквано."));
     }
 
     rememberConversationMessage("assistant", fullText);
@@ -2429,9 +3474,23 @@ async function sendMessage({ councilIntentId = "" } = {}) {
     logAction("Получен AI отговор");
     await loadConversations();
   } catch (error) {
+    if (abort.signal.aborted) {
+      // Stopped by the person: keep what arrived and let them retry.
+      const partial = responseBubble?.dataset.rawText || responseBubble?.innerText || "";
+      if (responseBubble && partial.trim()) {
+        rememberConversationMessage("assistant", partial);
+        if (responseActions) responseActions.hidden = false;
+        responseBubble.closest(".assistant-turn")?.classList.add("is-stopped");
+      } else {
+        responseBubble?.closest(".assistant-turn")?.remove();
+        appendMessage("agent", chatText("⏹ Спряно."), null, { remember: false });
+      }
+      logAction("Отговорът е спрян");
+      return;
+    }
     console.error(error);
     globalThis.SynchronWorkMode?.onError();
-    const message = `❌ ${error?.message || "Сървърна грешка. Опитай отново."}`;
+    const message = `❌ ${error?.message || chatText("Сървърна грешка. Опитай отново.")}`;
 
     if (responseBubble) {
       responseBubble.textContent = message;
@@ -2442,6 +3501,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
     }
     logAction("Грешка при AI отговор");
   } finally {
+    if (state.chatAbort === abort) state.chatAbort = null;
     removeTypingIndicator();
     setChatBusy(false);
     elements.chatInput.focus();
@@ -2459,9 +3519,8 @@ function rememberConversationMessage(role, text) {
     return;
   }
   state.recentConversationMessages.push({ role: normalizedRole, content });
-  state.recentConversationMessages = state.recentConversationMessages.slice(
-    -12,
-  );
+  state.recentConversationMessages =
+    state.recentConversationMessages.slice(-12);
 }
 
 function appendMessage(role, text, image = null, options = {}) {
@@ -2478,7 +3537,12 @@ function appendMessage(role, text, image = null, options = {}) {
   const div = document.createElement("div");
   div.className = `message ${role}`;
   div.dataset.rawText = text;
-  if (image?.dataUrl) {
+  if (image?.dataUrl && image.mimeType === "application/pdf") {
+    const file = document.createElement("div");
+    file.className = "message-file";
+    file.textContent = `📄 ${image.name || "документ.pdf"}`;
+    div.appendChild(file);
+  } else if (image?.dataUrl) {
     const preview = document.createElement("img");
     preview.className = "message-image";
     preview.src = image.dataUrl;
@@ -2493,12 +3557,16 @@ function appendMessage(role, text, image = null, options = {}) {
   const actions = document.createElement("div");
   actions.className = "message-actions user-actions";
   actions.innerHTML = `
-        <button type="button" data-action="copy" title="Копирай" aria-label="Копирай">
+        <button type="button" data-action="copy" title="${localizedMarkup("Копирай")}" aria-label="${localizedMarkup("Копирай")}">
             <i class="fa-regular fa-copy"></i>
-            <span class="action-label">Копирай</span>
+            <span class="action-label">${localizedMarkup("Копирай")}</span>
+        </button>
+        <button type="button" data-action="edit" title="${localizedMarkup("Редактирай")}" aria-label="${localizedMarkup("Редактирай")}">
+            <i class="fa-solid fa-pen"></i>
         </button>
     `;
 
+  turn.__request = { text, image };
   turn.append(div, actions);
   elements.chatMessages.appendChild(turn);
   scrollChatToBottom();
@@ -2518,8 +3586,10 @@ async function checkHealth() {
     setServerStatus(response.ok);
     if (!elements.activeIntegrationsDisplay) return;
     if (!integrationsResponse?.ok) {
-      elements.activeIntegrationsDisplay.textContent = "Проверката не е достъпна";
-      elements.activeIntegrationsDisplay.className = "context-value status-yellow";
+      elements.activeIntegrationsDisplay.textContent =
+        "Проверката не е достъпна";
+      elements.activeIntegrationsDisplay.className =
+        "context-value status-yellow";
       return;
     }
     const data = await integrationsResponse.json().catch(() => ({}));
@@ -2534,8 +3604,10 @@ async function checkHealth() {
   } catch {
     setServerStatus(false);
     if (elements.activeIntegrationsDisplay) {
-      elements.activeIntegrationsDisplay.textContent = "Проверката не е достъпна";
-      elements.activeIntegrationsDisplay.className = "context-value status-yellow";
+      elements.activeIntegrationsDisplay.textContent =
+        "Проверката не е достъпна";
+      elements.activeIntegrationsDisplay.className =
+        "context-value status-yellow";
     }
   }
 }
@@ -2544,14 +3616,14 @@ function setServerStatus(isOnline) {
   state.serverOnline = isOnline;
   elements.agentStatusDot.className = isOnline ? "online" : "offline";
   elements.agentStatusText.textContent = isOnline
-    ? "Сървър онлайн"
-    : "Сървър офлайн";
-  elements.serverStatusDisplay.textContent = isOnline ? "Онлайн" : "Офлайн";
+    ? chatText("Сървър онлайн")
+    : chatText("Сървър офлайн");
+  elements.serverStatusDisplay.textContent = isOnline ? chatText("Онлайн") : chatText("Офлайн");
   elements.serverStatusDisplay.className = `context-value ${isOnline ? "status-green" : "status-red"}`;
 }
 
 function logAction(actionName) {
-  const time = new Date().toLocaleTimeString("bg-BG", {
+  const time = new Date().toLocaleTimeString(chatLocale?.browserLocale || "bg-BG", {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -2565,7 +3637,7 @@ function renderActionsLog() {
 
   if (state.lastActions.length === 0) {
     const item = document.createElement("li");
-    item.textContent = "Няма скорошни действия";
+    item.textContent = chatText("Няма скорошни действия");
     elements.actionsLog.appendChild(item);
     return;
   }
@@ -2577,4 +3649,7 @@ function renderActionsLog() {
   }
 }
 
-window.addEventListener("load", init);
+window.addEventListener("load", async () => {
+  await chatLocale?.ready;
+  await init();
+});

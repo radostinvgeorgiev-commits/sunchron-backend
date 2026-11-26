@@ -13,7 +13,7 @@ test("the interface presents SYNCHRON-X as the system and AI CORE as its core", 
   assert.match(html, /Вход в AI CORE/u);
   assert.match(html, /src="\/ai-core-mark\.png"/u);
   assert.match(html, />SYNCHRON-X</u);
-  assert.match(html, /ЛИЧНА AI ОПЕРАЦИОННА СИСТЕМА/u);
+  assert.match(html, /<h1 id="publicTitle">/u);
   assert.match(authCss, /\.auth-wordmark img/u);
   assert.match(visionCss, /\.brand-icon img/u);
 });

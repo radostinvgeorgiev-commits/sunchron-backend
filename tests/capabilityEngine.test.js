@@ -15,6 +15,7 @@ import {
   registerTool,
   resetToolRegistryForTests,
 } from "../src/tools/toolRegistry.js";
+import { isActiveAuthorizedGitHubSession } from "../src/services/githubOAuthService.js";
 
 test.beforeEach(() => resetToolRegistryForTests());
 
@@ -111,6 +112,7 @@ test("granular mail, contacts, tasks and GitHub writes use exact permission deci
     ["tasks.draft", "tasks.draft", "allow"],
     ["tasks.status", "tasks.update", "confirm"],
     ["github.branch.create", "github.write", "confirm"],
+    ["github.pull-request.merge", "github.write", "confirm"],
   ]) {
     const resolved = resolveCapability(capability);
     assert.equal(resolved.permission.action, action, capability);
@@ -191,6 +193,18 @@ test("runtime availability blocks configured-looking tools without credentials",
   );
 });
 
+test("Google Cloud Write accepts the verified Cloud Run runtime markers", () => {
+  const result = getToolRuntimeAvailability(
+    "google-cloud-write",
+    {},
+    {
+      K_SERVICE: "synchron-backend-google",
+      K_REVISION: "synchron-backend-google-00058-gbn",
+    },
+  );
+  assert.equal(result.available, true);
+});
+
 test("AI CORE chat availability accepts a configured non-OpenAI provider", () => {
   const result = getToolRuntimeAvailability(
     "synchron-agent-chat",
@@ -227,7 +241,7 @@ test("AI CORE chat and memory availability accept Firestore without OpenSearch",
   );
 });
 
-test("code.write спира преди multi-engine flow без трите AI ключа", async () => {
+test("code.write спира преди multi-engine flow без конфигуриран двигател", async () => {
   await assert.rejects(
     () =>
       executeCapability(
@@ -299,6 +313,72 @@ test("изпълнява GitHub четене чрез избрания инст�
   }
 });
 
+test("подава активната GitHub owner сесия и не пада към static token при невалиден id", async () => {
+  const originalFetch = global.fetch;
+  const originalApiUrl = process.env.GITHUB_API_URL;
+  const originalRepository = process.env.GITHUB_REPOSITORY;
+  const originalToken = process.env.GITHUB_TOKEN;
+  process.env.GITHUB_API_URL = "https://github.test";
+  process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
+  process.env.GITHUB_TOKEN = "configured-read-token";
+  let calls = 0;
+  global.fetch = async (_url, options) => {
+    calls += 1;
+    assert.equal(options.headers.Authorization, "Bearer oauth-read-token");
+    return new Response(
+      JSON.stringify([
+        {
+          sha: "oauth1234567890",
+          commit: { message: "OAuth read", author: {} },
+          html_url: "https://github.test/commit/oauth123",
+        },
+      ]),
+      { status: 200 },
+    );
+  };
+
+  try {
+    const result = await executeCapability("code.read", {
+      ownerId: "primary-user",
+      message: "Покажи последните commit-и в GitHub.",
+      githubSession: {
+        accessToken: "oauth-read-token",
+        login: "radostinvgeorgiev-commits",
+      },
+    });
+    assert.match(result.output, /oauth12/u);
+    assert.equal(
+      isActiveAuthorizedGitHubSession({
+        accessToken: "oauth-read-token",
+        login: "radostinvgeorgiev-commits",
+      }),
+      true,
+    );
+
+    await assert.rejects(
+      () =>
+        executeCapability("code.read", {
+          ownerId: "primary-user",
+          message: "Покажи последните commit-и в GitHub.",
+          githubSessionId: "missing-session",
+        }),
+      (error) =>
+        error instanceof CapabilityError &&
+        error.code === "GITHUB_SESSION_INVALID" &&
+        error.status === 401,
+    );
+    assert.equal(calls, 1);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalApiUrl === undefined) delete process.env.GITHUB_API_URL;
+    else process.env.GITHUB_API_URL = originalApiUrl;
+    if (originalRepository === undefined) delete process.env.GITHUB_REPOSITORY;
+    else process.env.GITHUB_REPOSITORY = originalRepository;
+    if (originalToken === undefined) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = originalToken;
+  }
+});
+
 test("връща общ статус само след реални проверки", async () => {
   const report = await buildIntegrationStatusReport(
     {
@@ -310,6 +390,12 @@ test("връща общ статус само след реални провер
       checkGitHub: async () => true,
       checkMemory: async () => [],
       checkGoogleCloud: async () => ({ configured: true }),
+      probeProviders: async () => [
+        { id: "openai", label: "OpenAI", configured: true, working: true, model: "gpt-x" },
+        { id: "gemini", label: "Gemini", configured: true, working: false, reason: "моделът не съществува" },
+        { id: "grok", label: "Grok", configured: true, working: true, model: "grok-x" },
+        { id: "claude", label: "Claude", configured: false, working: false, reason: "няма ключ" },
+      ],
       env: {
         AI_CORE_PROVIDER: "grok",
         OPENAI_API_KEY: "configured",
@@ -328,9 +414,11 @@ test("връща общ статус само след реални провер
   assert.match(report, /Google Cloud Read/u);
   assert.match(report, /Google Drive — изисква Google вход/u);
   assert.match(report, /GitHub Write — свързан; изисква потвърждение/u);
-  assert.match(report, /OpenAI — конфигуриран/u);
-  assert.match(report, /Gemini — конфигуриран/u);
-  assert.match(report, /Grok — конфигуриран; основен за разговора/u);
+  assert.match(report, /✅ OpenAI — работи \(gpt-x\)/u);
+  assert.match(report, /❌ Gemini — моделът не съществува/u);
+  assert.match(report, /✅ Grok — работи \(grok-x\); основен за разговора/u);
+  assert.match(report, /— Claude — няма ключ/u);
+  assert.doesNotMatch(report, /конфигуриран;/u);
 });
 
 test("не обявява Google Cloud за работещ без runtime конфигурация", async () => {
@@ -356,7 +444,10 @@ test("връща фокусиран статус за директния AI CORE
     {},
   );
 
-  assert.match(report, /директна и ограничена кодова промяна/u);
+  assert.match(
+    report,
+    /реалният запис се изпълнява чрез свързания GitHub Write API/u,
+  );
   assert.match(report, /отделен branch/u);
   assert.match(report, /Pull Request/u);
   assert.match(report, /main не се променя директно/u);
@@ -374,11 +465,7 @@ test("не изпълнява способност за потвърждение
 test("всеки регистриран основен инструмент има изпълним адаптер", () => {
   registerCoreTools();
   for (const { id } of listTools()) {
-    assert.equal(
-      isToolExecutable(id),
-      true,
-      id,
-    );
+    assert.equal(isToolExecutable(id), true, id);
   }
 });
 

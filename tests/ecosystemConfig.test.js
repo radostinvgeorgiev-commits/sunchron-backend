@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ECOSYSTEM_MODULES, getEcosystemStatus } from "../src/config/ecosystem.js";
+import {
+  ECOSYSTEM_MODULES,
+  getEcosystemStatus,
+} from "../src/config/ecosystem.js";
 
 test("NOVARIUM ecosystem skeleton keeps legal and token modules disabled", () => {
   assert.equal(ECOSYSTEM_MODULES.novarium.enabled, true);

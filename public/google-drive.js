@@ -25,13 +25,15 @@
   async function request(path, options) {
     const response = await fetch(path, { cache: "no-store", ...options });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || "Google Drive временно не е достъпен.");
+    if (!response.ok)
+      throw new Error(data.error || "Google Drive временно не е достъпен.");
     return data;
   }
 
   async function renderDrive() {
     openDrawer();
-    body.innerHTML = '<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Зареждане…</div>';
+    body.innerHTML =
+      '<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Зареждане…</div>';
     try {
       const status = await request("/api/google/status");
       if (!status.connected) {
@@ -41,10 +43,20 @@
             <button type="button" class="new-chat" id="connectGoogleDrive">
               <i class="fa-brands fa-google-drive"></i><span>Свържи Google Drive</span>
             </button>
+            <button type="button" class="new-chat" id="restoreGoogleDrive">
+              <i class="fa-solid fa-clock-rotate-left"></i><span>Възстанови старата Google връзка</span>
+            </button>
           </section>`;
-        document.getElementById("connectGoogleDrive").addEventListener("click", () => {
-          window.location.href = "/api/google/connect";
-        });
+        document
+          .getElementById("connectGoogleDrive")
+          .addEventListener("click", () => {
+            window.location.href = "/api/google/connect";
+          });
+        document
+          .getElementById("restoreGoogleDrive")
+          .addEventListener("click", () => {
+            window.location.href = "/api/google/restore";
+          });
         return;
       }
 
@@ -53,14 +65,22 @@
       body.innerHTML = `
         <section class="drawer-section">
           <div class="permission-default">Свързан е достъп само за четене. Поддържа PDF, Google Docs, Word, текст, Google Sheets, Excel и снимки.</div>
-          ${files.length ? files.map((file) => `
+          ${
+            files.length
+              ? files
+                  .map(
+                    (file) => `
             <article class="permission-card">
               <button type="button" data-drive-file="${escapeHtml(file.id)}" data-drive-name="${escapeHtml(file.name)}" style="text-align:left;background:none;border:0;padding:0;color:inherit">
                 <strong>${escapeHtml(file.name)}</strong>
                 <p>${file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString("bg-BG") : "Файл от Google Drive"}</p>
               </button>
               <button type="button" data-drive-file="${escapeHtml(file.id)}" data-drive-name="${escapeHtml(file.name)}">Отвори текста</button>
-            </article>`).join("") : '<div class="drawer-empty">Няма намерени поддържани файлове.</div>'}
+            </article>`,
+                  )
+                  .join("")
+              : '<div class="drawer-empty">Няма намерени поддържани файлове.</div>'
+          }
           <button type="button" id="disconnectGoogleDrive">Прекъсни връзката</button>
         </section>`;
     } catch (error) {
@@ -81,7 +101,8 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             fileId,
-            prompt: "Обобщи документа на български. Изведи най-важните факти, срокове, суми и действия, които трябва да предприема.",
+            prompt:
+              "Обобщи документа на български. Изведи най-важните факти, срокове, суми и действия, които трябва да предприема.",
           }),
         });
         lastAnalysis = data.analysis || "";

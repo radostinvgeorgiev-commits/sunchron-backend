@@ -65,7 +65,7 @@ function confirmationError(error) {
   );
 }
 
-async function assertMemoryWriteAllowed(
+export async function assertMemoryWriteAllowed(
   ownerId,
   loadWorkspace = loadWorkspaceState,
   env = process.env,
@@ -144,19 +144,36 @@ export function extractMemoryWriteConfirmationId(message) {
   return match?.[1] || null;
 }
 
-export function formatMemoryWritePreparation(prepared) {
+export function formatMemoryWritePreparation(prepared, english = false) {
   const facts = prepared.items.map(({ fact }) => `• ${fact}`);
   return [
-    "Подготвих постоянния запис, но още не съм записал нищо.",
-    "Нужно е еднократно потвърждение.",
-    "Точно съдържание:",
+    english
+      ? "The persistent memory write is prepared and awaits one-time confirmation."
+      : "Подготвих постоянния запис, но още не съм записал нищо.",
+    ...(!english ? ["Нужно е еднократно потвърждение."] : []),
+    english ? "Exact content:" : "Точно съдържание:",
     ...facts,
-    "За запис изпрати точно:",
+    english
+      ? "To save, send the following command exactly:"
+      : "За запис изпрати точно:",
     `${MEMORY_WRITE_CONFIRM_PREFIX} ${prepared.confirmationId}`,
   ].join("\n");
 }
 
-export function formatMemoryWriteResult(items) {
+export function formatMemoryWriteResult(items, english = false) {
+  if (english) {
+    if (items.length === 1) {
+      const [{ fact, replaced }] = items;
+      return replaced
+        ? `Updated in persistent memory: ${fact}.`
+        : `Remembered: ${fact}.`;
+    }
+    const replaced = items.filter((item) => item.replaced).length;
+    return [
+      `Saved ${items.length} facts to persistent memory${replaced ? `, including ${replaced} updates` : ""}:`,
+      ...items.map(({ fact }) => `• ${fact}`),
+    ].join("\n");
+  }
   if (items.length === 1) {
     return items[0].replaced
       ? `Обнових постоянната памет: ${items[0].fact}.`

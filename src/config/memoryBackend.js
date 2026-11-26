@@ -7,8 +7,19 @@ function resolveBackend(value, fallback = "opensearch") {
   return MEMORY_BACKENDS.has(requested) ? requested : null;
 }
 
+function isProductionRuntime(env = process.env) {
+  return (
+    String(env.NODE_ENV || "")
+      .trim()
+      .toLowerCase() === "production"
+  );
+}
+
 export function resolveMemoryBackend(env = process.env) {
-  const fallback = resolveFirestoreProjectId(env) ? "firestore" : "opensearch";
+  const fallback =
+    isProductionRuntime(env) || resolveFirestoreProjectId(env)
+      ? "firestore"
+      : "opensearch";
   return resolveBackend(env.MEMORY_BACKEND, fallback);
 }
 

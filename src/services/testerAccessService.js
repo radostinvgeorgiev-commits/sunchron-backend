@@ -4,6 +4,7 @@ import { getOpenSearchClient } from "../config/opensearch.js";
 import { resolveAuthBackend } from "../config/authBackend.js";
 import { resolvePersistenceBackend } from "../config/memoryBackend.js";
 import { createFirestoreTesterAccessStore } from "./firestoreTesterAccessStore.js";
+import { logSafeError } from "../utils/safeLogging.js";
 
 const DEFAULT_INDEX = "synchron-tester-access-v1";
 const ACCESS_REQUEST_OPTIONS = Object.freeze({
@@ -89,7 +90,7 @@ function getFirestoreStore(env = process.env) {
   return firestoreStore;
 }
 
-async function saveAccessDocument(id, body, { client, env }) {
+async function saveAccessDocument(id, body, { client, env, createOnly }) {
   const backend = resolvePersistenceBackend(env);
   if (!backend) {
     throw new TesterAccessError(
@@ -99,7 +100,7 @@ async function saveAccessDocument(id, body, { client, env }) {
     );
   }
   if (backend === "firestore") {
-    await getFirestoreStore(env).set(id, body);
+    await getFirestoreStore(env).set(id, body, { createOnly });
     return;
   }
   await requireClient(client).index(
@@ -108,6 +109,7 @@ async function saveAccessDocument(id, body, { client, env }) {
       id,
       body,
       refresh: true,
+      ...(createOnly ? { op_type: "create" } : {}),
     },
     ACCESS_REQUEST_OPTIONS,
   );
@@ -167,25 +169,56 @@ function statusCode(error) {
   return error?.statusCode || error?.meta?.statusCode || error?.status;
 }
 
+function isAccessDocumentConflict(error) {
+  return (
+    Number(statusCode(error)) === 409 ||
+    [409, 412].includes(error?.upstreamStatus) ||
+    ["ALREADY_EXISTS", "FAILED_PRECONDITION"].includes(
+      error?.upstreamErrorStatus,
+    )
+  );
+}
+
+function isApprovedAccess(source, userId, provider) {
+  return (
+    source?.userId === userId &&
+    source.status === "approved" &&
+    (!source.authProvider || source.authProvider === provider)
+  );
+}
+
 export async function approveTesterAccess(
   user,
-  { client, env = process.env } = {},
+  { client, env = process.env, createOnly = false } = {},
 ) {
   const userId = cleanUserId(user);
   const documentId = accessDocumentId(user, env);
   const provider = authProvider(user, env);
   const approvedAt = new Date().toISOString();
   try {
-    await saveAccessDocument(
-      documentId,
-      {
-        userId,
-        ...(provider === "supabase" ? {} : { authProvider: provider }),
-        status: "approved",
-        approvedAt,
-      },
-      { client, env },
-    );
+    try {
+      await saveAccessDocument(
+        documentId,
+        {
+          userId,
+          ...(provider === "supabase" ? {} : { authProvider: provider }),
+          status: "approved",
+          approvedAt,
+        },
+        { client, env, createOnly },
+      );
+    } catch (error) {
+      if (!createOnly || !isAccessDocumentConflict(error)) throw error;
+      const existing = await loadAccessDocument(documentId, { client, env });
+      if (!isApprovedAccess(existing, userId, provider)) {
+        throw new TesterAccessError(
+          "Този профил няма одобрен достъп.",
+          403,
+          "TESTER_ACCESS_NOT_APPROVED",
+        );
+      }
+      return { userId, approvedAt: existing.approvedAt };
+    }
   } catch (error) {
     if (error instanceof TesterAccessError) throw error;
     throw new TesterAccessError(
@@ -227,29 +260,67 @@ export async function approveTesterEmail(
   return { emailHash, approvedAt };
 }
 
+// Public registration: every verified account may sign in unless an access
+// record explicitly withholds it (for example status "revoked"). A missing
+// record is not a reason to block. A storage failure fails closed with a
+// temporary 503, so a revoked account cannot get back in during an outage.
+export async function assertPublicAccountAccess(
+  user,
+  { client, env = process.env, logError = logSafeError } = {},
+) {
+  const userId = cleanUserId(user);
+  const provider = authProvider(user, env);
+  if (isPrimaryUser(userId, provider, env)) return true;
+  let source = null;
+  try {
+    source = await loadAccessDocument(accessDocumentId(user, env), {
+      client,
+      env,
+    });
+  } catch (error) {
+    if (error instanceof TesterAccessError) throw error;
+    if (Number(statusCode(error)) !== 404) {
+      logError("[Public account access]", error);
+      throw new TesterAccessError(
+        "Проверката на достъпа временно не е достъпна. Опитай отново след малко.",
+        503,
+        "TESTER_ACCESS_UNAVAILABLE",
+      );
+    }
+  }
+  if (source && !isApprovedAccess(source, userId, provider)) {
+    throw new TesterAccessError(
+      "Достъпът до този профил е спрян. Свържи се с поддръжката.",
+      403,
+      "ACCOUNT_ACCESS_REVOKED",
+    );
+  }
+  return true;
+}
+
+function isPrimaryUser(userId, provider, env = process.env) {
+  const primaryUserId = String(
+    env.SYNCHRON_PRIMARY_USER_ID ||
+      (provider === "supabase" ? env.SYNCHRON_PRIMARY_SUPABASE_USER_ID : "") ||
+      "",
+  ).trim();
+  return Boolean(primaryUserId) && userId === primaryUserId;
+}
+
 export async function assertTesterAccess(
   user,
   { client, env = process.env } = {},
 ) {
   const userId = cleanUserId(user);
   const provider = authProvider(user, env);
-  const primaryUserId = String(
-    env.SYNCHRON_PRIMARY_USER_ID ||
-      (provider === "supabase" ? env.SYNCHRON_PRIMARY_SUPABASE_USER_ID : "") ||
-      "",
-  ).trim();
-  if (primaryUserId && userId === primaryUserId) return true;
+  if (isPrimaryUser(userId, provider, env)) return true;
 
   try {
     const source = await loadAccessDocument(accessDocumentId(user, env), {
       client,
       env,
     });
-    if (
-      source?.userId === userId &&
-      source?.status === "approved" &&
-      (!source.authProvider || source.authProvider === provider)
-    ) {
+    if (isApprovedAccess(source, userId, provider)) {
       return true;
     }
   } catch (error) {

@@ -8,6 +8,7 @@ import {
 import {
   MCP_AGENT_CHAT_SCOPE,
   MCP_GOOGLE_WRITE_SCOPE,
+  MCP_INFRASTRUCTURE_WRITE_SCOPE,
   MCP_MEMORY_WRITE_SCOPE,
 } from "../src/services/mcpOAuthService.js";
 
@@ -19,6 +20,33 @@ test("granular MCP capabilities have unique names, strict schemas and exact scop
   assert.ok(names.includes("confirm_github_change"));
   assert.ok(names.includes("confirm_google_action"));
   assert.ok(names.includes("confirm_task_status_change"));
+  assert.ok(names.includes("prepare_google_cloud_action"));
+  assert.ok(names.includes("confirm_google_cloud_action"));
+  assert.deepEqual(
+    MCP_CAPABILITY_TOOLS.find(
+      (item) => item.name === "prepare_google_cloud_action",
+    ).inputSchema.properties.operation.enum,
+    [
+      "grant_project_role",
+      "revoke_project_role",
+      "update_cloud_run_service_account",
+      "run_cloud_build_trigger",
+      "use_latest_secret_version",
+    ],
+  );
+  assert.deepEqual(
+    MCP_CAPABILITY_TOOLS.find((item) => item.name === "prepare_github_change")
+      .inputSchema.properties.operation.enum,
+    [
+      "create_branch",
+      "create_file",
+      "update_file",
+      "create_pr",
+      "merge_pr",
+      "close_issue",
+    ],
+  );
+  assert.ok(names.includes("get_google_cloud_project_diagnostics"));
   assert.ok(
     MCP_CAPABILITY_TOOLS.every(
       (item) =>
@@ -34,11 +62,87 @@ test("granular MCP capabilities have unique names, strict schemas and exact scop
   assert.deepEqual(scopeFor("send_message"), [MCP_AGENT_CHAT_SCOPE]);
   assert.deepEqual(scopeFor("prepare_memory_write"), [MCP_MEMORY_WRITE_SCOPE]);
   assert.deepEqual(scopeFor("confirm_google_action"), [MCP_GOOGLE_WRITE_SCOPE]);
+  assert.deepEqual(scopeFor("confirm_google_cloud_action"), [
+    MCP_INFRASTRUCTURE_WRITE_SCOPE,
+  ]);
   assert.equal(
     MCP_CAPABILITY_TOOLS.find((item) => item.name === "confirm_google_action")
       .annotations.destructiveHint,
     true,
   );
+});
+
+test("Google Cloud MCP write path preserves the prepare-confirm boundary", async () => {
+  const calls = [];
+  const handler = createMcpCapabilityHandler({
+    audit: async (event) => calls.push(["audit", event]),
+    dependencies: {
+      prepareGoogleCloudAction: async (input) => {
+        calls.push(["prepare", input]);
+        return {
+          confirmationId: "cloud-confirmation-1",
+          expiresAt: Date.now() + 60_000,
+          operation: input.operation,
+        };
+      },
+      confirmGoogleCloudAction: async (input) => {
+        calls.push(["confirm", input]);
+        return { changed: true };
+      },
+    },
+  });
+
+  const prepared = await handler(
+    "prepare_google_cloud_action",
+    {
+      operation: "grant_project_role",
+      input: {
+        principal: "serviceAccount:ai-core-admin@example.com",
+        role: "roles/owner",
+      },
+    },
+    { ownerId: "verified-owner" },
+  );
+  assert.equal(
+    prepared.result.structuredContent.confirmationId,
+    "cloud-confirmation-1",
+  );
+  assert.equal(calls[0][1].ownerId, "verified-owner");
+
+  const confirmed = await handler(
+    "confirm_google_cloud_action",
+    { confirmationId: "cloud-confirmation-1" },
+    { ownerId: "verified-owner" },
+  );
+  assert.equal(confirmed.result.structuredContent.changed, true);
+  assert.equal(calls[2][1].ownerId, "verified-owner");
+  assert.equal(calls.at(-1)[1].action, "infrastructure.write");
+});
+
+test("Google Cloud project diagnostics is read-only and uses the verified owner", async () => {
+  const calls = [];
+  const handler = createMcpCapabilityHandler({
+    audit: async (event) => calls.push(["audit", event]),
+    dependencies: {
+      getGoogleCloudProjectDiagnostics: async () => ({
+        status: "pass",
+        checks: { publicHealth: { status: "pass" } },
+        safety: {
+          readOnly: true,
+          secretsDisplayed: false,
+          arbitraryCommands: false,
+        },
+      }),
+    },
+  });
+  const result = await handler(
+    "get_google_cloud_project_diagnostics",
+    {},
+    { ownerId: "verified-owner" },
+  );
+  assert.equal(result.result.structuredContent.status, "pass");
+  assert.equal(calls.at(-1)[1].action, "infrastructure.read");
+  assert.equal(calls.at(-1)[1].decision, "allow");
 });
 
 test("send_message injects the verified owner and preserves the safe chat boundary", async () => {
@@ -127,6 +231,51 @@ test("Google capabilities fail closed when no authorized owner session exists", 
         { ownerId: "verified-owner" },
       ),
     (error) => error.code === "NOT_CONNECTED" && error.status === 401,
+  );
+});
+
+test("GitHub MCP read capabilities use the active owner OAuth session", async () => {
+  const calls = [];
+  const handler = createMcpCapabilityHandler({
+    audit: async () => {},
+    resolveLatestGitHubSession: async () => ({
+      accessToken: "mcp-oauth-token",
+      login: "radostinvgeorgiev-commits",
+    }),
+    dependencies: {
+      getGitHubOverview: async (input) => {
+        calls.push(["overview", input]);
+        return { summary: { private: true } };
+      },
+      getGitHubFile: async (...args) => {
+        calls.push(["file", args]);
+        return { path: args[0], content: "safe" };
+      },
+    },
+  });
+
+  const overview = await handler(
+    "get_github_overview",
+    { limit: 5 },
+    { ownerId: "verified-owner" },
+  );
+  const file = await handler(
+    "get_github_file",
+    { path: "README.md", ref: "main" },
+    { ownerId: "verified-owner" },
+  );
+
+  assert.equal(calls[0][1].accessToken, "mcp-oauth-token");
+  assert.equal(calls[1][1][3].accessToken, "mcp-oauth-token");
+  assert.equal(overview.result.structuredContent.summary.private, true);
+  assert.equal(file.result.structuredContent.path, "README.md");
+  assert.doesNotMatch(
+    JSON.stringify(overview.result.structuredContent),
+    /mcp-oauth-token/u,
+  );
+  assert.doesNotMatch(
+    JSON.stringify(file.result.structuredContent),
+    /mcp-oauth-token/u,
   );
 });
 

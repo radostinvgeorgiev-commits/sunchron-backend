@@ -27,8 +27,7 @@ test("image input rejects unsupported formats", () => {
         mimeType: "image/gif",
       }),
     (error) =>
-      error instanceof ImageServiceError &&
-      error.code === "UNSUPPORTED_IMAGE",
+      error instanceof ImageServiceError && error.code === "UNSUPPORTED_IMAGE",
   );
 });
 
@@ -43,9 +42,7 @@ test("vision uses OpenAI with text, context, and image", async () => {
       request = { url, options };
       return new Response(
         JSON.stringify({
-          choices: [
-            { message: { content: "Виждам тестова снимка." } },
-          ],
+          choices: [{ message: { content: "Виждам тестова снимка." } }],
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
@@ -53,10 +50,7 @@ test("vision uses OpenAI with text, context, and image", async () => {
   });
 
   assert.equal(answer, "Виждам тестова снимка.");
-  assert.equal(
-    request.url,
-    "https://api.openai.com/v1/chat/completions",
-  );
+  assert.equal(request.url, "https://api.openai.com/v1/chat/completions");
   assert.equal(request.options.headers.Authorization, "Bearer test-key");
 
   const body = JSON.parse(request.options.body);

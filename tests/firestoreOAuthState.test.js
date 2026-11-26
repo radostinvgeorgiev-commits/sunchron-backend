@@ -207,6 +207,54 @@ test("Firestore OAuth session stores keep provider state isolated and ordered", 
   assert.equal(await github.get("google-one"), null);
 });
 
+test("Firestore OAuth session reads fall back when the ordering index is missing", async () => {
+  const calls = [];
+  const documentStore = {
+    async query(collection, options) {
+      calls.push({ collection, options });
+      if (options.orderBy) {
+        const error = new Error("missing index");
+        error.code = "FIRESTORE_UNAVAILABLE";
+        error.upstreamErrorStatus = "FAILED_PRECONDITION";
+        throw error;
+      }
+      return [
+        {
+          id: "older",
+          data: {
+            firestoreProvider: "github",
+            updatedAt: "2026-08-23T10:00:00.000Z",
+          },
+        },
+        {
+          id: "newer",
+          data: {
+            firestoreProvider: "github",
+            updatedAt: "2026-08-23T11:00:00.000Z",
+          },
+        },
+      ];
+    },
+  };
+  const store = createFirestoreOAuthSessionStore({
+    provider: "github",
+    env: GCP_ENV,
+    documentStore,
+  });
+
+  assert.deepEqual(
+    (await store.listLatest(1)).map(({ id }) => id),
+    ["newer"],
+  );
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[0].options.orderBy, {
+    field: "updatedAt",
+    direction: "DESCENDING",
+  });
+  assert.equal(calls[1].options.limit, 1_000);
+  assert.equal(calls[1].options.orderBy, undefined);
+});
+
 test("GitHub and Google sessions persist encrypted through Firestore", async () => {
   const documentStore = createFakeDocumentStore();
   const githubStore = createFirestoreOAuthSessionStore({

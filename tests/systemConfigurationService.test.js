@@ -16,7 +16,10 @@ test("environment inventory exposes metadata and never values", () => {
     },
   });
   assert.ok(inventory.some(({ key }) => key === "OPENAI_API_KEY"));
-  assert.equal(inventory.some((item) => Object.values(item).includes(secret)), false);
+  assert.equal(
+    inventory.some((item) => Object.values(item).includes(secret)),
+    false,
+  );
   assert.equal(
     inventory.find(({ key }) => key === "OPENAI_API_KEY").source,
     "google-cloud-runtime",

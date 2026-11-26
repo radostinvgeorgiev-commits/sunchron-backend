@@ -99,7 +99,7 @@ test("planner uses OpenAI Responses as the primary provider", async () => {
     fetchImpl: async (url, options) => {
       assert.equal(url, "https://api.openai.com/v1/responses");
       const body = JSON.parse(options.body);
-      assert.equal(body.model, "gpt-5.6-luna");
+      assert.equal(body.model, "gpt-4.1-mini");
       return new Response(
         JSON.stringify({
           output: [
@@ -208,6 +208,58 @@ test("planner accepts the read-only Copilot task status capability", () => {
         message: "Провери GitHub задача #83.",
       },
     ],
+  );
+});
+
+test("planner carries an exact commit SHA into the confirmed Cloud Build trigger action", () => {
+  const message =
+    "Стартирай Cloud Build deploy за main commit 6dbfb750813c47cca439db5bc3e9a3debbbb5a3a.";
+  assert.deepEqual(
+    sanitizeCapabilityPlan(
+      {
+        calls: [
+          {
+            capability: "infrastructure.googlecloud.write",
+            operation: "run_cloud_build_trigger",
+            input: {
+              commitSha: "6DBFB750813C47CCA439DB5BC3E9A3DEBBBB5A3A",
+            },
+            request: message,
+          },
+        ],
+      },
+      message,
+    ),
+    [
+      {
+        capability: "infrastructure.googlecloud.write",
+        action: "infrastructure.write",
+        message,
+        operation: "run_cloud_build_trigger",
+        input: {
+          commitSha: "6dbfb750813c47cca439db5bc3e9a3debbbb5a3a",
+          branch: "main",
+        },
+      },
+    ],
+  );
+});
+
+test("planner drops Cloud Build trigger runs without an exact commit SHA", () => {
+  assert.deepEqual(
+    sanitizeCapabilityPlan(
+      {
+        calls: [
+          {
+            capability: "infrastructure.googlecloud.write",
+            operation: "run_cloud_build_trigger",
+            request: "Стартирай deploy на main.",
+          },
+        ],
+      },
+      "Стартирай deploy на main.",
+    ),
+    [],
   );
 });
 

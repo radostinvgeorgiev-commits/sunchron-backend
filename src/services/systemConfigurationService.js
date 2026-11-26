@@ -30,9 +30,7 @@ function statusFor(
   return "optional-missing";
 }
 
-export function buildEnvironmentInventory({
-  env = process.env,
-} = {}) {
+export function buildEnvironmentInventory({ env = process.env } = {}) {
   const authProvider = getUserAuthProvider(env);
   const requiredAuthKeys = new Set(
     authProvider === "identity-platform"

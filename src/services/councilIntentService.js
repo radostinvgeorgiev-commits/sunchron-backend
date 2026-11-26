@@ -37,7 +37,11 @@ function cleanText(value, maxLength, label, { required = false } = {}) {
       ? value.replace(/[\u0000-\u001f\u007f]/gu, " ").trim()
       : "";
   if (required && !text) {
-    throw new CouncilIntentError(`Липсва ${label}.`, 400, "COUNCIL_INTENT_INVALID");
+    throw new CouncilIntentError(
+      `Липсва ${label}.`,
+      400,
+      "COUNCIL_INTENT_INVALID",
+    );
   }
   if (text.length > maxLength) {
     throw new CouncilIntentError(
@@ -97,7 +101,8 @@ function getStore(env = process.env) {
     const collection = collectionName(env);
     firestoreStore = {
       get: (id, options) => documentStore.get(collection, id, options),
-      set: (id, data, options) => documentStore.set(collection, id, data, options),
+      set: (id, data, options) =>
+        documentStore.set(collection, id, data, options),
     };
     firestoreConfiguration = configuration;
   }
@@ -108,7 +113,9 @@ function requireStore(env) {
   const project = String(
     env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT || env.GCP_PROJECT_ID || "",
   ).trim();
-  const persistence = String(env.PERSISTENCE_BACKEND || "").trim().toLowerCase();
+  const persistence = String(env.PERSISTENCE_BACKEND || "")
+    .trim()
+    .toLowerCase();
   if (persistence !== "firestore" || !project) {
     throw new CouncilIntentError(
       "Устойчивото Council продължаване временно изисква Firestore.",
@@ -169,14 +176,7 @@ function assertActive(intent, now) {
 }
 
 export async function createCouncilIntent(
-  {
-    ownerId,
-    sessionId,
-    question,
-    recommendation,
-    rationale,
-    nextSteps,
-  } = {},
+  { ownerId, sessionId, question, recommendation, rationale, nextSteps } = {},
   {
     env = process.env,
     now = () => new Date().toISOString(),
@@ -184,7 +184,9 @@ export async function createCouncilIntent(
   } = {},
 ) {
   const at = nowIso(now);
-  const id = `council-${createId().replace(/[^a-z0-9-]/giu, "").slice(0, 64)}`;
+  const id = `council-${createId()
+    .replace(/[^a-z0-9-]/giu, "")
+    .slice(0, 64)}`;
   const data = {
     ownerHash: hashOwner(ownerId),
     sessionId: cleanText(sessionId, 160, "сесия", { required: true }),

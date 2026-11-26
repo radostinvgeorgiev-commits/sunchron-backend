@@ -829,9 +829,34 @@ function closeStatus() {
   }
 }
 
+// iPhone Safari and the home-screen app either lack speech recognition or
+// do not support Bulgarian there; record the voice and let the server turn
+// it into text instead.
+function prefersServerVoice() {
+  const ios =
+    /iPad|iPhone|iPod/u.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  let remembered = false;
+  try {
+    remembered = localStorage.getItem("aiCoreServerVoice") === "1";
+  } catch {
+    // storage unavailable; decide from the device
+  }
+  return ios || remembered;
+}
+
+function canRecordVoice() {
+  return Boolean(
+    window.MediaRecorder && navigator.mediaDevices?.getUserMedia,
+  );
+}
+
 function prepareVoiceInput() {
   const SpeechRecognition =
     window.SpeechRecognition || window.webkitSpeechRecognition;
+  state.serverVoice =
+    canRecordVoice() && (!SpeechRecognition || prefersServerVoice());
+  if (state.serverVoice) return;
   if (!SpeechRecognition) {
     elements.voiceBtn.hidden = true;
     return;
@@ -847,6 +872,25 @@ function prepareVoiceInput() {
   recognition.onerror = (event) => {
     setListening(false);
     if (event.error === "aborted" || event.error === "no-speech") return;
+    // The browser cannot do it here; use the server from the next tap on.
+    if (
+      canRecordVoice() &&
+      ["service-not-allowed", "network", "language-not-supported"].includes(event.error)
+    ) {
+      state.serverVoice = true;
+      try {
+        localStorage.setItem("aiCoreServerVoice", "1");
+      } catch {
+        // remembered for this visit only
+      }
+      appendMessage(
+        "agent",
+        chatText("Гласът на браузъра не работи тук. Натисни микрофона пак — ще записвам и ще разпознавам на сървъра."),
+        null,
+        { remember: false },
+      );
+      return;
+    }
     const reasons = {
       "not-allowed": "Микрофонът е забранен за сайта. Разреши го: iPhone → Настройки → Safari → Микрофон, или от иконата „aA“ в адресната лента.",
       "service-not-allowed": "Разпознаването на говор е изключено. На iPhone включи Настройки → Siri и Диктовка. Можеш да ползваш и микрофона на клавиатурата.",
@@ -884,8 +928,103 @@ function setListening(isListening) {
     : chatText("Гласово въвеждане");
 }
 
+const MAX_RECORDING_MS = 90_000;
+
+function recordingMimeType() {
+  for (const type of ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"]) {
+    if (window.MediaRecorder?.isTypeSupported?.(type)) return type;
+  }
+  return "";
+}
+
+async function startServerRecording() {
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (error) {
+    appendMessage(
+      "agent",
+      chatText(
+        error?.name === "NotAllowedError"
+          ? "Микрофонът е забранен за сайта. Разреши го: iPhone → Настройки → Safari → Микрофон, или от иконата „aA“ в адресната лента."
+          : "Не намирам микрофон. Провери дали друго приложение не го използва.",
+      ),
+      null,
+      { remember: false },
+    );
+    return;
+  }
+  const mimeType = recordingMimeType();
+  const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+  const chunks = [];
+  recorder.ondataavailable = (event) => {
+    if (event.data?.size) chunks.push(event.data);
+  };
+  recorder.onstop = async () => {
+    clearTimeout(state.recordingTimer);
+    stream.getTracks().forEach((track) => track.stop());
+    state.recorder = null;
+    setListening(false);
+    const blob = new Blob(chunks, { type: (recorder.mimeType || mimeType || "audio/webm") });
+    if (blob.size < 1000) return;
+    await transcribeRecording(blob);
+  };
+  state.recorder = recorder;
+  recorder.start();
+  setListening(true);
+  state.recordingTimer = setTimeout(() => {
+    if (recorder.state === "recording") recorder.stop();
+  }, MAX_RECORDING_MS);
+}
+
+async function transcribeRecording(blob) {
+  const previousPlaceholder = elements.chatInput.placeholder;
+  elements.chatInput.placeholder = chatText("Разпознаване…");
+  elements.voiceBtn.disabled = true;
+  try {
+    const audio = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+    const response = await fetch("/api/voice/transcribe", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        audio,
+        mimeType: blob.type,
+        language: chatLocale?.language || "bg",
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || chatText("Записът не можа да се разпознае."));
+    const heard = String(data.text || "").trim();
+    if (!heard) {
+      logAction("Не чух говор в записа");
+      return;
+    }
+    const current = elements.chatInput.value.trim();
+    elements.chatInput.value = current ? `${current} ${heard}` : heard;
+    resizeChatInput();
+    elements.chatInput.focus();
+  } catch (error) {
+    appendMessage("agent", `❌ ${error.message}`, null, { remember: false });
+  } finally {
+    elements.chatInput.placeholder = previousPlaceholder;
+    elements.voiceBtn.disabled = state.chatBusy;
+  }
+}
+
 function toggleVoiceInput() {
-  if (!state.recognition || state.chatBusy) return;
+  if (state.chatBusy) return;
+  if (state.serverVoice) {
+    if (state.recorder?.state === "recording") state.recorder.stop();
+    else void startServerRecording();
+    return;
+  }
+  if (!state.recognition) return;
   if (state.listening) {
     state.recognition.stop();
     return;

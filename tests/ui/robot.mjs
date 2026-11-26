@@ -243,6 +243,22 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect((await last().locator(".generated-image img").count()) === 1, "няма картинка");
     expect((await last().locator(".generated-image a[download]").count()) === 1, "няма бутон за изтегляне");
   });
+  await step(`${label}: „Отвори отстрани“ показва документа и графика от таблица`, async () => {
+    await page.evaluate(() =>
+      globalThis.SynchronChat.append(
+        "agent",
+        "## Разходи\n\n| Месец | Сума |\n|---|---|\n| Януари | 120 |\n| Февруари | 80,50 |\n| Март | 200 |",
+      ),
+    );
+    await last().locator('button[data-action="open-panel"]').click();
+    await page.waitForTimeout(300);
+    expect(await page.locator(".doc-panel").isVisible(), "панелът не се отвори");
+    expect((await page.locator(".doc-panel-body").innerText()).includes("Разходи"), "липсва текстът");
+    await page.click(".doc-chart-button");
+    expect((await page.locator(".doc-panel .doc-chart rect").count()) === 3, "графиката няма три стълба");
+    await page.click('.doc-panel [data-doc="close"]');
+    expect(!(await page.locator(".doc-panel").isVisible()), "панелът не се затвори");
+  });
   await step(`${label}: „Каузи“ — предложи, харесай, изтрий`, async () => {
     await page.click("#attachBtn");
     await page.click('[data-plus="causes"]');

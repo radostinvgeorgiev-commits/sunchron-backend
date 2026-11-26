@@ -212,6 +212,16 @@ export const GOOGLE_EXTRA_SCOPES = Object.freeze({
   youtube: "https://www.googleapis.com/auth/youtube.readonly",
   // Only files AI CORE itself creates (answers saved as Docs/Sheets).
   save: "https://www.googleapis.com/auth/drive.file",
+  // Reading the whole mailbox / whole Drive. Google calls these "restricted":
+  // until the app passes Google's paid security audit, each person who turns
+  // them on sees the "unverified app" warning. So members ask for them only
+  // when they choose to, never in the first "Свържи Google".
+  gmail: [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.compose",
+    "https://www.googleapis.com/auth/gmail.modify",
+  ].join(" "),
+  drive: "https://www.googleapis.com/auth/drive.readonly",
 });
 
 // The main connection: exactly the set people have connected with before.
@@ -227,11 +237,23 @@ export const GOOGLE_BASE_SCOPES = Object.freeze([
   "https://www.googleapis.com/auth/contacts",
 ]);
 
+// A member's first "Свържи Google": only scopes Google can approve with its
+// free check (calendar, contacts, sending mail, files AI CORE creates), so it
+// works for any number of people once the app is verified.
+export const GOOGLE_MEMBER_SCOPES = Object.freeze([
+  "openid",
+  "email",
+  "https://www.googleapis.com/auth/gmail.send",
+  "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/contacts",
+  "https://www.googleapis.com/auth/drive.file",
+]);
+
 export function googleConnectPath(extra = "") {
   return GOOGLE_EXTRA_SCOPES[extra] ? `/api/google/connect?add=${extra}` : "/api/google/connect";
 }
 
-export function buildAuthorizationUrl(state, extras = []) {
+export function buildAuthorizationUrl(state, extras = [], { owner = true } = {}) {
   const { clientId, redirectUri } = configuration();
   const extraScopes = (Array.isArray(extras) ? extras : [])
     .map((name) => GOOGLE_EXTRA_SCOPES[name])
@@ -242,7 +264,7 @@ export function buildAuthorizationUrl(state, extras = []) {
     response_type: "code",
     scope: (extraScopes.length
       ? ["openid", "email", ...extraScopes]
-      : GOOGLE_BASE_SCOPES
+      : owner ? GOOGLE_BASE_SCOPES : GOOGLE_MEMBER_SCOPES
     ).join(" "),
     access_type: "offline",
     prompt: "consent",
@@ -415,12 +437,15 @@ async function driveFetch(id, path, options = {}, fetchImpl = fetch) {
   );
 }
 
-function googleConnectLink(label = "Свържи Google") {
+function googleConnectLink(label = "Свържи Google", extra = "") {
   const url =
     process.env.GOOGLE_CONNECT_URL ||
     "https://cloudaicore.com/api/google/connect";
-  return `[${label}](${url})`;
+  if (!GOOGLE_EXTRA_SCOPES[extra]) return `[${label}](${url})`;
+  return `[${label}](${url.replace(/\?.*$/u, "")}?add=${extra})`;
 }
+
+const SERVICE_EXTRA = { Gmail: "gmail", "Google Drive": "drive" };
 
 async function googleErrorDetails(response) {
   try {
@@ -478,6 +503,7 @@ async function googleFetch(
     throw new GoogleDriveError(
       `${serviceName} няма дадено разрешение. ${googleConnectLink(
         `Разреши ${serviceName}`,
+        SERVICE_EXTRA[serviceName],
       )}.`,
       403,
       "GOOGLE_SCOPE_REQUIRED",

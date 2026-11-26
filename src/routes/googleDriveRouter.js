@@ -68,7 +68,7 @@ router.get("/connect", (req, res) => {
       `synchron_google_state=${state}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
     );
     const add = typeof req.query.add === "string" ? [req.query.add] : [];
-    res.redirect(buildAuthorizationUrl(state, add));
+    res.redirect(buildAuthorizationUrl(state, add, { owner: req.owner?.role === "owner" }));
   } catch (error) {
     sendError(res, error);
   }
@@ -144,7 +144,11 @@ const GOOGLE_CHECKS = {
 };
 // A service the person has not turned on yet is not "broken": the tools
 // list offers its own connect button instead of "Не отговаря".
-const CHECK_CONNECT = { youtube: googleConnectPath("youtube") };
+const CHECK_CONNECT = {
+  youtube: googleConnectPath("youtube"),
+  gmail: googleConnectPath("gmail"),
+  drive: googleConnectPath("drive"),
+};
 // The stored Google sign-in no longer works: one "Свържи отново" fixes every
 // Google tool at once, so it is not shown as broken.
 const RECONNECT_CODES = new Set([

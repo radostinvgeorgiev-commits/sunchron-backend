@@ -30,20 +30,46 @@
     },
   };
   const today = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Sofia" });
-  const morningToggle = () => {
-    const on = store.get(KEY) === "on";
+  // The Monday that starts this week, in Sofia time: one weekly review per week.
+  const thisWeek = () => {
+    const day = new Date(`${today()}T12:00:00Z`);
+    day.setUTCDate(day.getUTCDate() - ((day.getUTCDay() + 6) % 7));
+    return day.toISOString().slice(0, 10);
+  };
+  // "Моят ден" comes by itself each morning, "Моята седмица" each Monday
+  // (or the first visit of the week), when the person turns it on.
+  const PLANS = {
+    day: {
+      key: KEY,
+      stamp: today,
+      title: "Моят ден",
+      waiting: "☀️ Подготвям плана ти за днес…",
+      on: "✓ Идва сам всяка сутрин · изключи",
+      off: "Показвай ми плана сам всяка сутрин",
+    },
+    week: {
+      key: "aicore-weekly-plan",
+      stamp: thisWeek,
+      title: "Моята седмица",
+      waiting: "🗓️ Подготвям прегледа на седмицата…",
+      on: "✓ Идва сам всеки понеделник · изключи",
+      off: "Показвай ми седмицата сама всеки понеделник",
+    },
+  };
+  const autoToggle = (period) => {
+    const plan = PLANS[period];
+    const on = store.get(plan.key) === "on";
     const button = document.createElement("button");
     button.type = "button";
     button.className = "morning-toggle";
+    button.dataset.period = period;
     button.setAttribute("aria-pressed", String(on));
-    button.textContent = on
-      ? text("✓ Идва сам всяка сутрин · изключи")
-      : text("Показвай ми плана сам всяка сутрин");
+    button.textContent = text(on ? plan.on : plan.off);
     button.addEventListener("click", () => {
-      const next = store.get(KEY) === "on" ? "off" : "on";
-      store.set(KEY, next);
-      if (next === "on") store.set(`${KEY}-day`, today());
-      button.replaceWith(morningToggle());
+      const next = store.get(plan.key) === "on" ? "off" : "on";
+      store.set(plan.key, next);
+      if (next === "on") store.set(`${plan.key}-day`, plan.stamp());
+      button.replaceWith(autoToggle(period));
     });
     return button;
   };
@@ -91,21 +117,22 @@
     }
   });
 
-  document.addEventListener("aicore:daily-plan", async () => {
+  const preparePlan = async (period) => {
+    const plan = PLANS[period];
     const chat = globalThis.SynchronChat;
     if (!chat || chat.busy?.()) return;
     const note = input.value.trim();
     input.value = "";
     input.dispatchEvent(new Event("input", { bubbles: true }));
-    chat.append("user", note ? `${text("Моят ден")}: ${note}` : text("Моят ден"));
+    chat.append("user", note ? `${text(plan.title)}: ${note}` : text(plan.title));
     chat.setBusy(true);
-    const bubble = chat.append("agent", text("☀️ Подготвям плана ти за днес…"));
+    const bubble = chat.append("agent", text(plan.waiting));
     try {
       const response = await fetch("/api/daily-plan", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note }),
+        body: JSON.stringify({ note, period }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || text("Планът не можа да се подготви. Опитай пак."));
@@ -119,24 +146,40 @@
           .filter(Boolean)
           .join("\n\n"),
       );
-      bubble.append(morningToggle());
+      bubble.append(autoToggle(period));
     } catch (error) {
       render(bubble, `❌ ${error.message}`);
     } finally {
       chat.setBusy(false);
       list.scrollTop = list.scrollHeight;
     }
-  });
+  };
+  document.addEventListener("aicore:daily-plan", () => preparePlan("day"));
+  document.addEventListener("aicore:weekly-plan", () => preparePlan("week"));
 
-  // Wait until the person is signed in and the chat is ready, then run once a day.
+  // Wait until the person is signed in and the chat is ready. The weekly
+  // review goes first; the day plan follows once the chat is free again.
+  const due = () =>
+    ["week", "day"].filter((period) => {
+      const plan = PLANS[period];
+      return store.get(plan.key) === "on" && store.get(`${plan.key}-day`) !== plan.stamp();
+    });
   let tries = 0;
   const timer = setInterval(() => {
     tries += 1;
-    const ready = document.body.dataset.userRole && globalThis.SynchronChat?.append;
+    const chat = globalThis.SynchronChat;
+    const ready = document.body.dataset.userRole && chat?.append;
     if (!ready && tries < 40) return;
-    clearInterval(timer);
-    if (!ready || store.get(KEY) !== "on" || store.get(`${KEY}-day`) === today()) return;
-    store.set(`${KEY}-day`, today());
-    document.dispatchEvent(new CustomEvent("aicore:daily-plan"));
+    if (!ready || !due().length) {
+      clearInterval(timer);
+      return;
+    }
+    if (chat.busy?.()) {
+      if (tries > 400) clearInterval(timer);
+      return;
+    }
+    const period = due()[0];
+    store.set(`${PLANS[period].key}-day`, PLANS[period].stamp());
+    void preparePlan(period);
   }, 500);
 })();

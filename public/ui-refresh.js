@@ -107,6 +107,9 @@
       if (key === "day") {
         document.dispatchEvent(new CustomEvent("aicore:daily-plan"));
       }
+      if (key === "week") {
+        document.dispatchEvent(new CustomEvent("aicore:weekly-plan"));
+      }
       if (key === "causes") {
         document.dispatchEvent(new CustomEvent("aicore:causes"));
       }
@@ -149,6 +152,9 @@
         </button>
         <button type="button" data-plus="day">
           <i class="fa-solid fa-sun" aria-hidden="true"></i><span>${text("Моят ден")}</span>
+        </button>
+        <button type="button" data-plus="week">
+          <i class="fa-solid fa-calendar-week" aria-hidden="true"></i><span>${text("Моята седмица")}</span>
         </button>
         <button type="button" data-plus="google">
           <i class="fa-brands fa-google" aria-hidden="true"></i><span>${text("Моят Google")}</span>

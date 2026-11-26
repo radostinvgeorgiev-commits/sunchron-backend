@@ -71,7 +71,16 @@ export function startStubServer(port = 0) {
       return json(res, { image: "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==", prompt: "котка" });
     }
     if (p === "/api/daily-plan" && req.method === "POST") {
-      return json(res, { text: "**Най-важното днес:** провери сайта.", sources: { profile: false, calendar: null, mail: null } });
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        const week = JSON.parse(body || "{}").period === "week";
+        json(res, {
+          text: week ? "**Трите най-важни за седмицата:** пусни гласа." : "**Най-важното днес:** провери сайта.",
+          sources: { profile: false, calendar: null, mail: null },
+        });
+      });
+      return undefined;
     }
     if (p === "/api/google/status") return json(res, { connected: googleConnected, canRestore: false });
     if (p === "/api/google/files") return json(res, { files: [] });

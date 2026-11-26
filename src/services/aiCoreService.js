@@ -527,6 +527,7 @@ async function requestVertexOpenResponse({
   maxTokens = 2048,
   fetchImpl,
   authClient,
+  signal,
 } = {}) {
   await reservePublicAiCall(input, "vertex-open", model, VERTEX_OPEN_CREDITS[model] || 1);
   const result = await requestVertexOpenModel({
@@ -536,6 +537,7 @@ async function requestVertexOpenResponse({
     input,
     maxTokens: publicAiOutputLimit() || maxTokens,
     timeoutMs: 60_000,
+    signal,
     ...(fetchImpl ? { fetchImpl } : {}),
     ...(authClient ? { authClient } : {}),
   });

@@ -129,3 +129,25 @@ test("chat sends a picked open model to Vertex, members pay its credits", async 
   assert.deepEqual(result.usage, { inputTokens: 10, outputTokens: 2 });
   assert.equal(body.model, "openai/gpt-oss-120b-maas");
 });
+
+test("a stopped chat stops the Vertex call", async () => {
+  const stopper = new AbortController();
+  stopper.abort();
+  let aborted = false;
+  await assert.rejects(
+    requestVertexOpenModel({
+      env: ENV,
+      model: "x/y",
+      location: "global",
+      input: "hi",
+      authClient,
+      signal: stopper.signal,
+      fetchImpl: async (_url, options) => {
+        aborted = options.signal.aborted;
+        throw new Error("aborted");
+      },
+    }),
+    (error) => error.code === "VERTEX_OPEN_MODEL_TIMEOUT",
+  );
+  assert.equal(aborted, true);
+});

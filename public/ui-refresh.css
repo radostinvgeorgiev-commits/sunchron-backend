@@ -245,3 +245,5 @@
 .cause-project summary { cursor: pointer; font-weight: 700; color: #0f5132; }
 .cause-project-text { white-space: pre-wrap; margin-top: 6px; overflow-wrap: anywhere; }
 .cause-prepare { margin-top: 6px; border: 1px solid #0f5132; background: #fff; color: #0f5132; border-radius: 999px; padding: 4px 12px; font-weight: 700; }
+.morning-toggle { display: block; margin-top: 10px; border: 1px solid #0f5132; background: #fff; color: #0f5132; border-radius: 999px; padding: 6px 12px; font-weight: 700; }
+.morning-toggle[aria-pressed="true"] { background: #0f5132; color: #fff; }

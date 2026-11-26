@@ -603,7 +603,9 @@ async function liveSignedIn(origin) {
     expect(await page.locator("#talkBtn").isVisible(), "няма бутон за разговор с глас");
   });
   await step("Жив сайт: групата „Моят аватар“ е пълна", async () => {
-    expect((await page.locator(".mine-group [data-plus]").count()) === 6, "групата не е с 6 бутона");
+    const buttons = await page.locator(".mine-group [data-plus]").count();
+    expect(buttons === 7, `групата не е със 7 бутона (вижда: ${buttons})`);
+    expect((await page.locator('.mine-group [data-plus="link"]').count()) === 1, "няма „Питай моя аватар“");
     expect((await page.locator(".mine-group #memoryBtn").count()) === 1, "„Памет“ не е в групата");
   });
   await step("Жив сайт: „Моите задачи“ записва и трие задача", async () => {

@@ -479,3 +479,6 @@ body.talk-mode .voice-btn.listening {
   font-size: 0.9rem;
 }
 .model-picker-menu .model-picker-group { margin: 4px 12px 6px; font-size: .78rem; font-weight: 800; color: #2f6b52; text-transform: uppercase; letter-spacing: .03em; }
+
+/* Tools list: why a live check failed, under its badge. */
+.tool-live-reason { display: block; margin-top: 4px; max-width: 220px; color: #8a2b1f; font-size: .78rem; font-weight: 600; }

@@ -36,6 +36,7 @@ export function startStubServer(port = 0) {
   let avatarProfile = {};
   let causes = [];
   let googleConnected = false;
+  let workspace = null;
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://stub");
     let p = url.pathname;
@@ -123,6 +124,19 @@ export function startStubServer(port = 0) {
       return undefined;
     }
     if (p === "/api/google/status") return json(res, { connected: googleConnected, canRestore: false });
+    // Gmail answers, Contacts refuses: the tools list must show both truthfully.
+    if (p === "/api/google/check") {
+      return json(res, googleConnected
+        ? { connected: true, services: { drive: { ok: true }, gmail: { ok: true }, calendar: { ok: true }, contacts: { ok: false, reason: "Google отказа достъп до контактите." } } }
+        : { connected: false, services: {} });
+    }
+    if (p === "/health/integrations") {
+      return json(res, { tools: [
+        { id: "gmail-read", name: "Gmail", enabled: true, executable: true, configured: true },
+        { id: "google-contacts", name: "Google Contacts", enabled: true, executable: true, configured: true },
+        { id: "openai-web-search", name: "Търсене в интернет", enabled: true, executable: true, configured: true },
+      ] });
+    }
     if (p === "/api/google/files") return json(res, { files: [] });
     if (p === "/api/google/gmail/messages") {
       return json(res, { messages: [{ id: "m1", subject: "Офертата", from: "Иван <ivan@example.com>", snippet: "Потвърди до петък", url: "https://mail.google.com/x" }] });
@@ -270,6 +284,17 @@ export function startStubServer(port = 0) {
       return undefined;
     }
     if (p === "/api/ai-spend") return json(res, { month: "2026-11", totalUsd: 1, limitUsd: 10, percent: 10, models: [] });
+    // Work mode keeps its state on the server; echo it back like the real one.
+    if (p === "/api/workspaces" && req.method === "PUT") {
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        workspace = JSON.parse(body || "{}").state || null;
+        json(res, { persisted: true, state: workspace });
+      });
+      return undefined;
+    }
+    if (p === "/api/workspaces") return json(res, { persisted: Boolean(workspace), state: workspace });
     if (p.startsWith("/api/") || p.startsWith("/memory") || p.startsWith("/health")) {
       return json(res, { items: [], status: "ok", state: {} });
     }

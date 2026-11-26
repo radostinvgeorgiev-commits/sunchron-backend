@@ -40,13 +40,14 @@ test("application exposes working memory and permission controls", async () => {
   assert.match(script, /function openToolsDrawer\(\)/u);
   assert.match(
     script,
-    /<strong>Снимки<\/strong><p>JPEG, PNG и WebP до 5 MB\.<\/p>/u,
+    /<strong>Снимки<\/strong><p>JPEG, PNG и WebP до 5 MB\. Проверява се в самопроверката\.<\/p>/u,
   );
   assert.doesNotMatch(script, /Снимки и файлове/u);
   assert.match(script, /fetch\(["']\/health\/integrations["']/u);
   assert.match(script, /tool\.id === "github-read" && !githubConnected/u);
-  assert.match(script, /Свързано · GitHub Read/u);
-  assert.match(script, /Готово · вътрешен инструмент/u);
+  // "Работи" only after a live call; the rest say they are set up but unchecked.
+  assert.match(script, /Работи · проверено/u);
+  assert.match(script, /Настроен · без жива проверка/u);
   assert.match(script, /С какво започваме\?/u);
   assert.match(script, /item\.readOnly/u);
   assert.match(script, /fetch\(["']\/health\/ready["']/u);

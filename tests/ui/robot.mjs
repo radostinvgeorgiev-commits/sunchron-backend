@@ -348,6 +348,23 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.click("#closeDataDrawerBtn");
     await page.waitForTimeout(200);
   });
+  await step(`${label}: „Инструменти“ показва „Работи“ само след истинска проверка`, async () => {
+    await page.evaluate(() => fetch("/__robot/google-connected"));
+    // The button sits under "Още" in the side menu; press it directly so the
+    // phone's side menu stays closed.
+    await page.evaluate(() => document.getElementById("toolsBtn").click());
+    await page.locator('[data-live-check="google:gmail"].allow').waitFor({ timeout: 5000 });
+    const gmail = await page.locator('[data-live-check="google:gmail"]').innerText();
+    expect(gmail.startsWith("Работи · проверено"), `Gmail: ${gmail}`);
+    const contacts = page.locator('[data-live-check="google:contacts"]');
+    expect((await contacts.innerText()) === "Не отговаря", "отказалите Contacts светят зелено");
+    expect((await page.locator(".tool-live-reason").innerText()).includes("контактите"), "няма причина за отказа");
+    const card = await page.locator(".tool-status-card", { hasText: "Търсене в интернет" }).innerText();
+    expect(card.includes("без жива проверка") && !card.includes("Работи"), `търсенето свети без проверка: ${card}`);
+    await page.evaluate(() => fetch("/__robot/google-disconnected"));
+    await page.click("#closeDataDrawerBtn");
+    await page.waitForTimeout(200);
+  });
   await step(`${label}: „Моят ден“ показва плана в разговора`, async () => {
     await openMine("day");
     await page.waitForTimeout(600);

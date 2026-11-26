@@ -13,6 +13,7 @@ import {
   listGmailMessages,
   listGoogleCalendarEvents,
   listDriveFiles,
+  searchGoogleContacts,
   parseCookies,
   sessionBelongsTo,
 } from "../services/googleDriveService.js";
@@ -123,6 +124,57 @@ router.get("/status", async (req, res) => {
   res.json({
     connected: Boolean(id) && (await hasSession(id)),
     canRestore: req.owner?.role === "owner",
+  });
+});
+
+// A real, read-only call to each Google service, so "Работи" in the tools
+// list means it answered just now, not only that a token is stored. Nothing
+// from the person's data is returned, only whether each service answered.
+const GOOGLE_CHECKS = {
+  drive: (id) => listDriveFiles(id),
+  gmail: (id) => listGmailMessages(id, 1),
+  calendar: (id) => listGoogleCalendarEvents(id, 1, 1),
+  contacts: (id) => searchGoogleContacts(id, "a", 1),
+};
+const CHECK_TIMEOUT_MS = 12_000;
+
+export async function checkGoogleServices(id, checks = GOOGLE_CHECKS) {
+  const results = {};
+  await Promise.all(
+    Object.entries(checks).map(async ([name, run]) => {
+      let timer;
+      try {
+        await Promise.race([
+          run(id),
+          new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new GoogleDriveError("Не отговори навреме.", 504, "TIMEOUT")), CHECK_TIMEOUT_MS);
+          }),
+        ]);
+        results[name] = { ok: true };
+      } catch (error) {
+        const known = error instanceof GoogleDriveError;
+        results[name] = {
+          ok: false,
+          reason: known ? error.message : "Не отговори.",
+          ...(known && error.status ? { status: error.status } : {}),
+        };
+      } finally {
+        clearTimeout(timer);
+      }
+    }),
+  );
+  return results;
+}
+
+router.get("/check", async (req, res) => {
+  const id = await sessionId(req);
+  if (!id || !(await hasSession(id))) {
+    return res.json({ connected: false, checkedAt: new Date().toISOString(), services: {} });
+  }
+  res.json({
+    connected: true,
+    checkedAt: new Date().toISOString(),
+    services: await checkGoogleServices(id),
   });
 });
 

@@ -229,3 +229,48 @@ test("the primary user passes public access even with a stale record", async () 
     true,
   );
 });
+
+test("a Google account linked to the owner is recognised as the owner", async () => {
+  const { clearPrimaryOwnerCacheForTests, isPrimaryOwnerAccount, linkPrimaryOwnerAccount } =
+    await import("../src/services/testerAccessService.js");
+  clearPrimaryOwnerCacheForTests();
+  const client = createClient();
+  const owner = { id: "google-owner", authProvider: "identity-platform" };
+  const stranger = { id: "google-stranger", authProvider: "identity-platform" };
+
+  assert.equal(await isPrimaryOwnerAccount(owner, { client }), false);
+  clearPrimaryOwnerCacheForTests();
+  await linkPrimaryOwnerAccount(owner, { client });
+
+  const record = client.records.get("primary-owner:identity-platform:google-owner");
+  assert.equal(record.userId, "google-owner");
+  assert.equal(record.status, "linked");
+  assert.equal(await isPrimaryOwnerAccount(owner, { client }), true);
+  assert.equal(await isPrimaryOwnerAccount(stranger, { client }), false);
+  // A record for the same id from another provider does not count.
+  assert.equal(
+    await isPrimaryOwnerAccount({ id: "google-owner", authProvider: "supabase" }, { client }),
+    false,
+  );
+});
+
+test("a storage failure never turns a member into the owner", async () => {
+  const { clearPrimaryOwnerCacheForTests, isPrimaryOwnerAccount } = await import(
+    "../src/services/testerAccessService.js"
+  );
+  clearPrimaryOwnerCacheForTests();
+  const client = {
+    async get() {
+      const error = new Error("down");
+      error.statusCode = 503;
+      throw error;
+    },
+  };
+  assert.equal(
+    await isPrimaryOwnerAccount(
+      { id: "someone", authProvider: "identity-platform" },
+      { client, logError: () => {} },
+    ),
+    false,
+  );
+});

@@ -298,6 +298,14 @@ export async function assertPublicAccountAccess(
   return true;
 }
 
+// The one place that says whether an account is the owner by configuration.
+// isPrimaryOwnerAccount adds the stored Google link on top of this.
+export function isConfiguredPrimaryUser(user, env = process.env) {
+  const userId = typeof user?.id === "string" ? user.id.trim() : "";
+  if (!userId) return false;
+  return isPrimaryUser(userId, authProvider(user, env), env);
+}
+
 function isPrimaryUser(userId, provider, env = process.env) {
   const primaryUserId = String(
     env.SYNCHRON_PRIMARY_USER_ID ||
@@ -305,6 +313,80 @@ function isPrimaryUser(userId, provider, env = process.env) {
       "",
   ).trim();
   return Boolean(primaryUserId) && userId === primaryUserId;
+}
+
+// The owner can sign in with GitHub and also with Google (Identity Platform).
+// Those are different accounts with different ids, so the Google account is
+// linked to the owner once: by finishing "Вход с Google" in a browser that
+// already holds the verified owner GitHub session. The link lives in its own
+// record, so a later access approval never overwrites it.
+const PRIMARY_OWNER_CACHE_MS = 60_000;
+const primaryOwnerCache = new Map();
+
+function primaryOwnerLinkId(user, env = process.env) {
+  return `primary-owner:${accessDocumentId(user, env)}`;
+}
+
+export function clearPrimaryOwnerCacheForTests() {
+  primaryOwnerCache.clear();
+}
+
+export async function linkPrimaryOwnerAccount(
+  user,
+  { client, env = process.env } = {},
+) {
+  const userId = cleanUserId(user);
+  const provider = authProvider(user, env);
+  const linkedAt = new Date().toISOString();
+  try {
+    await saveAccessDocument(
+      primaryOwnerLinkId(user, env),
+      { userId, authProvider: provider, status: "linked", linkedAt },
+      { client, env },
+    );
+  } catch (error) {
+    if (error instanceof TesterAccessError) throw error;
+    throw new TesterAccessError(
+      "Свързването на профила със собственика не можа да бъде запазено.",
+      503,
+      "PRIMARY_OWNER_LINK_FAILED",
+    );
+  }
+  primaryOwnerCache.delete(primaryOwnerLinkId(user, env));
+  return { userId, authProvider: provider, linkedAt };
+}
+
+// True for the configured SYNCHRON_PRIMARY_USER_ID and for an account linked
+// with linkPrimaryOwnerAccount. A storage failure answers false: the person
+// stays a member for that request instead of getting owner rights by mistake.
+export async function isPrimaryOwnerAccount(
+  user,
+  { client, env = process.env, logError = logSafeError } = {},
+) {
+  const userId = cleanUserId(user);
+  const provider = authProvider(user, env);
+  if (isPrimaryUser(userId, provider, env)) return true;
+  const id = primaryOwnerLinkId(user, env);
+  const cached = primaryOwnerCache.get(id);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  let value = false;
+  try {
+    const source = await loadAccessDocument(id, { client, env });
+    value =
+      source?.userId === userId &&
+      source?.status === "linked" &&
+      source?.authProvider === provider;
+  } catch (error) {
+    if (Number(statusCode(error)) !== 404) {
+      logError("[Primary owner link]", error);
+      return false;
+    }
+  }
+  primaryOwnerCache.set(id, {
+    value,
+    expiresAt: Date.now() + PRIMARY_OWNER_CACHE_MS,
+  });
+  return value;
 }
 
 export async function assertTesterAccess(

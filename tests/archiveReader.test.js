@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { makeZip } from "./ui/make-zip.mjs";
 
 import {
+  extractAiChats,
   extractFacebook,
   extractTakeout,
   fixFacebookText,
@@ -78,4 +79,52 @@ test("the whole archive flow reads only the files that matter", async () => {
   assert.deepEqual(seen, ["1/1"]);
   assert.equal(parts[0].name, "Google Keep: моите бележки");
   await assert.rejects(() => readPersonalArchive(makeZip([["other.txt", "nothing"]])), /JSON/u);
+});
+
+test("from ChatGPT and Claude exports only the person's own words are kept", () => {
+  const parts = extractAiChats([
+    ["conversations.json", JSON.stringify([
+      {
+        title: "Ремонт",
+        create_time: 1700000000,
+        mapping: {
+          a: { message: { author: { role: "user" }, create_time: 1700000000, content: { parts: ["Как да боядисам стената в банята?", { asset: "img" }] } } },
+          b: { message: { author: { role: "assistant" }, content: { parts: ["Отговор на ChatGPT, който не трябва да се пази"] } } },
+          c: { message: null },
+        },
+      },
+    ])],
+    ["claude/conversations.json", JSON.stringify([
+      {
+        name: "Бизнес план",
+        created_at: "2026-10-01T10:00:00Z",
+        chat_messages: [
+          { sender: "human", created_at: "2026-10-01T10:00:00Z", text: "", content: [{ type: "text", text: "Помогни ми с плана за кафенето." }] },
+          { sender: "assistant", text: "Отговор на Claude, който не трябва да се пази" },
+        ],
+      },
+    ])],
+    ["claude/memories.json", JSON.stringify([{ conversations_memory: "Радко прави AI CORE и пише на български." }])],
+  ]);
+  const all = parts.map(({ text }) => text).join("\n");
+  assert.deepEqual(parts.map(({ name }) => name), [
+    "ChatGPT: какво съм писал",
+    "Claude: какво съм писал",
+    "Claude: какво е запомнил за мен",
+  ]);
+  assert.match(all, /\[Ремонт\] Как да боядисам стената/u);
+  assert.match(all, /2026-10-01 — \[Бизнес план\] Помогни ми с плана/u);
+  assert.match(all, /пише на български/u);
+  assert.doesNotMatch(all, /не трябва да се пази/u);
+});
+
+test("a ChatGPT export zip goes through the whole flow", async () => {
+  const zip = makeZip([
+    ["conversations.json", JSON.stringify([{ title: "Идея", mapping: { a: { message: { author: { role: "user" }, create_time: 1.7e9, content: { parts: ["Искам аватар, който ме познава."] } } } } }])],
+    ["chat.html", "<html>big page</html>"],
+  ]);
+  const parts = await readPersonalArchive(zip);
+  assert.equal(parts.length, 1);
+  assert.equal(parts[0].name, "ChatGPT: какво съм писал");
+  assert.match(parts[0].text, /Искам аватар/u);
 });

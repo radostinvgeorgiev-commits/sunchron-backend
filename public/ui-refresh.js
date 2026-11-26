@@ -110,6 +110,9 @@
       if (key === "week") {
         document.dispatchEvent(new CustomEvent("aicore:weekly-plan"));
       }
+      if (key === "todos") {
+        document.dispatchEvent(new CustomEvent("aicore:todos"));
+      }
       if (key === "causes") {
         document.dispatchEvent(new CustomEvent("aicore:causes"));
       }
@@ -155,6 +158,9 @@
         </button>
         <button type="button" data-plus="week">
           <i class="fa-solid fa-calendar-week" aria-hidden="true"></i><span>${text("Моята седмица")}</span>
+        </button>
+        <button type="button" data-plus="todos">
+          <i class="fa-solid fa-list-check" aria-hidden="true"></i><span>${text("Моите задачи")}</span>
         </button>
         <button type="button" data-plus="google">
           <i class="fa-brands fa-google" aria-hidden="true"></i><span>${text("Моят Google")}</span>

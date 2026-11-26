@@ -23,6 +23,7 @@ const TYPES = { ".js": "text/javascript", ".mjs": "text/javascript", ".css": "te
 
 export function startStubServer(port = 0) {
   const requests = [];
+  const todos = [];
   const feedback = [];
   let library = { assistants: [], prompts: [] };
   let files = [];
@@ -69,6 +70,20 @@ export function startStubServer(port = 0) {
     }
     if (p === "/api/images" && req.method === "POST") {
       return json(res, { image: "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==", prompt: "котка" });
+    }
+    if (p.startsWith("/api/todos")) {
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        const data = JSON.parse(body || "{}");
+        const id = decodeURIComponent(p.split("/")[3] || "");
+        if (id === "from-note") return json(res, { suggestions: ["Обади се на счетоводителя", "Плати тока до петък"] });
+        if (req.method === "POST") todos.unshift(...data.items.map((text, at) => ({ id: `t${Date.now()}${at}`, text, done: false })));
+        if (req.method === "PATCH") todos.forEach((item) => item.id === id && (item.done = data.done));
+        if (req.method === "DELETE") todos.splice(todos.findIndex((item) => item.id === id), 1);
+        return json(res, { items: todos });
+      });
+      return undefined;
     }
     if (p === "/api/daily-plan" && req.method === "POST") {
       let body = "";

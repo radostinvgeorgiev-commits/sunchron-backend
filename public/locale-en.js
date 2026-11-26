@@ -73,6 +73,25 @@ AI предлага, ти одобряваш, системата изпълня�
 Подреди деня|Plan my day
 Моят ден|My day
 Моята седмица|My week
+Моите задачи|My tasks
+Кажи или напиши бележка и аватарът ще я направи на задачи. Ти избираш кои да запазиш. Списъкът е само твой.|Say or type a note and your avatar turns it into tasks. You choose which to keep. The list is only yours.
+Например: утре да се обадя на счетоводителя, да платя тока до петък и да купя подарък на мама.|For example: call the accountant tomorrow, pay the electricity by Friday and buy a present for mum.
+Гласова бележка|Voice note
+Направи задачи|Make tasks
+Запази избраните|Keep the selected
+Нова задача|New task
+Добави|Add
+Готово|Done
+Изтрий задачата|Delete the task
+Нямаш отворени задачи.|You have no open tasks.
+Готови|Done
+Кажи или напиши бележка първо.|Say or type a note first.
+Не намерих задачи в бележката.|I found no tasks in the note.
+Подреждам задачите…|Sorting out the tasks…
+Избери поне една задача.|Choose at least one task.
+Спри записа|Stop recording
+Записвам… натисни пак, когато свършиш.|Recording… press again when you are done.
+Не чух говор в записа.|I heard no speech in the recording.
 🗓️ Подготвям прегледа на седмицата…|🗓️ Preparing your week…
 ✓ Идва сам всеки понеделник · изключи|✓ Comes by itself every Monday · turn off
 Показвай ми седмицата сама всеки понеделник|Show me my week by itself every Monday

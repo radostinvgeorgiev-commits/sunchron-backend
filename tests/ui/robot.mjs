@@ -125,7 +125,7 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.click("#attachBtn");
     expect((await page.locator(".plus-menu > button:visible").count()) === 6, "менюто „+“ не е с 6 реда");
     await page.keyboard.press("Escape");
-    expect((await page.locator(".mine-group [data-plus]").count()) === 5, "няма група „Моят аватар“");
+    expect((await page.locator(".mine-group [data-plus]").count()) === 6, "няма група „Моят аватар“");
     expect((await page.locator(".mine-group #memoryBtn").count()) === 1, "„Памет“ не е в групата");
   });
   await step(`${label}: обикновен акаунт няма превключвател „Чат/Работа“`, async () => {
@@ -284,6 +284,34 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await last().locator('.morning-toggle[data-period="week"]').click();
     expect((await page.evaluate(() => localStorage.getItem("aicore-weekly-plan"))) === "on", "изборът не се запази");
   });
+  await step(`${label}: „Моите задачи“: бележка става на задачи, отмятане и изтриване`, async () => {
+    await openMine("todos");
+    await page.waitForTimeout(400);
+    const box = page.locator(".todo-dialog");
+    expect(await box.isVisible(), "прозорецът не се отвори");
+    await box.locator("#todoNote").fill("утре да се обадя на счетоводителя и да платя тока до петък");
+    await box.locator(".todo-make").click();
+    await page.waitForTimeout(400);
+    expect((await box.locator(".todo-suggestions input:checked").count()) === 2, "няма две предложени задачи");
+    await box.locator(".todo-suggestions input").nth(1).uncheck();
+    await box.locator(".todo-keep").click();
+    await page.waitForTimeout(400);
+    expect((await box.locator(".todo-list .todo-check").count()) === 1, "не се запази само избраната");
+    await box.locator("#todoAdd").fill("Купи подарък");
+    await box.locator(".todo-add button").click();
+    await page.waitForTimeout(400);
+    expect((await box.locator(".todo-list .todo-check").count()) === 2, "ръчната задача не се добави");
+    const doneBefore = Number((await box.locator(".todo-done-count").innerText()).replace(/\D/gu, "") || 0);
+    await box.locator(".todo-list .todo-check").first().check();
+    await page.waitForTimeout(400);
+    const doneAfter = Number((await box.locator(".todo-done-count").innerText()).replace(/\D/gu, "") || 0);
+    expect(doneAfter === doneBefore + 1, "отметнатата не отиде в готови");
+    await box.locator(".todo-remove").first().click();
+    await page.waitForTimeout(400);
+    expect((await box.locator(".todo-list .todo-check").count()) === 0, "задачата не се изтри");
+  });
+  // Close the window even when a check above failed, so the next steps can click.
+  if (await page.locator(".todo-dialog").isVisible()) await page.locator(".todo-dialog .share-close").click();
   await step(`${label}: „Нарисувай картинка“ показва картинката`, async () => {
     await page.fill("#chatInput", "котка на луната");
     await page.click("#attachBtn");

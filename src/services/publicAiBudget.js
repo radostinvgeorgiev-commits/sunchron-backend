@@ -50,6 +50,14 @@ export async function reservePublicAiCall(input, provider = "", model = "") {
   scope.calls++;
   await scope.reserve(scope.identity, PUBLIC_REQUEST_CREDITS, { provider, model });
 }
+// A drawn picture: about 1.1 US cents at cost, so two credits.
+export const PUBLIC_IMAGE_CREDITS = 2;
+export async function reservePublicAiImage(provider = "", model = "") {
+  const scope = context.getStore();
+  if (!scope) return;
+  scope.calls++;
+  await scope.reserve(scope.identity, PUBLIC_IMAGE_CREDITS, { provider, model });
+}
 // Turning speech into text is cheap: one credit per recording.
 export const PUBLIC_VOICE_CREDITS = 1;
 export async function reservePublicAiVoice(provider = "", model = "") {

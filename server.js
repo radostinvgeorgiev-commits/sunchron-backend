@@ -57,6 +57,8 @@ import { createUserLibraryRouter } from "./src/routes/userLibraryRouter.js";
 import { createAvatarProfileRouter } from "./src/routes/avatarProfileRouter.js";
 import { createCausesRouter } from "./src/routes/causesRouter.js";
 import { createDailyPlanRouter } from "./src/routes/dailyPlanRouter.js";
+import { createImageGenerationRouter } from "./src/routes/imageGenerationRouter.js";
+import { getImageGenerationService } from "./src/services/imageGenerationService.js";
 import { getDailyPlanService } from "./src/services/dailyPlanService.js";
 import { getCausesService } from "./src/services/causesService.js";
 import { getAvatarProfileService } from "./src/services/avatarProfileService.js";
@@ -218,6 +220,12 @@ app.use(
   requireOwnerSession,
   privateApiRateLimiter,
   createUserLibraryRouter({ service: getUserLibraryService() }),
+);
+app.use(
+  "/api/images",
+  requireOwnerSession,
+  paidAiRateLimiter,
+  createImageGenerationRouter({ service: getImageGenerationService() }),
 );
 app.use(
   "/api/daily-plan",

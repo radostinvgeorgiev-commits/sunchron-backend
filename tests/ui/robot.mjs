@@ -235,6 +235,14 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     );
     expect((await page.evaluate(() => localStorage.getItem("aicore-morning-plan"))) === "on", "изборът не се запази");
   });
+  await step(`${label}: „Нарисувай картинка“ показва картинката`, async () => {
+    await page.fill("#chatInput", "котка на луната");
+    await page.click("#attachBtn");
+    await page.click('[data-plus="draw"]');
+    await page.waitForTimeout(600);
+    expect((await last().locator(".generated-image img").count()) === 1, "няма картинка");
+    expect((await last().locator(".generated-image a[download]").count()) === 1, "няма бутон за изтегляне");
+  });
   await step(`${label}: „Каузи“ — предложи, харесай, изтрий`, async () => {
     await page.click("#attachBtn");
     await page.click('[data-plus="causes"]');

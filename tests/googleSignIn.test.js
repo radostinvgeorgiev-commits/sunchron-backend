@@ -13,8 +13,9 @@ const env = {
   USER_REGISTRATION_MODE: "public",
 };
 
-test("Google sign-in stays off until it is switched on and configured", () => {
-  assert.equal(isGoogleSignInEnabled({ ...env, GOOGLE_SIGN_IN: "" }), false);
+test("Google sign-in is on by default, needs configuration and can be switched off", () => {
+  assert.equal(isGoogleSignInEnabled({ ...env, GOOGLE_SIGN_IN: "" }), true);
+  assert.equal(isGoogleSignInEnabled({ ...env, GOOGLE_SIGN_IN: "off" }), false);
   assert.equal(isGoogleSignInEnabled({ ...env, GOOGLE_CLIENT_SECRET: "" }), false);
   assert.equal(isGoogleSignInEnabled({ ...env, USER_REGISTRATION_MODE: "invite" }), false);
   assert.equal(isGoogleSignInEnabled(env), true);

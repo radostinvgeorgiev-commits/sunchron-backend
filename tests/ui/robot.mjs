@@ -3,6 +3,7 @@
 //   node tests/ui/robot.mjs            → against the local stub server
 //   node tests/ui/robot.mjs --public https://cloudaicore.com
 //                                      → signed-out checks on the live site
+import { makeZip } from "./make-zip.mjs";
 import { startStubServer } from "./stub-server.mjs";
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || "playwright");
@@ -155,6 +156,24 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.locator(".knowledge-list li button").first().click();
     await page.waitForTimeout(500);
     expect(!(await page.locator(".knowledge-list").innerText()).includes("ceni.txt"), "файлът не се изтри");
+    await page.click(".knowledge-dialog .share-close");
+  });
+  await step(`${label}: архив от Google Takeout влиза в „Моите файлове“`, async () => {
+    const zip = makeZip([
+      ["Takeout/Keep/Идея.json", JSON.stringify({ title: "Идея", textContent: "Аватар за всеки човек, безплатно.", userEditedTimestampUsec: 1.7e15 })],
+    ]);
+    await page.click("#attachBtn");
+    await page.click('[data-plus="knowledge"]');
+    await page.waitForTimeout(300);
+    await page.setInputFiles(".archive-input", {
+      name: "takeout.zip",
+      mimeType: "application/zip",
+      buffer: Buffer.from(await zip.arrayBuffer()),
+    });
+    await page.waitForTimeout(1200);
+    expect((await page.locator(".knowledge-list").innerText()).includes("Google Keep"), "архивът не се добави");
+    await page.locator(".knowledge-list li button").first().click();
+    await page.waitForTimeout(400);
     await page.click(".knowledge-dialog .share-close");
   });
   await step(`${label}: „Моят аватар“ — запиши, отвори пак, изтрий`, async () => {

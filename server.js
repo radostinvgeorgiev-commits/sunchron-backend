@@ -168,7 +168,7 @@ app.use(
   express.static("public", {
     maxAge: 0,
     setHeaders(res, filePath) {
-      if (/\.(html|js|css)$/.test(filePath)) {
+      if (/\.(html|js|mjs|css)$/.test(filePath)) {
         res.setHeader("Cache-Control", "no-store, max-age=0");
       }
     },

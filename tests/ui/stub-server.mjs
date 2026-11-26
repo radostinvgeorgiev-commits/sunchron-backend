@@ -20,7 +20,7 @@ const ASSISTANTS = [
   { id: "lawyer", label: "Юрист", icon: "fa-scale-balanced", hint: "Закони и договори" },
   { id: "teacher", label: "Учител", icon: "fa-chalkboard-user", hint: "Обяснява просто" },
 ];
-const TYPES = { ".js": "text/javascript", ".css": "text/css", ".html": "text/html", ".png": "image/png", ".json": "application/json", ".webmanifest": "application/manifest+json" };
+const TYPES = { ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".html": "text/html", ".png": "image/png", ".json": "application/json", ".webmanifest": "application/manifest+json" };
 
 export function startStubServer(port = 0) {
   const requests = [];

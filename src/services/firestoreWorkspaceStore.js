@@ -31,5 +31,8 @@ export function createFirestoreWorkspaceStore({
     set(id, data) {
       return store.set(collection, id, data);
     },
+    delete(id) {
+      return store.delete(collection, id);
+    },
   });
 }

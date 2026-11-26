@@ -115,8 +115,7 @@ test("creates a browser session after checking the GitHub user", async () => {
 });
 
 test("rejects expired and non-owner GitHub sessions", async () => {
-  process.env.GITHUB_REPOSITORY =
-    "radostinvgeorgiev-commits/sunchron-backend";
+  process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
   const foreign = await createGitHubSession(
     { access_token: "foreign-token" },
     async () =>
@@ -144,10 +143,8 @@ test("rejects expired and non-owner GitHub sessions", async () => {
   assert.equal(await getLatestAuthorizedGitHubSession(), null);
 });
 
-
 test("derives the only allowed owner from the configured repository", () => {
-  process.env.GITHUB_REPOSITORY =
-    "radostinvgeorgiev-commits/sunchron-backend";
+  process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
   assert.equal(resolveOwnerGitHubLogin(), "radostinvgeorgiev-commits");
   assert.equal(isAuthorizedGitHubLogin("radostinvgeorgiev-commits"), true);
   assert.equal(isAuthorizedGitHubLogin("another-user"), false);

@@ -1,5 +1,15 @@
 import { resolveFirestoreProjectId } from "../config/memoryBackend.js";
-import { AI_CORE_PUBLIC_ORIGIN, getGoogleCloudRuntimeStatus } from "./googleCloudService.js";
+import {
+  AI_CORE_PUBLIC_ORIGIN,
+  getGoogleCloudRuntimeStatus,
+} from "./googleCloudService.js";
+import {
+  checkCloudProject,
+  checkCloudRunSecretVersions,
+  checkCloudRunTelemetry,
+  cloudRunSecretReferences,
+} from "./diagnosticsService.js";
+import { inspectStorageDependencies } from "./storageHealthService.js";
 
 const CLOUD_RUN_API = "https://run.googleapis.com/v2";
 const CLOUD_BUILD_API = "https://cloudbuild.googleapis.com/v1";
@@ -10,6 +20,15 @@ const DEFAULT_REGION = "europe-west1";
 const DEFAULT_TRIGGER_NAME = "synchron-main-deploy";
 const DEFAULT_TIMEOUT_MS = 8_000;
 const MAX_TOOL_NAMES = 100;
+const CLOUD_CHECKS = [
+  "cloudRun",
+  "cloudBuildTrigger",
+  "cloudBuildLatest",
+  "cloudProject",
+  "monitoring",
+  "logging",
+  "secretManager",
+];
 
 function clean(value, maxLength = 200) {
   const text = typeof value === "string" ? value.trim() : "";
@@ -38,11 +57,15 @@ function safeErrorCode(error) {
   return code && /^[A-Z0-9_.-]+$/u.test(code) ? code : "CHECK_FAILED";
 }
 
-async function fetchWithTimeout(fetchImpl, url, options = {}, timeoutMs) {
+async function fetchJsonWithTimeout(fetchImpl, url, options = {}, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetchImpl(url, { ...options, signal: controller.signal });
+    const response = await fetchImpl(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return { response, payload: await readJsonResponse(response) };
   } finally {
     clearTimeout(timer);
   }
@@ -59,13 +82,12 @@ async function readJsonResponse(response) {
 }
 
 async function metadataAccessToken(fetchImpl, timeoutMs) {
-  const response = await fetchWithTimeout(
+  const { response, payload } = await fetchJsonWithTimeout(
     fetchImpl,
     METADATA_TOKEN_URL,
     { headers: { "Metadata-Flavor": "Google" } },
     timeoutMs,
   );
-  const payload = await readJsonResponse(response);
   if (!response.ok || typeof payload?.access_token !== "string") {
     const error = new Error("metadata token unavailable");
     error.code = "GOOGLE_CLOUD_TOKEN_UNAVAILABLE";
@@ -77,8 +99,12 @@ async function metadataAccessToken(fetchImpl, timeoutMs) {
 async function publicCheck(path, { origin, fetchImpl, timeoutMs }) {
   const url = `${origin}${path}`;
   try {
-    const response = await fetchWithTimeout(fetchImpl, url, {}, timeoutMs);
-    const payload = await readJsonResponse(response);
+    const { response, payload } = await fetchJsonWithTimeout(
+      fetchImpl,
+      url,
+      {},
+      timeoutMs,
+    );
     return {
       status: statusFromHttp(response),
       httpStatus: response.status,
@@ -97,9 +123,21 @@ async function publicCheck(path, { origin, fetchImpl, timeoutMs }) {
   }
 }
 
+async function firestoreCheck(inspectStorage, env, timeoutMs) {
+  try {
+    const result = await inspectStorage({ env, timeoutMs });
+    const check = result?.checks?.firestore;
+    return check?.status === "healthy" && check.readOnlyCheck === true
+      ? { status: "pass" }
+      : { status: "fail", errorCode: "FIRESTORE_READ_PROBE_FAILED" };
+  } catch (error) {
+    return { status: "fail", errorCode: safeErrorCode(error) };
+  }
+}
+
 async function mcpDiscoveryCheck({ origin, fetchImpl, timeoutMs }) {
   try {
-    const response = await fetchWithTimeout(
+    const { response, payload } = await fetchJsonWithTimeout(
       fetchImpl,
       `${origin}/mcp`,
       {
@@ -114,7 +152,6 @@ async function mcpDiscoveryCheck({ origin, fetchImpl, timeoutMs }) {
       },
       timeoutMs,
     );
-    const payload = await readJsonResponse(response);
     const tools = Array.isArray(payload?.result?.tools)
       ? payload.result.tools
           .map((tool) => clean(tool?.name, 120))
@@ -128,23 +165,67 @@ async function mcpDiscoveryCheck({ origin, fetchImpl, timeoutMs }) {
       tools,
     };
   } catch (error) {
-    return { status: "fail", errorCode: safeErrorCode(error), toolCount: 0, tools: [] };
+    return {
+      status: "fail",
+      errorCode: safeErrorCode(error),
+      toolCount: 0,
+      tools: [],
+    };
   }
 }
 
-async function googleApiCheck({ url, token, fetchImpl, timeoutMs, pick }) {
+async function googleApiCheck({
+  url,
+  token,
+  fetchImpl,
+  timeoutMs,
+  pick,
+  method = "GET",
+  body,
+}) {
   try {
-    const response = await fetchWithTimeout(
+    const { response, payload } = await fetchJsonWithTimeout(
       fetchImpl,
       url,
-      { headers: { Authorization: `Bearer ${token}` } },
+      {
+        method,
+        redirect: "error",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(body ? { "Content-Type": "application/json" } : {}),
+        },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      },
       timeoutMs,
     );
-    const payload = await readJsonResponse(response);
     if (!response.ok) {
-      return { status: "fail", httpStatus: response.status, errorCode: "GOOGLE_CLOUD_API_FAILED" };
+      const disabled =
+        Array.isArray(payload?.error?.details) &&
+        payload.error.details.some(
+          (detail) => detail?.reason === "SERVICE_DISABLED",
+        );
+      return {
+        status: "fail",
+        httpStatus: response.status,
+        errorCode: disabled
+          ? "GOOGLE_CLOUD_API_DISABLED"
+          : response.status === 403
+            ? "GOOGLE_CLOUD_PERMISSION_DENIED"
+            : "GOOGLE_CLOUD_API_FAILED",
+      };
     }
-    return { status: "pass", httpStatus: response.status, ...(pick(payload) || {}) };
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      return {
+        status: "fail",
+        httpStatus: response.status,
+        errorCode: "GOOGLE_CLOUD_INVALID_RESPONSE",
+      };
+    }
+    return {
+      status: "pass",
+      httpStatus: response.status,
+      ...(pick(payload) || {}),
+    };
   } catch (error) {
     return { status: "fail", errorCode: safeErrorCode(error) };
   }
@@ -164,7 +245,12 @@ function cloudRunSummary(payload) {
     ...(payload?.template?.metadata?.annotations || {}),
     ...(payload?.annotations || {}),
   };
+  const condition = clean(payload?.terminalCondition?.state, 40);
   return {
+    ...(condition === "CONDITION_FAILED"
+      ? { status: "fail", errorCode: "CLOUD_RUN_NOT_READY" }
+      : {}),
+    condition,
     service:
       resourceNameSegment(payload?.name, 80) ||
       resourceNameSegment(payload?.service, 80) ||
@@ -230,7 +316,8 @@ function buildSummary(payload) {
 }
 
 function buildCreateTime(payload) {
-  const createTime = typeof payload?.createTime === "string" ? payload.createTime : "";
+  const createTime =
+    typeof payload?.createTime === "string" ? payload.createTime : "";
   const timestamp = Date.parse(createTime);
   return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
 }
@@ -250,7 +337,9 @@ function overallStatus(checks) {
   const statuses = Object.values(checks).map((check) => check?.status);
   const passed = statuses.filter((status) => status === "pass").length;
   const failed = statuses.filter((status) => status === "fail").length;
-  const unavailable = statuses.filter((status) => status === "unavailable").length;
+  const unavailable = statuses.filter(
+    (status) => status === "unavailable",
+  ).length;
   if (failed === 0 && unavailable === 0 && passed > 0) return "pass";
   if (passed > 0) return "partial";
   return "fail";
@@ -260,13 +349,20 @@ export async function getProjectDiagnostics({
   env = process.env,
   fetchImpl = fetch,
   accessTokenProvider,
+  inspectStorage = inspectStorageDependencies,
   now = () => new Date().toISOString(),
   timeoutMs = DEFAULT_TIMEOUT_MS,
 } = {}) {
   const projectId = projectIdFromEnvironment(env);
-  const service = clean(env.CLOUD_RUN_SERVICE || env.K_SERVICE || DEFAULT_SERVICE, 80);
+  const service = clean(
+    env.CLOUD_RUN_SERVICE || env.K_SERVICE || DEFAULT_SERVICE,
+    80,
+  );
   const region = clean(
-    env.GOOGLE_CLOUD_REGION || env.GCP_REGION || env.CLOUD_RUN_REGION || DEFAULT_REGION,
+    env.GOOGLE_CLOUD_REGION ||
+      env.GCP_REGION ||
+      env.CLOUD_RUN_REGION ||
+      DEFAULT_REGION,
     40,
   );
   // Diagnostics intentionally targets only the canonical production origin;
@@ -275,57 +371,77 @@ export async function getProjectDiagnostics({
   const triggerId = clean(env.CLOUD_BUILD_TRIGGER_ID, 120);
   const triggerName =
     clean(env.CLOUD_BUILD_TRIGGER_NAME, 160) || DEFAULT_TRIGGER_NAME;
-  const checks = {
-    publicHealth: await publicCheck("/health", { origin, fetchImpl, timeoutMs }),
-    readiness: await publicCheck("/health/ready", { origin, fetchImpl, timeoutMs }),
-    mcp: await mcpDiscoveryCheck({ origin, fetchImpl, timeoutMs }),
-  };
+  const checkedAt = now();
+  const publicOptions = { origin, fetchImpl, timeoutMs };
+  const [publicHealth, readiness, mcp, firestore] = await Promise.all([
+    publicCheck("/health", publicOptions),
+    publicCheck("/health/ready", publicOptions),
+    mcpDiscoveryCheck(publicOptions),
+    firestoreCheck(inspectStorage, env, timeoutMs),
+  ]);
+  const checks = { publicHealth, readiness, mcp, firestore };
 
   let token = null;
+  let unavailableCode = "GOOGLE_CLOUD_PROJECT_UNAVAILABLE";
   if (projectId) {
+    unavailableCode = "GOOGLE_CLOUD_TOKEN_UNAVAILABLE";
     try {
-      token = await (accessTokenProvider || (() => metadataAccessToken(fetchImpl, timeoutMs)))();
+      token = await (
+        accessTokenProvider || (() => metadataAccessToken(fetchImpl, timeoutMs))
+      )();
     } catch (error) {
-      checks.cloudRun = { status: "unavailable", errorCode: safeErrorCode(error) };
-      checks.cloudBuildTrigger = { status: "unavailable", errorCode: safeErrorCode(error) };
-      checks.cloudBuildLatest = { status: "unavailable", errorCode: safeErrorCode(error) };
+      unavailableCode = safeErrorCode(error);
     }
-  } else {
-    checks.cloudRun = { status: "unavailable", errorCode: "GOOGLE_CLOUD_PROJECT_UNAVAILABLE" };
-    checks.cloudBuildTrigger = { status: "unavailable", errorCode: "GOOGLE_CLOUD_PROJECT_UNAVAILABLE" };
-    checks.cloudBuildLatest = { status: "unavailable", errorCode: "GOOGLE_CLOUD_PROJECT_UNAVAILABLE" };
   }
 
   if (token && projectId) {
-    checks.cloudRun = await googleApiCheck({
-      token,
-      fetchImpl,
-      timeoutMs,
-      url: `${CLOUD_RUN_API}/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(region)}/services/${encodeURIComponent(service)}`,
-      pick: cloudRunSummary,
+    const check = (url, pick, options) =>
+      googleApiCheck({ url, pick, token, fetchImpl, timeoutMs, ...options });
+    let secretReferences;
+    const runUrl = `${CLOUD_RUN_API}/projects/${projectId}/locations/${encodeURIComponent(region)}/services/${encodeURIComponent(service)}`;
+    const buildUrl = `${CLOUD_BUILD_API}/projects/${projectId}`;
+    const [
+      cloudRun,
+      cloudBuildTrigger,
+      cloudBuildLatest,
+      cloudProject,
+      [monitoring, logging],
+    ] = await Promise.all([
+      check(runUrl, (payload) => {
+        secretReferences = cloudRunSecretReferences(payload);
+        return cloudRunSummary(payload);
+      }),
+      triggerId
+        ? check(
+            `${buildUrl}/triggers/${encodeURIComponent(triggerId)}`,
+            triggerSummary,
+          )
+        : check(`${buildUrl}/triggers?pageSize=100`, (payload) =>
+            triggerListSummary(payload, triggerName),
+          ),
+      check(`${buildUrl}/builds?pageSize=10`, latestBuildSummary),
+      checkCloudProject({ check, projectId }),
+      checkCloudRunTelemetry({ check, projectId, service, region, checkedAt }),
+    ]);
+    Object.assign(checks, {
+      cloudRun,
+      cloudBuildTrigger,
+      cloudBuildLatest,
+      cloudProject,
+      monitoring,
+      logging,
     });
-    checks.cloudBuildTrigger = triggerId
-      ? await googleApiCheck({
-          token,
-          fetchImpl,
-          timeoutMs,
-          url: `${CLOUD_BUILD_API}/projects/${encodeURIComponent(projectId)}/triggers/${encodeURIComponent(triggerId)}`,
-          pick: triggerSummary,
-        })
-      : await googleApiCheck({
-          token,
-          fetchImpl,
-          timeoutMs,
-          url: `${CLOUD_BUILD_API}/projects/${encodeURIComponent(projectId)}/triggers?pageSize=100`,
-          pick: (payload) => triggerListSummary(payload, triggerName),
-        });
-    checks.cloudBuildLatest = await googleApiCheck({
-      token,
-      fetchImpl,
-      timeoutMs,
-      url: `${CLOUD_BUILD_API}/projects/${encodeURIComponent(projectId)}/builds?pageSize=10`,
-      pick: latestBuildSummary,
+    checks.secretManager = await checkCloudRunSecretVersions({
+      check,
+      cloudRun,
+      references: secretReferences,
+      projectId,
+      projectNumber: cloudProject.projectNumber,
     });
+  } else {
+    for (const name of CLOUD_CHECKS) {
+      checks[name] = { status: "unavailable", errorCode: unavailableCode };
+    }
   }
 
   const runtime = getGoogleCloudRuntimeStatus({ env });
@@ -336,11 +452,12 @@ export async function getProjectDiagnostics({
     runtime.commit,
     checks.cloudBuildLatest.build?.commit,
   ].filter(Boolean);
-  const commitConsistent = observedCommits.length > 1 && new Set(observedCommits).size === 1;
+  const commitConsistent =
+    observedCommits.length > 1 && new Set(observedCommits).size === 1;
 
   return Object.freeze({
     status: overallStatus(checks),
-    checkedAt: now(),
+    checkedAt,
     projectId,
     service,
     region,
@@ -359,7 +476,9 @@ export async function getProjectDiagnostics({
       observed: [...new Set(observedCommits)],
       expected: expectedCommit,
       consistent: commitConsistent,
-      matchesExpected: expectedCommit ? observedCommits.every((commit) => commit === expectedCommit) : null,
+      matchesExpected: expectedCommit
+        ? observedCommits.every((commit) => commit === expectedCommit)
+        : null,
     },
     checks,
     safety: {
@@ -371,18 +490,41 @@ export async function getProjectDiagnostics({
 }
 
 export function formatProjectDiagnostics(report) {
-  const label = { pass: "PASS", partial: "PARTIAL", fail: "FAIL" }[report.status] || "UNKNOWN";
-  const checkLines = Object.entries(report.checks || {}).map(([name, check]) => {
-    const status = check?.status || "unknown";
-    const details = [check?.httpStatus, check?.errorCode].filter(Boolean).join("; ");
-    return `• ${name}: ${status.toUpperCase()}${details ? ` (${details})` : ""}`;
-  });
+  const label =
+    { pass: "PASS", partial: "PARTIAL", fail: "FAIL" }[report.status] ||
+    "UNKNOWN";
+  const checkLines = Object.entries(report.checks || {}).map(
+    ([name, check]) => {
+      const status = check?.status || "unknown";
+      const details = [
+        check?.httpStatus,
+        check?.errorCode,
+        ...(check?.errorCodes || []),
+        typeof check?.samplePresent === "boolean"
+          ? check.samplePresent
+            ? "има метрики за последните 30 мин"
+            : "няма метрики за последните 30 мин"
+          : "",
+        typeof check?.recentErrorFound === "boolean" && status === "pass"
+          ? check.recentErrorFound
+            ? "има скорошна грешка в Cloud Run"
+            : "няма открита грешка в последните 30 мин"
+          : "",
+        Number.isInteger(check?.enabledVersions)
+          ? `активни версии ${check.enabledVersions}/${check.referencedVersions}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(", ");
+      return `• ${name}: ${status.toUpperCase()}${details ? ` (${details})` : ""}`;
+    },
+  );
   return [
     `Project diagnostics: ${label}.`,
     `• Project: ${report.projectId || "не е наличен"}.`,
-    `• Service: ${report.service || "не е наличен"}; region: ${report.region || "не е наличен"}.`,
+    `• Service: ${report.service || "не е наличен"} · region: ${report.region || "не е наличен"}.`,
     `• Commit: ${report.commit?.observed?.join(", ") || "не е наблюдаван"}${report.commit?.consistent ? " (съвпада)" : ""}.`,
     ...checkLines,
-    "• Read-only проверка: да; secrets и произволни команди: не.",
+    "• Проверка само за четене. За тайните се проверяват метаданни за версиите.",
   ].join("\n");
 }

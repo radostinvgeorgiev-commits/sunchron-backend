@@ -306,15 +306,19 @@ test("ordinary messages are not rewritten as contextual confirmations", () => {
 });
 
 test("recognizes a backend project diagnostics request", () => {
-  assert.deepEqual(
-    detectCapabilityRequests("Провери състоянието на бекенда в Cloud Run и Cloud Build.").map(
-      ({ capability, action }) => ({ capability, action }),
-    ),
-    [{
-      capability: "infrastructure.googlecloud.diagnostics.read",
-      action: "infrastructure.read",
-    }],
-  );
+  for (const prompt of [
+    "Провери състоянието на бекенда в Cloud Run и Cloud Build.",
+    "Пусни Google Cloud Project Diagnostics.",
+    "Провери Cloud Monitoring и Secret Manager.",
+  ]) {
+    assert.deepEqual(
+      detectCapabilityRequests(prompt).map(({ capability, action }) => ({ capability, action })),
+      [{
+        capability: "infrastructure.googlecloud.diagnostics.read",
+        action: "infrastructure.read",
+      }],
+    );
+  }
 });
 
 test("recognizes an exact Cloud Build deploy request as confirmed infrastructure write", () => {
@@ -760,8 +764,7 @@ test("an avatar interface improvement routes directly to the code executor", () 
 });
 
 test("an explicit numbered GitHub PR merge routes to the confirmed merge capability", () => {
-  const message =
-    "Провери PR #356 и ако CI е зелено, merge-ни го към main.";
+  const message = "Провери PR #356 и ако CI е зелено, merge-ни го към main.";
   assert.equal(isGitHubPullRequestMergeRequest(message), true);
   assert.deepEqual(
     detectCapabilityRequests(message).map(({ capability }) => capability),
@@ -797,5 +800,45 @@ test("a no-changes boundary is read-only even when the prompt mentions files", (
   assert.deepEqual(
     detectCapabilityRequests(message).map(({ capability }) => capability),
     ["system.integrations.status"],
+  );
+});
+
+
+test("deterministic replies use English fallback without changing facts or confirmation commands", () => {
+  const confirmationId = "11111111-2222-3333-4444-555555555555";
+  const fact = "İzmit · Камчия";
+  const reply = buildMemoryReply(
+    {
+      type: "write-confirmation-required",
+      items: [{ fact }],
+      confirmationId,
+    },
+    "tr",
+  );
+  assert.match(reply, /awaits one-time confirmation/);
+  assert.ok(reply.includes(fact));
+  assert.ok(reply.endsWith(`Потвърждавам постоянен запис: ${confirmationId}`));
+
+  assert.deepEqual(
+    buildCapabilityReplies(
+      [
+        {
+          status: "fulfilled",
+          request: { capability: "first" },
+          result: { output: fact },
+        },
+        {
+          status: "fulfilled",
+          request: { capability: "second" },
+          result: { output: "verified" },
+        },
+      ],
+      { language: "nso" },
+    ),
+    [
+      fact,
+      "verified",
+      "Tools used:\n• first — successful\n• second — successful",
+    ],
   );
 });

@@ -80,9 +80,7 @@ export function createFirestoreMemoryStore({
         MAX_OWNER_CONVERSATION_DOCUMENTS,
       );
       return newestConversationDocuments(
-        documents.filter(
-          (document) => document.data?.sessionId === sessionId,
-        ),
+        documents.filter((document) => document.data?.sessionId === sessionId),
         limit,
       );
     },
@@ -109,6 +107,17 @@ export function createFirestoreMemoryStore({
           id,
         })),
       );
+    },
+    async deleteConversationDocuments(ids) {
+      for (let index = 0; index < ids.length; index += 400) {
+        await store.commitOperations(
+          ids.slice(index, index + 400).map((id) => ({
+            type: "delete",
+            collection: conversationCollection,
+            id,
+          })),
+        );
+      }
     },
     commitConversationDocuments(documents) {
       return store.commitOperations(

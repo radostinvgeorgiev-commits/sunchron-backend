@@ -328,11 +328,7 @@ export async function getPullRequest({ repository, pullNumber, accessToken }) {
   const repo = repository ?? configuredRepository();
   assertAllowedRepository(repo);
   const number = assertPullRequestNumber(pullNumber);
-  return githubWriteRequest(
-    `/repos/${repo}/pulls/${number}`,
-    {},
-    accessToken,
-  );
+  return githubWriteRequest(`/repos/${repo}/pulls/${number}`, {}, accessToken);
 }
 
 export async function mergePullRequest({
@@ -439,9 +435,7 @@ export async function mergePullRequest({
   ]);
   const combinedStatusGreen =
     !combinedStatus?.state || combinedStatus.state === "success";
-  const runs = Array.isArray(checkRuns?.check_runs)
-    ? checkRuns.check_runs
-    : [];
+  const runs = Array.isArray(checkRuns?.check_runs) ? checkRuns.check_runs : [];
   const checksGreen =
     runs.length > 0 &&
     runs.every(
@@ -530,6 +524,7 @@ export async function createCodeTaskPullRequest({
   repository,
   branchName,
   base = "main",
+  expectedBaseSha,
   changes,
   commitMessage,
   title,
@@ -586,6 +581,13 @@ export async function createCodeTaskPullRequest({
       "GITHUB_BASE_SHA_MISSING",
     );
   }
+  if (expectedBaseSha && baseSha !== expectedBaseSha) {
+    throw new GitHubServiceError(
+      "Клонът main се промени след прегледа. Подготви нов diff.",
+      409,
+      "CODE_TASK_BASE_CHANGED",
+    );
+  }
   const baseCommit = await githubWriteRequest(
     `/repos/${repo}/git/commits/${encodeURIComponent(baseSha)}`,
     {},
@@ -627,14 +629,33 @@ export async function createCodeTaskPullRequest({
     },
     accessToken,
   );
-  const pullRequest = await createPullRequest({
-    repository: repo,
-    title,
-    body,
-    head: branch,
-    base,
-    accessToken,
-  });
+  let pullRequest;
+  try {
+    pullRequest = await createPullRequest({
+      repository: repo,
+      title,
+      body,
+      head: branch,
+      base,
+      accessToken,
+    });
+  } catch (error) {
+    if (!expectedBaseSha) throw error;
+    const head = encodeURIComponent(`${repo.split("/")[0]}:${branch}`);
+    const matches = await githubWriteRequest(
+      `/repos/${repo}/pulls?head=${head}&base=main&state=all`,
+      {},
+      accessToken,
+    ).catch(() => []);
+    pullRequest = matches.find((item) => item.head?.sha === commit.sha);
+    if (!pullRequest) {
+      throw new GitHubServiceError(
+        `Клонът ${branch} е създаден. Провери го в GitHub, преди да опиташ отново.`,
+        502,
+        "CODE_TASK_PR_UNCERTAIN",
+      );
+    }
+  }
   return Object.freeze({
     repository: repo,
     branch,

@@ -22,7 +22,12 @@ test("forwarded IPv6 clients share a subnet limit and preserve client isolation"
 });
 
 test("compressed JSON with trailing garbage cannot terminate the HTTP process", () => {
-  const result = spawnSync(process.execPath, ["--input-type=module", "-e", `
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `
     import assert from "node:assert/strict";
     import express from "express";
     import http from "node:http";
@@ -59,7 +64,10 @@ test("compressed JSON with trailing garbage cannot terminate the HTTP process", 
         assert.deepEqual(JSON.parse(control.text), { ok: true });
       }
     } finally { await new Promise(resolve => server.close(resolve)); }
-  `], { cwd: process.cwd(), encoding: "utf8", timeout: 15_000 });
+  `,
+    ],
+    { cwd: process.cwd(), encoding: "utf8", timeout: 15_000 },
+  );
   assert.equal(result.error, undefined);
   assert.equal(result.signal, null, result.stderr);
   assert.equal(result.status, 0, result.stderr);

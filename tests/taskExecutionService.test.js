@@ -67,12 +67,18 @@ test("task execution passes exact operation input to confirmed capabilities", as
         capability: "infrastructure.googlecloud.write",
         action: "infrastructure.write",
         operation: "run_cloud_build_trigger",
-        input: { commitSha: "6dbfb750813c47cca439db5bc3e9a3debbbb5a3a", branch: "main" },
+        input: {
+          commitSha: "6dbfb750813c47cca439db5bc3e9a3debbbb5a3a",
+          branch: "main",
+        },
       },
     ],
     executeFn: async (_capability, input) => {
       captured = input;
-      return result({ requiresConfirmation: true, permission: { decision: "confirm" } });
+      return result({
+        requiresConfirmation: true,
+        permission: { decision: "confirm" },
+      });
     },
     executionContext: { sessionId: "sess-test", prepareConfirmation: true },
   });
@@ -90,19 +96,26 @@ test("task execution creates one scoped confirmation for multiple prepared write
     message: "Направи две свързани промени",
     requests: [
       { capability: "code.write", action: "github.write" },
-      { capability: "infrastructure.googlecloud.write", action: "infrastructure.write" },
+      {
+        capability: "infrastructure.googlecloud.write",
+        action: "infrastructure.write",
+      },
     ],
     executeFn: async (capability) =>
       result({
         requiresConfirmation: true,
         permission: { decision: "confirm" },
         tool: {
-          id: capability === "code.write" ? "github-write" : "google-cloud-write",
+          id:
+            capability === "code.write" ? "github-write" : "google-cloud-write",
         },
         metadata: {
           confirmationId:
-            capability === "code.write" ? "code-confirmation" : "cloud-confirmation",
-          confirmationType: capability === "code.write" ? "code-task" : "capability",
+            capability === "code.write"
+              ? "code-confirmation"
+              : "cloud-confirmation",
+          confirmationType:
+            capability === "code.write" ? "code-task" : "capability",
         },
       }),
     executionContext: {

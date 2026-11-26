@@ -62,5 +62,7 @@ test("normal chat can load approved knowledge without changing legacy callers", 
     listKnowledge: async () => [{ id: "knowledge-1", status: "approved" }],
   });
 
-  assert.deepEqual(context.knowledge, [{ id: "knowledge-1", status: "approved" }]);
+  assert.deepEqual(context.knowledge, [
+    { id: "knowledge-1", status: "approved" },
+  ]);
 });

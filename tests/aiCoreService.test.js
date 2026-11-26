@@ -49,8 +49,9 @@ test("OpenAI Responses request preserves local state and uses the balanced chat 
       const body = JSON.parse(options.body);
       assert.equal(body.model, DEFAULT_OPENAI_CHAT_MODEL);
       assert.equal(body.store, false);
-      assert.deepEqual(body.reasoning, { effort: "none" });
-      assert.deepEqual(body.text, { verbosity: "low" });
+      // gpt-4.1-mini is not a reasoning model: no reasoning/verbosity params.
+      assert.equal(body.reasoning, undefined);
+      assert.equal(body.text, undefined);
       return new Response(
         JSON.stringify({
           output: [
@@ -88,6 +89,7 @@ test("allows the final conversation to request stronger reasoning and detail", a
   await requestOpenAIText({
     apiKey: "test-openai-key",
     input: [{ role: "user", content: "Провери внимателно" }],
+    model: "gpt-5.6-terra",
     reasoningEffort: "low",
     verbosity: "medium",
     fetchImpl: async (_url, options) => {
@@ -112,6 +114,7 @@ test("supports a strict JSON schema for bounded code analysis", async () => {
   await requestOpenAIResponse({
     apiKey: "test-openai-key",
     input: [{ role: "user", content: "Провери кода" }],
+    model: "gpt-5.6-terra",
     outputSchema: schema,
     outputSchemaName: "codex result!",
     fetchImpl: async (_url, options) => {
@@ -195,9 +198,7 @@ test("Gemini content is extracted and mapped from the shared chat input", async 
       return new Response(
         JSON.stringify({
           modelVersion: "gemini-test-001",
-          candidates: [
-            { content: { parts: [{ text: "Работи." }] } },
-          ],
+          candidates: [{ content: { parts: [{ text: "Работи." }] } }],
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
@@ -267,6 +268,7 @@ test("generic AI dispatch and status are explicit without exposing keys", async 
     { id: "openai", configured: true },
     { id: "gemini", configured: false },
     { id: "grok", configured: true },
+    { id: "claude", configured: false },
     { id: "vertex-gemini", configured: false },
   ]);
   assert.doesNotMatch(JSON.stringify(status), /secret/u);

@@ -1,0 +1,186 @@
+/* Interface layer modelled on the large multi-model apps (ChatGPT, Claude,
+   Perplexity, Poe): a quiet header, everything optional behind "+", the
+   profile and settings at the bottom of the sidebar. Loaded last. */
+
+/* Header: no language picker or server pill; a new-chat button on phones. */
+.chat-toolbar .status-indicator { display: none !important; }
+.chat-toolbar [data-language-switch] { display: none !important; }
+.mobile-new-chat {
+  display: none; margin-left: auto; width: 44px; height: 44px;
+  border: 0; border-radius: 12px; background: transparent; color: #000; font-size: 1.15rem;
+}
+@media (max-width: 900px) {
+  .mobile-new-chat { display: grid; place-items: center; }
+}
+
+/* Council lives in the "+" menu now; the toolbar keeps the mode switch. */
+#councilModeBtn { display: none !important; }
+
+/* Sidebar: new chat and history on top, tools in the middle, profile and
+   its settings menu at the bottom. */
+.sidebar > .sidebar-brand { order: 0; }
+.sidebar > #newChatBtn { order: 1; }
+.sidebar > .sidebar-section { order: 2; flex: 1 1 auto; min-height: 120px; overflow: auto; }
+.sidebar > .sidebar-nav { order: 3; }
+.sidebar > #profileActions { order: 98; }
+.sidebar > #toggleStatusBtn { order: 99; margin-top: 4px; }
+.profile-language {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px; font-weight: 700;
+}
+.profile-language select { max-width: 60%; }
+
+/* Empty chat: greeting first, then suggestions (as in every big app). */
+.quick-start-greeting {
+  margin: clamp(12px, 6vh, 64px) 0 18px; text-align: center;
+  font-size: clamp(1.6rem, 4.5vw, 2.3rem); letter-spacing: -0.03em; line-height: 1.2; color: #000;
+}
+.chatPanel:has(#quickStart:not([hidden])) .welcome-turn { display: none; }
+
+/* "+" menu above the composer. */
+.composer-wrap { position: relative; }
+.plus-menu {
+  position: absolute; left: 12px; bottom: calc(100% + 8px); z-index: 30;
+  min-width: 240px; padding: 6px; border-radius: 14px;
+  background: #fff; border: 1px solid #d6dbd8; box-shadow: 0 10px 30px rgba(0,0,0,.15);
+}
+.plus-menu[hidden] { display: none; }
+.plus-menu button {
+  display: flex; width: 100%; align-items: center; gap: 12px; padding: 12px;
+  border: 0; border-radius: 10px; background: transparent; color: #000; font-weight: 700; text-align: left;
+}
+.plus-menu button:hover, .plus-menu button:focus-visible { background: #eef3f0; }
+.plus-menu small { display: block; font-weight: 600; color: #3a3a3a; }
+.plus-menu i { width: 20px; text-align: center; }
+
+/* Active Council chip above the input. */
+.council-chip {
+  display: inline-flex; align-items: center; gap: 8px; margin: 0 0 8px 12px;
+  padding: 6px 10px; border-radius: 999px; background: #e7f1ec; color: #0f3b2c; font-weight: 800; font-size: .9rem;
+}
+.council-chip[hidden] { display: none; }
+.council-chip button { border: 0; background: transparent; font-weight: 800; color: inherit; padding: 0 2px; }
+.sidebar > #toggleStatusBtn { margin-top: auto; }
+.sidebar:has(#profileActions:not([hidden])) > #profileActions { margin-top: auto; }
+.sidebar:has(#profileActions:not([hidden])) > #toggleStatusBtn { margin-top: 4px; }
+/* The messages area (which also holds the suggestions) shrinks and scrolls,
+   so the composer stays on screen when the Council picker or chip shows. */
+.chatPanel #chatMessages { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+/* Header model picker. */
+.model-title { position: relative; }
+.model-picker-btn {
+  display: inline-flex; align-items: center; gap: 6px; max-width: min(46vw, 320px);
+  padding: 8px 10px; border: 0; border-radius: 12px; background: transparent; color: #000;
+}
+.model-picker-btn strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.model-picker-btn i { font-size: .8rem; }
+.model-picker-btn:hover, .model-picker-btn[aria-expanded="true"] { background: #eef3f0; }
+.model-picker-menu {
+  position: absolute; left: 0; top: calc(100% + 6px); z-index: 50; width: min(320px, calc(100vw - 24px));
+  padding: 6px; border-radius: 14px; background: #fff; border: 1px solid #d6dbd8; box-shadow: 0 10px 30px rgba(0,0,0,.15);
+}
+.model-picker-menu[hidden] { display: none; }
+.model-picker-menu button {
+  display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border: 0; border-radius: 10px; background: transparent; color: #000; text-align: left;
+}
+.model-picker-menu button:hover:not(:disabled) { background: #eef3f0; }
+.model-picker-menu button:disabled { opacity: .45; }
+.model-picker-menu small { display: block !important; font-weight: 600; color: #3a3a3a; font-size: .8rem; }
+.model-title { min-width: 0; flex: 0 1 auto; }
+.model-picker-menu i { visibility: hidden; color: #2f6b52; }
+.model-picker-menu button[aria-checked="true"] i { visibility: visible; }
+
+/* Stop button while an answer streams. */
+#sendBtn.is-stop { background: #000; color: #fff; }
+
+/* Retry with another model. */
+.message-actions { position: relative; }
+.retry-model-menu {
+  position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 40; min-width: 210px;
+  padding: 6px; border-radius: 12px; background: #fff; border: 1px solid #d6dbd8; box-shadow: 0 10px 30px rgba(0,0,0,.15);
+}
+.retry-model-menu button {
+  display: block; width: 100%; padding: 9px 12px; border: 0; border-radius: 8px;
+  background: transparent; color: #000; font-weight: 700; text-align: left;
+}
+.retry-model-menu button:hover { background: #eef3f0; }
+
+/* Editing a sent message. */
+.message-edit { display: flex; flex-direction: column; gap: 8px; width: min(100%, 680px); margin-left: auto; }
+.message-edit textarea {
+  width: 100%; padding: 12px 14px; border: 2px solid #2f6b52; border-radius: 14px;
+  font: inherit; color: #000; resize: vertical; background: #fff;
+}
+.message-edit-buttons { display: flex; justify-content: flex-end; gap: 8px; }
+.message-edit-buttons button {
+  padding: 8px 14px; border-radius: 10px; border: 1px solid #c9d0cc; background: #fff; color: #000; font-weight: 700;
+}
+.message-edit-buttons button.primary { background: #000; border-color: #000; color: #fff; }
+
+/* Council answers side by side (desktop) and swipeable (phone). */
+.message.has-council-columns { max-width: 100%; }
+.council-columns {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(280px, 1fr); gap: 12px;
+  margin: 10px 0 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px;
+}
+.council-card {
+  scroll-snap-align: start; padding: 12px 14px; border-radius: 14px;
+  background: #fff; border: 1px solid #d6dbd8; min-width: 0;
+}
+.council-card h3 { margin-top: 0; font-size: 1rem; }
+@media (max-width: 720px) {
+  .council-columns { grid-auto-columns: 86%; }
+}
+.assistant-turn:not(:last-child) .retry-action { display: none; }
+
+/* Assistant chip and picker, "/" prompts. */
+.assistant-chip {
+  display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; margin: 0 0 6px 6px;
+  padding: 6px 10px; border-radius: 999px; background: #e7efe9; color: #000; font-weight: 700;
+}
+.assistant-chip[hidden] { display: none; }
+.assistant-chip button { border: 0; background: transparent; font-weight: 800; color: inherit; padding: 0 2px; }
+.assistant-picker, .slash-menu {
+  position: absolute; left: 8px; bottom: calc(100% + 8px); z-index: 45; width: min(340px, calc(100vw - 32px));
+  max-height: 60vh; overflow-y: auto; padding: 6px; border-radius: 14px;
+  background: #fff; border: 1px solid #d6dbd8; box-shadow: 0 10px 30px rgba(0,0,0,.15);
+}
+.assistant-picker[hidden], .slash-menu[hidden] { display: none; }
+.assistant-picker button, .slash-menu button {
+  display: flex; width: 100%; align-items: center; gap: 12px; padding: 10px 12px; border: 0; border-radius: 10px;
+  background: transparent; color: #000; text-align: left;
+}
+.assistant-picker button:hover, .assistant-picker button[aria-checked="true"],
+.slash-menu button:hover, .slash-menu button[aria-selected="true"] { background: #eef3f0; }
+.assistant-picker i { width: 20px; text-align: center; }
+.assistant-picker small { display: block; font-weight: 600; color: #3a3a3a; }
+.slash-menu code { font-weight: 800; color: #2f6b52; min-width: 84px; }
+
+/* Share conversation dialog. */
+.share-dialog {
+  position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center;
+  padding: 16px; background: rgba(0,0,0,.35);
+}
+.share-dialog[hidden] { display: none; }
+.share-card {
+  width: min(480px, 100%); padding: 18px; border-radius: 18px; background: #fff; color: #000;
+  box-shadow: 0 20px 50px rgba(0,0,0,.25);
+}
+.share-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.share-head h2 { margin: 0; font-size: 1.2rem; }
+.share-close { border: 0; background: transparent; font-size: 1.1rem; font-weight: 800; color: #000; }
+.share-note { margin: 10px 0 14px; font-size: .95rem; }
+.share-link { display: flex; gap: 8px; }
+.share-link[hidden] { display: none; }
+.share-link input {
+  flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid #c9d0cc; border-radius: 10px; font: inherit; font-size: .9rem; color: #000;
+}
+.share-status { min-height: 1.4em; margin: 10px 0 0; font-size: .9rem; color: #2f6b52; }
+.share-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.share-card button.share-copy, .share-actions button {
+  padding: 9px 14px; border-radius: 10px; border: 1px solid #c9d0cc; background: #fff; color: #000; font-weight: 700;
+}
+.share-actions .primary { background: #000; border-color: #000; color: #fff; }
+.share-stop { color: #a3261c !important; }

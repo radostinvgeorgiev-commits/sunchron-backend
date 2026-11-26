@@ -1,0 +1,30 @@
+.language-select {
+  min-height: 2.25rem;
+  max-width: min(100%, 11rem);
+  padding: 0.25rem 0.4rem;
+  border: 1px solid currentColor;
+  border-radius: 0.45rem;
+  background: Canvas;
+  color: CanvasText;
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.language-select:focus-visible {
+  outline: 2px solid #247c62;
+  outline-offset: 3px;
+}
+
+.public-header > [data-language-switch],
+.plans-header > [data-language-switch] {
+  margin-inline-start: auto;
+}
+
+.chat-toolbar > [data-language-switch] {
+  margin-inline-start: 0.5rem;
+  flex-shrink: 0;
+}
+
+.chat-toolbar .language-select {
+  max-width: min(9rem, 34vw);
+}

@@ -7,7 +7,8 @@
   const gmailButton = document.getElementById("gmailBtn");
   const calendarButton = document.getElementById("googleCalendarBtn");
   const mapsButton = document.getElementById("googleMapsBtn");
-  if (!drawer || !body || !gmailButton || !calendarButton || !mapsButton) return;
+  if (!drawer || !body || !gmailButton || !calendarButton || !mapsButton)
+    return;
 
   const escapeHtml = (value) => {
     const div = document.createElement("div");
@@ -25,7 +26,8 @@
   async function request(path) {
     const response = await fetch(path, { cache: "no-store" });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || "Google услугата временно не е достъпна.");
+    if (!response.ok)
+      throw new Error(data.error || "Google услугата временно не е достъпна.");
     return data;
   }
 
@@ -35,10 +37,13 @@
       <button type="button" class="new-chat" id="reconnectGoogle">
         <i class="fa-brands fa-google"></i><span>Свържи Google отново</span>
       </button>`;
-    body.insertAdjacentHTML("beforeend", `
+    body.insertAdjacentHTML(
+      "beforeend",
+      `
       <button type="button" class="new-chat" id="restoreGoogle">
         <i class="fa-solid fa-clock-rotate-left"></i><span>Възстанови старата Google връзка</span>
-      </button>`);
+      </button>`,
+    );
     document.getElementById("reconnectGoogle").addEventListener("click", () => {
       window.location.href = "/api/google/connect";
     });
@@ -49,14 +54,19 @@
 
   async function showGmail() {
     openDrawer("Gmail");
-    body.innerHTML = '<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Зареждане…</div>';
+    body.innerHTML =
+      '<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Зареждане…</div>';
     try {
       const data = await request("/api/google/gmail/messages?limit=15");
       const messages = Array.isArray(data.messages) ? data.messages : [];
       body.innerHTML = `
         <section class="drawer-section">
           <div class="permission-default">Последни имейли — само за четене. AI CORE не може да изпраща или изтрива.</div>
-          ${messages.length ? messages.map((message) => `
+          ${
+            messages.length
+              ? messages
+                  .map(
+                    (message) => `
             <article class="permission-card">
               <div>
                 <strong>${message.unread ? "● " : ""}${escapeHtml(message.subject)}</strong>
@@ -64,7 +74,11 @@
                 <p>${escapeHtml(message.snippet)}</p>
               </div>
               <a href="${escapeHtml(message.url)}" target="_blank" rel="noopener noreferrer">Отвори</a>
-            </article>`).join("") : '<div class="drawer-empty">Няма намерени имейли.</div>'}
+            </article>`,
+                  )
+                  .join("")
+              : '<div class="drawer-empty">Няма намерени имейли.</div>'
+          }
         </section>`;
     } catch (error) {
       reconnect(error);
@@ -73,14 +87,21 @@
 
   async function showCalendar() {
     openDrawer("Google Calendar");
-    body.innerHTML = '<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Зареждане…</div>';
+    body.innerHTML =
+      '<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Зареждане…</div>';
     try {
-      const data = await request("/api/google/calendar/events?days=14&limit=25");
+      const data = await request(
+        "/api/google/calendar/events?days=14&limit=25",
+      );
       const events = Array.isArray(data.events) ? data.events : [];
       body.innerHTML = `
         <section class="drawer-section">
           <div class="permission-default">Предстоящи събития за 14 дни — само за четене.</div>
-          ${events.length ? events.map((event) => `
+          ${
+            events.length
+              ? events
+                  .map(
+                    (event) => `
             <article class="permission-card">
               <div>
                 <strong>${escapeHtml(event.title)}</strong>
@@ -88,7 +109,11 @@
                 ${event.location ? `<p>${escapeHtml(event.location)}</p>` : ""}
               </div>
               ${event.url ? `<a href="${escapeHtml(event.url)}" target="_blank" rel="noopener noreferrer">Отвори</a>` : ""}
-            </article>`).join("") : '<div class="drawer-empty">Няма предстоящи събития.</div>'}
+            </article>`,
+                  )
+                  .join("")
+              : '<div class="drawer-empty">Няма предстоящи събития.</div>'
+          }
         </section>`;
     } catch (error) {
       reconnect(error);
@@ -108,7 +133,12 @@
     const input = document.getElementById("mapsQuery");
     const search = () => {
       const query = input.value.trim();
-      if (query) window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, "_blank", "noopener,noreferrer");
+      if (query)
+        window.open(
+          `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
+          "_blank",
+          "noopener,noreferrer",
+        );
     };
     document.getElementById("mapsSearch").addEventListener("click", search);
     input.addEventListener("keydown", (event) => {

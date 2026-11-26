@@ -115,16 +115,24 @@ export async function confirmTaskWrite({
 
 export function extractTaskConfirmationId(message) {
   if (typeof message !== "string") return null;
-  const match = message.trim().match(
-    /^Потвърждавам AI CORE задача:\s*([0-9a-f]{8}-[0-9a-f-]{27,})$/iu,
-  );
+  const match = message
+    .trim()
+    .match(/^Потвърждавам AI CORE задача:\s*([0-9a-f]{8}-[0-9a-f-]{27,})$/iu);
   return match?.[1] || null;
 }
 
-export function formatTaskConfirmation(confirmation) {
+export function formatTaskConfirmation(confirmation, english = false) {
   const count = Array.isArray(confirmation?.items)
     ? confirmation.items.length
     : 0;
+  if (english) {
+    return [
+      `Prepared ${count} write operations. The task awaits confirmation.`,
+      `Confirmation: ${confirmation.confirmationId}.`,
+      `Expires: ${new Date(confirmation.expiresAt).toISOString()}.`,
+      `To proceed, send this exact command: Потвърждавам AI CORE задача: ${confirmation.confirmationId}`,
+    ].join("\n");
+  }
   return [
     `Подготвих ${count} точни записващи операции в една задача.`,
     "Нищо не е записано още.",

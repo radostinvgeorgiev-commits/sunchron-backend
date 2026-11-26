@@ -53,7 +53,7 @@ test("work context is bounded and uses a server-owned role allowlist", () => {
   assert.equal(context.agent.model, "auto");
   assert.equal(context.agent.name, "Моят агент");
   assert.equal(context.agent.engine, "ai-core");
-  assert.equal(context.agent.petId, "owl");
+  assert.equal(context.agent.petId, undefined);
   assert.equal(context.project.id, "project-one");
   assert.equal(context.project.run.sequence, 4);
   assert.equal(context.project.run.codeChanged, false);
@@ -95,6 +95,10 @@ test("the available personal-agent models are explicit and server-owned", () => 
       "gpt-5.6-sol",
       "gpt-5.6-terra",
       "gpt-5.6-luna",
+      "gpt-4.1-mini",
+      "claude-haiku-4-5-20251001",
+      "gemini-2.5-flash-lite",
+      "grok-3-mini",
       "gemini-2.5-flash",
       "vertex-gemini-2.5-flash",
       "grok-4.5",
@@ -102,7 +106,7 @@ test("the available personal-agent models are explicit and server-owned", () => 
   );
   assert.equal(resolveWorkAgentModel("gpt-5.6-sol"), "gpt-5.6-sol");
   assert.equal(resolveWorkAgentModel("gpt-5.6-terra"), "gpt-5.6-terra");
-  assert.equal(resolveWorkAgentModel("gemini-2.5-flash"), "gemini-2.5-flash");
+  assert.equal(resolveWorkAgentModel("gemini-2.5-flash"), "gemini-3.8-flash");
   assert.equal(
     resolveWorkAgentModel("vertex-gemini-2.5-flash"),
     "gemini-2.5-flash",
@@ -123,14 +127,7 @@ test("the available personal-agent models are explicit and server-owned", () => 
 test("the available personal-agent roles are explicit", () => {
   assert.deepEqual(
     listWorkAgentRoles().map(({ id }) => id),
-    [
-      "general",
-      "researcher",
-      "organizer",
-      "documents",
-      "builder",
-      "coder",
-    ],
+    ["general", "researcher", "organizer", "documents", "builder", "coder"],
   );
 });
 
@@ -192,7 +189,12 @@ test("Codex work mode preserves an explicit GitHub read-only request", () => {
 
 test("Codex work mode respects an explicit no-tools boundary", () => {
   const requests = routeSelectedWorkAgentCapabilities(
-    [{ capability: "system.integrations.status", action: "infrastructure.read" }],
+    [
+      {
+        capability: "system.integrations.status",
+        action: "infrastructure.read",
+      },
+    ],
     {
       project: { name: "SYNCHRON-X" },
       agent: {
@@ -233,7 +235,10 @@ test("runtime provider and model questions do not launch Codex code analysis", (
     );
   }
 
-  assert.equal(isRuntimeAiIdentityRequest("Провери модела в src/config.js"), false);
+  assert.equal(
+    isRuntimeAiIdentityRequest("Провери модела в src/config.js"),
+    false,
+  );
   assert.equal(
     isRuntimeAiIdentityRequest(
       "Тест на AI CORE: отговори само с „AI CORE работи“ и не използвай инструменти.",
@@ -271,7 +276,6 @@ test("active work context questions use verified state instead of chat history",
       "Модел: GPT-5.6 Sol",
       "Роля: Организатор",
       "Изпълнител: AI CORE",
-      "Любимец: Кори",
       "Проект: AI CORE развитие",
     ].join("\n"),
   );

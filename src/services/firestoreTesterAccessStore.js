@@ -23,8 +23,8 @@ export function createFirestoreTesterAccessStore({
     get(id) {
       return store.get(collection, id);
     },
-    set(id, data) {
-      return store.set(collection, id, data);
+    set(id, data, options) {
+      return store.set(collection, id, data, options);
     },
   });
 }

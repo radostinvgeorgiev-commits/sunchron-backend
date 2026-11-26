@@ -19,7 +19,10 @@ test("MCP exposes Google Cloud and no retired provider or Copilot tools", () => 
   assert.ok(names.includes("get_google_cloud_runtime_status"));
   assert.ok(names.includes("get_system_configuration"));
   assert.ok(names.includes("get_google_cloud_project_diagnostics"));
-  assert.equal(names.some((name) => /digitalocean|cloudflare|copilot/iu.test(name)), false);
+  assert.equal(
+    names.some((name) => /digitalocean|cloudflare|copilot/iu.test(name)),
+    false,
+  );
 });
 
 test("MCP returns the verified Google Cloud runtime and audits the read", async () => {
@@ -63,5 +66,8 @@ test("MCP initialization describes the confirmation boundary", async () => {
     method: "initialize",
   });
   assert.match(response.result.instructions, /еднократно потвърждение/u);
-  assert.doesNotMatch(response.result.instructions, /DigitalOcean|Cloudflare|Copilot/iu);
+  assert.doesNotMatch(
+    response.result.instructions,
+    /DigitalOcean|Cloudflare|Copilot/iu,
+  );
 });

@@ -36,6 +36,7 @@ const ALLOWED_ACTIONS = new Set([
   "infrastructure.write:grant_project_role",
   "infrastructure.write:revoke_project_role",
   "infrastructure.write:update_cloud_run_service_account",
+  "infrastructure.write:use_latest_secret_version",
   "infrastructure.write:run_cloud_build_trigger",
   // A task-level confirmation groups the exact, already-prepared write
   // operations of one task. It is never a blanket approval for future work.
@@ -370,7 +371,9 @@ export async function validateTaskConfirmation(
     confirmation.resource?.ownerFingerprint !== ownerFingerprint(ownerId) ||
     (taskId && confirmation.resource?.taskId !== taskId)
   ) {
-    const error = new Error("Профилът или задачата не съответстват на потвърждението.");
+    const error = new Error(
+      "Профилът или задачата не съответстват на потвърждението.",
+    );
     error.code = "TASK_CONFIRMATION_OWNER_MISMATCH";
     throw error;
   }

@@ -147,10 +147,7 @@ test("returns safe OAuth management errors without leaking service details", asy
     .post("/permissions/oauth/chatgpt/revoke")
     .send({ grantId: "grant-1" })
     .expect(503);
-  assert.equal(
-    revokeResponse.body.code,
-    "MCP_OAUTH_REVOCATION_UNAVAILABLE",
-  );
+  assert.equal(revokeResponse.body.code, "MCP_OAUTH_REVOCATION_UNAVAILABLE");
   assert.doesNotMatch(JSON.stringify(revokeResponse.body), /password|secret/u);
 });
 
@@ -169,10 +166,7 @@ test("does not turn a missing or invalid target into revoke-all", async () => {
     .send({ grantId: "   " })
     .expect(400);
 
-  assert.equal(
-    response.body.code,
-    "INVALID_MCP_OAUTH_REVOCATION_TARGET",
-  );
+  assert.equal(response.body.code, "INVALID_MCP_OAUTH_REVOCATION_TARGET");
   assert.equal(called, false);
 
   await request(app)

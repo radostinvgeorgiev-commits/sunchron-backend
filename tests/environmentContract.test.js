@@ -22,8 +22,14 @@ test("Google Cloud is the only declared runtime environment", () => {
   assert.match(envExample, /^MEMORY_BACKEND=firestore$/mu);
   assert.match(envExample, /^PERSISTENCE_BACKEND=firestore$/mu);
   assert.match(envExample, /^AUTH_BACKEND=identity-platform$/mu);
-  assert.match(envExample, /^MCP_RESOURCE_URL=https:\/\/cloudaicore\.com\/mcp$/mu);
-  assert.doesNotMatch(envExample, /synchron\.foundation|DigitalOcean|Cloudflare/iu);
+  assert.match(
+    envExample,
+    /^MCP_RESOURCE_URL=https:\/\/cloudaicore\.com\/mcp$/mu,
+  );
+  assert.doesNotMatch(
+    envExample,
+    /synchron\.foundation|DigitalOcean|Cloudflare/iu,
+  );
 });
 
 test("multi-engine code execution and protected connections are documented", () => {
@@ -56,7 +62,10 @@ test("multi-engine code execution and protected connections are documented", () 
 
 test("Cloud Run binds all three AI engines through Secret Manager", () => {
   for (const key of ["OPENAI_API_KEY", "GEMINI_API_KEY", "GROK_API_KEY"]) {
-    assert.match(cloudRunTemplate, new RegExp(`name: ${key}\\s+valueFrom:`, "u"));
+    assert.match(
+      cloudRunTemplate,
+      new RegExp(`name: ${key}\\s+valueFrom:`, "u"),
+    );
   }
   assert.match(cloudRunTemplate, /run\.googleapis\.com\/secrets:/u);
   assert.match(cloudRunTemplate, /name: MEMORY_BACKEND\s+value: firestore/u);

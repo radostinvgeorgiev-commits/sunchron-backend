@@ -11,13 +11,18 @@
   статус;
 - анонимен MCP `tools/list` — актуален каталог;
 - `get_google_cloud_runtime_status` — read-only runtime metadata без secrets.
-- `get_google_cloud_project_diagnostics` — owner-scoped read-only проверка на
-  публичния health/readiness, MCP каталога, Cloud Run service и Cloud Build
-  trigger-а; връща PASS/PARTIAL/FAIL и сравнение на наблюдавания commit.
+- `get_google_cloud_project_diagnostics` — проверка само за четене за
+  собственика. Включва health/readiness, MCP, Cloud Run, Cloud Build, Firestore,
+  Monitoring, Logging, Resource Manager и метаданни за версиите на тайните.
+  Връща PASS/PARTIAL/FAIL и сравнение на наблюдавания commit.
 - `talk_to_ai_core` / `send_message` — инструментален разговор през същия
   capability engine: read-only заявките се изпълняват реално, а GitHub,
   Google, памет и инфраструктурни записи се подготвят за отделно owner
   потвърждение.
+- `save_conversation` — запазва разговор от Claude (или друг AI клиент) като
+  нишка `claude-<uuid>` в AI CORE за текущия профил; с `sessionId` добавя нови
+  съобщения към същата нишка. До 50 съобщения на извикване, само роли
+  `user`/`assistant`, scope `synchron:agent.chat`. Не пише в постоянната памет.
 - `prepare_google_cloud_action` / `confirm_google_cloud_action` — owner-only, точни IAM, Cloud Run service identity или съществуващия `synchron-main-deploy` Cloud Build trigger за exact commit SHA, с еднократно потвърждение и audit журнал.
 
 Project diagnostics използва фиксиран allowlist от Google Cloud API адреси и

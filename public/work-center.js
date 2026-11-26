@@ -145,9 +145,7 @@
     backdrop.hidden = true;
     if (wasOpen) {
       document.dispatchEvent(
-        new document.defaultView.CustomEvent(
-          "synchron:data-drawer-closed",
-        ),
+        new document.defaultView.CustomEvent("synchron:data-drawer-closed"),
       );
     }
     document.getElementById("chatInput")?.focus();
@@ -179,11 +177,7 @@
   function resolveToolStatus(
     integrations,
     toolId,
-    {
-      connected = true,
-      connectionName = "услугата",
-      liveCheck = null,
-    } = {},
+    { connected = true, connectionName = "услугата", liveCheck = null } = {},
   ) {
     if (!Array.isArray(integrations?.tools)) {
       return {
@@ -691,7 +685,8 @@
       }),
       createExternalCard({
         title: "Google Cloud",
-        description: "Cloud Run, Firestore, Identity Platform и Secret Manager.",
+        description:
+          "Cloud Run, Firestore, Identity Platform и Secret Manager.",
         url: googleCloudConsoleUrl,
         icon: "fa-brands fa-google",
         status: `Google Cloud Read: ${googleCloudStatus.label.toLocaleLowerCase("bg-BG")}`,
@@ -728,6 +723,17 @@
             ? "Работи · Нормална регистрация"
             : "Настройва се в Google Cloud",
       }),
+      ...(testerAuth
+        ? [
+            createExternalCard({
+              title: "Заявки за ранен достъп",
+              description: "Имейли на хората, поискали покана за SYNCHRON-X.",
+              url: "/admin/early-access",
+              icon: "fa-solid fa-inbox",
+              status: "Само за собственика",
+            }),
+          ]
+        : []),
       createInternalCard({
         title: "Google Drive",
         description: "Преглед и анализ на разрешени файлове.",
@@ -903,7 +909,9 @@
         checked: googleResult.status === "fulfilled",
         ok: googleResult.status === "fulfilled" && googleResult.value.ok,
         statusCode:
-          googleResult.status === "fulfilled" ? googleResult.value.status : null,
+          googleResult.status === "fulfilled"
+            ? googleResult.value.status
+            : null,
         connected: false,
       };
       if (googleResult.status === "fulfilled") {
@@ -919,7 +927,9 @@
         checked: githubResult.status === "fulfilled",
         ok: githubResult.status === "fulfilled" && githubResult.value.ok,
         statusCode:
-          githubResult.status === "fulfilled" ? githubResult.value.status : null,
+          githubResult.status === "fulfilled"
+            ? githubResult.value.status
+            : null,
         connected: false,
       };
       if (githubResult.status === "fulfilled") {
@@ -946,7 +956,10 @@
           : null,
       };
       let testerAuth = null;
-      if (testerAuthResult.status === "fulfilled" && testerAuthResult.value.ok) {
+      if (
+        testerAuthResult.status === "fulfilled" &&
+        testerAuthResult.value.ok
+      ) {
         testerAuth = await testerAuthResult.value.json();
       }
       const actionCenter = {

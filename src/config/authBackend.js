@@ -1,5 +1,13 @@
 const AUTH_BACKENDS = new Set(["identity-platform", "supabase"]);
 
+function isProductionRuntime(env = process.env) {
+  return (
+    String(env.NODE_ENV || "")
+      .trim()
+      .toLowerCase() === "production"
+  );
+}
+
 export function resolveAuthBackend(env = process.env) {
   const fallback = String(
     env.IDENTITY_PLATFORM_PROJECT_ID ||
@@ -9,7 +17,9 @@ export function resolveAuthBackend(env = process.env) {
       "",
   ).trim()
     ? "identity-platform"
-    : "supabase";
+    : isProductionRuntime(env)
+      ? "identity-platform"
+      : "supabase";
   const requested = String(env.AUTH_BACKEND || fallback)
     .trim()
     .toLowerCase();

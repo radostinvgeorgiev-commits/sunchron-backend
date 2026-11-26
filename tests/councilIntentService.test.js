@@ -85,7 +85,8 @@ test("Council intent blocks a different owner or session", async () => {
         { ownerId: "owner-2", sessionId: "session-1", intentId: intent.id },
         { env },
       ),
-    (error) => error.code === "COUNCIL_INTENT_NOT_FOUND" && error.status === 404,
+    (error) =>
+      error.code === "COUNCIL_INTENT_NOT_FOUND" && error.status === 404,
   );
   await assert.rejects(
     () =>

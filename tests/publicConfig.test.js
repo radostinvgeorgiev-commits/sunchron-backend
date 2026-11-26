@@ -10,11 +10,13 @@ test("public client config uses safe HTTPS values", () => {
   assert.deepEqual(
     getPublicClientConfig({
       CHATGPT_WORK_URL: "https://chatgpt.com/g/g-example",
-      GOOGLE_CLOUD_CONSOLE_URL: "https://console.cloud.google.com/run?project=example",
+      GOOGLE_CLOUD_CONSOLE_URL:
+        "https://console.cloud.google.com/run?project=example",
     }),
     {
       chatgptWorkUrl: "https://chatgpt.com/g/g-example",
-      googleCloudConsoleUrl: "https://console.cloud.google.com/run?project=example",
+      googleCloudConsoleUrl:
+        "https://console.cloud.google.com/run?project=example",
     },
   );
 });

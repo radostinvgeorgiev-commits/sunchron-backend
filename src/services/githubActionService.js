@@ -478,10 +478,10 @@ export const GITHUB_CONFIRMED_ACTIONS = ACTIONS;
 
 export function extractGitHubChangeConfirmationId(message) {
   if (typeof message !== "string") return null;
-  const match = message.trim().match(
-    /^Потвърждавам\s+GitHub\s+(?:промяната|merge):\s*([0-9a-f-]{36})$/iu,
-  );
-  return match && SAFE_CONFIRMATION_ID_PATTERN.test(match[1])
-    ? match[1]
-    : null;
+  const match = message
+    .trim()
+    .match(
+      /^Потвърждавам\s+GitHub\s+(?:промяната|merge):\s*([0-9a-f-]{36})$/iu,
+    );
+  return match && SAFE_CONFIRMATION_ID_PATTERN.test(match[1]) ? match[1] : null;
 }

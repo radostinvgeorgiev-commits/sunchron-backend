@@ -1,0 +1,23 @@
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: #f4f6f4; color: #000; font: 600 18px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+a { color: #2f6b52; }
+.shared-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 12px 18px; background: #fff; border-bottom: 1px solid #dde2df;
+}
+.shared-brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; color: #000; text-decoration: none; }
+.shared-badge { font-size: .85rem; padding: 4px 10px; border-radius: 999px; background: #e7efe9; }
+.shared-main { width: min(820px, 100%); margin: 0 auto; padding: 24px 16px 40px; }
+.shared-main h1 { margin: 0 0 4px; font-size: 1.6rem; line-height: 1.25; }
+.shared-meta { margin: 0 0 20px; color: #3a3a3a; font-size: .9rem; }
+.shared-messages { display: flex; flex-direction: column; gap: 14px; }
+.shared-message { padding: 14px 16px; border-radius: 16px; background: #fff; border: 1px solid #dde2df; overflow-wrap: anywhere; }
+.shared-message.user { background: #2f6b52; border-color: #2f6b52; color: #fff; margin-left: 12%; }
+.shared-who { font-size: .8rem; font-weight: 800; opacity: .75; margin-bottom: 4px; }
+.shared-body { white-space: normal; }
+.shared-message.user .shared-body { white-space: pre-wrap; }
+.shared-body pre { overflow-x: auto; padding: 10px; border-radius: 10px; background: #f0f2f1; }
+.shared-footer { padding: 18px; text-align: center; color: #3a3a3a; font-size: .9rem; }
+@media (max-width: 600px) { .shared-message.user { margin-left: 6%; } }

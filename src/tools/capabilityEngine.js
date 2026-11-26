@@ -13,6 +13,10 @@ import {
 } from "../services/aiCoreService.js";
 import { answerGitHubReadRequest } from "../services/githubService.js";
 import {
+  formatAiProviderProbe,
+  probeAiProviders,
+} from "../services/aiProviderProbeService.js";
+import {
   createGmailDraft,
   GoogleDriveError,
   hasSession,
@@ -55,7 +59,10 @@ import {
   formatWebSearchResult,
   searchWeb,
 } from "../services/webSearchService.js";
-import { prepareCodeTask } from "../services/codeTaskService.js";
+import {
+  isCodeTaskConfigured,
+  prepareCodeTask,
+} from "../services/codeTaskService.js";
 import {
   isMergedBranchCleanupPlanRequest,
   prepareMergedBranchCleanup,
@@ -145,8 +152,14 @@ export function getToolRuntimeAvailability(
   input = {},
   env = process.env,
 ) {
+  // The reason explains what is missing, so it is only reported when the tool
+  // is not available; an available tool never carries a "not configured" text.
   const configured = (available, reason, code = "CAPABILITY_NOT_CONFIGURED") =>
-    Object.freeze({ available, reason, code });
+    Object.freeze(
+      available
+        ? { available: true, reason: null, code: null }
+        : { available: false, reason, code },
+    );
 
   switch (toolId) {
     case "synchron-agent-chat":
@@ -167,14 +180,8 @@ export function getToolRuntimeAvailability(
       return configured(true, null);
     case "github-write":
       if (
-        !hasEnvironment(
-          env,
-          "OPENAI_API_KEY",
-          "GEMINI_API_KEY",
-          "GROK_API_KEY",
-          "GITHUB_CLIENT_ID",
-          "GITHUB_CLIENT_SECRET",
-        )
+        !isCodeTaskConfigured(env) ||
+        !hasEnvironment(env, "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET")
       ) {
         return configured(
           false,
@@ -253,9 +260,9 @@ export function getToolRuntimeAvailability(
       return configured(
         Boolean(
           env.GOOGLE_CLOUD_PROJECT ||
-            env.GCLOUD_PROJECT ||
-            env.GCP_PROJECT_ID ||
-            (env.K_SERVICE && env.K_REVISION),
+          env.GCLOUD_PROJECT ||
+          env.GCP_PROJECT_ID ||
+          (env.K_SERVICE && env.K_REVISION),
         ),
         "Google Cloud runtime не е конфигуриран.",
       );
@@ -263,9 +270,9 @@ export function getToolRuntimeAvailability(
       return configured(
         Boolean(
           env.GOOGLE_CLOUD_PROJECT ||
-            env.GCLOUD_PROJECT ||
-            env.GCP_PROJECT_ID ||
-            (env.K_SERVICE && env.K_REVISION),
+          env.GCLOUD_PROJECT ||
+          env.GCP_PROJECT_ID ||
+          (env.K_SERVICE && env.K_REVISION),
         ),
         "Google Cloud write runtime не е конфигуриран.",
       );
@@ -304,6 +311,7 @@ export async function buildIntegrationStatusReport(
       listProfileMemories({ ownerId: input.ownerId, limit: 1 }),
     checkGoogleCloud = getGoogleCloudRuntimeStatus,
     checkGoogleSession = hasSession,
+    probeProviders = probeAiProviders,
     env = process.env,
   } = {},
 ) {
@@ -315,40 +323,40 @@ export async function buildIntegrationStatusReport(
     ].join("\n");
   }
 
-  const [
-    githubRead,
-    memory,
-    googleCloud,
-    googleConnected,
-  ] = await Promise.all([
+  const [githubRead, memory, googleCloud, googleConnected, providerProbe] = await Promise.all([
     checkedStatus(checkGitHub),
     checkedStatus(checkMemory),
     checkedStatus(checkGoogleCloud, (status) => status?.configured === true),
     input.googleSessionId
       ? checkedStatus(() => checkGoogleSession(input.googleSessionId))
       : false,
+    probeProviders({ env }).catch(() => []),
   ]);
+  const openAiWorks = providerProbe.some(
+    ({ id, working }) => id === "openai" && working,
+  );
 
   const working = [
     ["GitHub Read", githubRead],
     ["Google Cloud Memory", memory],
     ["Google Cloud Read", googleCloud],
-    ["AI CORE разговор", isAiCoreConfigured(env)],
-    ["OpenAI Web Search", Boolean(env.OPENAI_API_KEY)],
-    ["Codex", isCodexAgentConfigured(env)],
+    [
+      "AI CORE разговор",
+      isAiCoreConfigured(env) &&
+        providerProbe.some(
+          ({ id, working }) =>
+            id === getAiProviderStatus(env).primaryProvider && working,
+        ),
+    ],
+    ["OpenAI Web Search", Boolean(env.OPENAI_API_KEY) && openAiWorks],
+    ["Codex", isCodexAgentConfigured(env) && openAiWorks],
   ];
   const sessionTools = [
     [
       "GitHub Write",
       Boolean(input.githubSessionId) &&
-        hasEnvironment(
-          env,
-          "OPENAI_API_KEY",
-          "GEMINI_API_KEY",
-          "GROK_API_KEY",
-          "GITHUB_CLIENT_ID",
-          "GITHUB_CLIENT_SECRET",
-        ),
+        isCodeTaskConfigured(env) &&
+        hasEnvironment(env, "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"),
       "изисква потвърждение",
     ],
     [
@@ -363,12 +371,6 @@ export async function buildIntegrationStatusReport(
     ["Gmail", googleConnected, "изисква Google вход"],
   ];
   const aiProviderStatus = getAiProviderStatus(env);
-  const providerLabels = {
-    openai: "OpenAI",
-    gemini: "Gemini",
-    grok: "Grok",
-    "vertex-gemini": "Vertex Gemini",
-  };
 
   return [
     "Проверих инструментите реално сега.",
@@ -389,13 +391,8 @@ export async function buildIntegrationStatusReport(
       .filter(([, available]) => available)
       .map(([name, , note]) => `• ${name} — свързан; ${note}`),
     "",
-    "AI доставчици:",
-    ...aiProviderStatus.providers.map(
-      ({ id, configured }) =>
-        `• ${providerLabels[id] || id} — ${
-          configured ? "конфигуриран" : "не е конфигуриран"
-        }${id === aiProviderStatus.primaryProvider ? "; основен за разговора" : ""}`,
-    ),
+    "AI доставчици (реална заявка, кеш 10 мин):",
+    ...formatAiProviderProbe(providerProbe, aiProviderStatus.primaryProvider),
   ].join("\n");
 }
 
@@ -900,10 +897,7 @@ const executors = Object.freeze({
       ? await confirmGoogleCloudAction({
           ownerId: input.ownerId,
           sessionId: input.sessionId,
-          confirmationId: requiredInput(
-            input.confirmationId,
-            "confirmationId",
-          ),
+          confirmationId: requiredInput(input.confirmationId, "confirmationId"),
         })
       : await prepareGoogleCloudAction({
           ownerId: input.ownerId,
@@ -1080,9 +1074,7 @@ export function extractGitHubTaskNumber(message) {
     !/(?:статус|състояние|какво\s+става|докъде|прослед|провери|готов|ci|checks?|проверки|deployment|деплой)/iu.test(
       text,
     ) ||
-    !/(?:github|ги[тд][\s-]*хъб|задач|issue|pull\s*request|\bpr\b)/iu.test(
-      text,
-    )
+    !/(?:github|ги[тд][\s-]*хъб|задач|issue|pull\s*request|\bpr\b)/iu.test(text)
   ) {
     return null;
   }

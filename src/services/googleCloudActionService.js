@@ -8,15 +8,12 @@ import {
 import { executeAuditedWriteAction } from "./permissionService.js";
 import { resolveFirestoreProjectId } from "../config/memoryBackend.js";
 
-const RESOURCE_MANAGER_API =
-  "https://cloudresourcemanager.googleapis.com/v1";
-const CLOUD_RUN_API = "https://run.googleapis.com/apis/serving.knative.dev/v1";
+const RESOURCE_MANAGER_API = "https://cloudresourcemanager.googleapis.com/v1";
 const CLOUD_BUILD_API = "https://cloudbuild.googleapis.com/v1";
 const DEFAULT_REGION = "europe-west1";
 const DEFAULT_SERVICE = "synchron-backend-google";
 const DEFAULT_CLOUD_BUILD_LOCATION = "global";
-const DEFAULT_CLOUD_BUILD_TRIGGER_ID =
-  "d943b5bc-a267-4273-a48a-3c750f484a42";
+const DEFAULT_CLOUD_BUILD_TRIGGER_ID = "d943b5bc-a267-4273-a48a-3c750f484a42";
 const DEFAULT_CLOUD_BUILD_TRIGGER_NAME = "synchron-main-deploy";
 const SAFE_SHA_PATTERN = /^[a-f0-9]{40}$/iu;
 const SAFE_TRIGGER_ID_PATTERN = /^[a-z0-9-]{8,128}$/iu;
@@ -33,13 +30,26 @@ const ACTIONS = Object.freeze({
   UPDATE_CLOUD_RUN_SERVICE_ACCOUNT:
     "infrastructure.write:update_cloud_run_service_account",
   RUN_CLOUD_BUILD_TRIGGER: "infrastructure.write:run_cloud_build_trigger",
+  USE_LATEST_SECRET_VERSION:
+    "infrastructure.write:use_latest_secret_version",
 });
+
+// Environment variables whose secret reference may be moved to "latest".
+// The secret value itself is never read or returned.
+const LATEST_SECRET_ENV_NAMES = Object.freeze([
+  "ANTHROPIC_API_KEY",
+  "OPENAI_API_KEY",
+  "GEMINI_API_KEY",
+  "GROK_API_KEY",
+]);
+const CLOUD_RUN_V2_API = "https://run.googleapis.com/v2";
 
 const OPERATION_ACTIONS = Object.freeze({
   grant_project_role: ACTIONS.GRANT_PROJECT_ROLE,
   revoke_project_role: ACTIONS.REVOKE_PROJECT_ROLE,
   update_cloud_run_service_account: ACTIONS.UPDATE_CLOUD_RUN_SERVICE_ACCOUNT,
   run_cloud_build_trigger: ACTIONS.RUN_CLOUD_BUILD_TRIGGER,
+  use_latest_secret_version: ACTIONS.USE_LATEST_SECRET_VERSION,
 });
 
 export class GoogleCloudActionError extends Error {
@@ -133,9 +143,14 @@ function normalizeCloudRunTarget(input = {}, env = process.env) {
     "serviceName",
     { required: true },
   );
-  const serviceName = cleanText(input.serviceName || configuredService, 80, "serviceName", {
-    required: true,
-  });
+  const serviceName = cleanText(
+    input.serviceName || configuredService,
+    80,
+    "serviceName",
+    {
+      required: true,
+    },
+  );
   const region = cleanText(
     input.region || env.GOOGLE_CLOUD_REGION || env.GCP_REGION || DEFAULT_REGION,
     40,
@@ -169,7 +184,9 @@ function normalizeCloudRunTarget(input = {}, env = process.env) {
 function normalizeCloudBuildTarget(input = {}, env = process.env) {
   const projectId = projectIdFromEnvironment(env);
   const triggerId = cleanText(
-    input.triggerId || env.CLOUD_BUILD_TRIGGER_ID || DEFAULT_CLOUD_BUILD_TRIGGER_ID,
+    input.triggerId ||
+      env.CLOUD_BUILD_TRIGGER_ID ||
+      DEFAULT_CLOUD_BUILD_TRIGGER_ID,
     128,
     "triggerId",
     { required: true },
@@ -245,7 +262,10 @@ function normalizeOperation(operation, input = {}, env = process.env) {
   }
   const projectId = projectIdFromEnvironment(env);
 
-  if (operation === "grant_project_role" || operation === "revoke_project_role") {
+  if (
+    operation === "grant_project_role" ||
+    operation === "revoke_project_role"
+  ) {
     return {
       action,
       resource: {
@@ -254,6 +274,22 @@ function normalizeOperation(operation, input = {}, env = process.env) {
         role: normalizeRole(input.role),
       },
       params: {},
+    };
+  }
+
+  if (operation === "use_latest_secret_version") {
+    const envName = cleanText(input.envName, 40, "envName", { required: true });
+    if (!LATEST_SECRET_ENV_NAMES.includes(envName)) {
+      throw new GoogleCloudActionError(
+        `Разрешени са само: ${LATEST_SECRET_ENV_NAMES.join(", ")}.`,
+        403,
+        "GOOGLE_CLOUD_SECRET_ENV_PROTECTED",
+      );
+    }
+    return {
+      action,
+      resource: normalizeCloudRunTarget(input, env),
+      params: { envName },
     };
   }
 
@@ -393,7 +429,13 @@ function cloneBindings(policy) {
     : [];
 }
 
-async function changeProjectRole({ projectId, principal, role, grant, fetchImpl }) {
+async function changeProjectRole({
+  projectId,
+  principal,
+  role,
+  grant,
+  fetchImpl,
+}) {
   const policy = await getProjectIamPolicy(projectId, fetchImpl);
   const bindings = cloneBindings(policy);
   const index = bindings.findIndex((binding) => binding.role === role);
@@ -434,18 +476,60 @@ async function updateCloudRunServiceAccount({
   serviceAccount,
   fetchImpl,
 }) {
-  const url = `${CLOUD_RUN_API}/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(region)}/services/${encodeURIComponent(serviceName)}`;
+  // Cloud Run Admin API v2: PATCH with an update mask on the v2 Service body
+  // (the knative v1 path does not accept updateMask). From PR #370.
+  const url = `${CLOUD_RUN_V2_API}/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(region)}/services/${encodeURIComponent(serviceName)}`;
   await googleJsonRequest(url, { fetchImpl });
-  return googleJsonRequest(`${url}?updateMask=spec.template.spec.serviceAccountName`, {
+  await googleJsonRequest(`${url}?updateMask=template.serviceAccount`, {
     method: "PATCH",
     body: {
-      apiVersion: "serving.knative.dev/v1",
-      kind: "Service",
-      metadata: { name: serviceName },
-      spec: { template: { spec: { serviceAccountName: serviceAccount } } },
+      name: `projects/${projectId}/locations/${region}/services/${serviceName}`,
+      template: { serviceAccount },
     },
     fetchImpl,
   });
+  return { projectId, serviceName, region, serviceAccount };
+}
+
+// Points one secret-backed environment variable of the current Cloud Run
+// service at the newest enabled secret version and rolls out a new revision.
+export async function useLatestSecretVersion({
+  projectId,
+  serviceName,
+  region,
+  envName,
+  fetchImpl,
+}) {
+  const url = `${CLOUD_RUN_V2_API}/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(region)}/services/${encodeURIComponent(serviceName)}`;
+  const service = await googleJsonRequest(url, { fetchImpl });
+  const containers = service?.template?.containers;
+  let secretName = null;
+  let previousVersion = null;
+  for (const container of Array.isArray(containers) ? containers : []) {
+    for (const variable of Array.isArray(container.env) ? container.env : []) {
+      const ref = variable?.valueSource?.secretKeyRef;
+      if (variable?.name === envName && ref?.secret) {
+        secretName = String(ref.secret).split("/").pop();
+        previousVersion = ref.version || null;
+        ref.version = "latest";
+      }
+    }
+  }
+  if (!secretName) {
+    throw new GoogleCloudActionError(
+      `${envName} не е свързан с тайна в Cloud Run услугата.`,
+      404,
+      "GOOGLE_CLOUD_SECRET_ENV_NOT_FOUND",
+    );
+  }
+  // A fixed revision name would block the new rollout; Cloud Run names it.
+  delete service.template.revision;
+  await googleJsonRequest(url, {
+    method: "PATCH",
+    body: { template: service.template, ...(service.etag ? { etag: service.etag } : {}) },
+    fetchImpl,
+  });
+  return { envName, secret: secretName, previousVersion, version: "latest" };
 }
 
 function triggerBranch(payload) {
@@ -576,13 +660,22 @@ export async function confirmGoogleCloudAction(
         fetchImpl,
       });
     }
+    if (confirmation.action === ACTIONS.USE_LATEST_SECRET_VERSION) {
+      return (adapters.useLatestSecretVersion || useLatestSecretVersion)({
+        ...resource,
+        envName: params.envName,
+        fetchImpl,
+      });
+    }
     if (confirmation.action === ACTIONS.RUN_CLOUD_BUILD_TRIGGER) {
       return (adapters.runCloudBuildTrigger || runCloudBuildTrigger)({
         ...resource,
         fetchImpl,
       });
     }
-    return (adapters.updateCloudRunServiceAccount || updateCloudRunServiceAccount)({
+    return (
+      adapters.updateCloudRunServiceAccount || updateCloudRunServiceAccount
+    )({
       ...resource,
       serviceAccount: params.serviceAccount,
       fetchImpl,

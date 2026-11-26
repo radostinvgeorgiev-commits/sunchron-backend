@@ -13,6 +13,7 @@ import {
 } from "../config/authBackend.js";
 import {
   approveTesterAccess,
+  assertPublicAccountAccess,
   assertTesterAccess,
   TesterAccessError,
 } from "./testerAccessService.js";
@@ -86,8 +87,18 @@ export function isTesterRegistrationEnabled(env = process.env) {
   return getTesterInviteCode(env).length >= 8;
 }
 
+export function isPublicRegistration(env = process.env) {
+  return (
+    (env.USER_REGISTRATION_MODE ||
+      (env.NODE_ENV === "production" ? "public" : "invite")) === "public"
+  );
+}
 export function isUserRegistrationEnabled(env = process.env) {
-  return isUserAuthConfigured(env) && isTesterRegistrationEnabled(env);
+  return (
+    env.USER_REGISTRATION_MODE !== "closed" &&
+    isUserAuthConfigured(env) &&
+    (isPublicRegistration(env) || isTesterRegistrationEnabled(env))
+  );
 }
 
 function assertTesterInviteCode(value, env = process.env) {
@@ -173,7 +184,7 @@ function normalizeRemoteSession(payload) {
   };
 }
 
-function createAuthClient(env = process.env) {
+export function createAuthClient(env = process.env) {
   const config = requireAuthConfig(env);
   if (config.backend === "identity-platform") {
     return createIdentityPlatformAuthClient({ env });
@@ -277,7 +288,7 @@ function deriveSessionKey(env = process.env) {
   return cachedEncryptionKey;
 }
 
-function sessionPayload(session) {
+export function sessionPayload(session) {
   if (
     typeof session?.access_token !== "string" ||
     typeof session?.refresh_token !== "string"
@@ -433,16 +444,29 @@ function mapTesterAccessError(error) {
   );
 }
 
+// Public registration admits every verified account unless its access record
+// is explicitly withheld; invite mode keeps the approved-tester boundary.
+function accountAccessCheck(env = process.env) {
+  return isPublicRegistration(env)
+    ? assertPublicAccountAccess
+    : assertTesterAccess;
+}
+
 function requiresVerifiedIdentityEmail(env = process.env) {
   return (
     resolveAuthBackend(env) === "identity-platform" &&
-    env.IDENTITY_PLATFORM_REQUIRE_EMAIL_VERIFICATION !== "false"
+    (isPublicRegistration(env) ||
+      env.IDENTITY_PLATFORM_REQUIRE_EMAIL_VERIFICATION !== "false")
   );
 }
 
 export async function signInUser(
   { email, password },
-  { env = process.env, client, requireTesterAccess = assertTesterAccess } = {},
+  {
+    env = process.env,
+    client,
+    requireTesterAccess = accountAccessCheck(env),
+  } = {},
 ) {
   const authClient = client || createAuthClient(env);
   const credentials = {
@@ -454,8 +478,20 @@ export async function signInUser(
     throw mapAuthError(error, "Имейлът или паролата са неправилни.");
   }
   if (requiresVerifiedIdentityEmail(env) && !data.user.emailVerified) {
+    if (isPublicRegistration(env) && authClient.auth.sendVerificationEmail) {
+      const verification = await authClient.auth.sendVerificationEmail(
+        data.session.access_token,
+      );
+      if (verification.data?.sent === true) {
+        throw new UserAuthError(
+          "Изпратихме ново писмо. Отвори линка от последното писмо и натисни „Complete verification“. Провери и папката за спам.",
+          403,
+          "AUTH_EMAIL_VERIFICATION_RESENT",
+        );
+      }
+    }
     throw new UserAuthError(
-      "Потвърди имейла си, преди да влезеш.",
+      "Отвори линка от писмото и натисни „Complete verification“. После влез.",
       403,
       "AUTH_EMAIL_NOT_VERIFIED",
     );
@@ -463,6 +499,17 @@ export async function signInUser(
   try {
     await requireTesterAccess(data.user, { env });
   } catch (error) {
+    if (
+      isPublicRegistration(env) &&
+      resolveAuthBackend(env) === "identity-platform" &&
+      error?.code === "TESTER_ACCESS_NOT_APPROVED"
+    ) {
+      throw new UserAuthError(
+        "Достъпът до профила още не е активен. Ако регистрацията е прекъснала, повтори я със същия имейл и парола.",
+        403,
+        "AUTH_REGISTRATION_INCOMPLETE",
+      );
+    }
     throw mapTesterAccessError(error);
   }
   return { user: data.user, session: sessionPayload(data.session) };
@@ -476,7 +523,16 @@ export async function registerUser(
     email: cleanEmail(email),
     password: cleanPassword(password),
   };
-  assertTesterInviteCode(inviteCode, env);
+  if (env.USER_REGISTRATION_MODE === "closed")
+    throw new UserAuthError(
+      "Регистрацията временно е затворена.",
+      503,
+      "AUTH_REGISTRATION_CLOSED",
+    );
+  const publicRegistration = isPublicRegistration(env);
+  const publicIdentityRegistration =
+    publicRegistration && resolveAuthBackend(env) === "identity-platform";
+  if (!publicRegistration) assertTesterInviteCode(inviteCode, env);
   const authClient = client || createAuthClient(env);
 
   let { data, error } = await authClient.auth.signUp({
@@ -487,15 +543,20 @@ export async function registerUser(
       },
     },
   });
+  let created = !error && Boolean(data?.user);
 
-  if (
-    error ||
-    !data?.user ||
-    (!data?.session && data?.confirmationRequired !== true)
-  ) {
+  const retryPublicRegistration =
+    publicIdentityRegistration && error?.upstreamCode === "EMAIL_EXISTS";
+  const retryInvitedRegistration =
+    !publicRegistration &&
+    (error ||
+      !data?.user ||
+      (!data?.session && data?.confirmationRequired !== true));
+  if (retryPublicRegistration || retryInvitedRegistration) {
     const recovered =
       await authClient.auth.signInWithPassword(cleanCredentials);
     if (!recovered.error && recovered.data?.user && recovered.data?.session) {
+      created = false;
       if (
         requiresVerifiedIdentityEmail(env) &&
         !recovered.data.user.emailVerified
@@ -533,6 +594,13 @@ export async function registerUser(
     );
   }
 
+  if (retryPublicRegistration && error) {
+    throw new UserAuthError(
+      "Вече има профил с този имейл. Влез с паролата си или натисни „Забравена парола“.",
+      409,
+      "AUTH_EMAIL_EXISTS",
+    );
+  }
   if (error || !data?.user) {
     throw mapAuthError(
       error,
@@ -540,13 +608,17 @@ export async function registerUser(
     );
   }
   try {
-    await approveAccess(data.user, { env });
+    await approveAccess(data.user, {
+      env,
+      ...(publicIdentityRegistration ? { createOnly: true } : {}),
+    });
   } catch (error) {
     throw mapTesterAccessError(error);
   }
   return {
     user: data.user,
     session: data.session ? sessionPayload(data.session) : null,
+    created,
     confirmationRequired: data.confirmationRequired === true || !data.session,
   };
 }
@@ -581,7 +653,11 @@ function publicUser(user, env = process.env) {
 
 export async function resolveUserSession(
   cookieHeader,
-  { env = process.env, client, requireTesterAccess = assertTesterAccess } = {},
+  {
+    env = process.env,
+    client,
+    requireTesterAccess = accountAccessCheck(env),
+  } = {},
 ) {
   const encrypted = parseCookies(cookieHeader)[USER_SESSION_COOKIE];
   const storedSession = decryptUserSession(encrypted, env);
@@ -611,10 +687,15 @@ export async function resolveUserSession(
     refreshed = true;
   }
 
+  if (requiresVerifiedIdentityEmail(env) && !user.emailVerified) return null;
   try {
     await requireTesterAccess(user, { env });
   } catch (error) {
-    if (error?.code === "TESTER_ACCESS_NOT_APPROVED") return null;
+    if (
+      error?.code === "TESTER_ACCESS_NOT_APPROVED" ||
+      error?.code === "ACCOUNT_ACCESS_REVOKED"
+    )
+      return null;
     throw error;
   }
 
@@ -638,4 +719,40 @@ export async function signOutUser(
   } catch {
     // The local cookie is cleared even when the upstream session has expired.
   }
+}
+
+// Sends a password reset email. The response never reveals whether an
+// account exists for the address.
+export async function requestPasswordReset(
+  { email },
+  { env = process.env, client } = {},
+) {
+  const cleanAddress = cleanEmail(email);
+  const authClient = client || createAuthClient(env);
+  if (typeof authClient?.auth?.sendPasswordResetEmail !== "function") {
+    throw new UserAuthError(
+      "Смяната на парола временно не е достъпна.",
+      503,
+      "AUTH_PASSWORD_RESET_UNAVAILABLE",
+    );
+  }
+  const { error } = await authClient.auth.sendPasswordResetEmail(cleanAddress);
+  const upstream = [error?.upstreamCode, error?.code, error?.message]
+    .filter(Boolean)
+    .join(" ");
+  if (error && !/EMAIL_NOT_FOUND|USER_NOT_FOUND/u.test(upstream)) {
+    if (Number(error?.status) === 429 || /TOO_MANY/u.test(upstream)) {
+      throw new UserAuthError(
+        "Твърде много опити. Опитай отново след малко.",
+        429,
+        "AUTH_RATE_LIMITED",
+      );
+    }
+    throw new UserAuthError(
+      "Писмото за нова парола не можа да бъде изпратено. Опитай отново.",
+      503,
+      "AUTH_PASSWORD_RESET_FAILED",
+    );
+  }
+  return { sent: true };
 }

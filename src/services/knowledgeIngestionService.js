@@ -40,7 +40,11 @@ function messageText(message) {
   if (Array.isArray(content)) {
     return content
       .map((part) =>
-        typeof part === "string" ? part : typeof part?.text === "string" ? part.text : "",
+        typeof part === "string"
+          ? part
+          : typeof part?.text === "string"
+            ? part.text
+            : "",
       )
       .filter(Boolean)
       .join(" ");
@@ -49,7 +53,9 @@ function messageText(message) {
 }
 
 function roleOf(message) {
-  const role = String(message?.role || message?.author?.role || "").toLowerCase();
+  const role = String(
+    message?.role || message?.author?.role || "",
+  ).toLowerCase();
   if (role === "assistant" || role === "model") return "assistant";
   if (role === "user" || role === "human") return "user";
   return "document";
@@ -69,7 +75,9 @@ function chatGptConversationMessages(conversation) {
         : null,
     }))
     .filter((message) => message.text.trim())
-    .sort((left, right) => String(left.createdAt || "").localeCompare(String(right.createdAt || "")));
+    .sort((left, right) =>
+      String(left.createdAt || "").localeCompare(String(right.createdAt || "")),
+    );
 }
 
 function simpleConversationMessages(conversation) {
@@ -90,17 +98,33 @@ function normalizeDocument(document, index) {
     "идентификаторът на документа",
   );
   const title =
-    cleanText(document?.title || document?.name || `Архивен документ ${index + 1}`, 300, "заглавието") ||
-    `Архивен документ ${index + 1}`;
-  const sourceType = cleanText(document?.sourceType || document?.type || "archive", 80, "типът") || "archive";
+    cleanText(
+      document?.title || document?.name || `Архивен документ ${index + 1}`,
+      300,
+      "заглавието",
+    ) || `Архивен документ ${index + 1}`;
+  const sourceType =
+    cleanText(
+      document?.sourceType || document?.type || "archive",
+      80,
+      "типът",
+    ) || "archive";
   const messages = Array.isArray(document?.messages)
     ? simpleConversationMessages(document)
     : document?.mapping
       ? chatGptConversationMessages(document)
       : [];
-  const directText = cleanText(document?.text || document?.content || "", MAX_DOCUMENT_LENGTH, "текстът");
+  const directText = cleanText(
+    document?.text || document?.content || "",
+    MAX_DOCUMENT_LENGTH,
+    "текстът",
+  );
   if (!messages.length && directText) {
-    messages.push({ role: "document", text: directText, createdAt: document?.createdAt || null });
+    messages.push({
+      role: "document",
+      text: directText,
+      createdAt: document?.createdAt || null,
+    });
   }
   if (!messages.length) return null;
   return Object.freeze({
@@ -127,27 +151,37 @@ export function normalizeArchiveDocuments(input) {
       `Архивът надвишава безопасния лимит от ${MAX_DOCUMENTS} документа.`,
     );
   }
-  return Object.freeze(
-    rawDocuments.map(normalizeDocument).filter(Boolean),
-  );
+  return Object.freeze(rawDocuments.map(normalizeDocument).filter(Boolean));
 }
 
 export function classifyKnowledgeText(text) {
   const normalized = normalizedText(text);
-  if (/(?:стар(?:ия|ото|и)?|неактуал|не използваме|изтрий|махни|отпада|заменяме)/iu.test(normalized)) {
+  if (
+    /(?:стар(?:ия|ото|и)?|неактуал|не използваме|изтрий|махни|отпада|заменяме)/iu.test(
+      normalized,
+    )
+  ) {
     return "obsolete";
   }
-  if (/(?:решихме|решение|приоритет|оставяме|избираме|готово когато|прието)/iu.test(normalized)) {
+  if (
+    /(?:решихме|решение|приоритет|оставяме|избираме|готово когато|прието)/iu.test(
+      normalized,
+    )
+  ) {
     return "decision";
   }
-  if (/(?:идея|може да|би било|искам(?:е)? да|предлагам|план)/iu.test(normalized)) {
+  if (
+    /(?:идея|може да|би било|искам(?:е)? да|предлагам|план)/iu.test(normalized)
+  ) {
     return "idea";
   }
   return "fact";
 }
 
 function inferScope(text) {
-  return /(?:(?:^|[^\p{L}])аз(?:$|[^\p{L}])|(?:^|[^\p{L}])ми(?:$|[^\p{L}])|мо(?:ят|ята|ето|ите)|за мен|здрав|хранен|трениров|телефон|часовник)/iu.test(text)
+  return /(?:(?:^|[^\p{L}])аз(?:$|[^\p{L}])|(?:^|[^\p{L}])ми(?:$|[^\p{L}])|мо(?:ят|ята|ето|ите)|за мен|здрав|хранен|трениров|телефон|часовник)/iu.test(
+    text,
+  )
     ? "personal"
     : "project";
 }
@@ -167,7 +201,9 @@ function candidateFromText(text, document, index) {
   const category = classifyKnowledgeText(clean);
   const scope = inferScope(clean);
   return Object.freeze({
-    id: `${document.sourceId}-${index + 1}`.replace(/[^A-Za-z0-9_-]/gu, "-").slice(0, 180),
+    id: `${document.sourceId}-${index + 1}`
+      .replace(/[^A-Za-z0-9_-]/gu, "-")
+      .slice(0, 180),
     text: clean,
     category,
     scope,
@@ -182,7 +218,9 @@ function candidateFromText(text, document, index) {
 
 export function buildKnowledgePreview(input, options = {}) {
   const documents = normalizeArchiveDocuments(input);
-  const requestedScope = KNOWLEDGE_SCOPES.has(options.scope) ? options.scope : null;
+  const requestedScope = KNOWLEDGE_SCOPES.has(options.scope)
+    ? options.scope
+    : null;
   const seen = new Set();
   const candidates = [];
   for (const document of documents) {
@@ -226,21 +264,37 @@ export function normalizeKnowledgeCandidates(items) {
   return Object.freeze(
     items.map((item, index) => {
       const text = cleanText(item?.text, MAX_CANDIDATE_LENGTH, "кандидатът");
-      const category = KNOWLEDGE_CATEGORIES.has(item?.category) ? item.category : classifyKnowledgeText(text);
-      const scope = KNOWLEDGE_SCOPES.has(item?.scope) ? item.scope : inferScope(text);
+      const category = KNOWLEDGE_CATEGORIES.has(item?.category)
+        ? item.category
+        : classifyKnowledgeText(text);
+      const scope = KNOWLEDGE_SCOPES.has(item?.scope)
+        ? item.scope
+        : inferScope(text);
       if (!text || text.length < 8) {
         throw invalidKnowledgeInput(`Кандидат ${index + 1} е празен.`);
       }
       return Object.freeze({
-        id: cleanText(item?.id || `candidate-${index + 1}`, 180, "идентификаторът") || `candidate-${index + 1}`,
+        id:
+          cleanText(
+            item?.id || `candidate-${index + 1}`,
+            180,
+            "идентификаторът",
+          ) || `candidate-${index + 1}`,
         text,
         category,
         scope,
-        sourceId: cleanText(item?.sourceId || "archive", 200, "източникът") || "archive",
-        sourceTitle: cleanText(item?.sourceTitle || "Архив", 300, "заглавието") || "Архив",
-        sourceType: cleanText(item?.sourceType || "archive", 80, "типът") || "archive",
+        sourceId:
+          cleanText(item?.sourceId || "archive", 200, "източникът") ||
+          "archive",
+        sourceTitle:
+          cleanText(item?.sourceTitle || "Архив", 300, "заглавието") || "Архив",
+        sourceType:
+          cleanText(item?.sourceType || "archive", 80, "типът") || "archive",
         sourceCreatedAt: item?.sourceCreatedAt || null,
-        confidence: item?.confidence === "high" || item?.confidence === "medium" ? item.confidence : "heuristic",
+        confidence:
+          item?.confidence === "high" || item?.confidence === "medium"
+            ? item.confidence
+            : "heuristic",
         status: "proposed",
       });
     }),

@@ -9,7 +9,9 @@ function isMissingAuditIndexError(error) {
   return (
     error?.code === "FIRESTORE_UNAVAILABLE" &&
     ["FAILED_PRECONDITION", "FAILED_PRECONDITION_ERROR"].includes(
-      String(error.upstreamErrorStatus || "").trim().toUpperCase(),
+      String(error.upstreamErrorStatus || "")
+        .trim()
+        .toUpperCase(),
     )
   );
 }

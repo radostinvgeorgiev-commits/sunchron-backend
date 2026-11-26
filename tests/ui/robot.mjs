@@ -157,6 +157,26 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect(!(await page.locator(".knowledge-list").innerText()).includes("ceni.txt"), "файлът не се изтри");
     await page.click(".knowledge-dialog .share-close");
   });
+  await step(`${label}: „Моят аватар“ — запиши, отвори пак, изтрий`, async () => {
+    await page.click("#attachBtn");
+    await page.click('[data-plus="avatar"]');
+    await page.waitForTimeout(400);
+    await page.fill('.avatar-form textarea[name="about"]', "Казвам се Робот и проверявам сайта.");
+    await page.click(".avatar-save");
+    await page.waitForTimeout(400);
+    await page.click(".avatar-dialog .share-close");
+    await page.click("#attachBtn");
+    await page.click('[data-plus="avatar"]');
+    await page.waitForTimeout(400);
+    expect(
+      (await page.inputValue('.avatar-form textarea[name="about"]')).includes("Робот"),
+      "профилът не се запази",
+    );
+    await page.click(".avatar-clear");
+    await page.waitForTimeout(400);
+    expect((await page.inputValue('.avatar-form textarea[name="about"]')) === "", "профилът не се изтри");
+    await page.click(".avatar-dialog .share-close");
+  });
   await step(`${label}: търсене в интернет с източници`, async () => {
     await page.fill("#chatInput", "Какво ново днес?");
     await page.click("#attachBtn");

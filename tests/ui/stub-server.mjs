@@ -27,6 +27,11 @@ export function startStubServer(port = 0) {
   const feedback = [];
   let library = { assistants: [], prompts: [] };
   let files = [];
+  const AVATAR_FIELDS = [
+    { id: "about", label: "Кой съм", max: 1200 },
+    { id: "style", label: "Как говоря и как да ми отговаряш", max: 800 },
+  ];
+  let avatarProfile = {};
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://stub");
     let p = url.pathname;
@@ -56,6 +61,18 @@ export function startStubServer(port = 0) {
     if (p.startsWith("/api/knowledge-files/") && req.method === "DELETE") {
       files = files.filter(({ id }) => id !== p.split("/").pop());
       return json(res, { removed: true });
+    }
+    if (p === "/api/avatar-profile" && req.method === "GET") {
+      return json(res, { profile: avatarProfile, fields: AVATAR_FIELDS });
+    }
+    if (p === "/api/avatar-profile" && req.method === "PUT") {
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        avatarProfile = JSON.parse(body).profile || {};
+        json(res, { profile: avatarProfile, fields: AVATAR_FIELDS });
+      });
+      return undefined;
     }
     if (p === "/api/library" && req.method === "GET") return json(res, library);
     if (p === "/api/library" && req.method === "PUT") {

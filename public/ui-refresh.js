@@ -29,6 +29,10 @@
         <i class="fa-solid fa-globe" aria-hidden="true"></i>
         <span>${text("Търси в интернет")}<small>${text("Актуален отговор с източници")}</small></span>
       </button>
+      <button type="button" role="menuitem" data-plus="avatar">
+        <i class="fa-solid fa-user-astronaut" aria-hidden="true"></i>
+        <span>${text("Моят аватар")}<small>${text("Кой съм, как говоря, целите ми")}</small></span>
+      </button>
       <button type="button" role="menuitem" data-plus="knowledge">
         <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
         <span>${text("Моите файлове")}<small>${text("AI търси в тях при всеки въпрос")}</small></span>
@@ -86,6 +90,9 @@
       if (item.dataset.plus === "council") council?.click();
       if (item.dataset.plus === "search") {
         document.dispatchEvent(new CustomEvent("aicore:web-search"));
+      }
+      if (item.dataset.plus === "avatar") {
+        document.dispatchEvent(new CustomEvent("aicore:avatar-profile"));
       }
       if (item.dataset.plus === "knowledge") {
         document.dispatchEvent(new CustomEvent("aicore:knowledge-files"));

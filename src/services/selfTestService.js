@@ -6,6 +6,7 @@ import { analyzeImage } from "./imageService.js";
 import { createShareService } from "./shareService.js";
 import { createKnowledgeFilesService } from "./knowledgeFilesService.js";
 import { createUserLibraryService } from "./userLibraryService.js";
+import { buildAvatarProfileContext, createAvatarProfileService } from "./avatarProfileService.js";
 import { transcribeVoice } from "./voiceTranscriptionService.js";
 import { CHAT_MODEL_CHOICES, resolveWorkAgentProvider } from "./workModeService.js";
 
@@ -95,6 +96,7 @@ export async function runSelfTest({
   shareService,
   knowledgeService,
   libraryService,
+  avatarProfileService,
 } = {}) {
   const marker = String(1000 + Math.floor(Math.random() * 9000));
   const chatChecks = CHAT_PROVIDERS.map((provider) =>
@@ -188,13 +190,27 @@ export async function runSelfTest({
     return "записват се и се зареждат";
   });
 
+  const avatar = check("Профил на аватара", async () => {
+    const ownerId = `self-test-${randomUUID()}`;
+    const service = avatarProfileService || createAvatarProfileService({ env });
+    await service.save(ownerId, { about: `Тестов профил ${marker}.` });
+    try {
+      if (!buildAvatarProfileContext(await service.read(ownerId)).includes(marker)) {
+        throw new Error("профилът не се зарежда");
+      }
+    } finally {
+      await service.save(ownerId, {});
+    }
+    return "записва се, зарежда се и се изтрива";
+  });
+
   const lists = check("Избор на модел и асистенти", async () => {
     const missing = CHAT_MODEL_CHOICES.slice(1).filter(({ id }) => !resolveWorkAgentProvider(id));
     if (missing.length || ASSISTANT_PRESETS.length < 5) throw new Error("непълен списък");
     return `${CHAT_MODEL_CHOICES.length - 1} модела, ${ASSISTANT_PRESETS.length} асистенти`;
   });
 
-  const checks = await Promise.all([...chatChecks, voice, pdf, share, knowledge, library, lists]);
+  const checks = await Promise.all([...chatChecks, voice, pdf, share, knowledge, library, avatar, lists]);
   const failed = checks.filter(({ status }) => status === "fail").length;
   return {
     status: failed ? "fail" : "pass",

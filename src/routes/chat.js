@@ -4,6 +4,7 @@ import {
   resolveAssistantPreset,
 } from "../services/assistantPresets.js";
 import { getUserLibraryService } from "../services/userLibraryService.js";
+import { getAvatarProfileService } from "../services/avatarProfileService.js";
 import { searchWeb } from "../services/webSearchService.js";
 import { reservePublicAiFile } from "../services/publicAiBudget.js";
 import {
@@ -334,6 +335,7 @@ export function buildAvatarMessages(
     interaction.mode === "work"
       ? buildWorkModeContext(interaction.workContext)
       : "",
+    interaction.avatarProfile || "",
     interaction.assistant?.instruction || "",
     interaction.fileContext || "",
     interaction.projectReference
@@ -1494,6 +1496,8 @@ router.post("/chat", async (req, res) => {
     interactionMode === "work" || image
       ? []
       : await getKnowledgeFilesService().search(ownerId, cleanMessage);
+  // What the person told their avatar about themselves (every account).
+  const avatarProfile = await getAvatarProfileService().contextFor(ownerId);
   let messages = buildAvatarMessages(
     memories,
     effectiveHistory,
@@ -1504,6 +1508,7 @@ router.post("/chat", async (req, res) => {
       workContext: cleanWorkContext,
       language,
       assistant: chatAssistant,
+      avatarProfile,
       fileContext: buildFileContext(filePassages),
       projectReference: buildProjectConversationReference(
         projectConversationContext,

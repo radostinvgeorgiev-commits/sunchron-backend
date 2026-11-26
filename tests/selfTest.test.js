@@ -58,6 +58,19 @@ function memoryLibrary() {
   };
 }
 
+function memoryAvatar() {
+  let saved = {};
+  return {
+    async save(_owner, value) {
+      saved = { ...value };
+      return saved;
+    },
+    async read() {
+      return saved;
+    },
+  };
+}
+
 const echoMarker = (content) => /\d{4}/u.exec(content)[0];
 
 test("the built-in samples are accepted by the real validators", () => {
@@ -80,12 +93,13 @@ test("all checks pass, Grok without a key is skipped, nothing secret is returned
     shareService: memoryShare(),
     knowledgeService: memoryKnowledge(),
     libraryService: memoryLibrary(),
+    avatarProfileService: memoryAvatar(),
   });
   assert.equal(report.status, "pass");
   assert.equal(report.failed, 0);
   assert.equal(report.checks.find(({ name }) => name === "Чат · grok").status, "skipped");
-  assert.equal(report.checks.length, 10);
-  assert.match(formatSelfTest(report), /9 минаха, 0 не минаха, 1 пропуснати/u);
+  assert.equal(report.checks.length, 11);
+  assert.match(formatSelfTest(report), /10 минаха, 0 не минаха, 1 пропуснати/u);
   assert.doesNotMatch(JSON.stringify(report), /"a"|"o"|"g"/u);
 });
 
@@ -101,6 +115,7 @@ test("a failing provider is reported as a failure with a short reason", async ()
     shareService: memoryShare(),
     knowledgeService: memoryKnowledge(),
     libraryService: memoryLibrary(),
+    avatarProfileService: memoryAvatar(),
   });
   assert.equal(report.status, "fail");
   assert.equal(report.checks.find(({ name }) => name === "Чат · gemini").detail, "GEMINI_UPSTREAM_ERROR");

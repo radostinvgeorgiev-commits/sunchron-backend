@@ -54,6 +54,8 @@ import { createShareService } from "./src/services/shareService.js";
 import createVoiceRouter from "./src/routes/voiceRouter.js";
 import { createFeedbackRouter } from "./src/routes/feedbackRouter.js";
 import { createUserLibraryRouter } from "./src/routes/userLibraryRouter.js";
+import { createAvatarProfileRouter } from "./src/routes/avatarProfileRouter.js";
+import { getAvatarProfileService } from "./src/services/avatarProfileService.js";
 import { createKnowledgeFilesRouter } from "./src/routes/knowledgeFilesRouter.js";
 import { getKnowledgeFilesService } from "./src/services/knowledgeFilesService.js";
 import { getUserLibraryService } from "./src/services/userLibraryService.js";
@@ -212,6 +214,12 @@ app.use(
   requireOwnerSession,
   privateApiRateLimiter,
   createUserLibraryRouter({ service: getUserLibraryService() }),
+);
+app.use(
+  "/api/avatar-profile",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  createAvatarProfileRouter({ service: getAvatarProfileService() }),
 );
 app.use(
   "/api/feedback",

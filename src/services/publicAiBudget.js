@@ -46,3 +46,11 @@ export async function reservePublicAiCall(input, provider = "", model = "") {
   scope.calls++;
   await scope.reserve(scope.identity, 3, { provider, model });
 }
+// Turning speech into text is cheap: one credit per recording.
+export const PUBLIC_VOICE_CREDITS = 1;
+export async function reservePublicAiVoice(provider = "", model = "") {
+  const scope = context.getStore();
+  if (!scope) return;
+  scope.calls++;
+  await scope.reserve(scope.identity, PUBLIC_VOICE_CREDITS, { provider, model });
+}

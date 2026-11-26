@@ -1,6 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { getOpenSearchClient } from "../config/opensearch.js";
 import { resolvePersistenceBackend } from "../config/memoryBackend.js";
 import {
   createDurableConfirmation,
@@ -11,7 +10,6 @@ import { executeAuditedWriteAction } from "./permissionService.js";
 import { createFirestoreTaskStore } from "./firestoreTaskStore.js";
 import { loadWorkspaceState } from "./workspaceStateService.js";
 
-const DEFAULT_TASK_INDEX = "synchron-tasks-v1";
 const TASK_STATUS_ACTION = "tasks.write:update_status";
 const VALID_STATUSES = new Set([
   "draft",
@@ -23,7 +21,6 @@ const VALID_STATUSES = new Set([
 ]);
 const TERMINAL_STATUSES = new Set(["completed", "cancelled"]);
 const SAFE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,159}$/iu;
-const indexPromises = new WeakMap();
 let firestoreStore = null;
 let firestoreConfiguration = null;
 let firestoreStoreOverride = null;
@@ -100,21 +97,6 @@ function ownerFingerprint(ownerId) {
     .digest("hex");
 }
 
-function taskIndex(env = process.env) {
-  return cleanText(env.TASK_INDEX, 120, "TASK_INDEX") || DEFAULT_TASK_INDEX;
-}
-
-function requireClient(client = getOpenSearchClient()) {
-  if (!client) {
-    throw new TaskManagementError(
-      "Задачите временно не са достъпни.",
-      503,
-      "TASK_STORAGE_UNAVAILABLE",
-    );
-  }
-  return client;
-}
-
 function getFirestoreStore(env = process.env) {
   if (firestoreStoreOverride) return firestoreStoreOverride;
   const configuration = [
@@ -131,64 +113,18 @@ function getFirestoreStore(env = process.env) {
   return firestoreStore;
 }
 
-function useFirestore(env = process.env) {
-  const backend = resolvePersistenceBackend(env);
-  if (!backend) {
+// `client` is an optional Firestore-style store ({ get, set, listByOwner })
+// for tests; production uses the Firestore collection.
+function taskStore({ client, env = process.env } = {}) {
+  if (client) return client;
+  if (!resolvePersistenceBackend(env)) {
     throw new TaskManagementError(
       "Задачите имат невалидна storage конфигурация.",
       503,
       "TASK_STORAGE_UNAVAILABLE",
     );
   }
-  return backend === "firestore";
-}
-
-async function ensureTaskIndex(client, env) {
-  if (!client?.indices) return;
-  const index = taskIndex(env);
-  let indexes = indexPromises.get(client);
-  if (!indexes) {
-    indexes = new Map();
-    indexPromises.set(client, indexes);
-  }
-  if (!indexes.has(index)) {
-    const properties = {
-      id: { type: "keyword" },
-      ownerHash: { type: "keyword" },
-      title: { type: "text" },
-      status: { type: "keyword" },
-      projectId: { type: "keyword" },
-      notes: {
-        type: "nested",
-        properties: {
-          text: { type: "text", index: false },
-          createdAt: { type: "date" },
-        },
-      },
-      createdAt: { type: "date" },
-      updatedAt: { type: "date" },
-    };
-    const promise = (async () => {
-      const existsResponse = await client.indices.exists({ index });
-      const exists = existsResponse.body ?? existsResponse;
-      if (!exists) {
-        await client.indices.create({
-          index,
-          body: { mappings: { properties } },
-        });
-        return;
-      }
-      await client.indices.putMapping({
-        index,
-        body: { properties },
-      });
-    })().catch((error) => {
-      indexes.delete(index);
-      throw error;
-    });
-    indexes.set(index, promise);
-  }
-  await indexes.get(index);
+  return getFirestoreStore(env);
 }
 
 function statusCode(error) {
@@ -218,42 +154,15 @@ function taskFromHit(hit) {
 async function loadOwnedTask(ownerId, taskId, { client, env } = {}) {
   const id = cleanId(taskId, "taskId");
   try {
-    if (useFirestore(env)) {
-      const document = await getFirestoreStore(env).get(id);
-      if (!document) {
-        throw new TaskManagementError(
-          "Задачата не е намерена.",
-          404,
-          "TASK_NOT_FOUND",
-        );
-      }
-      if (document.data?.ownerHash !== ownerFingerprint(ownerId)) {
-        throw new TaskManagementError(
-          "Задачата не е намерена.",
-          404,
-          "TASK_NOT_FOUND",
-        );
-      }
-      return taskFromHit({ _id: document.id, _source: document.data });
-    }
-    const storage = requireClient(client);
-    await ensureTaskIndex(storage, env);
-    const response = await storage.get({
-      index: taskIndex(env),
-      id,
-    });
-    const hit = {
-      _id: response.body?._id || response._id || id,
-      _source: response.body?._source || response._source,
-    };
-    if (hit._source?.ownerHash !== ownerFingerprint(ownerId)) {
+    const document = await taskStore({ client, env }).get(id);
+    if (!document || document.data?.ownerHash !== ownerFingerprint(ownerId)) {
       throw new TaskManagementError(
         "Задачата не е намерена.",
         404,
         "TASK_NOT_FOUND",
       );
     }
-    return taskFromHit(hit);
+    return taskFromHit({ _id: document.id || id, _source: document.data });
   } catch (error) {
     if (error instanceof TaskManagementError) throw error;
     if (statusCode(error) === 404) {
@@ -272,78 +181,43 @@ async function loadOwnedTask(ownerId, taskId, { client, env } = {}) {
 }
 
 async function saveTaskDocument(task, { client, env }) {
-  if (useFirestore(env)) {
-    await getFirestoreStore(env).set(task.id, task);
-    return;
-  }
-  const storage = requireClient(client);
-  await ensureTaskIndex(storage, env);
-  await storage.index({
-    index: taskIndex(env),
-    id: task.id,
-    body: task,
-    refresh: true,
-  });
+  await taskStore({ client, env }).set(task.id, task);
 }
 
 export async function listTasks(
   { ownerId, status, projectId, unfinished = false, limit = 50 } = {},
   { client, env = process.env } = {},
 ) {
-  const filters = [{ term: { ownerHash: ownerFingerprint(ownerId) } }];
-  if (status !== undefined && status !== null && status !== "") {
-    filters.push({ term: { status: cleanStatus(status) } });
-  }
   const cleanProjectId = cleanId(projectId, "projectId", { optional: true });
-  if (cleanProjectId) filters.push({ term: { projectId: cleanProjectId } });
-  if (unfinished === true) {
-    filters.push({
-      bool: { must_not: [{ terms: { status: [...TERMINAL_STATUSES] } }] },
-    });
-  }
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
 
   try {
-    if (useFirestore(env)) {
-      let documents = await getFirestoreStore(env).listByOwner(
-        ownerFingerprint(ownerId),
-        1_000,
-      );
-      let tasks = documents.map(({ id, data }) =>
-        taskFromHit({ _id: id, _source: data }),
-      );
-      if (status !== undefined && status !== null && status !== "") {
-        const clean = cleanStatus(status);
-        tasks = tasks.filter((task) => task.status === clean);
-      }
-      if (cleanProjectId) {
-        tasks = tasks.filter((task) => task.projectId === cleanProjectId);
-      }
-      if (unfinished === true) {
-        tasks = tasks.filter((task) => !TERMINAL_STATUSES.has(task.status));
-      }
-      return Object.freeze(
-        tasks
-          .sort((left, right) =>
-            String(right.updatedAt || "").localeCompare(
-              String(left.updatedAt || ""),
-            ),
-          )
-          .slice(0, safeLimit),
-      );
+    const documents = await taskStore({ client, env }).listByOwner(
+      ownerFingerprint(ownerId),
+      1_000,
+    );
+    let tasks = documents.map(({ id, data }) =>
+      taskFromHit({ _id: id, _source: data }),
+    );
+    if (status !== undefined && status !== null && status !== "") {
+      const clean = cleanStatus(status);
+      tasks = tasks.filter((task) => task.status === clean);
     }
-    const storage = requireClient(client);
-    await ensureTaskIndex(storage, env);
-    const response = await storage.search({
-      index: taskIndex(env),
-      body: {
-        size: safeLimit,
-        sort: [{ updatedAt: { order: "desc" } }],
-        query: { bool: { filter: filters } },
-      },
-    });
-    const hits = response.body?.hits?.hits || response.hits?.hits || [];
-    return Object.freeze(hits.map(taskFromHit));
+    if (cleanProjectId) {
+      tasks = tasks.filter((task) => task.projectId === cleanProjectId);
+    }
+    if (unfinished === true) {
+      tasks = tasks.filter((task) => !TERMINAL_STATUSES.has(task.status));
+    }
+    return Object.freeze(
+      tasks
+        .sort((left, right) =>
+          String(right.updatedAt || "").localeCompare(
+            String(left.updatedAt || ""),
+          ),
+        )
+        .slice(0, safeLimit),
+    );
   } catch (error) {
     if (statusCode(error) === 404) return Object.freeze([]);
     if (error instanceof TaskManagementError) throw error;

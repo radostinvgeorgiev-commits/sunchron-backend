@@ -11,28 +11,23 @@ import {
   TASK_STATUS_CONFIRMATION_ACTION,
 } from "../src/services/taskManagementService.js";
 
+// A Firestore-style task store, as the service uses in production.
 function memoryClient() {
   const documents = new Map();
   return {
     documents,
-    async index({ id, body }) {
-      documents.set(id, structuredClone(body));
-      return { body: { _id: id, result: "updated" } };
+    async set(id, data) {
+      documents.set(id, structuredClone(data));
     },
-    async get({ id }) {
-      if (!documents.has(id)) {
-        const error = new Error("not found");
-        error.meta = { statusCode: 404 };
-        throw error;
-      }
-      return { body: { _id: id, _source: structuredClone(documents.get(id)) } };
+    async get(id) {
+      return documents.has(id)
+        ? { id, data: structuredClone(documents.get(id)) }
+        : null;
     },
-    async search({ body }) {
-      const ownerHash = body.query.bool.filter[0].term.ownerHash;
-      const hits = [...documents.entries()]
+    async listByOwner(ownerHash) {
+      return [...documents.entries()]
         .filter(([, value]) => value.ownerHash === ownerHash)
-        .map(([id, value]) => ({ _id: id, _source: structuredClone(value) }));
-      return { body: { hits: { hits } } };
+        .map(([id, value]) => ({ id, data: structuredClone(value) }));
     },
   };
 }
@@ -68,43 +63,6 @@ test("creates an owner-scoped task draft and lists it without exposing the owner
     (await listTasks({ ownerId: "supabase:user-2" }, { client })).length,
     0,
   );
-});
-
-test("creates an explicit task index mapping before the first write", async () => {
-  const calls = [];
-  const client = {
-    indices: {
-      exists: async ({ index }) => {
-        calls.push(["exists", index]);
-        return { body: false };
-      },
-      create: async (input) => {
-        calls.push(["create-index", input]);
-      },
-      putMapping: async () => {
-        calls.push(["mapping"]);
-      },
-    },
-    index: async (input) => {
-      calls.push(["write", input]);
-    },
-  };
-  await createTaskDraft(
-    { ownerId: "owner-1", title: "Mapped task" },
-    {
-      client,
-      createId: () => "66666666-6666-4666-8666-666666666666",
-    },
-  );
-
-  assert.deepEqual(
-    calls.map(([name]) => name),
-    ["exists", "create-index", "write"],
-  );
-  const properties = calls[1][1].body.mappings.properties;
-  assert.equal(properties.ownerHash.type, "keyword");
-  assert.equal(properties.status.type, "keyword");
-  assert.equal(properties.updatedAt.type, "date");
 });
 
 test("adds a bounded note without changing task status", async () => {

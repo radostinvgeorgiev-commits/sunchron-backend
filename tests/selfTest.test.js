@@ -98,8 +98,9 @@ test("all checks pass, Grok without a key is skipped, nothing secret is returned
   assert.equal(report.status, "pass");
   assert.equal(report.failed, 0);
   assert.equal(report.checks.find(({ name }) => name === "Чат · grok").status, "skipped");
-  assert.equal(report.checks.length, 11);
-  assert.match(formatSelfTest(report), /10 минаха, 0 не минаха, 1 пропуснати/u);
+  assert.equal(report.checks.find(({ name }) => name === "Чат · vertex-gemini").status, "skipped");
+  assert.equal(report.checks.length, 12);
+  assert.match(formatSelfTest(report), /10 минаха, 0 не минаха, 2 пропуснати/u);
   assert.doesNotMatch(JSON.stringify(report), /"a"|"o"|"g"/u);
 });
 

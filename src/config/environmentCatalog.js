@@ -131,7 +131,7 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general(
       "VERTEX_AI_ENABLED",
       "AI ядро",
-      "Изрично включва Vertex AI Gemini; по подразбиране е изключен.",
+      "Vertex AI Gemini; в Cloud Run е включен по подразбиране (false го изключва).",
       { hasDefault: true },
     ),
     general(

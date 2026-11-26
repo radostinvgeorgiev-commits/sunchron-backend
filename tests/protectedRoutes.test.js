@@ -4,9 +4,6 @@ import request from "supertest";
 
 process.env.NODE_ENV = "test";
 process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
-delete process.env.OPENSEARCH_HOST;
-delete process.env.OPENSEARCH_USERNAME;
-delete process.env.OPENSEARCH_PASSWORD;
 
 const { default: app } = await import("../server.js");
 const { createGitHubSession } =

@@ -3,33 +3,9 @@ import test from "node:test";
 import express from "express";
 import request from "supertest";
 
-import { resolveOpenSearchTlsOptions } from "../src/config/opensearch.js";
 import { createApiRateLimiter } from "../src/middleware/rateLimits.js";
 
 process.env.NODE_ENV = "test";
-
-test("OpenSearch verifies TLS certificates by default", () => {
-  assert.deepEqual(resolveOpenSearchTlsOptions({}), {
-    rejectUnauthorized: true,
-  });
-  assert.deepEqual(
-    resolveOpenSearchTlsOptions({
-      NODE_ENV: "development",
-      OPENSEARCH_TLS_REJECT_UNAUTHORIZED: "false",
-    }),
-    { rejectUnauthorized: false },
-  );
-});
-
-test("OpenSearch cannot disable TLS certificate checks in production", () => {
-  assert.deepEqual(
-    resolveOpenSearchTlsOptions({
-      NODE_ENV: "production",
-      OPENSEARCH_TLS_REJECT_UNAUTHORIZED: "false",
-    }),
-    { rejectUnauthorized: true },
-  );
-});
 
 test("rate limiter returns a stable JSON error after the configured limit", async () => {
   const app = express();

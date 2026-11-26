@@ -35,11 +35,12 @@ import {
   validateMcpAuthorizationRequest,
   verifyMcpAccessToken,
 } from "../src/services/mcpOAuthService.js";
+import { createFirestoreMcpOAuthStore } from "../src/services/firestoreMcpOAuthStore.js";
+import { createLocalDocumentStore } from "../src/services/localDocumentStore.js";
 
 const ENV = {
   MCP_ACCESS_TOKEN: "mcp-oauth-test-secret-with-more-than-32-characters",
   MCP_RESOURCE_URL: "https://cloudaicore.com/mcp",
-  PERSISTENCE_BACKEND: "opensearch",
 };
 const TUNNEL_RESOURCE =
   "https://tunnel-service.gateway.unified-0.internal.api.openai.org/v1/mcp/tunnel_test123";
@@ -55,118 +56,48 @@ const CLIENT_ID = "https://chatgpt.com/oauth/synchron/client.json";
 const REDIRECT_URI = "https://chatgpt.com/connector/oauth/test-callback";
 const VERIFIER = "v".repeat(64);
 
-function openSearchError(statusCode, type) {
-  const error = new Error(`OpenSearch ${statusCode}`);
-  error.meta = {
-    statusCode,
-    ...(type ? { body: { error: { type } } } : {}),
+const FIRESTORE_ENV = Object.freeze({
+  GOOGLE_CLOUD_PROJECT: "handy-boulevard-479120-q9",
+  FIRESTORE_DATABASE_ID: "(default)",
+});
+const GRANT_COLLECTION = "synchron-mcp-oauth-grants-v1";
+
+// The Firestore MCP OAuth store over an in-process document store, so the
+// durable grant and replay records can be read and changed by a test.
+function createDurableStore() {
+  const documents = createLocalDocumentStore();
+  const store = createFirestoreMcpOAuthStore({
+    env: FIRESTORE_ENV,
+    documentStore: documents,
+  });
+  return {
+    store,
+    async grant(id) {
+      return (await documents.get(GRANT_COLLECTION, id))?.data || null;
+    },
+    setGrant(id, data) {
+      return documents.set(GRANT_COLLECTION, id, data);
+    },
+    deleteGrant(id) {
+      return documents.delete(GRANT_COLLECTION, id);
+    },
   };
-  return error;
 }
 
-function matchesOpenSearchQuery(source, query = {}) {
-  const bool = query.bool || {};
-  for (const clause of bool.filter || []) {
-    if (clause.term) {
-      const [field, value] = Object.entries(clause.term)[0];
-      if (source[field] !== value) return false;
-    }
-    if (clause.range) {
-      const [field, bounds] = Object.entries(clause.range)[0];
-      const value = Date.parse(source[field]);
-      if (bounds.gt && !(value > Date.parse(bounds.gt))) return false;
-      if (bounds.lte && !(value <= Date.parse(bounds.lte))) return false;
-    }
-  }
-  for (const clause of bool.must_not || []) {
-    if (clause.exists && source[clause.exists.field] != null) return false;
-  }
-  if (query.range) {
-    const [field, bounds] = Object.entries(query.range)[0];
-    const value = Date.parse(source[field]);
-    if (bounds.gt && !(value > Date.parse(bounds.gt))) return false;
-    if (bounds.lte && !(value <= Date.parse(bounds.lte))) return false;
-  }
-  return true;
+function productionEnv() {
+  return { ...ENV, ...FIRESTORE_ENV, NODE_ENV: "production" };
 }
 
-function createFakeOpenSearch() {
-  const indexes = new Map();
-  const mappings = new Map();
-  const indexRecords = (index) => {
-    const records = indexes.get(index);
-    if (!records) throw openSearchError(404);
-    return records;
-  };
-  const client = {
-    indexes,
-    mappings,
-    indices: {
-      async exists({ index }) {
-        return { body: indexes.has(index) };
-      },
-      async create({ index, body }) {
-        if (indexes.has(index)) {
-          throw openSearchError(400, "resource_already_exists_exception");
-        }
-        indexes.set(index, new Map());
-        mappings.set(index, structuredClone(body?.mappings || {}));
-        return { body: { acknowledged: true } };
+// A store whose every call fails, as when Firestore is unreachable.
+function unavailableStore() {
+  return new Proxy(
+    {},
+    {
+      get: () => async () => {
+        throw new Error("Firestore unavailable");
       },
     },
-    async create({ index, id, body }) {
-      const records = indexRecords(index);
-      if (records.has(id)) throw openSearchError(409);
-      records.set(id, structuredClone(body));
-      return { body: { result: "created" } };
-    },
-    async get({ index, id }) {
-      const record = indexRecords(index).get(id);
-      if (!record) throw openSearchError(404);
-      return { body: { _id: id, _source: structuredClone(record) } };
-    },
-    async search({ index, body }) {
-      const records = indexRecords(index);
-      const hits = [...records]
-        .filter(([, source]) => matchesOpenSearchQuery(source, body.query))
-        .map(([id, source]) => ({ _id: id, _source: structuredClone(source) }))
-        .sort((left, right) =>
-          String(right._source.issuedAt || "").localeCompare(
-            String(left._source.issuedAt || ""),
-          ),
-        )
-        .slice(0, body.size);
-      return { body: { hits: { hits } } };
-    },
-    async update({ index, id, body }) {
-      const records = indexRecords(index);
-      const record = records.get(id);
-      if (!record) throw openSearchError(404);
-      records.set(id, { ...record, ...structuredClone(body.doc || {}) });
-      return { body: { result: "updated" } };
-    },
-    async updateByQuery({ index, body }) {
-      const records = indexRecords(index);
-      let updated = 0;
-      for (const [id, source] of records) {
-        if (!matchesOpenSearchQuery(source, body.query)) continue;
-        records.set(id, { ...source, revokedAt: body.script.params.revokedAt });
-        updated += 1;
-      }
-      return { body: { updated } };
-    },
-    async deleteByQuery({ index, body }) {
-      const records = indexRecords(index);
-      let deleted = 0;
-      for (const [id, source] of records) {
-        if (!matchesOpenSearchQuery(source, body.query)) continue;
-        records.delete(id);
-        deleted += 1;
-      }
-      return { body: { deleted } };
-    },
-  };
-  return client;
+  );
 }
 
 function legacyOAuthKey(env = ENV) {
@@ -883,24 +814,24 @@ test("refresh tokens survive a fresh application module instance", async () => {
 });
 
 test("persists a bounded owner grant and extends it on refresh", async () => {
-  const env = {
-    ...ENV,
-    NODE_ENV: "production",
-    MCP_OAUTH_GRANT_INDEX: "oauth-grants-persist-test",
-    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-persist-test",
-  };
-  const client = createFakeOpenSearch();
+  const env = productionEnv();
+  const durable = createDurableStore();
+  const firestoreStore = durable.store;
   const realDateNow = Date.now;
   let now = realDateNow();
   Date.now = () => now;
   try {
-    const token = await issueTokens(env, { client });
+    const token = await issueTokens(env, { firestoreStore });
     const identity = verifyMcpAccessToken(
       `Bearer ${token.access_token}`,
       [MCP_READ_SCOPE],
       env,
     );
-    const initial = await assertMcpGrantActive(identity, { env, client, now });
+    const initial = await assertMcpGrantActive(identity, {
+      env,
+      firestoreStore,
+      now,
+    });
 
     assert.equal(requiresPersistentMcpGrantStore(env), true);
     assert.deepEqual(
@@ -928,11 +859,12 @@ test("persists a bounded owner grant and extends it on refresh", async () => {
     assert.match(initial.issuedAt, /^\d{4}-\d{2}-\d{2}T/u);
     assert.ok(Date.parse(initial.expiresAt) > now);
     assert.deepEqual(
-      client.mappings.get(env.MCP_OAUTH_GRANT_INDEX).properties.expiresAt,
-      { type: "date" },
-    );
-    assert.deepEqual(
-      await listActiveMcpGrants({ subject: "owner-id", env, client, now }),
+      await listActiveMcpGrants({
+        subject: "owner-id",
+        env,
+        firestoreStore,
+        now,
+      }),
       [initial],
     );
 
@@ -945,7 +877,7 @@ test("persists a bounded owner grant and extends it on refresh", async () => {
         resource: ENV.MCP_RESOURCE_URL,
       },
       env,
-      { client },
+      { firestoreStore },
     );
     const refreshedIdentity = verifyMcpAccessToken(
       `Bearer ${refreshed.access_token}`,
@@ -956,7 +888,7 @@ test("persists a bounded owner grant and extends it on refresh", async () => {
     const [extended] = await listActiveMcpGrants({
       subject: "owner-id",
       env,
-      client,
+      firestoreStore,
       now,
     });
     assert.ok(Date.parse(extended.expiresAt) > Date.parse(initial.expiresAt));
@@ -965,12 +897,17 @@ test("persists a bounded owner grant and extends it on refresh", async () => {
       new Date(Math.floor(now / 1_000) * 1_000).toISOString(),
     );
 
-    client.indexes.get(env.MCP_OAUTH_GRANT_INDEX).set(identity.grantId, {
-      ...extended,
+    await durable.setGrant(identity.grantId, {
+      ...(await durable.grant(identity.grantId)),
       expiresAt: new Date(now - 1).toISOString(),
     });
     assert.deepEqual(
-      await listActiveMcpGrants({ subject: "owner-id", env, client, now }),
+      await listActiveMcpGrants({
+        subject: "owner-id",
+        env,
+        firestoreStore,
+        now,
+      }),
       [],
     );
   } finally {
@@ -979,23 +916,21 @@ test("persists a bounded owner grant and extends it on refresh", async () => {
 });
 
 test("a transient grant update failure does not consume the refresh token", async () => {
-  const env = {
-    ...ENV,
-    NODE_ENV: "production",
-    MCP_OAUTH_GRANT_INDEX: "oauth-grants-refresh-retry-test",
-    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-refresh-retry-test",
+  const env = productionEnv();
+  const { store } = createDurableStore();
+  let failUpdate = false;
+  const firestoreStore = {
+    ...store,
+    async mutateGrant(...input) {
+      if (failUpdate) {
+        failUpdate = false;
+        throw new Error("Firestore unavailable");
+      }
+      return store.mutateGrant(...input);
+    },
   };
-  const client = createFakeOpenSearch();
-  const token = await issueTokens(env, { client });
-  const update = client.update.bind(client);
-  let failUpdate = true;
-  client.update = async (input) => {
-    if (failUpdate) {
-      failUpdate = false;
-      throw openSearchError(503);
-    }
-    return update(input);
-  };
+  const token = await issueTokens(env, { firestoreStore });
+  failUpdate = true;
   const refreshInput = {
     grant_type: "refresh_token",
     refresh_token: token.refresh_token,
@@ -1004,24 +939,21 @@ test("a transient grant update failure does not consume the refresh token", asyn
   };
 
   await assert.rejects(
-    exchangeMcpRefreshToken(refreshInput, env, { client }),
+    exchangeMcpRefreshToken(refreshInput, env, { firestoreStore }),
     (error) => error.code === "temporarily_unavailable" && error.status === 503,
   );
-  const retried = await exchangeMcpRefreshToken(refreshInput, env, { client });
+  const retried = await exchangeMcpRefreshToken(refreshInput, env, {
+    firestoreStore,
+  });
   assert.ok(retried.access_token);
   assert.ok(retried.refresh_token);
 });
 
 test("revokes one or all owner grants and blocks access and refresh", async () => {
-  const env = {
-    ...ENV,
-    NODE_ENV: "production",
-    MCP_OAUTH_GRANT_INDEX: "oauth-grants-revoke-test",
-    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-revoke-test",
-  };
-  const client = createFakeOpenSearch();
-  const first = await issueTokens(env, { client });
-  const second = await issueTokens(env, { client });
+  const env = productionEnv();
+  const firestoreStore = createDurableStore().store;
+  const first = await issueTokens(env, { firestoreStore });
+  const second = await issueTokens(env, { firestoreStore });
   const firstIdentity = verifyMcpAccessToken(
     `Bearer ${first.access_token}`,
     [MCP_READ_SCOPE],
@@ -1038,18 +970,18 @@ test("revokes one or all owner grants and blocks access and refresh", async () =
       subject: "owner-id",
       grantId: firstIdentity.grantId,
       env,
-      client,
+      firestoreStore,
     }),
     1,
   );
   assert.deepEqual(
-    (await listActiveMcpGrants({ subject: "owner-id", env, client })).map(
-      ({ grantId }) => grantId,
-    ),
+    (
+      await listActiveMcpGrants({ subject: "owner-id", env, firestoreStore })
+    ).map(({ grantId }) => grantId),
     [secondIdentity.grantId],
   );
   await assert.rejects(
-    assertMcpGrantActive(firstIdentity, { env, client }),
+    assertMcpGrantActive(firstIdentity, { env, firestoreStore }),
     (error) => error.code === "invalid_token" && error.status === 401,
   );
   await assert.rejects(
@@ -1061,97 +993,26 @@ test("revokes one or all owner grants and blocks access and refresh", async () =
         resource: ENV.MCP_RESOURCE_URL,
       },
       env,
-      { client },
+      { firestoreStore },
     ),
     (error) => error.code === "invalid_grant" && error.status === 400,
   );
-  assert.equal(await revokeMcpGrants({ subject: "owner-id", env, client }), 1);
-  assert.deepEqual(
-    await listActiveMcpGrants({ subject: "owner-id", env, client }),
-    [],
-  );
-});
-
-test("retries and verifies a target revoke after a version conflict", async () => {
-  const env = {
-    ...ENV,
-    NODE_ENV: "production",
-    MCP_OAUTH_GRANT_INDEX: "oauth-grants-revoke-conflict-test",
-    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-revoke-conflict-test",
-  };
-  const client = createFakeOpenSearch();
-  const token = await issueTokens(env, { client });
-  const identity = verifyMcpAccessToken(
-    `Bearer ${token.access_token}`,
-    [MCP_READ_SCOPE],
-    env,
-  );
-  const updateByQuery = client.updateByQuery.bind(client);
-  let attempts = 0;
-  client.updateByQuery = async (input) => {
-    attempts += 1;
-    if (attempts === 1) {
-      return { body: { updated: 0, version_conflicts: 1 } };
-    }
-    const response = await updateByQuery(input);
-    response.body.version_conflicts = 0;
-    return response;
-  };
-
   assert.equal(
-    await revokeMcpGrants({
-      subject: "owner-id",
-      grantId: identity.grantId,
-      env,
-      client,
-    }),
+    await revokeMcpGrants({ subject: "owner-id", env, firestoreStore }),
     1,
   );
-  assert.equal(attempts, 2);
   assert.deepEqual(
-    await listActiveMcpGrants({ subject: "owner-id", env, client }),
+    await listActiveMcpGrants({ subject: "owner-id", env, firestoreStore }),
     [],
   );
-  await assert.rejects(
-    assertMcpGrantActive(identity, { env, client }),
-    (error) => error.code === "invalid_token" && error.status === 401,
-  );
-});
-
-test("fails closed when revoke-all version conflicts remain active", async () => {
-  const env = {
-    ...ENV,
-    NODE_ENV: "production",
-    MCP_OAUTH_GRANT_INDEX: "oauth-grants-revoke-conflict-fail-test",
-    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-revoke-conflict-fail-test",
-  };
-  const client = createFakeOpenSearch();
-  await issueTokens(env, { client });
-  let attempts = 0;
-  client.updateByQuery = async () => {
-    attempts += 1;
-    return { body: { updated: 0, version_conflicts: 1 } };
-  };
-
-  await assert.rejects(
-    revokeMcpGrants({ subject: "owner-id", env, client }),
-    (error) => error.code === "temporarily_unavailable" && error.status === 503,
-  );
-  assert.equal(attempts, 3);
 });
 
 test("production grant checks fail closed for missing durable state", async () => {
   const token = await issueTokens(ENV, {
-    client: null,
     consumeGrant: async () => true,
   });
-  const env = {
-    ...ENV,
-    NODE_ENV: "production",
-    MCP_OAUTH_GRANT_INDEX: "oauth-grants-missing-test",
-    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-missing-test",
-  };
-  const client = createFakeOpenSearch();
+  const env = productionEnv();
+  const firestoreStore = createDurableStore().store;
   const identity = verifyMcpAccessToken(
     `Bearer ${token.access_token}`,
     [MCP_READ_SCOPE],
@@ -1160,7 +1021,7 @@ test("production grant checks fail closed for missing durable state", async () =
   resetMcpOAuthStateForTests();
 
   await assert.rejects(
-    assertMcpGrantActive(identity, { env, client }),
+    assertMcpGrantActive(identity, { env, firestoreStore }),
     (error) => error.code === "invalid_token" && error.status === 401,
   );
   await assert.rejects(
@@ -1172,24 +1033,22 @@ test("production grant checks fail closed for missing durable state", async () =
         resource: ENV.MCP_RESOURCE_URL,
       },
       env,
-      { client },
+      { firestoreStore },
     ),
     (error) => error.code === "invalid_grant" && error.status === 400,
   );
   await assert.rejects(
-    assertMcpGrantActive(identity, { env, client: null }),
+    assertMcpGrantActive(identity, {
+      env,
+      firestoreStore: unavailableStore(),
+    }),
     (error) => error.code === "temporarily_unavailable" && error.status === 503,
   );
 });
 
 test("migrates pre-grant tokens without abruptly invalidating access", async () => {
-  const env = {
-    ...ENV,
-    NODE_ENV: "production",
-    MCP_OAUTH_GRANT_INDEX: "oauth-grants-legacy-test",
-    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-legacy-test",
-  };
-  const client = createFakeOpenSearch();
+  const env = productionEnv();
+  const firestoreStore = createDurableStore().store;
   const legacyIdentity = verifyMcpAccessToken(
     `Bearer ${createLegacyAccessToken()}`,
     [MCP_READ_SCOPE],
@@ -1197,7 +1056,8 @@ test("migrates pre-grant tokens without abruptly invalidating access", async () 
   );
   assert.equal(legacyIdentity.grantId, null);
   assert.equal(
-    (await assertMcpGrantActive(legacyIdentity, { env, client })).legacy,
+    (await assertMcpGrantActive(legacyIdentity, { env, firestoreStore }))
+      .legacy,
     true,
   );
 
@@ -1209,7 +1069,7 @@ test("migrates pre-grant tokens without abruptly invalidating access", async () 
       resource: ENV.MCP_RESOURCE_URL,
     },
     env,
-    { client },
+    { firestoreStore },
   );
   const migratedIdentity = verifyMcpAccessToken(
     `Bearer ${migrated.access_token}`,
@@ -1218,21 +1078,18 @@ test("migrates pre-grant tokens without abruptly invalidating access", async () 
   );
   assert.match(migratedIdentity.grantId, /^legacy_[A-Za-z0-9_-]+$/u);
   assert.deepEqual(
-    (await listActiveMcpGrants({ subject: "owner-id", env, client })).map(
-      ({ grantId }) => grantId,
-    ),
+    (
+      await listActiveMcpGrants({ subject: "owner-id", env, firestoreStore })
+    ).map(({ grantId }) => grantId),
     [migratedIdentity.grantId],
   );
 });
 
-test("a revoked local grant stays revoked when a dev store returns 404", async () => {
-  const env = {
-    ...ENV,
-    MCP_OAUTH_GRANT_INDEX: "oauth-grants-dev-404-test",
-    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-dev-404-test",
-  };
-  const client = createFakeOpenSearch();
-  const token = await issueTokens(env, { client });
+test("a revoked local grant stays revoked when a dev store loses the record", async () => {
+  const env = { ...ENV, ...FIRESTORE_ENV };
+  const durable = createDurableStore();
+  const firestoreStore = durable.store;
+  const token = await issueTokens(env, { firestoreStore });
   const identity = verifyMcpAccessToken(
     `Bearer ${token.access_token}`,
     [MCP_READ_SCOPE],
@@ -1243,42 +1100,37 @@ test("a revoked local grant stays revoked when a dev store returns 404", async (
       subject: "owner-id",
       grantId: identity.grantId,
       env,
-      client,
+      firestoreStore,
     }),
     1,
   );
-  client.indexes.get(env.MCP_OAUTH_GRANT_INDEX).delete(identity.grantId);
+  await durable.deleteGrant(identity.grantId);
 
   await assert.rejects(
-    assertMcpGrantActive(identity, { env, client }),
+    assertMcpGrantActive(identity, { env, firestoreStore }),
     (error) => error.code === "invalid_token" && error.status === 401,
   );
 });
 
 test("rejects durable grants with malformed security timestamps", async () => {
-  const env = {
-    ...ENV,
-    NODE_ENV: "production",
-    MCP_OAUTH_GRANT_INDEX: "oauth-grants-invalid-time-test",
-    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-invalid-time-test",
-  };
-  const client = createFakeOpenSearch();
+  const env = productionEnv();
+  const durable = createDurableStore();
+  const firestoreStore = durable.store;
 
   for (const field of ["issuedAt", "expiresAt"]) {
-    const token = await issueTokens(env, { client });
+    const token = await issueTokens(env, { firestoreStore });
     const identity = verifyMcpAccessToken(
       `Bearer ${token.access_token}`,
       [MCP_READ_SCOPE],
       env,
     );
-    const records = client.indexes.get(env.MCP_OAUTH_GRANT_INDEX);
-    records.set(identity.grantId, {
-      ...records.get(identity.grantId),
+    await durable.setGrant(identity.grantId, {
+      ...(await durable.grant(identity.grantId)),
       [field]: "not-a-timestamp",
     });
 
     await assert.rejects(
-      assertMcpGrantActive(identity, { env, client }),
+      assertMcpGrantActive(identity, { env, firestoreStore }),
       (error) => error.code === "invalid_token" && error.status === 401,
     );
     await assert.rejects(
@@ -1290,87 +1142,16 @@ test("rejects durable grants with malformed security timestamps", async () => {
           resource: ENV.MCP_RESOURCE_URL,
         },
         env,
-        { client },
+        { firestoreStore },
       ),
       (error) => error.code === "invalid_grant" && error.status === 400,
     );
   }
 
   assert.deepEqual(
-    await listActiveMcpGrants({ subject: "owner-id", env, client }),
+    await listActiveMcpGrants({ subject: "owner-id", env, firestoreStore }),
     [],
   );
-});
-
-test("production replay guard is atomic across local state resets", async () => {
-  const seen = new Set();
-  const client = {
-    async create({ id }) {
-      if (seen.has(id)) {
-        const error = new Error("version conflict");
-        error.meta = { statusCode: 409 };
-        throw error;
-      }
-      seen.add(id);
-    },
-  };
-  const input = {
-    grantType: "refresh_token",
-    tokenId: "one-time-token-id",
-    expiresAt: Math.floor(Date.now() / 1_000) + 60,
-    env: { ...ENV, NODE_ENV: "production" },
-    client,
-  };
-
-  assert.equal(await consumeMcpGrantOnce(input), true);
-  resetMcpOAuthStateForTests();
-  assert.equal(await consumeMcpGrantOnce(input), false);
-});
-
-test("first production token exchange creates the durable replay index", async () => {
-  const calls = [];
-  const client = {
-    indices: {
-      async exists(input) {
-        calls.push(["exists", input]);
-        return { body: false };
-      },
-      async create(input) {
-        calls.push(["create-index", input]);
-      },
-    },
-    async create(input) {
-      calls.push(["create-record", input]);
-    },
-    async deleteByQuery() {
-      return { deleted: 0 };
-    },
-  };
-  const env = {
-    ...ENV,
-    NODE_ENV: "production",
-    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-first-link-test",
-  };
-
-  assert.equal(
-    await consumeMcpGrantOnce({
-      grantType: "authorization_code",
-      tokenId: "first-chatgpt-link",
-      expiresAt: Math.floor(Date.now() / 1_000) + 60,
-      env,
-      client,
-    }),
-    true,
-  );
-  assert.deepEqual(
-    calls.map(([name]) => name),
-    ["exists", "create-index", "create-record"],
-  );
-  assert.equal(calls[1][1].index, "oauth-replay-first-link-test");
-  assert.deepEqual(calls[1][1].body.mappings.properties, {
-    grantType: { type: "keyword" },
-    expiresAt: { type: "date" },
-  });
 });
 
 test("production OAuth fails closed without the durable replay store", async () => {
@@ -1383,8 +1164,8 @@ test("production OAuth fails closed without the durable replay store", async () 
       grantType: "authorization_code",
       tokenId: "code-id",
       expiresAt: Math.floor(Date.now() / 1_000) + 60,
-      env: { ...ENV, NODE_ENV: "production" },
-      client: null,
+      env: productionEnv(),
+      firestoreStore: unavailableStore(),
     }),
     (error) => error.code === "temporarily_unavailable" && error.status === 503,
   );
@@ -1414,41 +1195,33 @@ test("OAuth runtime diagnostics expose only a safe token exchange result", async
 
 test("expired durable replay records are cleaned on a bounded schedule", async () => {
   const calls = [];
-  const client = {
-    async deleteByQuery(input) {
-      calls.push(input);
-      return { deleted: 2 };
+  const firestoreStore = {
+    async cleanupExpiredReplay(now) {
+      calls.push(now);
     },
   };
-  const env = {
-    ...ENV,
-    MCP_OAUTH_REPLAY_INDEX: "oauth-replay-test",
-  };
+  const env = { ...ENV, ...FIRESTORE_ENV };
 
   assert.equal(
-    await cleanupExpiredMcpReplayRecords({ client, env, now: 1_000 }),
+    await cleanupExpiredMcpReplayRecords({ firestoreStore, env, now: 1_000 }),
     true,
   );
   assert.equal(
-    await cleanupExpiredMcpReplayRecords({ client, env, now: 1_001 }),
+    await cleanupExpiredMcpReplayRecords({ firestoreStore, env, now: 1_001 }),
     false,
   );
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].index, "oauth-replay-test");
-  assert.deepEqual(calls[0].body.query, {
-    range: { expiresAt: { lte: new Date(1_000_000).toISOString() } },
-  });
+  assert.deepEqual(calls, [1_000]);
 
   assert.equal(
     await cleanupExpiredMcpReplayRecords({
-      client,
+      firestoreStore,
       env,
       now: 1_001,
       force: true,
     }),
     true,
   );
-  assert.equal(calls.length, 2);
+  assert.deepEqual(calls, [1_000, 1_001]);
 });
 
 test("ChatGPT plugin grants are scoped to the public plugin resource", async () => {

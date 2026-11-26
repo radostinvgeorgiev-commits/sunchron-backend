@@ -10,25 +10,25 @@ import {
   TesterAccessError,
 } from "../src/services/testerAccessService.js";
 
+// A Firestore-style store, as the service uses in production.
 function createClient() {
   const records = new Map();
-  const requestOptions = [];
+  const operations = [];
   return {
     records,
-    requestOptions,
-    async index({ id, body }, options) {
-      requestOptions.push({ operation: "index", options });
-      records.set(id, structuredClone(body));
-      return { body: { result: "created" } };
-    },
-    async get({ id }, options) {
-      requestOptions.push({ operation: "get", options });
-      if (!records.has(id)) {
-        const error = new Error("not found");
-        error.statusCode = 404;
+    operations,
+    async set(id, data, { createOnly = false } = {}) {
+      operations.push({ operation: "set", createOnly });
+      if (createOnly && records.has(id)) {
+        const error = new Error("exists");
+        error.upstreamStatus = 409;
         throw error;
       }
-      return { body: { _source: structuredClone(records.get(id)) } };
+      records.set(id, structuredClone(data));
+    },
+    async get(id) {
+      operations.push({ operation: "get" });
+      return records.has(id) ? { data: structuredClone(records.get(id)) } : null;
     },
   };
 }
@@ -53,22 +53,15 @@ test("invite-approved registration stores a server-side access record", async ()
     await assertTesterAccess({ id: "user-approved" }, { client }),
     true,
   );
-  assert.deepEqual(client.requestOptions, [
-    {
-      operation: "index",
-      options: { requestTimeout: 5_000, maxRetries: 0 },
-    },
-    {
-      operation: "get",
-      options: { requestTimeout: 5_000, maxRetries: 0 },
-    },
-  ]);
+  assert.deepEqual(
+    client.operations.map(({ operation }) => operation),
+    ["set", "get"],
+  );
 });
 
 test("approval timeout fails closed with a bounded service error", async () => {
   const client = {
-    async index(_request, options) {
-      assert.deepEqual(options, { requestTimeout: 5_000, maxRetries: 0 });
+    async set() {
       const error = new Error("Request timed out");
       error.name = "TimeoutError";
       throw error;

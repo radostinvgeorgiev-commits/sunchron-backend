@@ -163,9 +163,8 @@ test("legacy workspaces receive specialized agents without pet settings", () => 
 test("workspace state is saved in an isolated hashed document", async () => {
   let indexed = null;
   const client = {
-    async index(input) {
-      indexed = input;
-      return { body: { result: "created" } };
+    async set(id, body) {
+      indexed = { id, body };
     },
   };
   const result = await saveWorkspaceState(
@@ -199,7 +198,6 @@ test("workspace state is saved in an isolated hashed document", async () => {
     { client, now: "2026-08-01T11:00:00.000Z" },
   );
 
-  assert.equal(indexed.index, "synchron-workspaces-v1");
   assert.equal(indexed.id, workspaceDocumentId("primary-user"));
   assert.equal(indexed.body.ownerHash, indexed.id);
   assert.equal(indexed.body.schemaVersion, 2);
@@ -214,9 +212,7 @@ test("workspace state is saved in an isolated hashed document", async () => {
 test("missing workspace returns a safe starter state", async () => {
   const client = {
     async get() {
-      const error = new Error("not found");
-      error.meta = { statusCode: 404 };
-      throw error;
+      return null;
     },
   };
   const result = await loadWorkspaceState("primary-user", { client });

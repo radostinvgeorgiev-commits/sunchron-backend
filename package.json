@@ -11,7 +11,6 @@
     "test": "node --check bootstrap.js && node --check server.js && node --check src/routes/chat.js && node --check src/services/aiCouncilService.js && node --check src/services/agentPlannerService.js && node --check src/services/councilIntentService.js && node --check src/services/codeTaskService.js && node --check src/services/googleAdcAuth.js && node --check src/services/vertexAiGeminiService.js && node --check src/services/googleCloudActionService.js && node --check src/services/taskExecutionService.js && node --check src/services/taskOrchestratorService.js && node --check src/services/googleCloudService.js && node --check src/services/projectDiagnosticsService.js && node --check src/services/githubWriteService.js && node --check src/services/githubOAuthService.js && node --check src/services/mcpAgentConversationService.js && node --check src/services/mcpReadService.js && node --check src/tools/capabilityEngine.js && node --check src/tools/toolRegistry.js && node --check public/app.js && node --check public/work-center.js && node --test tests/*.test.js"
   },
   "dependencies": {
-    "@opensearch-project/opensearch": "^3.9.0",
     "diff": "^9.0.0",
     "dotenv": "^18.0.8",
     "express": "^5.3.0",

@@ -8,9 +8,10 @@ import {
   resolvePersistenceBackend,
 } from "../src/config/memoryBackend.js";
 
-test("Google Cloud runtime selects Firestore while offline compatibility stays explicit", () => {
-  assert.equal(resolveMemoryBackend({}), "opensearch");
-  assert.equal(resolvePersistenceBackend({}), "opensearch");
+test("Google Cloud runtime selects Firestore; development without a project stays local", () => {
+  assert.equal(resolveMemoryBackend({}), "local");
+  assert.equal(resolvePersistenceBackend({}), "local");
+  assert.equal(isMemoryBackendConfigured({}), false);
   assert.equal(
     resolveMemoryBackend({ GOOGLE_CLOUD_PROJECT: "handy-boulevard-479120-q9" }),
     "firestore",
@@ -20,12 +21,24 @@ test("Google Cloud runtime selects Firestore while offline compatibility stays e
     resolvePersistenceBackend({ NODE_ENV: "production" }),
     "firestore",
   );
+  // OpenSearch is gone, and production never falls back to the local store.
   assert.equal(
     resolveMemoryBackend({
       NODE_ENV: "production",
       MEMORY_BACKEND: "opensearch",
     }),
-    "opensearch",
+    null,
+  );
+  assert.equal(
+    resolveMemoryBackend({ NODE_ENV: "production", MEMORY_BACKEND: "local" }),
+    null,
+  );
+  assert.equal(
+    resolvePersistenceBackend({
+      NODE_ENV: "production",
+      PERSISTENCE_BACKEND: "local",
+    }),
+    null,
   );
 });
 

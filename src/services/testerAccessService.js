@@ -1,16 +1,10 @@
 import { createHash, createHmac } from "node:crypto";
 
-import { getOpenSearchClient } from "../config/opensearch.js";
 import { resolveAuthBackend } from "../config/authBackend.js";
 import { resolvePersistenceBackend } from "../config/memoryBackend.js";
 import { createFirestoreTesterAccessStore } from "./firestoreTesterAccessStore.js";
 import { logSafeError } from "../utils/safeLogging.js";
 
-const DEFAULT_INDEX = "synchron-tester-access-v1";
-const ACCESS_REQUEST_OPTIONS = Object.freeze({
-  requestTimeout: 5_000,
-  maxRetries: 0,
-});
 let firestoreStore = null;
 let firestoreConfiguration = null;
 let firestoreStoreOverride = null;
@@ -89,48 +83,26 @@ function getFirestoreStore(env = process.env) {
   return firestoreStore;
 }
 
-async function saveAccessDocument(id, body, { client, env, createOnly }) {
-  const backend = resolvePersistenceBackend(env);
-  if (!backend) {
+// `client` is an optional Firestore-style store ({ get(id), set(id, data,
+// { createOnly }) }) for tests; production uses the Firestore collection.
+function accessStore({ client, env }) {
+  if (client) return client;
+  if (!resolvePersistenceBackend(env)) {
     throw new TesterAccessError(
       "Проверката на одобрените тестови профили има невалидна storage конфигурация.",
       503,
       "TESTER_ACCESS_UNAVAILABLE",
     );
   }
-  if (backend === "firestore") {
-    await getFirestoreStore(env).set(id, body, { createOnly });
-    return;
-  }
-  await requireClient(client).index(
-    {
-      index: accessIndex(env),
-      id,
-      body,
-      refresh: true,
-      ...(createOnly ? { op_type: "create" } : {}),
-    },
-    ACCESS_REQUEST_OPTIONS,
-  );
+  return getFirestoreStore(env);
+}
+
+async function saveAccessDocument(id, body, { client, env, createOnly }) {
+  await accessStore({ client, env }).set(id, body, { createOnly });
 }
 
 async function loadAccessDocument(id, { client, env }) {
-  const backend = resolvePersistenceBackend(env);
-  if (!backend) {
-    throw new TesterAccessError(
-      "Проверката на одобрените тестови профили има невалидна storage конфигурация.",
-      503,
-      "TESTER_ACCESS_UNAVAILABLE",
-    );
-  }
-  if (backend === "firestore") {
-    return (await getFirestoreStore(env).get(id))?.data || null;
-  }
-  const response = await requireClient(client).get(
-    { index: accessIndex(env), id },
-    ACCESS_REQUEST_OPTIONS,
-  );
-  return response.body?._source ?? response._source;
+  return (await accessStore({ client, env }).get(id))?.data || null;
 }
 
 function cleanEmailHash(value, env = process.env) {
@@ -143,25 +115,6 @@ function cleanEmailHash(value, env = process.env) {
 
 function emailApprovalId(emailHash) {
   return `email:${emailHash}`;
-}
-
-function accessIndex(env = process.env) {
-  const configured =
-    typeof env.TESTER_ACCESS_INDEX === "string"
-      ? env.TESTER_ACCESS_INDEX.trim()
-      : "";
-  return configured || DEFAULT_INDEX;
-}
-
-function requireClient(client = getOpenSearchClient()) {
-  if (!client) {
-    throw new TesterAccessError(
-      "Проверката на одобрените тестови профили временно не е достъпна.",
-      503,
-      "TESTER_ACCESS_UNAVAILABLE",
-    );
-  }
-  return client;
 }
 
 function statusCode(error) {

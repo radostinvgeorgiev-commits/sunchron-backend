@@ -6,11 +6,26 @@ process.env.NODE_ENV = "test";
 process.env.OPENAI_API_KEY = "test-openai-key";
 process.env.AI_CORE_PROVIDER = "openai";
 process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
-delete process.env.OPENSEARCH_HOST;
-delete process.env.OPENSEARCH_USERNAME;
-delete process.env.OPENSEARCH_PASSWORD;
 
 const { default: app } = await import("../server.js");
+const { setFirestoreMemoryStoreForTests } = await import(
+  "../src/services/memoryService.js"
+);
+
+// A memory store whose every call fails, as when Firestore is unreachable.
+function unavailableMemoryStore() {
+  return new Proxy(
+    {},
+    {
+      get: () => async () => {
+        const error = new Error("Firestore unavailable");
+        error.code = "FIRESTORE_UNAVAILABLE";
+        error.status = 503;
+        throw error;
+      },
+    },
+  );
+}
 const { createGitHubSession } =
   await import("../src/services/githubOAuthService.js");
 const ownerSession = await createGitHubSession(
@@ -108,6 +123,7 @@ test("chat rejects unsafe session identifiers before logging or storage", async 
 
 test("normal AI chat continues when persistent memory is unavailable", async () => {
   const originalFetch = globalThis.fetch;
+  setFirestoreMemoryStoreForTests(unavailableMemoryStore());
   let aiRequest;
   globalThis.fetch = async (url, options = {}) => {
     if (String(url) === "https://api.openai.com/v1/responses") {
@@ -164,6 +180,7 @@ test("normal AI chat continues when persistent memory is unavailable", async () 
     assert.match(response.text, /event: done/u);
   } finally {
     globalThis.fetch = originalFetch;
+    setFirestoreMemoryStoreForTests(null);
   }
 });
 
@@ -471,16 +488,21 @@ test("explicit GitHub request still runs when the AI planner returns no tools", 
 });
 
 test("explicit memory writes fail safely when memory is unavailable", async () => {
-  const response = await request(app)
-    .post("/chat/chat")
-    .set("Cookie", OWNER_COOKIE)
-    .send({
-      sessionId: "resilience-memory-test",
-      message: "Запомни, че любимият ми цвят е син.",
-    })
-    .expect(503);
+  setFirestoreMemoryStoreForTests(unavailableMemoryStore());
+  try {
+    const response = await request(app)
+      .post("/chat/chat")
+      .set("Cookie", OWNER_COOKIE)
+      .send({
+        sessionId: "resilience-memory-test",
+        message: "Запомни, че любимият ми цвят е син.",
+      })
+      .expect(503);
 
-  assert.match(response.body.error, /Нищо не беше записано или изтрито/u);
+    assert.match(response.body.error, /Нищо не беше записано или изтрито/u);
+  } finally {
+    setFirestoreMemoryStoreForTests(null);
+  }
 });
 
 test("independent tools still run when the OpenAI key is unavailable", async () => {

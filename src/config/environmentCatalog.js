@@ -389,12 +389,6 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "Единственият GitHub собственик с администраторски права.",
       { hasDefault: true },
     ),
-    general(
-      "GITHUB_SESSION_INDEX",
-      "GitHub",
-      "OpenSearch индекс за защитени GitHub сесии.",
-      { hasDefault: true },
-    ),
     general("GITHUB_API_URL", "GitHub", "Незадължителен GitHub API адрес.", {
       hasDefault: true,
     }),
@@ -420,12 +414,6 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "GOOGLE_SESSION_ENCRYPTION_KEY",
       "Google",
       "Криптира Google сесиите.",
-    ),
-    general(
-      "GOOGLE_SESSION_INDEX",
-      "Google",
-      "OpenSearch индекс за защитени Google сесии.",
-      { hasDefault: true },
     ),
     general(
       "GOOGLE_CONNECT_URL",

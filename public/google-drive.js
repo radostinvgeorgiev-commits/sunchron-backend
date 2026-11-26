@@ -34,8 +34,10 @@
     openDrawer();
     body.innerHTML =
       '<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Зареждане…</div>';
+    let connected = false;
     try {
       const status = await request("/api/google/status");
+      connected = Boolean(status.connected);
       if (!status.connected) {
         body.innerHTML = `
           <section class="drawer-section">
@@ -91,7 +93,13 @@
           <button type="button" id="disconnectGoogleDrive">Прекъсни връзката</button>
         </section>`;
     } catch (error) {
-      body.innerHTML = `<div class="drawer-state drawer-error">${escapeHtml(error.message)}</div>`;
+      // A light Google connection has no Drive access yet: show the step
+      // that adds it, not only the error.
+      body.innerHTML = `<div class="drawer-state drawer-error">${escapeHtml(error.message)}</div>${
+        connected
+          ? '<a class="new-chat" href="/api/google/connect?add=drive"><i class="fa-brands fa-google-drive"></i><span>Разреши Google Drive</span></a>'
+          : ""
+      }`;
     }
   }
 

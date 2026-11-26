@@ -95,6 +95,7 @@ export function createLocalDocumentStore() {
     collection.set(String(operation.id), {
       fields: encodeFirestoreFields(operation.data),
       createTime: existing?.createTime || time,
+      sequence: existing?.sequence ?? clock,
       updateTime: time,
     });
   };
@@ -139,7 +140,10 @@ export function createLocalDocumentStore() {
           .sort(
             (left, right) =>
               direction *
-              compare(left.data[orderField], right.data[orderField]),
+              (compare(left.data[orderField], right.data[orderField]) ||
+                // Equal values keep the order of creation, so "newest
+                // first" stays deterministic within one millisecond.
+                left.record.sequence - right.record.sequence),
           );
       }
       return rows

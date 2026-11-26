@@ -1,5 +1,6 @@
-// Reads a personal archive (.zip from Facebook "Download your information",
-// Google Takeout, or the data export of ChatGPT or Claude) inside the
+// Reads a personal archive (.zip from Facebook or Instagram "Download your
+// information", LinkedIn, the X archive, Google Takeout, or the data export
+// of ChatGPT or Claude) inside the
 // browser. Only the person's own texts are kept; other people's messages
 // never leave the device.
 const MAX_ENTRY_BYTES = 40 * 1024 * 1024;
@@ -235,6 +236,136 @@ export function extractAiChats(files) {
   ].filter(({ text }) => text.length >= 20);
 }
 
+// Instagram "Download your information" (JSON): own captions and comments.
+// Like Facebook, the text comes as separate UTF-8 bytes.
+function walk(value, visit) {
+  if (Array.isArray(value)) value.forEach((item) => walk(item, visit));
+  else if (value && typeof value === "object") {
+    visit(value);
+    Object.values(value).forEach((item) => walk(item, visit));
+  }
+}
+export function extractInstagram(files) {
+  const posts = [];
+  const comments = [];
+  for (const [name, text] of files) {
+    if (/(^|\/)content\/(posts|reels)(_\d+)?\.json$/u.test(name)) {
+      const data = parse(text);
+      for (const post of [].concat(data?.ig_reels_media || data || [])) {
+        const media = Array.isArray(post?.media) ? post.media : [];
+        const caption = fixFacebookText(post?.title || media.find((item) => item?.title)?.title || "");
+        const at = post?.creation_timestamp || media[0]?.creation_timestamp || 0;
+        if (caption.trim()) posts.push({ at, label: day(at), text: caption });
+      }
+    } else if (/(^|\/)comments\/[^/]*comments[^/]*\.json$/u.test(name)) {
+      walk(parse(text), (item) => {
+        const comment = item?.string_map_data?.Comment?.value;
+        if (typeof comment !== "string" || !comment.trim()) return;
+        const at = item.string_map_data?.Time?.timestamp || 0;
+        comments.push({ at, label: day(at), text: fixFacebookText(comment) });
+      });
+    }
+  }
+  return [
+    { name: "Instagram: моите публикации", text: packLines(posts) },
+    { name: "Instagram: моите коментари", text: packLines(comments) },
+  ].filter(({ text }) => text.length >= 20);
+}
+
+// A small CSV reader: quoted fields, commas and new lines inside quotes.
+export function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let quoted = false;
+  const source = String(text || "").replace(/^﻿/u, "");
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+    if (quoted) {
+      if (char === '"' && source[i + 1] === '"') { field += '"'; i += 1; }
+      else if (char === '"') quoted = false;
+      else field += char;
+    } else if (char === '"') quoted = true;
+    else if (char === ",") { row.push(field); field = ""; }
+    else if (char === "\n" || char === "\r") {
+      if (char === "\r" && source[i + 1] === "\n") i += 1;
+      row.push(field); rows.push(row); row = []; field = "";
+    } else field += char;
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+// Rows as objects, from the first line that has the expected column.
+function csvRecords(text, column) {
+  const rows = parseCsv(text);
+  const head = rows.findIndex((row) => row.includes(column));
+  if (head < 0) return [];
+  const names = rows[head];
+  return rows.slice(head + 1).map((row) => Object.fromEntries(names.map((key, i) => [key, (row[i] || "").trim()])));
+}
+const dateSeconds = (value) => {
+  const ms = Date.parse(String(value || "").replace(" ", "T"));
+  return Number.isFinite(ms) ? ms / 1000 : 0;
+};
+
+// LinkedIn "Get a copy of your data": who the person is at work and what
+// they wrote. Address, birth date and contacts are left out on purpose.
+export function extractLinkedIn(files) {
+  const about = [];
+  const work = [];
+  const skills = [];
+  const writing = [];
+  for (const [name, text] of files) {
+    const file = name.split("/").pop();
+    if (file === "Profile.csv") {
+      for (const row of csvRecords(text, "Headline")) {
+        const body = [[row["First Name"], row["Last Name"]].filter(Boolean).join(" "), row.Headline, row.Industry, row.Summary].filter(Boolean).join("\n");
+        if (body) about.push({ at: 0, label: "", text: body });
+      }
+    } else if (file === "Positions.csv") {
+      for (const row of csvRecords(text, "Company Name")) {
+        const when = [row["Started On"], row["Finished On"] || "сега"].filter(Boolean).join(" – ");
+        const body = [`${row.Title || ""}${row["Company Name"] ? `, ${row["Company Name"]}` : ""}`, when, row.Description].filter(Boolean).join("\n");
+        if (body.trim()) work.push({ at: dateSeconds(`1 ${row["Started On"]}`), label: "", text: body });
+      }
+    } else if (file === "Skills.csv") {
+      const names = csvRecords(text, "Name").map((row) => row.Name).filter(Boolean);
+      if (names.length) skills.push({ at: 0, label: "", text: names.join(", ") });
+    } else if (file === "Shares.csv") {
+      for (const row of csvRecords(text, "ShareCommentary")) {
+        const at = dateSeconds(row.Date);
+        if (row.ShareCommentary) writing.push({ at, label: day(at), text: row.ShareCommentary });
+      }
+    } else if (file === "Comments.csv") {
+      for (const row of csvRecords(text, "Message")) {
+        const at = dateSeconds(row.Date);
+        if (row.Message) writing.push({ at, label: day(at), text: row.Message });
+      }
+    }
+  }
+  return [
+    { name: "LinkedIn: кой съм в работата", text: [packLines(about), packLines(work), skills.length ? `Умения: ${skills[0].text}` : ""].filter(Boolean).join("\n\n") },
+    { name: "LinkedIn: какво съм писал", text: packLines(writing) },
+  ].filter(({ text }) => text.length >= 20);
+}
+
+// X (Twitter) archive: own posts, without reposts of other people.
+export function extractX(files) {
+  const posts = [];
+  for (const [name, text] of files) {
+    if (!/(^|\/)data\/tweets(-part\d+)?\.js$/u.test(name)) continue;
+    const json = text.slice(text.indexOf("["));
+    for (const item of [].concat(parse(json) || [])) {
+      const tweet = item?.tweet || item;
+      const body = String(tweet?.full_text || tweet?.text || "");
+      if (!body.trim() || /^RT @/u.test(body)) continue;
+      const at = isoSeconds(tweet.created_at);
+      posts.push({ at, label: day(at), text: body.replace(/&amp;/gu, "&").replace(/&lt;/gu, "<").replace(/&gt;/gu, ">") });
+    }
+  }
+  return [{ name: "X: моите публикации", text: packLines(posts) }].filter(({ text }) => text.length >= 20);
+}
+
 const CHAT_EXPORTS = [/(^|\/)conversations(-\d+)?\.json$/u, /(^|\/)memories\.json$/u];
 
 const WANTED = [
@@ -245,6 +376,10 @@ const WANTED = [
   /\/messages\/(inbox|archived_threads|e2ee_cutover)\/[^/]+\/message_\d+\.json$/u,
   /(^|\/)Keep\/[^/]+\.json$/u,
   /(^|\/)Calendar\/.+\.ics$/u,
+  /(^|\/)content\/(posts|reels)(_\d+)?\.json$/u,
+  /(^|\/)comments\/[^/]*comments[^/]*\.json$/u,
+  /(^|\/)(Profile|Positions|Skills|Shares|Comments)\.csv$/u,
+  /(^|\/)data\/tweets(-part\d+)?\.js$/u,
 ];
 
 // The whole flow: list, read only the files that matter, extract own texts.
@@ -257,12 +392,19 @@ export async function readPersonalArchive(blob, onProgress = () => {}) {
     const text = await readZipText(blob, entry, big ? MAX_CHAT_EXPORT_BYTES : MAX_ENTRY_BYTES);
     if (text) files.push([entry.name, text]);
   }
-  const results = [...extractFacebook(files), ...extractTakeout(files), ...extractAiChats(files)];
+  const results = [
+    ...extractFacebook(files),
+    ...extractInstagram(files),
+    ...extractLinkedIn(files),
+    ...extractX(files),
+    ...extractTakeout(files),
+    ...extractAiChats(files),
+  ];
   if (!results.length) {
     const html = entries.length === 0;
     throw new Error(
       html
-        ? "Не намерих текстове в архива. За Facebook избери формат JSON при изтеглянето; за Google — Keep или Календар; за ChatGPT и Claude — архива от „Изнеси данните“."
+        ? "Не намерих текстове в архива. За Facebook и Instagram избери формат JSON при изтеглянето; за Google — Keep или Календар; за LinkedIn, X, ChatGPT и Claude — архива от настройките за данни."
         : "В архива няма твои текстове, които да се добавят.",
     );
   }

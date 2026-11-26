@@ -128,3 +128,63 @@ test("a ChatGPT export zip goes through the whole flow", async () => {
   assert.equal(parts[0].name, "ChatGPT: какво съм писал");
   assert.match(parts[0].text, /Искам аватар/u);
 });
+
+test("from Instagram come own captions and comments", async () => {
+  const { extractInstagram } = await import("../public/archive-reader.mjs");
+  const files = [
+    ["x/your_instagram_activity/content/posts_1.json", JSON.stringify([
+      { media: [{ uri: "a.jpg", creation_timestamp: 1700000000, title: mojibake("Залез над морето, обичам Варна.") }] },
+      { title: mojibake("Три снимки от планината днес."), creation_timestamp: 1700001000, media: [{ title: "" }] },
+    ])],
+    ["x/your_instagram_activity/comments/post_comments_1.json", JSON.stringify([
+      { string_map_data: { Comment: { value: mojibake("Страхотно място, ще дойда!") }, Time: { timestamp: 1700002000 } } },
+    ])],
+  ];
+  const parts = extractInstagram(files);
+  assert.deepEqual(parts.map(({ name }) => name), ["Instagram: моите публикации", "Instagram: моите коментари"]);
+  const all = parts.map(({ text }) => text).join("\n");
+  assert.match(all, /обичам Варна/u);
+  assert.match(all, /Три снимки от планината/u);
+  assert.match(all, /Страхотно място/u);
+});
+
+test("from LinkedIn come work, skills and own writing, without address or birth date", async () => {
+  const { extractLinkedIn, parseCsv } = await import("../public/archive-reader.mjs");
+  assert.deepEqual(parseCsv('a,"b, ""c""\nd",e\r\n1,2,3'), [["a", 'b, "c"\nd', "e"], ["1", "2", "3"]]);
+  const files = [
+    ["Profile.csv", 'First Name,Last Name,Address,Birth Date,Headline,Summary,Industry\nРадко,Георгиев,"ул. Тайна 1",1.1.1980,Основател на AI CORE,"Правя личен AI аватар.",Software\n'],
+    ["Positions.csv", "Company Name,Title,Description,Location,Started On,Finished On\nSYNCHRON-X,Основател,Водя продукта,София,Mar 2024,\n"],
+    ["Skills.csv", "Name\nПродукт\nПродажби\n"],
+    ["Shares.csv", 'Date,ShareLink,ShareCommentary,SharedUrl,MediaUrl,Visibility\n2025-05-01 10:20:30,https://x,"Пуснахме нова версия, вижте я.",,,MEMBER_NETWORK\n'],
+    ["Connections.csv", "Notes:\nFirst Name,Last Name\nИван,Иванов\n"],
+  ];
+  const parts = extractLinkedIn(files);
+  assert.deepEqual(parts.map(({ name }) => name), ["LinkedIn: кой съм в работата", "LinkedIn: какво съм писал"]);
+  const all = parts.map(({ text }) => text).join("\n");
+  assert.match(all, /Основател на AI CORE/u);
+  assert.match(all, /Основател, SYNCHRON-X/u);
+  assert.match(all, /Умения: Продукт, Продажби/u);
+  assert.match(all, /Пуснахме нова версия/u);
+  assert.doesNotMatch(all, /Тайна|1980|Иванов/u);
+});
+
+test("from the X archive come own posts, not reposts", async () => {
+  const { extractX } = await import("../public/archive-reader.mjs");
+  const files = [["twitter/data/tweets.js", `window.YTD.tweets.part0 = ${JSON.stringify([
+    { tweet: { full_text: "Днес пуснахме гласов разговор &amp; задачи.", created_at: "Wed Nov 26 10:00:00 +0000 2026" } },
+    { tweet: { full_text: "RT @someone: чужд текст", created_at: "Wed Nov 26 11:00:00 +0000 2026" } },
+  ])}`]];
+  const [part] = extractX(files);
+  assert.equal(part.name, "X: моите публикации");
+  assert.match(part.text, /^2026-11-26 — Днес пуснахме гласов разговор & задачи\.$/u);
+});
+
+test("a LinkedIn zip goes through the whole reader", async () => {
+  const zip = makeZip([
+    ["Profile.csv", "First Name,Last Name,Headline,Summary\nМария,Иванова,Счетоводител,Помагам на малки фирми.\n"],
+    ["Ignored.csv", "a,b\n1,2\n"],
+  ]);
+  const parts = await readPersonalArchive(zip);
+  assert.equal(parts[0].name, "LinkedIn: кой съм в работата");
+  assert.match(parts[0].text, /Счетоводител/u);
+});

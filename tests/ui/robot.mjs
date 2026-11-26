@@ -193,6 +193,12 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     const reply = await last().innerText();
     expect(reply.includes("Най-важното днес"), "планът не се показа");
     expect(reply.includes("Моят Google"), "липсва подсказката за свързване");
+    await last().locator(".morning-toggle").click();
+    expect(
+      (await last().locator(".morning-toggle").getAttribute("aria-pressed")) === "true",
+      "бутонът „всяка сутрин“ не се включи",
+    );
+    expect((await page.evaluate(() => localStorage.getItem("aicore-morning-plan"))) === "on", "изборът не се запази");
   });
   await step(`${label}: „Каузи“ — предложи, харесай, изтрий`, async () => {
     await page.click("#attachBtn");
@@ -260,6 +266,16 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.waitForTimeout(400);
     expect((await page.inputValue(".share-link input")).includes("/s/"), "няма линк");
     await page.click(".share-close");
+  });
+  await step(`${label}: „всяка сутрин“ пуска плана сам при първото отваряне за деня`, async () => {
+    await page.evaluate(() => localStorage.setItem("aicore-morning-plan-day", "2000-01-01"));
+    await page.reload();
+    await page.waitForTimeout(2500);
+    expect((await last().innerText()).includes("Най-важното днес"), "планът не дойде сам");
+    await page.reload();
+    await page.waitForTimeout(2000);
+    expect(!(await page.locator(".assistant-turn").last().innerText().catch(() => "")).includes("Най-важното днес"), "планът дойде втори път в същия ден");
+    await page.evaluate(() => localStorage.removeItem("aicore-morning-plan"));
   });
   await step(`${label}: без грешки в страницата накрая`, async () => expect(!errors.length, errors[0]));
   await page.close();

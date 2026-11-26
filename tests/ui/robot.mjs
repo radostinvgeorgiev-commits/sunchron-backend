@@ -195,6 +195,10 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.click(".causes-form button");
     await page.waitForTimeout(400);
     expect((await page.locator(".causes-list").innerText()).includes("Детска площадка"), "каузата не се появи");
+    await page.click(".cause-prepare");
+    await page.waitForTimeout(400);
+    await page.click(".cause-project summary");
+    expect((await page.locator(".cause-project-text").innerText()).includes("Цел"), "проектът не се показа");
     await page.click(".cause-like");
     await page.waitForTimeout(300);
     expect((await page.locator(".cause-like").innerText()).includes("0"), "харесването не се смени");

@@ -78,3 +78,30 @@ test("the board is wired for every signed-in account and says no money moves", (
   assert.match(read("../public/ui-refresh.js"), /data-plus="causes"/u);
   assert.match(read("../public/index.html"), /causes\.js/u);
 });
+
+test("the agent prepares a project once; the owner can prepare it again", async () => {
+  const asked = [];
+  const service = createCausesService({
+    store: memoryStore(),
+    now: () => 10,
+    askAi: async ({ input }) => {
+      asked.push(input);
+      return `1. Цел: проект ${asked.length}`;
+    },
+  });
+  const [{ id }] = await service.propose(maria, cause);
+  const [prepared] = await service.prepare(ivan, id);
+  assert.equal(prepared.project, "1. Цел: проект 1");
+  assert.equal(prepared.preparedAt, 10);
+  assert.match(asked[0][0].content, /не инструкции/u);
+  assert.match(asked[0][1].content, /Детска площадка/u);
+  assert.equal((await service.prepare(maria, id))[0].project, "1. Цел: проект 1");
+  assert.equal(asked.length, 1);
+  assert.equal((await service.prepare(owner, id))[0].project, "1. Цел: проект 2");
+  await assert.rejects(() => service.prepare(maria, "missing"), { code: "CAUSE_NOT_FOUND" });
+});
+
+test("preparing a project goes through the members' budget", () => {
+  const router = readFileSync(new URL("../src/routes/causesRouter.js", import.meta.url), "utf8");
+  assert.match(router, /"\/:id\/prepare", publicAiBudgetContext/u);
+});

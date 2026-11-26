@@ -784,6 +784,33 @@ async function liveSignedIn(origin) {
     await row.waitFor({ state: "detached", timeout: 10000 });
   });
   if (await page.locator(".todo-dialog").isVisible()) await page.locator(".todo-dialog .share-close").click();
+  await step("Жив сайт: „Добавки“: пробата чете данни от сайт и работи в затворена среда", async () => {
+    // Only "Пробвай": nothing is saved on the live site.
+    await openMine("addons");
+    const box = page.locator(".addon-dialog");
+    await box.waitFor({ state: "visible", timeout: 5000 });
+    await box.locator('[data-tab="mine"]').click();
+    await box.locator(".addon-new").click();
+    await box.locator(".addon-test").click();
+    const out = box.locator(".addon-test-output");
+    await out.waitFor({ state: "visible", timeout: 15000 });
+    const shown = await out.innerText();
+    expect(/Сега в София: -?\d/u.test(shown), `пробата не върна времето: ${shown}`);
+    const probe = await page.evaluate(async () => {
+      const call = async (body) => (await fetch("/api/addons/test", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      })).json();
+      return {
+        closed: await call({ name: "p", code: "function run(){ return [typeof process, typeof require, typeof fetch].join(','); }" }),
+        loop: await call({ name: "p", code: "function run(){ while (true) {} }" }),
+        inside: await call({ name: "p", code: "function run(i, d){ return d; }", dataUrl: "https://metadata.google.internal/computeMetadata/v1/" }),
+      };
+    });
+    expect(probe.closed.output === "undefined,undefined,undefined", `средата не е затворена: ${JSON.stringify(probe.closed)}`);
+    expect(probe.loop.ok === false, "безкрайният цикъл не беше спрян");
+    expect(!probe.inside.output, "вътрешен адрес беше прочетен");
+    await box.locator(".share-close").click();
+  });
   await step("Жив сайт: „Кой съм аз“ се зарежда", async () => {
     await openMine("avatar");
     const dialog = page.locator(".avatar-dialog");

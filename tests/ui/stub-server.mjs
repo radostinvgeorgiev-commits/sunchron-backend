@@ -63,6 +63,7 @@ export function startStubServer(port = 0) {
       files = files.filter(({ id }) => id !== p.split("/").pop());
       return json(res, { removed: true });
     }
+    if (p === "/api/google/status") return json(res, { connected: false, canRestore: false });
     if (p.startsWith("/api/causes")) {
       const id = p.split("/")[3];
       const send = () => json(res, { causes, moderator: true });

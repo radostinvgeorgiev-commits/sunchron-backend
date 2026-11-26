@@ -43,9 +43,13 @@
             <button type="button" class="new-chat" id="connectGoogleDrive">
               <i class="fa-brands fa-google-drive"></i><span>Свържи Google Drive</span>
             </button>
-            <button type="button" class="new-chat" id="restoreGoogleDrive">
+            ${
+              status.canRestore
+                ? `<button type="button" class="new-chat" id="restoreGoogleDrive">
               <i class="fa-solid fa-clock-rotate-left"></i><span>Възстанови старата Google връзка</span>
-            </button>
+            </button>`
+                : ""
+            }
           </section>`;
         document
           .getElementById("connectGoogleDrive")
@@ -54,7 +58,7 @@
           });
         document
           .getElementById("restoreGoogleDrive")
-          .addEventListener("click", () => {
+          ?.addEventListener("click", () => {
             window.location.href = "/api/google/restore";
           });
         return;

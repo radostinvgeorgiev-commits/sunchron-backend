@@ -66,6 +66,7 @@ import {
 import {
   GoogleDriveError,
   parseCookies,
+  sessionBelongsTo,
 } from "../services/googleDriveService.js";
 import {
   GitHubOAuthError,
@@ -1243,8 +1244,12 @@ router.post("/chat", async (req, res) => {
     rewrite,
     assistant,
   } = req.body || {};
-  const googleSessionId =
+  const cookieGoogleSession =
     parseCookies(req.headers.cookie).synchron_google_session || "";
+  // Only this account's own Google connection is used.
+  const googleSessionId = (await sessionBelongsTo(cookieGoogleSession, req.owner))
+    ? cookieGoogleSession
+    : "";
   const githubSessionId =
     parseGitHubCookies(req.headers.cookie).synchron_github_session || "";
   const ownerId = req.owner.memoryOwnerId;

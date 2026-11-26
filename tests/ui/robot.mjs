@@ -177,6 +177,15 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect((await page.inputValue('.avatar-form textarea[name="about"]')) === "", "профилът не се изтри");
     await page.click(".avatar-dialog .share-close");
   });
+  await step(`${label}: „Моят Google“ показва бутона за свързване`, async () => {
+    await page.click("#attachBtn");
+    await page.click('[data-plus="google"]');
+    await page.waitForTimeout(500);
+    expect(await page.locator("#connectGoogleDrive").isVisible(), "няма бутон за свързване");
+    expect((await page.locator("#restoreGoogleDrive").count()) === 0, "бутонът за възстановяване се вижда");
+    await page.click("#closeDataDrawerBtn");
+    await page.waitForTimeout(200);
+  });
   await step(`${label}: „Каузи“ — предложи, харесай, изтрий`, async () => {
     await page.click("#attachBtn");
     await page.click('[data-plus="causes"]');

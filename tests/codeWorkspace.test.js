@@ -208,9 +208,9 @@ test("an owner can review a pinned diff, approve the exact change once and see C
   assert.equal(draft.baseSha, sha);
   assert.deepEqual(
     draft.council.map(({ provider }) => provider),
-    ["openai", "gemini", "grok", "claude", "codex"],
+    ["openai", "gemini", "grok", "claude"],
   );
-  assert.equal(draft.executor.provider, "codex");
+  assert.equal(draft.executor.provider, "claude");
   assert.equal(draft.review[0].check.status, "passed");
   assert.match(
     draft.review[0].diff,
@@ -262,8 +262,8 @@ test("confirming a review whose base moved does not create a commit", async (t) 
   assert.deepEqual(writes, []);
 });
 
-test("Code uses a single responsive engine when the other four fail", async (t) => {
-  const unavailable = ["openai", "gemini", "grok", "codex"];
+test("Code uses a single responsive engine when the other three fail", async (t) => {
+  const unavailable = ["openai", "gemini", "grok"];
   const { cookie, calls, writes } = await setup(t, changed, { unavailable });
   const { body: draft } = await prepare(cookie).expect(200);
   assert.deepEqual(
@@ -280,23 +280,23 @@ test("Code uses a single responsive engine when the other four fail", async (t) 
   assert.deepEqual(writes, []);
 });
 
-test("Code tries another responsive engine if Codex fails to produce a plan", async (t) => {
+test("Code tries another responsive engine if Claude fails to produce a plan", async (t) => {
   const { cookie, calls } = await setup(t, changed, {
     unavailable: ["openai", "grok"],
-    badPlanners: ["codex"],
+    badPlanners: ["claude"],
   });
   const { body: draft } = await prepare(cookie).expect(200);
   assert.equal(draft.executor.provider, "gemini");
   assert.deepEqual(
     calls.filter(({ planning }) => planning).map(({ provider }) => provider),
-    ["codex", "gemini"],
+    ["claude", "gemini"],
   );
   assert.ok(draft.confirmationId);
 });
 
 test("Code keeps available advice when no engine can prepare a valid diff", async (t) => {
   const { cookie, confirmations, writes } = await setup(t, changed, {
-    unavailable: ["openai", "grok", "claude", "codex"],
+    unavailable: ["openai", "grok", "claude"],
     badPlanners: ["gemini"],
   });
   const { body: draft } = await prepare(cookie).expect(200);

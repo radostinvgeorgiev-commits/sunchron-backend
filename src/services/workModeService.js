@@ -26,7 +26,7 @@ const AGENT_ROLES = Object.freeze({
       "Изготвяй използваеми резултати, планове и файлово съдържание, но не твърди, че код или файл е записан без реален изпълним инструмент.",
   },
   coder: {
-    label: "Codex разработчик",
+    label: "Код разработчик (Claude)",
     guidance:
       "Анализирай реалния код в изолирана област. Не твърди, че промяна е записана, преди да има потвърден write процес.",
   },
@@ -34,7 +34,7 @@ const AGENT_ROLES = Object.freeze({
 
 const AGENT_ENGINES = Object.freeze({
   "ai-core": { label: "AI CORE" },
-  codex: { label: "Codex" },
+  codex: { label: "Claude код" },
 });
 
 const PROJECT_RUN_STATUSES = new Set([

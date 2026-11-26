@@ -78,13 +78,53 @@ test("three engines are consulted before a bounded code confirmation is created"
   assert.equal(prepared.files[0].path, "public/avatar-proof.js");
   assert.equal(storedConfirmation.action, "github.write:code_task");
   assert.match(prepared.output, /Още не е записано нищо/u);
-  assert.match(prepared.output, /Водещ кодов изпълнител: Codex/u);
+  // Without a Claude key the OpenAI engine leads; Codex is gone.
+  assert.match(prepared.output, /Водещ кодов изпълнител: OpenAI/u);
+  assert.doesNotMatch(prepared.output, /Codex/u);
   assert.equal(
     extractCodeTaskConfirmationId(
       `Потвърждавам AI CORE кодова задача: ${prepared.confirmationId}`,
     ),
     prepared.confirmationId,
   );
+});
+
+test("Claude leads the code plan when it is configured", async () => {
+  const planCalls = [];
+  const prepared = await prepareCodeTask({
+    ownerId: "owner-1",
+    sessionId: "session-1",
+    githubSessionId: "github-session",
+    message: "Добави проверим UI модул.",
+    apiKey: "openai-key",
+    claudeApiKey: "claude-key",
+    createWorkspace: async () => ({
+      root: "C:/nonexistent-ai-core-code-task-test",
+      workspace: "C:/nonexistent-ai-core-code-task-test/source",
+    }),
+    createSnapshot: async () => ({ text: "source" }),
+    advisorRequesters: {
+      openai: advisor("openai"),
+      claude: async ({ input, outputSchema }) => {
+        if (outputSchema) {
+          planCalls.push("claude");
+          return { model: "claude-haiku-5-5", text: JSON.stringify(plan) };
+        }
+        return advisor("claude")({ input });
+      },
+    },
+    responseRequester: async () => {
+      planCalls.push("openai");
+      return { text: JSON.stringify(plan) };
+    },
+    resolveGitHubSession: async () => githubSession,
+    createConfirmation: async () => ({
+      id: "22222222-2222-4222-8222-222222222222",
+      expiresAt: Date.now() + 60_000,
+    }),
+  });
+  assert.deepEqual(planCalls, ["claude"]);
+  assert.match(prepared.output, /Водещ кодов изпълнител: Claude \(claude-haiku-5-5\)/u);
 });
 
 test("confirmation creates exactly one branch commit and pull request operation", async () => {

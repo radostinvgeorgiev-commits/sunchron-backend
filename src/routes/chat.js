@@ -879,7 +879,7 @@ function capabilityLabel(capability) {
   if (capability === "calendar.read") return "календар";
   if (capability === "calendar.write") return "запис в календара";
   if (capability === "code.read") return "GitHub";
-  if (capability === "code.analyze") return "Codex";
+  if (capability === "code.analyze") return "Claude код";
   if (capability === "code.task-status") return "GitHub задача";
   if (capability === "code.write") return "GitHub запис";
   if (capability === "github.pull-request.merge")
@@ -2300,7 +2300,7 @@ router.post("/chat", async (req, res) => {
       "Ако стъпка е недостъпна, кажи точно коя е тя и защо, без да повтаряш еднакъв резултат.",
       ...(includesCodexReview
         ? [
-            "Codex резултатът вече е проверен вход за AI CORE. Анализирай го, посочи какво реално е доказано и предложи само една следваща стъпка.",
+            "Резултатът от кодовия анализ (Claude) вече е проверен вход за AI CORE. Анализирай го, посочи какво реално е доказано и предложи само една следваща стъпка.",
             "Не изпращай автоматично нова задача и не заявявай запис в кода без отделно потвърден capability процес.",
           ]
         : []),

@@ -3,7 +3,6 @@ import { readFile, rm } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 
 import {
-  DEFAULT_CODEX_COUNCIL_MODEL,
   requestClaudeResponse,
   requestGeminiResponse,
   requestGrokResponse,
@@ -17,7 +16,6 @@ import {
 import {
   createBoundedSourceSnapshot,
   createIsolatedSourceWorkspace,
-  isCodexAgentConfigured,
 } from "./codexAgentService.js";
 import {
   loadCodeWorkspaceSource,
@@ -59,12 +57,9 @@ const CODE_PROVIDERS = {
     key: "ANTHROPIC_API_KEY",
     request: requestClaudeResponse,
   },
-  codex: {
-    label: "Codex",
-    key: "OPENAI_API_KEY",
-    request: requestOpenAIResponse,
-  },
 };
+// Claude leads code tasks; the other engines are advisors and fallbacks.
+const CODE_EXECUTOR_ORDER = Object.freeze(["claude", "openai", "gemini", "grok"]);
 const DEFAULT_ADVISOR_REQUESTERS = Object.fromEntries(
   Object.entries(CODE_PROVIDERS).map(([provider, { request }]) => [
     provider,
@@ -75,8 +70,7 @@ const DEFAULT_ADVISOR_REQUESTERS = Object.fromEntries(
 export function getCodeTaskProviderStatus(env = process.env) {
   return Object.entries(CODE_PROVIDERS).map(([id, { key }]) => ({
     id,
-    configured:
-      id === "codex" ? isCodexAgentConfigured(env) : Boolean(env[key]?.trim()),
+    configured: Boolean(env[key]?.trim()),
   }));
 }
 
@@ -349,8 +343,7 @@ export async function prepareCodeTask({
   geminiApiKey = process.env.GEMINI_API_KEY,
   grokApiKey = process.env.GROK_API_KEY,
   claudeApiKey = process.env.ANTHROPIC_API_KEY,
-  codexModel = process.env.AI_CORE_COUNCIL_CODEX_MODEL ||
-    DEFAULT_CODEX_COUNCIL_MODEL,
+  claudeModel = process.env.CLAUDE_CODE_MODEL || undefined,
   model = process.env.OPENAI_CODEX_MODEL,
   sourceDirectory = process.cwd(),
   responseRequester = requestOpenAIResponse,
@@ -369,12 +362,6 @@ export async function prepareCodeTask({
     gemini: geminiApiKey,
     grok: grokApiKey,
     claude: claudeApiKey,
-    codex: isCodexAgentConfigured({
-      OPENAI_API_KEY: apiKey,
-      CODEX_AGENT_ENABLED: process.env.CODEX_AGENT_ENABLED,
-    })
-      ? apiKey
-      : "",
   };
   const providers = Object.keys(CODE_PROVIDERS);
   const configured = providers.filter(
@@ -421,9 +408,8 @@ export async function prepareCodeTask({
           apiKey: keys[provider],
           input: advisorInput,
           signal: advisorSignal,
-          ...(provider === "codex"
-            ? { model: codexModel, verbosity: null, reasoningEffort: "low" }
-            : { verbosity: "low", reasoningEffort: "medium" }),
+          verbosity: "low",
+          reasoningEffort: "medium",
         });
         const text = typeof result?.text === "string" ? result.text.trim() : "";
         if (!text) throw new Error("Липсва отговор от двигателя.");
@@ -468,13 +454,13 @@ export async function prepareCodeTask({
     let plan;
     let executor;
     let planError;
-    for (const provider of ["codex", "openai", "gemini", "grok", "claude"]) {
+    for (const provider of CODE_EXECUTOR_ORDER) {
       if (!answered.has(provider) || planDeadline.aborted) continue;
       const requester =
         provider === "openai" ? responseRequester : advisorRequesters[provider];
       const codingModel =
-        provider === "codex"
-          ? codexModel
+        provider === "claude"
+          ? claudeModel
           : provider === "openai"
             ? model
             : undefined;
@@ -484,7 +470,7 @@ export async function prepareCodeTask({
           ...(codingModel ? { model: codingModel } : {}),
           signal: AbortSignal.any([planDeadline, AbortSignal.timeout(45_000)]),
           input: planInput,
-          verbosity: provider === "codex" ? null : "low",
+          verbosity: "low",
           reasoningEffort: "high",
           jsonMode: true,
           maxTokens: 8192,
@@ -493,7 +479,7 @@ export async function prepareCodeTask({
         });
         plan = validatePlan(response?.text, process.env);
         executor = {
-          role: ["openai", "codex"].includes(provider) ? "codex" : "coding",
+          role: "coding",
           provider,
           model:
             (typeof response.model === "string" && response.model.trim()) ||
@@ -621,7 +607,7 @@ export async function prepareCodeTask({
               `Недостъпни ${unavailableProviders.map((id) => CODE_PROVIDERS[id].label).join(", ")}.`,
             ]
           : []),
-        `Водещ кодов изпълнител: ${executor.provider === "openai" ? "Codex роля през OpenAI" : CODE_PROVIDERS[executor.provider].label} (${executor.model}).`,
+        `Водещ кодов изпълнител: ${CODE_PROVIDERS[executor.provider].label} (${executor.model}).`,
         `Задача: ${plan.summary}`,
         `Клон: ${branch}`,
         "Файлове:",

@@ -247,7 +247,7 @@ export function getToolRuntimeAvailability(
     case "openai-codex":
       return configured(
         isCodexAgentConfigured(env),
-        "Codex агентът не е конфигуриран.",
+        "Кодовият агент (Claude) не е конфигуриран.",
         "CODEX_AGENT_NOT_CONFIGURED",
       );
     case "google-firestore-memory":
@@ -335,6 +335,9 @@ export async function buildIntegrationStatusReport(
   const openAiWorks = providerProbe.some(
     ({ id, working }) => id === "openai" && working,
   );
+  const claudeWorks = providerProbe.some(
+    ({ id, working }) => id === "claude" && working,
+  );
 
   const working = [
     ["GitHub Read", githubRead],
@@ -349,7 +352,7 @@ export async function buildIntegrationStatusReport(
         ),
     ],
     ["OpenAI Web Search", Boolean(env.OPENAI_API_KEY) && openAiWorks],
-    ["Codex", isCodexAgentConfigured(env) && openAiWorks],
+    ["Claude код", isCodexAgentConfigured(env) && claudeWorks],
   ];
   const sessionTools = [
     [

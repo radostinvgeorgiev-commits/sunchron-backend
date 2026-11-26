@@ -229,3 +229,14 @@ test("missing workspace returns a safe starter state", async () => {
     ["Изпълни", "Проучи", "Организирай", "Напиши", "Код"],
   );
 });
+
+test("the code agent runs on Claude: an older GPT choice becomes auto", () => {
+  const state = normalizeWorkspaceState({
+    agents: [
+      { id: "codex-agent", name: "Код", role: "coder", model: "gpt-5.6-terra", engine: "codex" },
+      { id: "writer", name: "Пиши", role: "documents", model: "gpt-5.6-terra", engine: "ai-core" },
+    ],
+  });
+  assert.equal(state.agents.find(({ id }) => id === "codex-agent").model, "auto");
+  assert.equal(state.agents.find(({ id }) => id === "writer").model, "gpt-5.6-terra");
+});

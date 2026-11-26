@@ -454,7 +454,7 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
           : null,
       availabilityReason:
         String(process.env.CODEX_AGENT_ENABLED || "").toLowerCase() === "false"
-          ? "Codex агентът е изключен от конфигурацията."
+          ? "Кодовият агент (Claude) е изключен от конфигурацията."
           : null,
     },
     "google-cloud-read": {

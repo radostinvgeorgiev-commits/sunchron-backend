@@ -1493,7 +1493,6 @@ const PROVIDER_LABELS = Object.freeze({
   gemini: "Gemini",
   grok: "Grok",
   claude: "Claude",
-  codex: "Codex",
 });
 
 function describeAiError(data) {
@@ -2519,7 +2518,6 @@ function showAiResponseSource(message, provider, model, linkedProjectContext) {
     "vertex-gemini": "Vertex Gemini",
     grok: "Grok",
     claude: "Claude",
-    codex: "Codex",
   };
   source.textContent = [
     chatText("Отговаря агентът"),

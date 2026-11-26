@@ -31,7 +31,7 @@ const POLICY = Object.freeze({
     decision: "allow",
     risk: "medium",
     reason:
-      "Codex работи в изолирано копие на кода без запис и без мрежов достъп.",
+      "Кодовият агент (Claude) работи в изолирано копие на кода без запис и без мрежов достъп.",
   }),
   "calendar.read": Object.freeze({
     decision: "allow",

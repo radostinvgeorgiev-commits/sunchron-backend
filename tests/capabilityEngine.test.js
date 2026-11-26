@@ -145,12 +145,18 @@ test("runtime availability blocks configured-looking tools without credentials",
     getToolRuntimeAvailability(
       "openai-codex",
       {},
-      { OPENAI_API_KEY: "key", CODEX_AGENT_ENABLED: "false" },
+      { ANTHROPIC_API_KEY: "key", CODEX_AGENT_ENABLED: "false" },
     ).code,
     "CODEX_AGENT_NOT_CONFIGURED",
   );
+  // The code agent runs on Claude: an OpenAI key alone is not enough.
   assert.equal(
     getToolRuntimeAvailability("openai-codex", {}, { OPENAI_API_KEY: "key" })
+      .available,
+    false,
+  );
+  assert.equal(
+    getToolRuntimeAvailability("openai-codex", {}, { ANTHROPIC_API_KEY: "key" })
       .available,
     true,
   );

@@ -56,6 +56,8 @@ import { createFeedbackRouter } from "./src/routes/feedbackRouter.js";
 import { createUserLibraryRouter } from "./src/routes/userLibraryRouter.js";
 import { createAvatarProfileRouter } from "./src/routes/avatarProfileRouter.js";
 import { createCausesRouter } from "./src/routes/causesRouter.js";
+import { createDailyPlanRouter } from "./src/routes/dailyPlanRouter.js";
+import { getDailyPlanService } from "./src/services/dailyPlanService.js";
 import { getCausesService } from "./src/services/causesService.js";
 import { getAvatarProfileService } from "./src/services/avatarProfileService.js";
 import { createKnowledgeFilesRouter } from "./src/routes/knowledgeFilesRouter.js";
@@ -216,6 +218,12 @@ app.use(
   requireOwnerSession,
   privateApiRateLimiter,
   createUserLibraryRouter({ service: getUserLibraryService() }),
+);
+app.use(
+  "/api/daily-plan",
+  requireOwnerSession,
+  paidAiRateLimiter,
+  createDailyPlanRouter({ service: getDailyPlanService() }),
 );
 app.use(
   "/api/causes",

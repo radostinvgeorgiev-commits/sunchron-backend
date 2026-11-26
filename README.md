@@ -10,16 +10,17 @@
 - Google Cloud Run production runtime;
 - Firestore за памет, задачи, workspace, OAuth сесии, потвърждения и audit;
 - Google Identity Platform за вход и тестови профили;
-- OpenAI Responses API за основния разговор и coding ролята;
-- Gemini, Grok и Claude като допълнителни AI двигатели при конфигурирани ключове;
-- Codex като водещ code/ops изпълнител в owner-controlled branch/PR поток;
+- Claude Haiku 5.5 за основния разговор по подразбиране (избран в кода);
+- OpenAI, Gemini и Grok като допълнителни AI двигатели при конфигурирани ключове;
+- Claude като водещ кодов изпълнител в owner-controlled branch/PR поток (Codex
+  вече не се използва);
 - GitHub OAuth за read и защитени branch/commit/PR операции;
 - Google OAuth за Drive, Gmail и Calendar;
 - OAuth-защитен MCP адрес: `https://cloudaicore.com/mcp`.
 
 Task Orchestrator разделя заявката на стъпки, избира capability и изпълнява
 реалния адаптер. При кодова задача трите AI двигателя първо предлагат решения.
-OpenAI coding моделът синтезира ограничен набор от цели файлове, а записът
+Claude синтезира ограничен набор от цели файлове, а записът
 започва само след точно еднократно потвърждение. `main` никога не се променя
 директно от задачата.
 
@@ -53,5 +54,6 @@ Firestore + Identity Platform проверки, актуален MCP катал�
 - `docs/CURRENT_PRODUCT_ACCEPTANCE.md`
 - `docs/DEPLOYMENT_READINESS_CHECKLIST.md`
 - `docs/OWNER_ACCEPTANCE_RUNBOOK.md`
+- `docs/AVATAR_ROADMAP.md` (посока, фази, модел на парите)
 - `docs/PRODUCT_DIRECTION.md`
 - `docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md`

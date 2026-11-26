@@ -56,16 +56,19 @@
    влиза; профил със запис за достъп, различен от `approved` (например
    `revoked`), остава блокиран. Health проверките не доказват сами реална
    регистрация.
-9. Няма merge/deploy без owner review и отделно потвърждение.
+9. Merge и deploy стават по постоянното разрешение на собственика (AGENTS.md,
+   т. 9): само при зелени тестове и проверки, по един PR наведнъж, с проверка
+   на живия сайт след всеки. Промени в Google Cloud, тайни и права остават
+   след изрично „да“.
 
 ## Следващо
 
-1. Преглед и merge решение за PR #379 или пренасяне на нужната поправка в новия
-   release branch.
-2. Реален browser acceptance на Council → избор → разрешено действие.
-3. Production audit read acceptance за A4.
-4. Staging fault-injection/recovery acceptance за A5.
-5. Exact-SHA deployment и визуална проверка на сайта след merge.
+Списъкът с оставащи задачи и етапите на аватара са в `AVATAR_ROADMAP.md`.
+Отворени проверки от този документ:
+
+1. Реален browser acceptance на Council → избор → разрешено действие.
+2. Production audit read acceptance за A4.
+3. Staging fault-injection/recovery acceptance за A5.
 
 Продуктовата посока е в `PRODUCT_DIRECTION.md`; оперативните стъпки са в
 `OPERATIONS_RUNBOOK.md`; MVP статусът е в `MVP_ACCEPTANCE_CHECKLIST_2026-08.md`.

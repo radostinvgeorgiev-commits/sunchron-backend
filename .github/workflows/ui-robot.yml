@@ -30,10 +30,12 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install the browser
+      - name: Install the browser driver
+        # The runner already has Google Chrome; only the driver is installed.
         run: |
-          npm install --no-save --no-audit --no-fund playwright@1.56.1 || { echo "::error title=UI robot::playwright install failed"; exit 1; }
-          npx playwright install --with-deps chromium || { echo "::error title=UI robot::browser download failed"; exit 1; }
+          npm install --no-save --no-audit --no-fund playwright-core@1.56.1 || { echo "::error title=UI robot::driver install failed"; exit 1; }
+          echo "PLAYWRIGHT_MODULE=playwright-core" >> "$GITHUB_ENV"
+          echo "CHROME_PATH=$(command -v google-chrome || command -v chromium-browser || command -v chromium)" >> "$GITHUB_ENV"
 
       - name: Press the buttons (local page, stub server)
         if: github.event_name != 'workflow_run'

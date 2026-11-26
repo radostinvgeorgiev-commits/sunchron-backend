@@ -53,6 +53,7 @@
     <script src="/vendor/dompurify-3.4.12/purify.min.js"></script>
     <link rel="stylesheet" href="/locale.css" />
     <link rel="stylesheet" href="/readability.css?v=20261125" />
+    <link rel="stylesheet" href="/ui-refresh.css?v=20261126" />
     <script src="/locale-en.js"></script>
     <script src="/locale.js"></script>
   </head>
@@ -271,6 +272,10 @@
           <i class="fa-solid fa-ellipsis"></i>
         </button>
         <div id="profileActions" class="profile-actions" hidden>
+          <div class="profile-language">
+            <span>Език</span>
+            <div data-language-switch></div>
+          </div>
           <button id="profileStatusBtn" type="button">
             <i class="fa-solid fa-sliders"></i>
             <span>Състояние и настройки</span>
@@ -366,7 +371,15 @@
           <div class="model-title">
             <strong>AI CORE</strong>
           </div>
-          <div data-language-switch></div>
+          <button
+            id="mobileNewChatBtn"
+            class="mobile-new-chat"
+            type="button"
+            aria-label="Нов разговор"
+            title="Нов разговор"
+          >
+            <i class="fa-regular fa-pen-to-square" aria-hidden="true"></i>
+          </button>
           <details class="chat-options" id="chatOptions">
             <summary aria-label="Действия за разговора" title="Действия за разговора">
               <i class="fa-solid fa-ellipsis" aria-hidden="true"></i>
@@ -459,7 +472,6 @@
               type="checkbox"
               name="councilProvider"
               value="openai"
-              checked
             />
             OpenAI</label
           >
@@ -477,12 +489,11 @@
               type="checkbox"
               name="councilProvider"
               value="grok"
-              checked
             />
             Grok</label
           >
           <label
-            ><input type="checkbox" name="councilProvider" value="claude" />
+            ><input type="checkbox" name="councilProvider" value="claude" checked />
             Claude</label
           >
           <label
@@ -516,6 +527,7 @@
           aria-label="Бързо начало"
           hidden
         >
+          <h2 id="quickStartGreeting" class="quick-start-greeting">С какво да започнем?</h2>
           <div>
             <button
               type="button"
@@ -591,7 +603,7 @@
               aria-label="Гласово въвеждане"
               title="Гласово въвеждане"
             >
-              <i class="fa-solid fa-wave-square"></i>
+              <i class="fa-solid fa-microphone"></i>
             </button>
             <button id="sendBtn" type="button" aria-label="Изпрати">
               <i class="fa-solid fa-arrow-up"></i><span>Изпрати</span>
@@ -765,6 +777,7 @@
     <script src="/task-journal.js?v=20260728-task-journal"></script>
     <script src="/ai-spend.js?v=20261125"></script>
     <script src="/pwa.js?v=20261126"></script>
+    <script src="/ui-refresh.js?v=20261126"></script>
     <script src="/google-drive.js?v=20260727-connection-actions"></script>
     <script src="/google-apps.js?v=20260727-connection-actions"></script>
     <script src="/assets/20260806-green-chat-v1/synchron-vision.js"></script>

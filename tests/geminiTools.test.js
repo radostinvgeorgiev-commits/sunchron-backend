@@ -95,3 +95,17 @@ test("the chef and the coach show YouTube and maps among their tools", () => {
   assert.ok(presets.chef.includes("youtube") && presets.chef.includes("maps"));
   assert.ok(presets.coach.includes("youtube") && presets.coach.includes("maps"));
 });
+
+test("a recipe or a picture with a place word is not a maps question", () => {
+  assert.equal(isPlacesRequest("Покажи ми как се прави ресторантска паста"), false);
+  assert.equal(isPlacesRequest("Препоръчай ресторантска рецепта"), false);
+  assert.equal(isPlacesRequest("Покажи снимка на хотелска стая"), false);
+  assert.equal(isPlacesRequest("Има ли аптека наблизо до НДК?"), true);
+});
+
+test("“не използвай инструменти” keeps the video and maps tools out", () => {
+  const requests = detectCapabilityRequests(
+    "Не използвай инструменти. Само обсъди https://youtu.be/dQw4w9WgXcQ",
+  );
+  assert.equal(requests.some(({ capability }) => capability === "video.read"), false);
+});

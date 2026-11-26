@@ -10,7 +10,27 @@ import {
   listProfileMemories,
   saveConversationTurn,
 } from "./memoryService.js";
-import { requestAiText } from "./aiCoreService.js";
+import {
+  getConfiguredAiProvider,
+  isAiProviderConfigured,
+  requestAiText,
+} from "./aiCoreService.js";
+
+// The agent's own model answers first. If its provider is down (Gemini 503,
+// a timeout), the site default answers instead of failing the whole turn,
+// the same way the site chat does.
+export async function askWithFallback(askAi, request, env = process.env) {
+  try {
+    return await askAi(request);
+  } catch (error) {
+    const fallback = getConfiguredAiProvider(env);
+    if (!fallback || fallback === request.provider || !isAiProviderConfigured(fallback, env)) {
+      throw error;
+    }
+    console.error(`[MCP chat] ${request.provider || "default"} failed; answering with ${fallback}`);
+    return askAi({ ...request, provider: fallback, model: undefined });
+  }
+}
 import { loadWorkspaceState } from "./workspaceStateService.js";
 import {
   planCapabilities,
@@ -334,7 +354,7 @@ export async function sendMcpAgentMessage(
   );
   const response = capabilityOutput
     ? capabilityOutput
-    : await askAi({
+    : await askWithFallback(askAi, {
         provider: resolveWorkAgentProvider(agent.model),
         input,
         model: resolveWorkAgentModel(agent.model),

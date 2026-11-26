@@ -74,10 +74,12 @@ const AGENT_MODELS = Object.freeze({
     provider: "gemini",
     apiModel: "gemini-3.8-flash",
   },
+  // Old id kept so saved agents still resolve; Google retired
+  // gemini-2.5-flash, so this agent uses the Vertex model the runtime is
+  // set to (checked by the self-test), not a fixed one.
   "vertex-gemini-2.5-flash": {
-    label: "Vertex Gemini 2.5 Flash",
+    label: "Vertex Gemini (Google Cloud)",
     provider: "vertex-gemini",
-    apiModel: "gemini-2.5-flash",
   },
   "grok-4.5": {
     label: "Grok 4.5",

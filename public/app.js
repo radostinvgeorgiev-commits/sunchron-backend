@@ -19,6 +19,8 @@ const state = {
   serverOnline: false,
   lastActions: [],
   chatBusy: false,
+  talkMode: false,
+  talkEmpty: 0,
   councilMode: false,
   speakingButton: null,
   pendingImage: null,
@@ -111,6 +113,7 @@ const elements = {
   drawerBackdrop: document.getElementById("drawerBackdrop"),
   closeDataDrawerBtn: document.getElementById("closeDataDrawerBtn"),
   voiceBtn: document.getElementById("voiceBtn"),
+  talkBtn: document.getElementById("talkBtn"),
   profileAvatar: document.getElementById("profileAvatar"),
   profileName: document.getElementById("profileName"),
   profileRole: document.getElementById("profileRole"),
@@ -534,6 +537,7 @@ async function startApplication(user) {
   elements.dataDrawerBody.addEventListener("click", handleDataDrawerAction);
   elements.taskRunList?.addEventListener("click", handleTaskRunAction);
   elements.voiceBtn.addEventListener("click", toggleVoiceInput);
+  elements.talkBtn?.addEventListener("click", toggleTalkMode);
   elements.logoutBtn.addEventListener("click", handleLogout);
   document.addEventListener("keydown", handleGlobalKeydown);
   prepareVoiceInput();
@@ -598,6 +602,7 @@ async function restoreConversation() {
 }
 
 async function startNewChat({ withinProject = false } = {}) {
+  stopTalkMode();
   if (state.chatBusy) return;
   closeSidebar();
   clearPendingImage();
@@ -859,6 +864,7 @@ function prepareVoiceInput() {
   if (state.serverVoice) return;
   if (!SpeechRecognition) {
     elements.voiceBtn.hidden = true;
+    if (elements.talkBtn) elements.talkBtn.hidden = true;
     return;
   }
 
@@ -868,10 +874,14 @@ function prepareVoiceInput() {
   recognition.interimResults = true;
 
   recognition.onstart = () => setListening(true);
-  recognition.onend = () => setListening(false);
+  recognition.onend = () => {
+    setListening(false);
+    if (state.talkMode) talkAfterListening();
+  };
   recognition.onerror = (event) => {
     setListening(false);
     if (event.error === "aborted" || event.error === "no-speech") return;
+    stopTalkMode();
     // The browser cannot do it here; use the server from the next tap on.
     if (
       canRecordVoice() &&
@@ -965,13 +975,20 @@ async function startServerRecording() {
     stream.getTracks().forEach((track) => track.stop());
     state.recorder = null;
     setListening(false);
+    state.silenceWatch?.();
+    state.silenceWatch = null;
     const blob = new Blob(chunks, { type: (recorder.mimeType || mimeType || "audio/webm") });
-    if (blob.size < 1000) return;
+    if (blob.size < 1000 || state.talkHeard === false) {
+      if (state.talkMode) talkAfterListening();
+      return;
+    }
     await transcribeRecording(blob);
   };
   state.recorder = recorder;
   recorder.start();
   setListening(true);
+  state.talkHeard = null;
+  if (state.talkMode) state.silenceWatch = watchForSilence(stream, recorder);
   state.recordingTimer = setTimeout(() => {
     if (recorder.state === "recording") recorder.stop();
   }, MAX_RECORDING_MS);
@@ -1003,18 +1020,197 @@ async function transcribeRecording(blob) {
     const heard = String(data.text || "").trim();
     if (!heard) {
       logAction("Не чух говор в записа");
-      return;
+    } else {
+      const current = elements.chatInput.value.trim();
+      elements.chatInput.value = current ? `${current} ${heard}` : heard;
+      resizeChatInput();
+      elements.chatInput.focus();
     }
-    const current = elements.chatInput.value.trim();
-    elements.chatInput.value = current ? `${current} ${heard}` : heard;
-    resizeChatInput();
-    elements.chatInput.focus();
   } catch (error) {
+    stopTalkMode();
     appendMessage("agent", `❌ ${error.message}`, null, { remember: false });
   } finally {
     elements.chatInput.placeholder = previousPlaceholder;
     elements.voiceBtn.disabled = state.chatBusy;
   }
+  if (state.talkMode) talkAfterListening();
+}
+
+// Hands-free recording: stop by itself after a pause once the person has
+// spoken, or after a while if nobody speaks at all.
+function watchForSilence(stream, recorder) {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return null;
+  let context;
+  try {
+    context = new AudioContextClass();
+  } catch {
+    return null;
+  }
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 1024;
+  context.createMediaStreamSource(stream).connect(analyser);
+  const samples = new Uint8Array(analyser.fftSize);
+  const started = Date.now();
+  let lastVoice = 0;
+  state.talkHeard = false;
+  const timer = setInterval(() => {
+    analyser.getByteTimeDomainData(samples);
+    let sum = 0;
+    for (const sample of samples) sum += (sample - 128) ** 2;
+    const level = Math.sqrt(sum / samples.length);
+    const now = Date.now();
+    if (level > 6) {
+      lastVoice = now;
+      state.talkHeard = true;
+    }
+    const quietAfterSpeech = lastVoice && now - lastVoice > 1600;
+    const nobodySpoke = !lastVoice && now - started > 8000;
+    if ((quietAfterSpeech || nobodySpoke) && recorder.state === "recording") recorder.stop();
+  }, 120);
+  return () => {
+    clearInterval(timer);
+    void context.close().catch(() => {});
+  };
+}
+
+// ── Talk with voice, hands-free ─────────────────────────────────────────
+// Listen → send by itself → read the answer aloud → listen again, until the
+// person says "стоп" or presses the button again.
+const TALK_STOP_WORDS = /^(стоп|спри|край|stop|that'?s all|enough)[.!]?$/iu;
+const TALK_MAX_EMPTY = 3;
+
+function setTalkUi(on) {
+  document.body.classList.toggle("talk-mode", on);
+  if (!elements.talkBtn) return;
+  elements.talkBtn.classList.toggle("talking", on);
+  elements.talkBtn.setAttribute("aria-pressed", String(on));
+  const label = chatText(on ? "Спри разговора с глас" : "Разговор с глас");
+  elements.talkBtn.title = label;
+  elements.talkBtn.setAttribute("aria-label", label);
+  elements.chatInput.placeholder = chatText(on ? "Говори… кажи „стоп“ за край" : "Пиши на AI CORE");
+}
+
+function toggleTalkMode() {
+  if (state.talkMode) {
+    stopTalkMode();
+    return;
+  }
+  if (state.chatBusy) return;
+  state.talkMode = true;
+  state.talkEmpty = 0;
+  // iPhone lets a page speak only after a tap; this empty phrase unlocks it.
+  try {
+    window.speechSynthesis?.speak(new SpeechSynthesisUtterance(""));
+  } catch {
+    // no speech on this device; answers stay on screen
+  }
+  setTalkUi(true);
+  logAction("Разговор с глас: слушам");
+  talkListen();
+}
+
+function stopTalkMode() {
+  if (!state.talkMode) return;
+  state.talkMode = false;
+  clearTimeout(state.talkTimer);
+  window.speechSynthesis?.cancel();
+  if (state.recorder?.state === "recording") state.recorder.stop();
+  if (state.listening) state.recognition?.abort();
+  setTalkUi(false);
+  logAction("Разговорът с глас спря");
+}
+
+function talkListen() {
+  if (!state.talkMode || state.chatBusy || state.listening) return;
+  if (state.serverVoice) {
+    void startServerRecording();
+    return;
+  }
+  if (!state.recognition) {
+    stopTalkMode();
+    return;
+  }
+  try {
+    state.recognition.start();
+  } catch {
+    state.recognition.abort();
+    state.talkTimer = setTimeout(talkListen, 400);
+  }
+}
+
+function talkAfterListening() {
+  if (!state.talkMode) return;
+  const said = elements.chatInput.value.trim();
+  if (TALK_STOP_WORDS.test(said)) {
+    elements.chatInput.value = "";
+    resizeChatInput();
+    stopTalkMode();
+    return;
+  }
+  if (said) {
+    state.talkEmpty = 0;
+    void sendMessage();
+    return;
+  }
+  state.talkEmpty += 1;
+  if (state.talkEmpty >= TALK_MAX_EMPTY) {
+    stopTalkMode();
+    return;
+  }
+  state.talkTimer = setTimeout(talkListen, 300);
+}
+
+// Plain words for reading aloud: no code, links or Markdown marks.
+function textForSpeech(text) {
+  return String(text || "")
+    .replace(/```[\s\S]*?```/gu, " ")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/gu, "$1")
+    .replace(/https?:\/\/\S+/gu, " ")
+    .replace(/[`*_#>|~]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .slice(0, 2400);
+}
+
+function speechChunks(text) {
+  const sentences = text.match(/[^.!?…]+[.!?…]*\s*/gu) || [text];
+  const chunks = [];
+  let current = "";
+  for (const sentence of sentences) {
+    if (current && (current + sentence).length > 220) {
+      chunks.push(current.trim());
+      current = "";
+    }
+    current += sentence;
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
+}
+
+function talkSpeak(text) {
+  const words = textForSpeech(text);
+  const next = () => {
+    state.talkTimer = setTimeout(talkListen, 350);
+  };
+  if (!state.talkMode) return;
+  if (!words || !("speechSynthesis" in window)) {
+    next();
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const chunks = speechChunks(words);
+  chunks.forEach((chunk, index) => {
+    const utterance = new SpeechSynthesisUtterance(chunk);
+    utterance.lang = chatLocale?.browserLocale || "bg-BG";
+    if (index === chunks.length - 1) {
+      utterance.onend = () => {
+        if (state.talkMode) next();
+      };
+      utterance.onerror = utterance.onend;
+    }
+    window.speechSynthesis.speak(utterance);
+  });
 }
 
 function toggleVoiceInput() {
@@ -3323,6 +3519,7 @@ async function sendMessage({
   const recentHistory = state.recentConversationMessages.slice(-12);
   const interaction = globalThis.SynchronWorkMode?.getRequestPayload();
   const sentSessionId = state.sessionId;
+  let talkReply = "";
   appendMessage("user", messageText, image);
   if (!resend) {
     elements.chatInput.value = "";
@@ -3493,8 +3690,10 @@ async function sendMessage({
     rememberConversationMessage("assistant", fullText);
     responseActions.hidden = false;
     logAction("Получен AI отговор");
+    talkReply = fullText;
     await loadConversations();
   } catch (error) {
+    stopTalkMode();
     if (abort.signal.aborted) {
       // Stopped by the person: keep what arrived and let them retry.
       const partial = responseBubble?.dataset.rawText || responseBubble?.innerText || "";
@@ -3528,6 +3727,7 @@ async function sendMessage({
     elements.chatInput.focus();
     scrollChatToBottom();
   }
+  if (talkReply && state.talkMode) talkSpeak(talkReply);
 }
 
 function rememberConversationMessage(role, text) {

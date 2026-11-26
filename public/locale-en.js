@@ -132,6 +132,9 @@ SYNCHRON-X — начало|SYNCHRON-X home
 Съобщение до AI CORE|Message AI CORE
 Пиши на AI CORE|Message AI CORE
 Гласово въвеждане|Voice input
+Разговор с глас|Talk with voice
+Спри разговора с глас|Stop the voice conversation
+Говори… кажи „стоп“ за край|Speak… say “stop” to end
 Състояние и данни|Status and data
 Памет и разрешения|Memory and permissions
 Основна мобилна навигация|Main mobile navigation

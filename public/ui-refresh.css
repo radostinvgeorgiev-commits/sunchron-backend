@@ -307,3 +307,13 @@ body.doc-panel-open main, body.doc-panel-open .chat-main { margin-right: min(46v
    project/agent button are tools for running the project, so only the
    owner sees them. */
 body[data-user-role="member"] #interactionModeBar { display: none !important; }
+
+/* Talk with voice, hands-free: the headset button glows while it runs. */
+.voice-btn.talk-btn.talking {
+  color: #fff !important;
+  background: var(--sx-accent, #146c52) !important;
+  animation: voice-pulse 1.2s ease-in-out infinite;
+}
+body.talk-mode .voice-btn.listening {
+  background: #d93025 !important;
+}

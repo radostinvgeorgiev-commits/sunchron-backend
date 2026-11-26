@@ -392,6 +392,72 @@ async function sharedPage(origin) {
   await page.close();
 }
 
+// The browser's microphone and voice are replaced by a script: the person
+// "says" Здравей, hears the answer, then says "стоп".
+async function talkFlow(origin, requests) {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: "bg-BG" });
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(String(error)));
+  await page.addInitScript(() => {
+    window.__talkScript = ["Здравей", "стоп"];
+    window.__listens = 0;
+    window.__spoken = [];
+    class FakeRecognition {
+      start() {
+        window.__listens += 1;
+        const said = window.__talkScript.shift() || "";
+        setTimeout(() => {
+          this.onstart?.();
+          if (said) {
+            const result = [{ transcript: said }];
+            result.isFinal = true;
+            this.onresult?.({ resultIndex: 0, results: [result] });
+          }
+          setTimeout(() => this.onend?.(), 60);
+        }, 60);
+      }
+      stop() {}
+      abort() {}
+    }
+    window.SpeechRecognition = FakeRecognition;
+    window.webkitSpeechRecognition = FakeRecognition;
+    window.SpeechSynthesisUtterance = class {
+      constructor(text) {
+        this.text = text;
+      }
+    };
+    Object.defineProperty(window, "speechSynthesis", {
+      configurable: true,
+      value: {
+        speaking: false,
+        cancel() {},
+        speak(utterance) {
+          if (utterance.text) window.__spoken.push(utterance.text);
+          setTimeout(() => utterance.onend?.(), 40);
+        },
+      },
+    });
+  });
+  await page.goto(origin + "/", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(1200);
+  await step("Разговор с глас: слуша, праща сам, чете отговора и спира на „стоп“", async () => {
+    const before = requests.length;
+    expect(await page.locator("#talkBtn").isVisible(), "няма бутон за разговор с глас");
+    expect(await page.locator("#sendBtn").isVisible(), "бутонът за изпращане излезе от екрана");
+    await page.click("#talkBtn");
+    await page.waitForTimeout(3500);
+    expect(requests.length === before + 1, "съобщението не се изпрати само");
+    expect((await page.locator(".user-message, .message.user").last().innerText()).includes("Здравей"), "не виждам „Здравей“ в разговора");
+    const spoken = await page.evaluate(() => window.__spoken.join(" "));
+    expect(spoken.length > 3, "отговорът не беше прочетен на глас");
+    expect((await page.evaluate(() => window.__listens)) === 2, "не започна да слуша отново след отговора");
+    expect(!(await page.evaluate(() => document.body.classList.contains("talk-mode"))), "„стоп“ не спря разговора");
+    expect((await page.locator("#talkBtn").getAttribute("aria-pressed")) === "false", "бутонът остана включен");
+    expect(!errors.length, errors[0]);
+  });
+  await page.close();
+}
+
 async function statusPage(origin, live) {
   const { page, errors } = await openPage(origin, { width: 390, height: 844 }, "/status");
   await step(`${live ? "Жив сайт" : "Страница"}: състоянието показва сайта и моделите`, async () => {
@@ -431,6 +497,7 @@ if (publicOrigin) {
   await signedInFlows(stub.origin, stub.requests, "Телефон", { width: 390, height: 844 }, stub.feedback);
   await signedInFlows(stub.origin, stub.requests, "Компютър", { width: 1280, height: 800 }, stub.feedback);
   await sharedPage(stub.origin);
+  await talkFlow(stub.origin, stub.requests);
   await statusPage(stub.origin, false);
   stub.server.close();
 }

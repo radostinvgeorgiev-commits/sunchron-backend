@@ -211,6 +211,23 @@ app.get(
     }
   },
 );
+// What the owner's tools list showed as not working, so Claude can read it in
+// the runtime logs instead of asking the owner for a screenshot. Only tool
+// names, badge text and short reasons; no personal data.
+const clip = (value, max) => String(value ?? "").replace(/[\u0000-\u001f\u007f]/gu, " ").trim().slice(0, max);
+app.post(
+  "/api/tools/report",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  privateApiRateLimiter,
+  (req, res) => {
+    const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 40) : [];
+    for (const item of items) {
+      console.warn(`[Tools] not working: ${clip(item?.name, 60)} — ${clip(item?.label, 60)} — ${clip(item?.reason, 160)}`);
+    }
+    res.status(204).end();
+  },
+);
 app.use("/api/github", oauthRateLimiter, githubOAuthRouter);
 const chatGptMcpRouter = createChatGptMcpRouter();
 app.use("/mcp/chatgpt", mcpJsonParseErrorHandler, privateApiRateLimiter, chatGptMcpRouter);

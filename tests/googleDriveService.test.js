@@ -552,3 +552,25 @@ test("requires persistent Google sessions in production", () => {
   );
   assert.equal(requiresPersistentGoogleSessions({ NODE_ENV: "test" }), false);
 });
+
+test("an empty Drive file is reported as empty without asking a model", async () => {
+  const saved = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "test";
+  try {
+    let called = false;
+    const analysis = await analyzeDriveFile({
+      name: "no-data.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("  \n"),
+      fetchImpl: async () => {
+        called = true;
+        throw new Error("should not be called");
+      },
+    });
+    assert.equal(called, false);
+    assert.match(analysis, /празен/u);
+  } finally {
+    if (saved === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = saved;
+  }
+});

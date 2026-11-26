@@ -860,6 +860,11 @@ export async function analyzeDriveFile({
     );
   const instruction =
     prompt || "Обобщи този файл на български и посочи най-важното.";
+  // An empty file has nothing to read; say so instead of asking a model,
+  // which would only answer that it "cannot open" it.
+  if (!buffer?.length || (mimeType.startsWith("text/") && !buffer.toString("utf8").trim())) {
+    return `Файлът „${name}“ е празен, няма какво да се обобщи.`;
+  }
   let fileContent;
   if (mimeType.startsWith("image/")) {
     fileContent = {
@@ -869,7 +874,7 @@ export async function analyzeDriveFile({
   } else if (mimeType.startsWith("text/")) {
     fileContent = {
       type: "input_text",
-      text: `Файл: ${name}\n\n${buffer.toString("utf8")}`,
+      text: `Ето цялото съдържание на файла „${name}“:\n\n${buffer.toString("utf8")}`,
     };
   } else {
     fileContent = {

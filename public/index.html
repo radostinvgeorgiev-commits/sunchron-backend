@@ -53,7 +53,7 @@
     <script src="/vendor/dompurify-3.4.12/purify.min.js"></script>
     <link rel="stylesheet" href="/locale.css" />
     <link rel="stylesheet" href="/readability.css?v=20261125" />
-    <link rel="stylesheet" href="/ui-refresh.css?v=20261126j" />
+    <link rel="stylesheet" href="/ui-refresh.css?v=20261126k" />
     <script src="/locale-en.js"></script>
     <script src="/locale.js"></script>
   </head>
@@ -344,6 +344,12 @@
           <button id="activityBtn" type="button" data-owner-only>
             <i class="fa-solid fa-chart-column"></i><span>Активност</span>
           </button>
+          <button id="projectsMenuBtn" type="button" data-owner-only>
+            <i class="fa-solid fa-sliders"></i><span>Проекти и режими</span>
+          </button>
+          <button id="codeMenuBtn" type="button" data-owner-only>
+            <i class="fa-solid fa-code"></i><span>Код</span>
+          </button>
           <button id="workCenterBtn" type="button" data-owner-only>
             <i class="fa-solid fa-table-cells-large"></i
             ><span>Работен център</span>
@@ -378,6 +384,65 @@
             </button>
             <div id="modelPickerMenu" class="model-picker-menu" role="menu" hidden></div>
           </div>
+          <div class="interaction-mode-bar" id="interactionModeBar">
+            <div class="interaction-mode-switch" role="group" aria-label="Режим">
+              <button
+                id="chatModeBtn"
+                type="button"
+                data-interaction-mode="chat"
+                aria-pressed="true"
+              >
+                <i class="fa-regular fa-message"></i>
+                <span>Чат</span>
+              </button>
+              <button
+                id="workModeToolbarBtn"
+                type="button"
+                data-interaction-mode="work"
+                aria-pressed="false"
+              >
+                <i class="fa-solid fa-briefcase"></i>
+                <span>Работа</span>
+              </button>
+              <button
+                id="codeWorkspaceBtn"
+                type="button"
+                aria-label="Код"
+                aria-haspopup="dialog"
+                data-owner-only
+                hidden
+              >
+                <i class="fa-solid fa-code" aria-hidden="true"></i>
+                <span>Код</span>
+              </button>
+            </div>
+            <div class="work-context-controls">
+              <button
+                id="councilModeBtn"
+                class="council-mode-button"
+                type="button"
+                aria-label="Попитай избраните AI двигатели"
+                aria-pressed="false"
+                aria-controls="councilProviderPicker"
+                title="Попитай избраните AI двигатели и сравни отговорите"
+              >
+                <i class="fa-solid fa-people-group" aria-hidden="true"></i>
+                <span>AI Council</span>
+              </button>
+              <button
+                id="workContextBtn"
+                class="work-context-button"
+                type="button"
+                aria-label="Проекти и работни режими"
+              >
+                <span class="work-context-copy">
+                  <strong id="workProjectLabel">Без активен проект</strong>
+                  <small id="workAgentLabel">AI CORE</small>
+                </span>
+                <i class="fa-solid fa-sliders"></i>
+              </button>
+            </div>
+          </div>
           <button
             id="mobileNewChatBtn"
             class="mobile-new-chat"
@@ -411,66 +476,6 @@
             <span id="agentStatusText">Свързване…</span>
           </div>
         </header>
-
-        <div class="interaction-mode-bar" id="interactionModeBar">
-          <div class="interaction-mode-switch" role="group" aria-label="Режим">
-            <button
-              id="chatModeBtn"
-              type="button"
-              data-interaction-mode="chat"
-              aria-pressed="true"
-            >
-              <i class="fa-regular fa-message"></i>
-              <span>Чат</span>
-            </button>
-            <button
-              id="workModeToolbarBtn"
-              type="button"
-              data-interaction-mode="work"
-              aria-pressed="false"
-            >
-              <i class="fa-solid fa-briefcase"></i>
-              <span>Работа</span>
-            </button>
-            <button
-              id="codeWorkspaceBtn"
-              type="button"
-              aria-label="Код"
-              aria-haspopup="dialog"
-              data-owner-only
-              hidden
-            >
-              <i class="fa-solid fa-code" aria-hidden="true"></i>
-              <span>Код</span>
-            </button>
-          </div>
-          <div class="work-context-controls">
-            <button
-              id="councilModeBtn"
-              class="council-mode-button"
-              type="button"
-              aria-label="Попитай избраните AI двигатели"
-              aria-pressed="false"
-              aria-controls="councilProviderPicker"
-              title="Попитай избраните AI двигатели и сравни отговорите"
-            >
-              <i class="fa-solid fa-people-group" aria-hidden="true"></i>
-              <span>AI Council</span>
-            </button>
-            <button
-              id="workContextBtn"
-              class="work-context-button"
-              type="button"
-              aria-label="Проекти и работни режими"
-            >
-              <span class="work-context-copy">
-                <strong id="workProjectLabel">Без активен проект</strong>
-                <small id="workAgentLabel">AI CORE</small>
-              </span>
-              <i class="fa-solid fa-sliders"></i>
-            </button>
-          </div>
-        </div>
 
         <fieldset
           id="councilProviderPicker"

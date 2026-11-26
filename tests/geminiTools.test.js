@@ -109,3 +109,17 @@ test("“не използвай инструменти” keeps the video and m
   );
   assert.equal(requests.some(({ capability }) => capability === "video.read"), false);
 });
+
+test("when the maps are out of quota, the place question is answered from a web search", async () => {
+  const searched = [];
+  const result = await askGoogleMaps("Намери наблизо: аптека в Пловдив", {
+    env,
+    fetchImpl: async () => ({ ok: false, status: 429, text: async () => "RESOURCE_EXHAUSTED" }),
+    fallbackSearch: async (query) => {
+      searched.push(query);
+      return { text: "Аптека Y, ул. Главна 1", sources: [{ title: "Y", url: "https://y.test" }] };
+    },
+  });
+  assert.equal(result.text, "Аптека Y, ул. Главна 1");
+  assert.match(searched[0], /аптека в Пловдив/u);
+});

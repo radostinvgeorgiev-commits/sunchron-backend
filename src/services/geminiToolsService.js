@@ -1,5 +1,6 @@
 import { DEFAULT_GEMINI_API_URL, DEFAULT_GEMINI_CHAT_MODEL } from "./aiCoreService.js";
 import { reservePublicAiFile } from "./publicAiBudget.js";
+import { searchWeb } from "./webSearchService.js";
 
 // Two tools that ride on the Gemini key AI CORE already has, so nothing new
 // is switched on in Google Cloud: a YouTube video read by Gemini from its link,
@@ -7,6 +8,10 @@ import { reservePublicAiFile } from "./publicAiBudget.js";
 
 const YOUTUBE_URL_PATTERN =
   /https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?[^\s]*v=|shorts\/|live\/)|youtu\.be\/)[\w-]{6,}[^\s]*/iu;
+
+// The Maps grounding tool is offered on the 2.5 Flash family; override with
+// GEMINI_MAPS_MODEL when Google moves it.
+export const DEFAULT_MAPS_MODEL = "gemini-2.5-flash";
 
 export class GeminiToolError extends Error {
   constructor(message, status = 502, code = "GEMINI_TOOL_ERROR") {
@@ -66,7 +71,10 @@ async function callGemini(body, { env, model, fetchImpl, signal, label }) {
     throw new GeminiToolError(`${label} беше прекъснато. Опитай пак.`, 502, "GEMINI_TOOL_INTERRUPTED");
   }
   if (!response.ok) {
-    console.error(`[Gemini tool] ${label} upstream failed: ${response.status}`);
+    const detail = await response.text().catch(() => "");
+    console.error(
+      `[Gemini tool] ${label} upstream failed: ${response.status} ${detail.replace(/\s+/gu, " ").slice(0, 300)}`,
+    );
     throw new GeminiToolError(`${label} временно не е достъпно.`, 502, "GEMINI_TOOL_UPSTREAM_ERROR");
   }
   const data = await response.json();
@@ -136,14 +144,17 @@ export async function askGoogleMaps(
   {
     env = process.env,
     fetchImpl = fetch,
-    model = env.GEMINI_MAPS_MODEL || env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
+    model = env.GEMINI_MAPS_MODEL || DEFAULT_MAPS_MODEL,
     signal = AbortSignal.timeout(60000),
+    fallbackSearch = searchWeb,
   } = {},
 ) {
   const question = typeof message === "string" ? message.trim().slice(0, 1500) : "";
   if (!question) throw new GeminiToolError("Напиши какво място търсиш.", 400, "PLACES_QUERY_EMPTY");
   await reservePublicAiFile("gemini", model);
-  const { text, candidate } = await callGemini(
+  let reply;
+  try {
+    reply = await callGemini(
     {
       contents: [
         {
@@ -165,7 +176,13 @@ export async function askGoogleMaps(
     },
     { env, model, fetchImpl, signal, label: "Търсенето в картите" },
   );
-  return { text, sources: extractMapsSources(candidate) };
+  } catch (error) {
+    // Maps grounding can be out of quota or not offered for the key; the
+    // person still gets an answer about the place from a web search.
+    if (!(error instanceof GeminiToolError) || error.status === 400 || error.code === "GEMINI_NOT_CONFIGURED" || !fallbackSearch) throw error;
+    return fallbackSearch(`${question}\nДай адрес, работно време и как да се стигне, ако е подходящо.`);
+  }
+  return { text: reply.text, sources: extractMapsSources(reply.candidate) };
 }
 
 export function formatGeminiToolResult(result) {

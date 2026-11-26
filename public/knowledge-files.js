@@ -18,6 +18,8 @@
       <p class="share-status" role="status"></p>
       <div class="share-actions">
         <input type="file" class="knowledge-input" accept=".txt,.md,.csv,.json,.pdf,text/plain,application/pdf" hidden />
+        <input type="file" class="archive-input" accept=".zip,application/zip" hidden />
+        <button type="button" class="archive-add"></button>
         <button type="button" class="knowledge-add primary"></button>
       </div>
     </div>`;
@@ -28,6 +30,10 @@
     "Добави текстови файлове или PDF. При всеки въпрос AI CORE търси в тях и ползва намереното. Виждаш ги само ти и можеш да ги изтриеш по всяко време.",
   );
   $(".knowledge-add").textContent = text("Добави файл");
+  $(".archive-add").textContent = text("Внеси архив (Facebook / Google)");
+  $(".archive-add").title = text(
+    "Архивът се отваря в браузъра ти. Пазят се само твоите публикации, коментари, написаното от теб в чатове, бележки от Keep и събития от Календара; чуждите съобщения не излизат от устройството.",
+  );
   const status = (message) => ($(".share-status").textContent = message || "");
 
   const call = async (method, path, body) => {
@@ -103,6 +109,32 @@
       );
       await load();
       status(text("Файлът е добавен. AI CORE вече ще търси в него."));
+    } catch (error) {
+      status(error.message);
+    }
+  });
+  // A personal archive is read in the browser; only the person's own texts
+  // are sent, as separate files in "Моите файлове".
+  $(".archive-add").addEventListener("click", () => $(".archive-input").click());
+  $(".archive-input").addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const reader = globalThis.AiCoreArchive;
+      if (!reader || typeof DecompressionStream === "undefined") {
+        throw new Error(text("Този браузър не може да отвори архива. Опитай с по-нов Chrome, Edge или Safari."));
+      }
+      status(text("Отварям архива…"));
+      const parts = await reader.readPersonalArchive(file, (done, total) =>
+        status(`${text("Чета архива")}… ${done}/${total}`),
+      );
+      for (const [index, part] of parts.entries()) {
+        status(`${text("Добавям")} ${index + 1}/${parts.length}: ${part.name}`);
+        await call("POST", "/api/knowledge-files", part);
+      }
+      await load();
+      status(`${text("Готово. Добавени са")} ${parts.length} ${text("файла от архива ти. Аватарът вече ги ползва.")}`);
     } catch (error) {
       status(error.message);
     }

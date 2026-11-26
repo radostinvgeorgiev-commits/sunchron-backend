@@ -4,6 +4,8 @@ import { isAiProviderConfigured, requestAiText } from "./aiCoreService.js";
 import { ASSISTANT_PRESETS } from "./assistantPresets.js";
 import { analyzeImage } from "./imageService.js";
 import { createShareService } from "./shareService.js";
+import { createKnowledgeFilesService } from "./knowledgeFilesService.js";
+import { createUserLibraryService } from "./userLibraryService.js";
 import { transcribeVoice } from "./voiceTranscriptionService.js";
 import { CHAT_MODEL_CHOICES, resolveWorkAgentProvider } from "./workModeService.js";
 
@@ -91,6 +93,8 @@ export async function runSelfTest({
   transcribe = transcribeVoice,
   readDocument = analyzeImage,
   shareService,
+  knowledgeService,
+  libraryService,
 } = {}) {
   const marker = String(1000 + Math.floor(Math.random() * 9000));
   const chatChecks = CHAT_PROVIDERS.map((provider) =>
@@ -153,13 +157,44 @@ export async function runSelfTest({
     return "линкът се създава, чете и спира";
   });
 
+  const knowledge = check("Моите файлове · добави, намери, изтрий", async () => {
+    const ownerId = `self-test-${randomUUID()}`;
+    const service = knowledgeService || createKnowledgeFilesService({ env });
+    const file = await service.add(ownerId, {
+      name: "self-test.txt",
+      text: `Тестов файл.\n\nКодът на поръчката за самопроверка е ${marker}.`,
+    });
+    try {
+      const found = await service.search(ownerId, "Какъв е кодът на поръчката за самопроверка?");
+      if (!found.some(({ text }) => text.includes(marker))) throw new Error("откъсът не е намерен");
+    } finally {
+      await service.remove(ownerId, file.id);
+    }
+    return "файлът се добавя, търси и изтрива";
+  });
+
+  const library = check("Собствени асистенти и подсказки", async () => {
+    const ownerId = `self-test-${randomUUID()}`;
+    const service = libraryService || createUserLibraryService({ env });
+    const saved = await service.save(ownerId, {
+      assistants: [{ name: "Тест", instruction: `Отговаряй с ${marker}.` }],
+    });
+    try {
+      const mine = await service.resolveAssistant(ownerId, `custom:${saved.assistants[0].id}`);
+      if (!mine?.instruction.includes(marker)) throw new Error("асистентът не се зарежда");
+    } finally {
+      await service.save(ownerId, {});
+    }
+    return "записват се и се зареждат";
+  });
+
   const lists = check("Избор на модел и асистенти", async () => {
     const missing = CHAT_MODEL_CHOICES.slice(1).filter(({ id }) => !resolveWorkAgentProvider(id));
     if (missing.length || ASSISTANT_PRESETS.length < 5) throw new Error("непълен списък");
     return `${CHAT_MODEL_CHOICES.length - 1} модела, ${ASSISTANT_PRESETS.length} асистенти`;
   });
 
-  const checks = await Promise.all([...chatChecks, voice, pdf, share, lists]);
+  const checks = await Promise.all([...chatChecks, voice, pdf, share, knowledge, library, lists]);
   const failed = checks.filter(({ status }) => status === "fail").length;
   return {
     status: failed ? "fail" : "pass",

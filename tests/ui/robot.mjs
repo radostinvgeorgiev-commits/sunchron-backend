@@ -141,6 +141,22 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.fill("#chatInput", "");
     await page.locator("#chatInput").dispatchEvent("input");
   });
+  await step(`${label}: „Моите файлове“ — добави и изтрий`, async () => {
+    await page.click("#attachBtn");
+    await page.click('[data-plus="knowledge"]');
+    await page.waitForTimeout(300);
+    await page.setInputFiles(".knowledge-input", {
+      name: "ceni.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("Цената на услугата е 120 лева на месец."),
+    });
+    await page.waitForTimeout(500);
+    expect((await page.locator(".knowledge-list").innerText()).includes("ceni.txt"), "файлът не се появи");
+    await page.locator(".knowledge-list li button").first().click();
+    await page.waitForTimeout(500);
+    expect(!(await page.locator(".knowledge-list").innerText()).includes("ceni.txt"), "файлът не се изтри");
+    await page.click(".knowledge-dialog .share-close");
+  });
   await step(`${label}: Съвет в колони`, async () => {
     await page.click("#attachBtn");
     await page.click('[data-plus="council"]');

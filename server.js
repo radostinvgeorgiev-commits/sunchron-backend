@@ -54,6 +54,8 @@ import { createShareService } from "./src/services/shareService.js";
 import createVoiceRouter from "./src/routes/voiceRouter.js";
 import { createFeedbackRouter } from "./src/routes/feedbackRouter.js";
 import { createUserLibraryRouter } from "./src/routes/userLibraryRouter.js";
+import { createKnowledgeFilesRouter } from "./src/routes/knowledgeFilesRouter.js";
+import { getKnowledgeFilesService } from "./src/services/knowledgeFilesService.js";
 import { getUserLibraryService } from "./src/services/userLibraryService.js";
 import { createFeedbackService } from "./src/services/feedbackService.js";
 import { listConversationMessages } from "./src/services/memoryService.js";
@@ -197,6 +199,13 @@ app.use(
   paidAiRateLimiter,
   publicAiBudgetContext,
   chatRouter,
+);
+app.use(
+  "/api/knowledge-files",
+  requireOwnerSession,
+  paidAiRateLimiter,
+  publicAiBudgetContext,
+  createKnowledgeFilesRouter({ service: getKnowledgeFilesService() }),
 );
 app.use(
   "/api/library",

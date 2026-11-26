@@ -1,3 +1,4 @@
+import { recordActiveUser, recordActivity } from "../services/activityService.js";
 import {
   COUNCIL_REQUEST_CREDITS,
   getProductPlansService,
@@ -1378,6 +1379,10 @@ router.get("/work-models", (_req, res) => {
 });
 
 router.post("/chat", async (req, res) => {
+  if (typeof req.body?.message === "string" && req.body.message.trim()) {
+    recordActivity({ messages: 1 });
+    recordActiveUser(req.owner?.id || req.owner?.memoryOwnerId);
+  }
   const openAiApiKey = process.env.OPENAI_API_KEY;
   const {
     sessionId,

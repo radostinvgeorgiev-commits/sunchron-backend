@@ -484,3 +484,15 @@ body.talk-mode .voice-btn.listening {
 
 /* Tools list: why a live check failed, under its badge. */
 .tool-live-reason { display: block; margin-top: 4px; max-width: 220px; color: #8a2b1f; font-size: .78rem; font-weight: 600; }
+
+/* Owner „Активност“. */
+.activity-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
+.activity-totals div { padding: 12px; border: 1px solid #d6dbd8; border-radius: 12px; background: #fff; }
+.activity-totals strong { display: block; font-size: 22px; color: #000; }
+.activity-totals span { font-size: 13px; color: #4a5650; }
+.activity-note { font-size: 13px; color: #4a5650; margin: 0 0 10px; }
+.activity-table-wrap { overflow-x: auto; }
+.activity-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.activity-table th, .activity-table td { padding: 7px 6px; border-bottom: 1px solid #e3e7e5; text-align: left; white-space: nowrap; }
+.activity-table td:nth-child(2) { position: relative; min-width: 70px; }
+.activity-bar { display: inline-block; height: 8px; margin-right: 6px; border-radius: 4px; background: #2f6b52; vertical-align: middle; max-width: 50px; }

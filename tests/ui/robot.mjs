@@ -378,6 +378,16 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.click("#closeDataDrawerBtn");
     await page.waitForTimeout(200);
   });
+  await step(`${label}: „Активност“ показва хората, съобщенията и рекламите`, async () => {
+    await page.evaluate(() => document.getElementById("activityBtn").click());
+    await page.locator(".activity-table tbody tr").first().waitFor({ timeout: 5000 });
+    const totals = await page.locator(".activity-totals").innerText();
+    expect(totals.includes("41") && totals.includes("9"), `сборовете са грешни: ${totals}`);
+    expect((await page.locator(".activity-table tbody tr").count()) === 2, "липсват дни");
+    expect((await page.locator(".activity-table tbody tr").first().innerText()).includes("5 / 1 / 0"), "рекламата не е по варианти");
+    await page.click("#closeDataDrawerBtn");
+    await page.waitForTimeout(200);
+  });
   await step(`${label}: „Моят ден“ показва плана в разговора`, async () => {
     await openMine("day");
     await page.waitForTimeout(600);

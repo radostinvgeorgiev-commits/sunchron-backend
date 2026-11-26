@@ -28,6 +28,7 @@ import {
   startGoogleSignIn,
 } from "../services/googleSignInService.js";
 import { logSafeError } from "../utils/safeLogging.js";
+import { recordActivity } from "../services/activityService.js";
 import {
   logCampaignEvent,
   readCampaignAttribution,
@@ -98,6 +99,7 @@ router.post("/register", async (req, res) => {
     const { campaign, ...registration } = req.body || {};
     const result = await registerUser(registration);
     if (result.created) {
+      recordActivity({ registrations: 1 });
       logCampaignEvent(
         "campaign_registration",
         readCampaignAttribution(campaign),
@@ -156,6 +158,7 @@ export function createGoogleSignInCallbackHandler({
         error: req.query.error,
         cookieHeader: req.headers.cookie,
       });
+      if (result.created) recordActivity({ registrations: 1 });
       let ownerLinked = false;
       try {
         if (await ownerGitHubSessionPresent(req.headers.cookie, getSession)) {

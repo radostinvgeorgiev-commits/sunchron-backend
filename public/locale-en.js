@@ -53,6 +53,17 @@ AI предлага, ти одобряваш, системата изпълня�
 Избери специалист|Choose a specialist
 Без специалист|No specialist
 Запази в Google|Save to Google
+Активност|Activity
+активни (сбор по дни)|active (sum of days)
+съобщения|messages
+нови профили|new accounts
+дошли от реклама|came from ads
+Последните 14 дни. Само бройки, без имена и без текст от разговорите. Рекламата е по варианти 1 / 2 / 3.|Last 14 days. Counts only, no names and no chat text. Ads by variant 1 / 2 / 3.
+Ден|Day
+Активни|Active
+Съобщения|Messages
+Нови|New
+Реклама|Ads
 Google документ|Google Doc
 Google таблица|Google Sheet
 Запазвам в Google…|Saving to Google…

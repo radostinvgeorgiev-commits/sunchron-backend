@@ -176,6 +176,17 @@ export function createLocalDocumentStore() {
       apply({ type: "delete", collection, id });
       return { writeResults: [{}] };
     },
+    async increment(collection, id, fields = {}) {
+      const record = records(collection).get(String(id));
+      const data = record ? decodeFirestoreFields(record.fields) : {};
+      for (const [field, amount] of Object.entries(fields)) {
+        if (/^[a-z][a-z0-9_]{0,39}$/u.test(field) && Number.isInteger(amount)) {
+          data[field] = (Number(data[field]) || 0) + amount;
+        }
+      }
+      apply({ type: "set", collection, id, data });
+      return { writeResults: [{}] };
+    },
     async commitOperations(operations) {
       if (operations.length > MAX_COMMIT_WRITES) {
         const error = new Error("Firestore commit надвишава безопасния лимит.");

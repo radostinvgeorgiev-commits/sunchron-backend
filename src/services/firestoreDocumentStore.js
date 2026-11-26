@@ -420,6 +420,16 @@ export function createFirestoreDocumentStore({
       });
       return commit([deleteWrite(collection, id, precondition)]);
     },
+    // Adds whole numbers to fields; creates the document when missing.
+    increment(collection, id, fields = {}) {
+      const transforms = Object.entries(fields)
+        .filter(([field, amount]) => /^[a-z][a-z0-9_]{0,39}$/u.test(field) && Number.isInteger(amount))
+        .map(([fieldPath, amount]) => ({ fieldPath, increment: { integerValue: String(amount) } }));
+      if (!transforms.length) return Promise.resolve({ writeResults: [] });
+      return commit([
+        { transform: { document: documentName(collection, id), fieldTransforms: transforms } },
+      ]);
+    },
     commitOperations(operations) {
       return commit(
         operations.map((operation) => {

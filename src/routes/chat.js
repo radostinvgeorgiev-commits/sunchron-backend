@@ -129,6 +129,7 @@ import {
   getConfiguredAiProvider,
   getDefaultChatModel,
   isAiProviderConfigured,
+  creditsForChatModel,
   requestAiResponse,
 } from "../services/aiCoreService.js";
 import { executeTaskPlan } from "../services/taskExecutionService.js";
@@ -1404,7 +1405,10 @@ router.post("/chat", async (req, res) => {
           ? COUNCIL_REQUEST_CREDITS
           : image
             ? PUBLIC_FILE_CREDITS
-            : PUBLIC_REQUEST_CREDITS)
+            : PUBLIC_REQUEST_CREDITS *
+              creditsForChatModel(
+                resolveWorkAgentModel(cleanWorkContext?.agent?.model || chatModelChoice),
+              ))
       )
         return res
           .status(402)

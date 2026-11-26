@@ -151,3 +151,12 @@ test("a stopped chat stops the Vertex call", async () => {
   );
   assert.equal(aborted, true);
 });
+
+test("the chat checks a member has enough units for the picked model first", async () => {
+  const { creditsForChatModel } = await import("../src/services/aiCoreService.js");
+  assert.equal(creditsForChatModel("zai-org/glm-5.2-maas"), 2);
+  assert.equal(creditsForChatModel("claude-haiku-5-5"), 1);
+  const { readFileSync } = await import("node:fs");
+  const chat = readFileSync(new URL("../src/routes/chat.js", import.meta.url), "utf8");
+  assert.match(chat, /PUBLIC_REQUEST_CREDITS \*\s*creditsForChatModel\(/u);
+});

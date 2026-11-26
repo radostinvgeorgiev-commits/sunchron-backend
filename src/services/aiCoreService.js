@@ -518,6 +518,9 @@ export async function requestClaudeResponse({
 // GLM 5.2 costs several times more per answer than the economical models
 // (about 1.8 US cents for a full context), so it takes two credits.
 const VERTEX_OPEN_CREDITS = { "zai-org/glm-5.2-maas": 2 };
+export function creditsForChatModel(model) {
+  return VERTEX_OPEN_CREDITS[model] || 1;
+}
 export const DEFAULT_VERTEX_OPEN_MODEL = "openai/gpt-oss-120b-maas";
 
 async function requestVertexOpenResponse({
@@ -529,7 +532,7 @@ async function requestVertexOpenResponse({
   authClient,
   signal,
 } = {}) {
-  await reservePublicAiCall(input, "vertex-open", model, VERTEX_OPEN_CREDITS[model] || 1);
+  await reservePublicAiCall(input, "vertex-open", model, creditsForChatModel(model));
   const result = await requestVertexOpenModel({
     env,
     model,

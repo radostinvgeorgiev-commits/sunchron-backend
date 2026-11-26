@@ -188,6 +188,13 @@
     });
   }
 
+  // Start card "Моят ден" opens the real daily plan.
+  $("quickStart")?.addEventListener("click", (event) => {
+    if (event.target.closest?.('[data-start-action="day"]')) {
+      document.dispatchEvent(new CustomEvent("aicore:daily-plan"));
+    }
+  });
+
   // An ordinary account has no Chat/Work switch, so it never stays in Work
   // mode left over from before.
   const plainChatForMembers = () => {

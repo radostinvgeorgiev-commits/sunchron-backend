@@ -29,7 +29,7 @@ test("starter only fills the composer and preserves an existing draft on refusal
   const input = d.getElementById("chatInput");
   const starter = d.querySelector("[data-starter]");
   starter.click();
-  assert.match(input.value, /приоритетите/);
+  assert.match(input.value, /Решението остава мое/);
   assert.equal(sends, 0);
   input.value = "Моята чернова";
   starter.click();

@@ -59,7 +59,7 @@ test("workspace state is bounded and strips untrusted values", () => {
 
   assert.equal(state.version, 6);
   assert.equal(state.mode, "chat");
-  assert.equal(state.petId, "robot");
+  assert.ok(!Object.hasOwn(state, "petId"));
   assert.equal(state.projects.length, 20);
   assert.equal(state.projects[0].id, "project-0");
   assert.equal(state.projects[0].status, "ready");
@@ -101,10 +101,11 @@ test("workspace document id is stable and does not expose the owner id", () => {
   assert.doesNotMatch(first, /user-123/u);
 });
 
-test("workspace keeps a supported personal pet", () => {
-  const state = normalizeWorkspaceState({ petId: "drop" });
+test("workspace ignores obsolete pet fields", () => {
+  const state = normalizeWorkspaceState({ petId: "drop", petState: "running" });
 
-  assert.equal(state.petId, "drop");
+  assert.ok(!Object.hasOwn(state, "petId"));
+  assert.ok(!Object.hasOwn(state, "petState"));
 });
 
 test("workspace preserves direct Gemini, Vertex Gemini and Grok model choices", () => {
@@ -130,7 +131,7 @@ test("workspace preserves direct Gemini, Vertex Gemini and Grok model choices", 
   assert.equal(state.agents[2].model, "grok-4.5");
 });
 
-test("legacy workspaces receive specialized agents with their own pets", () => {
+test("legacy workspaces receive specialized agents without pet settings", () => {
   const state = normalizeWorkspaceState({
     version: 4,
     activeAgentId: "synchron-builder",
@@ -152,26 +153,11 @@ test("legacy workspaces receive specialized agents with their own pets", () => {
   });
 
   assert.equal(state.version, 6);
-  assert.equal(
-    state.agents.find((agent) => agent.id === "synchron-builder").petId,
-    "drop",
+  assert.deepEqual(
+    state.agents.map(({ id }) => id).sort(),
+    ["codex-agent", "documents-agent", "organizer-agent", "research-agent", "synchron-builder"],
   );
-  assert.equal(
-    state.agents.find((agent) => agent.id === "codex-agent").petId,
-    "spark",
-  );
-  assert.equal(
-    state.agents.find((agent) => agent.id === "research-agent").petId,
-    "owl",
-  );
-  assert.equal(
-    state.agents.find((agent) => agent.id === "organizer-agent").petId,
-    "rock",
-  );
-  assert.equal(
-    state.agents.find((agent) => agent.id === "documents-agent").petId,
-    "cat",
-  );
+  assert.ok(state.agents.every((agent) => !Object.hasOwn(agent, "petId")));
 });
 
 test("workspace state is saved in an isolated hashed document", async () => {

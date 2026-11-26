@@ -238,15 +238,16 @@ export const GOOGLE_BASE_SCOPES = Object.freeze([
 ]);
 
 // A member's first "Свържи Google": only scopes Google can approve with its
-// free check (calendar, contacts, sending mail, files AI CORE creates), so it
-// works for any number of people once the app is verified.
+// free check (calendar, contacts, sending mail), so it works for any number of
+// people once the app is verified. Saving files (drive.file) stays its own
+// add=save step: Google refuses drive.file in the same request as an already
+// granted youtube.readonly (400 invalid_request).
 export const GOOGLE_MEMBER_SCOPES = Object.freeze([
   "openid",
   "email",
   "https://www.googleapis.com/auth/gmail.send",
   "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/contacts",
-  "https://www.googleapis.com/auth/drive.file",
 ]);
 
 export function googleConnectPath(extra = "") {

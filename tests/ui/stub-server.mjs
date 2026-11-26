@@ -25,6 +25,7 @@ const TYPES = { ".js": "text/javascript", ".css": "text/css", ".html": "text/htm
 export function startStubServer(port = 0) {
   const requests = [];
   const feedback = [];
+  let library = { assistants: [], prompts: [] };
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://stub");
     let p = url.pathname;
@@ -39,6 +40,18 @@ export function startStubServer(port = 0) {
       return json(res, { status: "partial", site: true, checkedAt: "2026-11-26T03:00:00Z", models: [
         { name: "Claude", working: true }, { name: "Gemini", working: false },
       ] });
+    }
+    if (p === "/api/library" && req.method === "GET") return json(res, library);
+    if (p === "/api/library" && req.method === "PUT") {
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        const sent = JSON.parse(body);
+        const withIds = (items) => (items || []).map((item, i) => ({ ...item, id: item.id || `aaaaaaaa-000${i}` }));
+        library = { assistants: withIds(sent.assistants), prompts: withIds(sent.prompts) };
+        json(res, library);
+      });
+      return undefined;
     }
     if (p === "/chat/models") return json(res, { items: MODELS });
     if (p === "/chat/compare" && req.method === "POST") {

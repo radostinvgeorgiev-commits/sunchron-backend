@@ -53,6 +53,8 @@ import { createShareRouter, createSharedReadRouter } from "./src/routes/shareRou
 import { createShareService } from "./src/services/shareService.js";
 import createVoiceRouter from "./src/routes/voiceRouter.js";
 import { createFeedbackRouter } from "./src/routes/feedbackRouter.js";
+import { createUserLibraryRouter } from "./src/routes/userLibraryRouter.js";
+import { getUserLibraryService } from "./src/services/userLibraryService.js";
 import { createFeedbackService } from "./src/services/feedbackService.js";
 import { listConversationMessages } from "./src/services/memoryService.js";
 import {
@@ -195,6 +197,12 @@ app.use(
   paidAiRateLimiter,
   publicAiBudgetContext,
   chatRouter,
+);
+app.use(
+  "/api/library",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  createUserLibraryRouter({ service: getUserLibraryService() }),
 );
 app.use(
   "/api/feedback",

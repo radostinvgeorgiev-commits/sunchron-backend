@@ -32,7 +32,9 @@ const ACTIONS = Object.freeze({
   RUN_CLOUD_BUILD_TRIGGER: "infrastructure.write:run_cloud_build_trigger",
   USE_LATEST_SECRET_VERSION:
     "infrastructure.write:use_latest_secret_version",
+  ENABLE_GOOGLE_SIGN_IN: "infrastructure.write:enable_google_sign_in",
 });
+const IDENTITY_TOOLKIT_ADMIN_API = "https://identitytoolkit.googleapis.com/admin/v2";
 
 // Environment variables whose secret reference may be moved to "latest".
 // The secret value itself is never read or returned.
@@ -50,6 +52,7 @@ const OPERATION_ACTIONS = Object.freeze({
   update_cloud_run_service_account: ACTIONS.UPDATE_CLOUD_RUN_SERVICE_ACCOUNT,
   run_cloud_build_trigger: ACTIONS.RUN_CLOUD_BUILD_TRIGGER,
   use_latest_secret_version: ACTIONS.USE_LATEST_SECRET_VERSION,
+  enable_google_sign_in: ACTIONS.ENABLE_GOOGLE_SIGN_IN,
 });
 
 export class GoogleCloudActionError extends Error {
@@ -277,6 +280,22 @@ function normalizeOperation(operation, input = {}, env = process.env) {
     };
   }
 
+  if (operation === "enable_google_sign_in") {
+    // Takes no input: the provider is always "google.com" in the current
+    // project and uses the OAuth client this service already runs with.
+    if (
+      !String(env.GOOGLE_SIGN_IN_CLIENT_ID || env.GOOGLE_CLIENT_ID || "").trim() ||
+      !String(env.GOOGLE_SIGN_IN_CLIENT_SECRET || env.GOOGLE_CLIENT_SECRET || "").trim()
+    ) {
+      throw new GoogleCloudActionError(
+        "Google OAuth клиентът не е конфигуриран в услугата.",
+        503,
+        "GOOGLE_CLOUD_OAUTH_CLIENT_MISSING",
+      );
+    }
+    return { action, resource: { projectId, provider: "google.com" }, params: {} };
+  }
+
   if (operation === "use_latest_secret_version") {
     const envName = cleanText(input.envName, 40, "envName", { required: true });
     if (!LATEST_SECRET_ENV_NAMES.includes(envName)) {
@@ -491,6 +510,42 @@ async function updateCloudRunServiceAccount({
   return { projectId, serviceName, region, serviceAccount };
 }
 
+// Turns on Google as a sign-in provider in Identity Platform, with the OAuth
+// client this service already uses. The client secret goes from the runtime
+// environment straight to Google and is never returned or logged.
+export async function enableGoogleSignInProvider({
+  projectId,
+  env = process.env,
+  fetchImpl,
+}) {
+  const clientId = String(env.GOOGLE_SIGN_IN_CLIENT_ID || env.GOOGLE_CLIENT_ID || "").trim();
+  const clientSecret = String(
+    env.GOOGLE_SIGN_IN_CLIENT_SECRET || env.GOOGLE_CLIENT_SECRET || "",
+  ).trim();
+  if (!clientId || !clientSecret) {
+    throw new GoogleCloudActionError(
+      "Google OAuth клиентът не е конфигуриран в услугата.",
+      503,
+      "GOOGLE_CLOUD_OAUTH_CLIENT_MISSING",
+    );
+  }
+  const base = `${IDENTITY_TOOLKIT_ADMIN_API}/projects/${encodeURIComponent(projectId)}/defaultSupportedIdpConfigs`;
+  const body = { enabled: true, clientId, clientSecret };
+  let created = false;
+  try {
+    await googleJsonRequest(`${base}/google.com`, { fetchImpl });
+    await googleJsonRequest(
+      `${base}/google.com?updateMask=enabled,clientId,clientSecret`,
+      { method: "PATCH", body, fetchImpl },
+    );
+  } catch (error) {
+    if (error?.status !== 404) throw error;
+    await googleJsonRequest(`${base}?idpId=google.com`, { method: "POST", body, fetchImpl });
+    created = true;
+  }
+  return { projectId, provider: "google.com", enabled: true, created };
+}
+
 // Points one secret-backed environment variable of the current Cloud Run
 // service at the newest enabled secret version and rolls out a new revision.
 export async function useLatestSecretVersion({
@@ -657,6 +712,12 @@ export async function confirmGoogleCloudAction(
       return (adapters.changeProjectRole || changeProjectRole)({
         ...resource,
         grant: false,
+        fetchImpl,
+      });
+    }
+    if (confirmation.action === ACTIONS.ENABLE_GOOGLE_SIGN_IN) {
+      return (adapters.enableGoogleSignInProvider || enableGoogleSignInProvider)({
+        projectId: resource.projectId,
         fetchImpl,
       });
     }

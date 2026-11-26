@@ -36,15 +36,33 @@ export function isGoogleSignInEnabled(env = process.env) {
   return Boolean(enabled && clientId(env) && clientSecret(env) && isPublicRegistration(env));
 }
 
+// The Drive/Gmail connection already has a redirect address registered with
+// the same Google OAuth client. Sign-in reuses it, so nothing new has to be
+// added in the Google console; server.js hands sign-in callbacks to this
+// service before the Drive router sees them.
+export const SHARED_GOOGLE_CALLBACK_PATH = "/api/google/callback";
+
 export function googleSignInRedirectUri(env = process.env) {
+  const shared = String(env.GOOGLE_REDIRECT_URI || "").trim();
+  try {
+    if (shared && new URL(shared).pathname === SHARED_GOOGLE_CALLBACK_PATH) return shared;
+  } catch {
+    // not a URL; use the dedicated callback
+  }
   const origin = String(env.PUBLIC_ORIGIN || "https://cloudaicore.com").replace(/\/+$/u, "");
   return `${origin}${CALLBACK_PATH}`;
+}
+
+// True when this callback belongs to a sign-in started here (its state
+// matches the sign-in cookie), not to a Drive/Gmail connection.
+export function isGoogleSignInCallback({ state, cookieHeader } = {}) {
+  return sameState(readStateCookie(cookieHeader), state);
 }
 
 function stateCookie(value, maxAge) {
   return [
     `${GOOGLE_SIGN_IN_STATE_COOKIE}=${value}`,
-    "Path=/api/auth/google",
+    "Path=/api",
     "HttpOnly",
     "Secure",
     "SameSite=Lax",

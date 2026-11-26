@@ -18,6 +18,7 @@ import { createAuthClient } from "./userAuthService.js";
 import { recordAuditEvent } from "./permissionService.js";
 import { getAvatarLinkService } from "./avatarLinkService.js";
 import { getPersonalTodoService } from "./personalTodoService.js";
+import { getAvatarProfileService } from "./avatarProfileService.js";
 
 // Self-service GDPR rights for member accounts: a full copy of the data AI
 // CORE holds about the account (Art. 15/20) and erasure (Art. 17). Payment
@@ -140,6 +141,7 @@ export async function deleteAccount(
     audit = recordAuditEvent,
     forgetAvatarLink = (ownerId) => getAvatarLinkService().forget(ownerId),
     clearTodos = (ownerId) => getPersonalTodoService().clear(ownerId),
+    forgetAvatarProfile = (ownerId) => getAvatarProfileService().forget(ownerId),
   } = {},
 ) {
   assertMember(identity);
@@ -189,6 +191,7 @@ export async function deleteAccount(
   // The public "Питай моя аватар" link must stop with the account.
   await forgetAvatarLink(ownerId);
   await clearTodos(ownerId);
+  await forgetAvatarProfile(ownerId);
 
   const removed = await client.auth.deleteAccount(data.session.access_token);
   if (removed?.error) {

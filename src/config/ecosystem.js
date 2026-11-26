@@ -39,7 +39,8 @@ export const ECOSYSTEM_MODULES = Object.freeze({
   corporation: Object.freeze({
     id: "corporation",
     name: "NOVARIUM Corporation",
-    purpose: "Бъдеща търговска структура за продукт, договори и приходи.",
+    purpose:
+      "Бъдещ изпълнител без печалба: подготвя проектите за каузите със собствени агенти, на реална себестойност.",
     ...DISABLED,
     safety: Object.freeze({
       noRegistration: true,

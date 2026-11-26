@@ -21,7 +21,7 @@ const CALLBACK_PATH = "/api/auth/google/callback";
 
 // Switched on in code once the Google provider is enabled in Identity
 // Platform; GOOGLE_SIGN_IN=on|off in the environment overrides it.
-const GOOGLE_SIGN_IN_ENABLED_IN_CODE = false;
+const GOOGLE_SIGN_IN_ENABLED_IN_CODE = true;
 
 function clientId(env) {
   return String(env.GOOGLE_SIGN_IN_CLIENT_ID || env.GOOGLE_CLIENT_ID || "").trim();

@@ -210,7 +210,7 @@ app.get(
     try {
       const [days, accounts] = await Promise.all([
         getActivityService().summary(req.query.days),
-        summarizeRegisteredAccounts(),
+        summarizeRegisteredAccounts({ ownerEmail: req.owner?.email }),
       ]);
       // New accounts per day come from the sign-in provider when it can be
       // read, so people from before the counters started are counted too.
@@ -220,7 +220,13 @@ app.get(
       res.json({
         days: merged,
         accounts: accounts.available
-          ? { total: accounts.total, signedInLast7Days: accounts.signedInLast7Days }
+          ? {
+            total: accounts.total,
+            signedInLast7Days: accounts.signedInLast7Days,
+            ...(Number.isInteger(accounts.ownerAccounts)
+              ? { ownerAccounts: accounts.ownerAccounts, otherAccounts: accounts.otherAccounts }
+              : {}),
+          }
           : { error: accounts.reason },
       });
     } catch (error) {

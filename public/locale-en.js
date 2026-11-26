@@ -59,6 +59,8 @@ AI предлага, ти одобряваш, системата изпълня�
 нови профили|new accounts
 регистрирани общо|registered in total
 влизали за 7 дни|signed in within 7 days
+с твоя имейл|with your email
+други хора|other people
 дошли от реклама|came from ads
 Последните 14 дни. Само бройки, без имена и без текст от разговорите. Рекламата е по варианти 1 / 2 / 3.|Last 14 days. Counts only, no names and no chat text. Ads by variant 1 / 2 / 3.
 Ден|Day

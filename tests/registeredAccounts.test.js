@@ -40,3 +40,25 @@ test("without the right to read accounts it says so plainly", async () => {
   assert.equal(summary.available, false);
   assert.match(summary.reason, /право/u);
 });
+
+test("counts the owner's own addresses apart from other people, without emails", async () => {
+  const user = (email) => ({ email, createdAt: String(Date.UTC(2026, 10, 25)) });
+  const summary = await summarizeRegisteredAccounts({
+    env: { IDENTITY_PLATFORM_PROJECT_ID: "p" },
+    token: "t",
+    now: () => now,
+    ownerEmail: "Owner.Name@gmail.com",
+    fetchImpl: async () => new Response(JSON.stringify({ userInfo: [
+      user("ownername@gmail.com"),
+      user("owner.name+robot@gmail.com"),
+      user("OWNERNAME+test1@googlemail.com"),
+      user("someone@gmail.com"),
+      user("ownername@other.bg"),
+      { createdAt: String(Date.UTC(2026, 10, 25)) },
+    ] })),
+  });
+  assert.equal(summary.total, 6);
+  assert.equal(summary.ownerAccounts, 3);
+  assert.equal(summary.otherAccounts, 3);
+  assert.doesNotMatch(JSON.stringify(summary), /@/u);
+});

@@ -1772,7 +1772,11 @@ async function openActivityDrawer() {
         <div><strong>${total("registrations")}</strong><span>${localizedMarkup("нови профили")}</span></div>
         ${Number.isFinite(data.accounts?.total)
           ? `<div><strong>${data.accounts.total}</strong><span>${localizedMarkup("регистрирани общо")}</span></div>
-             <div><strong>${Number(data.accounts.signedInLast7Days) || 0}</strong><span>${localizedMarkup("влизали за 7 дни")}</span></div>`
+             <div><strong>${Number(data.accounts.signedInLast7Days) || 0}</strong><span>${localizedMarkup("влизали за 7 дни")}</span></div>
+             ${Number.isFinite(data.accounts.ownerAccounts)
+               ? `<div><strong>${data.accounts.ownerAccounts}</strong><span>${localizedMarkup("с твоя имейл")}</span></div>
+                  <div><strong>${Number(data.accounts.otherAccounts) || 0}</strong><span>${localizedMarkup("други хора")}</span></div>`
+               : ""}`
           : ""}
         <div><strong>${total("landing_variant_1") + total("landing_variant_2") + total("landing_variant_3")}</strong><span>${localizedMarkup("дошли от реклама")}</span></div>
       </div>

@@ -4,6 +4,8 @@ import {
   resolveAssistantPreset,
 } from "../services/assistantPresets.js";
 import { getUserLibraryService } from "../services/userLibraryService.js";
+import { searchWeb } from "../services/webSearchService.js";
+import { reservePublicAiFile } from "../services/publicAiBudget.js";
 import {
   buildFileContext,
   getKnowledgeFilesService,
@@ -1173,6 +1175,41 @@ router.post("/compare", async (req, res) => {
     })),
   });
 });
+
+// Web search with sources for everyone ("+" → Търси в интернет), like the
+// search button in the big apps. One search is priced like a file for
+// members; the answer and its sources are saved as a normal chat turn.
+export function createWebSearchChatHandler({
+  search = searchWeb,
+  reserve = reservePublicAiFile,
+  saveTurn = saveConversationTurnBestEffort,
+} = {}) {
+  return async (req, res) => {
+    const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+    const sessionId = typeof req.body?.sessionId === "string" ? req.body.sessionId.trim() : "";
+    if (!message || message.length > 1000) {
+      return res.status(400).json({ error: "Напиши какво да потърся (до 1000 знака).", code: "SEARCH_MESSAGE_INVALID" });
+    }
+    if (!sessionId || sessionId.length > 160 || !SAFE_CHAT_SESSION_ID_PATTERN.test(sessionId)) {
+      return res.status(400).json({ error: "Невалиден разговор.", code: "CHAT_SESSION_INVALID" });
+    }
+    try {
+      await reserve("openai", "web-search");
+      const result = await search(message);
+      const sources = (result.sources || []).slice(0, 8).map(({ title, url }) => ({ title, url }));
+      const saved = [result.text, ...(sources.length ? ["Източници:", ...sources.map(({ title, url }) => `• [${title}](${url})`)] : [])].join("\n");
+      await saveTurn(sessionId, message, saved, req.owner.memoryOwnerId);
+      return res.json({ text: result.text, sources });
+    } catch (error) {
+      if (error instanceof WebSearchError || (error?.status && error?.code)) {
+        return res.status(error.status).json({ error: error.message, code: error.code });
+      }
+      logSafeError("[Web search chat] Failure", error);
+      return res.status(502).json({ error: "Търсенето беше прекъснато. Опитай пак.", code: "SEARCH_FAILED" });
+    }
+  };
+}
+router.post("/search", createWebSearchChatHandler());
 
 router.get("/assistants", (_req, res) => {
   res.json({ items: listAssistantPresets() });

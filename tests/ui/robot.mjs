@@ -157,6 +157,15 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect(!(await page.locator(".knowledge-list").innerText()).includes("ceni.txt"), "файлът не се изтри");
     await page.click(".knowledge-dialog .share-close");
   });
+  await step(`${label}: търсене в интернет с източници`, async () => {
+    await page.fill("#chatInput", "Какво ново днес?");
+    await page.click("#attachBtn");
+    await page.click('[data-plus="search"]');
+    await page.waitForTimeout(600);
+    const reply = await last().innerText();
+    expect(reply.includes("Намерен отговор.") && reply.includes("Източник едно"), "няма отговор с източник");
+    expect(!(await page.locator("#chatInput").isDisabled()), "полето остана заключено");
+  });
   await step(`${label}: Съвет в колони`, async () => {
     await page.click("#attachBtn");
     await page.click('[data-plus="council"]');

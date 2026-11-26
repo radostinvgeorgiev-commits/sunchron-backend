@@ -69,6 +69,9 @@ export function startStubServer(port = 0) {
       });
       return undefined;
     }
+    if (p === "/chat/search" && req.method === "POST") {
+      return json(res, { text: "Намерен отговор.", sources: [{ title: "Източник едно", url: "https://example.com/a" }] });
+    }
     if (p === "/chat/models") return json(res, { items: MODELS });
     if (p === "/chat/compare" && req.method === "POST") {
       return json(res, { answers: [

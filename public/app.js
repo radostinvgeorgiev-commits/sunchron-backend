@@ -2351,6 +2351,8 @@ globalThis.SynchronChat = {
   sessionId: () => state.sessionId,
   busy: () => state.chatBusy,
   renderMarkdown: (element, text) => renderAgentText(element, text),
+  append: (role, text) => appendMessage(role, text),
+  setBusy: (busy) => setChatBusy(busy),
   language: () => chatLocale?.language || "bg",
 };
 

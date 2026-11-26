@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { listAssistantPresets } from "../../src/services/assistantPresets.js";
+import { createAddonService } from "../../src/services/addonService.js";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "public");
 const json = (res, body, status = 200) => {
@@ -24,6 +25,24 @@ const TYPES = { ".js": "text/javascript", ".mjs": "text/javascript", ".css": "te
 export function startStubServer(port = 0) {
   const requests = [];
   const todos = [];
+  // The real add-on service and sandbox, with memory instead of Firestore and
+  // fixed weather instead of the internet.
+  const addonRows = new Map();
+  const addons = createAddonService({
+    store: {
+      async get(collection, id) {
+        const data = addonRows.get(`${collection}/${id}`);
+        return data ? { id, data: structuredClone(data) } : null;
+      },
+      async commitOperations(operations) {
+        for (const { type, collection, id, data } of operations) {
+          if (type === "delete") addonRows.delete(`${collection}/${id}`);
+          else addonRows.set(`${collection}/${id}`, structuredClone(data));
+        }
+      },
+    },
+    fetchData: async () => ({ current_weather: { temperature: 7.5, windspeed: 3 } }),
+  });
   let avatarLink = { active: false, card: {} };
   const visitorQuestions = [];
   const feedback = [];
@@ -96,6 +115,35 @@ export function startStubServer(port = 0) {
         return undefined;
       }
       return json(res, { name: avatarLink.card.name, intro: avatarLink.card.intro });
+    }
+    if (p.startsWith("/api/addons/")) {
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", async () => {
+        const data = JSON.parse(body || "{}");
+        const [, , , area, rawId, action] = p.split("/");
+        const id = decodeURIComponent(rawId || "");
+        const me = "robot";
+        try {
+          if (area === "store" && !id) return json(res, { items: await addons.listPublic() });
+          if (area === "store" && action === "run") return json(res, await addons.runPublic(id, data.input));
+          if (area === "review" && !id) return json(res, { items: await addons.listPending() });
+          if (area === "review" && action === "run") return json(res, await addons.runPending(id, data.input));
+          if (area === "review" && action === "approve") return json(res, await addons.approve(id, data.note));
+          if (area === "review" && action === "reject") return json(res, await addons.reject(id, data.note));
+          if (area === "test") return json(res, await addons.test(me, data));
+          if (area === "mine" && !id && req.method === "GET") return json(res, { items: await addons.listMine(me) });
+          if (area === "mine" && !id && req.method === "POST") return json(res, await addons.save(me, data));
+          if (area === "mine" && req.method === "DELETE") return json(res, { items: await addons.remove(me, id) });
+          if (area === "mine" && action === "submit") return json(res, { items: await addons.submit(me, id) });
+          if (area === "mine" && action === "unpublish") return json(res, { items: await addons.unpublish(me, id) });
+          if (area === "mine" && action === "run") return json(res, await addons.runMine(me, id, data.input));
+          return json(res, { error: "няма" }, 404);
+        } catch (error) {
+          return json(res, { error: error.message }, error.status || 500);
+        }
+      });
+      return undefined;
     }
     if (p.startsWith("/api/todos")) {
       let body = "";

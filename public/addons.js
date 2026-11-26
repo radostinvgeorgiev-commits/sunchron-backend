@@ -45,7 +45,7 @@
             <button type="submit" class="primary addon-save"></button>
           </div>
         </form>
-        <pre class="addon-output" hidden></pre>
+        <pre class="addon-output addon-test-output" hidden></pre>
         <ul class="addon-list addon-mine"></ul>
       </section>
       <section data-pane="review" hidden><p class="share-note"></p><ul class="addon-list addon-review"></ul></section>
@@ -216,12 +216,12 @@
 
   const fill = (item) => {
     for (const key of ["id", "name", "description", "dataUrl", "code"]) form.elements[key].value = item?.[key] || "";
-    $(".addon-output").hidden = true;
+    $(".addon-test-output").hidden = true;
   };
   const draft = () => Object.fromEntries(["id", "name", "description", "dataUrl", "code"].map((key) => [key, form.elements[key].value]));
   $(".addon-new").addEventListener("click", () => fill(EXAMPLE));
   $(".addon-test").addEventListener("click", () =>
-    void run(async () => showResult($(".addon-output"), await call("POST", "/test", { ...draft(), input: form.elements.input.value })), text("Пускам в затворената среда…")),
+    void run(async () => showResult($(".addon-test-output"), await call("POST", "/test", { ...draft(), input: form.elements.input.value })), text("Пускам в затворената среда…")),
   );
   form.addEventListener("submit", (event) => {
     event.preventDefault();

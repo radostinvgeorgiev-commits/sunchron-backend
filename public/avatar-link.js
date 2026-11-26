@@ -71,13 +71,22 @@
       ? `${text("Въпроси днес")}: ${usedToday} / ${perDay}`
       : "";
   };
+  // While the saved text loads or saves, the fields wait, so nothing typed
+  // in the meantime is overwritten by the answer.
+  const lock = (locked) =>
+    dialog.querySelectorAll("input, textarea, .avatar-link-save, .avatar-link-stop").forEach((field) => {
+      field.disabled = locked;
+    });
   const run = async (work, busy, done = "") => {
     status(busy);
+    lock(true);
     try {
       render(await work());
       status(done);
     } catch (error) {
       status(error.message);
+    } finally {
+      lock(false);
     }
   };
 

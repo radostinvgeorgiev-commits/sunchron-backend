@@ -11,6 +11,41 @@
     else element.textContent = value;
   };
 
+  // Web search: the question in the box is answered from the internet, with
+  // the sources listed under the answer.
+  document.addEventListener("aicore:web-search", async () => {
+    const question = input.value.trim();
+    const chat = globalThis.SynchronChat;
+    if (!question) {
+      input.placeholder = text("Първо напиши какво да потърся, после избери „Търси в интернет“");
+      input.focus();
+      return;
+    }
+    if (!chat || chat.busy?.()) return;
+    input.value = "";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    chat.append("user", question);
+    chat.setBusy(true);
+    const bubble = chat.append("agent", text("🔎 Търся в интернет…"));
+    try {
+      const response = await fetch("/chat/search", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: question, sessionId: chat.sessionId() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || text("Търсенето не успя. Опитай пак."));
+      const sources = (data.sources || []).map(({ title, url }) => `- [${title}](${url})`);
+      render(bubble, [data.text, ...(sources.length ? [`**${text("Източници")}:**`, sources.join("\n")] : [])].join("\n\n"));
+    } catch (error) {
+      render(bubble, `❌ ${error.message}`);
+    } finally {
+      chat.setBusy(false);
+      list.scrollTop = list.scrollHeight;
+    }
+  });
+
   document.addEventListener("aicore:blind-compare", async () => {
     const question = input.value.trim();
     if (!question) {

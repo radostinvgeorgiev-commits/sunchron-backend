@@ -175,6 +175,12 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.click('.assistant-row button[data-assistant="chef"]');
     await page.locator(".assistant-tools .assistant-tool").first().waitFor({ timeout: 5000 });
     expect(!(await page.locator(".assistant-tools .assistant-tool-connect").count()), "готвачът не иска Google");
+    await page.click('.assistant-tools [data-tool="youtube"]');
+    const prefilled = await page.inputValue("#chatInput");
+    expect(prefilled.startsWith("Обобщи това видео:"), `YouTube не подготви въпроса: ${prefilled}`);
+    expect(await page.evaluate(() => document.activeElement?.id === "chatInput"), "полето не е на фокус");
+    await page.fill("#chatInput", "");
+    expect(await page.locator('.assistant-tools [data-tool="maps"]').isVisible(), "готвачът няма Карти");
     await page.click('.assistant-tools [data-tool="todos"]');
     await page.locator(".todo-dialog").waitFor({ state: "visible", timeout: 5000 });
     await page.locator(".todo-dialog .share-close").click();

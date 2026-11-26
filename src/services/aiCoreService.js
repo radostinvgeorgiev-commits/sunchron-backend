@@ -11,7 +11,7 @@ import {
 } from "./vertexAiGeminiService.js";
 
 const DEFAULT_OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
-const DEFAULT_GEMINI_API_URL =
+export const DEFAULT_GEMINI_API_URL =
   "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_GROK_API_URL = "https://api.x.ai/v1/chat/completions";
 const DEFAULT_AI_TIMEOUT_MS = 120_000;

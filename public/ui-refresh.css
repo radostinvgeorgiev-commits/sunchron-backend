@@ -91,3 +91,46 @@
 .model-title { min-width: 0; flex: 0 1 auto; }
 .model-picker-menu i { visibility: hidden; color: #2f6b52; }
 .model-picker-menu button[aria-checked="true"] i { visibility: visible; }
+
+/* Stop button while an answer streams. */
+#sendBtn.is-stop { background: #000; color: #fff; }
+
+/* Retry with another model. */
+.message-actions { position: relative; }
+.retry-model-menu {
+  position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 40; min-width: 210px;
+  padding: 6px; border-radius: 12px; background: #fff; border: 1px solid #d6dbd8; box-shadow: 0 10px 30px rgba(0,0,0,.15);
+}
+.retry-model-menu button {
+  display: block; width: 100%; padding: 9px 12px; border: 0; border-radius: 8px;
+  background: transparent; color: #000; font-weight: 700; text-align: left;
+}
+.retry-model-menu button:hover { background: #eef3f0; }
+
+/* Editing a sent message. */
+.message-edit { display: flex; flex-direction: column; gap: 8px; width: min(100%, 680px); margin-left: auto; }
+.message-edit textarea {
+  width: 100%; padding: 12px 14px; border: 2px solid #2f6b52; border-radius: 14px;
+  font: inherit; color: #000; resize: vertical; background: #fff;
+}
+.message-edit-buttons { display: flex; justify-content: flex-end; gap: 8px; }
+.message-edit-buttons button {
+  padding: 8px 14px; border-radius: 10px; border: 1px solid #c9d0cc; background: #fff; color: #000; font-weight: 700;
+}
+.message-edit-buttons button.primary { background: #000; border-color: #000; color: #fff; }
+
+/* Council answers side by side (desktop) and swipeable (phone). */
+.message.has-council-columns { max-width: 100%; }
+.council-columns {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(280px, 1fr); gap: 12px;
+  margin: 10px 0 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px;
+}
+.council-card {
+  scroll-snap-align: start; padding: 12px 14px; border-radius: 14px;
+  background: #fff; border: 1px solid #d6dbd8; min-width: 0;
+}
+.council-card h3 { margin-top: 0; font-size: 1rem; }
+@media (max-width: 720px) {
+  .council-columns { grid-auto-columns: 86%; }
+}
+.assistant-turn:not(:last-child) .retry-action { display: none; }

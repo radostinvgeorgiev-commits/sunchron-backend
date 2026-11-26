@@ -1134,6 +1134,7 @@ router.post("/chat", async (req, res) => {
     councilIntentId,
     language,
     model,
+    rewrite,
   } = req.body || {};
   const googleSessionId =
     parseCookies(req.headers.cookie).synchron_google_session || "";
@@ -1365,8 +1366,12 @@ router.post("/chat", async (req, res) => {
       logSafeError("[Project context] Workspace load failed", error);
     }
   }
+  // Retry and edit send the trimmed history the person now sees; the saved
+  // turns would otherwise bring the replaced answer back into context.
   const effectiveHistory = sanitizeAssistantHistory(
-    combineConversationHistory(history, cleanRecentHistory),
+    rewrite === true
+      ? cleanRecentHistory
+      : combineConversationHistory(history, cleanRecentHistory),
   );
   const conversationContextSource = cleanRecentHistory.length
     ? "client-recent"

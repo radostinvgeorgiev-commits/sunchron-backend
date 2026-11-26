@@ -40,5 +40,5 @@ test("the header has a model picker and each message sends the choice", () => {
   assert.match(html, /id="modelPickerMenu"/);
   assert.match(ui, /fetch\("\/chat\/models"/);
   assert.match(ui, /aiCoreChatModel/);
-  assert.match(app, /model: globalThis\.SynchronUi\?\.chatModel\?\.\(\) \|\| "auto"/);
+  assert.match(app, /model: modelOverride \|\| globalThis\.SynchronUi\?\.chatModel\?\.\(\) \|\| "auto"/);
 });

@@ -186,6 +186,14 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.click("#closeDataDrawerBtn");
     await page.waitForTimeout(200);
   });
+  await step(`${label}: „Моят ден“ показва плана в разговора`, async () => {
+    await page.click("#attachBtn");
+    await page.click('[data-plus="day"]');
+    await page.waitForTimeout(600);
+    const reply = await last().innerText();
+    expect(reply.includes("Най-важното днес"), "планът не се показа");
+    expect(reply.includes("Моят Google"), "липсва подсказката за свързване");
+  });
   await step(`${label}: „Каузи“ — предложи, харесай, изтрий`, async () => {
     await page.click("#attachBtn");
     await page.click('[data-plus="causes"]');

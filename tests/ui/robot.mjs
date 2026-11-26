@@ -177,6 +177,23 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect((await page.inputValue('.avatar-form textarea[name="about"]')) === "", "профилът не се изтри");
     await page.click(".avatar-dialog .share-close");
   });
+  await step(`${label}: „Каузи“ — предложи, харесай, изтрий`, async () => {
+    await page.click("#attachBtn");
+    await page.click('[data-plus="causes"]');
+    await page.waitForTimeout(400);
+    await page.fill(".causes-form input", "Детска площадка");
+    await page.fill(".causes-form textarea", "Нова площадка за децата в квартала.");
+    await page.click(".causes-form button");
+    await page.waitForTimeout(400);
+    expect((await page.locator(".causes-list").innerText()).includes("Детска площадка"), "каузата не се появи");
+    await page.click(".cause-like");
+    await page.waitForTimeout(300);
+    expect((await page.locator(".cause-like").innerText()).includes("0"), "харесването не се смени");
+    await page.click(".cause-remove");
+    await page.waitForTimeout(300);
+    expect(!(await page.locator(".causes-list").innerText()).includes("Детска площадка"), "каузата не се изтри");
+    await page.click(".causes-dialog .share-close");
+  });
   await step(`${label}: търсене в интернет с източници`, async () => {
     await page.fill("#chatInput", "Какво ново днес?");
     await page.click("#attachBtn");

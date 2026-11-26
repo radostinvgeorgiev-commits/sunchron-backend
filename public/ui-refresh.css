@@ -227,3 +227,17 @@
 .avatar-form label { display: flex; flex-direction: column; gap: 4px; font-weight: 700; }
 .avatar-form textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #c9d3cd; border-radius: 10px; font: inherit; font-weight: 400; resize: vertical; }
 .avatar-clear { border: 0; background: transparent; color: #a3261c; font-weight: 800; }
+
+/* "Каузи": proposed causes and likes. */
+.causes-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 38vh; overflow-y: auto; }
+.causes-list li { display: flex; justify-content: space-between; gap: 10px; padding: 10px; border-radius: 10px; background: #f3f6f4; }
+.causes-list li.cause-hidden { opacity: 0.6; }
+.causes-list p { margin: 4px 0; overflow-wrap: anywhere; }
+.causes-list small { color: #3a3a3a; }
+.cause-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+.cause-like { border: 1px solid #c9d3cd; background: #fff; border-radius: 999px; padding: 6px 12px; font-weight: 800; }
+.cause-like.on { background: #0f5132; border-color: #0f5132; color: #fff; }
+.cause-remove { border: 0; background: transparent; color: #a3261c; font-weight: 800; }
+.causes-form { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.causes-form input, .causes-form textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #c9d3cd; border-radius: 10px; font: inherit; }
+.causes-form button { align-self: flex-end; }

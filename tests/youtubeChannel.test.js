@@ -24,7 +24,9 @@ test("YouTube is asked for only when the person turns it on", () => {
     const withYoutube = new URL(buildAuthorizationUrl("s", ["youtube"])).searchParams.get("scope");
     const unknown = new URL(buildAuthorizationUrl("s", ["admin"])).searchParams.get("scope");
     assert.doesNotMatch(plain, /youtube/u);
-    assert.match(withYoutube, /auth\/youtube\.readonly/u);
+    // Its own small consent: sign-in plus YouTube only, so a refusal by
+    // Google can never break the main Google connection.
+    assert.equal(withYoutube, "openid email https://www.googleapis.com/auth/youtube.readonly");
     assert.equal(unknown, plain);
   } finally {
     for (const key of ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"]) {

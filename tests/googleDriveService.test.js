@@ -182,9 +182,12 @@ test("requests the explicit Drive, Gmail, Calendar and Contacts scopes", () => {
     assert.match(scope, /gmail\.modify/u);
     assert.match(scope, /contacts\.readonly/u);
     assert.match(scope, /\/auth\/contacts(?:\s|$)/u);
-    // Writes only to files AI CORE creates, never the whole Drive.
-    assert.match(scope, /\/auth\/drive\.file(?:\s|$)/u);
+    // The main connection keeps the set people connected with before; saving
+    // (drive.file) and YouTube are asked for separately.
+    assert.doesNotMatch(scope, /drive\.file|youtube/u);
     assert.doesNotMatch(scope, /\/auth\/drive(?:\s|$)/u);
+    const save = new URL(buildAuthorizationUrl("state", ["save"])).searchParams.get("scope");
+    assert.equal(save, "openid email https://www.googleapis.com/auth/drive.file");
   } finally {
     if (original.clientId === undefined) delete process.env.GOOGLE_CLIENT_ID;
     else process.env.GOOGLE_CLIENT_ID = original.clientId;

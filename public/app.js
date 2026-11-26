@@ -1319,11 +1319,11 @@ async function checkToolsLive(container) {
     }
     if (!result.ok && typeof result.connect === "string" && result.connect.startsWith("/api/google/connect")) {
       badge.className = "permission-badge confirm";
-      badge.textContent = "Още не е разрешен";
+      badge.textContent = result.reconnect ? "Връзката изтече" : "Още не е разрешен";
       const link = document.createElement("a");
       link.className = "tool-connect-btn";
       link.href = result.connect;
-      link.textContent = "Разреши";
+      link.textContent = result.reconnect ? "Свържи отново" : "Разреши";
       badge.after(link);
       continue;
     }
@@ -3654,6 +3654,15 @@ async function saveAnswerToGoogle(button, turn, text, kind) {
         "Отвори",
       );
       logAction(kind === "sheet" ? "Отговорът е запазен като Google таблица" : "Отговорът е запазен като Google документ");
+      return;
+    }
+    if (typeof data?.connect === "string" && data.connect.startsWith("/api/google/connect")) {
+      showSaveGoogleNote(
+        turn,
+        "Запазването в Google иска еднократно разрешение.",
+        data.connect,
+        "Разреши",
+      );
       return;
     }
     if (response.status === 401 && !data?.error?.includes("](")) {

@@ -369,6 +369,9 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     const contacts = page.locator('[data-live-check="google:contacts"]');
     expect((await contacts.innerText()) === "Не отговаря", "отказалите Contacts светят зелено");
     expect((await page.locator(".tool-live-reason").innerText()).includes("контактите"), "няма причина за отказа");
+    const youtube = page.locator('[data-live-check="google:youtube"]');
+    expect((await youtube.innerText()) === "Още не е разрешен", "неразрешеният YouTube е показан като повреден");
+    expect((await page.locator('a.tool-connect-btn[href="/api/google/connect?add=youtube"]').count()) === 1, "няма бутон „Разреши“ за YouTube");
     const card = await page.locator(".tool-status-card", { hasText: "Търсене в интернет" }).innerText();
     expect(card.includes("без жива проверка") && !card.includes("Работи"), `търсенето свети без проверка: ${card}`);
     await page.evaluate(() => fetch("/__robot/google-disconnected"));

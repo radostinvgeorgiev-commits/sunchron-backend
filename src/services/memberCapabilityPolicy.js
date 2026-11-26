@@ -12,6 +12,7 @@ const MEMBER_OWN_GOOGLE_CAPABILITIES = new Set([
   "files.search",
   "mail.read",
   "mail.search",
+  "youtube.channel",
 ]);
 
 function roleOf(identity) {

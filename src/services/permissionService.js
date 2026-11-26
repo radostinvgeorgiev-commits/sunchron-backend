@@ -47,6 +47,11 @@ const POLICY = Object.freeze({
     risk: "low",
     reason: "Четенето е ограничено до изрично свързания Google Drive.",
   }),
+  "youtube.read": Object.freeze({
+    decision: "allow",
+    risk: "low",
+    reason: "Четенето е ограничено до собствения YouTube канал на човека.",
+  }),
   "mail.read": Object.freeze({
     decision: "allow",
     risk: "medium",

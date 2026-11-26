@@ -15,6 +15,8 @@ import {
   listDriveFiles,
   searchGoogleContacts,
   parseCookies,
+  getYoutubeChannelSummary,
+  googleConnectPath,
   saveAnswerToGoogle,
   sessionBelongsTo,
 } from "../services/googleDriveService.js";
@@ -64,7 +66,8 @@ router.get("/connect", (req, res) => {
       "Set-Cookie",
       `synchron_google_state=${state}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
     );
-    res.redirect(buildAuthorizationUrl(state));
+    const add = typeof req.query.add === "string" ? [req.query.add] : [];
+    res.redirect(buildAuthorizationUrl(state, add));
   } catch (error) {
     sendError(res, error);
   }
@@ -136,7 +139,11 @@ const GOOGLE_CHECKS = {
   gmail: (id) => listGmailMessages(id, 1),
   calendar: (id) => listGoogleCalendarEvents(id, 1, 1),
   contacts: (id) => searchGoogleContacts(id, "a", 1),
+  youtube: (id) => getYoutubeChannelSummary(id, 1),
 };
+// A service the person has not turned on yet is not "broken": the tools
+// list offers its own connect button instead of "Не отговаря".
+const CHECK_CONNECT = { youtube: googleConnectPath("youtube") };
 const CHECK_TIMEOUT_MS = 12_000;
 
 export async function checkGoogleServices(id, checks = GOOGLE_CHECKS) {
@@ -154,11 +161,14 @@ export async function checkGoogleServices(id, checks = GOOGLE_CHECKS) {
         results[name] = { ok: true };
       } catch (error) {
         const known = error instanceof GoogleDriveError;
-        results[name] = {
-          ok: false,
-          reason: known ? error.message : "Не отговори.",
-          ...(known && error.status ? { status: error.status } : {}),
-        };
+        const needsConnect = known && error.code === "GOOGLE_SCOPE_REQUIRED" && CHECK_CONNECT[name];
+        results[name] = needsConnect
+          ? { ok: false, connect: CHECK_CONNECT[name], reason: "Още не е разрешен." }
+          : {
+              ok: false,
+              reason: known ? error.message : "Не отговори.",
+              ...(known && error.status ? { status: error.status } : {}),
+            };
       } finally {
         clearTimeout(timer);
       }

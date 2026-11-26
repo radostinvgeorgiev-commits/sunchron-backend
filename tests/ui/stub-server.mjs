@@ -127,13 +127,14 @@ export function startStubServer(port = 0) {
     // Gmail answers, Contacts refuses: the tools list must show both truthfully.
     if (p === "/api/google/check") {
       return json(res, googleConnected
-        ? { connected: true, services: { drive: { ok: true }, gmail: { ok: true }, calendar: { ok: true }, contacts: { ok: false, reason: "Google отказа достъп до контактите." } } }
+        ? { connected: true, services: { drive: { ok: true }, gmail: { ok: true }, calendar: { ok: true }, contacts: { ok: false, reason: "Google отказа достъп до контактите." }, youtube: { ok: false, connect: "/api/google/connect?add=youtube", reason: "Още не е разрешен." } } }
         : { connected: false, services: {} });
     }
     if (p === "/health/integrations") {
       return json(res, { tools: [
         { id: "gmail-read", name: "Gmail", enabled: true, executable: true, configured: true },
         { id: "google-contacts", name: "Google Contacts", enabled: true, executable: true, configured: true },
+        { id: "youtube-channel", name: "Моят YouTube канал", enabled: true, executable: true, configured: true },
         { id: "openai-web-search", name: "Търсене в интернет", enabled: true, executable: true, configured: true },
       ] });
     }

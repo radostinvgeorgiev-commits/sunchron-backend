@@ -32,7 +32,7 @@ test("integration status exposes Google Cloud and the three-engine code council 
       { id: "vertex-gemini", configured: false },
     );
     assert.equal(status.core.memory.backend, "firestore");
-    assert.equal(status.tools.length, 20);
+    assert.equal(status.tools.length, 21);
     const codeWrite = status.tools.find(({ id }) => id === "github-write");
     assert.equal(codeWrite.configured, true);
     assert.equal(codeWrite.authenticated, true);

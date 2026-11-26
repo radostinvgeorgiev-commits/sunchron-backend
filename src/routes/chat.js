@@ -764,7 +764,13 @@ export function detectCapabilityRequests(message) {
           : undefined,
       });
     }
-    if (!noPaidTools && isYoutubeRequest(subtask)) {
+    if (!integrationStatusOnlyRequest && isOwnYoutubeChannelRequest(subtask)) {
+      requests.push({
+        capability: "youtube.channel",
+        action: "youtube.read",
+        message: subtask,
+      });
+    } else if (!noPaidTools && isYoutubeRequest(subtask)) {
       requests.push({
         capability: "video.read",
         action: "web.read",
@@ -950,6 +956,15 @@ export async function executeDetectedCapabilities(
   return execution.results;
 }
 
+// "моят YouTube канал", "каналът ми в YouTube", "колко гледания имат видеата ми".
+export function isOwnYoutubeChannelRequest(message) {
+  const text = String(message || "");
+  if (!/(?:youtube|ютюб|ютуб)/iu.test(text)) return false;
+  return /(?:мо(?:я|ят|ите|ето)\s+(?:youtube\s+|ютюб\s+|ютуб\s+)?(?:канал|видеа|видеоклипове|клипове)|канал(?:а|ът)\s+ми|видеата\s+ми|клиповете\s+ми|абонати(?:те)?\s+ми)/iu.test(
+    text,
+  );
+}
+
 function capabilityLabel(capability) {
   if (capability === "system.integrations.status")
     return "статус на инструментите";
@@ -965,6 +980,7 @@ function capabilityLabel(capability) {
     return "сливане на GitHub Pull Request";
   if (capability === "files.read") return "Google Drive";
   if (capability === "mail.read") return "Gmail";
+  if (capability === "youtube.channel") return "YouTube канал";
   if (capability === "memory.read") return "памет";
   if (capability === "memory.verify") return "автоматичен тест на паметта";
   if (capability === "web.search") return "интернет търсене";

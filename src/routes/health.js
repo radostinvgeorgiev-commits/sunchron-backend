@@ -438,6 +438,14 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
       ),
       authenticated: false,
     },
+    "youtube-channel": {
+      configured: hasAllProcessEnvironmentVariables(
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "GOOGLE_REDIRECT_URI",
+      ),
+      authenticated: false,
+    },
     "synchron-tasks": {
       configured: isPersistenceBackendConfigured(process.env),
       authenticated: true,

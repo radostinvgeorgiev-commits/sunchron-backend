@@ -203,8 +203,21 @@ function configuration() {
   return { clientId, clientSecret, redirectUri };
 }
 
-export function buildAuthorizationUrl(state) {
+// Extra Google services a person turns on one at a time, only when they
+// use them. include_granted_scopes keeps everything granted before.
+export const GOOGLE_EXTRA_SCOPES = Object.freeze({
+  youtube: "https://www.googleapis.com/auth/youtube.readonly",
+});
+
+export function googleConnectPath(extra = "") {
+  return GOOGLE_EXTRA_SCOPES[extra] ? `/api/google/connect?add=${extra}` : "/api/google/connect";
+}
+
+export function buildAuthorizationUrl(state, extras = []) {
   const { clientId, redirectUri } = configuration();
+  const extraScopes = (Array.isArray(extras) ? extras : [])
+    .map((name) => GOOGLE_EXTRA_SCOPES[name])
+    .filter(Boolean);
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
@@ -221,6 +234,7 @@ export function buildAuthorizationUrl(state) {
       "https://www.googleapis.com/auth/calendar.events",
       "https://www.googleapis.com/auth/contacts.readonly",
       "https://www.googleapis.com/auth/contacts",
+      ...extraScopes,
     ].join(" "),
     access_type: "offline",
     prompt: "consent",
@@ -516,6 +530,83 @@ export async function listDriveFiles(id, fetchImpl = fetch) {
   const response = await driveFetch(id, `/files?${params}`, {}, fetchImpl);
   const data = await response.json();
   return Array.isArray(data.files) ? data.files : [];
+}
+
+const YOUTUBE_API_URL = "https://www.googleapis.com/youtube/v3";
+
+function youtubeConnectError() {
+  const base = (process.env.GOOGLE_CONNECT_URL || "https://cloudaicore.com/api/google/connect").replace(/\?.*$/u, "");
+  return new GoogleDriveError(
+    `YouTube още не е разрешен. [Свържи YouTube](${base}?add=youtube).`,
+    403,
+    "GOOGLE_SCOPE_REQUIRED",
+  );
+}
+
+async function youtubeJson(id, path, fetchImpl) {
+  try {
+    const response = await googleFetch(id, `${YOUTUBE_API_URL}${path}`, {}, fetchImpl, "YouTube");
+    return await response.json();
+  } catch (error) {
+    if (error instanceof GoogleDriveError && error.code === "GOOGLE_SCOPE_REQUIRED") {
+      throw youtubeConnectError();
+    }
+    throw error;
+  }
+}
+
+const count = (value) => (value === undefined || value === null ? null : Number(value));
+
+// The person's own YouTube channel: totals and the latest videos with their
+// views, likes and comments. Read only.
+export async function getYoutubeChannelSummary(id, limit = 5, fetchImpl = fetch) {
+  const channels = await youtubeJson(
+    id,
+    "/channels?part=snippet,statistics,contentDetails&mine=true",
+    fetchImpl,
+  );
+  const channel = Array.isArray(channels?.items) ? channels.items[0] : null;
+  if (!channel) return { channel: null, videos: [] };
+  const uploads = channel.contentDetails?.relatedPlaylists?.uploads;
+  let videos = [];
+  if (uploads) {
+    const max = Math.min(Math.max(Number(limit) || 5, 1), 10);
+    const playlist = await youtubeJson(
+      id,
+      `/playlistItems?part=contentDetails&maxResults=${max}&playlistId=${encodeURIComponent(uploads)}`,
+      fetchImpl,
+    );
+    const ids = (playlist?.items || [])
+      .map((item) => item?.contentDetails?.videoId)
+      .filter((videoId) => /^[A-Za-z0-9_-]{6,20}$/u.test(videoId || ""));
+    if (ids.length) {
+      const details = await youtubeJson(
+        id,
+        `/videos?part=snippet,statistics&id=${ids.join(",")}`,
+        fetchImpl,
+      );
+      videos = (details?.items || []).map((video) => ({
+        id: video.id,
+        title: String(video.snippet?.title || ""),
+        publishedAt: video.snippet?.publishedAt || null,
+        views: count(video.statistics?.viewCount),
+        likes: count(video.statistics?.likeCount),
+        comments: count(video.statistics?.commentCount),
+        url: `https://www.youtube.com/watch?v=${video.id}`,
+      }));
+    }
+  }
+  return {
+    channel: {
+      id: channel.id,
+      title: String(channel.snippet?.title || ""),
+      subscribers: channel.statistics?.hiddenSubscriberCount ? null : count(channel.statistics?.subscriberCount),
+      views: count(channel.statistics?.viewCount),
+      videos: count(channel.statistics?.videoCount),
+      url: `https://www.youtube.com/channel/${channel.id}`,
+    },
+    videos,
+  };
 }
 
 const DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files";

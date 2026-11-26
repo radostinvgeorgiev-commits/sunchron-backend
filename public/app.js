@@ -1302,7 +1302,20 @@ const LIVE_TOOL_CHECKS = {
   "google-calendar-read": "google:calendar",
   "google-contacts": "google:contacts",
   "youtube-channel": "google:youtube",
+  "google-calendar-write": "google:calendar",
   "github-read": "github",
+  "synchron-agent-chat": "core:synchron-agent-chat",
+  "synchron-integrations-status": "core:synchron-integrations-status",
+  "synchron-system-inspector": "core:synchron-system-inspector",
+  "openai-codex": "core:openai-codex",
+  "openai-web-search": "core:openai-web-search",
+  "gemini-youtube": "core:gemini-youtube",
+  "gemini-maps": "core:gemini-maps",
+  "google-cloud-read": "core:google-cloud-read",
+  "google-cloud-diagnostics": "core:google-cloud-diagnostics",
+  "google-cloud-write": "core:google-cloud-write",
+  "google-firestore-memory": "core:google-firestore-memory",
+  "synchron-tasks": "core:synchron-tasks",
 };
 
 // Tells the server which tools showed as not working (names and badge text
@@ -1329,7 +1342,7 @@ function reportBrokenTools(container) {
 async function checkToolsLive(container) {
   const badges = [...container.querySelectorAll("[data-live-check]")];
   if (!badges.length) return;
-  const [google, github] = await Promise.all([
+  const [google, github, core] = await Promise.all([
     fetch("/api/google/check", { cache: "no-store" })
       .then((response) => (response.ok ? response.json() : null))
       .catch(() => null),
@@ -1338,6 +1351,11 @@ async function checkToolsLive(container) {
           .then(async (response) => ({ ok: response.ok, data: await response.json().catch(() => ({})) }))
           .catch(() => ({ ok: false, data: {} }))
       : null,
+    badges.some((badge) => badge.dataset.liveCheck.startsWith("core:"))
+      ? fetch("/api/tools/check", { cache: "no-store" })
+          .then((response) => (response.ok ? response.json() : null))
+          .catch(() => null)
+      : null,
   ]);
   const time = new Date().toLocaleTimeString("bg-BG", { hour: "2-digit", minute: "2-digit" });
   for (const badge of badges) {
@@ -1345,6 +1363,8 @@ async function checkToolsLive(container) {
     let result = { ok: false, reason: "Проверката не мина." };
     if (kind === "google") {
       result = google?.services?.[service] || { ok: false, reason: google ? "Google не е свързан." : "Проверката не мина." };
+    } else if (kind === "core") {
+      result = core?.tools?.[service] || { ok: false, reason: "Проверката не мина." };
     } else if (kind === "github") {
       result = github?.ok ? { ok: true } : { ok: false, reason: github?.data?.error || "GitHub не отговори." };
     }
@@ -1559,8 +1579,8 @@ async function openToolsDrawer() {
           <span class="permission-badge allow">Отвори</span>
         </button>
         <article class="permission-card tool-status-card">
-          <div><strong>Снимки</strong><p>JPEG, PNG и WebP до 5 MB. Проверява се в самопроверката.</p></div>
-          <span class="permission-badge confirm">Настроен · без жива проверка</span>
+          <div><strong>Снимки</strong><p>JPEG, PNG и WebP до 5 MB. Чете ги Claude.</p></div>
+          <span class="permission-badge confirm" data-live-check="core:images">Проверявам…</span>
         </article>
         ${tools
           .map((tool) => {

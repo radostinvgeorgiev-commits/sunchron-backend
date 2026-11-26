@@ -27,6 +27,7 @@ import {
 
 import chatRouter from "./src/routes/chat.js";
 import healthRouter from "./src/routes/health.js";
+import { checkCoreTools } from "./src/services/toolLiveCheckService.js";
 import memoryRouter from "./src/routes/memoryRouter.js";
 import cloudRouter from "./src/routes/cloudRouter.js";
 import githubRouter from "./src/routes/githubRouter.js";
@@ -226,6 +227,25 @@ app.post(
       console.warn(`[Tools] not working: ${clip(item?.name, 60)} — ${clip(item?.label, 60)} — ${clip(item?.reason, 160)}`);
     }
     res.status(204).end();
+  },
+);
+// Real read-only checks for the owner's tools list (see toolLiveCheckService).
+app.get(
+  "/api/tools/check",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  privateApiRateLimiter,
+  async (req, res) => {
+    try {
+      res.set("Cache-Control", "no-store");
+      res.json({
+        checkedAt: new Date().toISOString(),
+        tools: await checkCoreTools({ ownerId: req.owner?.memoryOwnerId || "" }),
+      });
+    } catch (error) {
+      logSafeError("[Tools] check", error);
+      res.status(503).json({ error: "Проверката временно не е достъпна." });
+    }
   },
 );
 app.use("/api/github", oauthRateLimiter, githubOAuthRouter);

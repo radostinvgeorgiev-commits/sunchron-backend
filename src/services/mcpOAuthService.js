@@ -525,11 +525,14 @@ export const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
 // Claude bundle, so a later chat tool does not trap the connector in
 // "Sign-in required". Claude is owner-only, so the read-only audit scope
 // (action history, recent errors, runtime logs) is part of the bundle too.
-// Write scopes stay out of it.
+// The owner explicitly allowed Google Cloud changes from Claude (2026-11-26):
+// each one is still a prepared, exact, audited action that needs a separate
+// confirm call. Memory, task, GitHub and Google Workspace writes stay out.
 export const CLAUDE_SCOPES = Object.freeze([
   MCP_READ_SCOPE,
   MCP_AGENT_CHAT_SCOPE,
   MCP_AUDIT_READ_SCOPE,
+  MCP_INFRASTRUCTURE_WRITE_SCOPE,
   MCP_OFFLINE_ACCESS_SCOPE,
 ]);
 

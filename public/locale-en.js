@@ -133,6 +133,10 @@ SYNCHRON-X — начало|SYNCHRON-X home
 Пиши на AI CORE|Message AI CORE
 Гласово въвеждане|Voice input
 Разговор с глас|Talk with voice
+Свързано с твоите неща:|Connected to your own things:
+файл|file
+памет|memory
+архив|archive
 Спри разговора с глас|Stop the voice conversation
 Говори… кажи „стоп“ за край|Speak… say “stop” to end
 Състояние и данни|Status and data

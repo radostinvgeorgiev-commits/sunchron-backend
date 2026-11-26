@@ -10,6 +10,7 @@ import {
 import { getUserLibraryService } from "../services/userLibraryService.js";
 import { getAvatarProfileService } from "../services/avatarProfileService.js";
 import { searchWeb } from "../services/webSearchService.js";
+import { describeAnswerSources } from "../services/answerSourcesService.js";
 import { reservePublicAiFile } from "../services/publicAiBudget.js";
 import {
   buildFileContext,
@@ -2525,6 +2526,12 @@ router.post("/chat", async (req, res) => {
       memoryCount: memories.length,
       autoMemoryCount,
       memoryAvailable,
+      sources: describeAnswerSources({
+        answer: fullReply,
+        memories,
+        filePassages,
+        knowledge,
+      }),
       capabilities: capabilityResults.map(({ request }) => request.capability),
       task: taskResult,
       ...(taskRunId ? { taskRunId } : {}),

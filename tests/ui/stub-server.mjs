@@ -180,7 +180,14 @@ export function startStubServer(port = 0) {
         const timer = setInterval(() => {
           if (i >= words.length) {
             clearInterval(timer);
-            send("done", { ok: true, provider: "claude", model: b.model });
+            send("done", {
+              ok: true,
+              provider: "claude",
+              model: b.model,
+              ...(b.message.includes("Откъде")
+                ? { sources: [{ kind: "file", label: "Бележки.pdf" }, { kind: "memory", label: "Рожденият ми ден е на 3 март" }] }
+                : {}),
+            });
             return res.end();
           }
           send("token", { token: (i ? " " : "") + words[i++] });

@@ -85,7 +85,7 @@
                   .join("")
               : '<div class="drawer-empty">Няма намерени поддържани файлове.</div>'
           }
-          ${status.canRestore ? "" : '<a class="permission-default" href="/api/google/connect?add=drive">Тук са файловете, които AI CORE е създал. За да виждаш целия си Drive, натисни тук и разреши в Google.</a>'}
+          <a class="permission-default" href="/api/google/connect?add=drive">Ако не виждаш всичките си файлове, натисни тук и разреши целия Drive в Google.</a>
           <button type="button" id="openMyMail">Пощата ми</button>
           <button type="button" id="openMyCalendar">Календарът ми</button>
           <button type="button" id="disconnectGoogleDrive">Прекъсни връзката</button>

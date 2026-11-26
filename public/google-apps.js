@@ -31,7 +31,7 @@
     return data;
   }
 
-  async function reconnect(error) {
+  async function reconnect(error, add = "") {
     const status = await request("/api/google/status").catch(() => ({}));
     body.innerHTML = `
       <div class="drawer-state drawer-error">${escapeHtml(error.message)}</div>
@@ -46,7 +46,9 @@
       </button>`,
     );
     document.getElementById("reconnectGoogle").addEventListener("click", () => {
-      window.location.href = "/api/google/connect";
+      window.location.href = add
+        ? `/api/google/connect?add=${encodeURIComponent(add)}`
+        : "/api/google/connect";
     });
     document.getElementById("restoreGoogle")?.addEventListener("click", () => {
       window.location.href = "/api/google/restore";
@@ -83,7 +85,7 @@
           }
         </section>`;
     } catch (error) {
-      reconnect(error);
+      reconnect(error, "gmail");
     }
   }
 

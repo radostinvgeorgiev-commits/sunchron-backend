@@ -1,8 +1,8 @@
 # Google Cloud data verification
 
 Production данните са във Firestore, а профилите са в Identity Platform.
-Останалите migration скриптове са еднократни offline инструменти и не са
-runtime fallback.
+Еднократните migration скриптове от OpenSearch и Supabase са премахнати
+(26.11.2026); преносът е завършен.
 
 Преди import или cleanup:
 

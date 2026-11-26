@@ -28,3 +28,46 @@ test("the tools list no longer prints a plain green „Работи“ without a
   assert.doesNotMatch(app, /return \{ label: "Работи", className: "allow" \}/u);
   assert.match(app, /fetch\("\/api\/google\/check"/u);
 });
+
+test("an expired Google sign-in asks to connect again instead of showing broken tools", async () => {
+  const results = await checkGoogleServices("session", {
+    drive: async () => {
+      throw new GoogleDriveError("Google връзката е изтекла.", 401, "REFRESH_FAILED");
+    },
+  });
+  assert.deepEqual(results.drive, {
+    ok: false,
+    connect: "/api/google/connect",
+    reconnect: true,
+    reason: "Връзката с Google изтече.",
+  });
+});
+
+test("checks that start together share one token refresh", async () => {
+  const { createSession, listDriveFiles } = await import("../src/services/googleDriveService.js");
+  const saved = { ...process.env };
+  Object.assign(process.env, {
+    GOOGLE_CLIENT_ID: "client",
+    GOOGLE_CLIENT_SECRET: "secret",
+    GOOGLE_REDIRECT_URI: "https://example.test/callback",
+  });
+  try {
+    const id = await createSession({ access_token: "old", refresh_token: "refresh", expires_in: 1 });
+    let refreshes = 0;
+    const fetchImpl = async (url) => {
+      if (String(url).includes("oauth2.googleapis.com/token")) {
+        refreshes += 1;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return new Response(JSON.stringify({ access_token: "new", expires_in: 3600 }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ files: [] }), { status: 200 });
+    };
+    await Promise.all([listDriveFiles(id, fetchImpl), listDriveFiles(id, fetchImpl), listDriveFiles(id, fetchImpl)]);
+    assert.equal(refreshes, 1);
+  } finally {
+    for (const key of ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"]) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  }
+});

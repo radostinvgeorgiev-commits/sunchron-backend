@@ -17,6 +17,7 @@ import {
   parseCookies,
   getYoutubeChannelSummary,
   googleConnectPath,
+  isGoogleScopeMissing,
   saveAnswerToGoogle,
   sessionBelongsTo,
 } from "../services/googleDriveService.js";
@@ -144,6 +145,14 @@ const GOOGLE_CHECKS = {
 // A service the person has not turned on yet is not "broken": the tools
 // list offers its own connect button instead of "Не отговаря".
 const CHECK_CONNECT = { youtube: googleConnectPath("youtube") };
+// The stored Google sign-in no longer works: one "Свържи отново" fixes every
+// Google tool at once, so it is not shown as broken.
+const RECONNECT_CODES = new Set([
+  "NOT_CONNECTED",
+  "TOKEN_EXPIRED",
+  "REFRESH_FAILED",
+  "GOOGLE_RECONNECT_REQUIRED",
+]);
 const CHECK_TIMEOUT_MS = 12_000;
 
 export async function checkGoogleServices(id, checks = GOOGLE_CHECKS) {
@@ -162,9 +171,17 @@ export async function checkGoogleServices(id, checks = GOOGLE_CHECKS) {
       } catch (error) {
         const known = error instanceof GoogleDriveError;
         const needsConnect = known && error.code === "GOOGLE_SCOPE_REQUIRED" && CHECK_CONNECT[name];
+        const needsReconnect = known && RECONNECT_CODES.has(error.code);
+        if (!needsConnect) {
+          console.warn(
+            `[Google check] ${name} failed: ${known ? error.code : "UNEXPECTED"}${known && error.status ? ` ${error.status}` : ""}`,
+          );
+        }
         results[name] = needsConnect
           ? { ok: false, connect: CHECK_CONNECT[name], reason: "Още не е разрешен." }
-          : {
+          : needsReconnect
+            ? { ok: false, connect: "/api/google/connect", reconnect: true, reason: "Връзката с Google изтече." }
+            : {
               ok: false,
               reason: known ? error.message : "Не отговори.",
               ...(known && error.status ? { status: error.status } : {}),
@@ -263,6 +280,14 @@ router.post("/save", async (req, res) => {
       }),
     );
   } catch (error) {
+    if (isGoogleScopeMissing(error)) {
+      // Saving needs its own small permission (only files AI CORE creates).
+      return res.status(403).json({
+        error: "Запазването в Google още не е разрешено.",
+        code: "GOOGLE_SCOPE_REQUIRED",
+        connect: googleConnectPath("save"),
+      });
+    }
     sendError(res, error);
   }
 });

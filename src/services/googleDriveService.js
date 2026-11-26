@@ -204,10 +204,28 @@ function configuration() {
 }
 
 // Extra Google services a person turns on one at a time, only when they
-// use them. include_granted_scopes keeps everything granted before.
+// use them. Each one is asked for in its own small consent (sign-in plus that
+// one scope); include_granted_scopes keeps everything granted before. The main
+// "Свържи Google" never carries them, so a service Google refuses can never
+// break the whole Google connection.
 export const GOOGLE_EXTRA_SCOPES = Object.freeze({
   youtube: "https://www.googleapis.com/auth/youtube.readonly",
+  // Only files AI CORE itself creates (answers saved as Docs/Sheets).
+  save: "https://www.googleapis.com/auth/drive.file",
 });
+
+// The main connection: exactly the set people have connected with before.
+export const GOOGLE_BASE_SCOPES = Object.freeze([
+  "openid",
+  "email",
+  "https://www.googleapis.com/auth/drive.readonly",
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.compose",
+  "https://www.googleapis.com/auth/gmail.modify",
+  "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/contacts.readonly",
+  "https://www.googleapis.com/auth/contacts",
+]);
 
 export function googleConnectPath(extra = "") {
   return GOOGLE_EXTRA_SCOPES[extra] ? `/api/google/connect?add=${extra}` : "/api/google/connect";
@@ -222,20 +240,10 @@ export function buildAuthorizationUrl(state, extras = []) {
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: [
-      "openid",
-      "email",
-      "https://www.googleapis.com/auth/drive.readonly",
-      // Only files AI CORE itself creates (answers saved as Docs/Sheets).
-      "https://www.googleapis.com/auth/drive.file",
-      "https://www.googleapis.com/auth/gmail.readonly",
-      "https://www.googleapis.com/auth/gmail.compose",
-      "https://www.googleapis.com/auth/gmail.modify",
-      "https://www.googleapis.com/auth/calendar.events",
-      "https://www.googleapis.com/auth/contacts.readonly",
-      "https://www.googleapis.com/auth/contacts",
-      ...extraScopes,
-    ].join(" "),
+    scope: (extraScopes.length
+      ? ["openid", "email", ...extraScopes]
+      : GOOGLE_BASE_SCOPES
+    ).join(" "),
     access_type: "offline",
     prompt: "consent",
     include_granted_scopes: "true",
@@ -329,7 +337,19 @@ export async function disconnectSession(id) {
   }
 }
 
-async function refreshSession(id, fetchImpl = fetch) {
+// Several checks start at once when the tools list opens; they share one
+// token refresh instead of racing each other.
+const refreshing = new Map();
+
+function refreshSession(id, fetchImpl = fetch) {
+  const key = String(id || "");
+  if (refreshing.has(key)) return refreshing.get(key);
+  const running = refreshSessionOnce(id, fetchImpl).finally(() => refreshing.delete(key));
+  refreshing.set(key, running);
+  return running;
+}
+
+async function refreshSessionOnce(id, fetchImpl = fetch) {
   const session = await loadSession(id);
   if (!session)
     throw new GoogleDriveError(
@@ -765,6 +785,10 @@ export async function saveAnswerToGoogle(
   );
   const data = await response.json();
   return { id: data.id, name: data.name || name, url: data.webViewLink || null, kind };
+}
+
+export function isGoogleScopeMissing(error) {
+  return error instanceof GoogleDriveError && error.code === "GOOGLE_SCOPE_REQUIRED";
 }
 
 export async function downloadDriveFile(id, fileId, fetchImpl = fetch) {

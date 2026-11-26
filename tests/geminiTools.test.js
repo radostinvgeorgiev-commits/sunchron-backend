@@ -95,3 +95,40 @@ test("the chef and the coach show YouTube and maps among their tools", () => {
   assert.ok(presets.chef.includes("youtube") && presets.chef.includes("maps"));
   assert.ok(presets.coach.includes("youtube") && presets.coach.includes("maps"));
 });
+
+test("a recipe or a picture with a place word is not a maps question", () => {
+  assert.equal(isPlacesRequest("Покажи ми как се прави ресторантска паста"), false);
+  assert.equal(isPlacesRequest("Препоръчай ресторантска рецепта"), false);
+  assert.equal(isPlacesRequest("Покажи снимка на хотелска стая"), false);
+  assert.equal(isPlacesRequest("Има ли аптека наблизо до НДК?"), true);
+});
+
+test("“не използвай инструменти” keeps the video and maps tools out", () => {
+  const requests = detectCapabilityRequests(
+    "Не използвай инструменти. Само обсъди https://youtu.be/dQw4w9WgXcQ",
+  );
+  assert.equal(requests.some(({ capability }) => capability === "video.read"), false);
+});
+
+test("when the maps are out of quota, the place question is answered from a web search", async () => {
+  const searched = [];
+  const result = await askGoogleMaps("Намери наблизо: аптека в Пловдив", {
+    env,
+    fetchImpl: async () => ({ ok: false, status: 429, text: async () => "RESOURCE_EXHAUSTED" }),
+    fallbackSearch: async (query) => {
+      searched.push(query);
+      return { text: "Аптека Y, ул. Главна 1", sources: [{ title: "Y", url: "https://y.test" }] };
+    },
+  });
+  assert.equal(result.text, "Аптека Y, ул. Главна 1");
+  assert.match(searched[0], /аптека в Пловдив/u);
+});
+
+test("a city, the usual word forms and plain statements are read right", () => {
+  assert.equal(isPlacesRequest("Препоръчай ресторант във Варна"), true);
+  assert.equal(isPlacesRequest("Намери хотел в Пловдив"), true);
+  assert.equal(isPlacesRequest("Намери кафене наблизо"), true);
+  assert.equal(isPlacesRequest("Къде е аптеката?"), true);
+  assert.equal(isPlacesRequest("Ресторантът беше близо до дома ми"), false);
+  assert.equal(isPlacesRequest("Не искам ресторант наблизо"), false);
+});

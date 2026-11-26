@@ -134,3 +134,26 @@
   .council-columns { grid-auto-columns: 86%; }
 }
 .assistant-turn:not(:last-child) .retry-action { display: none; }
+
+/* Assistant chip and picker, "/" prompts. */
+.assistant-chip {
+  display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; margin: 0 0 6px 6px;
+  padding: 6px 10px; border-radius: 999px; background: #e7efe9; color: #000; font-weight: 700;
+}
+.assistant-chip[hidden] { display: none; }
+.assistant-chip button { border: 0; background: transparent; font-weight: 800; color: inherit; padding: 0 2px; }
+.assistant-picker, .slash-menu {
+  position: absolute; left: 8px; bottom: calc(100% + 8px); z-index: 45; width: min(340px, calc(100vw - 32px));
+  max-height: 60vh; overflow-y: auto; padding: 6px; border-radius: 14px;
+  background: #fff; border: 1px solid #d6dbd8; box-shadow: 0 10px 30px rgba(0,0,0,.15);
+}
+.assistant-picker[hidden], .slash-menu[hidden] { display: none; }
+.assistant-picker button, .slash-menu button {
+  display: flex; width: 100%; align-items: center; gap: 12px; padding: 10px 12px; border: 0; border-radius: 10px;
+  background: transparent; color: #000; text-align: left;
+}
+.assistant-picker button:hover, .assistant-picker button[aria-checked="true"],
+.slash-menu button:hover, .slash-menu button[aria-selected="true"] { background: #eef3f0; }
+.assistant-picker i { width: 20px; text-align: center; }
+.assistant-picker small { display: block; font-weight: 600; color: #3a3a3a; }
+.slash-menu code { font-weight: 800; color: #2f6b52; min-width: 84px; }

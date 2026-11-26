@@ -3192,6 +3192,9 @@ async function sendMessage({
         recentHistory,
         model: modelOverride || globalThis.SynchronUi?.chatModel?.() || "auto",
         ...(resend ? { rewrite: true } : {}),
+        ...(globalThis.SynchronUi?.assistant?.()
+          ? { assistant: globalThis.SynchronUi.assistant() }
+          : {}),
         ...interaction,
       }),
     });

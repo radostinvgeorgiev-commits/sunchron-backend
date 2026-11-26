@@ -101,6 +101,22 @@
     return googleConnected;
   };
   const toolIcon = (tool) => (tool.icon?.startsWith("fa-brands") ? tool.icon : `fa-solid ${tool.icon || "fa-wrench"}`);
+  // One press uses the tool: Google ones ask right away, the rest open.
+  const TOOL_QUESTIONS = {
+    calendar: "Какво имам в календара тази седмица?",
+    gmail: "Покажи последните ми писма в Gmail",
+    drive: "Покажи последните ми файлове в Google Drive",
+  };
+  const TOOL_EVENTS = { web: "aicore:web-search", files: "aicore:knowledge-files", todos: "aicore:todos" };
+  const useTool = (id) => {
+    if (TOOL_EVENTS[id]) return document.dispatchEvent(new CustomEvent(TOOL_EVENTS[id]));
+    const question = TOOL_QUESTIONS[id];
+    const send = $("sendBtn");
+    if (!question || !send) return;
+    input.value = text(question);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    send.click();
+  };
   const renderTools = async (assistant) => {
     const tools = Array.isArray(assistant?.tools) ? assistant.tools : [];
     toolBar.hidden = !tools.length;
@@ -113,11 +129,15 @@
     label.textContent = text("Инструменти:");
     const chips = tools.map((tool) => {
       const ready = tool.needs !== "google" || connected;
-      const item = document.createElement("span");
+      const item = document.createElement("button");
+      item.type = "button";
+      item.dataset.tool = tool.id;
       item.className = `assistant-tool${ready ? " ready" : ""}`;
-      item.title = text(ready ? "Свързано" : "Не е свързано");
+      item.title = text(ready ? "Натисни, за да го ползваш" : "Не е свързано");
+      item.disabled = !ready;
       item.innerHTML = `<i class="${toolIcon(tool)}" aria-hidden="true"></i><span></span>`;
       item.querySelector("span").textContent = text(tool.label);
+      item.addEventListener("click", () => useTool(tool.id));
       return item;
     });
     const extra = [];

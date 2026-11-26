@@ -169,11 +169,15 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     const tools = await page.locator(".assistant-tools").innerText();
     expect(tools.includes("Gmail") && tools.includes("Търсене в интернет"), `няма инструменти: ${tools}`);
     expect(await page.locator(".assistant-tools .assistant-tool-connect").isVisible(), "няма „Свържи Google“");
+    expect(await page.locator('.assistant-tools [data-tool="gmail"]').isDisabled(), "Gmail работи без връзка");
     await page.click(".assistant-chip button");
     expect(await page.locator(".assistant-tools").isHidden(), "инструментите останаха без асистент");
     await page.click('.assistant-row button[data-assistant="chef"]');
     await page.locator(".assistant-tools .assistant-tool").first().waitFor({ timeout: 5000 });
     expect(!(await page.locator(".assistant-tools .assistant-tool-connect").count()), "готвачът не иска Google");
+    await page.click('.assistant-tools [data-tool="todos"]');
+    await page.locator(".todo-dialog").waitFor({ state: "visible", timeout: 5000 });
+    await page.locator(".todo-dialog .share-close").click();
     const before = await page.evaluate(async () => (await (await fetch("/api/todos")).json()).items.length);
     await send("Направи ми списък за пазар");
     await last().locator(".answer-todos").waitFor({ timeout: 5000 });

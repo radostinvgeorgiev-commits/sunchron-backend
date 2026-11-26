@@ -468,5 +468,9 @@ Google Календар|Google Calendar
 Добави в Моите задачи|Add to My tasks
 Добавено в Моите задачи|Added to My tasks
 Задачите не бяха записани.|The tasks were not saved.
+Натисни, за да го ползваш|Press to use it
+Какво имам в календара тази седмица?|What is on my calendar this week?
+Покажи последните ми писма в Gmail|Show my latest Gmail messages
+Покажи последните ми файлове в Google Drive|Show my latest files in Google Drive
 `.trim().split("\n").map((line) => line.split("|")),
 );

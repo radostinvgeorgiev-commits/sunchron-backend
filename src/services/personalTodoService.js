@@ -113,6 +113,8 @@ export function createPersonalTodoService({
     setDone: (ownerId, id, done) => update(ownerId, id, { done }),
     remove: (ownerId, id) => update(ownerId, id, null),
     fromNote,
+    clear: (ownerId) =>
+      db().commitOperations([{ type: "delete", collection: PERSONAL_TODO_COLLECTION, id: documentId(ownerId) }]),
   };
 }
 

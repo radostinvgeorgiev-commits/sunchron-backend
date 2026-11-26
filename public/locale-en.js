@@ -74,6 +74,23 @@ AI предлага, ти одобряваш, системата изпълня�
 Моят ден|My day
 Моята седмица|My week
 Моите задачи|My tasks
+Питай моя аватар|Ask my avatar
+Дай линк на друг човек и той ще може да пита твоя аватар. Аватарът отговаря само с това, което напишеш тук. Паметта, файловете, пощата и разговорите ти не се ползват. Можеш да спреш линка по всяко време.|Give someone a link and they can ask your avatar. It answers only from what you write here. Your memory, files, mail and chats are never used. You can stop the link at any time.
+Как да се представя аватарът|How the avatar introduces itself
+Кратко представяне (по желание)|Short introduction (optional)
+Какво аватарът може да казва за теб|What the avatar may say about you
+Например: Мария Иванова|For example: Maria Ivanova
+Например: счетоводител в Пловдив|For example: accountant in Plovdiv
+Например: с какво се занимавам, работно време, цени, как да се свържат с мен, често задавани въпроси. Не пиши нищо, което не искаш другите да знаят.|For example: what you do, working hours, prices, how to reach you, common questions. Do not write anything you don't want others to know.
+Линк към аватара|Link to the avatar
+Спри линка|Stop the link
+Запази промените|Save changes
+Създай линк|Create the link
+Въпроси днес|Questions today
+Готово. Копирай линка и го дай на когото искаш.|Done. Copy the link and give it to whoever you want.
+Спиране…|Stopping…
+Линкът е спрян. Текстът остава за следващия път.|The link is stopped. Your text stays for next time.
+Линкът е копиран.|The link is copied.
 Кажи или напиши бележка и аватарът ще я направи на задачи. Ти избираш кои да запазиш. Списъкът е само твой.|Say or type a note and your avatar turns it into tasks. You choose which to keep. The list is only yours.
 Например: утре да се обадя на счетоводителя, да платя тока до петък и да купя подарък на мама.|For example: call the accountant tomorrow, pay the electricity by Friday and buy a present for mum.
 Гласова бележка|Voice note

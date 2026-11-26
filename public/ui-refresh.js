@@ -113,6 +113,9 @@
       if (key === "todos") {
         document.dispatchEvent(new CustomEvent("aicore:todos"));
       }
+      if (key === "link") {
+        document.dispatchEvent(new CustomEvent("aicore:avatar-link"));
+      }
       if (key === "causes") {
         document.dispatchEvent(new CustomEvent("aicore:causes"));
       }
@@ -161,6 +164,9 @@
         </button>
         <button type="button" data-plus="todos">
           <i class="fa-solid fa-list-check" aria-hidden="true"></i><span>${text("Моите задачи")}</span>
+        </button>
+        <button type="button" data-plus="link">
+          <i class="fa-solid fa-link" aria-hidden="true"></i><span>${text("Питай моя аватар")}</span>
         </button>
         <button type="button" data-plus="google">
           <i class="fa-brands fa-google" aria-hidden="true"></i><span>${text("Моят Google")}</span>

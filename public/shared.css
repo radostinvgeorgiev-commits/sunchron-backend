@@ -21,3 +21,13 @@ a { color: #2f6b52; }
 .shared-body pre { overflow-x: auto; padding: 10px; border-radius: 10px; background: #f0f2f1; }
 .shared-footer { padding: 18px; text-align: center; color: #3a3a3a; font-size: .9rem; }
 @media (max-width: 600px) { .shared-message.user { margin-left: 6%; } }
+/* "Питай моя аватар": the visitor's question box. */
+.avatar-ask { display: flex; gap: 8px; margin-top: 16px; }
+.avatar-ask textarea {
+  flex: 1; min-width: 0; font: inherit; font-weight: 500; padding: 10px 12px;
+  border: 1px solid #c9d1cc; border-radius: 14px; resize: vertical;
+}
+.avatar-ask button {
+  font: inherit; padding: 0 18px; border: 0; border-radius: 14px; background: #2f6b52; color: #fff; cursor: pointer;
+}
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

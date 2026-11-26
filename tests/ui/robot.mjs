@@ -125,7 +125,7 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.click("#attachBtn");
     expect((await page.locator(".plus-menu > button:visible").count()) === 6, "менюто „+“ не е с 6 реда");
     await page.keyboard.press("Escape");
-    expect((await page.locator(".mine-group [data-plus]").count()) === 6, "няма група „Моят аватар“");
+    expect((await page.locator(".mine-group [data-plus]").count()) === 7, "няма група „Моят аватар“");
     expect((await page.locator(".mine-group #memoryBtn").count()) === 1, "„Памет“ не е в групата");
   });
   await step(`${label}: обикновен акаунт няма превключвател „Чат/Работа“`, async () => {
@@ -312,6 +312,32 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
   });
   // Close the window even when a check above failed, so the next steps can click.
   if (await page.locator(".todo-dialog").isVisible()) await page.locator(".todo-dialog .share-close").click();
+  await step(`${label}: „Питай моя аватар“: линк, въпрос от посетител и спиране`, async () => {
+    await openMine("link");
+    const box = page.locator(".avatar-link-dialog");
+    await box.waitFor({ state: "visible", timeout: 5000 });
+    await box.locator("#avatarLinkName").fill("Мария");
+    await box.locator("#avatarLinkKnowledge").fill("Работя от 9 до 17 ч.");
+    await box.locator(".avatar-link-save").click();
+    await page.waitForTimeout(400);
+    const url = await box.locator(".avatar-link-url input").inputValue();
+    expect(url.includes("/a/"), "няма линк");
+    const visitor = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: "bg-BG" });
+    await visitor.goto(url, { waitUntil: "domcontentloaded" });
+    await visitor.waitForTimeout(800);
+    expect((await visitor.textContent("#avatarName")).includes("Мария"), "посетителят не вижда името");
+    await visitor.fill("#avatarQuestion", "Кога работиш?");
+    await visitor.click("#avatarAsk button");
+    await visitor.waitForTimeout(800);
+    expect((await visitor.locator(".shared-message.agent").last().innerText()).includes("9 до 17"), "няма отговор за посетителя");
+    await box.locator(".avatar-link-stop").click();
+    await page.waitForTimeout(400);
+    await visitor.reload();
+    await visitor.waitForTimeout(800);
+    expect((await visitor.textContent("#avatarName")).includes("не е достъпен"), "спреният линк още работи");
+    await visitor.close();
+  });
+  if (await page.locator(".avatar-link-dialog").isVisible()) await page.locator(".avatar-link-dialog .share-close").click();
   await step(`${label}: „Нарисувай картинка“ показва картинката`, async () => {
     await page.fill("#chatInput", "котка на луната");
     await page.click("#attachBtn");

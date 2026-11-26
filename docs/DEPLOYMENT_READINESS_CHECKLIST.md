@@ -12,8 +12,10 @@
 - Storage: Firestore за памет и operational state.
 - Auth: Identity Platform.
 - MCP endpoint: `https://cloudaicore.com/mcp`.
-- AI providers: OpenAI Responses API е основен, а Gemini, Grok, Claude и Codex
-  са допълнителни двигатели само при валидна конфигурация.
+- AI providers: Claude Haiku 5.5 е по подразбиране; OpenAI, Gemini и Grok са
+  допълнителни разговорни/Council двигатели; Codex е само защитен
+  code/analysis изпълнител през branch/PR поток. Всички се включват само при
+  валидна конфигурация.
 
 ## 2. Преди merge
 
@@ -34,6 +36,8 @@
 - [ ] `GET https://cloudaicore.com/health/storage-report` показва healthy Firestore.
 - [ ] Identity Platform health е healthy.
 - [ ] MCP/OAuth endpoint е reachable.
+- [ ] AI provider report показва очакваните configured/unconfigured състояния за
+      Claude, OpenAI, Gemini, Grok и Codex.
 
 ## 4. Acceptance преди deployment
 
@@ -43,6 +47,10 @@
 - [ ] A4: разрешено действие спира на confirmation gate, изпълнява се след точно
       потвърждение и audit read връща проверим запис.
 - [ ] A5: staging fault injection доказва контролирана грешка и възстановяване.
+- [ ] Claude acceptance: заявка през Claude/OAuth стига до AI CORE, без да
+      променя чужди grants.
+- [ ] Codex acceptance: ако е enabled, code task подготвя branch/PR и не променя
+      `main` без owner approval.
 
 ## 5. След deployment
 
@@ -65,6 +73,7 @@ Deployment не се прави, ако има поне едно от следн
 - има secret в diff-а;
 - A4 audit read остава непроверен;
 - A5 recovery остава само локално проверен;
+- Claude или Codex са показани като готови без реална конфигурация и тест;
 - owner не е дал отделно потвърждение за merge/deploy.
 
 ## 7. Яснота в документацията

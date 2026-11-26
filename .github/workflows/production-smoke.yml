@@ -32,11 +32,20 @@ jobs:
           set -euo pipefail
           consecutive_matches=0
           required_matches=5
+          curl_error_file="$(mktemp)"
+          trap 'rm -f "${curl_error_file}"' EXIT
           for attempt in $(seq 1 24); do
-            response="$(curl --fail --silent --show-error --max-time 30 \
+            response=""
+            if response="$(curl --ipv4 --fail --silent --show-error --max-time 30 \
               --header 'Cache-Control: no-cache' \
               "${PRODUCTION_ORIGIN}/health?deployment-check=${GITHUB_RUN_ID}-${attempt}" \
-              2>/dev/null || true)"
+              2>"${curl_error_file}")"; then
+              :
+            else
+              curl_status="$?"
+              curl_error="$(tr '\n' ' ' < "${curl_error_file}" | cut -c 1-300)"
+              echo "Attempt ${attempt}/24: health request failed (curl ${curl_status}): ${curl_error:-no diagnostic}."
+            fi
             actual_commit="$(printf '%s' "${response}" | node -e '
               let input = "";
               process.stdin.on("data", (chunk) => { input += chunk; });
@@ -78,6 +87,47 @@ jobs:
             | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'
           curl --fail --silent --show-error --retry 3 --retry-all-errors --max-time 30 "${PRODUCTION_ORIGIN}/health/ready" \
             | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"'
+
+      - name: Check sign-in, registration and chat contracts
+        # Safe checks only: no account is created and no AI call is made.
+        # The wrong-password sign-in reaches Identity Platform for real.
+        shell: bash
+        run: |
+          set -euo pipefail
+          check() {
+            local name="$1" expected_status="$2" expected_code="$3" method="$4" path="$5" body="${6:-}"
+            local out status
+            out="$(mktemp)"
+            if [ -n "${body}" ]; then
+              status="$(curl --silent --show-error --max-time 30 -o "${out}" -w '%{http_code}' \
+                -X "${method}" -H 'Content-Type: application/json' --data "${body}" "${PRODUCTION_ORIGIN}${path}")"
+            else
+              status="$(curl --silent --show-error --max-time 30 -o "${out}" -w '%{http_code}' \
+                -X "${method}" "${PRODUCTION_ORIGIN}${path}")"
+            fi
+            local code
+            code="$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).code||""))}catch{}' "${out}")"
+            echo "${name}: HTTP ${status} code=${code:-none}"
+            rm -f "${out}"
+            [ "${status}" = "${expected_status}" ] || { echo "${name}: expected HTTP ${expected_status}" >&2; return 1; }
+            if [ -n "${expected_code}" ] && [ "${code}" != "${expected_code}" ]; then
+              echo "${name}: expected code ${expected_code}" >&2; return 1
+            fi
+          }
+          curl --fail --silent --show-error --max-time 30 "${PRODUCTION_ORIGIN}/api/auth/session" | node -e '
+            let input = "";
+            process.stdin.on("data", (chunk) => { input += chunk; });
+            process.stdin.on("end", () => {
+              const s = JSON.parse(input);
+              console.log(`session: configured=${s.configured} registration=${s.registrationEnabled} provider=${s.authProvider}`);
+              if (s.configured !== true || s.registrationEnabled !== true || s.authProvider !== "identity-platform") process.exit(1);
+            });
+          '
+          check "wrong sign-in" 401 AUTH_INVALID_CREDENTIALS POST /api/auth/login \
+            "{\"email\":\"smoke-${GITHUB_RUN_ID}@example.invalid\",\"password\":\"not-a-real-password\"}"
+          check "short-password registration" 400 AUTH_INVALID_PASSWORD POST /api/auth/register \
+            '{"displayName":"Smoke","email":"smoke@example.invalid","password":"short"}'
+          check "chat without session" 401 "" POST /chat '{"message":"ping","sessionId":"smoke"}'
 
       - name: Check Firestore and Identity Platform dependencies
         shell: bash

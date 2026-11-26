@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   assertMcpGrantActive,
   cleanupExpiredMcpReplayRecords,
+  CHATGPT_MCP_SCOPE,
   consumeMcpGrantOnce,
   createMcpAuthorizationCode,
   exchangeMcpAuthorizationCode,
@@ -38,6 +39,7 @@ import {
 const ENV = {
   MCP_ACCESS_TOKEN: "mcp-oauth-test-secret-with-more-than-32-characters",
   MCP_RESOURCE_URL: "https://cloudaicore.com/mcp",
+  PERSISTENCE_BACKEND: "opensearch",
 };
 const TUNNEL_RESOURCE =
   "https://tunnel-service.gateway.unified-0.internal.api.openai.org/v1/mcp/tunnel_test123";
@@ -325,6 +327,7 @@ test("publishes OAuth 2.1 protected-resource and authorization metadata", () => 
     MCP_GOOGLE_WRITE_SCOPE,
     MCP_AUDIT_READ_SCOPE,
     MCP_INFRASTRUCTURE_WRITE_SCOPE,
+    CHATGPT_MCP_SCOPE,
     MCP_OFFLINE_ACCESS_SCOPE,
   ]);
 });
@@ -928,9 +931,10 @@ test("persists a bounded owner grant and extends it on refresh", async () => {
       client.mappings.get(env.MCP_OAUTH_GRANT_INDEX).properties.expiresAt,
       { type: "date" },
     );
-    assert.deepEqual(await listActiveMcpGrants({ subject: "owner-id", env, client, now }), [
-      initial,
-    ]);
+    assert.deepEqual(
+      await listActiveMcpGrants({ subject: "owner-id", env, client, now }),
+      [initial],
+    );
 
     now += 60_000;
     const refreshed = await exchangeMcpRefreshToken(
@@ -1061,10 +1065,7 @@ test("revokes one or all owner grants and blocks access and refresh", async () =
     ),
     (error) => error.code === "invalid_grant" && error.status === 400,
   );
-  assert.equal(
-    await revokeMcpGrants({ subject: "owner-id", env, client }),
-    1,
-  );
+  assert.equal(await revokeMcpGrants({ subject: "owner-id", env, client }), 1);
   assert.deepEqual(
     await listActiveMcpGrants({ subject: "owner-id", env, client }),
     [],
@@ -1134,8 +1135,7 @@ test("fails closed when revoke-all version conflicts remain active", async () =>
 
   await assert.rejects(
     revokeMcpGrants({ subject: "owner-id", env, client }),
-    (error) =>
-      error.code === "temporarily_unavailable" && error.status === 503,
+    (error) => error.code === "temporarily_unavailable" && error.status === 503,
   );
   assert.equal(attempts, 3);
 });
@@ -1449,4 +1449,38 @@ test("expired durable replay records are cleaned on a bounded schedule", async (
     true,
   );
   assert.equal(calls.length, 2);
+});
+
+test("ChatGPT plugin grants are scoped to the public plugin resource", async () => {
+  const resource = "https://cloudaicore.com/mcp/chatgpt";
+  const input = { ...authorizationInput(), resource, scope: CHATGPT_MCP_SCOPE };
+  const options = { env: ENV, fetchImpl: clientMetadataFetch };
+  await assert.rejects(
+    validateMcpAuthorizationRequest({ ...input, scope: `${CHATGPT_MCP_SCOPE} ${MCP_READ_SCOPE}` }, options),
+    { code: "invalid_scope" },
+  );
+  await assert.rejects(
+    validateMcpAuthorizationRequest({ ...input, resource: ENV.MCP_RESOURCE_URL }, options),
+    { code: "invalid_scope" },
+  );
+
+  const request = await validateMcpAuthorizationRequest(input, options);
+  const code = createMcpAuthorizationCode(
+    request,
+    { id: "plugin-member", memoryOwnerId: "identity-platform:plugin-member", role: "member" },
+    ENV,
+  );
+  const token = await exchangeMcpAuthorizationCode({
+    grant_type: "authorization_code",
+    code,
+    client_id: CLIENT_ID,
+    redirect_uri: REDIRECT_URI,
+    code_verifier: VERIFIER,
+    resource,
+  }, ENV);
+
+  const header = `Bearer ${token.access_token}`;
+  assert.equal(verifyMcpAccessToken(header, [CHATGPT_MCP_SCOPE], ENV, { expectedResource: resource }).role, "member");
+  assert.throws(() => verifyMcpAccessToken(header, [CHATGPT_MCP_SCOPE], ENV), { code: "invalid_token" });
+  assert.throws(() => verifyMcpAccessToken(header, [CHATGPT_MCP_SCOPE], ENV, { expectedResource: ENV.MCP_RESOURCE_URL }), { code: "invalid_token" });
 });

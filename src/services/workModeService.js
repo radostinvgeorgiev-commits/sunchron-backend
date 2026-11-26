@@ -1,13 +1,4 @@
 const WORK_MODES = new Set(["chat", "work"]);
-const WORK_PETS = Object.freeze({
-  robot: "Кори",
-  drop: "Капка",
-  spark: "Искра",
-  owl: "Бухал",
-  rock: "Скала",
-  cat: "Мяу",
-});
-
 const AGENT_ROLES = Object.freeze({
   general: {
     label: "Универсален помощник",
@@ -69,9 +60,23 @@ const AGENT_MODELS = Object.freeze({
     provider: "openai",
     apiModel: "gpt-5.6-luna",
   },
+  "gpt-4.1-mini": { label: "GPT-4.1 mini (икономичен)", provider: "openai", apiModel: "gpt-4.1-mini" },
+  // Old id kept so saved agents still resolve; it now calls Claude Haiku 5.5.
+  "claude-haiku-4-5-20251001": { label: "Claude Haiku 5.5 (икономичен)", provider: "claude", apiModel: "claude-haiku-5-5" },
+  // Kept under the old id so saved agents still resolve; Google retired
+  // gemini-2.5-flash-lite and the API now answers 404.
+  "gemini-2.5-flash-lite": { label: "Gemini 3.5 Flash Lite (икономичен)", provider: "gemini", apiModel: "gemini-3.5-flash-lite" },
+  "grok-3-mini": { label: "Grok 3 Mini (икономичен)", provider: "grok", apiModel: "grok-3-mini" },
+  // Old id kept so saved agents still resolve; Google retired
+  // gemini-2.5-flash and the API now answers 404.
   "gemini-2.5-flash": {
-    label: "Gemini 2.5 Flash",
+    label: "Gemini 3.8 Flash",
     provider: "gemini",
+    apiModel: "gemini-3.8-flash",
+  },
+  "vertex-gemini-2.5-flash": {
+    label: "Vertex Gemini 2.5 Flash",
+    provider: "vertex-gemini",
     apiModel: "gemini-2.5-flash",
   },
   "grok-4.5": {
@@ -148,9 +153,6 @@ export function sanitizeWorkContext(value) {
     engine: Object.hasOwn(AGENT_ENGINES, cleanText(value.agent?.engine, 30))
       ? cleanText(value.agent?.engine, 30)
       : "ai-core",
-    petId: Object.hasOwn(WORK_PETS, cleanText(value.agent?.petId, 20))
-      ? cleanText(value.agent?.petId, 20)
-      : "robot",
   };
 
   if (!project.name && !project.objective && !agent.purpose) return null;
@@ -187,7 +189,6 @@ export function buildWorkModeContext(value) {
     `Избран личен агент: ${context.agent.name}`,
     `Изпълнител: ${AGENT_ENGINES[context.agent.engine].label}`,
     `Роля: ${role.label}`,
-    `Любимец на агента: ${WORK_PETS[context.agent.petId]}`,
     `Модел: ${AGENT_MODELS[context.agent.model].label}`,
     `Начин на работа: ${role.guidance}`,
     context.agent.purpose
@@ -218,9 +219,7 @@ export function isRuntimeAiIdentityRequest(message) {
   const text = cleanText(message, 500).toLocaleLowerCase("bg-BG");
   if (!text) return false;
   const asksForIdentity =
-    /(?:кой|какъв|каква|кажи|покажи|посочи|доставчик|provider)/u.test(
-      text,
-    );
+    /(?:кой|какъв|каква|кажи|покажи|посочи|доставчик|provider)/u.test(text);
   const mentionsRuntime =
     /(?:ai|изкуствен интелект|доставчик|provider|модел)/u.test(text);
   const refersToCurrentReply =
@@ -240,7 +239,6 @@ export function buildWorkContextStatusReply(value) {
     `Модел: ${AGENT_MODELS[context.agent.model].label}`,
     `Роля: ${AGENT_ROLES[context.agent.role].label}`,
     `Изпълнител: ${AGENT_ENGINES[context.agent.engine].label}`,
-    `Любимец: ${WORK_PETS[context.agent.petId]}`,
     `Проект: ${context.project.name || "Без активен проект"}`,
   ].join("\n");
 }
@@ -292,6 +290,13 @@ export function routeSelectedWorkAgentCapabilities(requests, value, message) {
   );
   if (hasExplicitNoToolBoundary(message)) return [];
   if (isRuntimeAiIdentityRequest(message)) return nonCodeRequests;
+  if (
+    /^(?:добър ден|добро утро|добър вечер|здравей(?:те)?|здрасти|hi|hello)[.!?\s]*$/iu.test(
+      cleanText(message, 8000),
+    )
+  ) {
+    return nonCodeRequests;
+  }
   const codeReadRequests = safeRequests.filter(({ capability }) =>
     ["code.read", "code.task-status"].includes(capability),
   );
@@ -309,6 +314,24 @@ export function routeSelectedWorkAgentCapabilities(requests, value, message) {
     },
     ...nonCodeRequests,
   ];
+}
+
+// Models offered in the chat header picker: the economical ones, so a reply
+// keeps the same credit price for everyone. "auto" uses the site default.
+export const CHAT_MODEL_CHOICES = Object.freeze([
+  { id: "auto", label: "Автоматичен", hint: "Claude Haiku 5.5 — бърз и евтин" },
+  { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 5.5", hint: "Точен, добър на български" },
+  { id: "gemini-2.5-flash-lite", label: "Gemini 3.5 Flash Lite", hint: "Най-бърз" },
+  { id: "gemini-2.5-flash", label: "Gemini 3.8 Flash", hint: "По-силен Gemini" },
+  { id: "gpt-4.1-mini", label: "GPT-4.1 mini", hint: "OpenAI" },
+  { id: "grok-3-mini", label: "Grok 3 Mini", hint: "xAI" },
+]);
+
+export function resolveChatModelChoice(value) {
+  const id = cleanText(value, 40);
+  return id !== "auto" && CHAT_MODEL_CHOICES.some((choice) => choice.id === id)
+    ? id
+    : undefined;
 }
 
 export function resolveWorkAgentModel(value) {

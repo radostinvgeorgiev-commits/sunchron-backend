@@ -277,8 +277,11 @@ export async function createBoundedSourceSnapshot({
   workspace,
   message,
   projectObjective,
+  sourceFiles,
+  readSource = (file) => readFile(file.absolutePath, "utf8"),
+  maxFiles = MAX_CONTEXT_FILES,
 }) {
-  const files = await collectWorkspaceFiles(workspace);
+  const files = sourceFiles ?? (await collectWorkspaceFiles(workspace));
   if (!files.length) {
     throw new CodexAgentError(
       "Няма разрешени файлове за Codex анализ.",
@@ -308,10 +311,10 @@ export async function createBoundedSourceSnapshot({
   const includedPaths = [];
   let usedBytes = 0;
   for (const file of prioritized) {
-    if (includedPaths.length >= MAX_CONTEXT_FILES) break;
+    if (includedPaths.length >= maxFiles) break;
     const remainingBytes = MAX_SOURCE_CONTEXT_BYTES - usedBytes;
     if (remainingBytes < 300) break;
-    const raw = await readFile(file.absolutePath, "utf8");
+    const raw = await readSource(file);
     const content = truncateUtf8(
       redactSourceText(raw),
       Math.min(MAX_CONTEXT_FILE_BYTES, Math.max(0, remainingBytes - 180)),
@@ -347,6 +350,18 @@ export async function createBoundedSourceSnapshot({
     totalFiles: files.length,
     bytes: usedBytes,
   });
+}
+
+export function isCodeWorkspaceSourceFile(path, bytes) {
+  const parts = path.split("/");
+  if (
+    bytes > MAX_SOURCE_FILE_BYTES ||
+    parts.some((part) => EXCLUDED_NAMES.has(part) || part.startsWith(".env."))
+  )
+    return false;
+  return parts.length === 1
+    ? ROOT_FILES.has(path) || isAllowedSourceFile(path)
+    : ROOT_DIRECTORIES.has(parts[0]) && isAllowedSourceFile(parts.at(-1));
 }
 
 async function copySourceDirectory(source, target, state) {

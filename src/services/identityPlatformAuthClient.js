@@ -31,7 +31,11 @@ function timeoutMs(env) {
 }
 
 function requiresEmailVerification(env) {
-  return env.IDENTITY_PLATFORM_REQUIRE_EMAIL_VERIFICATION !== "false";
+  return (
+    env.USER_REGISTRATION_MODE === "public" ||
+    (env.NODE_ENV === "production" && !env.USER_REGISTRATION_MODE) ||
+    env.IDENTITY_PLATFORM_REQUIRE_EMAIL_VERIFICATION !== "false"
+  );
 }
 
 function normalizeUser(payload = {}) {
@@ -132,14 +136,50 @@ export function createIdentityPlatformAuthClient({
             { body: { email, password, returnSecureToken: true } },
           );
           const session = normalizeSession(payload);
-          const user = session
-            ? await lookupUser(session.access_token)
-            : normalizeUser(payload);
+          if (!session)
+            throw upstreamError(502, { error: { message: "SESSION_INCOMPLETE" } });
+          let user;
+          try {
+            user = await lookupUser(session.access_token);
+          } catch {
+            throw upstreamError(502, { error: { message: "PROFILE_LOOKUP_FAILED" } });
+          }
           return {
             data: {
               user,
               session,
             },
+            error: null,
+          };
+        } catch (error) {
+          return { data: null, error };
+        }
+      },
+      // Google sign-in: exchanges a Google ID token for an Identity Platform
+      // session. Creates the account on first use; Google emails are verified.
+      async signInWithGoogleIdToken({ idToken, requestUri }) {
+        try {
+          const payload = await request(
+            IDENTITY_TOOLKIT_ORIGIN,
+            "accounts:signInWithIdp",
+            {
+              body: {
+                postBody: new URLSearchParams({
+                  id_token: idToken,
+                  providerId: "google.com",
+                }).toString(),
+                requestUri,
+                returnSecureToken: true,
+                returnIdpCredential: true,
+              },
+            },
+          );
+          const session = normalizeSession(payload);
+          if (!session)
+            throw upstreamError(502, { error: { message: "SESSION_INCOMPLETE" } });
+          const user = await lookupUser(session.access_token);
+          return {
+            data: { user, session, isNewUser: payload.isNewUser === true },
             error: null,
           };
         } catch (error) {
@@ -227,6 +267,26 @@ export function createIdentityPlatformAuthClient({
         try {
           await sendVerificationEmail(accessToken);
           return { data: { sent: true }, error: null };
+        } catch (error) {
+          return { data: null, error };
+        }
+      },
+      async sendPasswordResetEmail(email) {
+        try {
+          await request(IDENTITY_TOOLKIT_ORIGIN, "accounts:sendOobCode", {
+            body: { requestType: "PASSWORD_RESET", email },
+          });
+          return { data: { sent: true }, error: null };
+        } catch (error) {
+          return { data: null, error };
+        }
+      },
+      async deleteAccount(accessToken) {
+        try {
+          await request(IDENTITY_TOOLKIT_ORIGIN, "accounts:delete", {
+            body: { idToken: accessToken },
+          });
+          return { data: { deleted: true }, error: null };
         } catch (error) {
           return { data: null, error };
         }

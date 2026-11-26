@@ -242,13 +242,7 @@ function timestamp(now) {
 }
 
 export async function createTaskRun(
-  {
-    ownerId,
-    sessionId,
-    title,
-    mode = "chat",
-    steps = [],
-  } = {},
+  { ownerId, sessionId, title, mode = "chat", steps = [] } = {},
   {
     env = process.env,
     now = () => new Date().toISOString(),
@@ -326,7 +320,10 @@ export async function recordTaskRunCheckpoint(
   { env = process.env, now = () => new Date().toISOString() } = {},
 ) {
   const cleanNextStatus = cleanStatus(status);
-  const safeStepIndex = Math.max(0, Math.min(Number(stepIndex) || 0, MAX_STEPS));
+  const safeStepIndex = Math.max(
+    0,
+    Math.min(Number(stepIndex) || 0, MAX_STEPS),
+  );
   const { id, data: current } = await loadOwnedTaskRun(ownerId, runId, env);
   const currentStatus = STATUS_SET.has(current.status)
     ? current.status
@@ -367,8 +364,7 @@ export async function recordTaskRunCheckpoint(
     id,
     status: cleanNextStatus,
     currentStep: safeStepIndex,
-    pausedReason:
-      cleanNextStatus === "paused" ? checkpoint.message : null,
+    pausedReason: cleanNextStatus === "paused" ? checkpoint.message : null,
     waitingConfirmation:
       cleanNextStatus === "waiting_confirmation"
         ? safeWaitingConfirmation(
@@ -404,10 +400,7 @@ export async function pauseTaskRun(
   );
 }
 
-export async function resumeTaskRun(
-  { ownerId, runId } = {},
-  options = {},
-) {
+export async function resumeTaskRun({ ownerId, runId } = {}, options = {}) {
   const current = await getTaskRun({ ownerId, runId }, options);
   const nextStatus = current.status === "failed" ? "planning" : "running";
   return recordTaskRunCheckpoint(
@@ -423,10 +416,7 @@ export async function resumeTaskRun(
   );
 }
 
-export async function cancelTaskRun(
-  { ownerId, runId } = {},
-  options = {},
-) {
+export async function cancelTaskRun({ ownerId, runId } = {}, options = {}) {
   return recordTaskRunCheckpoint(
     {
       ownerId,

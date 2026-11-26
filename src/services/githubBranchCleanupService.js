@@ -30,7 +30,7 @@ async function requestGitHub(path, { accessToken, method = "GET" }, fetchImpl) {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${accessToken}`,
-    "User-Agent": "AI CORE",
+      "User-Agent": "AI CORE",
       "X-GitHub-Api-Version": "2022-11-28",
     },
   });
@@ -142,10 +142,14 @@ export async function buildMergedBranchCleanupPlan({
     allPages(`/repos/${encodedRepo}/pulls?state=open`, session, fetchImpl),
     allPages(`/repos/${encodedRepo}/pulls?state=closed`, session, fetchImpl),
   ]);
-  const openHeads = new Set(openPulls.map((pull) => pull.head?.ref).filter(Boolean));
+  const openHeads = new Set(
+    openPulls.map((pull) => pull.head?.ref).filter(Boolean),
+  );
   const mergedHeads = new Set(
     closedPulls
-      .filter((pull) => pull.merged_at && pull.head?.repo?.full_name === repository)
+      .filter(
+        (pull) => pull.merged_at && pull.head?.repo?.full_name === repository,
+      )
       .map((pull) => pull.head.ref),
   );
   const branchNames = branches

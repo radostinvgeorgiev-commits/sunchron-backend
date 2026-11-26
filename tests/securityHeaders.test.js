@@ -20,32 +20,24 @@ test("public responses include the required security headers", async () => {
     response.headers["referrer-policy"],
     "strict-origin-when-cross-origin",
   );
-  assert.equal(
-    response.headers["cross-origin-opener-policy"],
-    "same-origin",
-  );
-  assert.equal(
-    response.headers["cross-origin-resource-policy"],
-    "same-origin",
-  );
+  assert.equal(response.headers["cross-origin-opener-policy"], "same-origin");
+  assert.equal(response.headers["cross-origin-resource-policy"], "same-origin");
   assert.match(
     response.headers["permissions-policy"],
-    /camera=\(\).*microphone=\(\).*payment=\(\)/,
+    /camera=\(\).*microphone=\(self\).*payment=\(\)/,
   );
 
   const csp = response.headers["content-security-policy"];
   assert.match(csp, /default-src 'self'/);
   assert.match(csp, /frame-ancestors 'none'/);
   assert.match(csp, /object-src 'none'/);
-  assert.match(csp, /script-src 'self' https:\/\/cdn\.jsdelivr\.net/);
+  assert.match(csp, /script-src 'self'(;|$)/);
+  assert.doesNotMatch(csp, /jsdelivr/);
   assert.match(
     csp,
-    /style-src 'self' 'unsafe-inline' https:\/\/cdn\.jsdelivr\.net/,
+    /style-src 'self' 'unsafe-inline'(;|$)/,
   );
-  assert.match(
-    csp,
-    /font-src 'self' data: https:\/\/cdn\.jsdelivr\.net/,
-  );
+  assert.match(csp, /font-src 'self' data:(;|$)/);
   assert.match(csp, /connect-src 'self'/);
 });
 

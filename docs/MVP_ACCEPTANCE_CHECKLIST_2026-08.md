@@ -14,23 +14,26 @@
 
 ## Пет acceptance сценария
 
-| ID | Сценарий | Критерий за PASS | Доказателство | Резултат |
-|---|---|---|---|---|
-| A1 | Стабилен разговор | Owner изпраща съобщение, получава смислен отговор, презарежда сесията и вижда контекста без 5xx/дублиране. | URL, timestamp, session id, screenshot/log без tokens | PASS_OWNER_BROWSER |
-| A2 | Жизнен цикъл на паметта | С точно потвърждение се записва тестов факт, той се извлича в нова сесия и се изтрива с точно потвърждение; след изтриване не се извлича. | Memory/audit записи и timestamp-и | PASS_OWNER_BROWSER |
-| A3 | Отказ на неразрешено действие | Заявка извън allowlist или без нужния scope се отказва преди външен side effect и отказът се записва в audit. | Отговорът за отказ + audit event | PASS_OWNER_BROWSER |
-| A4 | Потвърдено разрешено действие | Allowlisted действие спира на confirmation gate, изпълнява се едва след точно owner потвърждение и оставя audit запис с резултат. | Confirmation id, audit event, безопасен резултат | PASS_PARTIAL_AUDIT_READ_PENDING |
-| A5 | Възстановяване при API грешка | Временен upstream/API отказ връща контролиран отговор, не губи сесията и след възстановяване следващата заявка работи. | Error/recovery logs и повторен успешен отговор | PASS_LOCAL_STAGING_PENDING |
+| ID  | Сценарий                      | Критерий за PASS                                                                                                                          | Доказателство                                         | Резултат                        |
+| --- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------- |
+| A1  | Стабилен разговор             | Owner изпраща съобщение, получава смислен отговор, презарежда сесията и вижда контекста без 5xx/дублиране.                                | URL, timestamp, session id, screenshot/log без tokens | PASS_OWNER_BROWSER              |
+| A2  | Жизнен цикъл на паметта       | С точно потвърждение се записва тестов факт, той се извлича в нова сесия и се изтрива с точно потвърждение; след изтриване не се извлича. | Memory/audit записи и timestamp-и                     | PASS_OWNER_BROWSER              |
+| A3  | Отказ на неразрешено действие | Заявка извън allowlist или без нужния scope се отказва преди външен side effect и отказът се записва в audit.                             | Отговорът за отказ + audit event                      | PASS_OWNER_BROWSER              |
+| A4  | Потвърдено разрешено действие | Allowlisted действие спира на confirmation gate, изпълнява се едва след точно owner потвърждение и оставя audit запис с резултат.         | Confirmation id, audit event, безопасен резултат      | PASS_PARTIAL_AUDIT_READ_PENDING |
+| A5  | Възстановяване при API грешка | Временен upstream/API отказ връща контролиран отговор, не губи сесията и след възстановяване следващата заявка работи.                    | Error/recovery logs и повторен успешен отговор        | PASS_LOCAL_STAGING_PENDING      |
 
 ## Безопасни проверки, изпълнени досега
 
-- Production сайтът отговаря и показва AI CORE/аватар „Капка — Готово за
-  преглед“; интерфейсът показва „Сървър онлайн“.
-- `/health` е `ok` на commit
-  `18912a2a739f6caafeefc643a8d9c9b256b02c6e`; `/health/ready` е `ready`,
-  Firestore е `green`, а MCP bridge е reachable/responding с 45 инструмента.
-- ChatGPT OAuth връзката завърши с `authorization_code` token exchange.
-- Сайтът показва активни ChatGPT MCP връзки и 9 разрешения; `agent.chat` и
+- Production сайтът е проверяван преди и е показвал AI CORE/аватар „Капка —
+  Готово за преглед“ и „Сървър онлайн“.
+- Предишна `/health` проверка е била `ok` на commit
+  `18912a2a739f6caafeefc643a8d9c9b256b02c6e`; този commit е исторически факт и
+  трябва да се провери наново преди release.
+- Предишна `/health/ready` проверка е била `ready`, Firestore е бил `green`, а
+  MCP bridge е бил reachable/responding с 45 инструмента; това не доказва
+  текущото production състояние.
+- ChatGPT OAuth връзката е завършила с `authorization_code` token exchange.
+- Сайтът е показвал активни ChatGPT MCP връзки и 9 разрешения; `agent.chat` и
   `memory.read` са разрешени, а `memory.write` остава confirmation-gated.
 - Локалните безопасни проверки: **91 PASS, 0 FAIL** (аватарен контекст,
   OAuth/MCP, memory confirmation/isolation и health/integration тестове).
@@ -59,6 +62,18 @@
 
 Тези проверки доказват свързаност и готова защитна граница, но не заменят
 owner acceptance сценариите A1–A5.
+
+## Блокери преди MVP и deployment
+
+1. A4 трябва да стане пълен PASS чрез production audit read.
+2. A5 трябва да стане пълен PASS чрез реален staging fault-injection/recovery
+   тест.
+3. Текущите `/health`, `/health/ready` и `/health/storage-report` трябва да се
+   проверят наново непосредствено преди release.
+4. Council partial-failure behavior трябва да мине browser acceptance, особено
+   ако PR #379 или еквивалентна поправка се merge-ва.
+5. Firestore backup/restore остава отделна недоказана operational точка и не
+   трябва да се описва като готова, докато няма restore drill.
 
 ## Решение за MVP
 

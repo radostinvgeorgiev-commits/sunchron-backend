@@ -11,7 +11,8 @@
 - Firestore за памет, задачи, workspace, OAuth сесии, потвърждения и audit;
 - Google Identity Platform за вход и тестови профили;
 - OpenAI Responses API за основния разговор и coding ролята;
-- Gemini и Grok за независими предложения в multi-engine задачи;
+- Gemini, Grok и Claude като допълнителни AI двигатели при конфигурирани ключове;
+- Codex като водещ code/ops изпълнител в owner-controlled branch/PR поток;
 - GitHub OAuth за read и защитени branch/commit/PR операции;
 - Google OAuth за Drive, Gmail и Calendar;
 - OAuth-защитен MCP адрес: `https://cloudaicore.com/mcp`.
@@ -21,6 +22,9 @@ Task Orchestrator разделя заявката на стъпки, избир�
 OpenAI coding моделът синтезира ограничен набор от цели файлове, а записът
 започва само след точно еднократно потвърждение. `main` никога не се променя
 директно от задачата.
+
+В production default backend-ите са Firestore и Identity Platform; legacy
+OpenSearch/Supabase се използват само при изрична конфигурация.
 
 ## Локално стартиране
 
@@ -47,6 +51,7 @@ Firestore + Identity Platform проверки, актуален MCP катал�
 
 - `docs/OPERATIONS_RUNBOOK.md`
 - `docs/CURRENT_PRODUCT_ACCEPTANCE.md`
+- `docs/DEPLOYMENT_READINESS_CHECKLIST.md`
 - `docs/OWNER_ACCEPTANCE_RUNBOOK.md`
 - `docs/PRODUCT_DIRECTION.md`
 - `docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md`

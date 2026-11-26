@@ -25,9 +25,7 @@ import {
   formatSystemConfigurationReport,
   getSystemConfigurationReport,
 } from "./systemConfigurationService.js";
-import {
-  mcpToolSecuritySchemes,
-} from "./mcpOAuthService.js";
+import { mcpToolSecuritySchemes } from "./mcpOAuthService.js";
 import { sendMcpAgentMessage } from "./mcpAgentConversationService.js";
 import {
   createMcpCapabilityHandler,
@@ -211,11 +209,24 @@ export const MCP_TOOLS = Object.freeze([
   ...MCP_CAPABILITY_TOOLS,
 ]);
 
+const MAX_STRUCTURED_TEXT_LENGTH = 50_000;
+
+// Clients that only read `content` (Claude among them) otherwise see just the
+// one-line summary. Per the MCP spec, structured results are also returned as
+// serialized JSON in a text block. The data is the same already-sanitized
+// structuredContent, so nothing new is exposed.
 function textResult(data, summary) {
-  return {
-    structuredContent: data,
-    content: [{ type: "text", text: summary }],
-  };
+  const content = [{ type: "text", text: summary }];
+  if (data !== undefined) {
+    let json = JSON.stringify(data);
+    if (typeof json === "string" && json !== "{}") {
+      if (json.length > MAX_STRUCTURED_TEXT_LENGTH) {
+        json = `${json.slice(0, MAX_STRUCTURED_TEXT_LENGTH)}…`;
+      }
+      content.push({ type: "text", text: json });
+    }
+  }
+  return { structuredContent: data, content };
 }
 
 function safeLimit(value, fallback = 20) {
@@ -389,11 +400,11 @@ export function createMcpRequestHandler({
         name === "talk_to_ai_core"
           ? "agent.chat"
           : name.includes("github")
-                ? "github.write"
-                : name.includes("google_cloud") ||
-                    name.includes("system_configuration")
-                  ? "infrastructure.read"
-                  : "memory.read",
+            ? "github.write"
+            : name.includes("google_cloud") ||
+                name.includes("system_configuration")
+              ? "infrastructure.read"
+              : "memory.read",
       decision: "allow",
       outcome: "succeeded",
       resource: name,
@@ -428,7 +439,7 @@ export function createMcpRequestHandler({
             capabilities: { tools: { listChanged: false } },
             serverInfo: { name: "synchron-x-memory", version: "1.0.0" },
             instructions:
-              "Използвай само нужните за задачата права. Личният и проектният контекст са различни. Повечето инструменти са само за четене. Разговорът с AI CORE пази нишката, но не изпълнява външни действия. Всеки destructive инструмент подготвя отделен точен план и се изпълнява само след еднократно потвърждение. Merge, промяна на secrets и production deployment не са достъпни през този MCP.",
+              "Използвай само нужните за задачата права. Личният и проектният контекст са различни. Повечето инструменти са само за четене. Разговорът с AI CORE пази нишката, а регистрираните инструменти връщат реални резултати. Всеки запис подготвя отделен точен план и се изпълнява само след еднократно потвърждение от owner. GitHub merge е достъпен само за конкретен PR към main, точен head SHA и зелени CI проверки; промяна на secrets и production deployment не са достъпни през този MCP.",
           },
         };
       }

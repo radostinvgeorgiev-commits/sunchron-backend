@@ -8,16 +8,23 @@ const MAX_FACT_LENGTH = 240;
 const CANDIDATE_PATTERNS = [
   {
     pattern:
-      /(?:^|[.!?\n]\s*)(казвам се|името ми е|аз съм)\s+([^.!?\n]{2,180})/iu,
+      /(?:^|[.!?\n]\s*)(казвам се|името ми е)\s+([^.!?\n]{2,180})/iu,
     scope: "personal",
     category: "identity",
     prefix: (match) => `${match[1]} ${match[2]}`,
   },
   {
     pattern:
-      /(?:^|[.!?\n]\s*)(предпочитам|харесвам|интересувам се от)\s+([^.!?\n]{2,180})/iu,
+      /(?:^|[.!?\n]\s*)(предпочитам|харесвам)\s+([^.!?\n]{2,180})/iu,
     scope: "personal",
     category: "preference",
+    prefix: (match) => `${match[1]} ${match[2]}`,
+  },
+  {
+    pattern:
+      /(?:^|[.!?\n]\s*)(интересувам се от)\s+([^.!?\n]{2,180})/iu,
+    scope: "personal",
+    category: "interest",
     prefix: (match) => `${match[1]} ${match[2]}`,
   },
   {
@@ -37,12 +44,14 @@ const CANDIDATE_PATTERNS = [
 ];
 
 const SENSITIVE_PATTERN =
-  /(?:парол|password|api[_ -]?(?:key|ключ)|токен|token|secret|private\s+key|частен\s+ключ|\bключ\b|имейл|e-mail|телефон|адрес|егн|банка|банков|карта|финанс|кредит|здрав|болест|лекар|медицин|диагноз|http:\/\/|https:\/\/|sk-[a-z0-9]|AIza[0-9a-z_-]+)/iu;
+  /(?:парол|password|api[_ -]?(?:key|ключ)|токен|token|secret|private\s+key|частен\s+ключ|(?<![\p{L}\p{N}_])ключ(?![\p{L}\p{N}_])|имейл|e-mail|телефон|адрес|егн|банка|банков|карта|финанс|кредит|здрав|болест|лекар|медицин|диагноз|http:\/\/|https:\/\/|sk-[a-z0-9]|AIza[0-9a-z_-]+)/iu;
 
 function cleanCandidateFact(value) {
   return String(value || "")
-    .replace(/[„“"'’]/gu, "")
     .replace(/\s+/gu, " ")
+    .trim()
+    .replace(/^[„“”"'’]+/u, "")
+    .replace(/[„“”"'’]+$/u, "")
     .replace(/\s*[,:;.!?]+\s*$/u, "")
     .trim()
     .slice(0, MAX_FACT_LENGTH)

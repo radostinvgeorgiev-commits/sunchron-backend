@@ -11,12 +11,16 @@ import {
   getConfiguredRepository,
   getFileContent,
   getGitHubReadOverview,
+  GitHubServiceError,
 } from "./githubService.js";
 import {
   confirmGoogleCloudAction,
   prepareGoogleCloudAction,
 } from "./googleCloudActionService.js";
-import { getLatestAuthorizedGitHubSession } from "./githubOAuthService.js";
+import {
+  getLatestAuthorizedGitHubSession,
+  isActiveAuthorizedGitHubSession,
+} from "./githubOAuthService.js";
 import {
   confirmGoogleAction,
   prepareGmailDraftSend,
@@ -44,9 +48,14 @@ import {
 import {
   listConversationMessages,
   listConversationSummaries,
+  MAX_IMPORTED_CONVERSATION_MESSAGES,
+  MAX_IMPORTED_MESSAGE_LENGTH,
   normalizeProfileMemoryDraft,
+  saveImportedConversation,
 } from "./memoryService.js";
 import { sendMcpAgentMessage } from "./mcpAgentConversationService.js";
+import { suggestMemory } from "./memorySuggestionService.js";
+import { readRuntimeLogs } from "./runtimeLogService.js";
 import { getProjectDiagnostics } from "./projectDiagnosticsService.js";
 import { mcpToolSecuritySchemes } from "./mcpOAuthService.js";
 import {
@@ -178,6 +187,63 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
     REVERSIBLE_WRITE,
   ),
   tool(
+    "suggest_memory",
+    "Предложи факт за паметта",
+    "Изпраща факт към „Входящи“ в AI CORE. Потребителят го одобрява, редактира или отхвърля в сайта; нищо не влиза в постоянната памет без неговото одобрение. Използвай за трайни факти, решения и предпочитания, които ще са полезни в бъдещи разговори.",
+    {
+      type: "object",
+      properties: {
+        fact: { type: "string", minLength: 1, maxLength: 500 },
+        scope: MEMORY_SCOPE_SCHEMA,
+        source: {
+          type: "string",
+          enum: ["claude", "chatgpt", "gemini", "other"],
+          default: "claude",
+        },
+      },
+      required: ["fact"],
+      additionalProperties: false,
+    },
+    REVERSIBLE_WRITE,
+  ),
+  tool(
+    "save_conversation",
+    "Запази разговора в AI CORE",
+    "Запазва текущия разговор от Claude (или друг AI клиент) като нишка в AI CORE за текущия профил, за да може да се продължи по-късно оттук или от сайта. Изпращай само съобщенията, които потребителят иска да запази. Без sessionId създава нова нишка; с sessionId от предишен запис добавя новите съобщения към нея. Не записва факти в постоянната памет.",
+    {
+      type: "object",
+      properties: {
+        source: {
+          type: "string",
+          enum: ["claude", "chatgpt", "other"],
+          default: "claude",
+        },
+        sessionId: { type: "string", minLength: 1, maxLength: 160 },
+        messages: {
+          type: "array",
+          minItems: 1,
+          maxItems: MAX_IMPORTED_CONVERSATION_MESSAGES,
+          items: {
+            type: "object",
+            properties: {
+              role: { type: "string", enum: ["user", "assistant"] },
+              content: {
+                type: "string",
+                minLength: 1,
+                maxLength: MAX_IMPORTED_MESSAGE_LENGTH,
+              },
+            },
+            required: ["role", "content"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["messages"],
+      additionalProperties: false,
+    },
+    REVERSIBLE_WRITE,
+  ),
+  tool(
     "propose_memory_change",
     "Предложи промяна в паметта",
     "Нормализира точен факт и показва какво би се записало, обновило или изтрило. Не променя паметта.",
@@ -267,6 +333,25 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
     {
       type: "object",
       properties: { limit: { type: "integer", minimum: 1, maximum: 100 } },
+      additionalProperties: false,
+    },
+  ),
+  tool(
+    "read_runtime_logs",
+    "Прочети логовете на сървъра",
+    "Само за собственика. Показва последните записи от Cloud Run логовете на AI CORE (по подразбиране предупреждения и грешки за последния час). Ключове, токени и имейли са скрити. Само четене.",
+    {
+      type: "object",
+      properties: {
+        minutes: { type: "integer", minimum: 1, maximum: 1440, default: 60 },
+        severity: {
+          type: "string",
+          enum: ["DEFAULT", "INFO", "WARNING", "ERROR"],
+          default: "WARNING",
+        },
+        limit: { type: "integer", minimum: 1, maximum: 100, default: 50 },
+        contains: { type: "string", minLength: 1, maxLength: 80 },
+      },
       additionalProperties: false,
     },
   ),
@@ -403,7 +488,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "prepare_github_change",
     "Подготви ограничена GitHub промяна",
-    "Подготвя branch, file commit, Pull Request или затваряне на issue. Не пише в main, не merge-ва и не deploy-ва.",
+    "Подготвя branch, file commit, Pull Request, проверено сливане към main или затваряне на issue. Не изпълнява промяната без отделно owner потвърждение.",
     {
       type: "object",
       properties: {
@@ -414,6 +499,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
             "create_file",
             "update_file",
             "create_pr",
+            "merge_pr",
             "close_issue",
           ],
         },
@@ -427,7 +513,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "confirm_github_change",
     "Потвърди ограничена GitHub промяна",
-    "Изпълнява само точната подготвена промяна след еднократно потвърждение. Merge и production deployment не се поддържат.",
+    "Изпълнява само точната подготвена GitHub промяна след еднократно owner потвърждение. Сливането е ограничено до конкретен PR към main, точен head SHA и зелени CI проверки; production deployment не се изпълнява.",
     {
       type: "object",
       properties: {
@@ -441,7 +527,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "prepare_google_cloud_action",
     "Подготви Google Cloud промяна",
-    "Подготвя точна IAM промяна, смяна на service identity на текущата Cloud Run услуга или стартиране на съществуващия synchron-main-deploy Cloud Build trigger за точен commit SHA. Не променя нищо без отделно потвърждение.",
+    "Подготвя точна IAM промяна, смяна на service identity на текущата Cloud Run услуга, превключване на AI ключ (ANTHROPIC/OPENAI/GEMINI/GROK_API_KEY) към последната версия на тайната му или стартиране на съществуващия synchron-main-deploy Cloud Build trigger за точен commit SHA. Не чете стойности на тайни и не променя нищо без отделно потвърждение.",
     {
       type: "object",
       properties: {
@@ -452,6 +538,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
             "revoke_project_role",
             "update_cloud_run_service_account",
             "run_cloud_build_trigger",
+            "use_latest_secret_version",
           ],
         },
         input: { type: "object", additionalProperties: true },
@@ -478,7 +565,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "get_google_cloud_project_diagnostics",
     "Провери състоянието на AI CORE проекта",
-    "Проверява read-only сайта, health/readiness, MCP tool discovery, Cloud Run и Cloud Build trigger-а. Не изпълнява shell команди и не променя инфраструктура.",
+    "Проверява само за четене сайта, MCP, Cloud Run, Cloud Build, Firestore, Monitoring, Logging, Cloud Resource Manager и метаданни за версии на тайни за текущия проект.",
     { type: "object", properties: {}, additionalProperties: false },
   ),
   tool(
@@ -645,11 +732,24 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
 
 const TOOL_NAMES = new Set(MCP_CAPABILITY_TOOLS.map(({ name }) => name));
 
+const MAX_STRUCTURED_TEXT_LENGTH = 50_000;
+
+// Clients that only read `content` (Claude among them) otherwise see just the
+// one-line summary. Per the MCP spec, structured results are also returned as
+// serialized JSON in a text block. The data is the same already-sanitized
+// structuredContent, so nothing new is exposed.
 function textResult(data, summary) {
-  return {
-    structuredContent: data,
-    content: [{ type: "text", text: summary }],
-  };
+  const content = [{ type: "text", text: summary }];
+  if (data !== undefined) {
+    let json = JSON.stringify(data);
+    if (typeof json === "string" && json !== "{}") {
+      if (json.length > MAX_STRUCTURED_TEXT_LENGTH) {
+        json = `${json.slice(0, MAX_STRUCTURED_TEXT_LENGTH)}…`;
+      }
+      content.push({ type: "text", text: json });
+    }
+  }
+  return { structuredContent: data, content };
 }
 
 function cleanAuditEvent(event) {
@@ -677,6 +777,19 @@ async function requireGoogleSession(resolveLatestGoogleSession) {
   return id;
 }
 
+async function resolveGitHubReadOptions(resolveLatestGitHubSession) {
+  const session = await resolveLatestGitHubSession();
+  if (!session) return {};
+  if (!isActiveAuthorizedGitHubSession(session)) {
+    throw new GitHubServiceError(
+      "GitHub OAuth сесията е невалидна или изтекла.",
+      401,
+      "GITHUB_SESSION_INVALID",
+    );
+  }
+  return { accessToken: session.accessToken };
+}
+
 function memoryDeleteTarget(args = {}) {
   if (args.kind === "fact") {
     return { kind: "fact", fact: args.fact, scope: args.scope || "personal" };
@@ -694,6 +807,8 @@ function permissionAction(name) {
       "list_threads",
       "read_history",
       "continue_session",
+      "save_conversation",
+      "suggest_memory",
     ].includes(name)
   ) {
     return "agent.chat";
@@ -791,6 +906,38 @@ export function createMcpCapabilityHandler({
           `Прочетени са ${items.length} съобщения от AI CORE нишката.`,
         );
       }
+    } else if (name === "suggest_memory") {
+      const suggestion = await (
+        dependencies.suggestMemory || suggestMemory
+      )({
+        ownerId,
+        fact: args.fact,
+        scope: args.scope || "personal",
+        source: args.source || "claude",
+      });
+      result = textResult(
+        suggestion,
+        suggestion.duplicate
+          ? "Това предложение вече чака във „Входящи“ в AI CORE."
+          : "Предложението е във „Входящи“ в AI CORE и чака одобрение. Паметта не е променена.",
+      );
+    } else if (name === "save_conversation") {
+      const saved = await (
+        dependencies.saveImportedConversation || saveImportedConversation
+      )(
+        {
+          source: args.source || "claude",
+          sessionId: args.sessionId,
+          messages: args.messages,
+        },
+        ownerId,
+      );
+      result = textResult(
+        saved,
+        saved.appended
+          ? `Добавени са ${saved.saved} съобщения към нишка ${saved.sessionId}.`
+          : `Разговорът е запазен в AI CORE като нишка ${saved.sessionId} (${saved.saved} съобщения).`,
+      );
     } else if (name === "propose_memory_change") {
       const item = normalizeProfileMemoryDraft(
         args.fact,
@@ -879,6 +1026,20 @@ export function createMcpCapabilityHandler({
         { tools, permissions: listPermissions() },
         `Проверени са ${tools.length} инструмента и ${listPermissions().length} разрешения.`,
       );
+    } else if (name === "read_runtime_logs") {
+      if (context.identity?.role && context.identity.role !== "owner") {
+        throw Object.assign(new Error("Само за собственика."), { code: -32602 });
+      }
+      const logs = await (dependencies.readRuntimeLogs || readRuntimeLogs)({
+        minutes: args.minutes,
+        severity: args.severity,
+        limit: args.limit,
+        contains: args.contains,
+      });
+      result = textResult(
+        logs,
+        `Прочетени са ${logs.count} записа от логовете за последните ${logs.minutes} минути.`,
+      );
     } else if (
       name === "list_action_history" ||
       name === "list_recent_errors"
@@ -964,10 +1125,14 @@ export function createMcpCapabilityHandler({
         `Намерени са ${workspace.state.projects.length} проекта.`,
       );
     } else if (name === "get_github_overview") {
+      const readOptions = await resolveGitHubReadOptions(
+        resolveLatestGitHubSession,
+      );
       const overview = await (
         dependencies.getGitHubOverview || getGitHubReadOverview
       )({
         limit: args.limit || 10,
+        ...readOptions,
       });
       result = textResult(
         overview,
@@ -980,10 +1145,14 @@ export function createMcpCapabilityHandler({
           { code: -32602 },
         );
       }
+      const readOptions = await resolveGitHubReadOptions(
+        resolveLatestGitHubSession,
+      );
       const file = await (dependencies.getGitHubFile || getFileContent)(
         args.path,
         getConfiguredRepository(),
         args.ref || "main",
+        readOptions,
       );
       result = textResult(file, `Прочетен е ${file.path} от GitHub.`);
     } else if (name === "prepare_github_change") {

@@ -222,3 +222,23 @@ test("Identity Platform errors are bounded and do not contain API keys or passwo
     /identity-api-key|private-password|sensitive upstream text/u,
   );
 });
+
+test("lookup rejection after valid credentials is classified as a backend failure", async () => {
+  const client = createIdentityPlatformAuthClient({
+    env: ENV,
+    fetchImpl: async (url) =>
+      url.pathname.endsWith("accounts:signInWithPassword")
+        ? response({
+            idToken: "identity-access",
+            refreshToken: "identity-refresh",
+          })
+        : response({ error: { message: "INVALID_ID_TOKEN" } }, 400),
+  });
+  const result = await client.auth.signInWithPassword({
+    email: "friend@example.com",
+    password: "strong-pass-123",
+  });
+  assert.equal(result.data, null);
+  assert.equal(result.error.status, 502);
+  assert.equal(result.error.upstreamCode, "PROFILE_LOOKUP_FAILED");
+});

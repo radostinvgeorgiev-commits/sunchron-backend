@@ -11,9 +11,9 @@ const [html, app, css] = await Promise.all([
 test("renders a real login gate before the private application", () => {
   assert.match(html, /id="authGate"/u);
   assert.match(html, /SYNCHRON-X/u);
-  assert.match(html, /ЛИЧНА AI ОПЕРАЦИОННА СИСТЕМА/u);
-  assert.match(html, /Един AI център за разговори, памет и реална работа/u);
-  assert.match(html, /Ти контролираш паметта/u);
+  assert.match(html, /id="publicTitle"/u);
+  assert.match(html, /id="showRegisterBtn"[^>]*href="\/register"/u);
+  assert.match(html, /href="\/plans"/u);
   assert.match(html, /AI предлага, ти одобряваш/u);
   assert.match(html, /rel="canonical" href="https:\/\/cloudaicore\.com\/"/u);
   assert.match(html, /property="og:title"/u);
@@ -41,10 +41,7 @@ test("offers invite-protected registration with safe POST fallback", () => {
     html,
     /id="registerForm"[\s\S]{0,160}method="post"[\s\S]{0,80}action="\/api\/auth\/register"/u,
   );
-  assert.match(
-    html,
-    /id="showRegisterBtn"[^>]*href="\/register"/u,
-  );
+  assert.match(html, /id="showRegisterBtn"[^>]*href="\/register"/u);
   assert.match(app, /registrationEnabled/u);
   assert.match(app, /\/api\/auth\/register/u);
   assert.doesNotMatch(
@@ -85,10 +82,6 @@ test("direct registration address opens the registration form", () => {
 test("hides owner-only tools for member profiles and exposes logout", () => {
   assert.match(html, /id="toolsBtn"[^>]*data-owner-only/u);
   assert.match(html, /id="workCenterBtn"[^>]*data-owner-only/u);
-  assert.match(
-    html,
-    /data-command="connections"[^>]*data-owner-only/u,
-  );
   assert.match(html, /id="logoutBtn"/u);
   assert.match(app, /querySelectorAll\("\[data-owner-only\]"\)/u);
   assert.match(app, /user\?\.role === "owner"/u);

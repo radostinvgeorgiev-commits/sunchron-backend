@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createConfirmation,
+  createTaskConfirmation,
   denyConfirmation,
   isAllowedAction,
   listAllowedActions,
@@ -9,6 +10,7 @@ import {
   resetConfirmationsForTests,
   requiresPersistentConfirmations,
   validateConfirmation,
+  validateTaskConfirmation,
 } from "../src/services/confirmationService.js";
 
 const VALID_ACTION = "github.write:code_task";
@@ -47,6 +49,7 @@ test("allows only the exact bounded direct GitHub write actions", () => {
     "github.write:update_file",
     "github.write:create_branch",
     "github.write:create_pr",
+    "github.write:merge_pr",
     "github.write:close_issue",
   ]) {
     assert.equal(
@@ -74,6 +77,58 @@ test("allows the exact Cloud Build trigger confirmation action", () => {
   assert.equal(
     isAllowedAction("infrastructure.write:run_arbitrary_command"),
     false,
+  );
+});
+
+test("groups only the exact prepared operations for one owner task", async () => {
+  const group = await createTaskConfirmation({
+    ownerId: "owner-1",
+    sessionId: "sess-1",
+    taskId: "task-1",
+    items: [
+      {
+        confirmationId: "write-1",
+        capability: "code.write",
+        toolId: "github-write",
+        confirmationType: "code-task",
+      },
+      {
+        confirmationId: "write-2",
+        capability: "infrastructure.googlecloud.write",
+        toolId: "google-cloud-write",
+      },
+    ],
+    createConfirmation,
+  });
+
+  assert.equal(group.items.length, 2);
+  const validated = await validateTaskConfirmation(group.confirmationId, {
+    ownerId: "owner-1",
+    sessionId: "sess-1",
+    taskId: "task-1",
+  });
+  assert.deepEqual(validated.resource.items, [
+    {
+      confirmationId: "write-1",
+      capability: "code.write",
+      toolId: "github-write",
+      confirmationType: "code-task",
+    },
+    {
+      confirmationId: "write-2",
+      capability: "infrastructure.googlecloud.write",
+      toolId: "google-cloud-write",
+      confirmationType: "capability",
+    },
+  ]);
+  await assert.rejects(
+    () =>
+      validateTaskConfirmation(group.confirmationId, {
+        ownerId: "other-owner",
+        sessionId: "sess-1",
+        taskId: "task-1",
+      }),
+    (error) => error.code === "TASK_CONFIRMATION_OWNER_MISMATCH",
   );
 });
 

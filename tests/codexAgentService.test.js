@@ -220,12 +220,30 @@ test("avatar interface tasks prioritize public application files", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "codex-avatar-test-"));
   await mkdir(join(workspace, "public"), { recursive: true });
   await mkdir(join(workspace, "tests"), { recursive: true });
-  await writeFile(join(workspace, "public", "app.js"), "export const avatar = true;");
-  await writeFile(join(workspace, "public", "google-apps.js"), "export const google = true;");
-  await writeFile(join(workspace, "public", "work-mode.js"), "export const picker = true;");
-  await writeFile(join(workspace, "public", "styles.css"), ".avatar { display: grid; }");
-  await writeFile(join(workspace, "tests", "workModeUi.test.js"), "export const pickerTest = true;");
-  await writeFile(join(workspace, "tests", "other.test.js"), "export const other = true;");
+  await writeFile(
+    join(workspace, "public", "app.js"),
+    "export const avatar = true;",
+  );
+  await writeFile(
+    join(workspace, "public", "google-apps.js"),
+    "export const google = true;",
+  );
+  await writeFile(
+    join(workspace, "public", "work-mode.js"),
+    "export const picker = true;",
+  );
+  await writeFile(
+    join(workspace, "public", "styles.css"),
+    ".avatar { display: grid; }",
+  );
+  await writeFile(
+    join(workspace, "tests", "workModeUi.test.js"),
+    "export const pickerTest = true;",
+  );
+  await writeFile(
+    join(workspace, "tests", "other.test.js"),
+    "export const other = true;",
+  );
   try {
     const snapshot = await createBoundedSourceSnapshot({
       workspace,

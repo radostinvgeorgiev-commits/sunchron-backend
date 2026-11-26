@@ -64,7 +64,7 @@ test("MCP initialize and tool discovery work without credentials", async () => {
     .post("/mcp")
     .send({ jsonrpc: "2.0", id: 2, method: "tools/list" })
     .expect(200);
-  assert.equal(listed.body.result.tools.length, 48);
+  assert.equal(listed.body.result.tools.length, 51);
   assert.deepEqual(listed.body.result.tools[0].securitySchemes, [
     { type: "oauth2", scopes: ["synchron:read"] },
   ]);
@@ -337,7 +337,11 @@ test("authorization consent issues a code bound to the browser profile", async (
     "/mcp",
     (req, res, next) =>
       requireMcpAuthorization(req, res, next, {
-        env: { ...process.env, NODE_ENV: "production", MCP_ACCESS_TOKEN: SECRET },
+        env: {
+          ...process.env,
+          NODE_ENV: "production",
+          MCP_ACCESS_TOKEN: SECRET,
+        },
       }),
     (_req, res) => res.json({ ok: true }),
   );
@@ -354,10 +358,7 @@ test("authorization consent issues a code bound to the browser profile", async (
   assert.equal(unavailable.body.error.code, -32002);
   assert.equal(unavailable.headers["www-authenticate"], undefined);
 
-  assert.equal(
-    await revokeMcpGrants({ subject: "owner-id", client: null }),
-    1,
-  );
+  assert.equal(await revokeMcpGrants({ subject: "owner-id", client: null }), 1);
   const revokedAccess = await request(protectedApp)
     .post("/mcp")
     .set("Authorization", `Bearer ${token.body.access_token}`)

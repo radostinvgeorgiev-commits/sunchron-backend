@@ -61,7 +61,10 @@ test("MCP agent conversation reuses the owner workspace, memory and session", as
         assert.equal(reasoningEffort, "low");
         assert.equal(verbosity, "medium");
         assert.match(input[0].content, /Мост тест/u);
-        assert.match(input[0].content, /MCP МОСТ — ПРОВЕРЕН ИНСТРУМЕНТАЛЕН РЕЖИМ/u);
+        assert.match(
+          input[0].content,
+          /MCP МОСТ — ПРОВЕРЕН ИНСТРУМЕНТАЛЕН РЕЖИМ/u,
+        );
         assert.match(input[0].content, /Не изпълнявай shell команди/u);
         assert.deepEqual(
           input.slice(-2).map(({ role, content }) => ({ role, content })),
@@ -171,14 +174,19 @@ test("MCP agent conversation returns owner confirmation for a write capability",
       listMessages: async () => [],
       runTask: async () => ({
         requests: [
-          { capability: "code.write", action: "github.write", message: "Създай Pull Request" },
+          {
+            capability: "code.write",
+            action: "github.write",
+            message: "Създай Pull Request",
+          },
         ],
         results: [
           {
             status: "fulfilled",
             request: { capability: "code.write", action: "github.write" },
             result: {
-              output: "GitHub промяната е подготвена. Потвърждение: confirmation-1.",
+              output:
+                "GitHub промяната е подготвена. Потвърждение: confirmation-1.",
               permission: { decision: "confirm" },
               tool: { name: "AI CORE Code Write" },
               requiresConfirmation: true,

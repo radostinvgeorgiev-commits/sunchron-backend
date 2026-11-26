@@ -1,13 +1,60 @@
+import { publicAiOutputLimit, reservePublicAiCall } from "./publicAiBudget.js";
+import {
+  isVertexAiConfigured,
+  requestVertexAiGeminiResponse,
+  resolveVertexAiModel,
+  resolveVertexAiTimeoutMs,
+} from "./vertexAiGeminiService.js";
+
 const DEFAULT_OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
-const DEFAULT_GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta";
+const DEFAULT_GEMINI_API_URL =
+  "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_GROK_API_URL = "https://api.x.ai/v1/chat/completions";
 const DEFAULT_AI_TIMEOUT_MS = 120_000;
-const AI_PROVIDERS = new Set(["openai", "gemini", "grok"]);
+export const AI_PROVIDERS = new Set([
+  "openai",
+  "gemini",
+  "grok",
+  "claude",
+  "vertex-gemini",
+]);
 
-export const DEFAULT_OPENAI_CHAT_MODEL = "gpt-5.6-terra";
-export const DEFAULT_OPENAI_PLANNER_MODEL = "gpt-5.6-luna";
-export const DEFAULT_GEMINI_CHAT_MODEL = "gemini-2.5-flash";
-export const DEFAULT_GROK_CHAT_MODEL = "grok-4.5";
+export const DEFAULT_OPENAI_CHAT_MODEL = "gpt-4.1-mini";
+export const DEFAULT_CODEX_COUNCIL_MODEL = "gpt-5.3-codex";
+export const DEFAULT_OPENAI_PLANNER_MODEL = "gpt-4.1-mini";
+export const DEFAULT_GEMINI_CHAT_MODEL = "gemini-3.5-flash-lite";
+export const DEFAULT_GROK_CHAT_MODEL = "grok-3-mini";
+export const DEFAULT_CLAUDE_CHAT_MODEL = "claude-haiku-5-5";
+// Used when AI_CORE_PROVIDER is not set in Cloud Run. Keep provider and model
+// choices here in code; only API keys belong in the runtime environment.
+export const DEFAULT_AI_PROVIDER = "claude";
+
+// Token usage of every successful AI call is handed to one recorder, set at
+// startup (aiSpendService). It must never break or slow down a reply.
+let aiUsageRecorder = null;
+export function setAiUsageRecorder(recorder) {
+  aiUsageRecorder = typeof recorder === "function" ? recorder : null;
+}
+export function reportAiUsage(provider, model, inputTokens, outputTokens) {
+  return withUsage({ provider, model }, inputTokens, outputTokens).usage;
+}
+function withUsage(result, inputTokens, outputTokens) {
+  const usage = {
+    inputTokens: Math.max(0, Number(inputTokens) || 0),
+    outputTokens: Math.max(0, Number(outputTokens) || 0),
+  };
+  if (!usage.inputTokens && !usage.outputTokens) return result;
+  if (aiUsageRecorder) {
+    try {
+      Promise.resolve(
+        aiUsageRecorder({ provider: result.provider, model: result.model, ...usage }),
+      ).catch(() => {});
+    } catch {
+      // usage accounting is best effort
+    }
+  }
+  return { ...result, usage };
+}
 
 export class AiCoreError extends Error {
   constructor(message, code = "AI_CORE_ERROR", status = 502) {
@@ -30,9 +77,11 @@ function extractTextContent(content) {
     .map((part) => {
       if (typeof part === "string") return part;
       if (!part || typeof part !== "object") return "";
-      return [part.text, part.input_text, part.output_text].find(
-        (value) => typeof value === "string",
-      ) || "";
+      return (
+        [part.text, part.input_text, part.output_text].find(
+          (value) => typeof value === "string",
+        ) || ""
+      );
     })
     .join("");
 }
@@ -81,10 +130,17 @@ export function extractGrokOutputText(data) {
     .join("");
 }
 
+// Only reasoning models (gpt-5 family, o-series, codex) accept the
+// `reasoning` and `text.verbosity` parameters; older chat models such as
+// gpt-4.1-mini reject them with HTTP 400.
+export function supportsOpenAIReasoning(model) {
+  return /^(gpt-5|o\d|codex)/iu.test(String(model || "").trim());
+}
+
 export async function requestOpenAIResponse({
   apiKey = process.env.OPENAI_API_KEY,
-  responsesUrl =
-    process.env.OPENAI_RESPONSES_URL || DEFAULT_OPENAI_RESPONSES_URL,
+  responsesUrl = process.env.OPENAI_RESPONSES_URL ||
+    DEFAULT_OPENAI_RESPONSES_URL,
   input,
   model = process.env.OPENAI_CHAT_MODEL || DEFAULT_OPENAI_CHAT_MODEL,
   fetchImpl = fetch,
@@ -106,7 +162,7 @@ export async function requestOpenAIResponse({
     .replace(/[^A-Za-z0-9_-]/gu, "_")
     .slice(0, 64);
   const textOptions = {
-    verbosity,
+    ...(verbosity && supportsOpenAIReasoning(model) ? { verbosity } : {}),
     ...(outputSchema && typeof outputSchema === "object"
       ? {
           format: {
@@ -119,6 +175,7 @@ export async function requestOpenAIResponse({
       : {}),
   };
 
+  await reservePublicAiCall(input, "openai", model);
   const response = await fetchImpl(responsesUrl, {
     method: "POST",
     headers: {
@@ -128,9 +185,14 @@ export async function requestOpenAIResponse({
     body: JSON.stringify({
       model,
       input,
-      reasoning: { effort: reasoningEffort },
-      text: textOptions,
+      ...(supportsOpenAIReasoning(model) && reasoningEffort
+        ? { reasoning: { effort: reasoningEffort } }
+        : {}),
+      ...(Object.keys(textOptions).length ? { text: textOptions } : {}),
       store: false,
+      ...(publicAiOutputLimit()
+        ? { max_output_tokens: publicAiOutputLimit() }
+        : {}),
     }),
     signal,
   });
@@ -152,14 +214,18 @@ export async function requestOpenAIResponse({
       "OPENAI_EMPTY_RESPONSE",
     );
   }
-  return {
-    text,
-    provider: "openai",
-    model:
-      typeof data?.model === "string" && data.model.trim()
-        ? data.model.trim()
-        : model,
-  };
+  return withUsage(
+    {
+      text,
+      provider: "openai",
+      model:
+        typeof data?.model === "string" && data.model.trim()
+          ? data.model.trim()
+          : model,
+    },
+    data?.usage?.input_tokens,
+    data?.usage?.output_tokens,
+  );
 }
 
 export async function requestGeminiResponse({
@@ -169,6 +235,7 @@ export async function requestGeminiResponse({
   model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
   fetchImpl = fetch,
   signal,
+  jsonMode = false,
 }) {
   if (!apiKey) {
     throw new AiCoreError(
@@ -189,6 +256,7 @@ export async function requestGeminiResponse({
       parts: [{ text: item.content }],
     }));
   const baseUrl = String(apiUrl).replace(/\/+$/u, "");
+  await reservePublicAiCall(input, "gemini", model);
   const response = await fetchImpl(
     `${baseUrl}/models/${encodeURIComponent(model)}:generateContent`,
     {
@@ -206,6 +274,16 @@ export async function requestGeminiResponse({
             }
           : {}),
         contents,
+        ...(jsonMode || publicAiOutputLimit()
+          ? {
+              generationConfig: {
+                ...(jsonMode ? { responseMimeType: "application/json" } : {}),
+                ...(publicAiOutputLimit()
+                  ? { maxOutputTokens: publicAiOutputLimit() }
+                  : {}),
+              },
+            }
+          : {}),
       }),
       signal,
     },
@@ -228,14 +306,19 @@ export async function requestGeminiResponse({
       "GEMINI_EMPTY_RESPONSE",
     );
   }
-  return {
-    text,
-    provider: "gemini",
-    model:
-      typeof data?.modelVersion === "string" && data.modelVersion.trim()
-        ? data.modelVersion.trim()
-        : model,
-  };
+  return withUsage(
+    {
+      text,
+      provider: "gemini",
+      model:
+        typeof data?.modelVersion === "string" && data.modelVersion.trim()
+          ? data.modelVersion.trim()
+          : model,
+    },
+    data?.usageMetadata?.promptTokenCount,
+    (Number(data?.usageMetadata?.candidatesTokenCount) || 0) +
+      (Number(data?.usageMetadata?.thoughtsTokenCount) || 0),
+  );
 }
 
 export async function requestGrokResponse({
@@ -245,6 +328,7 @@ export async function requestGrokResponse({
   model = process.env.GROK_MODEL || DEFAULT_GROK_CHAT_MODEL,
   fetchImpl = fetch,
   signal,
+  jsonMode = false,
 }) {
   if (!apiKey) {
     throw new AiCoreError(
@@ -254,6 +338,7 @@ export async function requestGrokResponse({
     );
   }
 
+  await reservePublicAiCall(input, "grok", model);
   const response = await fetchImpl(apiUrl, {
     method: "POST",
     headers: {
@@ -264,6 +349,8 @@ export async function requestGrokResponse({
       model,
       messages: normalizeChatMessages(input),
       stream: false,
+      ...(publicAiOutputLimit() ? { max_tokens: publicAiOutputLimit() } : {}),
+      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
     }),
     signal,
   });
@@ -285,14 +372,127 @@ export async function requestGrokResponse({
       "GROK_EMPTY_RESPONSE",
     );
   }
-  return {
-    text,
-    provider: "grok",
-    model:
-      typeof data?.model === "string" && data.model.trim()
-        ? data.model.trim()
-        : model,
-  };
+  return withUsage(
+    {
+      text,
+      provider: "grok",
+      model:
+        typeof data?.model === "string" && data.model.trim()
+          ? data.model.trim()
+          : model,
+    },
+    data?.usage?.prompt_tokens,
+    data?.usage?.completion_tokens,
+  );
+}
+
+// Claude rejects (400) a conversation that starts with an assistant turn or
+// ends with one (newer models do not support assistant prefill). Merge
+// consecutive turns of the same role and keep the last turn from the user.
+export function toClaudeMessages(normalized) {
+  const merged = [];
+  for (const { role, content } of normalized) {
+    if (role === "system") continue;
+    const claudeRole = role === "assistant" ? "assistant" : "user";
+    const last = merged[merged.length - 1];
+    if (last && last.role === claudeRole) {
+      last.content = `${last.content}\n\n${content}`;
+    } else {
+      merged.push({ role: claudeRole, content });
+    }
+  }
+  while (merged.length && merged[0].role !== "user") merged.shift();
+  while (merged.length && merged[merged.length - 1].role !== "user") merged.pop();
+  return merged;
+}
+
+// Anthropic error bodies carry a type and a short message and never echo the
+// API key, so they are safe to log and are what makes a 400 diagnosable.
+async function describeClaudeError(response) {
+  try {
+    const body = await response.json();
+    const type = String(body?.error?.type || "").slice(0, 60);
+    const message = String(body?.error?.message || "")
+      .replace(/sk-ant-[A-Za-z0-9_-]+/gu, "[key]")
+      .slice(0, 300);
+    return type || message ? ` ${type}: ${message}` : "";
+  } catch {
+    return "";
+  }
+}
+
+export async function requestClaudeResponse({
+  apiKey = process.env.ANTHROPIC_API_KEY,
+  apiUrl = "https://api.anthropic.com/v1/messages",
+  input,
+  model = process.env.ANTHROPIC_MODEL || DEFAULT_CLAUDE_CHAT_MODEL,
+  fetchImpl = fetch,
+  signal,
+  maxTokens = 2048,
+}) {
+  if (!apiKey) {
+    throw new AiCoreError(
+      "Claude не е конфигуриран.",
+      "CLAUDE_NOT_CONFIGURED",
+      503,
+    );
+  }
+  const normalized = normalizeChatMessages(input);
+  const system = normalized.filter((item) => item.role === "system").map((item) => item.content).join("\n\n");
+  const messages = toClaudeMessages(normalized);
+  if (!messages.length) {
+    throw new AiCoreError(
+      "Няма потребителско съобщение за Claude.",
+      "CLAUDE_EMPTY_REQUEST",
+      400,
+    );
+  }
+  await reservePublicAiCall(input, "claude", model);
+  const response = await fetchImpl(apiUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: publicAiOutputLimit() || maxTokens,
+      ...(system ? { system } : {}),
+      messages,
+    }),
+    signal,
+  });
+  if (!response.ok) {
+    console.error(
+      `[Claude] Upstream request failed: ${response.status}${await describeClaudeError(response)}`,
+    );
+    throw new AiCoreError(
+      `Claude върна грешка ${response.status}.`,
+      "CLAUDE_UPSTREAM_ERROR",
+      response.status,
+    );
+  }
+  const data = await response.json();
+  const text = Array.isArray(data?.content)
+    ? data.content
+        .filter((item) => item?.type === "text")
+        .map((item) => item.text || "")
+        .join("\n")
+        .trim()
+    : "";
+  if (!text)
+    throw new AiCoreError(
+      "Claude не върна текстов отговор.",
+      "CLAUDE_EMPTY_RESPONSE",
+    );
+  return withUsage(
+    { text, provider: "claude", model: data?.model || model },
+    (Number(data?.usage?.input_tokens) || 0) +
+      (Number(data?.usage?.cache_read_input_tokens) || 0) +
+      (Number(data?.usage?.cache_creation_input_tokens) || 0),
+    data?.usage?.output_tokens,
+  );
 }
 
 export function normalizeAiProvider(value) {
@@ -303,7 +503,7 @@ export function normalizeAiProvider(value) {
 export function getConfiguredAiProvider(env = process.env) {
   const configuredProvider = env.AI_CORE_PROVIDER;
   if (configuredProvider === undefined || configuredProvider === "") {
-    return "openai";
+    return DEFAULT_AI_PROVIDER;
   }
   return normalizeAiProvider(configuredProvider);
 }
@@ -316,6 +516,10 @@ export function isAiProviderConfigured(provider, env = process.env) {
       return Boolean(env.GEMINI_API_KEY);
     case "grok":
       return Boolean(env.GROK_API_KEY);
+    case "claude":
+      return Boolean(env.ANTHROPIC_API_KEY);
+    case "vertex-gemini":
+      return isVertexAiConfigured(env);
     default:
       return false;
   }
@@ -327,14 +531,14 @@ export function isAiCoreConfigured(env = process.env) {
 }
 
 export function hasConfiguredAiProvider(env = process.env) {
-  return ["openai", "gemini", "grok"].some((provider) =>
+  return [...AI_PROVIDERS].some((provider) =>
     isAiProviderConfigured(provider, env),
   );
 }
 
 export function getAiProviderStatus(env = process.env) {
   const selectedProvider = getConfiguredAiProvider(env);
-  const providers = ["openai", "gemini", "grok"].map((id) => ({
+  const providers = [...AI_PROVIDERS].map((id) => ({
     id,
     configured: isAiProviderConfigured(id, env),
   }));
@@ -357,17 +561,31 @@ export function getAiProviderTimeoutMs(
     openai: "OPENAI_TIMEOUT_MS",
     gemini: "GEMINI_TIMEOUT_MS",
     grok: "GROK_TIMEOUT_MS",
+    claude: "ANTHROPIC_TIMEOUT_MS",
   }[normalizeAiProvider(provider)];
-  return parsePositiveInteger(timeoutKey ? env[timeoutKey] : undefined, fallback);
+  if (normalizeAiProvider(provider) === "vertex-gemini") {
+    return resolveVertexAiTimeoutMs(env);
+  }
+  return parsePositiveInteger(
+    timeoutKey ? env[timeoutKey] : undefined,
+    fallback,
+  );
 }
 
-export async function requestAiResponse({
-  provider,
-  ...options
-} = {}) {
+export function getDefaultChatModel(provider, env = process.env) {
+  return {
+    openai: env.OPENAI_CHAT_MODEL || DEFAULT_OPENAI_CHAT_MODEL,
+    gemini: env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
+    grok: env.GROK_MODEL || DEFAULT_GROK_CHAT_MODEL,
+    claude: env.ANTHROPIC_MODEL || DEFAULT_CLAUDE_CHAT_MODEL,
+    "vertex-gemini": resolveVertexAiModel(env),
+  }[provider];
+}
+
+export async function requestAiResponse({ provider, ...options } = {}) {
   const selectedProvider =
     provider === undefined
-      ? getConfiguredAiProvider()
+      ? getConfiguredAiProvider(options.env || process.env)
       : normalizeAiProvider(provider);
   if (!selectedProvider) {
     throw new AiCoreError(
@@ -377,6 +595,13 @@ export async function requestAiResponse({
     );
   }
 
+  if (publicAiOutputLimit() && selectedProvider === "vertex-gemini")
+    throw new AiCoreError(
+      "Този двигател не е включен в потребителските планове.",
+      "PUBLIC_PROVIDER_UNAVAILABLE",
+      403,
+    );
+
   switch (selectedProvider) {
     case "openai":
       return requestOpenAIResponse(options);
@@ -384,6 +609,10 @@ export async function requestAiResponse({
       return requestGeminiResponse(options);
     case "grok":
       return requestGrokResponse(options);
+    case "claude":
+      return requestClaudeResponse(options);
+    case "vertex-gemini":
+      return requestVertexAiGeminiResponse(options);
     default:
       throw new AiCoreError(
         "AI доставчикът не е разрешен.",

@@ -265,10 +265,17 @@ export function deriveMemoryMetadata(fact, requestedScope = "personal") {
       scope,
     };
   }
-  if (/^(?:аз\s+)?се\s+интересувам\s+от\s+/u.test(normalized)) {
+  if (
+    /^(?:(?:аз\s+)?се\s+интересувам|интересувам\s+се)\s+от\s+/u.test(
+      normalized,
+    )
+  ) {
     return {
       memoryKey: `personal:interest:${normalized
-        .replace(/^(?:аз\s+)?се\s+интересувам\s+от\s+/u, "")
+        .replace(
+          /^(?:(?:аз\s+)?се\s+интересувам|интересувам\s+се)\s+от\s+/u,
+          "",
+        )
         .replace(/\s+/g, "-")
         .slice(0, 100)}`,
       category: "interest",
@@ -533,7 +540,7 @@ export function consolidateMemoryView(memories) {
   const interests = [];
   for (const memory of interestItems) {
     const value = cleanMemoryFact(memory.fact).replace(
-      /^(?:аз\s+)?се\s+интересувам\s+от\s+/iu,
+      /^(?:(?:аз\s+)?се\s+интересувам|интересувам\s+се)\s+от\s+/iu,
       "",
     );
     for (const item of value.split(/\s*(?:,|;|\s+и\s+)\s*/iu)) {
@@ -580,6 +587,13 @@ export async function listProfileMemories(options = {}) {
   }
   const consolidated = consolidateMemoryView(memories);
   if (requestedScope === "personal") return consolidated;
+  // The AI CORE product definition is the owner's project context only;
+  // customer accounts never see it as their own memory.
+  if (ownerId !== OWNER_ID) {
+    return requestedScope === "project"
+      ? consolidated.filter((memory) => memory.scope === "project")
+      : consolidated;
+  }
 
   const currentProjectMemories = consolidated.filter(
     (memory) =>
@@ -934,6 +948,45 @@ export async function listConversationMessages(
   return hits.map((hit) => ({ id: hit._id, ...hit._source })).reverse();
 }
 
+export async function listAllConversationMessages(ownerId = OWNER_ID) {
+  await ensureConversationIndex();
+  if (usesFirestoreMemory()) {
+    const documents =
+      await getFirestoreStoreOrThrow().listConversationDocuments(ownerId);
+    return documents.map((document) => ({ id: document.id, ...document.data }));
+  }
+  const response = await getClientOrThrow().search({
+    index: CONVERSATION_INDEX,
+    body: {
+      size: 10_000,
+      sort: [{ createdAt: { order: "asc" } }],
+      query: { term: { ownerId } },
+    },
+  });
+  const hits = response.body?.hits?.hits ?? response.hits?.hits ?? [];
+  return hits.map((hit) => ({ id: hit._id, ...hit._source }));
+}
+
+export async function deleteAllConversations(ownerId = OWNER_ID) {
+  await ensureConversationIndex();
+  if (usesFirestoreMemory()) {
+    const store = getFirestoreStoreOrThrow();
+    let deleted = 0;
+    for (;;) {
+      const documents = await store.listConversationDocuments(ownerId);
+      if (!documents.length) return deleted;
+      await store.deleteConversationDocuments(documents.map(({ id }) => id));
+      deleted += documents.length;
+    }
+  }
+  const response = await getClientOrThrow().deleteByQuery({
+    index: CONVERSATION_INDEX,
+    refresh: true,
+    body: { query: { term: { ownerId } } },
+  });
+  return response.body?.deleted ?? response.deleted ?? 0;
+}
+
 export function conversationTitleFromMessages(messages) {
   const firstUserMessage = messages.find(
     (message) =>
@@ -1077,7 +1130,108 @@ export async function saveConversationTurn(
   }
 }
 
-export function buildMemoryContext(memories, { personName = "Радко" } = {}) {
+export const MAX_IMPORTED_CONVERSATION_MESSAGES = 50;
+export const MAX_IMPORTED_MESSAGE_LENGTH = 12000;
+const IMPORTED_CONVERSATION_SOURCES = Object.freeze(["claude", "chatgpt", "other"]);
+const IMPORTED_SESSION_PATTERN =
+  /^(claude|chatgpt|other)-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
+
+export function isImportedConversationSessionId(sessionId, source) {
+  const match = IMPORTED_SESSION_PATTERN.exec(String(sessionId || ""));
+  return Boolean(match) && (!source || match[1] === source);
+}
+
+function conversationImportError(message) {
+  return Object.assign(new Error(message), {
+    code: "CONVERSATION_IMPORT_INVALID",
+    status: 400,
+  });
+}
+
+// Saves a conversation held in another AI client (for example Claude) as an
+// AI CORE thread for the same owner. A new thread gets a "<source>-<uuid>"
+// id; an existing imported thread of the same source can be extended.
+export async function saveImportedConversation(
+  { source = "claude", sessionId, messages } = {},
+  ownerId = OWNER_ID,
+  { now = Date.now } = {},
+) {
+  if (!IMPORTED_CONVERSATION_SOURCES.includes(source)) {
+    throw conversationImportError("Непознат източник на разговора.");
+  }
+  if (sessionId !== undefined && !isImportedConversationSessionId(sessionId, source)) {
+    throw conversationImportError(
+      "Може да се продължи само разговор, запазен от същия източник.",
+    );
+  }
+  if (
+    !Array.isArray(messages) ||
+    messages.length < 1 ||
+    messages.length > MAX_IMPORTED_CONVERSATION_MESSAGES
+  ) {
+    throw conversationImportError(
+      `Изпрати от 1 до ${MAX_IMPORTED_CONVERSATION_MESSAGES} съобщения.`,
+    );
+  }
+  const cleaned = messages.map((message) => {
+    const role = message?.role;
+    const content =
+      typeof message?.content === "string" ? message.content.trim() : "";
+    if (
+      !["user", "assistant"].includes(role) ||
+      !content ||
+      content.length > MAX_IMPORTED_MESSAGE_LENGTH
+    ) {
+      throw conversationImportError(
+        `Всяко съобщение има роля user или assistant и текст до ${MAX_IMPORTED_MESSAGE_LENGTH} знака.`,
+      );
+    }
+    return { role, content };
+  });
+  const targetSessionId = sessionId || `${source}-${randomUUID()}`;
+  await ensureConversationIndex();
+  const timestamp = now();
+  const documents = cleaned.map((message, index) => ({
+    id: randomUUID(),
+    data: {
+      ownerId,
+      sessionId: targetSessionId,
+      role: message.role,
+      content: message.content,
+      source,
+      createdAt: new Date(timestamp + index).toISOString(),
+    },
+  }));
+  if (usesFirestoreMemory()) {
+    await getFirestoreStoreOrThrow().commitConversationDocuments(documents);
+  } else {
+    const response = await getClientOrThrow().bulk({
+      refresh: true,
+      body: documents.flatMap((document) => [
+        { index: { _index: CONVERSATION_INDEX, _id: document.id } },
+        document.data,
+      ]),
+    });
+    const result = response.body || response;
+    if (result?.errors) {
+      throw Object.assign(
+        new Error("Разговорът не можа да бъде записан изцяло в постоянната памет."),
+        { code: "CONVERSATION_PERSISTENCE_FAILED", status: 502 },
+      );
+    }
+  }
+  return {
+    sessionId: targetSessionId,
+    source,
+    saved: documents.length,
+    appended: Boolean(sessionId),
+  };
+}
+
+export function buildMemoryContext(
+  memories,
+  { personName = "Радко", includeProjectIdentity = true } = {},
+) {
   const personal = memories.filter(
     (memory) => (memory.scope || "personal") === "personal",
   );
@@ -1085,20 +1239,22 @@ export function buildMemoryContext(memories, { personName = "Радко" } = {})
     (memory) =>
       memory.scope === "project" && !isSupersededProjectDefinition(memory.fact),
   );
-  const project = storedProject.some(
+  const hasStoredDefinition = storedProject.some(
     (memory) =>
       normalizeFact(memory.fact) === normalizeFact(PROJECT_DEFINITION),
-  )
-    ? storedProject
-    : [
-        {
-          id: CANONICAL_PROJECT_MEMORY_ID,
-          fact: PROJECT_DEFINITION,
-          scope: "project",
-          readOnly: true,
-        },
-        ...storedProject,
-      ];
+  );
+  const project =
+    !includeProjectIdentity || hasStoredDefinition
+      ? storedProject
+      : [
+          {
+            id: CANONICAL_PROJECT_MEMORY_ID,
+            fact: PROJECT_DEFINITION,
+            scope: "project",
+            readOnly: true,
+          },
+          ...storedProject,
+        ];
   const format = (items, emptyText) =>
     items.length
       ? items.map((item, index) => `${index + 1}. ${item.fact}`).join("\n")

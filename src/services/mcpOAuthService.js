@@ -17,6 +17,8 @@ import {
 } from "./firestoreMcpOAuthStore.js";
 
 export const DEFAULT_MCP_RESOURCE_URL = "https://cloudaicore.com/mcp";
+export const CHATGPT_MCP_SCOPE = "synchron:chatgpt.ask";
+export const CHATGPT_MCP_PATH = "/mcp/chatgpt";
 export const MCP_READ_SCOPE = "synchron:read";
 export const MCP_AGENT_CHAT_SCOPE = "synchron:agent.chat";
 export const MCP_MEMORY_WRITE_SCOPE = "synchron:memory.write";
@@ -40,6 +42,7 @@ export const MCP_SCOPES = Object.freeze([
 ]);
 const MCP_AUTHORIZATION_SCOPES = Object.freeze([
   ...MCP_SCOPES,
+  CHATGPT_MCP_SCOPE,
   MCP_OFFLINE_ACCESS_SCOPE,
 ]);
 const MCP_OWNER_ONLY_SCOPES = Object.freeze([
@@ -181,11 +184,19 @@ function recordOpenAiTunnelTokenExchange(
   });
 }
 
+export function resolveChatGptMcpResource(env = process.env) {
+  return resolveMcpIssuerUrl(env) + CHATGPT_MCP_PATH;
+}
+
 function isAllowedMcpResourceUrl(resource, env = process.env) {
   const requested = String(resource || "");
   const canonical = resolveMcpResourceUrl(env);
   const tunnel = resolveOpenAiTunnelResourceUrl(env);
-  return requested === canonical || Boolean(tunnel && requested === tunnel);
+  return (
+    requested === canonical ||
+    requested === resolveChatGptMcpResource(env) ||
+    Boolean(tunnel && requested === tunnel)
+  );
 }
 
 export function resolveMcpIssuerUrl(env = process.env) {
@@ -317,6 +328,8 @@ export function requiredScopesForMcpTool(name) {
       "list_threads",
       "read_history",
       "continue_session",
+      "save_conversation",
+      "suggest_memory",
     ].includes(name)
   ) {
     return [MCP_AGENT_CHAT_SCOPE];
@@ -366,7 +379,11 @@ export function requiredScopesForMcpTool(name) {
   ) {
     return [MCP_GOOGLE_WRITE_SCOPE];
   }
-  if (["list_action_history", "list_recent_errors"].includes(name)) {
+  if (
+    ["list_action_history", "list_recent_errors", "read_runtime_logs"].includes(
+      name,
+    )
+  ) {
     return [MCP_AUDIT_READ_SCOPE];
   }
   if (["prepare_github_change", "confirm_github_change"].includes(name)) {
@@ -494,6 +511,101 @@ function isAllowedOpenAiClientId(value) {
   }
 }
 
+// Public native clients have no client secret. Each callback and scope must be
+// explicitly registered by the operator; PKCE and browser consent still apply.
+export const GOOGLE_AGENT_CLIENT_IDS = Object.freeze([
+  "synchron-gemini-cli",
+  "synchron-antigravity",
+]);
+
+export const CLAUDE_CLIENT_ID = "synchron-claude";
+export const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
+// Claude asks for the scope of whichever tool it called first and, on a 403,
+// for the missing scope alone. One sign-in therefore always grants the whole
+// Claude bundle, so a later chat tool does not trap the connector in
+// "Sign-in required". Claude is owner-only, so the read-only audit scope
+// (action history, recent errors, runtime logs) is part of the bundle too.
+// Write scopes stay out of it.
+export const CLAUDE_SCOPES = Object.freeze([
+  MCP_READ_SCOPE,
+  MCP_AGENT_CHAT_SCOPE,
+  MCP_AUDIT_READ_SCOPE,
+  MCP_OFFLINE_ACCESS_SCOPE,
+]);
+
+// Claude is the owner's personal connector; member accounts are refused at
+// consent, code, refresh and on every tool call, so an old grant stops too.
+function assertClientAllowedForRole(clientId, role, code = "access_denied") {
+  if (clientId === CLAUDE_CLIENT_ID && role !== "owner") {
+    throw new McpOAuthError(
+      "Claude е достъпен само за собственика на AI CORE.",
+      403,
+      code,
+    );
+  }
+}
+
+function registeredClaudeClient(clientId, env) {
+  if (clientId !== CLAUDE_CLIENT_ID || env.MCP_CLAUDE_OAUTH_ENABLED !== "true")
+    return null;
+  return {
+    client_id: CLAUDE_CLIENT_ID,
+    client_name: "Claude",
+    redirect_uris: [CLAUDE_CALLBACK],
+    allowedScopes: CLAUDE_SCOPES,
+    grantedScopes: CLAUDE_SCOPES,
+    token_endpoint_auth_method: "none",
+  };
+}
+
+function registeredGoogleAgentClient(clientId, env) {
+  if (!GOOGLE_AGENT_CLIENT_IDS.includes(clientId)) return null;
+  try {
+    const raw = env.MCP_GOOGLE_OAUTH_CLIENTS || "[]";
+    if (raw.length > 16_384) return null;
+    const clients = JSON.parse(raw);
+    if (!Array.isArray(clients) || clients.length > 2) return null;
+    const matches = clients.filter((client) => client?.client_id === clientId);
+    if (matches.length !== 1) return null;
+    const client = matches[0];
+    if (
+      typeof client.client_name !== "string" ||
+      !client.client_name.trim() ||
+      client.client_name.length > 100 ||
+      !Array.isArray(client.redirect_uris) ||
+      !client.redirect_uris.length ||
+      client.redirect_uris.length > 8 ||
+      typeof client.scope !== "string" ||
+      !client.scope.trim()
+    )
+      return null;
+    for (const value of client.redirect_uris) {
+      if (typeof value !== "string") return null;
+      const url = new URL(value);
+      const loopback = ["127.0.0.1", "localhost"].includes(url.hostname);
+      if (
+        url.username ||
+        url.password ||
+        url.search ||
+        url.hash ||
+        url.pathname !== "/oauth/callback" ||
+        (url.protocol !== "https:" &&
+          !(url.protocol === "http:" && loopback && url.port)) ||
+        url.href !== value
+      )
+        return null;
+    }
+    return {
+      ...client,
+      client_name: client.client_name.trim(),
+      allowedScopes: parseScopes(client.scope),
+      token_endpoint_auth_method: "none",
+    };
+  } catch {
+    return null;
+  }
+}
+
 function trustedChatGptClientMetadata(clientId, redirectUri) {
   try {
     const clientUrl = new URL(clientId);
@@ -548,7 +660,10 @@ export async function validateMcpAuthorizationRequest(
   if (input?.response_type !== "code") {
     throw new McpOAuthError("Поддържа се само authorization code.");
   }
-  if (!isAllowedOpenAiClientId(clientId)) {
+  const googleClient =
+    registeredGoogleAgentClient(clientId, env) ||
+    registeredClaudeClient(clientId, env);
+  if (!googleClient && !isAllowedOpenAiClientId(clientId)) {
     throw new McpOAuthError("Непознат OAuth клиент.", 400, "invalid_client");
   }
   if (!state || state.length > 1_000) {
@@ -560,27 +675,32 @@ export async function validateMcpAuthorizationRequest(
   ) {
     throw new McpOAuthError("Изисква се PKCE S256.");
   }
-  if (!isAllowedMcpResourceUrl(resource, env)) {
+  if (
+    !isAllowedMcpResourceUrl(resource, env) ||
+    (googleClient && resource !== resolveMcpResourceUrl(env))
+  ) {
     throw new McpOAuthError("Невалиден MCP resource.", 400, "invalid_target");
   }
 
-  let metadata;
-  try {
-    const response = await fetchImpl(clientId, {
-      headers: { Accept: "application/json" },
-      redirect: "error",
-      signal: AbortSignal.timeout(5_000),
-    });
-    if (!response.ok) throw new Error("CLIENT_METADATA_UNAVAILABLE");
-    metadata = await response.json();
-  } catch {
-    metadata = trustedChatGptClientMetadata(clientId, redirectUri);
-    if (!metadata) {
-      throw new McpOAuthError(
-        "OAuth клиентът не може да бъде проверен.",
-        400,
-        "invalid_client",
-      );
+  let metadata = googleClient;
+  if (!metadata) {
+    try {
+      const response = await fetchImpl(clientId, {
+        headers: { Accept: "application/json" },
+        redirect: "error",
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!response.ok) throw new Error("CLIENT_METADATA_UNAVAILABLE");
+      metadata = await response.json();
+    } catch {
+      metadata = trustedChatGptClientMetadata(clientId, redirectUri);
+      if (!metadata) {
+        throw new McpOAuthError(
+          "OAuth клиентът не може да бъде проверен.",
+          400,
+          "invalid_client",
+        );
+      }
     }
   }
 
@@ -602,6 +722,28 @@ export async function validateMcpAuthorizationRequest(
     );
   }
 
+  const scopes = parseScopes(input?.scope);
+  const forChatGpt = resource === resolveChatGptMcpResource(env);
+  if (forChatGpt ? !scopes.includes(CHATGPT_MCP_SCOPE) ||
+      scopes.some((scope) => scope !== CHATGPT_MCP_SCOPE && scope !== MCP_OFFLINE_ACCESS_SCOPE)
+    : scopes.includes(CHATGPT_MCP_SCOPE)) {
+    throw new McpOAuthError("Права извън обхвата на тази връзка.", 400, "invalid_scope");
+  }
+  // Claude may ask for every scope the protected-resource metadata lists
+  // (including write scopes) on a fresh connect. Its token is always the fixed
+  // Claude bundle, so the request is narrowed instead of refused; write and
+  // other non-bundle scopes are simply not granted.
+  if (
+    googleClient &&
+    !googleClient.grantedScopes &&
+    scopes.some((scope) => !googleClient.allowedScopes.includes(scope))
+  ) {
+    throw new McpOAuthError(
+      "Поисканите права не са разрешени за този агент.",
+      400,
+      "invalid_scope",
+    );
+  }
   return {
     clientId,
     clientName: metadata.client_name.trim(),
@@ -609,7 +751,7 @@ export async function validateMcpAuthorizationRequest(
     state,
     codeChallenge,
     resource,
-    scopes: parseScopes(input?.scope),
+    scopes: googleClient?.grantedScopes ? [...googleClient.grantedScopes] : scopes,
   };
 }
 
@@ -621,6 +763,7 @@ export function createMcpAuthorizationCode(
   if (!identity?.id || !identity?.memoryOwnerId || !identity?.role) {
     throw new McpOAuthError("Липсва валиден AI CORE профил.", 401);
   }
+  assertClientAllowedForRole(request.clientId, identity.role);
   if (requiresOwnerRole(request.scopes) && identity.role !== "owner") {
     throw new McpOAuthError(
       "MCP записът е достъпен само за собственика.",
@@ -678,6 +821,7 @@ export function createMcpConsentToken(
   if (!identity?.id) {
     throw new McpOAuthError("Липсва валиден AI CORE профил.", 401);
   }
+  assertClientAllowedForRole(request.clientId, identity.role);
   return encryptPayload(
     "sx-consent",
     {
@@ -1814,6 +1958,7 @@ export async function exchangeMcpRefreshToken(
       "invalid_grant",
     );
   }
+  assertClientAllowedForRole(payload.clientId, payload.role, "invalid_grant");
   const grantPayload = withMcpGrantId(payload);
   if (payload.grantId) {
     await assertMcpGrantActive(payload, {
@@ -1940,6 +2085,7 @@ export function verifyMcpAccessToken(
   authorizationHeader,
   requiredScopes = [MCP_READ_SCOPE],
   env = process.env,
+  { expectedResource } = {},
 ) {
   if (
     typeof authorizationHeader !== "string" ||
@@ -1958,6 +2104,9 @@ export function verifyMcpAccessToken(
     payload.typ !== "access_token" ||
     payload.iss !== resolveMcpIssuerUrl(env) ||
     !isAllowedMcpResourceUrl(payload.aud, env) ||
+    (expectedResource
+      ? payload.aud !== expectedResource
+      : payload.aud === resolveChatGptMcpResource(env)) ||
     payload.nbf > now ||
     payload.exp <= now ||
     !Array.isArray(payload.scopes) ||
@@ -1971,6 +2120,7 @@ export function verifyMcpAccessToken(
       "invalid_token",
     );
   }
+  assertClientAllowedForRole(payload.clientId, payload.role);
   if (
     requiredScopes.some((scope) => !payload.scopes.includes(scope)) ||
     (requiresOwnerRole(requiredScopes) && payload.role !== "owner")

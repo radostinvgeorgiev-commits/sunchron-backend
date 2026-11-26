@@ -4,6 +4,7 @@ import request from "supertest";
 
 process.env.NODE_ENV = "test";
 process.env.OPENAI_API_KEY = "test-openai-key";
+process.env.AI_CORE_PROVIDER = "openai";
 process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 delete process.env.OPENSEARCH_HOST;
 delete process.env.OPENSEARCH_USERNAME;
@@ -20,6 +21,80 @@ const ownerSession = await createGitHubSession(
     }),
 );
 const OWNER_COOKIE = `synchron_github_session=${ownerSession.id}`;
+
+test("Work answers a greeting through a backup engine when Grok fails", async (t) => {
+  const previous = {
+    AI_CORE_PROVIDER: process.env.AI_CORE_PROVIDER,
+    GROK_API_KEY: process.env.GROK_API_KEY,
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+  };
+  Object.assign(process.env, {
+    AI_CORE_PROVIDER: "grok",
+    GROK_API_KEY: "test-grok-key",
+    GEMINI_API_KEY: "test-gemini-key",
+  });
+  t.after(() => {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  const hosts = [];
+  t.mock.method(globalThis, "fetch", async (url) => {
+    const host = new URL(url).hostname;
+    hosts.push(host);
+    if (host === "api.x.ai") return new Response("", { status: 503 });
+    assert.equal(host, "generativelanguage.googleapis.com");
+    return Response.json({
+      modelVersion: "gemini-test",
+      candidates: [{ content: { parts: [{ text: "Добър ден!" }] } }],
+    });
+  });
+  const response = await request(app)
+    .post("/chat/chat")
+    .set("Cookie", OWNER_COOKIE)
+    .send({
+      sessionId: "work-greeting-fallback",
+      message: "Добър ден",
+      mode: "work",
+      workContext: { agent: { name: "Код", role: "coder", engine: "codex" } },
+    })
+    .expect(200);
+  assert.deepEqual(hosts, ["api.x.ai", "generativelanguage.googleapis.com"]);
+  assert.match(response.text, /Добър ден!/u);
+  assert.match(response.text, /"provider":"gemini","model":"gemini-test"/u);
+  assert.doesNotMatch(response.text, /event: error|code\.analyze/u);
+});
+
+test("Work Council sends a Codex-only selection to the coding model", async (t) => {
+  const requests = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    assert.equal(String(url), "https://api.openai.com/v1/responses");
+    requests.push(JSON.parse(options.body));
+    return Response.json({
+      model: "codex-verified",
+      output_text: "Отговор от Codex.",
+    });
+  });
+  const response = await request(app)
+    .post("/chat/chat")
+    .set("Cookie", OWNER_COOKIE)
+    .send({
+      sessionId: "work-council-codex",
+      message: "Дай кратка оценка.",
+      mode: "work",
+      council: true,
+      councilProviders: ["codex"],
+    })
+    .expect(200);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].model, "gpt-5.3-codex");
+  assert.equal(requests[0].store, false);
+  assert.equal(requests[0].tools, undefined);
+  assert.match(response.text, /"provider":"codex","model":"codex-verified"/u);
+  assert.match(response.text, /Отговор от Codex\./u);
+  assert.doesNotMatch(response.text, /event: error/u);
+});
 
 test("chat rejects oversized messages before calling paid AI", async () => {
   const response = await request(app)
@@ -125,7 +200,10 @@ test("normal chat emits a bounded memory candidate without writing it", async ()
     const response = await request(app)
       .post("/chat/chat")
       .set("Cookie", OWNER_COOKIE)
-      .send({ sessionId: "memory-candidate-route", message: "Казвам се Радко." })
+      .send({
+        sessionId: "memory-candidate-route",
+        message: "Казвам се Радко.",
+      })
       .expect(200);
 
     assert.match(
@@ -260,7 +338,7 @@ test("verified GitHub results bypass AI rewriting", async () => {
     if (String(url).includes("api.openai.com/v1/responses")) {
       openAiCalls += 1;
       const body = JSON.parse(options.body);
-      if (body.model === "gpt-5.6-luna") {
+      if (body.model === "gpt-4.1-mini") {
         return new Response(
           JSON.stringify({
             output: [
@@ -287,6 +365,7 @@ test("verified GitHub results bypass AI rewriting", async () => {
 
     if (String(url).includes("api.github.com/repos/")) {
       githubCalls += 1;
+      assert.equal(options.headers.Authorization, "Bearer test-owner-token");
       return new Response(
         JSON.stringify([
           {
@@ -391,7 +470,7 @@ test("explicit GitHub request still runs when the AI planner returns no tools", 
       })
       .expect(200);
 
-    assert.equal(plannerCalls, 1);
+    assert.equal(plannerCalls, 0);
     assert.equal(githubCalls, 1);
     assert.match(response.text, /Последната реална промяна в GitHub е/u);
     assert.match(response.text, /Planner cannot suppress tools/u);
@@ -477,4 +556,169 @@ test("normal chat reports only the missing AI connection", async () => {
     if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = originalOpenAiKey;
   }
+});
+
+test("Work uses stored project conversations and ignores client-provided links", async (t) => {
+  const { setFirestoreWorkspaceStoreForTests } =
+    await import("../src/services/workspaceStateService.js");
+  const { setFirestoreMemoryStoreForTests } =
+    await import("../src/services/memoryService.js");
+  const { resolveMemoryOwnerId } =
+    await import("../src/middleware/ownerAuth.js");
+  const ownerId = resolveMemoryOwnerId("radostinvgeorgiev-commits");
+  const keys = ["MEMORY_BACKEND", "PERSISTENCE_BACKEND"];
+  const previous = keys.map((key) => process.env[key]);
+  for (const key of keys) process.env[key] = "firestore";
+  t.after(() => {
+    keys.forEach((key, index) => {
+      if (previous[index] === undefined) delete process.env[key];
+      else process.env[key] = previous[index];
+    });
+    setFirestoreWorkspaceStoreForTests(null);
+    setFirestoreMemoryStoreForTests(null);
+  });
+  setFirestoreWorkspaceStoreForTests({
+    get: async () => ({
+      data: {
+        state: {
+          projects: [
+            {
+              id: "project-launch",
+              name: "Launch",
+              decisions: ["Срокът е петък."],
+              conversationIds: ["linked-chat", "current-chat"],
+            },
+          ],
+        },
+      },
+    }),
+  });
+  const reads = [];
+  setFirestoreMemoryStoreForTests({
+    listProfileDocuments: async () => [],
+    listConversationSessionDocuments: async (owner, id) => {
+      assert.equal(owner, ownerId);
+      reads.push(id);
+      const messages =
+        id === "current-chat"
+          ? ["По-стара заявка от текущия чат.", "Последен запазен отговор."]
+          : ["Синият файл е одобрен.", "Възстановявам бележката."];
+      return messages.map((content, index) => ({
+        id: `${id}-${index}`,
+        data: {
+          role: index ? "assistant" : "user",
+          content,
+          createdAt: `2026-11-21T00:00:0${index}Z`,
+        },
+      }));
+    },
+    commitConversationDocuments: async () => {},
+  });
+  let input;
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    assert.equal(String(url), "https://api.openai.com/v1/responses");
+    input = JSON.parse(options.body).input;
+    return Response.json({ output_text: "Проектът е в срок." });
+  });
+  const result = await request(app)
+    .post("/chat/chat")
+    .set("Cookie", OWNER_COOKIE)
+    .send({
+      mode: "work",
+      sessionId: "current-chat",
+      message: "Обобщи контекста.",
+      workContext: {
+        project: {
+          id: "project-launch",
+          name: "Launch",
+          conversationIds: ["unlinked-chat"],
+        },
+      },
+      recentHistory: [
+        { role: "assistant", content: "Последен запазен отговор." },
+        { role: "user", content: "По-нова незаписана бележка." },
+      ],
+    })
+    .expect(200);
+  assert.match(result.text, /event: done/u);
+  assert.deepEqual(reads, ["current-chat", "linked-chat"]);
+  assert.match(result.text, /"linkedProjectContext":true/u);
+  assert.equal(input[1].content, "По-стара заявка от текущия чат.");
+  assert.equal(
+    input.filter(({ content }) => content === "Последен запазен отговор.")
+      .length,
+    1,
+  );
+  assert.match(input.at(-2).content, /Синият файл е одобрен\./u);
+  assert.match(input.at(-2).content, /Срокът е петък\./u);
+  assert.equal(input.at(-1).content, "Обобщи контекста.");
+});
+
+test("Work keeps trying available models when a selected model fails and another times out", async (t) => {
+  const config = {
+    AI_CORE_PROVIDER: "grok",
+    OPENAI_CHAT_MODEL: "gpt-5.6-terra",
+    OPENAI_TIMEOUT_MS: "15",
+    GEMINI_API_KEY: "test-gemini",
+    GROK_API_KEY: "test-grok",
+  };
+  const previous = Object.fromEntries(
+    Object.keys(config).map((key) => [key, process.env[key]]),
+  );
+  Object.assign(process.env, config);
+  t.after(() => {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    const host = new URL(url).hostname;
+    calls.push(
+      host === "api.openai.com" ? JSON.parse(options.body).model : host,
+    );
+    if (host === "api.openai.com") {
+      if (calls.length === 1) return new Response(null, { status: 404 });
+      await new Promise((resolve, reject) => {
+        options.signal.addEventListener(
+          "abort",
+          () => reject(options.signal.reason),
+          { once: true },
+        );
+      });
+    }
+    if (host === "generativelanguage.googleapis.com")
+      return new Response(null, { status: 503 });
+    assert.equal(host, "api.x.ai");
+    return Response.json({
+      model: "grok-test",
+      choices: [{ message: { content: "Работният чат отговаря." } }],
+    });
+  });
+
+  const response = await request(app)
+    .post("/chat/chat")
+    .set("Cookie", OWNER_COOKIE)
+    .send({
+      sessionId: "work-provider-recovery",
+      message: "Добър ден",
+      mode: "work",
+      workContext: {
+        project: { name: "Тест" },
+        agent: { name: "Личен помощник", model: "gpt-5.6-sol" },
+      },
+    })
+    .expect(200);
+
+  assert.deepEqual(calls, [
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "generativelanguage.googleapis.com",
+    "api.x.ai",
+  ]);
+  assert.match(response.text, /Работният чат отговаря\./u);
+  assert.match(response.text, /"provider":"grok","model":"grok-test"/u);
+  assert.doesNotMatch(response.text, /event: error/u);
 });

@@ -10,7 +10,10 @@ import {
 
 test("liveness version exposes only the deployed version and commit", () => {
   assert.deepEqual(
-    getRuntimeVersion({ npm_package_version: "1.2.3", APP_COMMIT_SHA: "abc123" }),
+    getRuntimeVersion({
+      npm_package_version: "1.2.3",
+      APP_COMMIT_SHA: "abc123",
+    }),
     { version: "1.2.3", commit: "abc123" },
   );
 });
@@ -19,6 +22,7 @@ test("readiness accepts the selected AI provider and a healthy Firestore probe",
   const result = await getReadinessStatus({
     env: {
       NODE_ENV: "test",
+      AI_CORE_PROVIDER: "openai",
       OPENAI_API_KEY: "key",
       MEMORY_BACKEND: "firestore",
       GOOGLE_CLOUD_PROJECT: "project-1",
@@ -31,11 +35,49 @@ test("readiness accepts the selected AI provider and a healthy Firestore probe",
   assert.equal(result.status, "ready");
   assert.equal(result.checks.memory.backend, "firestore");
   assert.equal(result.checks.chatAgent.primaryProvider, "openai");
+  assert.deepEqual(
+    result.checks.chatAgent.providers.find(({ id }) => id === "vertex-gemini"),
+    { id: "vertex-gemini", configured: false },
+  );
+});
+
+test("readiness follows an explicitly selected Vertex provider", async () => {
+  const baseEnv = {
+    NODE_ENV: "test",
+    AI_CORE_PROVIDER: "vertex-gemini",
+    VERTEX_AI_ENABLED: "true",
+    VERTEX_AI_PROJECT_ID: "project-1",
+    VERTEX_AI_LOCATION: "us-central1",
+    VERTEX_AI_MODEL: "gemini-2.5-flash",
+    MEMORY_BACKEND: "firestore",
+    GOOGLE_CLOUD_PROJECT: "project-1",
+  };
+  const options = {
+    loadFirestoreMemoryStore: () => ({
+      probe: async () => ({ status: "green" }),
+    }),
+    loadMemoryVerificationStatus: () => ({ status: "not-required" }),
+  };
+  const ready = await getReadinessStatus({ env: baseEnv, ...options });
+  assert.equal(ready.status, "ready");
+  assert.equal(ready.checks.chatAgent.primaryProvider, "vertex-gemini");
+  assert.equal(ready.checks.chatAgent.ready, true);
+
+  const notReady = await getReadinessStatus({
+    env: { ...baseEnv, VERTEX_AI_PROJECT_ID: "invalid project" },
+    ...options,
+  });
+  assert.equal(notReady.status, "not-ready");
+  assert.equal(notReady.checks.chatAgent.ready, false);
 });
 
 test("readiness rejects non-Firestore memory runtime", async () => {
   const result = await getReadinessStatus({
-    env: { NODE_ENV: "test", OPENAI_API_KEY: "key", MEMORY_BACKEND: "opensearch" },
+    env: {
+      NODE_ENV: "test",
+      OPENAI_API_KEY: "key",
+      MEMORY_BACKEND: "opensearch",
+    },
     loadMemoryVerificationStatus: () => ({ status: "not-required" }),
   });
   assert.equal(result.status, "not-ready");
@@ -43,7 +85,10 @@ test("readiness rejects non-Firestore memory runtime", async () => {
 });
 
 test("unverified Firestore backup status uses a short cache", () => {
-  assert.equal(resolveStorageBackupCacheTtlMs({ status: "unverified" }), 15_000);
+  assert.equal(
+    resolveStorageBackupCacheTtlMs({ status: "unverified" }),
+    15_000,
+  );
 });
 
 test("storage report exposes the explicit untested restore boundary", async () => {

@@ -24,7 +24,10 @@ test("work center contains no retired provider or domain actions", async () => {
     readFile(htmlUrl, "utf8"),
   ]);
   const activeUi = `${source}\n${html}`;
-  assert.doesNotMatch(activeUi, /synchron\.foundation|DigitalOcean|Cloudflare/iu);
+  assert.doesNotMatch(
+    activeUi,
+    /synchron\.foundation|DigitalOcean|Cloudflare/iu,
+  );
   assert.doesNotMatch(activeUi, /prepare-www|confirm-www|www-domain/iu);
 });
 
@@ -34,4 +37,22 @@ test("work center links Google apps and protected GitHub actions", async () => {
   assert.match(source, /google-calendar/u);
   assert.match(source, /github-confirmed-write/u);
   assert.match(source, /точно потвърждение/iu);
+});
+
+test("work center shows live connection checks instead of config-only claims", async () => {
+  const source = await readFile(sourceUrl, "utf8");
+  assert.match(source, /fetch\("\/api\/github\/status"/u);
+  assert.match(source, /fetch\("\/api\/google\/status"/u);
+  assert.match(source, /liveCheck: liveChecks\.github/u);
+  assert.match(source, /liveCheck\.connected === false/u);
+  assert.match(source, /проверката неуспешна/u);
+});
+
+test("work center refreshes live statuses and exposes a manual refresh", async () => {
+  const source = await readFile(sourceUrl, "utf8");
+  assert.match(source, /STATUS_REFRESH_INTERVAL_MS = 30_000/u);
+  assert.match(source, /data-refresh-work-center/u);
+  assert.match(source, /setInterval\(\(\) =>/u);
+  assert.match(source, /clearInterval\(refreshTimer\)/u);
+  assert.match(source, /автоматично опресняване на 30 секунди/u);
 });

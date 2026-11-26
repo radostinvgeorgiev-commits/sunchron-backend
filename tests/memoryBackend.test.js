@@ -15,6 +15,18 @@ test("Google Cloud runtime selects Firestore while offline compatibility stays e
     resolveMemoryBackend({ GOOGLE_CLOUD_PROJECT: "handy-boulevard-479120-q9" }),
     "firestore",
   );
+  assert.equal(resolveMemoryBackend({ NODE_ENV: "production" }), "firestore");
+  assert.equal(
+    resolvePersistenceBackend({ NODE_ENV: "production" }),
+    "firestore",
+  );
+  assert.equal(
+    resolveMemoryBackend({
+      NODE_ENV: "production",
+      MEMORY_BACKEND: "opensearch",
+    }),
+    "opensearch",
+  );
 });
 
 test("Firestore requires an explicit project and valid database selection", () => {

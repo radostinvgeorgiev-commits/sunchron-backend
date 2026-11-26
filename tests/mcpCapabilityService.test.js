@@ -23,13 +23,27 @@ test("granular MCP capabilities have unique names, strict schemas and exact scop
   assert.ok(names.includes("prepare_google_cloud_action"));
   assert.ok(names.includes("confirm_google_cloud_action"));
   assert.deepEqual(
-    MCP_CAPABILITY_TOOLS.find((item) => item.name === "prepare_google_cloud_action")
-      .inputSchema.properties.operation.enum,
+    MCP_CAPABILITY_TOOLS.find(
+      (item) => item.name === "prepare_google_cloud_action",
+    ).inputSchema.properties.operation.enum,
     [
       "grant_project_role",
       "revoke_project_role",
       "update_cloud_run_service_account",
       "run_cloud_build_trigger",
+      "use_latest_secret_version",
+    ],
+  );
+  assert.deepEqual(
+    MCP_CAPABILITY_TOOLS.find((item) => item.name === "prepare_github_change")
+      .inputSchema.properties.operation.enum,
+    [
+      "create_branch",
+      "create_file",
+      "update_file",
+      "create_pr",
+      "merge_pr",
+      "close_issue",
     ],
   );
   assert.ok(names.includes("get_google_cloud_project_diagnostics"));
@@ -89,7 +103,10 @@ test("Google Cloud MCP write path preserves the prepare-confirm boundary", async
     },
     { ownerId: "verified-owner" },
   );
-  assert.equal(prepared.result.structuredContent.confirmationId, "cloud-confirmation-1");
+  assert.equal(
+    prepared.result.structuredContent.confirmationId,
+    "cloud-confirmation-1",
+  );
   assert.equal(calls[0][1].ownerId, "verified-owner");
 
   const confirmed = await handler(
@@ -110,7 +127,11 @@ test("Google Cloud project diagnostics is read-only and uses the verified owner"
       getGoogleCloudProjectDiagnostics: async () => ({
         status: "pass",
         checks: { publicHealth: { status: "pass" } },
-        safety: { readOnly: true, secretsDisplayed: false, arbitraryCommands: false },
+        safety: {
+          readOnly: true,
+          secretsDisplayed: false,
+          arbitraryCommands: false,
+        },
       }),
     },
   });
@@ -210,6 +231,51 @@ test("Google capabilities fail closed when no authorized owner session exists", 
         { ownerId: "verified-owner" },
       ),
     (error) => error.code === "NOT_CONNECTED" && error.status === 401,
+  );
+});
+
+test("GitHub MCP read capabilities use the active owner OAuth session", async () => {
+  const calls = [];
+  const handler = createMcpCapabilityHandler({
+    audit: async () => {},
+    resolveLatestGitHubSession: async () => ({
+      accessToken: "mcp-oauth-token",
+      login: "radostinvgeorgiev-commits",
+    }),
+    dependencies: {
+      getGitHubOverview: async (input) => {
+        calls.push(["overview", input]);
+        return { summary: { private: true } };
+      },
+      getGitHubFile: async (...args) => {
+        calls.push(["file", args]);
+        return { path: args[0], content: "safe" };
+      },
+    },
+  });
+
+  const overview = await handler(
+    "get_github_overview",
+    { limit: 5 },
+    { ownerId: "verified-owner" },
+  );
+  const file = await handler(
+    "get_github_file",
+    { path: "README.md", ref: "main" },
+    { ownerId: "verified-owner" },
+  );
+
+  assert.equal(calls[0][1].accessToken, "mcp-oauth-token");
+  assert.equal(calls[1][1][3].accessToken, "mcp-oauth-token");
+  assert.equal(overview.result.structuredContent.summary.private, true);
+  assert.equal(file.result.structuredContent.path, "README.md");
+  assert.doesNotMatch(
+    JSON.stringify(overview.result.structuredContent),
+    /mcp-oauth-token/u,
+  );
+  assert.doesNotMatch(
+    JSON.stringify(file.result.structuredContent),
+    /mcp-oauth-token/u,
   );
 });
 

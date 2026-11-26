@@ -13,8 +13,14 @@ test("knowledge import binds the confirmation to owner and session", async () =>
   const prepared = await prepareKnowledgeImport({
     sessionId: "session-a",
     ownerId: "owner-a",
-    items: [{ id: "a", text: "Това е одобрено знание за проекта.", scope: "project" }],
-    createConfirmation: async (input) => ({ id: "confirmation-a", expiresAt: 123, ...input }),
+    items: [
+      { id: "a", text: "Това е одобрено знание за проекта.", scope: "project" },
+    ],
+    createConfirmation: async (input) => ({
+      id: "confirmation-a",
+      expiresAt: 123,
+      ...input,
+    }),
   });
   assert.equal(prepared.items.length, 1);
 
@@ -25,11 +31,18 @@ test("knowledge import binds the confirmation to owner and session", async () =>
     validateConfirmation: async () => ({
       id: "confirmation-a",
       action: KNOWLEDGE_IMPORT_ACTION,
-      resource: { ownerFingerprint: "8e7d4f3a6a6bdc0f6e91e1f8579bda54db1b5bc7ed2c31f7b8ef3e1de4f5f7a6", itemCount: 1 },
+      resource: {
+        ownerFingerprint:
+          "8e7d4f3a6a6bdc0f6e91e1f8579bda54db1b5bc7ed2c31f7b8ef3e1de4f5f7a6",
+        itemCount: 1,
+      },
       params: { items: prepared.items },
     }),
     consumeConfirmation: async () => {},
-    saveKnowledge: async ({ items }) => { stored = items; return items; },
+    saveKnowledge: async ({ items }) => {
+      stored = items;
+      return items;
+    },
     executeWrite: async ({ execute }) => execute(),
   }).catch((error) => error);
 
@@ -51,7 +64,9 @@ test("knowledge import consumes once and writes only after the exact owner match
       action: KNOWLEDGE_IMPORT_ACTION,
       resource: { ownerFingerprint, itemCount: 1 },
       params: {
-        items: [{ id: "a", text: "Одобрено знание за NOVARIUM.", scope: "project" }],
+        items: [
+          { id: "a", text: "Одобрено знание за NOVARIUM.", scope: "project" },
+        ],
       },
     }),
     consumeConfirmation: async () => {

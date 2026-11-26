@@ -1,4 +1,8 @@
-const DISABLED = Object.freeze({ enabled: false, status: "planned", reason: "Изисква отделно решение и разрешение." });
+const DISABLED = Object.freeze({
+  enabled: false,
+  status: "planned",
+  reason: "Изисква отделно решение и разрешение.",
+});
 
 export const ECOSYSTEM_MODULES = Object.freeze({
   novarium: Object.freeze({
@@ -23,7 +27,8 @@ export const ECOSYSTEM_MODULES = Object.freeze({
   foundation: Object.freeze({
     id: "foundation",
     name: "NOVARIUM Foundation",
-    purpose: "Бъдеща нестопанска структура за мисия, стандарти и обществена полза.",
+    purpose:
+      "Бъдеща нестопанска структура за мисия, стандарти и обществена полза.",
     ...DISABLED,
     safety: Object.freeze({
       noRegistration: true,
@@ -48,7 +53,10 @@ export const ECOSYSTEM_MODULES = Object.freeze({
 export function getEcosystemStatus() {
   return Object.freeze(
     Object.fromEntries(
-      Object.entries(ECOSYSTEM_MODULES).map(([id, module]) => [id, { ...module }]),
+      Object.entries(ECOSYSTEM_MODULES).map(([id, module]) => [
+        id,
+        { ...module },
+      ]),
     ),
   );
 }

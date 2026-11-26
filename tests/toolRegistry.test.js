@@ -41,6 +41,7 @@ test("регистрира съществуващите интеграции с 
     "github.file.create",
     "github.file.update",
     "github.pull-request.create",
+    "github.pull-request.merge",
     "github.issue.close",
   ]);
   assert.deepEqual(getTool("openai-codex").capabilities, ["code.analyze"]);

@@ -137,7 +137,11 @@ test("Google Cloud confirmation checks owner and delegates the exact action", as
   assert.equal(result.changed, true);
   assert.deepEqual(calls, [
     ["consume", "confirmation-3"],
-    ["execute", "infrastructure.write", "infrastructure.write:grant_project_role"],
+    [
+      "execute",
+      "infrastructure.write",
+      "infrastructure.write:grant_project_role",
+    ],
     ["adapter", true],
   ]);
 });
@@ -213,11 +217,18 @@ test("Cloud Build confirmation rechecks trigger and runs only the exact prepared
       adapters: {
         getCloudBuildTrigger: async (input) => {
           calls.push(["get-trigger", input.triggerId, input.triggerName]);
-          return { displayName: input.triggerName, disabled: false, github: { push: { branch: "^main$" } } };
+          return {
+            displayName: input.triggerName,
+            disabled: false,
+            github: { push: { branch: "^main$" } },
+          };
         },
         runCloudBuildTrigger: async (input) => {
           calls.push(["run", input.commitSha, input.branch]);
-          return { operationName: "operations/build-1", commitSha: input.commitSha };
+          return {
+            operationName: "operations/build-1",
+            commitSha: input.commitSha,
+          };
         },
       },
     },
@@ -338,5 +349,160 @@ test("Cloud Build trigger run rejects non-main and non-exact revisions", async (
         env,
       }),
     (error) => error.code === "GOOGLE_CLOUD_COMMIT_SHA_INVALID",
+  );
+});
+
+test("Cloud Run service identity confirmation uses the Admin API v2 patch contract", async () => {
+  let preparedConfirmation;
+  const requests = [];
+  const serviceAccount =
+    "ai-core-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com";
+  await prepareGoogleCloudAction(
+    {
+      ownerId: "owner-1",
+      sessionId: "session-1",
+      operation: "update_cloud_run_service_account",
+      input: { serviceAccount },
+      env,
+    },
+    {
+      createConfirmation: async (confirmation) => {
+        preparedConfirmation = confirmation;
+        return { id: "confirmation-cloud-run-api", expiresAt: 12345 };
+      },
+    },
+  );
+
+  const result = await confirmGoogleCloudAction(
+    {
+      ownerId: "owner-1",
+      sessionId: "session-1",
+      confirmationId: "confirmation-cloud-run-api",
+    },
+    {
+      validateConfirmation: async () => preparedConfirmation,
+      consumeConfirmation: async () => {},
+      executeWrite: async ({ execute }) => execute(),
+      adapters: {
+        fetchImpl: async (url, options = {}) => {
+          requests.push({ url, options });
+          if (url.startsWith("http://metadata.google.internal/")) {
+            return {
+              ok: true,
+              json: async () => ({ access_token: "secret-token" }),
+            };
+          }
+          if (options.method === "PATCH") {
+            return {
+              ok: true,
+              text: async () =>
+                JSON.stringify({
+                  name:
+                    "projects/handy-boulevard-479120-q9/locations/europe-west1/services/synchron-backend-google",
+                  template: { serviceAccount },
+                }),
+            };
+          }
+          return {
+            ok: true,
+            text: async () =>
+              JSON.stringify({
+                name:
+                  "projects/handy-boulevard-479120-q9/locations/europe-west1/services/synchron-backend-google",
+              }),
+          };
+        },
+      },
+    },
+  );
+
+  const apiRequests = requests.filter(
+    ({ url }) => !url.startsWith("http://metadata.google.internal/"),
+  );
+  assert.equal(
+    apiRequests[0].url,
+    "https://run.googleapis.com/v2/projects/handy-boulevard-479120-q9/locations/europe-west1/services/synchron-backend-google",
+  );
+  assert.equal(apiRequests[0].options.method, "GET");
+  assert.equal(
+    apiRequests[1].url,
+    "https://run.googleapis.com/v2/projects/handy-boulevard-479120-q9/locations/europe-west1/services/synchron-backend-google?updateMask=template.serviceAccount",
+  );
+  assert.equal(apiRequests[1].options.method, "PATCH");
+  assert.deepEqual(JSON.parse(apiRequests[1].options.body), {
+    name:
+      "projects/handy-boulevard-479120-q9/locations/europe-west1/services/synchron-backend-google",
+    template: { serviceAccount },
+  });
+  assert.deepEqual(result, {
+    projectId: "handy-boulevard-479120-q9",
+    serviceName: "synchron-backend-google",
+    region: "europe-west1",
+    serviceAccount,
+  });
+  assert.doesNotMatch(JSON.stringify(result), /secret-token/u);
+});
+
+test("Cloud Run service identity errors preserve provider codes without leaking response text", async () => {
+  let preparedConfirmation;
+  const serviceAccount =
+    "ai-core-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com";
+  await prepareGoogleCloudAction(
+    {
+      ownerId: "owner-1",
+      sessionId: "session-1",
+      operation: "update_cloud_run_service_account",
+      input: { serviceAccount },
+      env,
+    },
+    {
+      createConfirmation: async (confirmation) => {
+        preparedConfirmation = confirmation;
+        return { id: "confirmation-cloud-run-error", expiresAt: 12345 };
+      },
+    },
+  );
+
+  await assert.rejects(
+    () =>
+      confirmGoogleCloudAction(
+        {
+          ownerId: "owner-1",
+          sessionId: "session-1",
+          confirmationId: "confirmation-cloud-run-error",
+        },
+        {
+          validateConfirmation: async () => preparedConfirmation,
+          consumeConfirmation: async () => {},
+          executeWrite: async ({ execute }) => execute(),
+          adapters: {
+            fetchImpl: async (url) => {
+              if (url.startsWith("http://metadata.google.internal/")) {
+                return {
+                  ok: true,
+                  json: async () => ({ access_token: "secret-token" }),
+                };
+              }
+              return {
+                ok: false,
+                status: 404,
+                text: async () =>
+                  JSON.stringify({
+                    error: {
+                      status: "NOT_FOUND",
+                      message: "secret-token",
+                    },
+                  }),
+              };
+            },
+          },
+        },
+      ),
+    (error) => {
+      assert.equal(error.status, 404);
+      assert.equal(error.code, "NOT_FOUND");
+      assert.doesNotMatch(error.message, /secret-token/u);
+      return true;
+    },
   );
 });

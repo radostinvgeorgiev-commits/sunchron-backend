@@ -28,7 +28,9 @@ OpenAI Responses API е доставчикът по подразбиране. Ge
    цели файла с пълно съдържание.
 4. Показва плана и точната фраза за потвърждение.
 5. След потвърждение създава branch, commit и Pull Request спрямо `main`.
-6. CI проверява промяната; merge и production acceptance са отделни стъпки.
+6. CI проверява промяната; аватарът може да подготви owner-confirmed merge към
+   `main` само за точния head SHA и зелени проверки; production acceptance остава
+   отделна стъпка.
 
 Забранени са директен запис в `main`, промени по secrets, deployment workflows
 и пътища извън repository.

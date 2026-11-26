@@ -14,10 +14,7 @@ test("recognizes Bulgarian project overview questions with punctuation", () => {
     true,
   );
   assert.equal(
-    isOverviewQuestion(
-      "Какво знаеш за Synchron-X?",
-      "(?:проекта|synchron-x)",
-    ),
+    isOverviewQuestion("Какво знаеш за Synchron-X?", "(?:проекта|synchron-x)"),
     true,
   );
 });

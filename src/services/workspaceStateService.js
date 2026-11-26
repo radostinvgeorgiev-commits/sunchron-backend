@@ -37,6 +37,7 @@ const VALID_MODELS = new Set([
   "gpt-5.6-terra",
   "gpt-5.6-luna",
   "gemini-2.5-flash",
+  "vertex-gemini-2.5-flash",
   "grok-4.5",
 ]);
 const LEGACY_MODEL_MIGRATIONS = new Map([["grok-3-mini", "grok-4.5"]]);
@@ -466,4 +467,20 @@ export async function saveWorkspaceState(
     );
   }
   return { state, persisted: true, updatedAt };
+}
+
+export async function deleteWorkspaceState(
+  ownerId,
+  { client, env = process.env } = {},
+) {
+  const documentId = workspaceDocumentId(ownerId);
+  if (persistenceBackend(env) === "firestore") {
+    await getFirestoreStore(env).delete(documentId);
+    return true;
+  }
+  await requireClient(client).delete(
+    { index: indexName(env), id: documentId },
+    { ignore: [404] },
+  );
+  return true;
 }

@@ -119,7 +119,8 @@ export function createSingleFlightCache(
     inFlight = Promise.resolve()
       .then(loader)
       .then((value) => {
-        const resolvedTtlMs = typeof ttlMs === "function" ? ttlMs(value) : ttlMs;
+        const resolvedTtlMs =
+          typeof ttlMs === "function" ? ttlMs(value) : ttlMs;
         cached = {
           storedAt: now(),
           ttlMs: parsePositiveInteger(resolvedTtlMs, 1),

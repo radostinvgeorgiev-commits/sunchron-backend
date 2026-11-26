@@ -12,7 +12,8 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 COPY scripts ./scripts
-RUN npm ci --omit=dev && npm cache clean --force
+RUN node -e 'const [major, minor, patch] = process.versions.node.split(".").map(Number); if (major !== 22 || minor < 22 || (minor === 22 && patch < 2)) process.exit(1)' \
+    && npm ci --omit=dev --engine-strict && npm cache clean --force
 
 COPY --chown=node:node . .
 

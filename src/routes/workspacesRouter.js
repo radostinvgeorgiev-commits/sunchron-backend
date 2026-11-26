@@ -25,7 +25,10 @@ function sendError(res, error) {
   });
 }
 
-export function createWorkspacesRouter({ load = loadWorkspaceState, save = saveWorkspaceState } = {}) {
+export function createWorkspacesRouter({
+  load = loadWorkspaceState,
+  save = saveWorkspaceState,
+} = {}) {
   const router = express.Router();
 
   router.get("/", async (req, res) => {

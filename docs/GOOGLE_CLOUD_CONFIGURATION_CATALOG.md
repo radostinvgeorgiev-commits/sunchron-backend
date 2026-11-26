@@ -9,6 +9,27 @@
 - Secret Manager references, без secret стойности в manifest или Git;
 - canonical DNS и OAuth origin: `https://cloudaicore.com`.
 
+## Опционален Vertex AI Gemini
+
+Vertex AI Gemini е отделен, изрично включван provider и не заменя OpenAI,
+директния Gemini API или Grok. За Cloud Run използвай прикрепения service
+account и Application Default Credentials (ADC) с cloud-platform scope; не
+добавяй service-account JSON ключове или API keys.
+
+Задай само следните non-secret runtime настройки, когато искаш Vertex:
+
+- `VERTEX_AI_ENABLED=true`;
+- `AI_CORE_PROVIDER=vertex-gemini`;
+- `VERTEX_AI_PROJECT_ID=<валиден Google Cloud project ID>`;
+- `VERTEX_AI_LOCATION=us-central1` (или друг разрешен регион);
+- `VERTEX_AI_MODEL=gemini-2.5-flash`;
+- `VERTEX_AI_TIMEOUT_MS=30000` (адаптерът прилага безопасна граница).
+
+При липсваща ADC конфигурация или недостатъчен IAM достъп заявката спира
+fail-closed. Disabled Vertex не влияе на OpenAI readiness. Старият
+`gemini-2.5-flash` work-mode избор продължава да използва директния Gemini API;
+за Vertex има отделен избор `vertex-gemini-2.5-flash`.
+
 ## Задължителни runtime стойности
 
 - `MEMORY_BACKEND=firestore`

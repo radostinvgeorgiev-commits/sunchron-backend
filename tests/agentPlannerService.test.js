@@ -99,7 +99,7 @@ test("planner uses OpenAI Responses as the primary provider", async () => {
     fetchImpl: async (url, options) => {
       assert.equal(url, "https://api.openai.com/v1/responses");
       const body = JSON.parse(options.body);
-      assert.equal(body.model, "gpt-5.6-luna");
+      assert.equal(body.model, "gpt-4.1-mini");
       return new Response(
         JSON.stringify({
           output: [

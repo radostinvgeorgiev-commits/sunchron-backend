@@ -14,11 +14,12 @@ AI CORE е лична AI операционна система с постоян
 - памет, сесии, потвърждения и audit: Firestore;
 - потребители: Google Identity Platform;
 - тайни: Google Secret Manager и runtime service identity;
-- AI: OpenAI Responses API по подразбиране, с Gemini и Grok като допълнителни
-  двигатели;
+- AI: OpenAI Responses API по подразбиране, с Gemini, Grok и Claude като
+  допълнителни двигатели;
 - изпълнение: Task Orchestrator → Capability Engine → Tool Registry;
-- защитен кодов цикъл: трите AI двигателя дават предложения, OpenAI coding
-  моделът ги синтезира, потребителят потвърждава точния diff, след което се
+- защитен кодов цикъл: OpenAI, Gemini, Grok, Claude и Codex участват, когато
+  са конфигурирани. Планът се подготвя от отговорил двигател с приоритет за
+  Codex. Потребителят потвърждава точния diff, след което се
   създават отделен branch, commit и Pull Request;
 - MCP: `https://cloudaicore.com/mcp` с OAuth и owner-only write scopes.
 

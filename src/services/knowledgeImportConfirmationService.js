@@ -5,15 +5,17 @@ import {
   validateDurableConfirmation,
 } from "./confirmationService.js";
 import { executeAuditedWriteAction } from "./permissionService.js";
-import {
-  normalizeKnowledgeCandidates,
-} from "./knowledgeIngestionService.js";
+import { normalizeKnowledgeCandidates } from "./knowledgeIngestionService.js";
 import { saveApprovedKnowledgeItems } from "./knowledgeService.js";
 
 export const KNOWLEDGE_IMPORT_ACTION = "memory.write:knowledge_import";
 
 export class KnowledgeImportConfirmationError extends Error {
-  constructor(message, status = 400, code = "KNOWLEDGE_IMPORT_CONFIRMATION_INVALID") {
+  constructor(
+    message,
+    status = 400,
+    code = "KNOWLEDGE_IMPORT_CONFIRMATION_INVALID",
+  ) {
     super(message);
     this.name = "KnowledgeImportConfirmationError";
     this.status = status;
@@ -133,10 +135,11 @@ export async function confirmKnowledgeImport({
     confirmationId,
     resource: "approved-knowledge",
     details: `archive-import:${candidates.length}`,
-    execute: () => saveKnowledge({
-      ownerId,
-      items: candidates,
-      source: "archive-import-approved",
-    }),
+    execute: () =>
+      saveKnowledge({
+        ownerId,
+        items: candidates,
+        source: "archive-import-approved",
+      }),
   });
 }

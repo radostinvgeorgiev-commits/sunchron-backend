@@ -1,22 +1,43 @@
+import { publicAiBudgetContext } from "./src/services/publicAiBudget.js";
 import express from "express";
+import {
+  createProductRouter,
+  productWebhook,
+} from "./src/routes/productRouter.js";
 import { createOpenSearchClient } from "./src/config/opensearch.js";
 import { isOpenSearchMemoryConfigured } from "./src/config/memoryBackend.js";
 import {
   requireOwnerSession,
   requirePrimaryOwner,
 } from "./src/middleware/ownerAuth.js";
-import { createRateLimiters } from "./src/middleware/rateLimits.js";
+import {
+  createApiRateLimiter,
+  createRateLimiters,
+} from "./src/middleware/rateLimits.js";
 import { startMemoryStartupVerification } from "./src/services/memoryStartupVerificationService.js";
 import { executeCapability } from "./src/tools/capabilityEngine.js";
-import { getAiProviderStatus } from "./src/services/aiCoreService.js";
+import {
+  getAiProviderStatus,
+  setAiUsageRecorder,
+} from "./src/services/aiCoreService.js";
+import { getAiSpendService } from "./src/services/aiSpendService.js";
+import createAiSpendRouter from "./src/routes/aiSpendRouter.js";
+import {
+  logCampaignEvent,
+  readCampaignAttribution,
+} from "./src/services/campaignAttribution.js";
 
 import chatRouter from "./src/routes/chat.js";
 import healthRouter from "./src/routes/health.js";
 import memoryRouter from "./src/routes/memoryRouter.js";
 import cloudRouter from "./src/routes/cloudRouter.js";
 import githubRouter from "./src/routes/githubRouter.js";
+import codeWorkspaceRouter from "./src/routes/codeWorkspaceRouter.js";
 import calendarRouter from "./src/routes/calendarRouter.js";
 import permissionsRouter from "./src/routes/permissionsRouter.js";
+import connectionsRouter from "./src/routes/connectionsRouter.js";
+import memoryInboxRouter from "./src/routes/memoryInboxRouter.js";
+import accountRouter from "./src/routes/accountRouter.js";
 import googleDriveRouter from "./src/routes/googleDriveRouter.js";
 import githubOAuthRouter from "./src/routes/githubOAuthRouter.js";
 import webSearchRouter from "./src/routes/webSearchRouter.js";
@@ -27,7 +48,16 @@ import systemRouter from "./src/routes/systemRouter.js";
 import workspacesRouter from "./src/routes/workspacesRouter.js";
 import tasksRouter from "./src/routes/tasksRouter.js";
 import taskRunsRouter from "./src/routes/taskRunsRouter.js";
+import { createShareRouter, createSharedReadRouter } from "./src/routes/shareRouter.js";
+import { createShareService } from "./src/services/shareService.js";
+import createVoiceRouter from "./src/routes/voiceRouter.js";
+import { listConversationMessages } from "./src/services/memoryService.js";
+import {
+  createEarlyAccessAdminRouter,
+  createEarlyAccessRouter,
+} from "./src/routes/earlyAccessRouter.js";
 import mcpRouter, { mcpJsonParseErrorHandler } from "./src/routes/mcpRouter.js";
+import { createChatGptMcpRouter, getChatGptMcpResourceMetadata } from "./src/routes/chatGptMcpRouter.js";
 import { createMcpOAuthRouter } from "./src/routes/mcpOAuthRouter.js";
 
 const { oauthRateLimiter, paidAiRateLimiter, privateApiRateLimiter } =
@@ -54,11 +84,11 @@ app.use((_req, res, next) => {
       "form-action 'self'",
       "frame-ancestors 'none'",
       "object-src 'none'",
-      "script-src 'self' https://cdn.jsdelivr.net",
-      "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "connect-src 'self'",
-      "font-src 'self' data: https://cdn.jsdelivr.net",
+      "font-src 'self' data:",
       "media-src 'self'",
       "worker-src 'self'",
       "manifest-src 'self'",
@@ -73,13 +103,20 @@ app.use((_req, res, next) => {
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader(
     "Permissions-Policy",
-    "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    // Voice input in the chat needs the microphone on this site only.
+    "camera=(), microphone=(self), geolocation=(), payment=(), usb=()",
   );
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
   next();
 });
+app.post(
+  "/api/product/webhook",
+  express.raw({ type: "application/json", limit: "128kb" }),
+  productWebhook,
+);
 app.use(express.json({ limit: "8mb" }));
+app.use("/api/product", createProductRouter());
 
 const mobileLayoutAssetVersion = "20260806-green-chat-v1";
 const versionedApplicationAssets = Object.freeze({
@@ -128,16 +165,100 @@ app.use(
 app.use("/health", healthRouter);
 app.use("/api/public-config", publicConfigRouter);
 app.use("/api/auth", oauthRateLimiter, userAuthRouter);
+app.use(
+  "/api/early-access",
+  createApiRateLimiter({ limit: 10 }),
+  createEarlyAccessRouter(),
+);
+app.use(
+  "/admin/early-access",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  privateApiRateLimiter,
+  createEarlyAccessAdminRouter(),
+);
 app.use("/api/github", oauthRateLimiter, githubOAuthRouter);
+const chatGptMcpRouter = createChatGptMcpRouter();
+app.use("/mcp/chatgpt", mcpJsonParseErrorHandler, privateApiRateLimiter, chatGptMcpRouter);
+app.get("/.well-known/oauth-protected-resource/mcp/chatgpt", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json(getChatGptMcpResourceMetadata());
+});
 app.use("/mcp", mcpJsonParseErrorHandler, privateApiRateLimiter, mcpRouter);
 
-app.use("/chat", requireOwnerSession, paidAiRateLimiter, chatRouter);
+app.use(
+  "/chat",
+  requireOwnerSession,
+  paidAiRateLimiter,
+  publicAiBudgetContext,
+  chatRouter,
+);
+app.use(
+  "/api/voice",
+  requireOwnerSession,
+  paidAiRateLimiter,
+  publicAiBudgetContext,
+  createVoiceRouter(),
+);
+app.use(
+  "/api/ai-spend",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  privateApiRateLimiter,
+  createAiSpendRouter(),
+);
+app.use(
+  "/api/code-workspace",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  paidAiRateLimiter,
+  codeWorkspaceRouter,
+);
 app.use("/memory", requireOwnerSession, privateApiRateLimiter, memoryRouter);
+const shareService = createShareService({
+  listMessages: (sessionId, ownerId) =>
+    listConversationMessages(sessionId, undefined, ownerId),
+});
+app.use(
+  "/api/share",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  createShareRouter({ service: shareService }),
+);
+app.use(
+  "/api/shared",
+  createApiRateLimiter({ limit: 60 }),
+  createSharedReadRouter({ service: shareService }),
+);
+app.get("/s/:token", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.sendFile("shared.html", { root: "public" });
+});
 app.use(
   "/api/workspaces",
   requireOwnerSession,
   privateApiRateLimiter,
   workspacesRouter,
+);
+app.use(
+  "/api/account",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  accountRouter,
+);
+app.use(
+  "/api/memory-inbox",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  memoryInboxRouter,
+);
+app.use(
+  "/api/connections",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  connectionsRouter,
 );
 app.use("/api/tasks", requireOwnerSession, privateApiRateLimiter, tasksRouter);
 app.use(
@@ -207,12 +328,32 @@ app.get("/", (_req, res) => {
   res.sendFile("public/index.html", { root: process.cwd() });
 });
 
+app.get("/developers", (_req, res) =>
+  res.sendFile("public/developers.html", { root: process.cwd() }),
+);
+app.get("/privacy", (_req, res) =>
+  res.sendFile("public/privacy.html", { root: process.cwd() }),
+);
+app.get("/terms", (_req, res) =>
+  res.sendFile("public/terms.html", { root: process.cwd() }),
+);
+app.get("/help", (_req, res) =>
+  res.sendFile("public/help.html", { root: process.cwd() }),
+);
+app.get("/plans", (req, res) => {
+  if (req.method === "GET" && !req.query.request) {
+    logCampaignEvent("campaign_landing", readCampaignAttribution(req.query));
+  }
+  res.sendFile("public/plans.html", { root: process.cwd() });
+});
+
 app.get("/register", (_req, res) => {
   res.sendFile("public/index.html", { root: process.cwd() });
 });
 
 if (process.env.NODE_ENV !== "test") {
   if (isOpenSearchMemoryConfigured(process.env)) createOpenSearchClient();
+  setAiUsageRecorder((usage) => getAiSpendService().record(usage));
   startServer();
 }
 

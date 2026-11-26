@@ -1,4 +1,8 @@
-import { publicAiOutputLimit, reservePublicAiCall } from "./publicAiBudget.js";
+import {
+  fitPublicAiInput,
+  publicAiOutputLimit,
+  reservePublicAiCall,
+} from "./publicAiBudget.js";
 import {
   isVertexAiConfigured,
   requestVertexAiGeminiResponse,
@@ -601,6 +605,8 @@ export async function requestAiResponse({ provider, ...options } = {}) {
       "PUBLIC_PROVIDER_UNAVAILABLE",
       403,
     );
+
+  if (publicAiOutputLimit()) options.input = fitPublicAiInput(options.input);
 
   switch (selectedProvider) {
     case "openai":

@@ -172,6 +172,7 @@ test("legal pages are published and linked from registration", async () => {
   );
   assert.match(html, /href="\/terms"/u);
   assert.match(html, /href="\/privacy"/u);
+  assert.match(html, /google-site-verification/u);
   assert.match(html, /id="myDataBtn"/u);
   assert.match(privacy, /СИНХРОН Х ЕООД/u);
   assert.match(privacy, /Комисията за защита на личните данни/u);

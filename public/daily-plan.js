@@ -48,6 +48,49 @@
     return button;
   };
 
+  // "Нарисувай картинка": the description in the box becomes a picture.
+  document.addEventListener("aicore:draw-image", async () => {
+    const chat = globalThis.SynchronChat;
+    const prompt = input.value.trim();
+    if (!prompt) {
+      input.placeholder = text("Първо опиши картинката, после избери „Нарисувай картинка“");
+      input.focus();
+      return;
+    }
+    if (!chat || chat.busy?.()) return;
+    input.value = "";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    chat.append("user", `🎨 ${prompt}`);
+    chat.setBusy(true);
+    const bubble = chat.append("agent", text("🎨 Рисувам… това отнема до половин минута."));
+    try {
+      const response = await fetch("/api/images", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || text("Картинката не стана. Опитай пак."));
+      const figure = document.createElement("figure");
+      figure.className = "generated-image";
+      const image = document.createElement("img");
+      image.src = data.image;
+      image.alt = prompt;
+      const save = document.createElement("a");
+      save.href = data.image;
+      save.download = "aicore-kartinka.webp";
+      save.textContent = text("Изтегли картинката");
+      figure.append(image, save);
+      bubble.replaceChildren(figure);
+    } catch (error) {
+      render(bubble, `❌ ${error.message}`);
+    } finally {
+      chat.setBusy(false);
+      list.scrollTop = list.scrollHeight;
+    }
+  });
+
   document.addEventListener("aicore:daily-plan", async () => {
     const chat = globalThis.SynchronChat;
     if (!chat || chat.busy?.()) return;

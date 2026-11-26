@@ -68,6 +68,9 @@ export function startStubServer(port = 0) {
       googleConnected = p.endsWith("/google-connected");
       return json(res, { ok: true });
     }
+    if (p === "/api/images" && req.method === "POST") {
+      return json(res, { image: "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==", prompt: "котка" });
+    }
     if (p === "/api/daily-plan" && req.method === "POST") {
       return json(res, { text: "**Най-важното днес:** провери сайта.", sources: { profile: false, calendar: null, mail: null } });
     }

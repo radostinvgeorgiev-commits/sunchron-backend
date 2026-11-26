@@ -29,6 +29,10 @@
         <i class="fa-solid fa-globe" aria-hidden="true"></i>
         <span>${text("Търси в интернет")}<small>${text("Актуален отговор с източници")}</small></span>
       </button>
+      <button type="button" role="menuitem" data-plus="draw">
+        <i class="fa-solid fa-palette" aria-hidden="true"></i>
+        <span>${text("Нарисувай картинка")}<small>${text("От описанието в полето")}</small></span>
+      </button>
       <button type="button" role="menuitem" data-plus="day">
         <i class="fa-solid fa-sun" aria-hidden="true"></i>
         <span>${text("Моят ден")}<small>${text("Аватарът подготвя плана ти за днес")}</small></span>
@@ -104,6 +108,9 @@
         document.dispatchEvent(new CustomEvent("aicore:web-search"));
       }
       if (item.dataset.plus === "google") $("googleDriveBtn")?.click();
+      if (item.dataset.plus === "draw") {
+        document.dispatchEvent(new CustomEvent("aicore:draw-image"));
+      }
       if (item.dataset.plus === "day") {
         document.dispatchEvent(new CustomEvent("aicore:daily-plan"));
       }

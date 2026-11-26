@@ -159,6 +159,8 @@ SYNCHRON-X — начало|SYNCHRON-X home
 До 1100 стандартни опита или комбинация с AI Council|Up to 1,100 standard attempts or a mix with AI Council
 По-голям бюджет за работа с няколко двигателя|More credits for working with several models
 Как се изразходват единиците|How credits are used
+Нарисувана картинка|A drawn picture
+2 единици|2 credits
 Къде отива всеки лев|Where every lev goes
 Цената е реалната себестойност: AI заявките в най-скъпия случай (около 0,8 евроцента на единица) и таксата за плащане, плюс малък запас около 10% за сървъри и грешки.|The price is the real cost: AI requests in the most expensive case (about 0.8 euro cents per credit) and the payment fee, plus a small reserve of about 10% for servers and errors.
 Всичко над реалните разходи е предназначено за каузи, които хората сами предлагат и избират в „Каузи“. Никой не прибира печалба от тях.|Everything above the real costs is meant for causes that people propose and choose themselves in “Causes”. Nobody takes a profit from it.

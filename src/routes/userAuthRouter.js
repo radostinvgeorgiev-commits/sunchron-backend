@@ -127,7 +127,7 @@ router.get("/google/start", (_req, res) => {
   }
 });
 
-router.get("/google/callback", async (req, res) => {
+export async function handleGoogleSignInCallback(req, res) {
   try {
     const result = await finishGoogleSignIn({
       code: req.query.code,
@@ -145,7 +145,8 @@ router.get("/google/callback", async (req, res) => {
     res.setHeader("Set-Cookie", clearGoogleSignInStateCookie());
     return res.redirect(302, `/?auth_error=${encodeURIComponent(error.code || "AUTH_GOOGLE_FAILED")}`);
   }
-});
+}
+router.get("/google/callback", handleGoogleSignInCallback);
 
 router.post("/password-reset", async (req, res) => {
   try {

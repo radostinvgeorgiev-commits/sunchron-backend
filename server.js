@@ -42,7 +42,8 @@ import googleDriveRouter from "./src/routes/googleDriveRouter.js";
 import githubOAuthRouter from "./src/routes/githubOAuthRouter.js";
 import webSearchRouter from "./src/routes/webSearchRouter.js";
 import publicConfigRouter from "./src/routes/publicConfigRouter.js";
-import userAuthRouter from "./src/routes/userAuthRouter.js";
+import userAuthRouter, { handleGoogleSignInCallback } from "./src/routes/userAuthRouter.js";
+import { isGoogleSignInCallback } from "./src/services/googleSignInService.js";
 import testerAuthAdminRouter from "./src/routes/testerAuthAdminRouter.js";
 import systemRouter from "./src/routes/systemRouter.js";
 import workspacesRouter from "./src/routes/workspacesRouter.js";
@@ -308,6 +309,13 @@ app.use(
   requirePrimaryOwner,
   privateApiRateLimiter,
   permissionsRouter,
+);
+// Sign-in with Google shares the Drive redirect address; a callback whose
+// state matches the sign-in cookie is a sign-in and needs no session yet.
+app.get("/api/google/callback", oauthRateLimiter, (req, res, next) =>
+  isGoogleSignInCallback({ state: req.query.state, cookieHeader: req.headers.cookie })
+    ? handleGoogleSignInCallback(req, res)
+    : next(),
 );
 app.use(
   "/api/google",

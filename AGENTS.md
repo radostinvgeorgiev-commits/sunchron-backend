@@ -15,7 +15,12 @@ AI CORE е лична AI операционна система с постоян
 - потребители: Google Identity Platform;
 - тайни: Google Secret Manager и runtime service identity;
 - AI: Claude Haiku 5.5 по подразбиране, с OpenAI, Gemini и Grok като
-  допълнителни двигатели;
+  допълнителни двигатели; изборът на модел, Съветът, сляпото сравнение,
+  асистентите, гласът и споделянето са в `public/ui-refresh.js`,
+  `public/prompt-tools.js`, `public/compare.js`, `public/share.js`;
+- автоматични проверки: `synchron/production-smoke`, робот с браузър
+  (`tests/ui/robot.mjs`, workflow „UI robot“), MCP `run_ai_core_self_test` и
+  публична страница `/status`;
 - изпълнение: Task Orchestrator → Capability Engine → Tool Registry;
 - защитен кодов цикъл: Claude води кодовите задачи; OpenAI, Gemini и Grok
   дават предложения и са резерва, когато са конфигурирани. Codex вече не се

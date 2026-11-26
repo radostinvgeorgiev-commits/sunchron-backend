@@ -149,6 +149,8 @@ import {
   normalizeInteractionMode,
   resolveWorkAgentProvider,
   resolveWorkAgentModel,
+  resolveChatModelChoice,
+  CHAT_MODEL_CHOICES,
   routeSelectedWorkAgentCapabilities,
   sanitizeWorkContext,
 } from "../services/workModeService.js";
@@ -1109,6 +1111,15 @@ export async function loadChatMemoryContext({
   };
 }
 
+router.get("/models", (_req, res) => {
+  res.json({
+    items: CHAT_MODEL_CHOICES.map((choice) => {
+      const provider = resolveWorkAgentProvider(choice.id) || getConfiguredAiProvider();
+      return { ...choice, available: Boolean(provider && isAiProviderConfigured(provider)) };
+    }),
+  });
+});
+
 router.post("/chat", async (req, res) => {
   const openAiApiKey = process.env.OPENAI_API_KEY;
   const {
@@ -1122,6 +1133,7 @@ router.post("/chat", async (req, res) => {
     councilProviders,
     councilIntentId,
     language,
+    model,
   } = req.body || {};
   const googleSessionId =
     parseCookies(req.headers.cookie).synchron_google_session || "";
@@ -1143,8 +1155,16 @@ router.post("/chat", async (req, res) => {
   const interactionMode = normalizeInteractionMode(mode);
   const cleanWorkContext =
     interactionMode === "work" ? sanitizeWorkContext(workContext) : null;
+  // A model picked in the chat header applies outside Work mode, and only
+  // when its provider is configured; otherwise the site default answers.
+  const pickedChatModel = interactionMode === "work" ? undefined : resolveChatModelChoice(model);
+  const pickedChatProvider = resolveWorkAgentProvider(pickedChatModel);
+  const chatModelChoice =
+    pickedChatProvider && isAiProviderConfigured(pickedChatProvider)
+      ? pickedChatModel
+      : undefined;
   const workAgentProvider = resolveWorkAgentProvider(
-    cleanWorkContext?.agent?.model,
+    cleanWorkContext?.agent?.model || chatModelChoice,
   );
   const aiProvider = workAgentProvider || getConfiguredAiProvider();
   const aiProviderConfigured = Boolean(
@@ -2179,10 +2199,23 @@ router.post("/chat", async (req, res) => {
   }
 
   const isWork = interactionMode === "work";
-  const preferredModel = resolveWorkAgentModel(cleanWorkContext?.agent?.model);
+  const preferredModel = resolveWorkAgentModel(
+    cleanWorkContext?.agent?.model || chatModelChoice,
+  );
   const attempts = aiProviderConfigured
     ? [{ provider: aiProvider, model: preferredModel }]
     : [];
+  // If the picked model fails (overloaded, retired), the site default answers.
+  if (chatModelChoice) {
+    const fallbackProvider = getConfiguredAiProvider();
+    if (
+      fallbackProvider &&
+      fallbackProvider !== aiProvider &&
+      isAiProviderConfigured(fallbackProvider)
+    ) {
+      attempts.push({ provider: fallbackProvider });
+    }
+  }
   if (isWork) {
     if (
       aiProviderConfigured &&

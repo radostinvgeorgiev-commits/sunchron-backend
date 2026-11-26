@@ -3000,6 +3000,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
         ...(councilMode ? { councilProviders } : {}),
         ...(councilIntentId ? { councilIntentId } : {}),
         recentHistory,
+        model: globalThis.SynchronUi?.chatModel?.() || "auto",
         ...interaction,
       }),
     });

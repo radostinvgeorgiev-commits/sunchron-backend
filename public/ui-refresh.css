@@ -66,3 +66,28 @@
 /* The messages area (which also holds the suggestions) shrinks and scrolls,
    so the composer stays on screen when the Council picker or chip shows. */
 .chatPanel #chatMessages { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+/* Header model picker. */
+.model-title { position: relative; }
+.model-picker-btn {
+  display: inline-flex; align-items: center; gap: 6px; max-width: min(46vw, 320px);
+  padding: 8px 10px; border: 0; border-radius: 12px; background: transparent; color: #000;
+}
+.model-picker-btn strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.model-picker-btn i { font-size: .8rem; }
+.model-picker-btn:hover, .model-picker-btn[aria-expanded="true"] { background: #eef3f0; }
+.model-picker-menu {
+  position: absolute; left: 0; top: calc(100% + 6px); z-index: 50; width: min(320px, calc(100vw - 24px));
+  padding: 6px; border-radius: 14px; background: #fff; border: 1px solid #d6dbd8; box-shadow: 0 10px 30px rgba(0,0,0,.15);
+}
+.model-picker-menu[hidden] { display: none; }
+.model-picker-menu button {
+  display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border: 0; border-radius: 10px; background: transparent; color: #000; text-align: left;
+}
+.model-picker-menu button:hover:not(:disabled) { background: #eef3f0; }
+.model-picker-menu button:disabled { opacity: .45; }
+.model-picker-menu small { display: block !important; font-weight: 600; color: #3a3a3a; font-size: .8rem; }
+.model-title { min-width: 0; flex: 0 1 auto; }
+.model-picker-menu i { visibility: hidden; color: #2f6b52; }
+.model-picker-menu button[aria-checked="true"] i { visibility: visible; }

@@ -97,3 +97,80 @@
   greet();
   if (name) new MutationObserver(greet).observe(name, { childList: true, characterData: true, subtree: true });
 })();
+
+(() => {
+  // Model picker in the header, like "ChatGPT 5 ▾" or "Claude Sonnet ▾".
+  // The choice is remembered on this device and sent with each chat message;
+  // Work mode keeps using its agent's model.
+  const STORAGE_KEY = "aiCoreChatModel";
+  const button = document.getElementById("modelPickerBtn");
+  const label = document.getElementById("modelPickerLabel");
+  const menu = document.getElementById("modelPickerMenu");
+  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  let choices = [];
+  let current = "auto";
+  try {
+    current = localStorage.getItem(STORAGE_KEY) || "auto";
+  } catch {
+    // storage can be unavailable (private mode); the default is fine
+  }
+  globalThis.SynchronUi = { ...(globalThis.SynchronUi || {}), chatModel: () => current };
+  if (!button || !label || !menu) return;
+
+  const render = () => {
+    const chosen = choices.find((choice) => choice.id === current) || choices[0];
+    label.textContent = chosen
+      ? chosen.id === "auto"
+        ? text("Автоматичен")
+        : chosen.label
+      : "AI CORE";
+    menu.replaceChildren(
+      ...choices.map((choice) => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.setAttribute("role", "menuitemradio");
+        item.setAttribute("aria-checked", String(choice.id === current));
+        item.disabled = choice.available === false;
+        item.innerHTML = `<span><strong></strong><small></small></span><i class="fa-solid fa-check" aria-hidden="true"></i>`;
+        item.querySelector("strong").textContent = text(choice.label);
+        item.querySelector("small").textContent =
+          choice.available === false ? text("Не е свързан") : text(choice.hint || "");
+        item.addEventListener("click", () => {
+          current = choice.id;
+          try {
+            localStorage.setItem(STORAGE_KEY, current);
+          } catch {
+            // remembered for this visit only
+          }
+          close();
+          render();
+        });
+        return item;
+      }),
+    );
+  };
+  const close = () => {
+    menu.hidden = true;
+    button.setAttribute("aria-expanded", "false");
+  };
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    menu.hidden = !menu.hidden;
+    button.setAttribute("aria-expanded", String(!menu.hidden));
+  });
+  document.addEventListener("click", (event) => {
+    if (!menu.contains(event.target)) close();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") close();
+  });
+
+  fetch("/chat/models", { credentials: "same-origin" })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((data) => {
+      choices = Array.isArray(data?.items) ? data.items : [];
+      if (!choices.some((choice) => choice.id === current && choice.available !== false)) current = "auto";
+      render();
+    })
+    .catch(() => render());
+})();

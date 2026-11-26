@@ -9,9 +9,9 @@ import { searchWeb } from "./webSearchService.js";
 const YOUTUBE_URL_PATTERN =
   /https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?[^\s]*v=|shorts\/|live\/)|youtu\.be\/)[\w-]{6,}[^\s]*/iu;
 
-// The Maps grounding tool is offered on the 2.5 Flash family; override with
+// Google retired 2.5 Flash for new keys and points to 3.8 Flash; override with
 // GEMINI_MAPS_MODEL when Google moves it.
-export const DEFAULT_MAPS_MODEL = "gemini-2.5-flash";
+export const DEFAULT_MAPS_MODEL = "gemini-3.8-flash";
 
 export class GeminiToolError extends Error {
   constructor(message, status = 502, code = "GEMINI_TOOL_ERROR") {

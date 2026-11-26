@@ -277,3 +277,18 @@ body.doc-panel-open main, body.doc-panel-open .chat-main { margin-right: min(46v
   body.doc-panel-printing .doc-panel { position: static; width: auto; box-shadow: none; border: 0; }
   body.doc-panel-printing .doc-panel-head, body.doc-panel-printing .doc-panel-status, body.doc-panel-printing .doc-chart-button { display: none !important; }
 }
+
+/* Start screen: every assistant one tap away. */
+.quick-start > .assistant-row {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 18px;
+}
+.quick-start .assistant-row-title {
+  flex-basis: 100%; margin: 0 0 2px; text-align: center; font-size: 0.875rem; color: #4b5a55;
+}
+.quick-start .assistant-row button,
+.app-shell .quick-start .assistant-row button {
+  flex-direction: row; align-items: center; gap: 8px; min-height: 0; padding: 8px 14px;
+  border-radius: 999px; font-size: 0.9rem; font-weight: 700;
+}
+.quick-start .assistant-row i { font-size: 0.95rem; margin: 0; }
+.quick-start .assistant-row span { color: inherit; font-size: inherit; }

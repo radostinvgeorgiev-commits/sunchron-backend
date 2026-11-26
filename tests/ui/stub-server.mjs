@@ -4,6 +4,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { listAssistantPresets } from "../../src/services/assistantPresets.js";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "public");
 const json = (res, body, status = 200) => {
@@ -16,10 +17,8 @@ const MODELS = [
   { id: "gemini-2.5-flash-lite", label: "Gemini 3.5 Flash Lite", hint: "", available: true },
   { id: "grok-3-mini", label: "Grok 3 Mini", hint: "", available: false },
 ];
-const ASSISTANTS = [
-  { id: "lawyer", label: "Юрист", icon: "fa-scale-balanced", hint: "Закони и договори" },
-  { id: "teacher", label: "Учител", icon: "fa-chalkboard-user", hint: "Обяснява просто" },
-];
+// The real list, so the robot sees what people see.
+const ASSISTANTS = listAssistantPresets();
 const TYPES = { ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".html": "text/html", ".png": "image/png", ".json": "application/json", ".webmanifest": "application/manifest+json" };
 
 export function startStubServer(port = 0) {

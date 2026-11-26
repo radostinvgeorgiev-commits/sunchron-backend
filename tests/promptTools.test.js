@@ -45,3 +45,14 @@ test("the page has the assistant picker and the / prompts", () => {
   assert.match(tools, /className = "slash-menu"/);
   assert.match(app, /assistant: globalThis\.SynchronUi\.assistant\(\)/);
 });
+
+test("the new assistants exist and the health ones point to real help", () => {
+  for (const id of ["architect", "doctor", "accountant", "coach", "chef", "listener"]) {
+    assert.ok(resolveAssistantPreset(id), id);
+  }
+  assert.match(resolveAssistantPreset("doctor").instruction, /без да поставяш диагноза/u);
+  assert.match(resolveAssistantPreset("doctor").instruction, /112/u);
+  assert.match(resolveAssistantPreset("listener").instruction, /112/u);
+  const tools = readFileSync(new URL("../public/prompt-tools.js", import.meta.url), "utf8");
+  assert.match(tools, /assistant-row/u);
+});

@@ -76,7 +76,9 @@ export function startStubServer(port = 0) {
       req.on("data", (chunk) => (body += chunk));
       req.on("end", () => {
         const sent = JSON.parse(body || "{}");
-        if (id) {
+        if (p.endsWith("/prepare")) {
+          causes.find((item) => item.id === id).project = "1. Цел: нова площадка.";
+        } else if (id) {
           const cause = causes.find((item) => item.id === id);
           cause.liked = sent.on !== false;
           cause.likes += cause.liked ? 1 : -1;

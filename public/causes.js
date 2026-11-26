@@ -81,6 +81,28 @@
         const author = document.createElement("small");
         author.textContent = `${text("Предложена от")} ${cause.author}${cause.hidden ? ` · ${text("скрита")}` : ""}`;
         body.append(title, description, author);
+        if (cause.project) {
+          const project = document.createElement("details");
+          project.className = "cause-project";
+          const summary = document.createElement("summary");
+          summary.textContent = text("Проект, подготвен от агента");
+          const content = document.createElement("div");
+          content.className = "cause-project-text";
+          content.textContent = cause.project;
+          project.append(summary, content);
+          body.append(project);
+        } else {
+          body.append(
+            button(text("Подготви проект"), "cause-prepare", (event) => {
+              event.currentTarget.disabled = true;
+              status(text("Агентът подготвя проекта… това отнема до минута."));
+              act(
+                () => call("POST", `/${encodeURIComponent(cause.id)}/prepare`),
+                text("Проектът е готов. Отвори „Проект, подготвен от агента“."),
+              );
+            }),
+          );
+        }
         const actions = document.createElement("div");
         actions.className = "cause-actions";
         const like = button(`❤ ${cause.likes}`, `cause-like${cause.liked ? " on" : ""}`, () =>

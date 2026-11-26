@@ -241,3 +241,7 @@
 .causes-form { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .causes-form input, .causes-form textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #c9d3cd; border-radius: 10px; font: inherit; }
 .causes-form button { align-self: flex-end; }
+.cause-project { margin-top: 6px; }
+.cause-project summary { cursor: pointer; font-weight: 700; color: #0f5132; }
+.cause-project-text { white-space: pre-wrap; margin-top: 6px; overflow-wrap: anywhere; }
+.cause-prepare { margin-top: 6px; border: 1px solid #0f5132; background: #fff; color: #0f5132; border-radius: 999px; padding: 4px 12px; font-weight: 700; }

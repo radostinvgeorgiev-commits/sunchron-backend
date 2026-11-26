@@ -175,6 +175,8 @@ test("legal pages are published and linked from registration", async () => {
   assert.match(html, /id="myDataBtn"/u);
   assert.match(privacy, /СИНХРОН Х ЕООД/u);
   assert.match(privacy, /Комисията за защита на личните данни/u);
+  assert.match(privacy, /Limited Use/u);
+  assert.match(privacy, /api-services-user-data-policy/u);
   assert.match(terms, /чл\. 57, т\. 13/u);
   assert.match(server, /app\.get\("\/privacy"/u);
   assert.match(server, /app\.get\("\/terms"/u);

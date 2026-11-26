@@ -429,3 +429,38 @@ test("public mode still blocks a revoked account", async () => {
     null,
   );
 });
+
+test("a Google account linked to the owner opens the owner's memory", async () => {
+  const storedSession = session();
+  const cookie = userSessionCookie(storedSession, ENV);
+  const checked = [];
+  const identity = await resolveUserSession(cookie, {
+    env: { ...ENV, MEMORY_OWNER_ID: "owner-memory" },
+    requireTesterAccess: async () => true,
+    isPrimaryOwner: async (user) => {
+      checked.push(user);
+      return user.id === "google-owner";
+    },
+    client: {
+      auth: {
+        async getUser() {
+          return {
+            data: {
+              user: {
+                id: "google-owner",
+                email: "owner@example.com",
+                emailVerified: true,
+                authProvider: "identity-platform",
+              },
+            },
+            error: null,
+          };
+        },
+      },
+    },
+  });
+
+  assert.equal(checked[0].authProvider, "identity-platform");
+  assert.equal(identity.user.role, "owner");
+  assert.equal(identity.user.memoryOwnerId, "owner-memory");
+});

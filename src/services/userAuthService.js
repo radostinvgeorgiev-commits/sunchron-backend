@@ -15,6 +15,8 @@ import {
   approveTesterAccess,
   assertPublicAccountAccess,
   assertTesterAccess,
+  isConfiguredPrimaryUser,
+  isPrimaryOwnerAccount,
   TesterAccessError,
 } from "./testerAccessService.js";
 import { createIdentityPlatformAuthClient } from "./identityPlatformAuthClient.js";
@@ -623,14 +625,11 @@ export async function registerUser(
   };
 }
 
-function publicUser(user, env = process.env) {
+function publicUser(user, env = process.env, { linkedOwner = false } = {}) {
   const provider = user.authProvider || resolveAuthBackend(env) || "supabase";
-  const primaryUserId = String(
-    env.SYNCHRON_PRIMARY_USER_ID ||
-      (provider === "supabase" ? env.SYNCHRON_PRIMARY_SUPABASE_USER_ID : "") ||
-      "",
-  ).trim();
-  const isPrimary = Boolean(primaryUserId && user.id === primaryUserId);
+  const isPrimary =
+    linkedOwner ||
+    isConfiguredPrimaryUser({ ...user, authProvider: provider }, env);
   const email = typeof user.email === "string" ? user.email : "";
   const metadataName =
     typeof user.displayName === "string"
@@ -657,6 +656,7 @@ export async function resolveUserSession(
     env = process.env,
     client,
     requireTesterAccess = accountAccessCheck(env),
+    isPrimaryOwner = isPrimaryOwnerAccount,
   } = {},
 ) {
   const encrypted = parseCookies(cookieHeader)[USER_SESSION_COOKIE];
@@ -699,8 +699,13 @@ export async function resolveUserSession(
     throw error;
   }
 
+  const provider = user.authProvider || resolveAuthBackend(env) || "supabase";
+  const linkedOwner = await isPrimaryOwner(
+    { ...user, authProvider: provider },
+    { env },
+  );
   return {
-    user: publicUser(user, env),
+    user: publicUser(user, env, { linkedOwner }),
     session: currentSession,
     refreshed,
   };

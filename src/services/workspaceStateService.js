@@ -41,7 +41,6 @@ const VALID_MODELS = new Set([
   "grok-4.5",
 ]);
 const LEGACY_MODEL_MIGRATIONS = new Map([["grok-3-mini", "grok-4.5"]]);
-const VALID_PETS = new Set(["robot", "drop", "spark", "owl", "rock", "cat"]);
 const VALID_MEMORY_MODES = new Set(["confirm", "disabled"]);
 
 const DEFAULT_AGENTS = Object.freeze([
@@ -52,7 +51,6 @@ const DEFAULT_AGENTS = Object.freeze([
     model: "auto",
     purpose: "Подготвя реален резултат и показва какво е проверено.",
     engine: "ai-core",
-    petId: "robot",
   }),
   Object.freeze({
     id: "research-agent",
@@ -61,7 +59,6 @@ const DEFAULT_AGENTS = Object.freeze([
     model: "auto",
     purpose: "Проверява актуални източници и отделя фактите от изводите.",
     engine: "ai-core",
-    petId: "owl",
   }),
   Object.freeze({
     id: "organizer-agent",
@@ -70,7 +67,6 @@ const DEFAULT_AGENTS = Object.freeze([
     model: "auto",
     purpose: "Подрежда задачи и календар, като спира преди външни промени.",
     engine: "ai-core",
-    petId: "rock",
   }),
   Object.freeze({
     id: "documents-agent",
@@ -79,7 +75,6 @@ const DEFAULT_AGENTS = Object.freeze([
     model: "auto",
     purpose: "Работи с разрешени файлове, документи и поща.",
     engine: "ai-core",
-    petId: "cat",
   }),
   Object.freeze({
     id: "codex-agent",
@@ -88,17 +83,8 @@ const DEFAULT_AGENTS = Object.freeze([
     model: "gpt-5.6-terra",
     purpose: "Анализира кода в изолирана област без запис и без интернет.",
     engine: "codex",
-    petId: "spark",
   }),
 ]);
-
-function agentPetId(agent) {
-  if (VALID_PETS.has(agent?.petId)) return agent.petId;
-  return (
-    DEFAULT_AGENTS.find((defaultAgent) => defaultAgent.id === agent?.id)
-      ?.petId || "robot"
-  );
-}
 
 export class WorkspaceStateError extends Error {
   constructor(message, status = 503, code = "WORKSPACE_STATE_UNAVAILABLE") {
@@ -196,8 +182,6 @@ function defaultWorkspaceState(now = new Date().toISOString()) {
     mode: "chat",
     activeProjectId: "starter-project",
     activeAgentId: "synchron-builder",
-    petId: "robot",
-    petState: "ready",
     projects: [
       {
         id: "starter-project",
@@ -249,7 +233,6 @@ export function normalizeWorkspaceState(value, { now } = {}) {
         model: normalizeAgentModel(agent?.model),
         purpose: cleanText(agent?.purpose, 400),
         engine: VALID_ENGINES.has(agent?.engine) ? agent.engine : "ai-core",
-        petId: agentPetId(agent),
       }))
     : fallback.agents;
   const activities = Array.isArray(value.activities)
@@ -304,19 +287,11 @@ export function normalizeWorkspaceState(value, { now } = {}) {
   const activeAgentId = agents.some((agent) => agent.id === value.activeAgentId)
     ? value.activeAgentId
     : agents[0].id;
-  const petId = VALID_PETS.has(value.petId) ? value.petId : "robot";
-  if ((Number.parseInt(value.version, 10) || 0) < WORKSPACE_VERSION) {
-    const activeAgent = agents.find((agent) => agent.id === activeAgentId);
-    if (activeAgent) activeAgent.petId = petId;
-  }
-
   return {
     version: WORKSPACE_VERSION,
     mode: VALID_MODES.has(value.mode) ? value.mode : "chat",
     activeProjectId,
     activeAgentId,
-    petId,
-    petState: VALID_STATUSES.has(value.petState) ? value.petState : "ready",
     projects,
     agents,
     activities,

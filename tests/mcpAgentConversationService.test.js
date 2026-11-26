@@ -27,7 +27,6 @@ function workspace(engine = "ai-core") {
           model: "auto",
           purpose: "Върни проверим отговор",
           engine,
-          petId: "robot",
         },
       ],
     },

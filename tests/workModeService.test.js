@@ -53,7 +53,7 @@ test("work context is bounded and uses a server-owned role allowlist", () => {
   assert.equal(context.agent.model, "auto");
   assert.equal(context.agent.name, "Моят агент");
   assert.equal(context.agent.engine, "ai-core");
-  assert.equal(context.agent.petId, undefined);
+  assert.ok(!Object.hasOwn(context.agent, "petId"));
   assert.equal(context.project.id, "project-one");
   assert.equal(context.project.run.sequence, 4);
   assert.equal(context.project.run.codeChanged, false);

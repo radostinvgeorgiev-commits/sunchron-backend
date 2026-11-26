@@ -221,3 +221,9 @@
 .knowledge-list li span { overflow-wrap: anywhere; }
 .knowledge-list li button { border: 0; background: transparent; color: #a3261c; font-weight: 800; }
 .knowledge-empty { color: #3a3a3a; background: transparent !important; }
+
+/* "Моят аватар": the person's own profile for their avatar. */
+.avatar-form { display: flex; flex-direction: column; gap: 10px; max-height: 52vh; overflow-y: auto; }
+.avatar-form label { display: flex; flex-direction: column; gap: 4px; font-weight: 700; }
+.avatar-form textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #c9d3cd; border-radius: 10px; font: inherit; font-weight: 400; resize: vertical; }
+.avatar-clear { border: 0; background: transparent; color: #a3261c; font-weight: 800; }

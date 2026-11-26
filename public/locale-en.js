@@ -49,6 +49,7 @@ AI предлага, ти одобряваш, системата изпълня�
 Излез от профила|Sign out
 Нов разговор|New conversation
 Специалист|Specialist
+Модели за работа|Models for work
 Избери специалист|Choose a specialist
 Без специалист|No specialist
 Обикновен разговор с AI CORE|A regular chat with AI CORE

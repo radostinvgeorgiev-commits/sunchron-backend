@@ -136,6 +136,21 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect((await page.locator(".mine-group [data-plus]").count()) === 7, "няма група „Моят аватар“");
     expect((await page.locator(".mine-group #memoryBtn").count()) === 1, "„Памет“ не е в групата");
   });
+  await step(`${label}: „Чат“ показва моделите за чат, „Работа“ — моделите за работа`, async () => {
+    await page.click("#workModeToolbarBtn");
+    await page.waitForTimeout(300);
+    await page.click("#modelPickerBtn");
+    let menu = await page.locator("#modelPickerMenu").innerText();
+    expect(menu.includes("GPT-5.6 Sol") && !menu.includes("Gemini 3.5 Flash Lite"), `в „Работа“ се виждат чат модели: ${menu}`);
+    await page.locator("#modelPickerMenu button", { hasText: "GPT-5.6 Sol" }).click();
+    expect((await page.textContent("#modelPickerLabel")).includes("GPT-5.6 Sol"), "моделът за работа не се избра");
+    await page.click("#chatModeBtn");
+    await page.waitForTimeout(300);
+    await page.click("#modelPickerBtn");
+    menu = await page.locator("#modelPickerMenu").innerText();
+    expect(menu.includes("Gemini 3.5 Flash Lite") && !menu.includes("GPT-5.6 Sol"), `в „Чат“ се виждат модели за работа: ${menu}`);
+    await page.keyboard.press("Escape");
+  });
   await step(`${label}: обикновен акаунт няма превключвател „Чат/Работа“`, async () => {
     expect(await page.locator("#interactionModeBar").isVisible(), "собственикът не вижда превключвателя");
     await page.click("#workModeToolbarBtn");

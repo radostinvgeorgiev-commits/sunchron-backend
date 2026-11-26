@@ -197,6 +197,13 @@ export function startStubServer(port = 0) {
       return json(res, { text: "Намерен отговор.", sources: [{ title: "Източник едно", url: "https://example.com/a" }] });
     }
     if (p === "/chat/models") return json(res, { items: MODELS });
+    if (p === "/chat/work-models") {
+      return json(res, { items: [
+        { id: "auto", label: "Автоматичен", hint: "Препоръчано", available: true },
+        { id: "gpt-5.6-sol", label: "GPT-5.6 Sol", hint: "Най-високо качество", available: true },
+        { id: "grok-4.5", label: "Grok 4.5", hint: "xAI", available: false },
+      ] });
+    }
     if (p === "/chat/compare" && req.method === "POST") {
       return json(res, { answers: [
         { text: "Отговор едно.", provider: "claude", model: "m1", label: "Claude Haiku 5.5" },

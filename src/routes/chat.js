@@ -185,6 +185,7 @@ import {
   resolveWorkAgentModel,
   resolveChatModelChoice,
   CHAT_MODEL_CHOICES,
+  WORK_MODEL_CHOICES,
   routeSelectedWorkAgentCapabilities,
   sanitizeWorkContext,
 } from "../services/workModeService.js";
@@ -1343,6 +1344,17 @@ router.get("/assistants", (_req, res) => {
 router.get("/models", (_req, res) => {
   res.json({
     items: CHAT_MODEL_CHOICES.map((choice) => {
+      const provider = resolveWorkAgentProvider(choice.id) || getConfiguredAiProvider();
+      return { ...choice, available: Boolean(provider && isAiProviderConfigured(provider)) };
+    }),
+  });
+});
+
+// Models for "Работа": the work agent's choices, with the same honest
+// "available" flag as the chat list.
+router.get("/work-models", (_req, res) => {
+  res.json({
+    items: WORK_MODEL_CHOICES.map((choice) => {
       const provider = resolveWorkAgentProvider(choice.id) || getConfiguredAiProvider();
       return { ...choice, available: Boolean(provider && isAiProviderConfigured(provider)) };
     }),

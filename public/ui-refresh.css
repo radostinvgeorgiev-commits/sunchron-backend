@@ -478,3 +478,4 @@ body.talk-mode .voice-btn.listening {
   opacity: 0.7;
   font-size: 0.9rem;
 }
+.model-picker-menu .model-picker-group { margin: 4px 12px 6px; font-size: .78rem; font-weight: 800; color: #2f6b52; text-transform: uppercase; letter-spacing: .03em; }

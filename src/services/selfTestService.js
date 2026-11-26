@@ -9,6 +9,7 @@ import { createUserLibraryService } from "./userLibraryService.js";
 import { buildAvatarProfileContext, createAvatarProfileService } from "./avatarProfileService.js";
 import { transcribeVoice } from "./voiceTranscriptionService.js";
 import { CHAT_MODEL_CHOICES, resolveWorkAgentProvider } from "./workModeService.js";
+import { probeVertexOpenModels } from "./vertexOpenModelsService.js";
 
 // A self-test the owner's connector can run instead of clicking through the
 // site by hand. Every check is a real call (a few cents of AI use in total),
@@ -97,6 +98,7 @@ export async function runSelfTest({
   knowledgeService,
   libraryService,
   avatarProfileService,
+  probeOpenModels = probeVertexOpenModels,
 } = {}) {
   const marker = String(1000 + Math.floor(Math.random() * 9000));
   const chatChecks = CHAT_PROVIDERS.map((provider) =>
@@ -210,7 +212,22 @@ export async function runSelfTest({
     return `${CHAT_MODEL_CHOICES.length - 1} модела, ${ASSISTANT_PRESETS.length} асистенти`;
   });
 
-  const checks = await Promise.all([...chatChecks, voice, pdf, share, knowledge, library, avatar, lists]);
+  // Reports which Model Garden open models answer through the owner's Google
+  // Cloud; ones that do not are listed with Google's reason, not failed.
+  const openModels = check("Vertex · отворени модели", async () => {
+    if (!isAiProviderConfigured("vertex-gemini", env)) throw skip("Vertex не е включен");
+    const results = await probeOpenModels({ env, marker });
+    const working = results.filter(({ ok }) => ok);
+    const notWorking = results.filter(({ ok }) => !ok);
+    return [
+      `работят ${working.length} от ${results.length}: ${working.map(({ label, location }) => `${label} (${location})`).join(", ") || "нито един"}`,
+      ...(notWorking.length
+        ? [`не: ${notWorking.map(({ label, errors }) => `${label} [${(errors || []).join(" ")}]`).join(", ")}`]
+        : []),
+    ].join("; ");
+  });
+
+  const checks = await Promise.all([...chatChecks, voice, pdf, share, knowledge, library, avatar, lists, openModels]);
   const failed = checks.filter(({ status }) => status === "fail").length;
   return {
     status: failed ? "fail" : "pass",

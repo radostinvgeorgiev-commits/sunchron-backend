@@ -114,7 +114,11 @@
   } catch {
     // storage can be unavailable (private mode); the default is fine
   }
-  globalThis.SynchronUi = { ...(globalThis.SynchronUi || {}), chatModel: () => current };
+  globalThis.SynchronUi = {
+    ...(globalThis.SynchronUi || {}),
+    chatModel: () => current,
+    chatModels: () => choices.slice(),
+  };
   if (!button || !label || !menu) return;
 
   const render = () => {

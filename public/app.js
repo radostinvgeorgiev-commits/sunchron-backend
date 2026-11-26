@@ -487,7 +487,10 @@ async function startApplication(user) {
   }
   updateSessionDisplay();
 
-  elements.sendBtn.addEventListener("click", sendMessage);
+  elements.sendBtn.addEventListener("click", () => {
+    if (state.chatBusy) stopGeneration();
+    else sendMessage();
+  });
   elements.councilModeBtn?.addEventListener("click", () => {
     setCouncilMode(!state.councilMode);
   });
@@ -2205,9 +2208,20 @@ function removeTypingIndicator() {
   document.getElementById("typingIndicator")?.remove();
 }
 
+function stopGeneration() {
+  state.chatAbort?.abort();
+}
+
 function setChatBusy(isBusy) {
   state.chatBusy = isBusy;
-  elements.sendBtn.disabled = isBusy;
+  // While an answer streams the send button becomes "Stop", like ChatGPT.
+  elements.sendBtn.disabled = false;
+  elements.sendBtn.classList.toggle("is-stop", isBusy);
+  elements.sendBtn.setAttribute("aria-label", chatText(isBusy ? "Спри" : "Изпрати"));
+  const sendIcon = elements.sendBtn.querySelector("i");
+  if (sendIcon) sendIcon.className = isBusy ? "fa-solid fa-stop" : "fa-solid fa-arrow-up";
+  const sendLabel = elements.sendBtn.querySelector("span");
+  if (sendLabel) sendLabel.textContent = chatText(isBusy ? "Спри" : "Изпрати");
   elements.chatInput.disabled = isBusy;
   elements.newChatBtn.disabled = isBusy;
   elements.attachBtn.disabled = isBusy;
@@ -2246,6 +2260,12 @@ function createAssistantTurn(text = "", showActions = true) {
             <i class="fa-regular fa-copy"></i>
             <span class="action-label">${localizedMarkup("Копирай")}</span>
         </button>
+        <button type="button" data-action="retry" class="retry-action" title="${localizedMarkup("Пробвай пак")}" aria-label="${localizedMarkup("Пробвай пак")}">
+            <i class="fa-solid fa-rotate-right"></i>
+        </button>
+        <button type="button" data-action="retry-model" class="retry-action" title="${localizedMarkup("Пробвай с друг модел")}" aria-label="${localizedMarkup("Пробвай с друг модел")}">
+            <i class="fa-solid fa-shuffle"></i>
+        </button>
         <button type="button" data-action="speak" title="${localizedMarkup("Прочети на глас")}" aria-label="${localizedMarkup("Прочети на глас")}">
             <i class="fa-solid fa-volume-high"></i>
         </button>
@@ -2270,6 +2290,51 @@ function showCouncilExecutionAction(message, councilIntentId) {
   }
   button.dataset.councilIntentId = councilIntentId;
   button.hidden = false;
+}
+
+// Council answers side by side on a wide screen and as swipeable cards on a
+// phone (Perplexity/ChatHub style). The answers move out of the long text
+// into the cards; the comparison and recommendation stay below them.
+function showCouncilColumns(message, council) {
+  const responses = Array.isArray(council?.responses) ? council.responses : [];
+  if (!message || responses.length < 2) return;
+  const headings = Array.from(message.querySelectorAll("h3"));
+  const isAnswerHeading = (node) =>
+    node?.tagName === "H3" &&
+    responses.some(({ model }) => model && node.textContent.includes(` · ${model}`));
+  const isBoundary = (node) =>
+    node.tagName === "H2" ||
+    (node.tagName === "H3" &&
+      (isAnswerHeading(node) || /^(✅|⚖️|💡)/u.test(node.textContent.trim())));
+  const first = headings.find(isAnswerHeading);
+  if (!first || first.parentElement !== message) return;
+
+  const columns = document.createElement("div");
+  columns.className = "council-columns";
+  columns.setAttribute("aria-label", chatText("Отговорите на моделите"));
+  let node = first;
+  while (node && isAnswerHeading(node)) {
+    const card = document.createElement("section");
+    card.className = "council-card";
+    let sibling = node.nextElementSibling;
+    card.appendChild(node);
+    while (sibling && !isBoundary(sibling)) {
+      const after = sibling.nextElementSibling;
+      card.appendChild(sibling);
+      sibling = after;
+    }
+    columns.appendChild(card);
+    node = sibling;
+  }
+  if (columns.children.length < 2) {
+    // Unexpected layout: put everything back where it was.
+    for (const card of Array.from(columns.children)) {
+      for (const child of Array.from(card.children)) message.insertBefore(child, node);
+    }
+    return;
+  }
+  message.insertBefore(columns, node);
+  message.classList.add("has-council-columns");
 }
 
 function showConversationPersistenceWarning(message) {
@@ -2844,6 +2909,22 @@ async function handleMessageAction(event) {
     return;
   }
 
+  if (action === "retry" || action === "retry-model" || action === "edit") {
+    if (state.chatBusy) return;
+    const userTurn = action === "edit" ? turn : previousUserTurn(turn);
+    if (!userTurn?.__request) return;
+    if (action === "retry") {
+      resendFrom(userTurn, userTurn.__request);
+    } else if (action === "retry-model") {
+      openRetryModelMenu(button, (modelId) =>
+        resendFrom(userTurn, userTurn.__request, modelId),
+      );
+    } else {
+      startEditingMessage(userTurn);
+    }
+    return;
+  }
+
   if (action === "execute-council") {
     elements.chatInput.value = "Изпълни препоръката.";
     resizeChatInput();
@@ -2877,6 +2958,106 @@ async function handleMessageAction(event) {
     otherButton?.classList.remove("active");
     button.classList.toggle("active");
   }
+}
+
+function previousUserTurn(turn) {
+  let node = turn?.previousElementSibling;
+  while (node && !node.classList.contains("user-turn")) {
+    node = node.previousElementSibling;
+  }
+  return node;
+}
+
+// Retry and edit replace a question and everything after it, like the big
+// chat apps: the old turns leave the screen and the history sent to AI.
+function resendFrom(userTurn, request, modelOverride = "") {
+  let removedUserTurns = 0;
+  let node = userTurn;
+  while (node) {
+    const next = node.nextElementSibling;
+    if (node.classList.contains("user-turn")) removedUserTurns += 1;
+    node.remove();
+    node = next;
+  }
+  const history = state.recentConversationMessages;
+  let cut = history.length;
+  for (let seen = 0; cut > 0 && seen < removedUserTurns; ) {
+    cut -= 1;
+    if (history[cut].role === "user") seen += 1;
+  }
+  state.recentConversationMessages = history.slice(0, cut);
+  logAction(modelOverride ? "Нов опит с друг модел" : "Нов опит");
+  return sendMessage({ resend: request, modelOverride });
+}
+
+function openRetryModelMenu(button, onPick) {
+  document.querySelector(".retry-model-menu")?.remove();
+  const models = (globalThis.SynchronUi?.chatModels?.() || []).filter(
+    (choice) => choice.id !== "auto" && choice.available !== false,
+  );
+  if (!models.length) return;
+  const menu = document.createElement("div");
+  menu.className = "retry-model-menu";
+  menu.setAttribute("role", "menu");
+  for (const choice of models) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.setAttribute("role", "menuitem");
+    item.textContent = chatText(choice.label);
+    item.addEventListener("click", (event) => {
+      event.stopPropagation();
+      menu.remove();
+      onPick(choice.id);
+    });
+    menu.appendChild(item);
+  }
+  button.closest(".message-actions")?.appendChild(menu);
+  setTimeout(() => {
+    document.addEventListener("click", () => menu.remove(), { once: true });
+  });
+}
+
+function startEditingMessage(userTurn) {
+  if (userTurn.querySelector(".message-edit")) return;
+  const message = userTurn.querySelector(".message.user");
+  const editor = document.createElement("div");
+  editor.className = "message-edit";
+  const field = document.createElement("textarea");
+  field.value = userTurn.__request.text;
+  field.rows = Math.min(8, Math.max(2, field.value.split("\n").length));
+  const buttons = document.createElement("div");
+  buttons.className = "message-edit-buttons";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.textContent = chatText("Откажи");
+  const save = document.createElement("button");
+  save.type = "button";
+  save.className = "primary";
+  save.textContent = chatText("Изпрати");
+  buttons.append(cancel, save);
+  editor.append(field, buttons);
+  message.hidden = true;
+  userTurn.querySelector(".message-actions").hidden = true;
+  userTurn.insertBefore(editor, message);
+  field.focus();
+  const close = () => {
+    editor.remove();
+    message.hidden = false;
+    userTurn.querySelector(".message-actions").hidden = false;
+  };
+  cancel.addEventListener("click", close);
+  save.addEventListener("click", () => {
+    const text = field.value.trim();
+    if (!text || state.chatBusy) return;
+    resendFrom(userTurn, { ...userTurn.__request, text });
+  });
+  field.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") close();
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      save.click();
+    }
+  });
 }
 
 async function copyText(text) {
@@ -2950,9 +3131,13 @@ function parseSseEvent(rawEvent) {
   }
 }
 
-async function sendMessage({ councilIntentId = "" } = {}) {
-  const text = elements.chatInput.value.trim();
-  const image = state.pendingImage;
+async function sendMessage({
+  councilIntentId = "",
+  resend = null,
+  modelOverride = "",
+} = {}) {
+  const text = resend ? String(resend.text || "").trim() : elements.chatInput.value.trim();
+  const image = resend ? resend.image || null : state.pendingImage;
   if ((!text && !image) || state.chatBusy) return;
 
   const messageText =
@@ -2960,7 +3145,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
     (image?.mimeType === "application/pdf"
       ? "Обобщи този документ."
       : "Какво виждаш на тази снимка?");
-  const councilMode = state.councilMode;
+  const councilMode = resend ? false : state.councilMode;
   const councilProviders = Array.from(
     document.querySelectorAll('input[name="councilProvider"]:checked'),
     (input) => input.value,
@@ -2974,9 +3159,13 @@ async function sendMessage({ councilIntentId = "" } = {}) {
   const interaction = globalThis.SynchronWorkMode?.getRequestPayload();
   const sentSessionId = state.sessionId;
   appendMessage("user", messageText, image);
-  elements.chatInput.value = "";
-  resizeChatInput();
-  clearPendingImage();
+  if (!resend) {
+    elements.chatInput.value = "";
+    resizeChatInput();
+    clearPendingImage();
+  }
+  const abort = new AbortController();
+  state.chatAbort = abort;
   logAction("Изпратено съобщение");
   showTypingIndicator();
   setChatBusy(true);
@@ -2990,6 +3179,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
     }
     const response = await fetch("/chat/chat", {
       method: "POST",
+      signal: abort.signal,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         sessionId: sentSessionId,
@@ -3000,7 +3190,8 @@ async function sendMessage({ councilIntentId = "" } = {}) {
         ...(councilMode ? { councilProviders } : {}),
         ...(councilIntentId ? { councilIntentId } : {}),
         recentHistory,
-        model: globalThis.SynchronUi?.chatModel?.() || "auto",
+        model: modelOverride || globalThis.SynchronUi?.chatModel?.() || "auto",
+        ...(resend ? { rewrite: true } : {}),
         ...interaction,
       }),
     });
@@ -3096,6 +3287,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
             logAction("Задачата е изпълнена частично");
           }
           if (parsed.data?.mode === "council") {
+            showCouncilColumns(responseBubble, parsed.data?.council);
             showCouncilExecutionAction(
               responseBubble,
               parsed.data?.councilIntentId,
@@ -3135,6 +3327,20 @@ async function sendMessage({ councilIntentId = "" } = {}) {
     logAction("Получен AI отговор");
     await loadConversations();
   } catch (error) {
+    if (abort.signal.aborted) {
+      // Stopped by the person: keep what arrived and let them retry.
+      const partial = responseBubble?.dataset.rawText || responseBubble?.innerText || "";
+      if (responseBubble && partial.trim()) {
+        rememberConversationMessage("assistant", partial);
+        if (responseActions) responseActions.hidden = false;
+        responseBubble.closest(".assistant-turn")?.classList.add("is-stopped");
+      } else {
+        responseBubble?.closest(".assistant-turn")?.remove();
+        appendMessage("agent", chatText("⏹ Спряно."), null, { remember: false });
+      }
+      logAction("Отговорът е спрян");
+      return;
+    }
     console.error(error);
     globalThis.SynchronWorkMode?.onError();
     const message = `❌ ${error?.message || chatText("Сървърна грешка. Опитай отново.")}`;
@@ -3148,6 +3354,7 @@ async function sendMessage({ councilIntentId = "" } = {}) {
     }
     logAction("Грешка при AI отговор");
   } finally {
+    if (state.chatAbort === abort) state.chatAbort = null;
     removeTypingIndicator();
     setChatBusy(false);
     elements.chatInput.focus();
@@ -3207,8 +3414,12 @@ function appendMessage(role, text, image = null, options = {}) {
             <i class="fa-regular fa-copy"></i>
             <span class="action-label">${localizedMarkup("Копирай")}</span>
         </button>
+        <button type="button" data-action="edit" title="${localizedMarkup("Редактирай")}" aria-label="${localizedMarkup("Редактирай")}">
+            <i class="fa-solid fa-pen"></i>
+        </button>
     `;
 
+  turn.__request = { text, image };
   turn.append(div, actions);
   elements.chatMessages.appendChild(turn);
   scrollChatToBottom();

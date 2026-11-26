@@ -157,3 +157,30 @@
 .assistant-picker i { width: 20px; text-align: center; }
 .assistant-picker small { display: block; font-weight: 600; color: #3a3a3a; }
 .slash-menu code { font-weight: 800; color: #2f6b52; min-width: 84px; }
+
+/* Share conversation dialog. */
+.share-dialog {
+  position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center;
+  padding: 16px; background: rgba(0,0,0,.35);
+}
+.share-dialog[hidden] { display: none; }
+.share-card {
+  width: min(480px, 100%); padding: 18px; border-radius: 18px; background: #fff; color: #000;
+  box-shadow: 0 20px 50px rgba(0,0,0,.25);
+}
+.share-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.share-head h2 { margin: 0; font-size: 1.2rem; }
+.share-close { border: 0; background: transparent; font-size: 1.1rem; font-weight: 800; color: #000; }
+.share-note { margin: 10px 0 14px; font-size: .95rem; }
+.share-link { display: flex; gap: 8px; }
+.share-link[hidden] { display: none; }
+.share-link input {
+  flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid #c9d0cc; border-radius: 10px; font: inherit; font-size: .9rem; color: #000;
+}
+.share-status { min-height: 1.4em; margin: 10px 0 0; font-size: .9rem; color: #2f6b52; }
+.share-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.share-card button.share-copy, .share-actions button {
+  padding: 9px 14px; border-radius: 10px; border: 1px solid #c9d0cc; background: #fff; color: #000; font-weight: 700;
+}
+.share-actions .primary { background: #000; border-color: #000; color: #fff; }
+.share-stop { color: #a3261c !important; }

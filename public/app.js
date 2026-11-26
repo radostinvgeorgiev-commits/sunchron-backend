@@ -2208,6 +2208,11 @@ function removeTypingIndicator() {
   document.getElementById("typingIndicator")?.remove();
 }
 
+globalThis.SynchronChat = {
+  ...(globalThis.SynchronChat || {}),
+  sessionId: () => state.sessionId,
+};
+
 function stopGeneration() {
   state.chatAbort?.abort();
 }

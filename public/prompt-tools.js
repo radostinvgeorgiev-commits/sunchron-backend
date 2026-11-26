@@ -152,5 +152,10 @@
     },
     true,
   );
-  input.addEventListener("blur", () => setTimeout(() => (menu.hidden = true), 150));
+  input.addEventListener("blur", () =>
+    setTimeout(() => {
+      // Focus may be back in the box by now (after picking from the "+" menu).
+      if (document.activeElement !== input) menu.hidden = true;
+    }, 150),
+  );
 })();

@@ -25,6 +25,10 @@
         <i class="fa-solid fa-people-group" aria-hidden="true"></i>
         <span>${text("Съвет от модели")}<small>${text("Питай няколко AI и сравни")}</small></span>
       </button>
+      <button type="button" role="menuitem" data-plus="compare">
+        <i class="fa-solid fa-scale-unbalanced" aria-hidden="true"></i>
+        <span>${text("Сляпо сравнение")}<small>${text("Два модела, ти избираш по-добрия")}</small></span>
+      </button>
       <button type="button" role="menuitem" data-plus="assistant">
         <i class="fa-solid fa-user-tie" aria-hidden="true"></i>
         <span>${text("Асистент")}<small>${text("Юрист, учител, преводач…")}</small></span>
@@ -72,6 +76,9 @@
       close();
       if (item.dataset.plus === "file") $("imageInput")?.click();
       if (item.dataset.plus === "council") council?.click();
+      if (item.dataset.plus === "compare") {
+        document.dispatchEvent(new CustomEvent("aicore:blind-compare"));
+      }
       if (item.dataset.plus === "assistant") {
         document.dispatchEvent(new CustomEvent("aicore:pick-assistant"));
       }

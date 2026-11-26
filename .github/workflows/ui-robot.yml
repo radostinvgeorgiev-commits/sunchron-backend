@@ -1,0 +1,46 @@
+name: UI robot
+
+# A real browser presses the buttons, so nobody has to do it by hand:
+# - on every pull request and push: the full signed-in flows against a local
+#   stub server (no sign-in, no secrets, no AI cost);
+# - after each production smoke check: signed-out checks on the live site.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: ["Production smoke check"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  robot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Use Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install the browser driver
+        # The runner already has Google Chrome; only the driver is installed.
+        run: |
+          npm install --no-save --no-audit --no-fund playwright-core@1.56.1 || { echo "::error title=UI robot::driver install failed"; exit 1; }
+          echo "PLAYWRIGHT_MODULE=playwright-core" >> "$GITHUB_ENV"
+          echo "CHROME_PATH=$(command -v google-chrome || command -v chromium-browser || command -v chromium)" >> "$GITHUB_ENV"
+
+      - name: Press the buttons (local page, stub server)
+        if: github.event_name != 'workflow_run'
+        run: node tests/ui/robot.mjs
+
+      - name: Check the live site in a browser (signed out)
+        if: github.event_name == 'workflow_run'
+        run: node tests/ui/robot.mjs --public https://cloudaicore.com

@@ -162,7 +162,7 @@ test("requests upcoming Google Calendar events", async () => {
   assert.equal(events[0].allDay, false);
 });
 
-test("requests the explicit Drive, Gmail, Calendar and Contacts scopes", () => {
+test("the main Google connection asks only for scopes Google's free check covers", () => {
   const original = {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -177,15 +177,11 @@ test("requests the explicit Drive, Gmail, Calendar and Contacts scopes", () => {
     );
     assert.match(scope, /calendar\.events/u);
     assert.doesNotMatch(scope, /calendar\.readonly/u);
-    assert.match(scope, /gmail\.readonly/u);
-    assert.match(scope, /gmail\.compose/u);
-    assert.match(scope, /gmail\.modify/u);
-    assert.match(scope, /contacts\.readonly/u);
+    assert.match(scope, /gmail\.send/u);
     assert.match(scope, /\/auth\/contacts(?:\s|$)/u);
-    // The main connection keeps the set people connected with before; saving
-    // (drive.file) and YouTube are asked for separately.
-    assert.doesNotMatch(scope, /drive\.file|youtube/u);
-    assert.doesNotMatch(scope, /\/auth\/drive(?:\s|$)/u);
+    assert.match(scope, /drive\.file/u);
+    // Restricted scopes (whole mailbox / whole Drive) are separate steps.
+    assert.doesNotMatch(scope, /gmail\.readonly|gmail\.compose|gmail\.modify|drive\.readonly|youtube/u);
     const save = new URL(buildAuthorizationUrl("state", ["save"])).searchParams.get("scope");
     assert.equal(save, "openid email https://www.googleapis.com/auth/drive.file");
   } finally {
@@ -587,7 +583,7 @@ test("a member's first Google connection asks only for scopes Google's free chec
     assert.match(member, /gmail\.send/u);
     assert.match(member, /calendar\.events/u);
     assert.match(member, /drive\.file/u);
-    const owner = new URL(buildAuthorizationUrl("s")).searchParams.get("scope");
+    const owner = new URL(buildAuthorizationUrl("s", [], { owner: true })).searchParams.get("scope");
     assert.match(owner, /gmail\.readonly/u);
     const gmail = new URL(buildAuthorizationUrl("s", ["gmail"], { owner: false })).searchParams.get("scope");
     assert.equal(gmail, `openid email ${GOOGLE_EXTRA_SCOPES.gmail}`);

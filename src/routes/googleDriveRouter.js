@@ -68,7 +68,9 @@ router.get("/connect", (req, res) => {
       `synchron_google_state=${state}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
     );
     const add = typeof req.query.add === "string" ? [req.query.add] : [];
-    res.redirect(buildAuthorizationUrl(state, add, { owner: req.owner?.role === "owner" }));
+    // Everyone, the owner too, starts with the scopes Google's free check covers;
+    // full Gmail / Drive are the separate add=gmail / add=drive steps.
+    res.redirect(buildAuthorizationUrl(state, add));
   } catch (error) {
     sendError(res, error);
   }

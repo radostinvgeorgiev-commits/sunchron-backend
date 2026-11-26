@@ -253,7 +253,7 @@ export function googleConnectPath(extra = "") {
   return GOOGLE_EXTRA_SCOPES[extra] ? `/api/google/connect?add=${extra}` : "/api/google/connect";
 }
 
-export function buildAuthorizationUrl(state, extras = [], { owner = true } = {}) {
+export function buildAuthorizationUrl(state, extras = [], { owner = false } = {}) {
   const { clientId, redirectUri } = configuration();
   const extraScopes = (Array.isArray(extras) ? extras : [])
     .map((name) => GOOGLE_EXTRA_SCOPES[name])

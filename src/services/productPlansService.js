@@ -30,6 +30,8 @@ const LEGACY_STARTER_CREDITS = 10;
 // expensive single member request (about 0.8 euro cents at full context);
 // a typical request costs far less.
 export const PUBLIC_REQUEST_CREDITS = 1;
+export const PUBLIC_DAILY_CREDIT_CAP = 1000;
+export const PUBLIC_MONTHLY_CREDIT_CAP = 10_000;
 export const COUNCIL_REQUEST_CREDITS = 6;
 export const ACCOUNT_COLLECTION = "synchron-product-accounts-v1";
 const LEDGER_COLLECTION = "synchron-product-events-v1";
@@ -133,8 +135,12 @@ export function createProductPlansService({
       });
       const total = globalRow?.data || { used: 0, day, dayUsed: 0 };
       const daily = total.day === day ? Number(total.dayUsed) || 0 : 0;
-      const monthlyLimit = Number(env.PUBLIC_AI_MONTHLY_CREDIT_CAP) || 3000;
-      const dailyLimit = Number(env.PUBLIC_AI_DAILY_CREDIT_CAP) || 300;
+      // Shared safety cap for all members together (owner's decision
+      // 2026-11-26): about 30–50 active people a day, at most ~80 € a month.
+      const monthlyLimit =
+        Number(env.PUBLIC_AI_MONTHLY_CREDIT_CAP) || PUBLIC_MONTHLY_CREDIT_CAP;
+      const dailyLimit =
+        Number(env.PUBLIC_AI_DAILY_CREDIT_CAP) || PUBLIC_DAILY_CREDIT_CAP;
       if (total.used + credits > monthlyLimit || daily + credits > dailyLimit)
         throw new ProductError(
           "Временният общ лимит за AI е достигнат. Опитай по-късно.",

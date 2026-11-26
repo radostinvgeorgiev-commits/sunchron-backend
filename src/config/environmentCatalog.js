@@ -478,13 +478,13 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general(
       "PUBLIC_AI_MONTHLY_CREDIT_CAP",
       "Планове",
-      "Общ месечен лимит на AI единиците за всички потребители (по подразбиране 3000).",
+      "Общ месечен лимит на AI единиците за всички потребители (по подразбиране 10 000).",
       { hasDefault: true },
     ),
     general(
       "PUBLIC_AI_DAILY_CREDIT_CAP",
       "Планове",
-      "Общ дневен лимит на AI единиците за всички потребители (по подразбиране 300).",
+      "Общ дневен лимит на AI единиците за всички потребители (по подразбиране 1000).",
       { hasDefault: true },
     ),
     general("APP_COMMIT_SHA", "Runtime", "Точният публикуван Git commit.", {

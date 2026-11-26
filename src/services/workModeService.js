@@ -316,6 +316,24 @@ export function routeSelectedWorkAgentCapabilities(requests, value, message) {
   ];
 }
 
+// Models offered in the chat header picker: the economical ones, so a reply
+// keeps the same credit price for everyone. "auto" uses the site default.
+export const CHAT_MODEL_CHOICES = Object.freeze([
+  { id: "auto", label: "Автоматичен", hint: "Claude Haiku 5.5 — бърз и евтин" },
+  { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 5.5", hint: "Точен, добър на български" },
+  { id: "gemini-2.5-flash-lite", label: "Gemini 3.5 Flash Lite", hint: "Най-бърз" },
+  { id: "gemini-2.5-flash", label: "Gemini 3.8 Flash", hint: "По-силен Gemini" },
+  { id: "gpt-4.1-mini", label: "GPT-4.1 mini", hint: "OpenAI" },
+  { id: "grok-3-mini", label: "Grok 3 Mini", hint: "xAI" },
+]);
+
+export function resolveChatModelChoice(value) {
+  const id = cleanText(value, 40);
+  return id !== "auto" && CHAT_MODEL_CHOICES.some((choice) => choice.id === id)
+    ? id
+    : undefined;
+}
+
 export function resolveWorkAgentModel(value) {
   const id = cleanText(value, 40);
   return Object.hasOwn(AGENT_MODELS, id)

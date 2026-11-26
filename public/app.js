@@ -1243,6 +1243,7 @@ const GOOGLE_OAUTH_TOOL_IDS = new Set([
   "google-calendar-write",
   "gmail-read",
   "google-contacts",
+  "youtube-channel",
 ]);
 
 function requiresGoogleOAuth(tool) {
@@ -1289,6 +1290,7 @@ const LIVE_TOOL_CHECKS = {
   "gmail-read": "google:gmail",
   "google-calendar-read": "google:calendar",
   "google-contacts": "google:contacts",
+  "youtube-channel": "google:youtube",
   "github-read": "github",
 };
 
@@ -1313,6 +1315,16 @@ async function checkToolsLive(container) {
       result = google?.services?.[service] || { ok: false, reason: google ? "Google не е свързан." : "Проверката не мина." };
     } else if (kind === "github") {
       result = github?.ok ? { ok: true } : { ok: false, reason: github?.data?.error || "GitHub не отговори." };
+    }
+    if (!result.ok && typeof result.connect === "string" && result.connect.startsWith("/api/google/connect")) {
+      badge.className = "permission-badge confirm";
+      badge.textContent = "Още не е разрешен";
+      const link = document.createElement("a");
+      link.className = "tool-connect-btn";
+      link.href = result.connect;
+      link.textContent = "Разреши";
+      badge.after(link);
+      continue;
     }
     badge.className = `permission-badge ${result.ok ? "allow" : "deny"}`;
     badge.textContent = result.ok ? `Работи · проверено ${time}` : "Не отговаря";

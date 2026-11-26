@@ -327,6 +327,21 @@ export function registerCoreTools() {
       healthStatus: "unavailable",
     },
     {
+      id: "youtube-channel",
+      provider: "google",
+      name: "Моят YouTube канал",
+      version: "1.0.0",
+      category: "social",
+      capabilities: ["youtube.channel"],
+      permissions: ["youtube.read"],
+      capabilityPermissions: {
+        "youtube.channel": "youtube.read",
+      },
+      enabled: true,
+      requiresConfirmation: false,
+      healthStatus: "unavailable",
+    },
+    {
       id: "google-contacts",
       provider: "google",
       name: "Google Contacts",

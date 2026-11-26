@@ -25,6 +25,7 @@ import {
   listGoogleCalendarEvents,
   searchGmailMessages,
   searchGoogleContacts,
+  getYoutubeChannelSummary,
 } from "../services/googleDriveService.js";
 import {
   confirmCalendarEvent,
@@ -216,6 +217,7 @@ export function getToolRuntimeAvailability(
     case "google-calendar-write":
     case "gmail-read":
     case "google-contacts":
+    case "youtube-channel":
       if (
         !hasEnvironment(
           env,
@@ -790,6 +792,19 @@ const executors = Object.freeze({
       ...messages.map(
         (message) =>
           `• ${message.unread ? "Непрочетено — " : ""}${message.subject} — ${message.from}`,
+      ),
+    ].join("\n");
+  },
+  "youtube-channel": async ({ input }) => {
+    const { channel, videos } = await getYoutubeChannelSummary(input.googleSessionId);
+    if (!channel) return "Към този Google профил няма YouTube канал.";
+    const number = (value) => (value === null ? "скрито" : value.toLocaleString("bg-BG"));
+    return [
+      `YouTube канал „${channel.title}“: ${number(channel.subscribers)} абонати, ${number(channel.views)} гледания, ${number(channel.videos)} видеа.`,
+      ...(videos.length ? ["Последни видеа:"] : []),
+      ...videos.map(
+        (video) =>
+          `• ${video.title} (${String(video.publishedAt || "").slice(0, 10)}) — ${number(video.views)} гледания, ${number(video.likes)} харесвания, ${number(video.comments)} коментара — ${video.url}`,
       ),
     ].join("\n");
   },

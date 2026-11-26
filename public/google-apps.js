@@ -62,7 +62,7 @@
       const messages = Array.isArray(data.messages) ? data.messages : [];
       body.innerHTML = `
         <section class="drawer-section">
-          <div class="permission-default">Последни имейли — само за четене. AI CORE не може да изпраща или изтрива.</div>
+          <div class="permission-default">Последни имейли. „Чернова от мое име“ записва отговор в твоя стил като чернова в Gmail; нищо не се изпраща без теб.</div>
           ${
             messages.length
               ? messages
@@ -75,6 +75,7 @@
                 <p>${escapeHtml(message.snippet)}</p>
               </div>
               <a href="${escapeHtml(message.url)}" target="_blank" rel="noopener noreferrer">Отвори</a>
+              <button type="button" class="reply-draft" data-message-id="${escapeHtml(message.id)}">Чернова от мое име</button>
             </article>`,
                   )
                   .join("")
@@ -85,6 +86,43 @@
       reconnect(error);
     }
   }
+
+  body.addEventListener("click", async (event) => {
+    const button = event.target.closest(".reply-draft");
+    if (!button) return;
+    const card = button.closest("article");
+    button.disabled = true;
+    button.textContent = "Пиша черновата…";
+    try {
+      const response = await fetch("/api/google/gmail/reply-draft", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId: button.dataset.messageId }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Черновата не беше записана.");
+      const result = document.createElement("div");
+      result.className = "reply-draft-result";
+      const preview = document.createElement("p");
+      preview.textContent = data.body;
+      const link = document.createElement("a");
+      link.href = data.draft.url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "Отвори черновата в Gmail — прегледай и изпрати сам";
+      result.append(preview, link);
+      card.append(result);
+      button.remove();
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = "Чернова от мое име";
+      const note = document.createElement("p");
+      note.className = "drawer-error";
+      note.textContent = error.message;
+      card.append(note);
+    }
+  });
 
   async function showCalendar() {
     openDrawer("Google Calendar");

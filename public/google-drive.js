@@ -85,6 +85,8 @@
                   .join("")
               : '<div class="drawer-empty">Няма намерени поддържани файлове.</div>'
           }
+          <button type="button" id="openMyMail">Пощата ми</button>
+          <button type="button" id="openMyCalendar">Календарът ми</button>
           <button type="button" id="disconnectGoogleDrive">Прекъсни връзката</button>
         </section>`;
     } catch (error) {
@@ -125,6 +127,14 @@
       return;
     }
 
+    if (event.target.closest("#openMyMail")) {
+      document.getElementById("gmailBtn")?.click();
+      return;
+    }
+    if (event.target.closest("#openMyCalendar")) {
+      document.getElementById("googleCalendarBtn")?.click();
+      return;
+    }
     if (event.target.closest("#sendDriveAnalysis")) {
       const chatInput = document.getElementById("chatInput");
       const sendButton = document.getElementById("sendBtn");

@@ -186,6 +186,22 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.click("#closeDataDrawerBtn");
     await page.waitForTimeout(200);
   });
+  await step(`${label}: „Чернова от мое име“ записва отговор като чернова`, async () => {
+    await page.evaluate(() => fetch("/__robot/google-connected"));
+    await page.click("#attachBtn");
+    await page.click('[data-plus="google"]');
+    await page.waitForTimeout(500);
+    await page.click("#openMyMail");
+    await page.waitForTimeout(500);
+    await page.click(".reply-draft");
+    await page.waitForTimeout(500);
+    const result = await page.locator(".reply-draft-result").innerText();
+    expect(result.includes("Здравей, Иване!"), "черновата не се показа");
+    expect(result.includes("изпрати сам"), "липсва връзката към черновата");
+    await page.evaluate(() => fetch("/__robot/google-disconnected"));
+    await page.click("#closeDataDrawerBtn");
+    await page.waitForTimeout(200);
+  });
   await step(`${label}: „Моят ден“ показва плана в разговора`, async () => {
     await page.click("#attachBtn");
     await page.click('[data-plus="day"]');

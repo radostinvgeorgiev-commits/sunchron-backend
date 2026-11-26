@@ -870,10 +870,11 @@ function gmailMessageId(value, label = "Gmail идентификатор") {
 
 export async function createGmailDraft(
   id,
-  { to, subject = "", body } = {},
+  { to, subject = "", body, threadId } = {},
   fetchImpl = fetch,
 ) {
   const recipient = cleanEmail(to);
+  const thread = /^[A-Za-z0-9_-]{6,64}$/u.test(String(threadId || "")) ? String(threadId) : null;
   const cleanBody =
     typeof body === "string" && body.trim() && body.length <= 20_000
       ? body.trim()
@@ -901,7 +902,10 @@ export async function createGmailDraft(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        message: { raw: Buffer.from(mime, "utf8").toString("base64url") },
+        message: {
+          raw: Buffer.from(mime, "utf8").toString("base64url"),
+          ...(thread ? { threadId: thread } : {}),
+        },
       }),
     },
     fetchImpl,

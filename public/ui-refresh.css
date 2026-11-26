@@ -247,3 +247,5 @@
 .cause-prepare { margin-top: 6px; border: 1px solid #0f5132; background: #fff; color: #0f5132; border-radius: 999px; padding: 4px 12px; font-weight: 700; }
 .morning-toggle { display: block; margin-top: 10px; border: 1px solid #0f5132; background: #fff; color: #0f5132; border-radius: 999px; padding: 6px 12px; font-weight: 700; }
 .morning-toggle[aria-pressed="true"] { background: #0f5132; color: #fff; }
+.reply-draft { margin-top: 6px; }
+.reply-draft-result { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: #f3f6f4; white-space: pre-wrap; overflow-wrap: anywhere; }

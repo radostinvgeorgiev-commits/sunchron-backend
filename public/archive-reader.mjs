@@ -7,6 +7,10 @@ const MAX_ENTRY_BYTES = 40 * 1024 * 1024;
 // Years of AI chats make one big conversations.json; it is read once.
 const MAX_CHAT_EXPORT_BYTES = 250 * 1024 * 1024;
 export const ARCHIVE_TEXT_LIMIT = 190_000;
+// All texts read from one archive together. A full Facebook history has
+// thousands of chat files; past this point the rest are skipped instead of
+// filling the phone's memory (the result is cut to ARCHIVE_TEXT_LIMIT anyway).
+const MAX_TOTAL_TEXT = 300 * 1024 * 1024;
 
 function readUint64(view, offset) {
   return view.getUint32(offset, true) + view.getUint32(offset + 4, true) * 2 ** 32;
@@ -94,7 +98,14 @@ export function fixFacebookText(value) {
   }
 }
 
-const day = (seconds) => (seconds ? new Date(seconds * 1000).toISOString().slice(0, 10) : "");
+// The date as the person saw it (local time), not UTC: a message at 00:30 in
+// Varna belongs to that day, not the one before.
+const day = (seconds) => {
+  if (!seconds) return "";
+  const date = new Date(seconds * 1000);
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
 const parse = (text) => {
   try {
     return JSON.parse(text);
@@ -139,8 +150,13 @@ export function extractFacebook(files) {
         const body = (item?.data || []).map((entry) => fixFacebookText(entry?.comment?.comment || "")).filter(Boolean).join(" ");
         if (body) comments.push({ at: item.timestamp, label: day(item.timestamp), text: body });
       }
-    } else if (ownerName && /\/messages\/(inbox|archived_threads|e2ee_cutover)\/[^/]+\/message_\d+\.json$/u.test(name)) {
-      for (const message of parse(text)?.messages || []) {
+    } else if (ownerName && /\/messages\/(inbox|archived_threads|e2ee_cutover|message_requests)\/[^/]+\/message_\d+\.json$/u.test(name)) {
+      const thread = parse(text);
+      // Someone else in the chat with the same name: their words could pass
+      // for the person's own, so the whole chat stays on the device.
+      const sameName = (thread?.participants || []).filter((person) => fixFacebookText(person?.name) === ownerName);
+      if (sameName.length > 1) continue;
+      for (const message of thread?.messages || []) {
         // Only what the person wrote; other people's words stay on the device.
         if (fixFacebookText(message?.sender_name) !== ownerName || !message?.content) continue;
         ownMessages.push({ at: (message.timestamp_ms || 0) / 1000, label: day((message.timestamp_ms || 0) / 1000), text: fixFacebookText(message.content) });
@@ -373,7 +389,7 @@ const WANTED = [
   /profile_information\/profile_information\.json$/u,
   /\/posts\/your_posts[^/]*\.json$/u,
   /comments_and_reactions\/comments[^/]*\.json$/u,
-  /\/messages\/(inbox|archived_threads|e2ee_cutover)\/[^/]+\/message_\d+\.json$/u,
+  /\/messages\/(inbox|archived_threads|e2ee_cutover|message_requests)\/[^/]+\/message_\d+\.json$/u,
   /(^|\/)Keep\/[^/]+\.json$/u,
   /(^|\/)Calendar\/.+\.ics$/u,
   /(^|\/)content\/(posts|reels)(_\d+)?\.json$/u,
@@ -384,13 +400,23 @@ const WANTED = [
 
 // The whole flow: list, read only the files that matter, extract own texts.
 export async function readPersonalArchive(blob, onProgress = () => {}) {
-  const entries = (await listZipEntries(blob)).filter(({ name }) => WANTED.some((pattern) => pattern.test(name)));
+  const isChatFile = (name) => /\/messages\/[^/]+\/[^/]+\/message_\d+\.json$/u.test(name);
+  // Profile, posts and comments first; the many chat files last, so a memory
+  // cut never loses the person's own posts.
+  const entries = (await listZipEntries(blob))
+    .filter(({ name }) => WANTED.some((pattern) => pattern.test(name)))
+    .sort((a, b) => Number(isChatFile(a.name)) - Number(isChatFile(b.name)));
   const files = [];
+  let total = 0;
   for (const [index, entry] of entries.entries()) {
     onProgress(index + 1, entries.length);
+    // Skip a file that would go past the budget before it is unpacked.
+    if (total + (entry.uncompressedSize || 0) > MAX_TOTAL_TEXT) continue;
     const big = CHAT_EXPORTS.some((pattern) => pattern.test(entry.name));
     const text = await readZipText(blob, entry, big ? MAX_CHAT_EXPORT_BYTES : MAX_ENTRY_BYTES);
-    if (text) files.push([entry.name, text]);
+    if (!text) continue;
+    files.push([entry.name, text]);
+    total += text.length;
   }
   const results = [
     ...extractFacebook(files),

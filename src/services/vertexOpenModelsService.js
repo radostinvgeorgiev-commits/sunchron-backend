@@ -65,6 +65,7 @@ export async function requestVertexOpenModel({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   fetchImpl = globalThis.fetch,
   authClient,
+  signal,
 } = {}) {
   const config = resolveVertexAiConfig(env);
   if (!config.enabled || !config.projectId) {
@@ -85,6 +86,10 @@ export async function requestVertexOpenModel({
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // The chat's own deadline or a closed connection stops the paid call too.
+  const stop = () => controller.abort();
+  if (signal?.aborted) stop();
+  signal?.addEventListener?.("abort", stop, { once: true });
   let response;
   try {
     response = await fetchImpl(endpoint, {
@@ -97,6 +102,7 @@ export async function requestVertexOpenModel({
     throw new VertexOpenModelError("Моделът не отговори навреме.", "VERTEX_OPEN_MODEL_TIMEOUT", 504);
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener?.("abort", stop);
   }
   if (!response.ok) {
     const reason = await googleReason(response);
@@ -108,7 +114,16 @@ export async function requestVertexOpenModel({
   const choice = data?.choices?.[0];
   const text = String(choice?.message?.content || "").trim();
   if (!text) throw new VertexOpenModelError("Моделът върна празен отговор.", "VERTEX_OPEN_MODEL_EMPTY", 502);
-  return { text, provider: "vertex-open", model, truncated: choice?.finish_reason === "length" };
+  return {
+    text,
+    provider: "vertex-open",
+    model,
+    ...(choice?.finish_reason === "length" ? { truncated: true } : {}),
+    usage: {
+      inputTokens: Number(data?.usage?.prompt_tokens) || 0,
+      outputTokens: Number(data?.usage?.completion_tokens) || 0,
+    },
+  };
 }
 
 // Asks every candidate a tiny question and reports which ones answer, and

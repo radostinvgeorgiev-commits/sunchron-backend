@@ -18,6 +18,11 @@ export const AI_MODEL_PRICES = Object.freeze({
   "gemini-3.5-flash-lite": [0.3, 2.5],
   "gemini-3.8-flash": [0.75, 3.75],
   "grok-3-mini": [0.3, 0.5],
+  // Vertex AI Model Garden list prices (checked 2026-11-26).
+  "openai/gpt-oss-120b": [0.09, 0.36],
+  "google/gemma-4-26b": [0.15, 0.6],
+  "deepseek-ai/deepseek-v4.1-flash": [0.3, 1.2],
+  "zai-org/glm-5.2": [1.4, 4.4],
 });
 
 export function priceForModel(model) {

@@ -58,7 +58,7 @@ export function fitPublicAiInput(input, limit = PUBLIC_CONTEXT_LIMIT) {
   }
   return kept;
 }
-export async function reservePublicAiCall(input, provider = "", model = "") {
+export async function reservePublicAiCall(input, provider = "", model = "", credits = PUBLIC_REQUEST_CREDITS) {
   const scope = context.getStore();
   if (!scope) return;
   if (JSON.stringify(input || "").length > PUBLIC_CONTEXT_LIMIT)
@@ -75,7 +75,7 @@ export async function reservePublicAiCall(input, provider = "", model = "") {
     );
   scope.calls++;
   if (scope.free) return;
-  await scope.reserve(scope.identity, PUBLIC_REQUEST_CREDITS, { provider, model });
+  await scope.reserve(scope.identity, credits, { provider, model });
 }
 // A drawn picture: about 1.1 US cents at cost, so two credits.
 export const PUBLIC_IMAGE_CREDITS = 2;

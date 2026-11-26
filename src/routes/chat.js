@@ -129,6 +129,7 @@ import {
   getConfiguredAiProvider,
   getDefaultChatModel,
   isAiProviderConfigured,
+  creditsForChatModel,
   requestAiResponse,
 } from "../services/aiCoreService.js";
 import { executeTaskPlan } from "../services/taskExecutionService.js";
@@ -409,6 +410,9 @@ export const FREE_CHAT_MODELS = Object.freeze([
   "claude-haiku-4-5-20251001",
   "gemini-2.5-flash-lite",
   "grok-3-mini",
+  // Open models via Google that cost less per answer than Claude Haiku.
+  "vertex-gpt-oss-120b",
+  "vertex-gemma-4-26b",
 ]);
 export function isFreeChatTurnRequest({ identity, mode, model, council, image }) {
   return (
@@ -1401,7 +1405,10 @@ router.post("/chat", async (req, res) => {
           ? COUNCIL_REQUEST_CREDITS
           : image
             ? PUBLIC_FILE_CREDITS
-            : PUBLIC_REQUEST_CREDITS)
+            : PUBLIC_REQUEST_CREDITS *
+              creditsForChatModel(
+                resolveWorkAgentModel(cleanWorkContext?.agent?.model || chatModelChoice),
+              ))
       )
         return res
           .status(402)

@@ -9,6 +9,7 @@ import {
   resolveVertexAiModel,
   resolveVertexAiTimeoutMs,
 } from "./vertexAiGeminiService.js";
+import { requestVertexOpenModel } from "./vertexOpenModelsService.js";
 
 const DEFAULT_OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 export const DEFAULT_GEMINI_API_URL =
@@ -21,6 +22,7 @@ export const AI_PROVIDERS = new Set([
   "grok",
   "claude",
   "vertex-gemini",
+  "vertex-open",
 ]);
 
 export const DEFAULT_OPENAI_CHAT_MODEL = "gpt-4.1-mini";
@@ -513,6 +515,39 @@ export async function requestClaudeResponse({
   );
 }
 
+// GLM 5.2 costs several times more per answer than the economical models
+// (about 1.8 US cents for a full context), so it takes two credits.
+const VERTEX_OPEN_CREDITS = { "zai-org/glm-5.2-maas": 2 };
+export function creditsForChatModel(model) {
+  return VERTEX_OPEN_CREDITS[model] || 1;
+}
+export const DEFAULT_VERTEX_OPEN_MODEL = "openai/gpt-oss-120b-maas";
+
+async function requestVertexOpenResponse({
+  input,
+  model = DEFAULT_VERTEX_OPEN_MODEL,
+  env = process.env,
+  maxTokens = 2048,
+  fetchImpl,
+  authClient,
+  signal,
+} = {}) {
+  await reservePublicAiCall(input, "vertex-open", model, creditsForChatModel(model));
+  const result = await requestVertexOpenModel({
+    env,
+    model,
+    location: "global",
+    input,
+    maxTokens: publicAiOutputLimit() || maxTokens,
+    timeoutMs: 60_000,
+    signal,
+    ...(fetchImpl ? { fetchImpl } : {}),
+    ...(authClient ? { authClient } : {}),
+  });
+  const { usage, ...rest } = result;
+  return withUsage(rest, usage?.inputTokens, usage?.outputTokens);
+}
+
 export function normalizeAiProvider(value) {
   const provider = typeof value === "string" ? value.trim().toLowerCase() : "";
   return AI_PROVIDERS.has(provider) ? provider : null;
@@ -537,6 +572,7 @@ export function isAiProviderConfigured(provider, env = process.env) {
     case "claude":
       return Boolean(env.ANTHROPIC_API_KEY);
     case "vertex-gemini":
+    case "vertex-open":
       return isVertexAiConfigured(env);
     default:
       return false;
@@ -597,6 +633,7 @@ export function getDefaultChatModel(provider, env = process.env) {
     grok: env.GROK_MODEL || DEFAULT_GROK_CHAT_MODEL,
     claude: env.ANTHROPIC_MODEL || DEFAULT_CLAUDE_CHAT_MODEL,
     "vertex-gemini": resolveVertexAiModel(env),
+    "vertex-open": DEFAULT_VERTEX_OPEN_MODEL,
   }[provider];
 }
 
@@ -633,6 +670,8 @@ export async function requestAiResponse({ provider, ...options } = {}) {
       return requestClaudeResponse(options);
     case "vertex-gemini":
       return requestVertexAiGeminiResponse(options);
+    case "vertex-open":
+      return requestVertexOpenResponse(options);
     default:
       throw new AiCoreError(
         "AI доставчикът не е разрешен.",

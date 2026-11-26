@@ -29,7 +29,12 @@ test("the robot runs on pull requests and after the production smoke check", () 
   assert.match(workflow, /node tests\/ui\/robot\.mjs\n/u);
   assert.match(workflow, /robot\.mjs --public https:\/\/cloudaicore\.com/u);
   assert.match(workflow, /workflows: \["Production smoke check"\]/u);
-  assert.doesNotMatch(workflow, /secrets\./u);
+  // Pull requests run against the stub with no secrets at all. Only the step
+  // after the production smoke check (code from main) gets the test account.
+  const liveStep = workflow.indexOf("if: github.event_name == 'workflow_run'");
+  assert.ok(liveStep > 0);
+  assert.equal(workflow.slice(0, liveStep).includes("secrets."), false);
+  assert.deepEqual(workflow.match(/secrets\.[A-Z_]+/gu), ["secrets.ROBOT_TEST_EMAIL", "secrets.ROBOT_TEST_PASSWORD"]);
 });
 
 test("the / menu stays open when focus returns to the message box", () => {

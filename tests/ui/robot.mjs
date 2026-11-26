@@ -542,9 +542,69 @@ async function publicChecks(origin) {
   await shared.page.close();
 }
 
+// Signed in on the live site with a test account. Only free actions: no AI
+// requests. The account's email and password come from GitHub secrets; without
+// them these steps are skipped, not failed.
+async function liveSignedIn(origin) {
+  const email = process.env.ROBOT_TEST_EMAIL || "";
+  const password = process.env.ROBOT_TEST_PASSWORD || "";
+  if (!email || !password) {
+    results.push("⏭ Жив сайт с вход: пропуснато, няма тестов профил (ROBOT_TEST_EMAIL / ROBOT_TEST_PASSWORD)");
+    return;
+  }
+  const { page, errors } = await openPage(origin, { width: 390, height: 844 });
+  const openMine = async (key) => {
+    if (await page.locator("#mobileMenuBtn").isVisible()) {
+      await page.click("#mobileMenuBtn");
+      await page.waitForTimeout(300);
+    }
+    await page.click(`.mine-group [data-plus="${key}"]`);
+  };
+  await step("Жив сайт: вход с тестовия профил", async () => {
+    await page.fill("#loginEmail", email);
+    await page.fill("#loginPassword", password);
+    await page.click("#loginBtn");
+    await page.locator("#chatInput").waitFor({ state: "visible", timeout: 20000 });
+    expect(await page.locator("#sendBtn").isVisible(), "няма бутон за изпращане");
+  });
+  await step("Жив сайт: началният екран има асистентите и разговора с глас", async () => {
+    await page.waitForTimeout(1500);
+    expect((await page.locator("#quickStart .assistant-row [data-assistant]").count()) >= 13, "няма 13 асистента");
+    expect(await page.locator("#talkBtn").isVisible(), "няма бутон за разговор с глас");
+  });
+  await step("Жив сайт: групата „Моят аватар“ е пълна", async () => {
+    expect((await page.locator(".mine-group [data-plus]").count()) === 6, "групата не е с 6 бутона");
+    expect((await page.locator(".mine-group #memoryBtn").count()) === 1, "„Памет“ не е в групата");
+  });
+  await step("Жив сайт: „Моите задачи“ записва и трие задача", async () => {
+    const label = `Робот проверка ${Date.now()}`;
+    await openMine("todos");
+    const box = page.locator(".todo-dialog");
+    await box.waitFor({ state: "visible", timeout: 5000 });
+    await box.locator("#todoAdd").fill(label);
+    await box.locator(".todo-add button").click();
+    const row = box.locator(".todo-list li", { hasText: label });
+    await row.waitFor({ timeout: 10000 });
+    await row.locator(".todo-remove").click();
+    await row.waitFor({ state: "detached", timeout: 10000 });
+  });
+  if (await page.locator(".todo-dialog").isVisible()) await page.locator(".todo-dialog .share-close").click();
+  await step("Жив сайт: „Кой съм аз“ се зарежда", async () => {
+    await openMine("avatar");
+    const dialog = page.locator(".avatar-dialog");
+    await dialog.waitFor({ state: "visible", timeout: 5000 });
+    await page.waitForTimeout(2000);
+    expect((await dialog.locator(".avatar-form textarea").count()) === 5, "полетата не се заредиха");
+    await dialog.locator(".share-close").click();
+  });
+  await step("Жив сайт: без грешки в страницата след вход", async () => expect(!errors.length, errors[0]));
+  await page.close();
+}
+
 if (publicOrigin) {
   await publicChecks(publicOrigin);
   await statusPage(publicOrigin, true);
+  await liveSignedIn(publicOrigin);
 } else {
   const stub = await startStubServer();
   await signedInFlows(stub.origin, stub.requests, "Телефон", { width: 390, height: 844 }, stub.feedback);
@@ -556,5 +616,6 @@ if (publicOrigin) {
 }
 await browser.close();
 console.log(results.join("\n"));
-console.log(`\nРобот: ${results.length - failed} минаха, ${failed} не минаха.`);
+const skipped = results.filter((line) => line.startsWith("⏭")).length;
+console.log(`\nРобот: ${results.length - failed - skipped} минаха, ${failed} не минаха${skipped ? `, ${skipped} пропуснати` : ""}.`);
 process.exit(failed ? 1 : 0);

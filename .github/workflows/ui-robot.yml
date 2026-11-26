@@ -3,7 +3,8 @@ name: UI robot
 # A real browser presses the buttons, so nobody has to do it by hand:
 # - on every pull request and push: the full signed-in flows against a local
 #   stub server (no sign-in, no secrets, no AI cost);
-# - after each production smoke check: signed-out checks on the live site.
+# - after each production smoke check: signed-out checks on the live site, then
+#   free signed-in checks with a test member account when its two secrets exist.
 
 on:
   pull_request:
@@ -41,6 +42,11 @@ jobs:
         if: github.event_name != 'workflow_run'
         run: node tests/ui/robot.mjs
 
-      - name: Check the live site in a browser (signed out)
+      - name: Check the live site in a browser (signed out, then with the test account)
         if: github.event_name == 'workflow_run'
+        # Without these two secrets the signed-in steps are skipped. The test
+        # account is an ordinary member account used only by this robot.
+        env:
+          ROBOT_TEST_EMAIL: ${{ secrets.ROBOT_TEST_EMAIL }}
+          ROBOT_TEST_PASSWORD: ${{ secrets.ROBOT_TEST_PASSWORD }}
         run: node tests/ui/robot.mjs --public https://cloudaicore.com

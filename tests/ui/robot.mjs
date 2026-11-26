@@ -17,12 +17,21 @@ async function step(name, run) {
     results.push(`✅ ${name}`);
   } catch (error) {
     failed += 1;
-    results.push(`❌ ${name} — ${String(error.message).split("\n")[0].slice(0, 200)}`);
+    const reason = String(error.message).split("\n")[0].slice(0, 200);
+    results.push(`❌ ${name} — ${reason}`);
+    // Shows up as an annotation on the GitHub check.
+    if (process.env.GITHUB_ACTIONS) console.log(`::error title=UI robot::${name} — ${reason}`);
   }
 }
 function expect(condition, message) {
   if (!condition) throw new Error(message);
 }
+
+process.on("unhandledRejection", (error) => {
+  if (process.env.GITHUB_ACTIONS) console.log(`::error title=UI robot crashed::${String(error?.message || error).split("\n")[0].slice(0, 300)}`);
+  console.error(error);
+  process.exit(1);
+});
 
 const browser = await chromium.launch({
   ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}),

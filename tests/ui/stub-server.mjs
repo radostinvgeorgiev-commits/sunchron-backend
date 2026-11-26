@@ -224,7 +224,10 @@ export function startStubServer(port = 0) {
           ] } });
           return res.end();
         }
-        const words = `Отговор от ${b.model}${b.assistant ? ` [${b.assistant}]` : ""} на „${b.message}“ думи думи думи думи думи думи`.split(" ");
+        const words = (b.message.includes("списък")
+          ? "Ето списък за пазар:\n- Мляко\n- Хляб\n- **Яйца**"
+          : `Отговор от ${b.model}${b.assistant ? ` [${b.assistant}]` : ""} на „${b.message}“ думи думи думи думи думи думи`
+        ).split(" ");
         let i = 0;
         const timer = setInterval(() => {
           if (i >= words.length) {

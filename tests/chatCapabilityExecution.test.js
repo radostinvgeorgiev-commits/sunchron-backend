@@ -99,6 +99,30 @@ test("member capability filtering is deny-by-default", () => {
   );
 });
 
+test("a member with their own Google connection may read it, never write or send", () => {
+  const requests = [
+    { capability: "calendar.read" },
+    { capability: "files.read" },
+    { capability: "mail.read" },
+    { capability: "mail.draft" },
+    { capability: "calendar.write" },
+    { capability: "code.read" },
+    { capability: "web.search" },
+  ];
+  assert.deepEqual(
+    filterCapabilityRequestsForIdentity(requests, { role: "member" }, { ownGoogle: true }).map(
+      ({ capability }) => capability,
+    ),
+    ["calendar.read", "files.read", "mail.read", "web.search"],
+  );
+  // Without their own connection nothing from Google passes.
+  assert.deepEqual(
+    filterCapabilityRequestsForIdentity(requests, { role: "member" }).map(({ capability }) => capability),
+    ["web.search"],
+  );
+  assert.deepEqual(filterCapabilityRequestsForIdentity(requests, { role: "unknown" }, { ownGoogle: true }), []);
+});
+
 test("member profiles cannot invoke the Codex execution capability", () => {
   const requests = [
     {

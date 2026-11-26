@@ -84,6 +84,53 @@
   picker.setAttribute("role", "menu");
   composer.prepend(picker);
 
+  // The specialist's tools, with a "connect" button right where it is needed.
+  const toolBar = document.createElement("div");
+  toolBar.className = "assistant-tools";
+  toolBar.hidden = true;
+  chip.after(toolBar);
+  let googleConnected = null;
+  const googleStatus = async () => {
+    if (googleConnected !== null) return googleConnected;
+    try {
+      const response = await fetch("/api/google/status", { cache: "no-store", credentials: "same-origin" });
+      googleConnected = response.ok ? Boolean((await response.json()).connected) : false;
+    } catch {
+      googleConnected = false;
+    }
+    return googleConnected;
+  };
+  const toolIcon = (tool) => (tool.icon?.startsWith("fa-brands") ? tool.icon : `fa-solid ${tool.icon || "fa-wrench"}`);
+  const renderTools = async (assistant) => {
+    const tools = Array.isArray(assistant?.tools) ? assistant.tools : [];
+    toolBar.hidden = !tools.length;
+    if (!tools.length) return toolBar.replaceChildren();
+    const needsGoogle = tools.some((tool) => tool.needs === "google");
+    const connected = needsGoogle ? await googleStatus() : true;
+    if (current !== assistant) return;
+    const label = document.createElement("span");
+    label.className = "assistant-tools-title";
+    label.textContent = text("Инструменти:");
+    const chips = tools.map((tool) => {
+      const ready = tool.needs !== "google" || connected;
+      const item = document.createElement("span");
+      item.className = `assistant-tool${ready ? " ready" : ""}`;
+      item.title = text(ready ? "Свързано" : "Не е свързано");
+      item.innerHTML = `<i class="${toolIcon(tool)}" aria-hidden="true"></i><span></span>`;
+      item.querySelector("span").textContent = text(tool.label);
+      return item;
+    });
+    const extra = [];
+    if (needsGoogle && !connected) {
+      const connect = document.createElement("a");
+      connect.className = "assistant-tool-connect";
+      connect.href = "/api/google/connect";
+      connect.textContent = text("Свържи Google");
+      extra.push(connect);
+    }
+    toolBar.replaceChildren(label, ...chips, ...extra);
+  };
+
   const setAssistant = (assistant) => {
     current = assistant || null;
     chip.hidden = !current;
@@ -91,6 +138,7 @@
       chip.querySelector("i").className = `fa-solid ${current.icon || "fa-user-tie"}`;
       chip.querySelector("span").textContent = `${text("Асистент")}: ${text(current.label)}`;
     }
+    void renderTools(current);
   };
   chip.querySelector("button").addEventListener("click", () => setAssistant(null));
   $("newChatBtn")?.addEventListener("click", () => setAssistant(null));
@@ -138,6 +186,18 @@
         item.querySelector("i").classList.add(assistant.icon || "fa-user-tie");
         item.querySelector("strong").textContent = text(assistant.label);
         item.querySelector("small").textContent = text(assistant.hint || "");
+        if (Array.isArray(assistant.tools) && assistant.tools.length) {
+          const icons = document.createElement("small");
+          icons.className = "assistant-tool-icons";
+          icons.setAttribute("aria-label", assistant.tools.map((tool) => text(tool.label)).join(", "));
+          for (const tool of assistant.tools) {
+            const icon = document.createElement("i");
+            icon.className = toolIcon(tool);
+            icon.title = text(tool.label);
+            icons.appendChild(icon);
+          }
+          item.querySelector("span").appendChild(icons);
+        }
         item.addEventListener("click", () => {
           setAssistant(assistant);
           picker.hidden = true;

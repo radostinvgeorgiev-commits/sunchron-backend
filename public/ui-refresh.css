@@ -318,6 +318,59 @@ body.talk-mode .voice-btn.listening {
   background: #d93025 !important;
 }
 
+/* The chosen specialist's tools, under its chip. */
+.assistant-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px 6px;
+  font-size: 0.8rem;
+  color: var(--sx-muted, #5d6b66);
+}
+.assistant-tools[hidden] { display: none; }
+.assistant-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px dashed currentColor;
+  opacity: 0.7;
+}
+.assistant-tool.ready {
+  border-style: solid;
+  border-color: rgba(20, 108, 82, 0.35);
+  background: rgba(20, 108, 82, 0.08);
+  opacity: 1;
+}
+.assistant-tool-connect {
+  font-weight: 700;
+  color: var(--sx-accent, #146c52);
+  text-decoration: underline;
+}
+.assistant-tool-icons {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+  opacity: 0.6;
+}
+.answer-todos {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 2px;
+  padding: 4px 11px;
+  border: 1px solid rgba(20, 108, 82, 0.35);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.answer-todos.done { background: rgba(20, 108, 82, 0.1); cursor: default; }
+
 /* "Откъде знам това": small chips under an answer. */
 .answer-sources {
   display: flex;

@@ -1,3 +1,30 @@
+// Tools a specialist works with. "always" ones need nothing; the rest need
+// the person's own connection, which they add from the specialist itself.
+export const ASSISTANT_TOOLS = Object.freeze({
+  web: { label: "Търсене в интернет", icon: "fa-globe", needs: "" },
+  files: { label: "Моите файлове", icon: "fa-folder-open", needs: "" },
+  todos: { label: "Моите задачи", icon: "fa-list-check", needs: "" },
+  calendar: { label: "Google Календар", icon: "fa-calendar-days", needs: "google" },
+  drive: { label: "Google Drive", icon: "fa-brands fa-google-drive", needs: "google" },
+  gmail: { label: "Gmail", icon: "fa-envelope", needs: "google" },
+});
+
+const TOOLS_BY_ASSISTANT = Object.freeze({
+  lawyer: ["web", "files", "drive"],
+  marketing: ["web", "files", "drive", "todos"],
+  teacher: ["web", "files"],
+  translator: ["files", "drive"],
+  programmer: ["web", "files"],
+  editor: ["files", "drive", "gmail"],
+  business: ["web", "calendar", "drive", "gmail", "todos"],
+  architect: ["web", "files", "todos"],
+  doctor: ["web", "files"],
+  accountant: ["web", "drive", "gmail", "files"],
+  coach: ["calendar", "todos", "web"],
+  chef: ["todos", "web"],
+  listener: ["files"],
+});
+
 // Ready-made roles a person can pick for a conversation, like GPTs in
 // ChatGPT or bots in Poe. The role adds a short instruction to the system
 // prompt; it never widens permissions or tools.
@@ -108,11 +135,25 @@ export const ASSISTANT_PRESETS = Object.freeze([
   },
 ]);
 
+export function assistantTools(id) {
+  return (TOOLS_BY_ASSISTANT[id] || []).map((key) => ({ id: key, ...ASSISTANT_TOOLS[key] }));
+}
+
+// The role's instruction plus one line on its tools, so it offers them when
+// they help; the tools themselves still run only through the normal checks.
 export function resolveAssistantPreset(value) {
   const id = typeof value === "string" ? value.trim().slice(0, 40) : "";
-  return ASSISTANT_PRESETS.find((preset) => preset.id === id) || null;
+  const preset = ASSISTANT_PRESETS.find((item) => item.id === id);
+  if (!preset) return null;
+  const tools = assistantTools(id).map(({ label }) => label);
+  return {
+    ...preset,
+    instruction: tools.length
+      ? `${preset.instruction} Инструменти, с които можеш да помагаш, ако човекът ги е свързал: ${tools.join(", ")}. Предлагай ги, когато са полезни; списъците с действия могат да станат „Моите задачи“.`
+      : preset.instruction,
+  };
 }
 
 export function listAssistantPresets() {
-  return ASSISTANT_PRESETS.map(({ id, label, icon, hint }) => ({ id, label, icon, hint }));
+  return ASSISTANT_PRESETS.map(({ id, label, icon, hint }) => ({ id, label, icon, hint, tools: assistantTools(id) }));
 }

@@ -383,6 +383,16 @@ export function buildAvatarMessages(
   ];
 }
 
+// A member's answer has a fixed length; when the model hits it the text ends
+// mid-sentence. Saying so lets the person ask for the rest instead of guessing.
+export function withTruncationNote(response, language) {
+  if (!response?.truncated) return response?.text || "";
+  const note = useEnglishReplyFallback(language)
+    ? '_(The answer was cut short. Write "continue" for the rest.)_'
+    : "_(Отговорът е съкратен. Напиши „продължи“ за останалото.)_";
+  return `${response.text.trimEnd()}…\n\n${note}`;
+}
+
 const MAX_RECENT_CONVERSATION_MESSAGES = 12;
 const MAX_RECENT_CONVERSATION_MESSAGE_LENGTH = 6_000;
 const MAX_RECENT_CONVERSATION_TOTAL_LENGTH = 24_000;
@@ -2509,7 +2519,7 @@ router.post("/chat", async (req, res) => {
     }
     const fullReply = isRuntimeAiIdentityRequest(cleanMessage)
       ? `Този отговор реално е обработен от ${aiResponse.provider} · ${aiResponse.model}.`
-      : aiResponse.text;
+      : withTruncationNote(aiResponse, language);
     sendEvent("token", { token: fullReply });
     if (!fullReply.trim()) {
       throw new Error("AI ядрото приключи без текстов отговор.");

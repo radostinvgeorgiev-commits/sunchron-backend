@@ -1,6 +1,7 @@
 import {
   COUNCIL_REQUEST_CREDITS,
   getProductPlansService,
+  ProductError,
   PUBLIC_REQUEST_CREDITS,
 } from "../services/productPlansService.js";
 import {
@@ -10,6 +11,11 @@ import {
 import { getUserLibraryService } from "../services/userLibraryService.js";
 import { getAvatarProfileService } from "../services/avatarProfileService.js";
 import { searchWeb } from "../services/webSearchService.js";
+import {
+  GeminiToolError,
+  isPlacesRequest,
+  isYoutubeRequest,
+} from "../services/geminiToolsService.js";
 import { describeAnswerSources } from "../services/answerSourcesService.js";
 import {
   markFreeChatTurn,
@@ -590,6 +596,9 @@ function isExplicitGitHubReadSubtask(subtask, hasGitHubContext) {
 
 export function detectCapabilityRequests(message) {
   const requests = [];
+  // "Не използвай инструменти" anywhere in the message keeps the paid Gemini
+  // tools out, even when the sentence is split into separate subtasks.
+  const noPaidTools = hasExplicitNoToolBoundary(message);
   const subtasks = splitCapabilitySubtasks(message);
   const hasGitHubContext =
     isGitHubReadRequest(message) || isMergedBranchCleanupPlanRequest(message);
@@ -744,7 +753,19 @@ export function detectCapabilityRequests(message) {
           : undefined,
       });
     }
-    if (isWebSearchRequest(subtask)) {
+    if (!noPaidTools && isYoutubeRequest(subtask)) {
+      requests.push({
+        capability: "video.read",
+        action: "web.read",
+        message: subtask,
+      });
+    } else if (!noPaidTools && isPlacesRequest(subtask)) {
+      requests.push({
+        capability: "places.search",
+        action: "web.read",
+        message: subtask,
+      });
+    } else if (!noPaidTools && isWebSearchRequest(subtask)) {
       requests.push({
         capability: "web.search",
         action: "web.read",
@@ -936,6 +957,8 @@ function capabilityLabel(capability) {
   if (capability === "memory.read") return "памет";
   if (capability === "memory.verify") return "автоматичен тест на паметта";
   if (capability === "web.search") return "интернет търсене";
+  if (capability === "video.read") return "YouTube видео";
+  if (capability === "places.search") return "Google Карти";
   if (capability === "infrastructure.googlecloud.read") return "Google Cloud";
   if (capability === "infrastructure.googlecloud.diagnostics.read")
     return "Google Cloud project diagnostics";
@@ -952,7 +975,10 @@ function formatCapabilityFailureMessage(error) {
     error instanceof CodeTaskError ||
     error instanceof CodexAgentError ||
     error instanceof GoogleDriveError ||
-    error instanceof WebSearchError
+    error instanceof WebSearchError ||
+    error instanceof GeminiToolError ||
+    // Out of units or the shared cap: say so, so the person knows to wait or top up.
+    error instanceof ProductError
   ) {
     return error.message;
   }

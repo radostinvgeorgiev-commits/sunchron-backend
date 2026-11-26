@@ -7,21 +7,23 @@ export const ASSISTANT_TOOLS = Object.freeze({
   calendar: { label: "Google Календар", icon: "fa-calendar-days", needs: "google" },
   drive: { label: "Google Drive", icon: "fa-brands fa-google-drive", needs: "google" },
   gmail: { label: "Gmail", icon: "fa-envelope", needs: "google" },
+  youtube: { label: "YouTube видео", icon: "fa-brands fa-youtube", needs: "" },
+  maps: { label: "Карти и места", icon: "fa-map-location-dot", needs: "" },
 });
 
 const TOOLS_BY_ASSISTANT = Object.freeze({
   lawyer: ["web", "files", "drive"],
-  marketing: ["web", "files", "drive", "todos"],
-  teacher: ["web", "files"],
+  marketing: ["web", "youtube", "files", "drive", "todos"],
+  teacher: ["web", "youtube", "files"],
   translator: ["files", "drive"],
-  programmer: ["web", "files"],
+  programmer: ["web", "youtube", "files"],
   editor: ["files", "drive", "gmail"],
-  business: ["web", "calendar", "drive", "gmail", "todos"],
-  architect: ["web", "files", "todos"],
-  doctor: ["web", "files"],
+  business: ["web", "calendar", "maps", "drive", "gmail", "todos"],
+  architect: ["web", "maps", "files", "todos"],
+  doctor: ["web", "maps", "files"],
   accountant: ["web", "drive", "gmail", "files"],
-  coach: ["calendar", "todos", "web"],
-  chef: ["todos", "web"],
+  coach: ["calendar", "todos", "youtube", "maps", "web"],
+  chef: ["todos", "youtube", "maps", "web"],
   listener: ["files"],
 });
 

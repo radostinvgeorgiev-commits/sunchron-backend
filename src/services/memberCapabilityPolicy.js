@@ -1,4 +1,9 @@
-const MEMBER_SAFE_CAPABILITIES = new Set(["memory.read", "web.search"]);
+const MEMBER_SAFE_CAPABILITIES = new Set([
+  "memory.read",
+  "web.search",
+  "video.read",
+  "places.search",
+]);
 // Reading the person's own Google, in their own chat, with their own
 // connection. Writing or sending stays out; MCP clients do not get these.
 const MEMBER_OWN_GOOGLE_CAPABILITIES = new Set([

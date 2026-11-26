@@ -466,6 +466,10 @@ AI задача|AI task
 Свържи Google|Connect Google
 Търсене в интернет|Web search
 Google Календар|Google Calendar
+YouTube видео|YouTube video
+Карти и места|Maps and places
+Обобщи това видео:|Summarize this video:
+Намери наблизо:|Find nearby:
 Добави в Моите задачи|Add to My tasks
 Добавено в Моите задачи|Added to My tasks
 Задачите не бяха записани.|The tasks were not saved.

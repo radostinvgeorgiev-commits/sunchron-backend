@@ -221,6 +221,9 @@ export async function requestOpenAIResponse({
   return withUsage(
     {
       text,
+      ...(data?.incomplete_details?.reason === "max_output_tokens"
+        ? { truncated: true }
+        : {}),
       provider: "openai",
       model:
         typeof data?.model === "string" && data.model.trim()
@@ -313,6 +316,9 @@ export async function requestGeminiResponse({
   return withUsage(
     {
       text,
+      ...(data?.candidates?.[0]?.finishReason === "MAX_TOKENS"
+        ? { truncated: true }
+        : {}),
       provider: "gemini",
       model:
         typeof data?.modelVersion === "string" && data.modelVersion.trim()
@@ -379,6 +385,9 @@ export async function requestGrokResponse({
   return withUsage(
     {
       text,
+      ...(data?.choices?.[0]?.finish_reason === "length"
+        ? { truncated: true }
+        : {}),
       provider: "grok",
       model:
         typeof data?.model === "string" && data.model.trim()
@@ -491,7 +500,12 @@ export async function requestClaudeResponse({
       "CLAUDE_EMPTY_RESPONSE",
     );
   return withUsage(
-    { text, provider: "claude", model: data?.model || model },
+    {
+      text,
+      ...(data?.stop_reason === "max_tokens" ? { truncated: true } : {}),
+      provider: "claude",
+      model: data?.model || model,
+    },
     (Number(data?.usage?.input_tokens) || 0) +
       (Number(data?.usage?.cache_read_input_tokens) || 0) +
       (Number(data?.usage?.cache_creation_input_tokens) || 0),

@@ -11,7 +11,10 @@ import { getUserLibraryService } from "../services/userLibraryService.js";
 import { getAvatarProfileService } from "../services/avatarProfileService.js";
 import { searchWeb } from "../services/webSearchService.js";
 import { describeAnswerSources } from "../services/answerSourcesService.js";
-import { reservePublicAiFile } from "../services/publicAiBudget.js";
+import {
+  markFreeChatTurn,
+  reservePublicAiFile,
+} from "../services/publicAiBudget.js";
 import {
   buildFileContext,
   getKnowledgeFilesService,
@@ -391,6 +394,24 @@ export function withTruncationNote(response, language) {
     ? '_(The answer was cut short. Write "continue" for the rest.)_'
     : "_(Отговорът е съкратен. Напиши „продължи“ за останалото.)_";
   return `${response.text.trimEnd()}…\n\n${note}`;
+}
+
+// Plain talk with an economical model costs a member no units; Work mode,
+// the Council, pictures and the stronger models do (owner's decision
+// 2026-11-26). "auto" is the site default, Claude Haiku, the cheapest one.
+export const FREE_CHAT_MODELS = Object.freeze([
+  "claude-haiku-4-5-20251001",
+  "gemini-2.5-flash-lite",
+  "grok-3-mini",
+]);
+export function isFreeChatTurnRequest({ identity, mode, model, council, image }) {
+  return (
+    isMemberIdentity(identity) &&
+    mode !== "work" &&
+    !council &&
+    !image &&
+    (model === undefined || FREE_CHAT_MODELS.includes(model))
+  );
 }
 
 const MAX_RECENT_CONVERSATION_MESSAGES = 12;
@@ -1319,7 +1340,25 @@ router.post("/chat", async (req, res) => {
       code: "CHAT_MESSAGE_TOO_LONG",
     });
   }
-  if (!ownerToolsAllowed) {
+  let freeChatTurn = false;
+  if (
+    isFreeChatTurnRequest({
+      identity: req.owner,
+      mode: interactionMode,
+      model: chatModelChoice,
+      council: councilRequested || Boolean(councilIntentId),
+      image,
+    })
+  ) {
+    try {
+      freeChatTurn = await getProductPlansService().useFreeChat(req.owner);
+      if (freeChatTurn) markFreeChatTurn();
+    } catch (error) {
+      // Counting failed: the turn simply uses units as before.
+      logSafeError("[Free chat] count", error);
+    }
+  }
+  if (!ownerToolsAllowed && !freeChatTurn) {
     // Reserve the worst-case cost, including implicit Council and fallback calls.
     if (councilIntentId)
       return res

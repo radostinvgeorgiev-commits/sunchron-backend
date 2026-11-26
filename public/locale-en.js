@@ -196,7 +196,8 @@ SYNCHRON-X — начало|SYNCHRON-X home
 Обнови|Refresh
 Старт|Starter
 100 AI единици на всеки 30 дни.|100 AI credits every 30 days.
-До 100 стандартни опита към AI двигател|Up to 100 standard AI request attempts
+Обикновеният чат е безплатен: до 50 съобщения на ден, без единици|Plain chat is free: up to 50 messages a day, no credits
+Единиците са за „Работа“, Съвета, снимки, файлове и по-силните модели|Credits are for Work mode, the Council, pictures, files and the stronger models
 Лична история и контролирана памет|Private history and memory you control
 Без банкова карта|No payment card required
 Личен|Personal
@@ -396,7 +397,7 @@ AI задача|AI task
 пространство|workspace
 с AI.|with AI.
 Виж плановете|View plans
-Започни със 100 AI единици всеки месец. Без банкова карта.|Start with 100 AI credits every month. No payment card required.
+Безплатен чат всеки ден и 100 AI единици на месец за по-тежката работа. Без банкова карта.|Free chat every day and 100 AI credits a month for heavier work. No payment card required.
 Разговори и анализ|Conversations and analysis
 Пиши, анализирай и сравнявай отговори с AI Council.|Write, analyze, and compare answers with AI Council.
 Одобрение на действия|Action approval

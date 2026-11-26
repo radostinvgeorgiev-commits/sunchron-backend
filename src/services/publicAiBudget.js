@@ -15,6 +15,15 @@ export function createPublicAiBudgetContext({
   };
 }
 export const publicAiBudgetContext = createPublicAiBudgetContext();
+// A plain conversation turn with an economical model: its text calls cost no
+// units. Pictures, files, voice and drawings in the same turn still do.
+export function markFreeChatTurn() {
+  const scope = context.getStore();
+  if (scope) scope.free = true;
+}
+export function isFreeChatTurn() {
+  return context.getStore()?.free === true;
+}
 export function publicAiOutputLimit() {
   return context.getStore() ? 1024 : null;
 }
@@ -65,6 +74,7 @@ export async function reservePublicAiCall(input, provider = "", model = "") {
       429,
     );
   scope.calls++;
+  if (scope.free) return;
   await scope.reserve(scope.identity, PUBLIC_REQUEST_CREDITS, { provider, model });
 }
 // A drawn picture: about 1.1 US cents at cost, so two credits.

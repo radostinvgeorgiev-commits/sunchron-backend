@@ -32,6 +32,11 @@ const LEGACY_STARTER_CREDITS = 10;
 export const PUBLIC_REQUEST_CREDITS = 1;
 export const PUBLIC_DAILY_CREDIT_CAP = 1000;
 export const PUBLIC_MONTHLY_CREDIT_CAP = 10_000;
+// Plain conversation with an economical model costs no units (owner's
+// decision 2026-11-26): up to this many messages a day per person, and a
+// shared daily ceiling so the bill stays bounded. Past it, units are used.
+export const FREE_CHAT_DAILY_PER_PERSON = 50;
+export const FREE_CHAT_DAILY_TOTAL = 3000;
 export const COUNCIL_REQUEST_CREDITS = 6;
 export const ACCOUNT_COLLECTION = "synchron-product-accounts-v1";
 const LEDGER_COLLECTION = "synchron-product-events-v1";
@@ -202,6 +207,50 @@ export function createProductPlansService({
       409,
     );
   }
+  // Counts one free conversation turn. Returns false when today's free turns
+  // are used up (for this person or for everybody), so the turn uses units.
+  async function useFreeChat(identity) {
+    if (identity.role === "owner") return true;
+    const id = productAccountId(identity);
+    const day = new Date(now()).toISOString().slice(0, 10);
+    const personId = `free-${day}-${id}`;
+    const totalId = `free-${day}-all`;
+    const perPerson =
+      Number(env.FREE_CHAT_DAILY_PER_PERSON) || FREE_CHAT_DAILY_PER_PERSON;
+    const total = Number(env.FREE_CHAT_DAILY_TOTAL) || FREE_CHAT_DAILY_TOTAL;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const database = db();
+      const [mine, all] = await Promise.all([
+        database.get(LEDGER_COLLECTION, personId, { includeMetadata: true }),
+        database.get(LEDGER_COLLECTION, totalId, { includeMetadata: true }),
+      ]);
+      const used = Number(mine?.data?.used) || 0;
+      const usedAll = Number(all?.data?.used) || 0;
+      if (used >= perPerson || usedAll >= total) return false;
+      try {
+        await database.commitOperations([
+          {
+            type: "set",
+            collection: LEDGER_COLLECTION,
+            id: personId,
+            data: { used: used + 1, day },
+            ...(mine?.updateTime ? { updateTime: mine.updateTime } : { createOnly: true }),
+          },
+          {
+            type: "set",
+            collection: LEDGER_COLLECTION,
+            id: totalId,
+            data: { used: usedAll + 1, day },
+            ...(all?.updateTime ? { updateTime: all.updateTime } : { createOnly: true }),
+          },
+        ]);
+        return true;
+      } catch (error) {
+        if (!conflict(error)) throw error;
+      }
+    }
+    return false;
+  }
   async function fulfill(session) {
     const plan = PRODUCT_PLANS.find(
       (p) => p.id === session?.metadata?.plan && p.amountCents > 0,
@@ -269,7 +318,7 @@ export function createProductPlansService({
     }
     throw new ProductError("Плащането чака обработка.", "PAYMENT_RETRY", 503);
   }
-  return { usage, reserve, fulfill };
+  return { usage, reserve, useFreeChat, fulfill };
 }
 let runtimeService;
 export function getProductPlansService() {

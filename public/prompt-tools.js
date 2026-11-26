@@ -91,7 +91,7 @@
   headerButton.setAttribute("aria-haspopup", "menu");
   headerButton.setAttribute("aria-expanded", "false");
   headerButton.innerHTML = `<i class="fa-solid fa-user-tie" aria-hidden="true"></i><strong></strong><i class="fa-solid fa-chevron-down" aria-hidden="true"></i>`;
-  const modelTitle = document.querySelector(".chat-toolbar .model-title");
+  const modelTitle = document.querySelector(".model-title");
   if (modelTitle) {
     const holder = document.createElement("div");
     holder.className = "assistant-title";

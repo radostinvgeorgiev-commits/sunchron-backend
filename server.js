@@ -60,6 +60,8 @@ import { getImageGenerationService } from "./src/services/imageGenerationService
 import { getDailyPlanService } from "./src/services/dailyPlanService.js";
 import { getCausesService } from "./src/services/causesService.js";
 import { getAvatarProfileService } from "./src/services/avatarProfileService.js";
+import { createPersonalTodoRouter } from "./src/routes/personalTodoRouter.js";
+import { getPersonalTodoService } from "./src/services/personalTodoService.js";
 import { createKnowledgeFilesRouter } from "./src/routes/knowledgeFilesRouter.js";
 import { getKnowledgeFilesService } from "./src/services/knowledgeFilesService.js";
 import { getUserLibraryService } from "./src/services/userLibraryService.js";
@@ -242,6 +244,15 @@ app.use(
   requireOwnerSession,
   privateApiRateLimiter,
   createAvatarProfileRouter({ service: getAvatarProfileService() }),
+);
+// "Моите задачи": turning a note into tasks is an AI request, so it gets the
+// paid limit; the list itself is ordinary private data.
+app.use("/api/todos/from-note", requireOwnerSession, paidAiRateLimiter);
+app.use(
+  "/api/todos",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  createPersonalTodoRouter({ service: getPersonalTodoService() }),
 );
 app.use(
   "/api/feedback",

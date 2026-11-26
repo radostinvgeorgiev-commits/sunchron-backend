@@ -31,7 +31,7 @@ test("the chosen assistant adds its role to the system prompt", () => {
 test("the chat route serves the list and ignores the assistant in Work mode", () => {
   const chat = readFileSync(new URL("../src/routes/chat.js", import.meta.url), "utf8");
   assert.match(chat, /router\.get\("\/assistants"/);
-  assert.match(chat, /interactionMode === "work" \? null : resolveAssistantPreset\(assistant\)/);
+  assert.match(chat, /interactionMode === "work"\s*\? null\s*: resolveAssistantPreset\(assistant\)/);
 });
 
 test("the page has the assistant picker and the / prompts", () => {

@@ -112,6 +112,35 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.waitForTimeout(900);
     expect(requests.at(-1).assistant === "lawyer", "асистентът не е изпратен");
   });
+  await step(`${label}: собствен асистент`, async () => {
+    await page.click("#attachBtn");
+    await page.click('[data-plus="assistant"]');
+    await page.click(".assistant-picker .library-add");
+    await page.fill(".library-form input", "Моят счетоводител");
+    await page.fill(".library-form textarea", "Отговаряй като счетоводител.");
+    await page.click(".library-form .primary");
+    await page.waitForTimeout(400);
+    expect((await page.textContent(".assistant-chip")).includes("Моят счетоводител"), "асистентът не е избран");
+    await send("Въпрос към моя асистент");
+    await page.waitForTimeout(900);
+    expect(String(requests.at(-1).assistant).startsWith("custom:"), "собственият асистент не е изпратен");
+    await page.click(".assistant-chip button");
+  });
+  await step(`${label}: собствена подсказка`, async () => {
+    await page.type("#chatInput", "/зап");
+    await page.waitForTimeout(200);
+    await page.keyboard.press("Enter");
+    await page.fill(".library-form input", "оферта");
+    await page.fill(".library-form textarea", "Напиши оферта за ");
+    await page.click(".library-form .primary");
+    await page.waitForTimeout(400);
+    await page.type("#chatInput", "/оф");
+    await page.waitForTimeout(200);
+    await page.keyboard.press("Enter");
+    expect((await page.inputValue("#chatInput")).startsWith("Напиши оферта за"), "подсказката не попълни полето");
+    await page.fill("#chatInput", "");
+    await page.locator("#chatInput").dispatchEvent("input");
+  });
   await step(`${label}: Съвет в колони`, async () => {
     await page.click("#attachBtn");
     await page.click('[data-plus="council"]');

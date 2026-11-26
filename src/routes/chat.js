@@ -3,6 +3,7 @@ import {
   listAssistantPresets,
   resolveAssistantPreset,
 } from "../services/assistantPresets.js";
+import { getUserLibraryService } from "../services/userLibraryService.js";
 import express from "express";
 import {
   replyLanguageInstruction,
@@ -1440,6 +1441,12 @@ router.post("/chat", async (req, res) => {
     : history.length
       ? "persistent"
       : "empty";
+  // A ready-made role or one of the person's own assistants ("custom:<id>").
+  const chatAssistant =
+    interactionMode === "work"
+      ? null
+      : resolveAssistantPreset(assistant) ||
+        (await getUserLibraryService().resolveAssistant(ownerId, assistant));
   let messages = buildAvatarMessages(
     memories,
     effectiveHistory,
@@ -1449,7 +1456,7 @@ router.post("/chat", async (req, res) => {
       mode: interactionMode,
       workContext: cleanWorkContext,
       language,
-      assistant: interactionMode === "work" ? null : resolveAssistantPreset(assistant),
+      assistant: chatAssistant,
       projectReference: buildProjectConversationReference(
         projectConversationContext,
       ),

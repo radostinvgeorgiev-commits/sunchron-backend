@@ -2698,6 +2698,39 @@ function showConversationPersistenceWarning(message) {
   turn.insertBefore(warning, actions || null);
 }
 
+// "Откъде знам това": the person's own things the answer is connected to
+// (a file, a remembered fact, an archive note). Shown only when there is one.
+function showAnswerSources(message, sources) {
+  const turn = message?.closest(".assistant-turn");
+  const list = Array.isArray(sources) ? sources.slice(0, 4) : [];
+  if (!turn || !list.length || turn.querySelector(".answer-sources")) return;
+  const kinds = {
+    file: { icon: "fa-regular fa-file-lines", text: "файл" },
+    memory: { icon: "fa-solid fa-brain", text: "памет" },
+    archive: { icon: "fa-solid fa-box-archive", text: "архив" },
+  };
+  const box = document.createElement("div");
+  box.className = "answer-sources";
+  const title = document.createElement("span");
+  title.className = "answer-sources-title";
+  title.textContent = chatText("Свързано с твоите неща:");
+  box.appendChild(title);
+  for (const { kind, label } of list) {
+    const meta = kinds[kind];
+    if (!meta || typeof label !== "string" || !label.trim()) continue;
+    const chip = document.createElement("span");
+    chip.className = `answer-source answer-source-${kind}`;
+    const icon = document.createElement("i");
+    icon.className = meta.icon;
+    icon.setAttribute("aria-hidden", "true");
+    chip.append(icon, ` ${chatText(meta.text)}: ${label.trim()}`);
+    box.appendChild(chip);
+  }
+  if (box.children.length < 2) return;
+  const actions = turn.querySelector(".message-actions");
+  turn.insertBefore(box, actions || null);
+}
+
 function showAiResponseSource(message, provider, model, linkedProjectContext) {
   const turn = message?.closest(".assistant-turn");
   if (!turn || turn.querySelector(".ai-response-source")) return;
@@ -3631,6 +3664,7 @@ async function sendMessage({
             parsed.data?.model,
             parsed.data?.linkedProjectContext,
           );
+          showAnswerSources(responseBubble, parsed.data?.sources);
           showMemoryCandidates(responseBubble, parsed.data?.memoryCandidates);
           showNextStep(responseBubble, fullText, parsed.data);
           if (

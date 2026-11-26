@@ -317,3 +317,25 @@ body[data-user-role="member"] #interactionModeBar { display: none !important; }
 body.talk-mode .voice-btn.listening {
   background: #d93025 !important;
 }
+
+/* "Откъде знам това": small chips under an answer. */
+.answer-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 2px;
+  font-size: 0.82rem;
+  color: var(--sx-muted, #5d6b66);
+}
+.answer-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(20, 108, 82, 0.08);
+  color: inherit;
+  overflow-wrap: anywhere;
+}

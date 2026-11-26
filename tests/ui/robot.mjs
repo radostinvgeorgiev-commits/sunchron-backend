@@ -330,6 +330,16 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect(reply.includes("Намерен отговор.") && reply.includes("Източник едно"), "няма отговор с източник");
     expect(!(await page.locator("#chatInput").isDisabled()), "полето остана заключено");
   });
+  await step(`${label}: „Откъде знам това“ под отговора`, async () => {
+    await send("Откъде знаеш рождения ми ден?");
+    await page.waitForTimeout(1200);
+    const chips = last().locator(".answer-source");
+    expect((await chips.count()) === 2, "няма двата източника под отговора");
+    expect((await chips.first().innerText()).includes("Бележки.pdf"), "липсва името на файла");
+    await send("Здравей пак");
+    await page.waitForTimeout(1200);
+    expect((await last().locator(".answer-sources").count()) === 0, "има източници там, където няма такива");
+  });
   await step(`${label}: Съвет в колони`, async () => {
     await page.click("#attachBtn");
     await page.click('[data-plus="models"]');

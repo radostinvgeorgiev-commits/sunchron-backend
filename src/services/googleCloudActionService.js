@@ -33,7 +33,20 @@ const ACTIONS = Object.freeze({
   USE_LATEST_SECRET_VERSION:
     "infrastructure.write:use_latest_secret_version",
   ENABLE_GOOGLE_SIGN_IN: "infrastructure.write:enable_google_sign_in",
+  ENABLE_GOOGLE_API: "infrastructure.write:enable_google_api",
 });
+const SERVICE_USAGE_API = "https://serviceusage.googleapis.com/v1";
+// Only these Google APIs may be turned on, so every person can connect
+// their own YouTube, Photos, Meet, Docs and Sheets. Nothing else.
+export const ENABLEABLE_GOOGLE_APIS = Object.freeze([
+  "youtube.googleapis.com",
+  "youtubeanalytics.googleapis.com",
+  "photospicker.googleapis.com",
+  "meet.googleapis.com",
+  "docs.googleapis.com",
+  "sheets.googleapis.com",
+  "people.googleapis.com",
+]);
 const IDENTITY_TOOLKIT_ADMIN_API = "https://identitytoolkit.googleapis.com/admin/v2";
 
 // Environment variables whose secret reference may be moved to "latest".
@@ -53,6 +66,7 @@ const OPERATION_ACTIONS = Object.freeze({
   run_cloud_build_trigger: ACTIONS.RUN_CLOUD_BUILD_TRIGGER,
   use_latest_secret_version: ACTIONS.USE_LATEST_SECRET_VERSION,
   enable_google_sign_in: ACTIONS.ENABLE_GOOGLE_SIGN_IN,
+  enable_google_api: ACTIONS.ENABLE_GOOGLE_API,
 });
 
 export class GoogleCloudActionError extends Error {
@@ -296,6 +310,18 @@ function normalizeOperation(operation, input = {}, env = process.env) {
     return { action, resource: { projectId, provider: "google.com" }, params: {} };
   }
 
+  if (operation === "enable_google_api") {
+    const api = cleanText(input.api, 80, "api", { required: true });
+    if (!ENABLEABLE_GOOGLE_APIS.includes(api)) {
+      throw new GoogleCloudActionError(
+        `Разрешени са само: ${ENABLEABLE_GOOGLE_APIS.join(", ")}.`,
+        403,
+        "GOOGLE_CLOUD_API_NOT_ALLOWED",
+      );
+    }
+    return { action, resource: { projectId, api }, params: {} };
+  }
+
   if (operation === "use_latest_secret_version") {
     const envName = cleanText(input.envName, 40, "envName", { required: true });
     if (!LATEST_SECRET_ENV_NAMES.includes(envName)) {
@@ -513,6 +539,19 @@ async function updateCloudRunServiceAccount({
 // Turns on Google as a sign-in provider in Identity Platform, with the OAuth
 // client this service already uses. The client secret goes from the runtime
 // environment straight to Google and is never returned or logged.
+export async function enableGoogleApi({ projectId, api, fetchImpl }) {
+  const payload = await googleJsonRequest(
+    `${SERVICE_USAGE_API}/projects/${encodeURIComponent(projectId)}/services/${encodeURIComponent(api)}:enable`,
+    { method: "POST", body: {}, fetchImpl },
+  );
+  return {
+    projectId,
+    api,
+    enabled: true,
+    operationName: typeof payload?.name === "string" ? payload.name : null,
+  };
+}
+
 export async function enableGoogleSignInProvider({
   projectId,
   env = process.env,
@@ -718,6 +757,13 @@ export async function confirmGoogleCloudAction(
     if (confirmation.action === ACTIONS.ENABLE_GOOGLE_SIGN_IN) {
       return (adapters.enableGoogleSignInProvider || enableGoogleSignInProvider)({
         projectId: resource.projectId,
+        fetchImpl,
+      });
+    }
+    if (confirmation.action === ACTIONS.ENABLE_GOOGLE_API) {
+      return (adapters.enableGoogleApi || enableGoogleApi)({
+        projectId: resource.projectId,
+        api: resource.api,
         fetchImpl,
       });
     }

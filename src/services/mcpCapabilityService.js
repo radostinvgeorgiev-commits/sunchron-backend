@@ -554,7 +554,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "prepare_google_cloud_action",
     "Подготви Google Cloud промяна",
-    "Подготвя точна IAM промяна, смяна на service identity на текущата Cloud Run услуга, превключване на AI ключ (ANTHROPIC/OPENAI/GEMINI/GROK_API_KEY) към последната версия на тайната му включване на Google като доставчик за вход в Identity Platform (enable_google_sign_in, без input; ползва OAuth клиента на услугата) или стартиране на съществуващия synchron-main-deploy Cloud Build trigger за точен commit SHA. Не чете стойности на тайни и не променя нищо без отделно потвърждение.",
+    "Подготвя точна IAM промяна, смяна на service identity на текущата Cloud Run услуга, превключване на AI ключ (ANTHROPIC/OPENAI/GEMINI/GROK_API_KEY) към последната версия на тайната му включване на Google като доставчик за вход в Identity Platform (enable_google_sign_in, без input; ползва OAuth клиента на услугата), включване на едно от разрешените Google API (enable_google_api, input {api}: youtube, youtubeanalytics, photospicker, meet, docs, sheets или people .googleapis.com) или стартиране на съществуващия synchron-main-deploy Cloud Build trigger за точен commit SHA. Не чете стойности на тайни и не променя нищо без отделно потвърждение.",
     {
       type: "object",
       properties: {
@@ -567,6 +567,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
             "run_cloud_build_trigger",
             "use_latest_secret_version",
             "enable_google_sign_in",
+            "enable_google_api",
           ],
         },
         input: { type: "object", additionalProperties: true },

@@ -159,7 +159,7 @@ export function startStubServer(port = 0) {
       return json(res, { days: [
         { date: "2026-11-26", active: 4, messages: 30, registrations: 2, landing_variant_1: 5, landing_variant_2: 1, landing_variant_3: 0 },
         { date: "2026-11-25", active: 2, messages: 11, registrations: 0, landing_variant_1: 0, landing_variant_2: 0, landing_variant_3: 3 },
-      ] });
+      ], accounts: { total: 7, signedInLast7Days: 5 } });
     }
     if (p === "/api/google/files") return json(res, { files: [] });
     if (p === "/api/google/gmail/messages") {

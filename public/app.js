@@ -1770,9 +1770,14 @@ async function openActivityDrawer() {
         <div><strong>${total("active")}</strong><span>${localizedMarkup("активни (сбор по дни)")}</span></div>
         <div><strong>${total("messages")}</strong><span>${localizedMarkup("съобщения")}</span></div>
         <div><strong>${total("registrations")}</strong><span>${localizedMarkup("нови профили")}</span></div>
+        ${Number.isFinite(data.accounts?.total)
+          ? `<div><strong>${data.accounts.total}</strong><span>${localizedMarkup("регистрирани общо")}</span></div>
+             <div><strong>${Number(data.accounts.signedInLast7Days) || 0}</strong><span>${localizedMarkup("влизали за 7 дни")}</span></div>`
+          : ""}
         <div><strong>${total("landing_variant_1") + total("landing_variant_2") + total("landing_variant_3")}</strong><span>${localizedMarkup("дошли от реклама")}</span></div>
       </div>
       <p class="activity-note">${localizedMarkup("Последните 14 дни. Само бройки, без имена и без текст от разговорите. Рекламата е по варианти 1 / 2 / 3.")}</p>
+      ${data.accounts?.error ? `<p class="activity-note">${escapeHtml(data.accounts.error)}</p>` : ""}
       <div class="activity-table-wrap">
         <table class="activity-table">
           <thead><tr><th>${localizedMarkup("Ден")}</th><th>${localizedMarkup("Активни")}</th><th>${localizedMarkup("Съобщения")}</th><th>${localizedMarkup("Нови")}</th><th>${localizedMarkup("Реклама")}</th></tr></thead>

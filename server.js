@@ -28,6 +28,7 @@ import {
 import chatRouter from "./src/routes/chat.js";
 import healthRouter from "./src/routes/health.js";
 import { checkCoreTools } from "./src/services/toolLiveCheckService.js";
+import { summarizeRegisteredAccounts } from "./src/services/registeredAccountsService.js";
 import memoryRouter from "./src/routes/memoryRouter.js";
 import cloudRouter from "./src/routes/cloudRouter.js";
 import githubRouter from "./src/routes/githubRouter.js";
@@ -205,7 +206,21 @@ app.get(
   privateApiRateLimiter,
   async (req, res) => {
     try {
-      res.json({ days: await getActivityService().summary(req.query.days) });
+      const [days, accounts] = await Promise.all([
+        getActivityService().summary(req.query.days),
+        summarizeRegisteredAccounts(),
+      ]);
+      // New accounts per day come from the sign-in provider when it can be
+      // read, so people from before the counters started are counted too.
+      const merged = accounts.available
+        ? days.map((day) => ({ ...day, registrations: Math.max(Number(day.registrations) || 0, accounts.byDay[day.date] || 0) }))
+        : days;
+      res.json({
+        days: merged,
+        accounts: accounts.available
+          ? { total: accounts.total, signedInLast7Days: accounts.signedInLast7Days }
+          : { error: accounts.reason },
+      });
     } catch (error) {
       logSafeError("[Activity] summary", error);
       res.status(503).json({ error: "Активността временно не е достъпна." });

@@ -73,6 +73,10 @@ import {
   TASK_MANAGEMENT_STATUSES,
 } from "./taskManagementService.js";
 import { loadWorkspaceState } from "./workspaceStateService.js";
+import {
+  AVATAR_PROFILE_FIELDS,
+  getAvatarProfileService,
+} from "./avatarProfileService.js";
 import { formatSelfTest, runSelfTest } from "./selfTestService.js";
 import {
   getToolRuntimeAvailability,
@@ -336,6 +340,28 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
       properties: { limit: { type: "integer", minimum: 1, maximum: 100 } },
       additionalProperties: false,
     },
+  ),
+  tool(
+    "get_avatar_profile",
+    "Прочети профила на аватара",
+    "Показва „Профил на аватара“ на свързания профил: кой съм, как говоря, цели, навици и какво аватарът да не прави. Само четене.",
+    { type: "object", properties: {}, additionalProperties: false },
+  ),
+  tool(
+    "update_avatar_profile",
+    "Попълни профила на аватара",
+    "Записва само подадените полета в „Профил на аватара“ на свързания профил; другите остават както са. Връща и предишния текст, за да може промяната да се върне. Празен текст изтрива полето.",
+    {
+      type: "object",
+      properties: Object.fromEntries(
+        AVATAR_PROFILE_FIELDS.map(({ id, max }) => [
+          id,
+          { type: "string", maxLength: max },
+        ]),
+      ),
+      additionalProperties: false,
+    },
+    REVERSIBLE_WRITE,
   ),
   tool(
     "read_runtime_logs",
@@ -1033,6 +1059,28 @@ export function createMcpCapabilityHandler({
       result = textResult(
         { tools, permissions: listPermissions() },
         `Проверени са ${tools.length} инструмента и ${listPermissions().length} разрешения.`,
+      );
+    } else if (name === "get_avatar_profile") {
+      const service = dependencies.avatarProfileService || getAvatarProfileService();
+      const profile = await service.read(ownerId);
+      const empty = AVATAR_PROFILE_FIELDS.filter(({ id }) => !profile[id]).map(({ label }) => label);
+      result = textResult(
+        { profile, fields: AVATAR_PROFILE_FIELDS, empty },
+        empty.length ? `Празни полета: ${empty.join(", ")}.` : "Всички полета са попълнени.",
+      );
+    } else if (name === "update_avatar_profile") {
+      const service = dependencies.avatarProfileService || getAvatarProfileService();
+      const previous = await service.read(ownerId);
+      const changes = Object.fromEntries(
+        AVATAR_PROFILE_FIELDS.filter(({ id }) => typeof args[id] === "string").map(({ id }) => [id, args[id]]),
+      );
+      if (!Object.keys(changes).length) {
+        throw Object.assign(new Error("Няма подадено поле за запис."), { code: -32602 });
+      }
+      const profile = await service.save(ownerId, { ...previous, ...changes });
+      result = textResult(
+        { profile, previous },
+        `Записани полета: ${AVATAR_PROFILE_FIELDS.filter(({ id }) => id in changes).map(({ label }) => label).join(", ")}.`,
       );
     } else if (name === "read_runtime_logs") {
       if (context.identity?.role && context.identity.role !== "owner") {

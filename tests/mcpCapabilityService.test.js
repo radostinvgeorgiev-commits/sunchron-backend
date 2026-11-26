@@ -287,3 +287,34 @@ test("unsupported names are left to the legacy MCP handler", async () => {
     { handled: false, result: null },
   );
 });
+
+test("avatar profile: read shows empty fields, update writes only the given ones", async () => {
+  const saved = new Map();
+  const avatarProfileService = {
+    read: async (ownerId) => ({ about: "", style: "", goals: "", habits: "", limits: "", ...(saved.get(ownerId) || {}) }),
+    save: async (ownerId, value) => {
+      saved.set(ownerId, value);
+      return { ...value };
+    },
+  };
+  const handler = createMcpCapabilityHandler({
+    audit: async () => {},
+    dependencies: { avatarProfileService },
+  });
+  const empty = await handler("get_avatar_profile", {}, { ownerId: "verified-owner" });
+  assert.equal(empty.result.structuredContent.empty.length, 5);
+  saved.set("verified-owner", { limits: "Без Telegram." });
+  const updated = await handler(
+    "update_avatar_profile",
+    { about: "Радко от Варна." },
+    { ownerId: "verified-owner" },
+  );
+  assert.equal(updated.result.structuredContent.profile.about, "Радко от Варна.");
+  assert.equal(updated.result.structuredContent.profile.limits, "Без Telegram.");
+  assert.equal(updated.result.structuredContent.previous.about, "");
+  assert.equal(saved.has("someone-else"), false);
+  await assert.rejects(handler("update_avatar_profile", {}, { ownerId: "verified-owner" }));
+  const scopeFor = (name) =>
+    MCP_CAPABILITY_TOOLS.find((item) => item.name === name).securitySchemes[0].scopes;
+  assert.deepEqual(scopeFor("update_avatar_profile"), [MCP_MEMORY_WRITE_SCOPE]);
+});

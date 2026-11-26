@@ -95,3 +95,37 @@ test("the probe tries each region in turn and says which models answer", async (
   assert.equal(glm.ok, false);
   assert.equal(glm.errors.length, 1);
 });
+
+test("chat sends a picked open model to Vertex, members pay its credits", async () => {
+  const { requestAiResponse } = await import("../src/services/aiCoreService.js");
+  const { createPublicAiBudgetContext } = await import("../src/services/publicAiBudget.js");
+  const reserved = [];
+  const budget = createPublicAiBudgetContext({ reserve: async (_identity, credits, details) => reserved.push([credits, details.model]) });
+  let body;
+  const fetchImpl = async (_url, options) => {
+    body = JSON.parse(options.body);
+    return new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }], usage: { prompt_tokens: 10, completion_tokens: 2 } }));
+  };
+  const ask = (model) => requestAiResponse({
+    provider: "vertex-open",
+    model,
+    env: ENV,
+    input: [{ role: "user", content: "Здравей" }],
+    fetchImpl,
+    authClient,
+  });
+  const result = await new Promise((resolve, reject) =>
+    budget({ owner: { role: "member", accountId: "a" } }, {}, () =>
+      ask("zai-org/glm-5.2-maas").then(async (first) => {
+        await ask("openai/gpt-oss-120b-maas");
+        resolve(first);
+      }, reject),
+    ),
+  );
+  assert.deepEqual(reserved, [[2, "zai-org/glm-5.2-maas"], [1, "openai/gpt-oss-120b-maas"]]);
+  assert.equal(body.max_tokens, 1024);
+  assert.equal(result.text, "ok");
+  assert.equal(result.provider, "vertex-open");
+  assert.deepEqual(result.usage, { inputTokens: 10, outputTokens: 2 });
+  assert.equal(body.model, "openai/gpt-oss-120b-maas");
+});

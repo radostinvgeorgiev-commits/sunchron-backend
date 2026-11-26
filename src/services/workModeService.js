@@ -77,6 +77,12 @@ const AGENT_MODELS = Object.freeze({
   // Old id kept so saved agents still resolve; Google retired
   // gemini-2.5-flash, so this agent uses the Vertex model the runtime is
   // set to (checked by the self-test), not a fixed one.
+  // Open models served by Vertex AI Model Garden through the owner's Google
+  // Cloud; all answer on the global endpoint (checked by the self-test).
+  "vertex-gpt-oss-120b": { label: "gpt-oss 120B (икономичен)", provider: "vertex-open", apiModel: "openai/gpt-oss-120b-maas" },
+  "vertex-gemma-4-26b": { label: "Gemma 4 26B (икономичен)", provider: "vertex-open", apiModel: "google/gemma-4-26b-a4b-it-maas" },
+  "vertex-deepseek-v4.1-flash": { label: "DeepSeek V4.1 Flash", provider: "vertex-open", apiModel: "deepseek-ai/deepseek-v4.1-flash-maas" },
+  "vertex-glm-5.2": { label: "GLM 5.2", provider: "vertex-open", apiModel: "zai-org/glm-5.2-maas" },
   "vertex-gemini-2.5-flash": {
     label: "Vertex Gemini (Google Cloud)",
     provider: "vertex-gemini",
@@ -327,6 +333,10 @@ export const CHAT_MODEL_CHOICES = Object.freeze([
   { id: "gemini-2.5-flash", label: "Gemini 3.8 Flash", hint: "По-силен Gemini" },
   { id: "gpt-4.1-mini", label: "GPT-4.1 mini", hint: "OpenAI" },
   { id: "grok-3-mini", label: "Grok 3 Mini", hint: "xAI" },
+  { id: "vertex-gpt-oss-120b", label: "gpt-oss 120B", hint: "Отворен модел на OpenAI, през Google" },
+  { id: "vertex-gemma-4-26b", label: "Gemma 4 26B", hint: "Отворен модел на Google" },
+  { id: "vertex-deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", hint: "DeepSeek, през Google" },
+  { id: "vertex-glm-5.2", label: "GLM 5.2", hint: "Силен отворен модел, 2 единици" },
 ]);
 
 export function resolveChatModelChoice(value) {

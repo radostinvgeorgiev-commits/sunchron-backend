@@ -409,6 +409,9 @@ export const FREE_CHAT_MODELS = Object.freeze([
   "claude-haiku-4-5-20251001",
   "gemini-2.5-flash-lite",
   "grok-3-mini",
+  // Open models via Google that cost less per answer than Claude Haiku.
+  "vertex-gpt-oss-120b",
+  "vertex-gemma-4-26b",
 ]);
 export function isFreeChatTurnRequest({ identity, mode, model, council, image }) {
   return (

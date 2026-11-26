@@ -422,12 +422,13 @@ test("AI Core defaults to Claude and only explicitly selects configured Vertex",
         { id: "grok", configured: false },
         { id: "claude", configured: false },
       { id: "vertex-gemini", configured: true },
+      { id: "vertex-open", configured: true },
       ],
     },
   );
   assert.deepEqual(
     [...AI_PROVIDERS],
-    ["openai", "gemini", "grok", "claude", "vertex-gemini"],
+    ["openai", "gemini", "grok", "claude", "vertex-gemini", "vertex-open"],
   );
 });
 

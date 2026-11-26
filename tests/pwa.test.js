@@ -20,3 +20,32 @@ test("the service worker never caches the app or API, only the offline page", ()
   assert.match(sw, /cache\.addAll\(\[OFFLINE_URL, "\/icon-192\.png"\]\)/u);
   assert.doesNotMatch(read("offline.html"), /onclick=/u);
 });
+
+// A phone kept an old page in memory for days. Coming back to the screen,
+// the page reloads itself when a newer version is live, but not mid-typing.
+test("an open page reloads itself when a newer version is live, unless the person is typing", async () => {
+  const { JSDOM } = await import("jsdom");
+  const run = async ({ typed = "" } = {}) => {
+    const dom = new JSDOM(
+      `<textarea id="chatInput">${typed}</textarea><button id="sendBtn"></button>`,
+      { runScripts: "outside-only", pretendToBeVisual: true, url: "https://cloudaicore.com/" },
+    );
+    const { window } = dom;
+    let commit = "old";
+    let reloads = 0;
+    let now = 1_000_000;
+    window.fetch = async () => ({ ok: true, json: async () => ({ commit }) });
+    window.Date.now = () => now;
+    window.__reload = () => reloads++;
+    window.setInterval = () => 0;
+    window.eval(read("pwa.js").replace(/\blocation\.reload\(\)/u, "window.__reload()"));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    commit = "new";
+    now += 120_000;
+    window.document.dispatchEvent(new window.Event("visibilitychange"));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    return reloads;
+  };
+  assert.equal(await run(), 1);
+  assert.equal(await run({ typed: "половин изречение" }), 0);
+});

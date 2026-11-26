@@ -455,10 +455,20 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "Планове",
       "Включва плащанията с карта (Stripe) за платените пакети.",
     ),
+    general(
+      "PRODUCT_MERCHANT_READY",
+      "Планове",
+      "Потвърждава, че Stripe акаунтът е одобрен за реални плащания.",
+    ),
+    general(
+      "PRODUCT_UNIT_ECONOMICS_APPROVED",
+      "Планове",
+      "Потвърждава, че цените на пакетите са одобрени.",
+    ),
     secret(
       "STRIPE_SECRET_KEY",
       "Планове",
-      "Live ключ на Stripe за плащане на пакетите.",
+      "Live ключ на Stripe (sk_live_…) за плащане на пакетите.",
     ),
     secret(
       "STRIPE_WEBHOOK_SECRET",

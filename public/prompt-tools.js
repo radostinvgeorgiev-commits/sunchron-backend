@@ -172,10 +172,44 @@
       picker.hidden = true;
     }
   });
+  // The start screen shows every assistant, so people find them without
+  // opening the "+" menu.
+  const renderStartRow = () => {
+    const start = $("quickStart");
+    if (!start || !assistants.length) return;
+    let row = start.querySelector(".assistant-row");
+    if (!row) {
+      row = document.createElement("div");
+      row.className = "assistant-row";
+      row.setAttribute("aria-label", text("Говори с асистент"));
+      start.appendChild(row);
+    }
+    const title = document.createElement("p");
+    title.className = "assistant-row-title";
+    title.textContent = text("Или говори с асистент");
+    row.replaceChildren(
+      title,
+      ...assistants.map((assistant) => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.dataset.assistant = assistant.id;
+        item.title = text(assistant.hint || "");
+        item.innerHTML = `<i class="fa-solid" aria-hidden="true"></i><span></span>`;
+        item.querySelector("i").classList.add(assistant.icon || "fa-user-tie");
+        item.querySelector("span").textContent = text(assistant.label);
+        item.addEventListener("click", () => {
+          setAssistant(assistant);
+          input.focus();
+        });
+        return item;
+      }),
+    );
+  };
   fetch("/chat/assistants", { credentials: "same-origin" })
     .then((response) => (response.ok ? response.json() : null))
     .then((data) => {
       assistants = Array.isArray(data?.items) ? data.items : [];
+      renderStartRow();
     })
     .catch(() => {});
 

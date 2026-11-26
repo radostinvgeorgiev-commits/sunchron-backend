@@ -113,6 +113,19 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.waitForTimeout(900);
     expect(requests.at(-1).assistant === "lawyer", "асистентът не е изпратен");
   });
+  await step(`${label}: асистент от началния екран`, async () => {
+    const fresh = (await page.locator("#mobileNewChatBtn").isVisible()) ? "#mobileNewChatBtn" : "#newChatBtn";
+    await page.click(fresh);
+    await page.waitForTimeout(400);
+    const doctor = page.locator('.assistant-row button[data-assistant="doctor"]');
+    expect(await doctor.isVisible(), "няма ред с асистенти на началния екран");
+    await doctor.click();
+    expect((await page.textContent(".assistant-chip")).includes("Лекар"), "асистентът не е избран");
+    await send("Какво значи висок холестерол?");
+    await page.waitForTimeout(900);
+    expect(requests.at(-1).assistant === "doctor", "асистентът не е изпратен");
+    await page.click(".assistant-chip button");
+  });
   await step(`${label}: собствен асистент`, async () => {
     await page.click("#attachBtn");
     await page.click('[data-plus="assistant"]');

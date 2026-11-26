@@ -60,6 +60,11 @@ import {
   searchWeb,
 } from "../services/webSearchService.js";
 import {
+  askGoogleMaps,
+  formatGeminiToolResult,
+  summarizeYoutubeVideo,
+} from "../services/geminiToolsService.js";
+import {
   isCodeTaskConfigured,
   prepareCodeTask,
 } from "../services/codeTaskService.js";
@@ -238,6 +243,12 @@ export function getToolRuntimeAvailability(
         Boolean(input.ownerId),
         "Задачите изискват проверен профил.",
         "CAPABILITY_AUTH_REQUIRED",
+      );
+    case "gemini-youtube":
+    case "gemini-maps":
+      return configured(
+        hasEnvironment(env, "GEMINI_API_KEY"),
+        "Gemini не е конфигуриран.",
       );
     case "openai-web-search":
       return configured(
@@ -890,6 +901,10 @@ const executors = Object.freeze({
   },
   "openai-web-search": async ({ input }) =>
     formatWebSearchResult(await searchWeb(input.message)),
+  "gemini-youtube": async ({ input }) =>
+    formatGeminiToolResult(await summarizeYoutubeVideo(input.message)),
+  "gemini-maps": async ({ input }) =>
+    formatGeminiToolResult(await askGoogleMaps(input.message)),
   "google-cloud-read": async () =>
     formatGoogleCloudRuntimeStatus(getGoogleCloudRuntimeStatus()),
   "google-cloud-diagnostics": async () =>

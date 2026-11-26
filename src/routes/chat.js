@@ -10,6 +10,10 @@ import {
 import { getUserLibraryService } from "../services/userLibraryService.js";
 import { getAvatarProfileService } from "../services/avatarProfileService.js";
 import { searchWeb } from "../services/webSearchService.js";
+import {
+  isPlacesRequest,
+  isYoutubeRequest,
+} from "../services/geminiToolsService.js";
 import { describeAnswerSources } from "../services/answerSourcesService.js";
 import {
   markFreeChatTurn,
@@ -744,7 +748,19 @@ export function detectCapabilityRequests(message) {
           : undefined,
       });
     }
-    if (isWebSearchRequest(subtask)) {
+    if (isYoutubeRequest(subtask)) {
+      requests.push({
+        capability: "video.read",
+        action: "web.read",
+        message: subtask,
+      });
+    } else if (isPlacesRequest(subtask)) {
+      requests.push({
+        capability: "places.search",
+        action: "web.read",
+        message: subtask,
+      });
+    } else if (isWebSearchRequest(subtask)) {
       requests.push({
         capability: "web.search",
         action: "web.read",
@@ -936,6 +952,8 @@ function capabilityLabel(capability) {
   if (capability === "memory.read") return "памет";
   if (capability === "memory.verify") return "автоматичен тест на паметта";
   if (capability === "web.search") return "интернет търсене";
+  if (capability === "video.read") return "YouTube видео";
+  if (capability === "places.search") return "Google Карти";
   if (capability === "infrastructure.googlecloud.read") return "Google Cloud";
   if (capability === "infrastructure.googlecloud.diagnostics.read")
     return "Google Cloud project diagnostics";

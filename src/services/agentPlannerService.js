@@ -26,6 +26,8 @@ const CAPABILITY_ACTIONS = Object.freeze({
   "tasks.draft": "tasks.draft",
   "tasks.progress": "tasks.read",
   "web.search": "web.read",
+  "video.read": "web.read",
+  "places.search": "web.read",
 });
 
 const PLANNER_INSTRUCTIONS = [
@@ -54,6 +56,8 @@ const PLANNER_INSTRUCTIONS = [
   "- tasks.progress: показване само на незавършените задачи",
   "- tasks.draft: създаване на нова чернова на задача в постоянния Task Journal",
   "- web.search: актуална проверка в интернет",
+  "- video.read: обобщение или въпрос за видео в YouTube по линк в съобщението",
+  "- places.search: места, адреси, работно време и маршрути през Google Карти",
   "Правила:",
   "- Извиквай способност само за действие, което потребителят иска да се изпълни сега.",
   "- Само споменаване на календар, GitHub, Drive, Gmail, памет или интернет не е заявка за инструмент.",

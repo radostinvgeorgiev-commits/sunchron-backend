@@ -445,6 +445,12 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
     "openai-web-search": {
       configured: Boolean(process.env.OPENAI_API_KEY),
     },
+    "gemini-youtube": {
+      configured: Boolean(process.env.GEMINI_API_KEY),
+    },
+    "gemini-maps": {
+      configured: Boolean(process.env.GEMINI_API_KEY),
+    },
     "openai-codex": {
       configured: isCodexAgentConfigured(),
       runtimeEnabled:

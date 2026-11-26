@@ -24,6 +24,7 @@ const TYPES = { ".js": "text/javascript", ".css": "text/css", ".html": "text/htm
 
 export function startStubServer(port = 0) {
   const requests = [];
+  const feedback = [];
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://stub");
     let p = url.pathname;
@@ -35,6 +36,21 @@ export function startStubServer(port = 0) {
       });
     }
     if (p === "/chat/models") return json(res, { items: MODELS });
+    if (p === "/chat/compare" && req.method === "POST") {
+      return json(res, { answers: [
+        { text: "Отговор едно.", provider: "claude", model: "m1", label: "Claude Haiku 5.5" },
+        { text: "Отговор две.", provider: "gemini", model: "m2", label: "Gemini 3.5 Flash Lite" },
+      ] });
+    }
+    if (p === "/api/feedback" && req.method === "POST") {
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        feedback.push(JSON.parse(body));
+        json(res, { saved: true }, 201);
+      });
+      return undefined;
+    }
     if (p === "/chat/assistants") return json(res, { items: ASSISTANTS });
     if (p.startsWith("/api/share/") && req.method === "GET") return json(res, { shared: false });
     if (p === "/api/share" && req.method === "POST") {
@@ -93,7 +109,7 @@ export function startStubServer(port = 0) {
   });
   return new Promise((resolve) => {
     server.listen(port, "127.0.0.1", () =>
-      resolve({ server, requests, origin: `http://127.0.0.1:${server.address().port}` }),
+      resolve({ server, requests, feedback, origin: `http://127.0.0.1:${server.address().port}` }),
     );
   });
 }

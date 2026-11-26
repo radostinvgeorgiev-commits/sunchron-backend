@@ -1116,6 +1116,57 @@ export async function loadChatMemoryContext({
   };
 }
 
+// Blind comparison (like LMArena): two different configured models answer
+// the same question; the page hides which is which until the person votes.
+router.post("/compare", async (req, res) => {
+  const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+  if (!message || message.length > 2000) {
+    return res.status(400).json({ error: "Напиши въпрос до 2000 знака.", code: "COMPARE_MESSAGE_INVALID" });
+  }
+  const candidates = CHAT_MODEL_CHOICES.slice(1)
+    .map((choice) => ({ ...choice, provider: resolveWorkAgentProvider(choice.id) }))
+    .filter(({ provider }) => provider && isAiProviderConfigured(provider));
+  const providers = [...new Set(candidates.map(({ provider }) => provider))];
+  if (providers.length < 2) {
+    return res.status(503).json({ error: "Трябват поне два свързани модела.", code: "COMPARE_NOT_AVAILABLE" });
+  }
+  for (let i = providers.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [providers[i], providers[j]] = [providers[j], providers[i]];
+  }
+  const pair = providers.slice(0, 2).map((provider) => candidates.find((c) => c.provider === provider));
+  const input = [
+    {
+      role: "system",
+      content: `Ти си AI CORE. Отговори ясно и кратко (до около 200 думи). ${replyLanguageInstruction(req.body?.language) || ""}`,
+    },
+    { role: "user", content: message },
+  ];
+  const answers = await Promise.allSettled(
+    pair.map((choice) =>
+      requestAiResponse({
+        provider: choice.provider,
+        model: resolveWorkAgentModel(choice.id),
+        input,
+        reasoningEffort: "low",
+        verbosity: "low",
+        signal: AbortSignal.timeout(45_000),
+      }),
+    ),
+  );
+  if (answers.some(({ status }) => status === "rejected")) {
+    return res.status(502).json({ error: "Един от моделите не отговори. Опитай пак.", code: "COMPARE_FAILED" });
+  }
+  return res.json({
+    answers: answers.map(({ value }, index) => ({
+      text: value.text,
+      provider: pair[index].provider,
+      model: value.model || resolveWorkAgentModel(pair[index].id),
+      label: pair[index].label,
+    })),
+  });
+});
+
 router.get("/assistants", (_req, res) => {
   res.json({ items: listAssistantPresets() });
 });

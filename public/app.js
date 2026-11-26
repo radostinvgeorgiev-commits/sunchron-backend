@@ -2349,6 +2349,9 @@ function removeTypingIndicator() {
 globalThis.SynchronChat = {
   ...(globalThis.SynchronChat || {}),
   sessionId: () => state.sessionId,
+  busy: () => state.chatBusy,
+  renderMarkdown: (element, text) => renderAgentText(element, text),
+  language: () => chatLocale?.language || "bg",
 };
 
 function stopGeneration() {
@@ -2502,6 +2505,8 @@ function showAiResponseSource(message, provider, model, linkedProjectContext) {
   const cleanModel = typeof model === "string" ? model.trim() : "";
   if (!cleanProvider && !cleanModel) return;
 
+  turn.dataset.provider = cleanProvider;
+  turn.dataset.model = cleanModel;
   const source = document.createElement("div");
   source.className = "ai-response-source";
   const context =
@@ -3099,6 +3104,19 @@ async function handleMessageAction(event) {
     );
     otherButton?.classList.remove("active");
     button.classList.toggle("active");
+    // Counted per model; no text is sent.
+    if (button.classList.contains("active") && turn.dataset.provider) {
+      void fetch("/api/feedback", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: action === "like" ? "up" : "down",
+          provider: turn.dataset.provider,
+          model: turn.dataset.model,
+        }),
+      }).catch(() => {});
+    }
   }
 }
 

@@ -471,6 +471,22 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
           ? "Google Cloud project е конфигуриран, но процесът не е потвърден като Cloud Run runtime."
           : null,
     },
+    // Same runtime requirement as the read tool; it was missing here, so the
+    // tools screen showed it as not configured although it works.
+    "google-cloud-diagnostics": {
+      configured: googleCloud.configured,
+      authenticated: true,
+      liveVerified: googleCloud.cloudRunDetected,
+      availabilityCode: googleCloud.configured
+        ? googleCloud.cloudRunDetected
+          ? null
+          : "GOOGLE_CLOUD_RUNTIME_NOT_DETECTED"
+        : "GOOGLE_CLOUD_NOT_CONFIGURED",
+      availabilityReason:
+        googleCloud.configured && !googleCloud.cloudRunDetected
+          ? "Google Cloud project е конфигуриран, но процесът не е потвърден като Cloud Run runtime."
+          : null,
+    },
     "google-cloud-write": {
       configured: googleCloud.configured,
       authenticated: true,

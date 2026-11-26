@@ -184,3 +184,14 @@
 }
 .share-actions .primary { background: #000; border-color: #000; color: #fff; }
 .share-stop { color: #a3261c !important; }
+
+/* Blind comparison. */
+.compare-box { margin: 14px 0; }
+.compare-question { font-weight: 800; margin: 0 0 4px; }
+.compare-status { margin: 0 0 6px; color: #2f6b52; font-weight: 700; }
+.compare-votes { display: flex; flex-wrap: wrap; gap: 8px; }
+.compare-votes button {
+  flex: 1 1 110px; padding: 10px 12px; border-radius: 12px; border: 1px solid #c9d0cc;
+  background: #fff; color: #000; font-weight: 800;
+}
+.compare-votes button:hover { background: #eef3f0; }

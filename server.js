@@ -52,6 +52,8 @@ import taskRunsRouter from "./src/routes/taskRunsRouter.js";
 import { createShareRouter, createSharedReadRouter } from "./src/routes/shareRouter.js";
 import { createShareService } from "./src/services/shareService.js";
 import createVoiceRouter from "./src/routes/voiceRouter.js";
+import { createFeedbackRouter } from "./src/routes/feedbackRouter.js";
+import { createFeedbackService } from "./src/services/feedbackService.js";
 import { listConversationMessages } from "./src/services/memoryService.js";
 import {
   createEarlyAccessAdminRouter,
@@ -193,6 +195,12 @@ app.use(
   paidAiRateLimiter,
   publicAiBudgetContext,
   chatRouter,
+);
+app.use(
+  "/api/feedback",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  createFeedbackRouter({ service: createFeedbackService() }),
 );
 app.use(
   "/api/voice",

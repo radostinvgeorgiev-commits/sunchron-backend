@@ -47,7 +47,7 @@ async function openPage(origin, viewport, path = "/") {
   return { page, errors };
 }
 
-async function signedInFlows(origin, requests, label, viewport) {
+async function signedInFlows(origin, requests, label, viewport, feedback) {
   const { page, errors } = await openPage(origin, viewport);
   const last = () => page.locator(".assistant-turn").last();
   const send = async (text) => {
@@ -120,6 +120,27 @@ async function signedInFlows(origin, requests, label, viewport) {
     expect(requests.at(-1).council === true, "Съветът не е включен в заявката");
     expect((await page.locator(".council-card").count()) === 2, "няма две колони");
   });
+  await step(`${label}: 👍 се записва за модела`, async () => {
+    const before = feedback.length;
+    const like = page.locator('.assistant-turn[data-provider] [data-action="like"]').last();
+    await like.scrollIntoViewIfNeeded();
+    await like.click({ timeout: 5000 });
+    await page.waitForTimeout(300);
+    expect(feedback.length === before + 1 && feedback.at(-1).kind === "up", "оценката не е изпратена");
+    expect(Boolean(feedback.at(-1).provider), "липсва модел в оценката");
+  });
+  await step(`${label}: сляпо сравнение`, async () => {
+    await page.fill("#chatInput", "Кое е по-добро?");
+    await page.click("#attachBtn");
+    await page.click('[data-plus="compare"]');
+    await page.waitForTimeout(500);
+    const box = page.locator(".compare-box").last();
+    expect(!(await box.innerText()).includes("Claude"), "имената се виждат преди гласуване");
+    await box.locator(".compare-votes button").first().click();
+    await page.waitForTimeout(300);
+    expect((await box.innerText()).includes("Claude Haiku 5.5"), "имената не се показаха след гласуване");
+    expect(feedback.at(-1).votes?.[0]?.kind === "win", "гласът не е изпратен");
+  });
   await step(`${label}: „Сподели разговора“`, async () => {
     await page.click("#chatOptions summary");
     await page.click("#conversationShareBtn");
@@ -165,8 +186,8 @@ if (publicOrigin) {
   await publicChecks(publicOrigin);
 } else {
   const stub = await startStubServer();
-  await signedInFlows(stub.origin, stub.requests, "Телефон", { width: 390, height: 844 });
-  await signedInFlows(stub.origin, stub.requests, "Компютър", { width: 1280, height: 800 });
+  await signedInFlows(stub.origin, stub.requests, "Телефон", { width: 390, height: 844 }, stub.feedback);
+  await signedInFlows(stub.origin, stub.requests, "Компютър", { width: 1280, height: 800 }, stub.feedback);
   await sharedPage(stub.origin);
   stub.server.close();
 }

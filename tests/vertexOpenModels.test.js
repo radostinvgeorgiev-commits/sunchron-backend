@@ -40,6 +40,26 @@ test("an open model answer comes back with its text and cut-off flag", async () 
   assert.match(sent.url, /us-central1-aiplatform/u);
 });
 
+test("Google's own reason comes back with the error", async () => {
+  await assert.rejects(
+    requestVertexOpenModel({
+      env: ENV,
+      model: "x/y",
+      location: "global",
+      input: "hi",
+      authClient,
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ error: { status: "PERMISSION_DENIED", message: "Model not enabled", details: [{ reason: "MODEL_NOT_ENABLED" }] } }), { status: 403 }),
+    }),
+    (error) => error.code === "VERTEX_OPEN_MODEL_FORBIDDEN" && error.reason === "MODEL_NOT_ENABLED: Model not enabled",
+  );
+});
+
+test("the probe stops trying when its time is used up", async () => {
+  const results = await probeVertexOpenModels({ env: ENV, budgetMs: 0, ask: async () => ({ text: "7" }) });
+  assert.ok(results.every(({ ok, errors }) => !ok && errors.every((item) => item.includes("не стигна времето"))));
+});
+
 test("a missing model is reported, not thrown as a crash", async () => {
   await assert.rejects(
     requestVertexOpenModel({
@@ -64,14 +84,14 @@ test("the probe tries each region in turn and says which models answer", async (
     marker: "42",
     ask: async ({ model, location }) => {
       if (model.startsWith("meta/llama-4") && location === "us-east5") throw Object.assign(new Error(), { code: "VERTEX_OPEN_MODEL_NOT_FOUND" });
-      if (model.startsWith("qwen/")) throw Object.assign(new Error(), { code: "VERTEX_OPEN_MODEL_FORBIDDEN" });
+      if (model.startsWith("zai-org/")) throw Object.assign(new Error(), { code: "VERTEX_OPEN_MODEL_FORBIDDEN" });
       return { text: "42" };
     },
   });
   const maverick = results.find(({ model }) => model.startsWith("meta/llama-4"));
   assert.equal(maverick.ok, true);
   assert.equal(maverick.location, "global");
-  const qwen = results.find(({ model }) => model.startsWith("qwen/"));
-  assert.equal(qwen.ok, false);
-  assert.equal(qwen.errors.length, 2);
+  const glm = results.find(({ model }) => model.startsWith("zai-org/"));
+  assert.equal(glm.ok, false);
+  assert.equal(glm.errors.length, 1);
 });

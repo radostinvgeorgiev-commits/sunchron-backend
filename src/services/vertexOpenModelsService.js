@@ -7,13 +7,16 @@ import { resolveVertexAiConfig } from "./vertexAiGeminiService.js";
 // entry lists where to try it, first one first.
 export const VERTEX_OPEN_MODEL_CANDIDATES = Object.freeze([
   { model: "meta/llama-4-maverick-17b-128e-instruct-maas", label: "Llama 4 Maverick", locations: ["us-east5", "global"] },
-  { model: "meta/llama-3.3-70b-instruct-maas", label: "Llama 3.3 70B", locations: ["us-central1", "global"] },
-  { model: "deepseek-ai/deepseek-v3.1-maas", label: "DeepSeek V3.1", locations: ["global", "us-west2"] },
-  { model: "qwen/qwen3-235b-a22b-instruct-2507-maas", label: "Qwen3 235B", locations: ["global", "us-south1"] },
+  { model: "meta/llama-4-scout-17b-16e-instruct-maas", label: "Llama 4 Scout", locations: ["us-east5", "global"] },
+  { model: "deepseek-ai/deepseek-v4.1-flash-maas", label: "DeepSeek V4.1 Flash", locations: ["global"] },
   { model: "openai/gpt-oss-120b-maas", label: "gpt-oss 120B", locations: ["global", "us-central1"] },
+  { model: "google/gemma-4-26b-a4b-it-maas", label: "Gemma 4 26B", locations: ["global"] },
+  { model: "zai-org/glm-5.2-maas", label: "GLM 5.2", locations: ["global"] },
 ]);
 
-const DEFAULT_TIMEOUT_MS = 20_000;
+const DEFAULT_TIMEOUT_MS = 10_000;
+// The self-test gives each row 30 s; the whole probe stays well under that.
+const PROBE_BUDGET_MS = 24_000;
 
 export class VertexOpenModelError extends Error {
   constructor(message, code, status = 502) {
@@ -29,7 +32,23 @@ export function buildVertexOpenModelEndpoint({ projectId, location }) {
   return `https://${host}/v1/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/endpoints/openapi/chat/completions`;
 }
 
-function errorFor(status) {
+// Google's own reason (e.g. SERVICE_DISABLED, IAM_PERMISSION_DENIED, a
+// policy or a model that is not enabled) and a short message, so the
+// self-test says what to change. Never contains credentials.
+async function googleReason(response) {
+  try {
+    const data = await response.json();
+    const error = Array.isArray(data) ? data[0]?.error : data?.error;
+    const details = Array.isArray(error?.details) ? error.details : [];
+    const reason = details.map((item) => item?.reason).find(Boolean) || error?.status || "";
+    const message = String(error?.message || "").replace(/\s+/gu, " ").slice(0, 120);
+    return [reason, message].filter(Boolean).join(": ");
+  } catch {
+    return "";
+  }
+}
+
+function errorFor(status, reason = "") {
   if (status === 404) return new VertexOpenModelError("Моделът не е наличен в този регион.", "VERTEX_OPEN_MODEL_NOT_FOUND", 404);
   if (status === 403) return new VertexOpenModelError("Моделът не е включен за проекта.", "VERTEX_OPEN_MODEL_FORBIDDEN", 403);
   if (status === 429) return new VertexOpenModelError("Моделът временно ограничи заявките.", "VERTEX_OPEN_MODEL_RATE_LIMITED", 429);
@@ -79,7 +98,12 @@ export async function requestVertexOpenModel({
   } finally {
     clearTimeout(timer);
   }
-  if (!response.ok) throw errorFor(response.status);
+  if (!response.ok) {
+    const reason = await googleReason(response);
+    const error = errorFor(response.status, reason);
+    error.reason = reason;
+    throw error;
+  }
   const data = await response.json().catch(() => null);
   const choice = data?.choices?.[0];
   const text = String(choice?.message?.content || "").trim();
@@ -89,11 +113,22 @@ export async function requestVertexOpenModel({
 
 // Asks every candidate a tiny question and reports which ones answer, and
 // from which region. Used by the self-test to learn what can be offered.
-export async function probeVertexOpenModels({ env = process.env, ask = requestVertexOpenModel, marker = "7" } = {}) {
+export async function probeVertexOpenModels({
+  env = process.env,
+  ask = requestVertexOpenModel,
+  marker = "7",
+  budgetMs = PROBE_BUDGET_MS,
+} = {}) {
+  const deadline = Date.now() + budgetMs;
   return Promise.all(
     VERTEX_OPEN_MODEL_CANDIDATES.map(async ({ model, label, locations }) => {
       const errors = [];
       for (const location of locations) {
+        const left = deadline - Date.now();
+        if (left < 2_000) {
+          errors.push(`${location}:не стигна времето`);
+          continue;
+        }
         try {
           const { text } = await ask({
             env,
@@ -101,10 +136,11 @@ export async function probeVertexOpenModels({ env = process.env, ask = requestVe
             location,
             input: [{ role: "user", content: `Отговори само с числото ${marker}.` }],
             maxTokens: 200,
+            timeoutMs: Math.min(DEFAULT_TIMEOUT_MS, left - 1_000),
           });
           return { model, label, location, ok: String(text).includes(marker) };
         } catch (error) {
-          errors.push(`${location}:${error?.code || "error"}`);
+          errors.push(`${location}:${error?.code || "error"}${error?.reason ? ` (${error.reason})` : ""}`);
         }
       }
       return { model, label, ok: false, errors };

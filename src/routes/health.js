@@ -1,4 +1,5 @@
 import express from "express";
+import { probeAiProviders } from "../services/aiProviderProbeService.js";
 import {
   isMemoryBackendConfigured,
   isPersistenceBackendConfigured,
@@ -541,6 +542,42 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
     }),
   };
 }
+
+// Public status page data: whether the site answers and which AI models
+// work right now. Uses the cached probe (one tiny request per provider every
+// ten minutes at most) and returns no reasons, keys or internal details.
+export function createPublicStatusHandler({
+  probe = probeAiProviders,
+  ready = async () => (await getReadinessStatus()).status === "ready",
+} = {}) {
+  return async (_req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=60");
+    let models = [];
+    try {
+      models = (await probe()).filter(({ configured }) => configured).map(({ label, working }) => ({
+        name: label,
+        working: working === true,
+      }));
+    } catch {
+      models = [];
+    }
+    let siteReady = false;
+    try {
+      siteReady = (await ready()) === true;
+    } catch {
+      siteReady = false;
+    }
+    const allModels = models.length > 0 && models.every(({ working }) => working);
+    const someModels = models.some(({ working }) => working);
+    res.json({
+      status: !siteReady || !someModels ? "down" : allModels ? "ok" : "partial",
+      site: siteReady,
+      models,
+      checkedAt: new Date().toISOString(),
+    });
+  };
+}
+router.get("/status", createPublicStatusHandler());
 
 router.get("/integrations", async (req, res) => {
   const cookies = parseGitHubCookies(req.headers.cookie);

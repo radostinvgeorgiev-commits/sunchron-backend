@@ -179,7 +179,8 @@ test("the main Google connection asks only for scopes Google's free check covers
     assert.doesNotMatch(scope, /calendar\.readonly/u);
     assert.match(scope, /gmail\.send/u);
     assert.match(scope, /\/auth\/contacts(?:\s|$)/u);
-    assert.match(scope, /drive\.file/u);
+    // drive.file (add=save) and YouTube never share a request with each other.
+    assert.doesNotMatch(scope, /drive\.file/u);
     // Restricted scopes (whole mailbox / whole Drive) are separate steps.
     assert.doesNotMatch(scope, /gmail\.readonly|gmail\.compose|gmail\.modify|drive\.readonly|youtube/u);
     const save = new URL(buildAuthorizationUrl("state", ["save"])).searchParams.get("scope");
@@ -582,7 +583,7 @@ test("a member's first Google connection asks only for scopes Google's free chec
     assert.doesNotMatch(member, /gmail\.readonly|gmail\.modify|gmail\.compose|drive\.readonly/u);
     assert.match(member, /gmail\.send/u);
     assert.match(member, /calendar\.events/u);
-    assert.match(member, /drive\.file/u);
+    assert.doesNotMatch(member, /drive\.file|youtube/u);
     const owner = new URL(buildAuthorizationUrl("s", [], { owner: true })).searchParams.get("scope");
     assert.match(owner, /gmail\.readonly/u);
     const gmail = new URL(buildAuthorizationUrl("s", ["gmail"], { owner: false })).searchParams.get("scope");

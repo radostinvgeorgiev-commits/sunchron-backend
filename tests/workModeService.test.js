@@ -107,10 +107,8 @@ test("the available personal-agent models are explicit and server-owned", () => 
   assert.equal(resolveWorkAgentModel("gpt-5.6-sol"), "gpt-5.6-sol");
   assert.equal(resolveWorkAgentModel("gpt-5.6-terra"), "gpt-5.6-terra");
   assert.equal(resolveWorkAgentModel("gemini-2.5-flash"), "gemini-3.8-flash");
-  assert.equal(
-    resolveWorkAgentModel("vertex-gemini-2.5-flash"),
-    "gemini-2.5-flash",
-  );
+  // Google retired gemini-2.5-flash; the Vertex agent follows the runtime model.
+  assert.equal(resolveWorkAgentModel("vertex-gemini-2.5-flash"), undefined);
   assert.equal(resolveWorkAgentModel("grok-4.5"), "grok-4.5");
   assert.equal(resolveWorkAgentProvider("gpt-5.6-sol"), "openai");
   assert.equal(resolveWorkAgentProvider("gemini-2.5-flash"), "gemini");

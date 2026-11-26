@@ -292,3 +292,13 @@ body.doc-panel-open main, body.doc-panel-open .chat-main { margin-right: min(46v
 }
 .quick-start .assistant-row i { font-size: 0.95rem; margin: 0; }
 .quick-start .assistant-row span { color: inherit; font-size: inherit; }
+
+/* Side menu: "Моят аватар" — the person's own things in one place. */
+.mine-group { margin: 4px 0 10px; }
+.mine-group .mine-title {
+  margin: 0 0 4px; padding: 0 8px; font-size: 0.8rem; font-weight: 800;
+  letter-spacing: 0.04em; text-transform: uppercase; color: #b9d8c9;
+}
+.mine-group > button { width: 100%; }
+.plus-menu .plus-sub { padding-left: 36px; }
+.plus-menu .plus-sub[hidden] { display: none; }

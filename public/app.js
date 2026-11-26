@@ -2414,6 +2414,9 @@ function createAssistantTurn(text = "", showActions = true) {
         <button type="button" data-action="retry-model" class="retry-action" title="${localizedMarkup("Пробвай с друг модел")}" aria-label="${localizedMarkup("Пробвай с друг модел")}">
             <i class="fa-solid fa-shuffle"></i>
         </button>
+        <button type="button" data-action="open-panel" title="${localizedMarkup("Отвори отстрани")}" aria-label="${localizedMarkup("Отвори отстрани")}">
+            <i class="fa-solid fa-up-right-from-square"></i>
+        </button>
         <button type="button" data-action="speak" title="${localizedMarkup("Прочети на глас")}" aria-label="${localizedMarkup("Прочети на глас")}">
             <i class="fa-solid fa-volume-high"></i>
         </button>

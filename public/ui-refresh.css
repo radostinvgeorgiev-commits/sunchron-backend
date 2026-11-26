@@ -302,3 +302,8 @@ body.doc-panel-open main, body.doc-panel-open .chat-main { margin-right: min(46v
 .mine-group > button { width: 100%; }
 .plus-menu .plus-sub { padding-left: 36px; }
 .plus-menu .plus-sub[hidden] { display: none; }
+
+/* Ordinary accounts get one plain chat: the Chat/Work switch and the
+   project/agent button are tools for running the project, so only the
+   owner sees them. */
+body[data-user-role="member"] #interactionModeBar { display: none !important; }

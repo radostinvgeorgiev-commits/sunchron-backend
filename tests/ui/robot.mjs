@@ -128,6 +128,15 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect((await page.locator(".mine-group [data-plus]").count()) === 4, "няма група „Моят аватар“");
     expect((await page.locator(".mine-group #memoryBtn").count()) === 1, "„Памет“ не е в групата");
   });
+  await step(`${label}: обикновен акаунт няма превключвател „Чат/Работа“`, async () => {
+    expect(await page.locator("#interactionModeBar").isVisible(), "собственикът не вижда превключвателя");
+    await page.click("#workModeToolbarBtn");
+    await page.evaluate(() => (document.body.dataset.userRole = "member"));
+    await page.waitForTimeout(200);
+    expect(!(await page.locator("#interactionModeBar").isVisible()), "превключвателят се вижда на член");
+    expect((await page.evaluate(() => document.body.dataset.interactionMode)) === "chat", "членът остана в Работа");
+    await page.evaluate(() => (document.body.dataset.userRole = "owner"));
+  });
   await step(`${label}: асистент от началния екран`, async () => {
     const fresh = (await page.locator("#mobileNewChatBtn").isVisible()) ? "#mobileNewChatBtn" : "#newChatBtn";
     await page.click(fresh);

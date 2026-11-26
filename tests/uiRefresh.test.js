@@ -39,3 +39,9 @@ test("the side menu has the person's own things and the + menu stays short", asy
   const menu = js.slice(js.indexOf("menu.innerHTML"), js.indexOf("composer.prepend(menu)"));
   assert.doesNotMatch(menu, /data-plus="(avatar|day|google|causes)"/u);
 });
+
+test("ordinary accounts do not see the Chat/Work switch", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("../public/ui-refresh.css", import.meta.url), "utf8");
+  assert.match(css, /body\[data-user-role="member"\] #interactionModeBar \{ display: none/u);
+});

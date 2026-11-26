@@ -188,6 +188,20 @@
     });
   }
 
+  // An ordinary account has no Chat/Work switch, so it never stays in Work
+  // mode left over from before.
+  const plainChatForMembers = () => {
+    const body = document.body;
+    if (body.dataset.userRole === "member" && body.dataset.interactionMode === "work") {
+      $("chatModeBtn")?.click();
+    }
+  };
+  new MutationObserver(plainChatForMembers).observe(document.body, {
+    attributes: true,
+    attributeFilter: ["data-user-role", "data-interaction-mode"],
+  });
+  plainChatForMembers();
+
   // Greeting with the person's name above the suggestions.
   const greeting = $("quickStartGreeting");
   const name = $("profileName");

@@ -19,10 +19,34 @@ const general = (key, area, purpose, options = {}) => ({
 export const ENVIRONMENT_CATALOG = Object.freeze(
   [
     secret(
+      "ANTHROPIC_API_KEY",
+      "AI ядро",
+      "Claude: разговорът по подразбиране (Claude Haiku 5.5), кодовият агент и четенето на снимки.",
+      { requiredNow: true },
+    ),
+    general(
+      "ANTHROPIC_MODEL",
+      "AI ядро",
+      "Модел за Claude разговори; по подразбиране е избран в кода.",
+      { hasDefault: true },
+    ),
+    general(
+      "CLAUDE_CODE_MODEL",
+      "AI ядро",
+      "Модел за кодовия агент (Claude); по подразбиране е моделът за разговор.",
+      { hasDefault: true },
+    ),
+    secret(
       "OPENAI_API_KEY",
       "AI ядро",
-      "Разговор, планиране, търсене и анализ.",
+      "OpenAI: допълнителен модел в чата, планиране, търсене в интернет, гласово въвеждане и рисуване.",
       { requiredNow: true },
+    ),
+    general(
+      "OPENAI_IMAGE_MODEL",
+      "AI ядро",
+      "Модел за „Нарисувай картинка“.",
+      { hasDefault: true },
     ),
     general(
       "AI_CORE_PROVIDER",
@@ -36,7 +60,7 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general(
       "AI_CORE_COUNCIL_MODEL",
       "AI ядро",
-      "Моделът, който сравнява отговорите на OpenAI, Gemini и Grok.",
+      "Моделът, който обобщава отговорите на моделите в Съвета (Claude, OpenAI, Gemini, Grok).",
       { hasDefault: true },
     ),
     general(
@@ -436,6 +460,33 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "PAID_AI_RATE_LIMIT",
       "Сигурност",
       "Платени AI заявки за 15 минути.",
+      { hasDefault: true },
+    ),
+    general(
+      "PRODUCT_PAYMENTS_ENABLED",
+      "Планове",
+      "Включва плащанията с карта (Stripe) за платените пакети.",
+    ),
+    secret(
+      "STRIPE_SECRET_KEY",
+      "Планове",
+      "Live ключ на Stripe за плащане на пакетите.",
+    ),
+    secret(
+      "STRIPE_WEBHOOK_SECRET",
+      "Планове",
+      "Тайна за проверка на потвържденията за плащане от Stripe.",
+    ),
+    general(
+      "PUBLIC_AI_MONTHLY_CREDIT_CAP",
+      "Планове",
+      "Общ месечен лимит на AI единиците за всички потребители (по подразбиране 3000).",
+      { hasDefault: true },
+    ),
+    general(
+      "PUBLIC_AI_DAILY_CREDIT_CAP",
+      "Планове",
+      "Общ дневен лимит на AI единиците за всички потребители (по подразбиране 300).",
       { hasDefault: true },
     ),
     general("APP_COMMIT_SHA", "Runtime", "Точният публикуван Git commit.", {

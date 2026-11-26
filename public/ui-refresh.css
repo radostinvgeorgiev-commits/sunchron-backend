@@ -1,0 +1,68 @@
+/* Interface layer modelled on the large multi-model apps (ChatGPT, Claude,
+   Perplexity, Poe): a quiet header, everything optional behind "+", the
+   profile and settings at the bottom of the sidebar. Loaded last. */
+
+/* Header: no language picker or server pill; a new-chat button on phones. */
+.chat-toolbar .status-indicator { display: none !important; }
+.chat-toolbar [data-language-switch] { display: none !important; }
+.mobile-new-chat {
+  display: none; margin-left: auto; width: 44px; height: 44px;
+  border: 0; border-radius: 12px; background: transparent; color: #000; font-size: 1.15rem;
+}
+@media (max-width: 900px) {
+  .mobile-new-chat { display: grid; place-items: center; }
+}
+
+/* Council lives in the "+" menu now; the toolbar keeps the mode switch. */
+#councilModeBtn { display: none !important; }
+
+/* Sidebar: new chat and history on top, tools in the middle, profile and
+   its settings menu at the bottom. */
+.sidebar > .sidebar-brand { order: 0; }
+.sidebar > #newChatBtn { order: 1; }
+.sidebar > .sidebar-section { order: 2; flex: 1 1 auto; min-height: 120px; overflow: auto; }
+.sidebar > .sidebar-nav { order: 3; }
+.sidebar > #profileActions { order: 98; }
+.sidebar > #toggleStatusBtn { order: 99; margin-top: 4px; }
+.profile-language {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px; font-weight: 700;
+}
+.profile-language select { max-width: 60%; }
+
+/* Empty chat: greeting first, then suggestions (as in every big app). */
+.quick-start-greeting {
+  margin: clamp(12px, 6vh, 64px) 0 18px; text-align: center;
+  font-size: clamp(1.6rem, 4.5vw, 2.3rem); letter-spacing: -0.03em; line-height: 1.2; color: #000;
+}
+.chatPanel:has(#quickStart:not([hidden])) .welcome-turn { display: none; }
+
+/* "+" menu above the composer. */
+.composer-wrap { position: relative; }
+.plus-menu {
+  position: absolute; left: 12px; bottom: calc(100% + 8px); z-index: 30;
+  min-width: 240px; padding: 6px; border-radius: 14px;
+  background: #fff; border: 1px solid #d6dbd8; box-shadow: 0 10px 30px rgba(0,0,0,.15);
+}
+.plus-menu[hidden] { display: none; }
+.plus-menu button {
+  display: flex; width: 100%; align-items: center; gap: 12px; padding: 12px;
+  border: 0; border-radius: 10px; background: transparent; color: #000; font-weight: 700; text-align: left;
+}
+.plus-menu button:hover, .plus-menu button:focus-visible { background: #eef3f0; }
+.plus-menu small { display: block; font-weight: 600; color: #3a3a3a; }
+.plus-menu i { width: 20px; text-align: center; }
+
+/* Active Council chip above the input. */
+.council-chip {
+  display: inline-flex; align-items: center; gap: 8px; margin: 0 0 8px 12px;
+  padding: 6px 10px; border-radius: 999px; background: #e7f1ec; color: #0f3b2c; font-weight: 800; font-size: .9rem;
+}
+.council-chip[hidden] { display: none; }
+.council-chip button { border: 0; background: transparent; font-weight: 800; color: inherit; padding: 0 2px; }
+.sidebar > #toggleStatusBtn { margin-top: auto; }
+.sidebar:has(#profileActions:not([hidden])) > #profileActions { margin-top: auto; }
+.sidebar:has(#profileActions:not([hidden])) > #toggleStatusBtn { margin-top: 4px; }
+/* The messages area (which also holds the suggestions) shrinks and scrolls,
+   so the composer stays on screen when the Council picker or chip shows. */
+.chatPanel #chatMessages { flex: 1 1 auto; min-height: 0; overflow-y: auto; }

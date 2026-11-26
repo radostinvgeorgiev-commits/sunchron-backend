@@ -95,7 +95,7 @@ test("planner creates a single GitHub read and write plan for one implementation
 test("planner uses OpenAI Responses as the primary provider", async () => {
   const requests = await planCapabilities({
     openAiApiKey: "openai-key",
-    message: "Провери Supabase.",
+    message: "Провери Google Cloud runtime.",
     fetchImpl: async (url, options) => {
       assert.equal(url, "https://api.openai.com/v1/responses");
       const body = JSON.parse(options.body);
@@ -108,7 +108,7 @@ test("planner uses OpenAI Responses as the primary provider", async () => {
               content: [
                 {
                   type: "output_text",
-                  text: '{"calls":[{"capability":"database.status","request":"Провери статуса на Supabase."}]}',
+                  text: '{"calls":[{"capability":"infrastructure.googlecloud.read","request":"Провери Google Cloud runtime."}]}',
                 },
               ],
             },
@@ -119,7 +119,7 @@ test("planner uses OpenAI Responses as the primary provider", async () => {
     },
   });
 
-  assert.equal(requests[0].capability, "database.status");
+  assert.equal(requests[0].capability, "infrastructure.googlecloud.read");
 });
 
 test("planner does not call the removed DigitalOcean agent when OpenAI is unavailable", async () => {
@@ -165,7 +165,7 @@ test("sanitizer rejects unknown capabilities and keeps valid scopes", () => {
   ]);
 });
 
-test("planner accepts the read-only Supabase status capability", () => {
+test("planner drops the retired Supabase status capability", () => {
   assert.deepEqual(
     sanitizeCapabilityPlan(
       {
@@ -178,13 +178,7 @@ test("planner accepts the read-only Supabase status capability", () => {
       },
       "Провери Supabase.",
     ),
-    [
-      {
-        capability: "database.status",
-        action: "database.read",
-        message: "Провери статуса на Supabase.",
-      },
-    ],
+    [],
   );
 });
 

@@ -98,11 +98,6 @@ const POLICY = Object.freeze({
     risk: "low",
     reason: "Интернет търсенето е само за четене.",
   }),
-  "database.read": Object.freeze({
-    decision: "allow",
-    risk: "low",
-    reason: "Supabase достъпът е ограничен само до проверка на статуса.",
-  }),
   "infrastructure.read": Object.freeze({
     decision: "allow",
     risk: "low",

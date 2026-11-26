@@ -6,7 +6,6 @@ import {
   scryptSync,
   timingSafeEqual,
 } from "node:crypto";
-import { resolveTesterAuthConnection } from "../config/testerAuthBootstrap.js";
 import {
   isIdentityPlatformConfigured,
   resolveAuthBackend,
@@ -23,6 +22,7 @@ import { createIdentityPlatformAuthClient } from "./identityPlatformAuthClient.j
 
 export const USER_SESSION_COOKIE = "synchron_user_session";
 const SESSION_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+// The salt keeps its historical name: changing it would sign everyone out.
 const SESSION_KEY_SALT = "synchron-supabase-session-v1";
 let cachedEncryptionSecret = "";
 let cachedEncryptionKey = null;
@@ -37,12 +37,7 @@ export class UserAuthError extends Error {
 }
 
 function sessionSecret(env = process.env) {
-  const backend = resolveAuthBackend(env);
-  return String(
-    env.USER_SESSION_ENCRYPTION_KEY ||
-      (backend === "supabase" ? env.SUPABASE_SESSION_ENCRYPTION_KEY : "") ||
-      "",
-  ).trim();
+  return String(env.USER_SESSION_ENCRYPTION_KEY || "").trim();
 }
 
 export function getTesterInviteCode(env = process.env) {
@@ -50,20 +45,9 @@ export function getTesterInviteCode(env = process.env) {
 }
 
 function authConfig(env = process.env) {
-  const backend = resolveAuthBackend(env);
-  if (backend === "identity-platform") {
-    return {
-      backend,
-      projectConnection: isIdentityPlatformConfigured(env),
-      encryptionSecret: sessionSecret(env),
-    };
-  }
-  const { projectUrl, publishableKey } = resolveTesterAuthConnection(env);
   return {
-    backend,
-    projectUrl,
-    publishableKey,
-    projectConnection: Boolean(projectUrl && publishableKey),
+    backend: resolveAuthBackend(env),
+    projectConnection: isIdentityPlatformConfigured(env),
     encryptionSecret: sessionSecret(env),
   };
 }
@@ -142,142 +126,9 @@ function requireAuthConfig(env = process.env) {
   return config;
 }
 
-function supabaseAuthError(status, payload) {
-  const error = new Error(
-    payload?.msg ||
-      payload?.message ||
-      payload?.error_description ||
-      payload?.error ||
-      "Supabase Auth request failed.",
-  );
-  error.status = status;
-  return error;
-}
-
-async function supabaseAuthRequest(
-  config,
-  path,
-  { method = "GET", accessToken = "", body } = {},
-) {
-  const response = await fetch(`${config.projectUrl}/auth/v1${path}`, {
-    method,
-    headers: {
-      apikey: config.publishableKey,
-      Authorization: `Bearer ${accessToken || config.publishableKey}`,
-      ...(body ? { "Content-Type": "application/json" } : {}),
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-    signal: AbortSignal.timeout(10_000),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw supabaseAuthError(response.status, payload);
-  return payload;
-}
-
-function normalizeRemoteSession(payload) {
-  if (!payload?.access_token || !payload?.refresh_token) return null;
-  return {
-    access_token: payload.access_token,
-    refresh_token: payload.refresh_token,
-    expires_at:
-      Number(payload.expires_at) ||
-      Math.floor(Date.now() / 1000) + Number(payload.expires_in || 3600),
-    token_type: payload.token_type || "bearer",
-  };
-}
-
 export function createAuthClient(env = process.env) {
-  const config = requireAuthConfig(env);
-  if (config.backend === "identity-platform") {
-    return createIdentityPlatformAuthClient({ env });
-  }
-  return {
-    provider: "supabase",
-    auth: {
-      async signInWithPassword(credentials) {
-        try {
-          const payload = await supabaseAuthRequest(
-            config,
-            "/token?grant_type=password",
-            { method: "POST", body: credentials },
-          );
-          return {
-            data: {
-              user: payload.user
-                ? { ...payload.user, authProvider: "supabase" }
-                : null,
-              session: normalizeRemoteSession(payload),
-            },
-            error: null,
-          };
-        } catch (error) {
-          return { data: null, error };
-        }
-      },
-      async signUp({ email, password, options = {} }) {
-        try {
-          const payload = await supabaseAuthRequest(config, "/signup", {
-            method: "POST",
-            body: { email, password, data: options.data || {} },
-          });
-          return {
-            data: {
-              user: payload.user
-                ? { ...payload.user, authProvider: "supabase" }
-                : null,
-              session: normalizeRemoteSession(payload),
-            },
-            error: null,
-          };
-        } catch (error) {
-          return { data: null, error };
-        }
-      },
-      async getUser(accessToken) {
-        try {
-          const user = await supabaseAuthRequest(config, "/user", {
-            accessToken,
-          });
-          return {
-            data: { user: { ...user, authProvider: "supabase" } },
-            error: null,
-          };
-        } catch (error) {
-          return { data: null, error };
-        }
-      },
-      async refreshSession({ refresh_token }) {
-        try {
-          const payload = await supabaseAuthRequest(
-            config,
-            "/token?grant_type=refresh_token",
-            { method: "POST", body: { refresh_token } },
-          );
-          return {
-            data: {
-              user: payload.user
-                ? { ...payload.user, authProvider: "supabase" }
-                : null,
-              session: normalizeRemoteSession(payload),
-            },
-            error: null,
-          };
-        } catch (error) {
-          return { data: null, error };
-        }
-      },
-      async signOut(accessToken) {
-        try {
-          await supabaseAuthRequest(config, "/logout?scope=local", {
-            method: "POST",
-            accessToken,
-          });
-        } catch {
-          // The application cookie is still cleared locally.
-        }
-      },
-    },
-  };
+  requireAuthConfig(env);
+  return createIdentityPlatformAuthClient({ env });
 }
 
 function deriveSessionKey(env = process.env) {
@@ -626,7 +477,7 @@ export async function registerUser(
 }
 
 function publicUser(user, env = process.env, { linkedOwner = false } = {}) {
-  const provider = user.authProvider || resolveAuthBackend(env) || "supabase";
+  const provider = user.authProvider || resolveAuthBackend(env) || "identity-platform";
   const isPrimary =
     linkedOwner ||
     isConfiguredPrimaryUser({ ...user, authProvider: provider }, env);
@@ -699,7 +550,7 @@ export async function resolveUserSession(
     throw error;
   }
 
-  const provider = user.authProvider || resolveAuthBackend(env) || "supabase";
+  const provider = user.authProvider || resolveAuthBackend(env) || "identity-platform";
   const linkedOwner = await isPrimaryOwner(
     { ...user, authProvider: provider },
     { env },

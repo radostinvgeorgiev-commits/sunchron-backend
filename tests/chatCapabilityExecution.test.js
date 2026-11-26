@@ -256,12 +256,12 @@ test("routes safe merged-branch cleanup planning from chat to GitHub Read", () =
   );
 });
 
-test("разпознава изрична проверка на Supabase", () => {
-  assert.deepEqual(
-    detectCapabilityRequests("Провери дали Supabase е свързан и работи.").map(
-      ({ capability, action }) => ({ capability, action }),
+test("не насочва към премахнатата проверка на Supabase", () => {
+  assert.equal(
+    detectCapabilityRequests("Провери дали Supabase е свързан и работи.").some(
+      ({ capability }) => capability === "database.status",
     ),
-    [{ capability: "database.status", action: "database.read" }],
+    false,
   );
 });
 

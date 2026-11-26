@@ -32,19 +32,11 @@ function statusFor(
 
 export function buildEnvironmentInventory({ env = process.env } = {}) {
   const authProvider = getUserAuthProvider(env);
-  const requiredAuthKeys = new Set(
-    authProvider === "identity-platform"
-      ? [
-          "IDENTITY_PLATFORM_PROJECT_ID",
-          "IDENTITY_PLATFORM_API_KEY",
-          "USER_SESSION_ENCRYPTION_KEY",
-        ]
-      : [
-          "SUPABASE_URL",
-          "SUPABASE_PUBLISHABLE_KEY",
-          "SUPABASE_SESSION_ENCRYPTION_KEY",
-        ],
-  );
+  const requiredAuthKeys = new Set([
+    "IDENTITY_PLATFORM_PROJECT_ID",
+    "IDENTITY_PLATFORM_API_KEY",
+    "USER_SESSION_ENCRYPTION_KEY",
+  ]);
   const protectedFallbacks = new Set();
   if (
     authProvider === "identity-platform" &&
@@ -56,7 +48,6 @@ export function buildEnvironmentInventory({ env = process.env } = {}) {
     protectedFallbacks.add("IDENTITY_PLATFORM_PROJECT_ID");
   }
   if (getUserAuthConfigurationStatus(env).sessionProtection) {
-    protectedFallbacks.add("SUPABASE_SESSION_ENCRYPTION_KEY");
     protectedFallbacks.add("USER_SESSION_ENCRYPTION_KEY");
   }
   if (isTesterRegistrationEnabled(env)) {

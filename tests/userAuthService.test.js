@@ -15,16 +15,14 @@ import {
   userSessionCookie,
   UserAuthError,
 } from "../src/services/userAuthService.js";
-import {
-  resolveTesterAuthConnection,
-  TESTER_AUTH_BOOTSTRAP,
-} from "../src/config/testerAuthBootstrap.js";
 
 const ENV = {
-  AUTH_BACKEND: "supabase",
-  SUPABASE_URL: "https://project.supabase.co",
-  SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
-  SUPABASE_SESSION_ENCRYPTION_KEY:
+  AUTH_BACKEND: "identity-platform",
+  IDENTITY_PLATFORM_PROJECT_ID: "test-identity-project",
+  IDENTITY_PLATFORM_API_KEY: "test-identity-platform-api-key-123",
+  // Email verification has its own tests in identityPlatformUserAuth.test.js.
+  IDENTITY_PLATFORM_REQUIRE_EMAIL_VERIFICATION: "false",
+  USER_SESSION_ENCRYPTION_KEY:
     "test-session-encryption-key-with-enough-entropy",
   SYNCHRON_TEST_INVITE_CODE: "KAMCHIA-TEST-2026",
   MEMORY_OWNER_ID: "primary-user",
@@ -59,40 +57,10 @@ test("detects complete auth and closed/open tester registration", () => {
   );
 });
 
-test("auth resolves the Supabase URL and key as one atomic connection", () => {
-  for (const partialRuntime of [
-    {
-      SUPABASE_URL: "not-a-url",
-      SUPABASE_PUBLISHABLE_KEY: ENV.SUPABASE_PUBLISHABLE_KEY,
-    },
-    {
-      SUPABASE_URL: ENV.SUPABASE_URL,
-      SUPABASE_PUBLISHABLE_KEY: "not-a-publishable-key",
-    },
-  ]) {
-    const connection = resolveTesterAuthConnection(partialRuntime);
-    assert.deepEqual(connection, {
-      ...TESTER_AUTH_BOOTSTRAP,
-      connectionSource: "public-bootstrap",
-    });
-    assert.equal(
-      getUserAuthConfigurationStatus({
-        AUTH_BACKEND: "supabase",
-        ...partialRuntime,
-        SUPABASE_SESSION_ENCRYPTION_KEY: ENV.SUPABASE_SESSION_ENCRYPTION_KEY,
-      }).projectConnection,
-      true,
-    );
-  }
-
-  assert.equal(resolveTesterAuthConnection(ENV).connectionSource, "runtime");
-});
-
-test("requires dedicated Supabase session protection", () => {
+test("requires dedicated user session protection", () => {
   const fallbackEnv = {
-    AUTH_BACKEND: "supabase",
-    SUPABASE_URL: ENV.SUPABASE_URL,
-    SUPABASE_PUBLISHABLE_KEY: ENV.SUPABASE_PUBLISHABLE_KEY,
+    IDENTITY_PLATFORM_PROJECT_ID: ENV.IDENTITY_PLATFORM_PROJECT_ID,
+    IDENTITY_PLATFORM_API_KEY: ENV.IDENTITY_PLATFORM_API_KEY,
     GITHUB_SESSION_ENCRYPTION_KEY: "github-only-key-with-enough-entropy",
     GITHUB_CLIENT_SECRET: "github-client-secret-with-enough-entropy",
     MCP_ACCESS_TOKEN: "mcp-access-token-with-at-least-32-characters",
@@ -130,7 +98,7 @@ test("uses only the explicitly configured tester invite code", () => {
   );
 });
 
-test("encrypts the Supabase session and never leaves tokens in the cookie", () => {
+test("encrypts the user session and never leaves tokens in the cookie", () => {
   const original = session("secret");
   const encrypted = encryptUserSession(original, ENV);
   const cookie = userSessionCookie(original, ENV);
@@ -142,7 +110,7 @@ test("encrypts the Supabase session and never leaves tokens in the cookie", () =
   assert.match(cookie, /SameSite=Lax/u);
 });
 
-test("signs in with email and password through an isolated Supabase client", async () => {
+test("signs in with email and password through an isolated auth client", async () => {
   const fakeSession = session("login");
   const client = {
     auth: {
@@ -168,51 +136,6 @@ test("signs in with email and password through an isolated Supabase client", asy
   );
   assert.equal(result.user.id, "user-login");
   assert.deepEqual(result.session, fakeSession);
-});
-
-test("uses the Supabase Auth password endpoint without exposing a service key", async (t) => {
-  const originalFetch = globalThis.fetch;
-  t.after(() => {
-    globalThis.fetch = originalFetch;
-  });
-  globalThis.fetch = async (url, options) => {
-    assert.equal(
-      url,
-      "https://project.supabase.co/auth/v1/token?grant_type=password",
-    );
-    assert.equal(options.method, "POST");
-    assert.equal(options.headers.apikey, ENV.SUPABASE_PUBLISHABLE_KEY);
-    assert.equal(
-      options.headers.Authorization,
-      `Bearer ${ENV.SUPABASE_PUBLISHABLE_KEY}`,
-    );
-    assert.deepEqual(JSON.parse(options.body), {
-      email: "friend@example.com",
-      password: "strong-pass-123",
-    });
-    return {
-      ok: true,
-      status: 200,
-      async json() {
-        return {
-          user: { id: "rest-user", email: "friend@example.com" },
-          access_token: "rest-access",
-          refresh_token: "rest-refresh",
-          expires_in: 3600,
-          token_type: "bearer",
-        };
-      },
-    };
-  };
-
-  const result = await signInUser(
-    { email: "friend@example.com", password: "strong-pass-123" },
-    { env: ENV, requireTesterAccess: async () => true },
-  );
-
-  assert.equal(result.user.id, "rest-user");
-  assert.equal(result.session.access_token, "rest-access");
-  assert.ok(result.session.expires_at > Math.floor(Date.now() / 1000));
 });
 
 test("normal registration creates the application approval", async () => {
@@ -257,7 +180,7 @@ test("normal registration creates the application approval", async () => {
   assert.deepEqual(result.session, fakeSession);
 });
 
-test("registration rejects an invalid invite before contacting Supabase", async () => {
+test("registration rejects an invalid invite before contacting the auth service", async () => {
   let signUpCalls = 0;
   const client = {
     auth: {
@@ -286,7 +209,7 @@ test("registration rejects an invalid invite before contacting Supabase", async 
   assert.equal(signUpCalls, 0);
 });
 
-test("registration approves access after Supabase creates the user", async () => {
+test("registration approves access after the auth service creates the user", async () => {
   const calls = [];
   const client = {
     auth: {
@@ -512,7 +435,7 @@ test("registration keeps a new unconfirmed user when immediate sign in is unavai
   assert.equal(result.confirmationRequired, true);
 });
 
-test("sign in refuses a valid Supabase user without application approval", async () => {
+test("sign in refuses a valid user without application approval", async () => {
   const client = {
     auth: {
       async signInWithPassword({ email }) {
@@ -587,5 +510,5 @@ test("two authenticated users receive different stable memory owners", async () 
     identities[0].user.memoryOwnerId,
     identities[1].user.memoryOwnerId,
   );
-  assert.match(identities[0].user.memoryOwnerId, /^supabase:/u);
+  assert.match(identities[0].user.memoryOwnerId, /^identity-platform:/u);
 });

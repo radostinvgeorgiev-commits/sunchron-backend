@@ -15,7 +15,6 @@ const CAPABILITY_ACTIONS = Object.freeze({
   "code.task-status": "github.read",
   "code.write": "github.write",
   "github.pull-request.merge": "github.write",
-  "database.status": "database.read",
   "infrastructure.googlecloud.read": "infrastructure.read",
   "infrastructure.googlecloud.diagnostics.read": "infrastructure.read",
   "infrastructure.googlecloud.write": "infrastructure.write",
@@ -42,7 +41,6 @@ const PLANNER_INSTRUCTIONS = [
   "- code.task-status: реално проследяване на конкретна GitHub задача или Pull Request по номер, проверките и production статуса",
   "- code.write: промяна в GitHub; може да е недостъпна и винаги изисква потвърждение",
   "- github.pull-request.merge: сливане на конкретен Pull Request към main след зелени проверки; винаги изисква точно потвърждение",
-  "- database.status: проверка дали Supabase е свързан и отговаря",
   "- infrastructure.googlecloud.read: реална проверка на текущия Google Cloud / Cloud Run runtime без стойности на secrets",
   "- infrastructure.googlecloud.diagnostics.read: проверка само за четене на Cloud Run, Firestore, Cloud Build, Monitoring, Logging, Cloud Resource Manager и метаданни за версии на тайни",
   "- infrastructure.googlecloud.write: точна IAM, Cloud Run service identity или synchron-main-deploy Cloud Build trigger промяна; винаги изисква отделно потвърждение и exact 40-символен commit SHA при build",
@@ -240,7 +238,7 @@ export function shouldUseAgentPlanner(message, fallbackRequests = []) {
     /(?:^|\s)(?:изпълни|направи|провери|покажи|намери|прочети|потърси|обнови|подобри|промени|редактирай|създай|свържи|изпрати|резервирай|напомни|improve)(?=\s|:|$)/iu.test(
       text,
     ) &&
-    /(?:github|ги[тд][\s-]*хъб|хъб(?:ът|а)?|хранилищ|репозитор|код|календар|calendar|напомни|напомнян|drive|драйв|gmail|имейл|поща|памет|задач|task|интернет|web|сайт|supabase|супабейс|google\s*cloud|cloud\s*run|гуг[ъал]+\s*клауд|гуг[ъал]+\s*конзол|ai\s*(?:двигател|доставчик|provider)|openai|gemini|grok)/iu.test(
+    /(?:github|ги[тд][\s-]*хъб|хъб(?:ът|а)?|хранилищ|репозитор|код|календар|calendar|напомни|напомнян|drive|драйв|gmail|имейл|поща|памет|задач|task|интернет|web|сайт|google\s*cloud|cloud\s*run|гуг[ъал]+\s*клауд|гуг[ъал]+\s*конзол|ai\s*(?:двигател|доставчик|provider)|openai|gemini|grok)/iu.test(
       text,
     )
   );

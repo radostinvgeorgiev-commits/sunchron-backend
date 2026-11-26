@@ -29,6 +29,10 @@
         <i class="fa-solid fa-globe" aria-hidden="true"></i>
         <span>${text("Търси в интернет")}<small>${text("Актуален отговор с източници")}</small></span>
       </button>
+      <button type="button" role="menuitem" data-plus="google">
+        <i class="fa-brands fa-google" aria-hidden="true"></i>
+        <span>${text("Моят Google")}<small>${text("Свържи Drive, Поща и Календар")}</small></span>
+      </button>
       <button type="button" role="menuitem" data-plus="causes">
         <i class="fa-solid fa-hand-holding-heart" aria-hidden="true"></i>
         <span>${text("Каузи")}<small>${text("Предложи кауза и подкрепи с харесване")}</small></span>
@@ -95,6 +99,7 @@
       if (item.dataset.plus === "search") {
         document.dispatchEvent(new CustomEvent("aicore:web-search"));
       }
+      if (item.dataset.plus === "google") $("googleDriveBtn")?.click();
       if (item.dataset.plus === "causes") {
         document.dispatchEvent(new CustomEvent("aicore:causes"));
       }

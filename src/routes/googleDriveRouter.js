@@ -14,22 +14,41 @@ import {
   listGoogleCalendarEvents,
   listDriveFiles,
   parseCookies,
+  sessionBelongsTo,
 } from "../services/googleDriveService.js";
 import { logSafeError } from "../utils/safeLogging.js";
+import { publicAiBudgetContext } from "../services/publicAiBudget.js";
+import { ProductError } from "../services/productPlansService.js";
 
 const router = express.Router();
 const COOKIE_OPTIONS =
   "Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000";
 
-function sessionId(req) {
+function cookieSessionId(req) {
   return parseCookies(req.headers.cookie).synchron_google_session;
 }
 
+// The browser cookie only counts when the connection belongs to this account,
+// so two people on one browser never see each other's Google data.
+async function sessionId(req) {
+  const id = cookieSessionId(req);
+  return (await sessionBelongsTo(id, req.owner)) ? id : null;
+}
+
+function ownerOnly(req, res, next) {
+  if (req.owner?.role === "owner") return next();
+  return res.status(403).json({
+    error: "Това е достъпно само за собственика.",
+    code: "OWNER_ONLY",
+  });
+}
+
 function sendError(res, error) {
-  const status = error instanceof GoogleDriveError ? error.status : 500;
+  const known = error instanceof GoogleDriveError || error instanceof ProductError;
+  const status = known ? error.status : 500;
   res.status(status).json({
     error:
-      error instanceof GoogleDriveError
+      known
         ? error.message
         : "Google Drive временно не е достъпен.",
   });
@@ -63,7 +82,7 @@ router.get("/callback", async (req, res) => {
       );
     }
     const tokens = await exchangeCode(String(req.query.code));
-    const id = await createSession(tokens);
+    const id = await createSession(tokens, req.owner);
     res.setHeader("Set-Cookie", [
       `synchron_google_session=${id}; ${COOKIE_OPTIONS}`,
       "synchron_google_state=; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
@@ -75,7 +94,7 @@ router.get("/callback", async (req, res) => {
   }
 });
 
-router.get("/restore", async (_req, res) => {
+router.get("/restore", ownerOnly, async (_req, res) => {
   try {
     const id = await getLatestGoogleSessionId();
     if (!id) {
@@ -99,11 +118,16 @@ router.get("/restore", async (_req, res) => {
 });
 
 router.get("/status", async (req, res) => {
-  res.json({ connected: await hasSession(sessionId(req)) });
+  const id = await sessionId(req);
+  res.json({
+    connected: Boolean(id) && (await hasSession(id)),
+    canRestore: req.owner?.role === "owner",
+  });
 });
 
 router.post("/disconnect", async (req, res) => {
-  await disconnectSession(sessionId(req));
+  const id = await sessionId(req);
+  if (id) await disconnectSession(id);
   res.setHeader(
     "Set-Cookie",
     "synchron_google_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
@@ -113,7 +137,7 @@ router.post("/disconnect", async (req, res) => {
 
 router.get("/files", async (req, res) => {
   try {
-    res.json({ files: await listDriveFiles(sessionId(req)) });
+    res.json({ files: await listDriveFiles(await sessionId(req)) });
   } catch (error) {
     sendError(res, error);
   }
@@ -122,7 +146,7 @@ router.get("/files", async (req, res) => {
 router.get("/gmail/messages", async (req, res) => {
   try {
     res.json({
-      messages: await listGmailMessages(sessionId(req), req.query.limit),
+      messages: await listGmailMessages(await sessionId(req), req.query.limit),
     });
   } catch (error) {
     sendError(res, error);
@@ -134,7 +158,7 @@ router.get("/calendar/events", async (req, res) => {
     res.json({
       timezone: "Europe/Sofia",
       events: await listGoogleCalendarEvents(
-        sessionId(req),
+        await sessionId(req),
         req.query.days,
         req.query.limit,
       ),
@@ -144,10 +168,10 @@ router.get("/calendar/events", async (req, res) => {
   }
 });
 
-router.post("/analyze", async (req, res) => {
+router.post("/analyze", publicAiBudgetContext, async (req, res) => {
   try {
     const { fileId, prompt } = req.body || {};
-    const file = await downloadDriveFile(sessionId(req), String(fileId || ""));
+    const file = await downloadDriveFile(await sessionId(req), String(fileId || ""));
     const analysis = await analyzeDriveFile({
       ...file,
       prompt: typeof prompt === "string" ? prompt.trim() : "",

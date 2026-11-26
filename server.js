@@ -362,10 +362,10 @@ app.get("/api/google/callback", oauthRateLimiter, (req, res, next) =>
     ? handleGoogleSignInCallback(req, res)
     : next(),
 );
+// Every account connects its own Google; owner-only parts are guarded inside.
 app.use(
   "/api/google",
   requireOwnerSession,
-  requirePrimaryOwner,
   privateApiRateLimiter,
   googleDriveRouter,
 );

@@ -31,13 +31,14 @@
     return data;
   }
 
-  function reconnect(error) {
+  async function reconnect(error) {
+    const status = await request("/api/google/status").catch(() => ({}));
     body.innerHTML = `
       <div class="drawer-state drawer-error">${escapeHtml(error.message)}</div>
       <button type="button" class="new-chat" id="reconnectGoogle">
         <i class="fa-brands fa-google"></i><span>Свържи Google отново</span>
       </button>`;
-    body.insertAdjacentHTML(
+    if (status.canRestore) body.insertAdjacentHTML(
       "beforeend",
       `
       <button type="button" class="new-chat" id="restoreGoogle">
@@ -47,7 +48,7 @@
     document.getElementById("reconnectGoogle").addEventListener("click", () => {
       window.location.href = "/api/google/connect";
     });
-    document.getElementById("restoreGoogle").addEventListener("click", () => {
+    document.getElementById("restoreGoogle")?.addEventListener("click", () => {
       window.location.href = "/api/google/restore";
     });
   }

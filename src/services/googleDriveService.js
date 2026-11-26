@@ -6,6 +6,7 @@ import {
 } from "../config/memoryBackend.js";
 import { getOpenSearchClient } from "../config/opensearch.js";
 import { logSafeError } from "../utils/safeLogging.js";
+import { reservePublicAiFile } from "./publicAiBudget.js";
 import { createFirestoreOAuthSessionStore } from "./firestoreOAuthSessionStore.js";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -275,11 +276,35 @@ export function requiresPersistentGoogleSessions(env = process.env) {
   return env.NODE_ENV === "production";
 }
 
-export async function createSession(tokens) {
+// Every Google connection belongs to one account. Older connections made
+// before this have no account and belong to the primary owner only.
+export function googleAccountKey(memoryOwnerId) {
+  return crypto
+    .createHash("sha256")
+    .update(`google-account:${String(memoryOwnerId || "")}`)
+    .digest("hex")
+    .slice(0, 32);
+}
+
+export async function sessionBelongsTo(id, owner) {
+  if (!id || !owner?.memoryOwnerId) return false;
+  const session = await loadSession(id);
+  if (!session) return false;
+  if (!session.accountKey) return owner.role === "owner";
+  return session.accountKey === googleAccountKey(owner.memoryOwnerId);
+}
+
+export async function createSession(tokens, owner = null) {
   const id = createNonce();
   const session = {
     ...tokens,
     expiresAt: Date.now() + Number(tokens.expires_in || 3600) * 1000,
+    ...(owner?.memoryOwnerId
+      ? {
+          accountKey: googleAccountKey(owner.memoryOwnerId),
+          primaryOwner: owner.role === "owner",
+        }
+      : {}),
   };
   let persisted = false;
   try {
@@ -471,8 +496,10 @@ export async function hasSession(id) {
 }
 
 export async function getLatestGoogleSessionId() {
-  for (const [id] of [...sessions.entries()].reverse()) {
-    if (await hasSession(id)) return id;
+  // Only the owner's connections: a member's Google never reaches owner tools.
+  const ownerSession = (session) => session?.primaryOwner !== false;
+  for (const [id, session] of [...sessions.entries()].reverse()) {
+    if (ownerSession(session) && (await hasSession(id))) return id;
   }
 
   const backend = resolvePersistenceBackend(process.env);
@@ -496,7 +523,7 @@ export async function getLatestGoogleSessionId() {
     for (const hit of hits) {
       try {
         const session = decryptGoogleSession(hit._source);
-        if (session?.access_token) {
+        if (session?.access_token && ownerSession(session)) {
           sessions.set(hit._id, session);
           return hit._id;
         }
@@ -620,6 +647,9 @@ export async function analyzeDriveFile({
       file_data: `data:${mimeType};base64,${buffer.toString("base64")}`,
     };
   }
+  const documentModel = process.env.OPENAI_DOCUMENT_MODEL || "gpt-4o-mini";
+  // Charged like any file for members; nothing for the owner.
+  await reservePublicAiFile("openai", documentModel);
   const response = await fetchImpl("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -627,7 +657,7 @@ export async function analyzeDriveFile({
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: process.env.OPENAI_DOCUMENT_MODEL || "gpt-4o-mini",
+      model: documentModel,
       input: [
         {
           role: "user",

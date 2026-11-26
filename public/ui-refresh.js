@@ -24,6 +24,10 @@
       <button type="button" role="menuitem" data-plus="council">
         <i class="fa-solid fa-people-group" aria-hidden="true"></i>
         <span>${text("Съвет от модели")}<small>${text("Питай няколко AI и сравни")}</small></span>
+      </button>
+      <button type="button" role="menuitem" data-plus="assistant">
+        <i class="fa-solid fa-user-tie" aria-hidden="true"></i>
+        <span>${text("Асистент")}<small>${text("Юрист, учител, преводач…")}</small></span>
       </button>`;
     composer.prepend(menu);
 
@@ -68,6 +72,9 @@
       close();
       if (item.dataset.plus === "file") $("imageInput")?.click();
       if (item.dataset.plus === "council") council?.click();
+      if (item.dataset.plus === "assistant") {
+        document.dispatchEvent(new CustomEvent("aicore:pick-assistant"));
+      }
       setTimeout(syncChip, 0);
     });
     chip.querySelector("button").addEventListener("click", () => {

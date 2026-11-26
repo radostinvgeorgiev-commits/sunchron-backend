@@ -14,7 +14,7 @@ import { CHAT_MODEL_CHOICES, resolveWorkAgentProvider } from "./workModeService.
 // site by hand. Every check is a real call (a few cents of AI use in total),
 // touches only its own throwaway data and reports pass/fail with a plain
 // reason. Secrets and answers' full text are never returned.
-const CHAT_PROVIDERS = ["claude", "openai", "gemini", "grok"];
+const CHAT_PROVIDERS = ["claude", "openai", "gemini", "grok", "vertex-gemini"];
 const CHECK_TIMEOUT_MS = 30_000;
 
 // One second of silence, 8 kHz mono 16-bit: enough to prove the recording is

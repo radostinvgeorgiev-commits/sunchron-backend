@@ -447,3 +447,37 @@ test("AI Core dispatches an explicit Vertex request without fallback", async () 
     model: "gemini-2.5-flash",
   });
 });
+
+test("On Cloud Run Vertex is on by default with the service's own project", () => {
+  const cloudRun = { K_SERVICE: "synchron-backend-google", GOOGLE_CLOUD_PROJECT: "project-123" };
+  const config = resolveVertexAiConfig(cloudRun);
+  assert.equal(config.enabled, true);
+  assert.equal(config.configured, true);
+  assert.equal(config.projectId, "project-123");
+  assert.equal(config.location, "global");
+  assert.equal(config.model, "gemini-3.5-flash-lite");
+  assert.equal(resolveVertexAiEnabled({ ...cloudRun, VERTEX_AI_ENABLED: "false" }), false);
+  assert.equal(resolveVertexAiEnabled({ GOOGLE_CLOUD_PROJECT: "project-123" }), false);
+  assert.equal(
+    buildVertexAiGenerateContentEndpoint(config),
+    "https://aiplatform.googleapis.com/v1/projects/project-123/locations/global/publishers/google/models/gemini-3.5-flash-lite:generateContent",
+  );
+});
+
+test("Vertex says when the API is off or the model is missing", async () => {
+  for (const [status, body, code] of [
+    [403, { error: { status: "PERMISSION_DENIED", details: [{ reason: "SERVICE_DISABLED" }] } }, "VERTEX_GEMINI_API_DISABLED"],
+    [403, { error: { status: "PERMISSION_DENIED", details: [{ reason: "IAM_PERMISSION_DENIED" }] } }, "VERTEX_GEMINI_FORBIDDEN"],
+    [404, { error: { status: "NOT_FOUND" } }, "VERTEX_GEMINI_MODEL_NOT_FOUND"],
+  ]) {
+    await assert.rejects(
+      requestVertexAiGeminiResponse({
+        env: VERTEX_ENV,
+        input: [{ role: "user", content: "Здравей" }],
+        authClient: fakeAuthClient(),
+        fetchImpl: async () => vertexResponse(body, status),
+      }),
+      (error) => error.code === code,
+    );
+  }
+});

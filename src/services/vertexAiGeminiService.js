@@ -7,6 +7,8 @@ import {
 const DEFAULT_VERTEX_AI_LOCATION = "us-central1";
 const DEFAULT_VERTEX_AI_MODEL = "gemini-2.5-flash";
 const DEFAULT_VERTEX_AI_TIMEOUT_MS = 30_000;
+const CLOUD_RUN_VERTEX_AI_LOCATION = "global";
+const CLOUD_RUN_VERTEX_AI_MODEL = "gemini-3.5-flash-lite";
 const MIN_VERTEX_AI_TIMEOUT_MS = 1_000;
 const MAX_VERTEX_AI_TIMEOUT_MS = 120_000;
 const VERTEX_PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/u;
@@ -96,24 +98,41 @@ function boundedInteger(value, fallback) {
   );
 }
 
+// On Cloud Run the service already runs inside the owner's Google Cloud
+// project, so Vertex is on there unless VERTEX_AI_ENABLED=false. It then uses
+// the service's own project, the global endpoint and a current model.
+function onCloudRun(env) {
+  return Boolean(cleanValue(env?.K_SERVICE) && cleanValue(env?.GOOGLE_CLOUD_PROJECT));
+}
+
 export function resolveVertexAiEnabled(env = process.env) {
   const value = env?.VERTEX_AI_ENABLED;
-  return (
-    value === true ||
-    (typeof value === "string" && value.trim().toLowerCase() === "true")
-  );
+  if (value === true) return true;
+  if (typeof value === "string" && value.trim()) {
+    return value.trim().toLowerCase() === "true";
+  }
+  return onCloudRun(env);
 }
 
 export function resolveVertexAiProjectId(env = process.env) {
-  return cleanValue(env?.VERTEX_AI_PROJECT_ID);
+  return (
+    cleanValue(env?.VERTEX_AI_PROJECT_ID) ||
+    (onCloudRun(env) ? cleanValue(env?.GOOGLE_CLOUD_PROJECT) : "")
+  );
 }
 
 export function resolveVertexAiLocation(env = process.env) {
-  return cleanValue(env?.VERTEX_AI_LOCATION) || DEFAULT_VERTEX_AI_LOCATION;
+  return (
+    cleanValue(env?.VERTEX_AI_LOCATION) ||
+    (onCloudRun(env) ? CLOUD_RUN_VERTEX_AI_LOCATION : DEFAULT_VERTEX_AI_LOCATION)
+  );
 }
 
 export function resolveVertexAiModel(env = process.env) {
-  return cleanValue(env?.VERTEX_AI_MODEL) || DEFAULT_VERTEX_AI_MODEL;
+  return (
+    cleanValue(env?.VERTEX_AI_MODEL) ||
+    (onCloudRun(env) ? CLOUD_RUN_VERTEX_AI_MODEL : DEFAULT_VERTEX_AI_MODEL)
+  );
 }
 
 export function resolveVertexAiTimeoutMs(
@@ -218,8 +237,12 @@ export function buildVertexAiGenerateContentEndpoint({
     "Vertex AI Gemini има невалиден model.",
   );
 
+  const host =
+    safeLocation === "global"
+      ? "aiplatform.googleapis.com"
+      : `${safeLocation}-aiplatform.googleapis.com`;
   return [
-    `https://${safeLocation}-aiplatform.googleapis.com/v1`,
+    `https://${host}/v1`,
     `projects/${encodeURIComponent(safeProjectId)}`,
     `locations/${encodeURIComponent(safeLocation)}`,
     "publishers/google",
@@ -441,7 +464,34 @@ function blockedResponse(data) {
   );
 }
 
-function responseError(status) {
+// Google says why it refused in the error body; the reason decides whether
+// the fix is turning the API on, a role, or another model.
+async function readErrorReason(response) {
+  try {
+    const data = await response.json();
+    const details = Array.isArray(data?.error?.details) ? data.error.details : [];
+    const reason = details.map((item) => item?.reason).find(Boolean);
+    return String(reason || data?.error?.status || "").slice(0, 80);
+  } catch {
+    return "";
+  }
+}
+
+function responseError(status, reason = "") {
+  if (status === 403 && /SERVICE_DISABLED|ACCESS_NOT_CONFIGURED/u.test(reason)) {
+    return new VertexAiGeminiError(
+      "Vertex AI API не е включен в Google Cloud проекта.",
+      "VERTEX_GEMINI_API_DISABLED",
+      403,
+    );
+  }
+  if (status === 404) {
+    return new VertexAiGeminiError(
+      "Vertex AI не намери този модел в избрания регион.",
+      "VERTEX_GEMINI_MODEL_NOT_FOUND",
+      404,
+    );
+  }
   if (status === 401) {
     return new VertexAiGeminiError(
       "Vertex AI Gemini отхвърли автентикацията.",
@@ -726,7 +776,12 @@ export async function requestVertexAiGeminiResponse({
     if (!response || typeof response.ok !== "boolean") {
       throw invalidResponseError();
     }
-    if (!response.ok) throw responseError(response.status);
+    if (!response.ok) {
+      throw responseError(
+        response.status,
+        typeof response.json === "function" ? await readErrorReason(response) : "",
+      );
+    }
 
     let data;
     try {

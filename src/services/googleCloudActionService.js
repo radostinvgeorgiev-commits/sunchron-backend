@@ -9,7 +9,6 @@ import { executeAuditedWriteAction } from "./permissionService.js";
 import { resolveFirestoreProjectId } from "../config/memoryBackend.js";
 
 const RESOURCE_MANAGER_API = "https://cloudresourcemanager.googleapis.com/v1";
-const CLOUD_RUN_API = "https://run.googleapis.com/apis/serving.knative.dev/v1";
 const CLOUD_BUILD_API = "https://cloudbuild.googleapis.com/v1";
 const DEFAULT_REGION = "europe-west1";
 const DEFAULT_SERVICE = "synchron-backend-google";
@@ -477,21 +476,19 @@ async function updateCloudRunServiceAccount({
   serviceAccount,
   fetchImpl,
 }) {
-  const url = `${CLOUD_RUN_API}/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(region)}/services/${encodeURIComponent(serviceName)}`;
+  // Cloud Run Admin API v2: PATCH with an update mask on the v2 Service body
+  // (the knative v1 path does not accept updateMask). From PR #370.
+  const url = `${CLOUD_RUN_V2_API}/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(region)}/services/${encodeURIComponent(serviceName)}`;
   await googleJsonRequest(url, { fetchImpl });
-  return googleJsonRequest(
-    `${url}?updateMask=spec.template.spec.serviceAccountName`,
-    {
-      method: "PATCH",
-      body: {
-        apiVersion: "serving.knative.dev/v1",
-        kind: "Service",
-        metadata: { name: serviceName },
-        spec: { template: { spec: { serviceAccountName: serviceAccount } } },
-      },
-      fetchImpl,
+  await googleJsonRequest(`${url}?updateMask=template.serviceAccount`, {
+    method: "PATCH",
+    body: {
+      name: `projects/${projectId}/locations/${region}/services/${serviceName}`,
+      template: { serviceAccount },
     },
-  );
+    fetchImpl,
+  });
+  return { projectId, serviceName, region, serviceAccount };
 }
 
 // Points one secret-backed environment variable of the current Cloud Run

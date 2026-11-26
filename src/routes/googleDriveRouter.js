@@ -19,6 +19,7 @@ import {
 import { logSafeError } from "../utils/safeLogging.js";
 import { publicAiBudgetContext } from "../services/publicAiBudget.js";
 import { ProductError } from "../services/productPlansService.js";
+import { getReplyDraftService } from "../services/replyDraftService.js";
 
 const router = express.Router();
 const COOKIE_OPTIONS =
@@ -164,6 +165,25 @@ router.get("/calendar/events", async (req, res) => {
       ),
     });
   } catch (error) {
+    sendError(res, error);
+  }
+});
+
+// The avatar writes a reply in the person's style and saves it as a Gmail
+// draft. Nothing is sent. Members pay it as one AI request.
+router.post("/gmail/reply-draft", publicAiBudgetContext, async (req, res) => {
+  try {
+    res.json(
+      await getReplyDraftService().draft(req.owner, {
+        googleSessionId: cookieSessionId(req),
+        messageId: String(req.body?.messageId || ""),
+        note: typeof req.body?.note === "string" ? req.body.note : "",
+      }),
+    );
+  } catch (error) {
+    if (!(error instanceof GoogleDriveError) && !(error instanceof ProductError)) {
+      logSafeError("[Gmail reply draft]", error);
+    }
     sendError(res, error);
   }
 });

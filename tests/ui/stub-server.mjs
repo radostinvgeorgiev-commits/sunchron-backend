@@ -33,6 +33,7 @@ export function startStubServer(port = 0) {
   ];
   let avatarProfile = {};
   let causes = [];
+  let googleConnected = false;
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://stub");
     let p = url.pathname;
@@ -63,10 +64,21 @@ export function startStubServer(port = 0) {
       files = files.filter(({ id }) => id !== p.split("/").pop());
       return json(res, { removed: true });
     }
+    if (p === "/__robot/google-connected" || p === "/__robot/google-disconnected") {
+      googleConnected = p.endsWith("/google-connected");
+      return json(res, { ok: true });
+    }
     if (p === "/api/daily-plan" && req.method === "POST") {
       return json(res, { text: "**Най-важното днес:** провери сайта.", sources: { profile: false, calendar: null, mail: null } });
     }
-    if (p === "/api/google/status") return json(res, { connected: false, canRestore: false });
+    if (p === "/api/google/status") return json(res, { connected: googleConnected, canRestore: false });
+    if (p === "/api/google/files") return json(res, { files: [] });
+    if (p === "/api/google/gmail/messages") {
+      return json(res, { messages: [{ id: "m1", subject: "Офертата", from: "Иван <ivan@example.com>", snippet: "Потвърди до петък", url: "https://mail.google.com/x" }] });
+    }
+    if (p === "/api/google/gmail/reply-draft" && req.method === "POST") {
+      return json(res, { body: "Здравей, Иване!", draft: { url: "https://mail.google.com/mail/u/0/#drafts/x", to: "ivan@example.com", subject: "Re: Офертата" } });
+    }
     if (p.startsWith("/api/causes")) {
       const id = p.split("/")[3];
       const send = () => json(res, { causes, moderator: true });

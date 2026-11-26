@@ -71,6 +71,12 @@ AI предлага, ти одобряваш, системата изпълня�
 Затвори|Close
 С какво започваме?|What shall we start with?
 Подреди деня|Plan my day
+Моят ден|My day
+Планът ти за днес от календара и пощата|Today’s plan from your calendar and mail
+Помогни ми да реша|Help me decide
+Плюсове, минуси и тежест — решаваш ти|Pros, cons and weights — you decide
+Какво знаеш за мен|What do you know about me
+Виж и поправи какво помни аватарът|See and correct what your avatar remembers
 План и ясни приоритети|A plan and clear priorities
 Анализирай отчет|Analyze a report
 Числа, разлики и изводи|Numbers, differences, and conclusions
@@ -334,6 +340,8 @@ AI задача|AI task
 Лош отговор|Poor response
 Невалиден отговор от услугата (HTTP {status}).|The service returned an invalid response (HTTP {status}).
 Подготви план за задачите ми днес. Първо ме попитай за приоритетите.|Help me plan today’s tasks. Ask me what to prioritize first.
+Помогни ми да реша нещо важно. Първо ме попитай какъв е изборът и кое е важно за мен. После подреди вариантите по фактори с тежест и кажи кое изглежда по-добре и защо. Решението остава мое.|Help me decide something important. First ask me what the choice is and what matters to me. Then rank the options by weighted factors and say which looks better and why. The decision stays mine.
+Кажи ми накратко какво знаеш за мен от профила, паметта и файловете ми и откъде го знаеш. После ме попитай какво да поправя или добавя.|Briefly tell me what you know about me from my profile, memory and files, and where it comes from. Then ask me what to correct or add.
 Помогни ми да анализирам бизнес отчет. Ще ти изпратя данните; отбелязвай ясно липсващата информация.|Help me analyze a business report. I’ll send the data. Clearly mark any missing information.
 Помогни ми да напиша кратък професионален отговор. Първо ще ти дам съобщението и контекста. Не изпращай нищо.|Help me draft a short professional reply. I’ll provide the message and context first. Do not send it.
 Навигация на сайта|Website navigation

@@ -137,6 +137,16 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect((await page.evaluate(() => document.body.dataset.interactionMode)) === "chat", "членът остана в Работа");
     await page.evaluate(() => (document.body.dataset.userRole = "owner"));
   });
+  await step(`${label}: началните карти са лични`, async () => {
+    const fresh = (await page.locator("#mobileNewChatBtn").isVisible()) ? "#mobileNewChatBtn" : "#newChatBtn";
+    await page.click(fresh);
+    await page.waitForTimeout(400);
+    const cards = await page.locator("#quickStart").innerText();
+    expect(cards.includes("Моят ден") && cards.includes("Помогни ми да реша") && cards.includes("Какво знаеш за мен"), "картите не са новите");
+    await page.click('#quickStart [data-starter*="Решението остава мое"]');
+    expect((await page.inputValue("#chatInput")).includes("Решението остава мое"), "картата не попълни полето");
+    await page.fill("#chatInput", "");
+  });
   await step(`${label}: асистент от началния екран`, async () => {
     const fresh = (await page.locator("#mobileNewChatBtn").isVisible()) ? "#mobileNewChatBtn" : "#newChatBtn";
     await page.click(fresh);

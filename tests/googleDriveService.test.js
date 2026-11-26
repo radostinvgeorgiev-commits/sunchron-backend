@@ -182,6 +182,9 @@ test("requests the explicit Drive, Gmail, Calendar and Contacts scopes", () => {
     assert.match(scope, /gmail\.modify/u);
     assert.match(scope, /contacts\.readonly/u);
     assert.match(scope, /\/auth\/contacts(?:\s|$)/u);
+    // Writes only to files AI CORE creates, never the whole Drive.
+    assert.match(scope, /\/auth\/drive\.file(?:\s|$)/u);
+    assert.doesNotMatch(scope, /\/auth\/drive(?:\s|$)/u);
   } finally {
     if (original.clientId === undefined) delete process.env.GOOGLE_CLIENT_ID;
     else process.env.GOOGLE_CLIENT_ID = original.clientId;

@@ -137,6 +137,16 @@ export function startStubServer(port = 0) {
         { id: "openai-web-search", name: "Търсене в интернет", enabled: true, executable: true, configured: true },
       ] });
     }
+    if (p === "/api/google/save" && req.method === "POST") {
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        const b = JSON.parse(body);
+        if (!b.text || !b.title) return json(res, { error: "Няма какво да се запази." }, 400);
+        json(res, { id: "f1", name: b.title, kind: b.kind, url: `https://docs.google.com/${b.kind === "sheet" ? "spreadsheets" : "document"}/d/f1` });
+      });
+      return undefined;
+    }
     if (p === "/api/google/files") return json(res, { files: [] });
     if (p === "/api/google/gmail/messages") {
       return json(res, { messages: [{ id: "m1", subject: "Офертата", from: "Иван <ivan@example.com>", snippet: "Потвърди до петък", url: "https://mail.google.com/x" }] });

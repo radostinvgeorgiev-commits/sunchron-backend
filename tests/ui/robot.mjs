@@ -162,6 +162,17 @@ async function sharedPage(origin) {
   await page.close();
 }
 
+async function statusPage(origin, live) {
+  const { page, errors } = await openPage(origin, { width: 390, height: 844 }, "/status");
+  await step(`${live ? "Жив сайт" : "Страница"}: състоянието показва сайта и моделите`, async () => {
+    await page.waitForTimeout(live ? 4000 : 500);
+    expect((await page.locator(".status-list li").count()) >= 2, "няма редове за сайта и моделите");
+    expect((await page.textContent("#statusTitle")) !== "Проверка…", "страницата не се обнови");
+    expect(!errors.length, errors[0]);
+  });
+  await page.close();
+}
+
 async function publicChecks(origin) {
   const { page, errors } = await openPage(origin, { width: 390, height: 844 });
   await step("Жив сайт: екранът за вход зарежда без грешки", async () => {
@@ -184,11 +195,13 @@ async function publicChecks(origin) {
 
 if (publicOrigin) {
   await publicChecks(publicOrigin);
+  await statusPage(publicOrigin, true);
 } else {
   const stub = await startStubServer();
   await signedInFlows(stub.origin, stub.requests, "Телефон", { width: 390, height: 844 }, stub.feedback);
   await signedInFlows(stub.origin, stub.requests, "Компютър", { width: 1280, height: 800 }, stub.feedback);
   await sharedPage(stub.origin);
+  await statusPage(stub.origin, false);
   stub.server.close();
 }
 await browser.close();

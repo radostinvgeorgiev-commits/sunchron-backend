@@ -21,3 +21,5 @@
 .ai-spend-limit label { width: 100%; font-weight: 700; }
 .ai-spend-limit input { flex: 1; min-width: 0; padding: 8px; border: 1px solid #b9c1bd; border-radius: 8px; }
 .ai-spend-limit button { padding: 8px 14px; border-radius: 8px; border: 0; background: #2f6b52; color: #fff; font-weight: 800; }
+.ai-ratings-title { display: block; margin-top: 10px; }
+.ai-ratings { margin: 4px 0 10px; padding-left: 18px; font-size: .9rem; }

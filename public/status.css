@@ -1,0 +1,14 @@
+.status-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.status-list li {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 14px 16px; border-radius: 14px; background: #fff; border: 1px solid #dde2df;
+}
+.status-list li.ok strong { color: #2f6b52; }
+.status-list li.bad strong { color: #a3261c; }
+.status-list li.ok::before, .status-list li.bad::before {
+  content: ""; width: 12px; height: 12px; border-radius: 50%; flex: none; background: #2f9b68;
+}
+.status-list li.bad::before { background: #c93a2e; }
+.status-list li span { flex: 1; }
+body[data-status="ok"] #statusTitle { color: #2f6b52; }
+body[data-status="down"] #statusTitle { color: #a3261c; }

@@ -35,6 +35,11 @@ export function startStubServer(port = 0) {
         user: { id: "u", email: "robot@example.test", displayName: "Робот", role: "owner" },
       });
     }
+    if (p === "/health/status") {
+      return json(res, { status: "partial", site: true, checkedAt: "2026-11-26T03:00:00Z", models: [
+        { name: "Claude", working: true }, { name: "Gemini", working: false },
+      ] });
+    }
     if (p === "/chat/models") return json(res, { items: MODELS });
     if (p === "/chat/compare" && req.method === "POST") {
       return json(res, { answers: [
@@ -98,6 +103,7 @@ export function startStubServer(port = 0) {
     const hashed = p.match(/^\/assets\/[^/]+\/(.+)$/u);
     if (hashed) p = `/${hashed[1]}`;
     if (p.startsWith("/s/")) p = "/shared.html";
+    if (p === "/status") p = "/status.html";
     if (p === "/") p = "/index.html";
     const file = path.join(root, path.normalize(p));
     if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {

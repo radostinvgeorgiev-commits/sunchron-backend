@@ -31,6 +31,8 @@
         <strong class="ai-spend-total"></strong>
         <p class="ai-spend-note">Оценка по токени и цените на моделите. Точната сметка е в конзолите на доставчиците.</p>
         <ul class="ai-spend-models"></ul>
+        <strong class="ai-ratings-title">Оценки този месец</strong>
+        <ul class="ai-ratings"></ul>
         <form class="ai-spend-limit">
           <label for="aiSpendLimit">Месечен лимит ($)</label>
           <input id="aiSpendLimit" type="number" min="0.01" step="0.01" inputmode="decimal" />
@@ -66,6 +68,29 @@
     if (document.activeElement !== input) input.value = String(data.limitUsd);
   }
 
+  // 👍/👎 and blind-comparison results per model, for the owner.
+  async function refreshRatings() {
+    const list = root?.querySelector(".ai-ratings");
+    if (!list) return;
+    try {
+      const response = await fetch("/api/feedback/summary", { credentials: "same-origin" });
+      if (!response.ok) return;
+      const data = await response.json();
+      const rows = data.models?.length ? data.models : [{ empty: true }];
+      list.replaceChildren(
+        ...rows.map((m) => {
+          const item = document.createElement("li");
+          item.textContent = m.empty
+            ? "Още няма оценки"
+            : `${m.model.replace(":", " · ")} — 👍 ${m.up || 0} · 👎 ${m.down || 0} · сравнения: ${m.win || 0} победи, ${m.loss || 0} загуби, ${m.tie || 0} равни`;
+          return item;
+        }),
+      );
+    } catch {
+      // keep the last list
+    }
+  }
+
   async function refresh() {
     if (!root) root = build();
     if (!root) return;
@@ -77,6 +102,7 @@
         return;
       }
       render(await response.json());
+      void refreshRatings();
     } catch {
       // keep the last value; try again on the next tick
     }

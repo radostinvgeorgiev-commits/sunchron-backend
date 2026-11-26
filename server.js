@@ -239,6 +239,10 @@ app.use(
   createApiRateLimiter({ limit: 60 }),
   createSharedReadRouter({ service: shareService }),
 );
+app.get("/status", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.sendFile("status.html", { root: "public" });
+});
 app.get("/s/:token", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Robots-Tag", "noindex, nofollow");

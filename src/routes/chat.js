@@ -765,7 +765,7 @@ export function detectCapabilityRequests(message) {
         action: "web.read",
         message: subtask,
       });
-    } else if (isWebSearchRequest(subtask)) {
+    } else if (!noPaidTools && isWebSearchRequest(subtask)) {
       requests.push({
         capability: "web.search",
         action: "web.read",

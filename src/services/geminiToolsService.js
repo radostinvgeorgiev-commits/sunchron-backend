@@ -32,14 +32,22 @@ export function isYoutubeRequest(message) {
   return Boolean(extractYoutubeUrl(message));
 }
 
+// A kind of place in any noun form ("аптеката", "хотелът"), but not as an
+// adjective ("ресторантска паста", "хотелска стая").
+const PLACE_WORD =
+  /(?:ресторант|кафене|аптек|болниц|хотел|бензиностанци|магазин|паркинг|фитнес|зъболекар)(?!ск)[а-яё]*/iu;
+const SPATIAL_CUE =
+  /(?:[Нн]аблизо|[Бб]лизо\s+до|в\s+района|около\s+мен|[Кк]ъде|(?:^|\s)в(?:ъв)?\s+[А-ЯЁ][а-яё]+)/u;
+const ASKS =
+  /(?:намери|покажи|препоръчай|предложи|търся|къде|има\s+ли|кой|коя|кое|кои|\?)/iu;
+const DECLINES = /(?:^|\s)не\s+(?:искам|търся|ми\s+трябва|ми\s+трябват)/iu;
+
 export function isPlacesRequest(message) {
   if (typeof message !== "string") return false;
   const text = message.trim();
-  if (!text || isYoutubeRequest(text)) return false;
+  if (!text || isYoutubeRequest(text) || DECLINES.test(text)) return false;
   return (
-    // A kind of place plus a spatial cue; "ресторантска паста" is a recipe, not a place.
-    (/(?:ресторант(?:и|а|ът)?|кафенета?|аптек[аи]|болниц[аи]|хотел(?:и|а)?|бензиностанци[яи]|магазин(?:и|а)?|паркинг(?:и|а)?|фитнес(?:и|а)?|зъболекар(?:и|я)?)(?![а-яё])/iu.test(text) &&
-      /(?:наблизо|близо\s+до|в\s+района|около\s+мен|къде\s+(?:има|да|е|мога))/iu.test(text)) ||
+    (PLACE_WORD.test(text) && SPATIAL_CUE.test(text) && ASKS.test(text)) ||
     /(?:маршрут|как\s+да\s+стигна|колко\s+(?:е\s+)?далеч|работно\s+време\s+на|на\s+картата|в\s+google\s+maps)/iu.test(text) ||
     /^(?:намери\s+наблизо|find\s+nearby)\s*:/iu.test(text) ||
     /\b(?:near\s+me|directions\s+to|route\s+to|opening\s+hours\s+of)\b/iu.test(text)

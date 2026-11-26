@@ -123,3 +123,12 @@ test("when the maps are out of quota, the place question is answered from a web 
   assert.equal(result.text, "Аптека Y, ул. Главна 1");
   assert.match(searched[0], /аптека в Пловдив/u);
 });
+
+test("a city, the usual word forms and plain statements are read right", () => {
+  assert.equal(isPlacesRequest("Препоръчай ресторант във Варна"), true);
+  assert.equal(isPlacesRequest("Намери хотел в Пловдив"), true);
+  assert.equal(isPlacesRequest("Намери кафене наблизо"), true);
+  assert.equal(isPlacesRequest("Къде е аптеката?"), true);
+  assert.equal(isPlacesRequest("Ресторантът беше близо до дома ми"), false);
+  assert.equal(isPlacesRequest("Не искам ресторант наблизо"), false);
+});

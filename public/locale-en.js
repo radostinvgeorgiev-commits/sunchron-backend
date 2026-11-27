@@ -265,8 +265,6 @@ NovariumAI — начало|NovariumAI home
 2 единици|2 credits
 Къде отива всеки лев|Where every lev goes
 Цената е реалната себестойност: AI заявките в най-скъпия случай (около 0,8 евроцента на единица) и таксата за плащане, плюс малък запас около 10% за сървъри и грешки.|The price is the real cost: AI requests in the most expensive case (about 0.8 euro cents per credit) and the payment fee, plus a small reserve of about 10% for servers and errors.
-Всичко над реалните разходи е предназначено за каузи, които хората сами предлагат и избират в „Каузи“. Никой не прибира печалба от тях.|Everything above the real costs is meant for causes that people propose and choose themselves in “Causes”. Nobody takes a profit from it.
-Управлението на проекта получава фиксирано възнаграждение, което ще бъде обявено тук публично, щом бъде определено.|The people running the project receive a fixed fee, which will be published here once it is set.
 Фондацията още не е регистрирана. Затова засега пари за каузи не се събират и не се разпределят.|The foundation is not registered yet, so no money for causes is collected or distributed for now.
 Действие|Action
 Разход|Cost
@@ -289,6 +287,24 @@ AI Council, включително обобщаване|AI Council, including sy
 Услугата се предоставя от|The service is provided by
 , ЕИК 208554306.|, Bulgarian company ID 208554306.
 Фирмени данни и контакт|Company details and contact
+Връщане на вложеното: парите, които собственикът е вложил във фирмата, за да плаща разходите в началото, му се връщат като заем.|Return of the investment: the money the owner put into the company to pay the costs at the start is paid back to him as a loan.
+Всички разходи се плащат от фирмената сметка. В началото собственикът я захранва със свои пари.|All costs are paid from the company account. At the start, the owner funds it with his own money.
+Тук се вижда колко е вложено и колко е върнато.|This page shows how much has been put in and how much has been paid back.
+Всеки месец приходите се разпределят в този ред: разходи (с заплатата на управителя), данъци в България, връщане на вложеното от собственика, резерв 10% и остатък: 80% за каузи, които хората сами предлагат и избират в „Каузи“, и 20% за собственика.|Every month, revenue is split in this order: costs (including the director's salary), taxes in Bulgaria, repayment of the owner's investment, a 10% reserve, and the rest: 80% for causes that people propose and choose themselves in “Causes”, and 20% for the owner.
+Прозрачност · NovariumAI|Transparency · NovariumAI
+Къде отиват парите на NovariumAI: разходи, данъци, резерв, 80% за каузи и 20% за собственика.|Where NovariumAI's money goes: costs, taxes, reserve, 80% for causes and 20% for the owner.
+Прозрачност|Transparency
+ПРОЗРАЧНОСТ|TRANSPARENCY
+Къде отиват парите|Where the money goes
+Всеки месец приходите на NovariumAI се разпределят в този ред.|Every month, NovariumAI's revenue is split in this order.
+Разходи: сървъри, AI, такси за плащане и заплатата на управителя на фирмата.|Costs: servers, AI, payment fees and the company director's salary.
+Данъци в България, без офшорни фирми.|Taxes in Bulgaria, with no offshore companies.
+Резерв: 10% от остатъка, докато се съберат около 3 месеца разходи.|Reserve: 10% of what remains, until about 3 months of costs are saved.
+Остатъкът: 80% за каузи, които хората сами предлагат и избират в „Каузи“, и 20% за собственика.|The rest: 80% for causes that people propose and choose themselves in “Causes”, and 20% for the owner.
+Месечни числа|Monthly figures
+Всеки месец числата излизат тук. Докато няма приходи, страницата показва само правилата.|The figures are published here every month. Until there is revenue, this page shows only the rules.
+Размерът на заплатата на управителя ще бъде обявен тук, щом бъде определен.|The director's salary will be published here once it is set.
+Подробно и с месечните числа:|Details and monthly figures:
 Планове за NovariumAI с ясно включено AI потребление и без автоматично доплащане.|NovariumAI plans with clearly defined AI usage and no automatic top-ups.
 Твоето потребление|Your usage
 Помощ и документация · NovariumAI|Help and documentation · NovariumAI

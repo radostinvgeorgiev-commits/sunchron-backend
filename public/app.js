@@ -3044,7 +3044,7 @@ function resolveNextStep(replyText, result = {}) {
 
   if (result?.mode === "council") {
     return {
-      step: "Прегледай общата препоръка и натисни „Изпълни препоръката“, ако я одобряваш.",
+      step: chatText("Прегледай общата препоръка и натисни „Изпълни препоръката“, ако я одобряваш."),
       displayText: parsedReply.displayText,
     };
   }

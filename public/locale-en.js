@@ -35,6 +35,7 @@ AI CORE ти помага да анализираш информация, да �
 Фирмени данни|Company details
 Вход за собственик|Owner sign-in
 Продължи с GitHub|Continue with GitHub
+Продължи с Google|Continue with Google
 За защитения вход и приложението е нужен JavaScript. Формите никога не изпращат парола чрез адреса на страницата.|JavaScript is required for secure sign-in and the workspace. These forms never send your password in the page address.
 Стабилен разговор|Conversations with context
 Един AI CORE запазва контекста на работата ти.|AI CORE keeps track of the context for your work.
@@ -386,6 +387,7 @@ AI отговорът приключи неочаквано.|The AI response end
 Следва|Next
 Следваща стъпка|Next step
 Отвори в Дневника|Open in task journal
+Добави в Дневника|Add to task journal
 История|History
 Моят аватар|My avatar
 Кой съм аз|Who I am
@@ -616,6 +618,10 @@ AI доставчик и модел|AI provider and model
 Отвори Дневника на задачите и продължи първата незавършена стъпка.|Open the task journal and continue the first unfinished step.
 Отвори Дневника на задачите и прегледай причината за неуспешната задача.|Open the task journal to see why the task did not complete.
 Натисни линка за разрешение по-горе и попитай отново.|Use the allow link above, then ask again.
+Прегледай общата препоръка и натисни „Изпълни препоръката“, ако я одобряваш.|Review the combined recommendation and press “Run recommendation” if you approve it.
+Пробвай пак|Try again
+Пробвай с друг модел|Try another model
+Отвори отстрани|Open on the side
 Запазването в Google иска еднократно разрешение.|Saving to Google needs a one-time permission.
 Разреши|Allow
 `.trim().split("\n").map((line) => line.split("|")),

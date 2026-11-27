@@ -140,7 +140,9 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
   });
   await step(`${label}: менюто „+“ е кратко, личното е в „Моят аватар“`, async () => {
     await page.click("#attachBtn");
-    expect((await page.locator(".plus-menu > button:visible").count()) === 6, "менюто „+“ не е с 6 реда");
+    // "Направи видео" is shown to the owner only until it opens for everyone.
+    const rows = (await page.getAttribute("body", "data-user-role")) === "owner" ? 7 : 6;
+    expect((await page.locator(".plus-menu > button:visible").count()) === rows, `менюто „+“ не е с ${rows} реда`);
     expect(!(await page.locator('.plus-menu [data-plus="assistant"]').count()), "специалистът е и в „+“ (двоен бутон)");
     await page.keyboard.press("Escape");
     expect((await page.locator(".mine-group [data-plus]").count()) === 8, "няма група „Моят аватар“");

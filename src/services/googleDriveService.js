@@ -206,12 +206,15 @@ function configuration() {
 // Extra Google services a person turns on one at a time, only when they
 // use them. The first "Свържи Google" never carries them. Turning one on asks
 // again for the main scopes, the extras the connection already has and the new
-// one, so the new token has everything. Saving files (drive.file) always gets
-// its own token instead (see buildAuthorizationUrl).
+// one, so the new token has everything. Saving files (drive.file) and
+// uploading videos (youtube.upload) each get their own token instead (see
+// GOOGLE_LINKED_EXTRAS).
 export const GOOGLE_EXTRA_SCOPES = Object.freeze({
   youtube: "https://www.googleapis.com/auth/youtube.readonly",
   // Only files AI CORE itself creates (answers saved as Docs/Sheets).
   save: "https://www.googleapis.com/auth/drive.file",
+  // Uploading the person's own videos to their YouTube channel.
+  publish: "https://www.googleapis.com/auth/youtube.upload",
   // Reading the whole mailbox / whole Drive. Google calls these "restricted":
   // until the app passes Google's paid security audit, each person who turns
   // them on sees the "unverified app" warning. So members ask for them only
@@ -250,6 +253,13 @@ export const GOOGLE_MEMBER_SCOPES = Object.freeze([
   "https://www.googleapis.com/auth/contacts",
 ]);
 
+// Steps whose token lives in its own session, linked from the main
+// connection (`saveSessionId`, `publishSessionId`). Google refuses drive.file
+// together with youtube.readonly in one grant, so they never share a token.
+export const GOOGLE_LINKED_EXTRAS = Object.freeze(["save", "publish"]);
+const linkField = (kind) => `${kind}SessionId`;
+const LINK_FIELDS = GOOGLE_LINKED_EXTRAS.map(linkField);
+
 export function googleConnectPath(extra = "") {
   return GOOGLE_EXTRA_SCOPES[extra] ? `/api/google/connect?add=${extra}` : "/api/google/connect";
 }
@@ -259,7 +269,7 @@ export function googleConnectPath(extra = "") {
 // would add every earlier grant to each new request, so once a person has
 // turned on both YouTube and saving, every later connection would fail. So no
 // request uses it: each one names exactly the scopes its token needs, and
-// saving (drive.file) always gets its own token.
+// saving files and uploading videos always get their own token.
 export function buildAuthorizationUrl(
   state,
   extras = [],
@@ -269,8 +279,9 @@ export function buildAuthorizationUrl(
   const names = (Array.isArray(extras) ? extras : []).filter(
     (name) => typeof name === "string" && Object.hasOwn(GOOGLE_EXTRA_SCOPES, name),
   );
-  const scopes = names.includes("save")
-    ? ["openid", "email", GOOGLE_EXTRA_SCOPES.save]
+  const linked = names.find((name) => GOOGLE_LINKED_EXTRAS.includes(name));
+  const scopes = linked
+    ? ["openid", "email", GOOGLE_EXTRA_SCOPES[linked]]
     : [
         ...(owner ? GOOGLE_BASE_SCOPES : GOOGLE_MEMBER_SCOPES),
         ...names.flatMap((name) => GOOGLE_EXTRA_SCOPES[name].split(" ")),
@@ -299,28 +310,34 @@ function grantedScopes(scope) {
 // keeps them.
 export async function grantedExtras(id) {
   const session = await loadSession(id);
-  if (!session || isSaveSession(session)) return [];
+  if (!session || isLinkedSession(session)) return [];
   const granted = grantedScopes(session.scope);
   return Object.entries(GOOGLE_EXTRA_SCOPES)
     .filter(
       ([name, scopes]) =>
-        name !== "save" && scopes.split(" ").some((scope) => granted.has(scope)),
+        !GOOGLE_LINKED_EXTRAS.includes(name) &&
+        scopes.split(" ").some((scope) => granted.has(scope)),
     )
     .map(([name]) => name);
+}
+
+// The step a token was granted for when it can do nothing else (save:
+// drive.file, publish: youtube.upload), or "" for a main connection.
+export function linkedGrantKind(scope) {
+  const granted = grantedScopes(scope);
+  const basic = ["openid", "email", "https://www.googleapis.com/auth/userinfo.email"];
+  return (
+    GOOGLE_LINKED_EXTRAS.find((kind) => {
+      const own = GOOGLE_EXTRA_SCOPES[kind];
+      return granted.has(own) && [...granted].every((item) => item === own || basic.includes(item));
+    }) || ""
+  );
 }
 
 // A token that can only save files (the add=save step), never a main
 // connection.
 export function isSaveOnlyGrant(scope) {
-  const granted = grantedScopes(scope);
-  if (!granted.has(GOOGLE_EXTRA_SCOPES.save)) return false;
-  const basic = new Set([
-    "openid",
-    "email",
-    "https://www.googleapis.com/auth/userinfo.email",
-    GOOGLE_EXTRA_SCOPES.save,
-  ]);
-  return [...granted].every((scope) => basic.has(scope));
+  return linkedGrantKind(scope) === "save";
 }
 
 // The Google account behind a token (the "sub" of its sign-in id_token).
@@ -342,8 +359,15 @@ function sameGoogleAccount(left, right) {
   return !a || !b || a === b;
 }
 
-function isSaveSession(session) {
-  return Boolean(session?.saveOnly) || isSaveOnlyGrant(session?.scope);
+// Which step a session's own token is for, or "" for a main connection.
+function linkedKindOf(session) {
+  if (GOOGLE_LINKED_EXTRAS.includes(session?.linkedKind)) return session.linkedKind;
+  if (session?.saveOnly) return "save";
+  return linkedGrantKind(session?.scope);
+}
+
+function isLinkedSession(session) {
+  return Boolean(linkedKindOf(session));
 }
 
 // Every scope a main "Свържи Google" can ask for. Older scopes (the first
@@ -352,7 +376,7 @@ function isSaveSession(session) {
 const MAIN_CONNECT_SCOPES = new Set([
   ...GOOGLE_MEMBER_SCOPES.filter((item) => item.startsWith("https://")),
   ...Object.entries(GOOGLE_EXTRA_SCOPES)
-    .filter(([name]) => name !== "save")
+    .filter(([name]) => !GOOGLE_LINKED_EXTRAS.includes(name))
     .flatMap(([, scopes]) => scopes.split(" ")),
 ]);
 
@@ -369,25 +393,27 @@ export async function googleLoginHint(id) {
   return googleSubject(await loadSession(id));
 }
 
-// The save link can be made or changed on another server instance, so the
-// stored copy decides. The cached session is updated in place, so a token
-// refresh that persists it never drops a link made elsewhere.
-async function withStoredSaveLink(id, session) {
+// The links to step tokens can be made or changed on another server
+// instance, so the stored copy decides. The cached session is updated in
+// place, so a token refresh that persists it never drops a link made elsewhere.
+async function withStoredLinks(id, session) {
   if (!session || resolvePersistenceBackend(process.env) !== "firestore") return session;
   try {
     const payload = await getFirestoreSessionStore().get(id);
     if (!payload) return session;
     const stored = decryptGoogleSession(payload);
-    if (stored.saveSessionId) session.saveSessionId = stored.saveSessionId;
-    else delete session.saveSessionId;
+    for (const field of LINK_FIELDS) {
+      if (stored[field]) session[field] = stored[field];
+      else delete session[field];
+    }
   } catch (error) {
-    logSafeError("[Google session] Save link read failure", error);
+    logSafeError("[Google session] Link read failure", error);
   }
   return session;
 }
 
 async function loadSessionWithLink(id) {
-  return withStoredSaveLink(id, await loadSession(id));
+  return withStoredLinks(id, await loadSession(id));
 }
 
 async function deleteStoredSession(id) {
@@ -398,29 +424,32 @@ async function deleteStoredSession(id) {
   }
 }
 
-// The separate "save" token lives in its own session, linked from the main
-// one, so the main connection keeps every other permission. In production the
-// link must be stored, or "Запази в Google" would ask again after a restart.
-export async function linkSaveSession(mainId, saveId) {
+// A step token (saving files, uploading videos) lives in its own session,
+// linked from the main one, so the main connection keeps every other
+// permission. In production the link must be stored, or the step would ask
+// again after a restart.
+export async function linkSaveSession(mainId, linkedId, kind = "save") {
+  if (!GOOGLE_LINKED_EXTRAS.includes(kind)) return false;
+  const field = linkField(kind);
   const session = await loadSessionWithLink(mainId);
-  if (!session || !saveId || saveId === mainId) return false;
-  const previous = session.saveSessionId;
+  if (!session || !linkedId || linkedId === mainId) return false;
+  const previous = session[field];
   // The shared session changes only once the link is stored, so a token
   // refresh running meanwhile never stores a link that did not happen.
   let persisted = false;
   try {
-    persisted = await persistSession(mainId, { ...session, saveSessionId: saveId });
+    persisted = await persistSession(mainId, { ...session, [field]: linkedId });
   } catch (error) {
-    logSafeError("[Google session] Save link persistence failure", error);
+    logSafeError("[Google session] Link persistence failure", error);
   }
   if (!persisted && requiresPersistentGoogleSessions()) return false;
-  session.saveSessionId = saveId;
-  if (previous && previous !== saveId) await deleteUnlinkedSaveSession(previous, mainId);
+  session[field] = linkedId;
+  if (previous && previous !== linkedId) await deleteUnlinkedSession(previous, mainId);
   return true;
 }
 
 // Every stored session (or, without storage, every session of this
-// instance), for finding which connection links a save token.
+// instance), for finding which connection links a step token.
 async function knownSessions(limit = 100) {
   if (resolvePersistenceBackend(process.env) !== "firestore") return [...sessions.entries()];
   const known = [];
@@ -434,80 +463,98 @@ async function knownSessions(limit = 100) {
   return known;
 }
 
-// A save token is deleted only when no other connection still uses it
+// A step token is deleted only when no other connection still uses it
 // (two devices can share one through "Възстанови").
-async function deleteUnlinkedSaveSession(saveId, exceptId) {
+async function deleteUnlinkedSession(linkedId, exceptId) {
   try {
     const linkedElsewhere = (await knownSessions()).some(
-      ([id, session]) => id !== exceptId && id !== saveId && session?.saveSessionId === saveId,
+      ([id, session]) =>
+        id !== exceptId &&
+        id !== linkedId &&
+        LINK_FIELDS.some((field) => session?.[field] === linkedId),
     );
-    if (!linkedElsewhere) await deleteStoredSession(saveId);
+    if (!linkedElsewhere) await deleteStoredSession(linkedId);
   } catch (error) {
-    logSafeError("[Google session] Old save token cleanup failure", error);
+    logSafeError("[Google session] Old step token cleanup failure", error);
   }
 }
 
-// The linked save token no longer works (its Google permission was removed
-// or expired): forget it, so the next "Запази в Google" asks for a new one
-// instead of carrying the dead token to every renewed connection.
-export async function forgetSaveSession(mainId, saveId) {
-  if (!mainId || !saveId || mainId === saveId) return false;
+// A linked step token no longer works (its Google permission was removed or
+// expired): forget it, so the step asks for a new one instead of carrying the
+// dead token to every renewed connection.
+export async function forgetLinkedSession(mainId, linkedId, kind = "save") {
+  if (!mainId || !linkedId || mainId === linkedId || !GOOGLE_LINKED_EXTRAS.includes(kind)) {
+    return false;
+  }
+  const field = linkField(kind);
   const session = await loadSessionWithLink(mainId);
-  if (session?.saveSessionId === saveId) {
-    const { saveSessionId: _dropped, ...rest } = session;
+  if (session?.[field] === linkedId) {
+    const { [field]: _dropped, ...rest } = session;
     try {
       await persistSession(mainId, rest);
-      delete session.saveSessionId;
+      delete session[field];
     } catch (error) {
-      logSafeError("[Google session] Save unlink persistence failure", error);
+      logSafeError("[Google session] Unlink persistence failure", error);
       return false;
     }
   }
   try {
-    await deleteStoredSession(saveId);
+    await deleteStoredSession(linkedId);
   } catch (error) {
-    logSafeError("[Google session] Dead save token cleanup failure", error);
+    logSafeError("[Google session] Dead step token cleanup failure", error);
   }
   return true;
 }
 
-// A renewed main connection keeps "Запази в Google": the save token linked
-// to the old connection (or the old connection itself, when it was only a
-// save token) is linked to the new one.
-export async function carrySaveSession(previousId, newId) {
+// A renewed main connection keeps its steps ("Запази в Google", YouTube
+// upload): each step token linked to the old connection (or the old
+// connection itself, when it was only a step token) is linked to the new one.
+export async function carryLinkedSessions(previousId, newId) {
   const previous = await loadSessionWithLink(previousId);
-  if (!previous || previousId === newId) return false;
-  let saveId = previous.saveSessionId;
-  // A save token used as the connection, or an older main token that itself
-  // holds drive.file (from before saving had its own token): it keeps saving.
-  if (
-    isSaveSession(previous) ||
-    (!saveId && grantedScopes(previous.scope).has(GOOGLE_EXTRA_SCOPES.save))
-  ) {
-    saveId = previousId;
+  const current = await loadSession(newId);
+  if (!previous || !current || previousId === newId) return;
+  const previousKind = linkedKindOf(previous);
+  for (const kind of GOOGLE_LINKED_EXTRAS) {
+    let linkedId = previous[linkField(kind)];
+    // A step token used as the connection keeps its step. An older main token
+    // that itself holds drive.file (from before saving had its own token)
+    // keeps saving.
+    if (
+      previousKind === kind ||
+      (kind === "save" &&
+        !previousKind &&
+        !linkedId &&
+        grantedScopes(previous.scope).has(GOOGLE_EXTRA_SCOPES.save))
+    ) {
+      linkedId = previousId;
+    }
+    if (!linkedId || linkedId === newId) continue;
+    const linked = await loadSession(linkedId);
+    // Only into the Google account that is connected now.
+    if (linked && sameGoogleAccount(linked, current)) {
+      await linkSaveSession(newId, linkedId, kind);
+    }
   }
-  if (!saveId || saveId === newId) return false;
-  const [save, current] = [await loadSession(saveId), await loadSession(newId)];
-  // Answers are saved only to the Google account that is connected now.
-  if (!save || !current || !sameGoogleAccount(save, current)) return false;
-  return linkSaveSession(newId, saveId);
 }
 
-// After Google's consent. A save-only token is linked beside the person's
-// main connection, which keeps its id, also when the step started before this
-// version (its scopes tell what it is). Any other token becomes the main
-// connection and keeps the linked save token, unless it can do less than the
-// connection of the same Google account it would replace (boxes left
-// unticked on Google's screen): then the old connection stays and `partial`
-// tells the page to ask again.
+// After Google's consent. A step token (saving files, uploading videos) is
+// linked beside the person's main connection, which keeps its id, also when
+// the step started before this version (its scopes tell what it is). Any
+// other token becomes the main connection and keeps the linked step tokens,
+// unless it can do less than the connection of the same Google account it
+// would replace (boxes left unticked on Google's screen): then the old
+// connection stays and `partial` tells the page to ask again.
 export async function finishGoogleConnection(
   tokens,
   owner,
-  { previousId = null, saving = false } = {},
+  { previousId = null, linked = null, saving = false } = {},
 ) {
-  const save = saving || isSaveOnlyGrant(tokens?.scope);
+  const kind =
+    (GOOGLE_LINKED_EXTRAS.includes(linked) ? linked : "") ||
+    (saving ? "save" : "") ||
+    linkedGrantKind(tokens?.scope);
   const previous = previousId ? await loadSessionWithLink(previousId) : null;
-  if (save) {
+  if (kind) {
     if (previous && !sameGoogleAccount(previous, tokens)) {
       throw new GoogleDriveError(
         "Избери същия Google профил, с който е свързан AI CORE.",
@@ -515,9 +562,9 @@ export async function finishGoogleConnection(
         "GOOGLE_ACCOUNT_MISMATCH",
       );
     }
-    const newId = await createSession(tokens, owner, { saveOnly: true });
+    const newId = await createSession(tokens, owner, { linkedKind: kind });
     if (!previous) return { id: newId };
-    if (await linkSaveSession(previousId, newId)) return { id: previousId };
+    if (await linkSaveSession(previousId, newId, kind)) return { id: previousId };
     await disconnectSession(newId);
     throw new GoogleDriveError(
       "Google връзката не можа да бъде запазена защитено.",
@@ -527,7 +574,7 @@ export async function finishGoogleConnection(
   }
   if (
     previous &&
-    !isSaveSession(previous) &&
+    !isLinkedSession(previous) &&
     sameGoogleAccount(previous, tokens) &&
     !coversScopes(tokens?.scope, previous.scope)
   ) {
@@ -536,9 +583,9 @@ export async function finishGoogleConnection(
   const newId = await createSession(tokens, owner);
   if (previous) {
     try {
-      await carrySaveSession(previousId, newId);
+      await carryLinkedSessions(previousId, newId);
     } catch (error) {
-      logSafeError("[Google session] Save link carry failure", error);
+      logSafeError("[Google session] Step link carry failure", error);
     }
   }
   return { id: newId };
@@ -548,6 +595,13 @@ export async function saveSessionFor(mainId) {
   const session = await loadSessionWithLink(mainId);
   const saveId = session?.saveSessionId;
   return saveId && (await hasSession(saveId)) ? saveId : mainId;
+}
+
+// The linked YouTube upload token, or null when it was never turned on.
+export async function publishSessionFor(mainId) {
+  const session = await loadSessionWithLink(mainId);
+  const id = session?.publishSessionId;
+  return id && (await hasSession(id)) ? id : null;
 }
 
 export async function exchangeCode(code, fetchImpl = fetch) {
@@ -599,7 +653,12 @@ export async function sessionBelongsTo(id, owner) {
   return sessionOwnedBy(await loadSession(id), owner);
 }
 
-export async function createSession(tokens, owner = null, { saveOnly = false } = {}) {
+export async function createSession(
+  tokens,
+  owner = null,
+  { saveOnly = false, linkedKind = "" } = {},
+) {
+  const kind = GOOGLE_LINKED_EXTRAS.includes(linkedKind) ? linkedKind : saveOnly ? "save" : "";
   const id = createNonce();
   const session = {
     ...tokens,
@@ -610,8 +669,9 @@ export async function createSession(tokens, owner = null, { saveOnly = false } =
           primaryOwner: owner.role === "owner",
         }
       : {}),
-    // Only saves files (add=save): never a main connection for owner tools.
-    ...(saveOnly ? { saveOnly: true } : {}),
+    // Only one step (saving files, uploading videos): never a main
+    // connection for owner tools.
+    ...(kind ? { linkedKind: kind, ...(kind === "save" ? { saveOnly: true } : {}) } : {}),
   };
   let persisted = false;
   try {
@@ -632,17 +692,19 @@ export async function createSession(tokens, owner = null, { saveOnly = false } =
   return id;
 }
 
-// Removes one connection and its linked save token.
+// Removes one connection and its linked step tokens.
 export async function disconnectSession(id) {
   if (!id) return;
   const session = await loadSessionWithLink(id);
-  const saveId = session?.saveSessionId;
+  const linked = LINK_FIELDS.map((field) => session?.[field]).filter(
+    (linkedId) => linkedId && linkedId !== id,
+  );
   await deleteStoredSession(id);
-  if (saveId && saveId !== id) await deleteUnlinkedSaveSession(saveId, id);
+  for (const linkedId of linked) await deleteUnlinkedSession(linkedId, id);
 }
 
 // "Прекъсни връзката": every stored Google token of the person goes (older
-// connections and save tokens too), so none stays stored and the next
+// connections and step tokens too), so none stays stored and the next
 // "Свържи Google" starts clean instead of finding an older connection.
 export async function disconnectGoogleAccount(id, owner) {
   if (id) await disconnectSession(id);
@@ -707,7 +769,7 @@ async function refreshSessionOnce(id, fetchImpl = fetch) {
     refresh_token: data.refresh_token || session.refresh_token,
     expiresAt: Date.now() + Number(data.expires_in || 3600) * 1000,
   });
-  await withStoredSaveLink(id, session);
+  await withStoredLinks(id, session);
   try {
     await persistSession(id, session);
   } catch (error) {
@@ -817,14 +879,14 @@ export async function hasSession(id) {
   return Boolean(await loadSession(id));
 }
 
-// The newest main connection (never a save token) that `belongs` accepts.
+// The newest main connection (never a step token) that `belongs` accepts.
 // With storage, the stored list decides: a connection removed on another
 // server instance can still sit in this instance's memory.
 async function findLatestMainSession(belongs) {
   const linkedSaves = (list) =>
-    new Set(list.map((session) => session?.saveSessionId).filter(Boolean));
+    new Set(list.flatMap((session) => LINK_FIELDS.map((field) => session?.[field])).filter(Boolean));
   const usable = (id, session, saves) =>
-    belongs(session) && !isSaveSession(session) && !saves.has(id);
+    belongs(session) && !isLinkedSession(session) && !saves.has(id);
   const backend = resolvePersistenceBackend(process.env);
   if (backend !== "firestore") {
     const cached = [...sessions.entries()].reverse();
@@ -1130,6 +1192,109 @@ export async function saveAnswerToGoogle(
   );
   const data = await response.json();
   return { id: data.id, name: data.name || name, url: data.webViewLink || null, kind };
+}
+
+// Saves a generated video (MP4) as a new file in the person's own Drive.
+// A resumable upload, because a clip is often bigger than the 5 MB that a
+// simple multipart upload allows. drive.file: only files AI CORE creates.
+export async function saveVideoToDrive(id, { name = "", bytes, mimeType = "video/mp4" } = {}, fetchImpl = fetch) {
+  if (!Buffer.isBuffer(bytes) || !bytes.length || mimeType !== "video/mp4") {
+    throw new GoogleDriveError("Няма видео за запазване.", 400, "GOOGLE_SAVE_INVALID");
+  }
+  const fileName =
+    `${String(name || "").replace(/[\u0000-\u001f\u007f/\\]/gu, " ").trim().slice(0, 100) || "AI CORE видео"}.mp4`;
+  const start = await googleFetch(
+    id,
+    `${DRIVE_UPLOAD_URL}?uploadType=resumable&fields=id,name,webViewLink`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json; charset=UTF-8",
+        "X-Upload-Content-Type": mimeType,
+        "X-Upload-Content-Length": String(bytes.length),
+      },
+      body: JSON.stringify({ name: fileName, mimeType }),
+    },
+    fetchImpl,
+    "Google Drive",
+  );
+  const location = start.headers?.get?.("location");
+  if (!location || !location.startsWith(`${DRIVE_UPLOAD_URL}?`)) {
+    throw new GoogleDriveError("Google Drive не прие видеото. Опитай пак.", 502, "GOOGLE_UPLOAD_FAILED");
+  }
+  const response = await googleFetch(
+    id,
+    location,
+    { method: "PUT", headers: { "Content-Type": mimeType }, body: bytes },
+    fetchImpl,
+    "Google Drive",
+  );
+  const data = await response.json();
+  return { id: data.id, name: data.name || fileName, url: data.webViewLink || null };
+}
+
+// Reads back an MP4 that AI CORE saved in the person's Drive (drive.file).
+export async function downloadOwnDriveVideo(id, fileId, fetchImpl = fetch) {
+  if (!/^[A-Za-z0-9_-]+$/u.test(fileId || "")) {
+    throw new GoogleDriveError("Невалиден Google Drive файл.", 400, "INVALID_FILE_ID");
+  }
+  const meta = await (
+    await googleFetch(id, `${DRIVE_API_URL}/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size`, {}, fetchImpl, "Google Drive")
+  ).json();
+  if (meta.mimeType !== "video/mp4" || Number(meta.size) > 256 * 1024 * 1024) {
+    throw new GoogleDriveError("Това не е видео от AI CORE.", 400, "GOOGLE_NOT_VIDEO");
+  }
+  const response = await googleFetch(id, `${DRIVE_API_URL}/files/${encodeURIComponent(fileId)}?alt=media`, {}, fetchImpl, "Google Drive");
+  return { name: String(meta.name || "").replace(/\.mp4$/iu, ""), bytes: Buffer.from(await response.arrayBuffer()) };
+}
+
+const YOUTUBE_UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos";
+export const YOUTUBE_PRIVACY = Object.freeze(["private", "unlisted", "public"]);
+
+// Uploads a video to the person's own YouTube channel (youtube.upload).
+// Google keeps uploads from apps that have not passed YouTube's API audit
+// private, whatever is asked; the answer says what YouTube actually set.
+export async function uploadVideoToYoutube(
+  id,
+  { bytes, title = "", description = "", privacy = "private" } = {},
+  fetchImpl = fetch,
+) {
+  if (!Buffer.isBuffer(bytes) || !bytes.length) {
+    throw new GoogleDriveError("Няма видео за качване.", 400, "YOUTUBE_UPLOAD_INVALID");
+  }
+  const status = YOUTUBE_PRIVACY.includes(privacy) ? privacy : "private";
+  const clean = (value, max) => String(value || "").replace(/[\u0000-\u0008\u000b-\u001f\u007f<>]/gu, " ").trim().slice(0, max);
+  const start = await googleFetch(
+    id,
+    `${YOUTUBE_UPLOAD_URL}?uploadType=resumable&part=snippet,status`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json; charset=UTF-8",
+        "X-Upload-Content-Type": "video/mp4",
+        "X-Upload-Content-Length": String(bytes.length),
+      },
+      body: JSON.stringify({
+        snippet: { title: clean(title, 100) || "AI CORE видео", description: clean(description, 5000) },
+        status: { privacyStatus: status, selfDeclaredMadeForKids: false, containsSyntheticMedia: true },
+      }),
+    },
+    fetchImpl,
+    "YouTube",
+  );
+  const location = start.headers?.get?.("location");
+  if (!location || !location.startsWith(`${YOUTUBE_UPLOAD_URL}?`)) {
+    throw new GoogleDriveError("YouTube не прие видеото. Опитай пак.", 502, "YOUTUBE_UPLOAD_FAILED");
+  }
+  const data = await (
+    await googleFetch(id, location, { method: "PUT", headers: { "Content-Type": "video/mp4" }, body: bytes }, fetchImpl, "YouTube")
+  ).json();
+  return {
+    id: data.id,
+    url: data.id ? `https://www.youtube.com/watch?v=${data.id}` : null,
+    studio: data.id ? `https://studio.youtube.com/video/${data.id}/edit` : null,
+    privacy: data.status?.privacyStatus || status,
+  };
 }
 
 export function isGoogleScopeMissing(error) {

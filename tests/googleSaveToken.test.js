@@ -4,6 +4,7 @@ import express from "express";
 
 import {
   createSession,
+  disconnectGoogleAccount,
   disconnectSession,
   finishGoogleConnection,
   getLatestGoogleSessionId,
@@ -12,6 +13,8 @@ import {
   isSaveOnlyGrant,
   latestMainSessionFor,
   linkSaveSession,
+  linkedGrantKind,
+  publishSessionFor,
   resetGoogleSessionsForTests,
   saveSessionFor,
   setFirestoreGoogleSessionStoreForTests,
@@ -630,4 +633,79 @@ test("the callback keeps the main connection for a save step and for a partial g
     globalThis.fetch = realFetch;
     server.close();
   }
+});
+
+test("the YouTube upload step gets its own linked token, like saving", async () => {
+  const UPLOAD = "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/youtube.upload";
+  assert.equal(linkedGrantKind(UPLOAD), "publish");
+  assert.equal(linkedGrantKind(SAVE), "save");
+  assert.equal(linkedGrantKind(`${MAIN} ${YOUTUBE}`), "");
+
+  resetGoogleSessionsForTests();
+  const main = await createSession(tokens("main", `${MAIN} ${YOUTUBE}`), owner);
+  const app = express();
+  app.use((req, _res, next) => {
+    req.owner = owner;
+    next();
+  });
+  app.use("/api/google", googleDriveRouter);
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}/api/google`;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) =>
+    String(url) === "https://oauth2.googleapis.com/token"
+      ? new Response(JSON.stringify(tokens("upload", UPLOAD)), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      : realFetch(url, init);
+  try {
+    await withEnvironment(
+      {
+        GOOGLE_CLIENT_ID: "client",
+        GOOGLE_CLIENT_SECRET: "secret",
+        GOOGLE_REDIRECT_URI: "https://example.test/api/google/callback",
+      },
+      async () => {
+        const cookie = `synchron_google_session=${main}`;
+        const start = await realFetch(`${base}/connect?add=publish`, {
+          redirect: "manual",
+          headers: { cookie },
+        });
+        const location = new URL(start.headers.get("location"));
+        assert.deepEqual(location.searchParams.get("scope").split(" "), [
+          "openid",
+          "email",
+          "https://www.googleapis.com/auth/youtube.upload",
+        ]);
+        assert.equal(location.searchParams.get("include_granted_scopes"), null);
+        const state = location.searchParams.get("state");
+        assert.ok(state.startsWith("publish."));
+
+        const done = await realFetch(
+          `${base}/callback?code=c&state=${encodeURIComponent(state)}`,
+          { redirect: "manual", headers: { cookie: `${cookie}; synchron_google_state=${state}` } },
+        );
+        assert.equal(done.headers.get("location"), "/?google=connected");
+        assert.ok(done.headers.get("set-cookie").includes(`synchron_google_session=${main};`));
+      },
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+    server.close();
+  }
+  const upload = await publishSessionFor(main);
+  assert.ok(upload && upload !== main);
+  assert.equal(await saveSessionFor(main), main);
+  assert.equal(await getLatestGoogleSessionId(), main);
+  assert.deepEqual(await grantedExtras(main), ["youtube"]);
+
+  // A renewal keeps the upload step; "Прекъсни връзката" removes it.
+  const { id: renewed } = await finishGoogleConnection(tokens("renewed", `${MAIN} ${YOUTUBE}`), owner, {
+    previousId: main,
+  });
+  assert.equal(await publishSessionFor(renewed), upload);
+  await disconnectGoogleAccount(renewed, owner);
+  assert.equal(await hasSession(upload), false);
+  assert.equal(await hasSession(main), false);
 });

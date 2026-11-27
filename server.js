@@ -61,6 +61,8 @@ import { createCausesRouter } from "./src/routes/causesRouter.js";
 import { createDailyPlanRouter } from "./src/routes/dailyPlanRouter.js";
 import { createImageGenerationRouter } from "./src/routes/imageGenerationRouter.js";
 import { getImageGenerationService } from "./src/services/imageGenerationService.js";
+import { createVideoGenerationRouter } from "./src/routes/videoGenerationRouter.js";
+import { getVideoGenerationService } from "./src/services/videoGenerationService.js";
 import { getDailyPlanService } from "./src/services/dailyPlanService.js";
 import { getCausesService } from "./src/services/causesService.js";
 import { getAvatarProfileService } from "./src/services/avatarProfileService.js";
@@ -112,7 +114,7 @@ app.use((_req, res, next) => {
       "img-src 'self' data: https:",
       "connect-src 'self'",
       "font-src 'self' data:",
-      "media-src 'self'",
+      "media-src 'self' blob:",
       "worker-src 'self'",
       "manifest-src 'self'",
     ].join("; "),
@@ -305,6 +307,12 @@ app.use(
   requireOwnerSession,
   paidAiRateLimiter,
   createImageGenerationRouter({ service: getImageGenerationService() }),
+);
+app.use(
+  "/api/videos",
+  requireOwnerSession,
+  paidAiRateLimiter,
+  createVideoGenerationRouter({ service: getVideoGenerationService() }),
 );
 app.use(
   "/api/daily-plan",

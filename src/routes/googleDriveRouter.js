@@ -8,7 +8,7 @@ import {
   downloadDriveFile,
   exchangeCode,
   finishGoogleConnection,
-  forgetSaveSession,
+  forgetLinkedSession,
   getLatestGoogleSessionId,
   hasSession,
   listGmailMessages,
@@ -22,6 +22,7 @@ import {
   grantedExtras,
   isGoogleScopeMissing,
   latestMainSessionFor,
+  GOOGLE_LINKED_EXTRAS,
   saveAnswerToGoogle,
   saveSessionFor,
   sessionBelongsTo,
@@ -76,22 +77,24 @@ function sendError(res, error) {
 router.get("/connect", async (req, res) => {
   try {
     const add = typeof req.query.add === "string" ? req.query.add : "";
-    const saving = add === "save";
+    // Saving files (save) and uploading videos (publish) each get their own
+    // token, linked from the main connection.
+    const linked = GOOGLE_LINKED_EXTRAS.includes(add) ? add : "";
     // The step travels in the state, which Google sends back unchanged and
     // the callback checks against this browser's cookie.
-    const state = `${saving ? "save." : ""}${createNonce()}`;
+    const state = `${linked ? `${linked}.` : ""}${createNonce()}`;
     // Everyone, the owner too, starts with the scopes Google's free check
     // covers. A renewed connection, or one more service (add=youtube / gmail /
     // drive), asks again for every service this connection already has.
     const current = await accountSessionId(req);
-    const keep = current && !saving ? await grantedExtras(current) : [];
+    const keep = current && !linked ? await grantedExtras(current) : [];
     const loginHint = current ? await googleLoginHint(current) : "";
     res.setHeader(
       "Set-Cookie",
       `synchron_google_state=${state}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
     );
     res.redirect(
-      buildAuthorizationUrl(state, saving ? ["save"] : [...keep, add], { loginHint }),
+      buildAuthorizationUrl(state, linked ? [linked] : [...keep, add], { loginHint }),
     );
   } catch (error) {
     sendError(res, error);
@@ -112,7 +115,7 @@ router.get("/callback", async (req, res) => {
     const tokens = await exchangeCode(String(req.query.code));
     const { id, partial } = await finishGoogleConnection(tokens, req.owner, {
       previousId: await accountSessionId(req),
-      saving: state.startsWith("save."),
+      linked: GOOGLE_LINKED_EXTRAS.find((kind) => state.startsWith(`${kind}.`)) || null,
     });
     res.setHeader("Set-Cookie", [
       `synchron_google_session=${id}; ${COOKIE_OPTIONS}`,
@@ -319,7 +322,7 @@ router.post("/save", async (req, res) => {
     const deadSaveToken =
       saveId && mainId && saveId !== mainId &&
       error instanceof GoogleDriveError && RECONNECT_CODES.has(error.code);
-    if (deadSaveToken) await forgetSaveSession(mainId, saveId);
+    if (deadSaveToken) await forgetLinkedSession(mainId, saveId, "save");
     if (deadSaveToken || isGoogleScopeMissing(error)) {
       // Saving needs its own small permission (only files AI CORE creates).
       return res.status(403).json({

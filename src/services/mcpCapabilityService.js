@@ -33,6 +33,11 @@ import {
   GoogleDriveError,
   listDriveFiles,
   listGoogleCalendarEvents,
+  saveSessionFor,
+  saveVideoToDrive,
+  downloadOwnDriveVideo,
+  publishSessionFor,
+  uploadVideoToYoutube,
   searchGmailMessages,
   searchGoogleContacts,
   suggestGoogleCalendarSlots,
@@ -78,6 +83,7 @@ import {
   getAvatarProfileService,
 } from "./avatarProfileService.js";
 import { formatSelfTest, runSelfTest } from "./selfTestService.js";
+import { getVideoGenerationService } from "./videoGenerationService.js";
 import {
   getToolRuntimeAvailability,
   isToolExecutable,
@@ -624,6 +630,39 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
     },
   ),
   tool(
+    "generate_video",
+    "Направи видео и го запази в Google Drive",
+    "Само за собственика. Прави кратко видео (реклама и др.) от описание с Gemini Omni Flash: до 10 секунди, 720p, със звук; 9:16 за телефон или 16:9. Записва MP4 файла като нов файл в Google Drive на собственика и връща линк. Отнема 1–4 минути и струва около 1 $. Нищо не се публикува.",
+    {
+      type: "object",
+      properties: {
+        prompt: { type: "string", minLength: 3, maxLength: 2000 },
+        aspectRatio: { type: "string", enum: ["16:9", "9:16"] },
+        title: { type: "string", maxLength: 100 },
+      },
+      required: ["prompt"],
+      additionalProperties: false,
+    },
+    REVERSIBLE_WRITE,
+  ),
+  tool(
+    "publish_video_to_youtube",
+    "Качи видео от Google Drive в YouTube",
+    "Само за собственика. Качва MP4 видео, което AI CORE е записал в Google Drive (fileId от generate_video), в YouTube канала на собственика. По подразбиране е private; unlisted или public само по негово изрично желание. Докато приложението не мине одита на YouTube API, YouTube държи каченото като private.",
+    {
+      type: "object",
+      properties: {
+        driveFileId: { type: "string", minLength: 5, maxLength: 200 },
+        title: { type: "string", maxLength: 100 },
+        description: { type: "string", maxLength: 5000 },
+        privacy: { type: "string", enum: ["private", "unlisted", "public"], default: "private" },
+      },
+      required: ["driveFileId"],
+      additionalProperties: false,
+    },
+    CONFIRMED_WRITE,
+  ),
+  tool(
     "create_gmail_draft",
     "Създай Gmail чернова",
     "Създава чернова за преглед, но не я изпраща.",
@@ -883,6 +922,8 @@ function permissionAction(name) {
       : "calendar.write";
   }
   if (name === "list_google_drive_files") return "drive.read";
+  if (name === "generate_video") return "drive.write";
+  if (name === "publish_video_to_youtube") return "youtube.write";
   return "infrastructure.read";
 }
 
@@ -1296,6 +1337,42 @@ export function createMcpCapabilityHandler({
         result = textResult(
           { messages },
           `Намерени са ${messages.length} Gmail съобщения.`,
+        );
+      } else if (name === "generate_video") {
+        const made = await (dependencies.generateVideo || ((prompt, options) => getVideoGenerationService().generate(prompt, options)))(
+          args.prompt,
+          { aspectRatio: args.aspectRatio },
+        );
+        const saved = await (dependencies.saveVideoToDrive || saveVideoToDrive)(
+          await (dependencies.saveSessionFor || saveSessionFor)(googleSessionId),
+          { name: args.title || made.prompt.slice(0, 60), bytes: made.video, mimeType: made.mimeType },
+        );
+        result = textResult(
+          { file: saved, aspectRatio: made.aspectRatio, model: made.model, bytes: made.video.length },
+          `Видеото е готово (${made.aspectRatio}) и е в Google Drive: ${saved.url || saved.name}. Нищо не е публикувано.`,
+        );
+      } else if (name === "publish_video_to_youtube") {
+        const publishId = await (dependencies.publishSessionFor || publishSessionFor)(googleSessionId);
+        if (!publishId) {
+          throw new GoogleDriveError(
+            "YouTube качването още не е разрешено. Отвори https://cloudaicore.com/api/google/connect?add=publish и разреши.",
+            403,
+            "GOOGLE_SCOPE_REQUIRED",
+          );
+        }
+        const file = await (dependencies.downloadOwnDriveVideo || downloadOwnDriveVideo)(
+          await (dependencies.saveSessionFor || saveSessionFor)(googleSessionId),
+          args.driveFileId,
+        );
+        const uploaded = await (dependencies.uploadVideoToYoutube || uploadVideoToYoutube)(publishId, {
+          bytes: file.bytes,
+          title: args.title || file.name,
+          description: args.description || "",
+          privacy: args.privacy || "private",
+        });
+        result = textResult(
+          uploaded,
+          `Видеото е качено в YouTube (${uploaded.privacy}): ${uploaded.url}`,
         );
       } else if (name === "create_gmail_draft") {
         const draft = await (dependencies.createGmailDraft || createGmailDraft)(

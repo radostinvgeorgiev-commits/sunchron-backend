@@ -38,6 +38,8 @@ export const PUBLIC_MONTHLY_CREDIT_CAP = 10_000;
 export const FREE_CHAT_DAILY_PER_PERSON = 50;
 export const FREE_CHAT_DAILY_TOTAL = 3000;
 export const COUNCIL_REQUEST_CREDITS = 6;
+// The largest single charge: one generated video (see publicAiBudget.js).
+export const MAX_RESERVE_CREDITS = 100;
 export const ACCOUNT_COLLECTION = "synchron-product-accounts-v1";
 const LEDGER_COLLECTION = "synchron-product-events-v1";
 export class ProductError extends Error {
@@ -124,7 +126,7 @@ export function createProductPlansService({
   }
   async function reserve(identity, credits, details = {}) {
     if (identity.role === "owner") return;
-    if (!Number.isInteger(credits) || credits < 1 || credits > 18)
+    if (!Number.isInteger(credits) || credits < 1 || credits > MAX_RESERVE_CREDITS)
       throw new ProductError("Невалидно потребление.");
     const id = productAccountId(identity);
     const reservationId = `ai_${randomUUID()}`;
@@ -196,7 +198,7 @@ export function createProductPlansService({
               : { createOnly: true }),
           },
         ]);
-        return;
+        return reservationId;
       } catch (error) {
         if (!conflict(error)) throw error;
       }
@@ -206,6 +208,62 @@ export function createProductPlansService({
       "USAGE_CONFLICT",
       409,
     );
+  }
+  // Gives the units of one reservation back when the paid work did not
+  // happen (for example a video the provider could not make). Each
+  // reservation is returned at most once, and only to its own account.
+  async function refund(identity, reservationId) {
+    if (identity?.role === "owner" || typeof reservationId !== "string") return false;
+    const id = productAccountId(identity);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const database = db();
+      const entry = await database.get(LEDGER_COLLECTION, reservationId, { includeMetadata: true });
+      const reserved = entry?.data;
+      if (!reserved || reserved.account !== id || reserved.refundedAt) return false;
+      const credits = Number(reserved.credits) || 0;
+      const row = await account(id);
+      const month = new Date(Number(reserved.createdAt) || now()).toISOString().slice(0, 7);
+      const day = new Date(Number(reserved.createdAt) || now()).toISOString().slice(0, 10);
+      const globalId = `public-${month}`;
+      const globalRow = await database.get(LEDGER_COLLECTION, globalId, { includeMetadata: true });
+      const operations = [
+        {
+          type: "set",
+          collection: LEDGER_COLLECTION,
+          id: reservationId,
+          data: { ...reserved, refundedAt: now() },
+          updateTime: entry.updateTime,
+        },
+        {
+          type: "set",
+          collection: ACCOUNT_COLLECTION,
+          id,
+          data: { ...row.data, remaining: balance(row.data) + credits, updatedAt: now() },
+          ...(row.updateTime ? { updateTime: row.updateTime } : { createOnly: true }),
+        },
+      ];
+      if (globalRow?.data) {
+        const total = globalRow.data;
+        operations.push({
+          type: "set",
+          collection: LEDGER_COLLECTION,
+          id: globalId,
+          data: {
+            ...total,
+            used: Math.max(0, (Number(total.used) || 0) - credits),
+            dayUsed: total.day === day ? Math.max(0, (Number(total.dayUsed) || 0) - credits) : total.dayUsed,
+          },
+          updateTime: globalRow.updateTime,
+        });
+      }
+      try {
+        await database.commitOperations(operations);
+        return true;
+      } catch (error) {
+        if (!conflict(error)) throw error;
+      }
+    }
+    return false;
   }
   // Counts one free conversation turn. Returns false when today's free turns
   // are used up (for this person or for everybody), so the turn uses units.
@@ -318,7 +376,7 @@ export function createProductPlansService({
     }
     throw new ProductError("Плащането чака обработка.", "PAYMENT_RETRY", 503);
   }
-  return { usage, reserve, useFreeChat, fulfill };
+  return { usage, reserve, refund, useFreeChat, fulfill };
 }
 let runtimeService;
 export function getProductPlansService() {

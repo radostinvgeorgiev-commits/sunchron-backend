@@ -600,10 +600,16 @@ async function restoreConversation() {
         (item.role === "user" || item.role === "assistant") &&
         typeof item.content === "string"
       ) {
+        // The page shows its own Next label, but the history sent back keeps
+        // the stored text: the server matches it against the saved turns and
+        // strips their "Следва:" lines.
         appendMessage(
           item.role === "assistant" ? "agent" : "user",
           item.role === "assistant" ? localizedNextLines(item.content) : item.content,
+          null,
+          { remember: false },
         );
+        rememberConversationMessage(item.role, item.content);
       }
     }
     logAction("Възстановена е историята на разговора");
@@ -3016,60 +3022,74 @@ function cleanNextStep(value) {
     .slice(0, 240);
 }
 
-// A "Следва:" line the answer keeps (not its last line, or a restored
-// answer) is shown with the page's own label, "Next" on an English page.
+// The model's "Следва:" or "Next:" line. The Bulgarian label counts in any
+// case; the English one only as "Next" or "Next step" with a capital N, so
+// code such as "next: () => …" is never taken for one.
+const NEXT_LINE_BULGARIAN = /^(\s*(?:[-*•]\s*)?(?:\*\*)?)(?:Следва|Следваща стъпка)((?:\*\*)?\s*:)/iu;
+const NEXT_LINE_ENGLISH = /^\s*(?:[-*•]\s*)?(?:\*\*)?Next(?: [Ss]tep)?(?:\*\*)?\s*:/u;
+
+function nextLineMarker(line) {
+  return line.match(NEXT_LINE_BULGARIAN) || line.match(NEXT_LINE_ENGLISH);
+}
+
+// The answer's own Next line is its last such line outside ``` code blocks
+// (-1 when there is none); earlier ones are content, and code never counts.
+function answerNextLineIndex(lines) {
+  let code = false;
+  let found = -1;
+  lines.forEach((line, index) => {
+    if (line.trimStart().startsWith("```")) code = !code;
+    else if (!code && nextLineMarker(line)) found = index;
+  });
+  return found;
+}
+
+// The answer's own "Следва:" line, when it is not the Next card (not the last
+// line, or a restored answer), is shown with the page's label, "Next" on an
+// English page. Other "Следва:" lines, such as a Bulgarian text the person
+// asked for, stay as they are.
 function localizedNextLines(text) {
   const label = chatText("Следва");
   if (typeof text !== "string" || label === "Следва") return text;
-  return text.replace(
-    /(^|\n)([ \t]*(?:[-*•][ \t]*)?(?:\*\*)?)(?:Следва|Следваща стъпка)((?:\*\*)?[ \t]*:)/gu,
-    `$1$2${label}$3`,
+  const lines = text.split("\n");
+  const index = answerNextLineIndex(lines);
+  if (index < 0) return text;
+  lines[index] = lines[index].replace(
+    NEXT_LINE_BULGARIAN,
+    (marker, start, end) => `${start}${label}${end}`,
   );
+  return lines.join("\n");
 }
 
+// The answer's own Next line becomes the Next card only while it is the last
+// line; the text above it is then shown without it.
 function nextStepFromReply(text) {
   const value = typeof text === "string" ? text.trimEnd() : "";
-  const match = value.match(
-    /(?:^|\n)\s*(?:[-*•]\s*)?(?:\*\*)?(?:Следва|Следваща стъпка|Next(?: step)?)(?:\*\*)?\s*:\s*(.+?)\s*$/iu,
-  );
-  const step = cleanNextStep(match?.[1]);
-  return {
-    step,
-    displayText: localizedNextLines(
-      step && match && match.index > 0
-        ? value.slice(0, match.index).trimEnd()
-        : value,
-    ),
-  };
+  const lines = value.split("\n");
+  const index = answerNextLineIndex(lines);
+  const step =
+    index >= 0 && index === lines.length - 1
+      ? cleanNextStep(lines[index].slice(nextLineMarker(lines[index])[0].length))
+      : "";
+  const before = step ? lines.slice(0, index).join("\n").trimEnd() : "";
+  return { step, displayText: before || localizedNextLines(value) };
 }
 
 function resolveNextStep(replyText, result = {}) {
   const parsedReply = nextStepFromReply(replyText);
   const projectStep = cleanNextStep(result?.projectRun?.nextStep);
   const councilStep = cleanNextStep(result?.council?.nextSteps?.[0]);
-  if (projectStep || councilStep || parsedReply.step) {
+  if (projectStep || councilStep) {
     return {
-      step: projectStep || councilStep || parsedReply.step,
+      step: projectStep || councilStep,
       displayText: parsedReply.displayText,
     };
   }
 
-  if (result?.mode === "council") {
-    return {
-      step: chatText("Прегледай общата препоръка и натисни „Изпълни препоръката“, ако я одобряваш."),
-      displayText: parsedReply.displayText,
-    };
-  }
-
-  const status = result?.task?.status;
-  if (status === "waiting_confirmation") {
-    return {
-      step: chatText("Прегледай подготвеното действие и натисни „Потвърди“, ако е точно това."),
-      displayText: parsedReply.displayText,
-    };
-  }
   // Only a Google permission is missing: the reply already has the link, so
-  // the step stays in the chat and does not go to the journal.
+  // the step stays in the chat and does not go to the journal, even when the
+  // answer ends with its own "Next:" line.
+  const status = result?.task?.status;
   const failedSteps = (result?.task?.steps || []).filter((item) => item?.status === "failed");
   if (
     (status === "failed" || status === "partial") &&
@@ -3080,6 +3100,23 @@ function resolveNextStep(replyText, result = {}) {
       step: chatText("Натисни линка за разрешение по-горе и попитай отново."),
       displayText: parsedReply.displayText,
       chatOnly: true,
+    };
+  }
+  if (parsedReply.step) {
+    return { step: parsedReply.step, displayText: parsedReply.displayText };
+  }
+
+  if (result?.mode === "council") {
+    return {
+      step: chatText("Прегледай общата препоръка и натисни „Изпълни препоръката“, ако я одобряваш."),
+      displayText: parsedReply.displayText,
+    };
+  }
+
+  if (status === "waiting_confirmation") {
+    return {
+      step: chatText("Прегледай подготвеното действие и натисни „Потвърди“, ако е точно това."),
+      displayText: parsedReply.displayText,
     };
   }
   if (status === "partial") {

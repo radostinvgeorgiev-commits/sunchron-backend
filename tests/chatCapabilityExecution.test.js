@@ -18,7 +18,12 @@ import {
   withGoogleAllowLinks,
   englishGoogleFailure,
 } from "../src/routes/chat.js";
-import { GoogleDriveError } from "../src/services/googleDriveService.js";
+import {
+  GoogleDriveError,
+  createGoogleCalendarEvent,
+  findAvailableCalendarSlots,
+} from "../src/services/googleDriveService.js";
+import { parseCalendarEventDraft, prepareCalendarEvent } from "../src/services/calendarService.js";
 import { filterCapabilityRequestsForIdentity } from "../src/services/memberCapabilityPolicy.js";
 import { extractMemoryWriteConfirmationId } from "../src/services/memoryWriteConfirmationService.js";
 import { CodeTaskError } from "../src/services/codeTaskService.js";
@@ -1061,6 +1066,20 @@ test("the allow line goes before the answer's own Next line, which stays last", 
     withGoogleAllowLinks("Трябва достъп.\n**Следва:** Разреши YouTube.", [notAllowed]),
     "Трябва достъп.\n\nYouTube още не е разрешен. [Разреши YouTube](https://cloudaicore.com/api/google/connect?add=youtube)\n\n**Следва:** Разреши YouTube.",
   );
+  // A Next line that is the whole answer stays last too.
+  assert.equal(
+    withGoogleAllowLinks("Next: Allow YouTube, then ask again.", [notAllowed], "en"),
+    `${allowLine}\n\nNext: Allow YouTube, then ask again.`,
+  );
+  assert.equal(
+    withGoogleAllowLinks("Следва: Разреши YouTube.", [notAllowed]),
+    "YouTube още не е разрешен. [Разреши YouTube](https://cloudaicore.com/api/google/connect?add=youtube)\n\nСледва: Разреши YouTube.",
+  );
+  // A lowercase "next:" (code) and a line inside a code block are not Next
+  // lines: they stay where they are and the allow line goes last.
+  for (const reply of ["Use it like this:\n  next: x", "Config:\n```yaml\nNext: page-2"]) {
+    assert.equal(withGoogleAllowLinks(reply, [notAllowed], "en"), `${reply}\n\n${allowLine}`);
+  }
 });
 
 test("in English, a Google error is never left in Bulgarian", () => {
@@ -1106,6 +1125,101 @@ test("in English, a Google error is never left in Bulgarian", () => {
       [{ status: "rejected", request: { capability: "calendar.read" }, error: google("Google връзката е изтекла. Свържи я отново.", "TOKEN_EXPIRED", 401) }],
     )[0],
     /Google връзката е изтекла\. Свържи я отново\./u,
+  );
+});
+
+test("in English, a Google account that was never connected is not called expired", async () => {
+  const google = (message, code) => new GoogleDriveError(message, 401, code);
+  // The calendar's own error, with its link.
+  await assert.rejects(
+    prepareCalendarEvent({
+      sessionId: "chat-1",
+      googleSessionId: "",
+      message: "Create a calendar event: Demo | 2026-11-28 10:00 | 30",
+      checkSession: async () => false,
+    }),
+    (error) =>
+      error.code === "NOT_CONNECTED" &&
+      englishGoogleFailure(error) === "Google is not connected yet. [Connect Google](https://cloudaicore.com/api/google/connect)",
+  );
+  // Without a link in the message, the site's own connect link.
+  assert.equal(
+    englishGoogleFailure(google("Google Drive не е свързан.", "NOT_CONNECTED")),
+    "Google is not connected yet. [Connect Google](https://cloudaicore.com/api/google/connect)",
+  );
+  // An expired connection still says so.
+  for (const code of ["TOKEN_EXPIRED", "REFRESH_FAILED", "GOOGLE_RECONNECT_REQUIRED"]) {
+    assert.equal(
+      englishGoogleFailure(google("Google връзката е изтекла. Свържи я отново.", code)),
+      "The Google connection has expired. [Connect Google again](https://cloudaicore.com/api/google/connect)",
+      code,
+    );
+  }
+});
+
+test("in English, a calendar check gives its own reason with the limits it uses", async () => {
+  const draftError = (message) => {
+    try {
+      parseCalendarEventDraft(message);
+    } catch (error) {
+      return error;
+    }
+    return assert.fail(`no error for ${message}`);
+  };
+  const event = (...segments) => ["Create a calendar event: Demo", "2026-11-28 10:00", "30", ...segments].join(" | ");
+  const tooLongTitle = draftError(`Create a calendar event: ${"x".repeat(201)} | 2026-11-28 10:00 | 30`);
+  assert.equal(englishGoogleFailure(tooLongTitle), "The title is too long. The maximum is 200 characters.");
+  // The Bulgarian message states the same limit.
+  assert.match(tooLongTitle.message, /^заглавие е прекалено дълго\. Максимумът е 200 знака\./u);
+  assert.equal(
+    englishGoogleFailure(draftError(event("x".repeat(501)))),
+    "The location is too long. The maximum is 500 characters.",
+  );
+  assert.equal(
+    englishGoogleFailure(draftError(event("Office", "x".repeat(2001)))),
+    "The description is too long. The maximum is 2000 characters.",
+  );
+  // A date in another format and a date that does not exist.
+  for (const when of ["tomorrow 10:00", "2026-02-30 10:00"]) {
+    const error = draftError(`Create a calendar event: Demo | ${when} | 30`);
+    assert.equal(error.code, "CALENDAR_EVENT_DATE_INVALID");
+    assert.equal(englishGoogleFailure(error), "The date or time is not valid. Write a real date and time like 2026-08-05 14:30.");
+  }
+  const duration = draftError("Create a calendar event: Demo | 2026-11-28 10:00 | 2000");
+  assert.equal(englishGoogleFailure(duration), "The duration must be between 5 and 1440 minutes.");
+  assert.match(duration.message, /^Продължителността трябва да е между 5 и 1440 минути\./u);
+  const reminder = "The reminder must be between 0 and 40320 minutes before the event.";
+  const reminderDraft = draftError("Напомни ми: Обади се | 2026-11-28 10:00 | 50000 минути преди");
+  assert.equal(englishGoogleFailure(reminderDraft), reminder);
+  assert.match(reminderDraft.message, /^Напомнянето трябва да е между 0 и 40320 минути преди събитието\./u);
+  // Google Calendar's own check of a reminder has the same limit.
+  await assert.rejects(
+    createGoogleCalendarEvent("session", { reminderMinutes: -1 }),
+    (error) => error.code === "CALENDAR_REMINDER_OFFSET_INVALID" && englishGoogleFailure(error) === reminder,
+  );
+  assert.throws(
+    () => findAvailableCalendarSlots([], { now: "not a date" }),
+    (error) =>
+      error.code === "CALENDAR_SLOT_TIME_INVALID" &&
+      englishGoogleFailure(error) === "The start time for finding free time slots is not valid.",
+  );
+  // A missing title or a wrong format keeps the general format sentence.
+  for (const message of [
+    "Create a calendar event:  | 2026-11-28 10:00 | 30",
+    "Create a calendar event: Demo | 2026-11-28 10:00",
+  ]) {
+    assert.equal(
+      englishGoogleFailure(draftError(message)),
+      'The event details are missing or not in the expected format. Write it like this: "Create a calendar event: Title | 2026-11-28 10:00 | 30" (title, date and time, minutes).',
+    );
+  }
+  // calendar.write replies go straight to the person.
+  assert.equal(
+    buildCapabilityReplies(
+      [{ status: "rejected", request: { capability: "calendar.write" }, error: duration }],
+      { language: "en" },
+    )[0],
+    "Request failed for calendar.write: The duration must be between 5 and 1440 minutes.",
   );
 });
 

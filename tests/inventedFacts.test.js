@@ -16,6 +16,29 @@ test("a 'Следва:' line from an earlier AI reply is not replayed", () => {
   // On English pages the line is "Next:".
   assert.equal(stripReplayedNextSteps("Hello.\n\nNext: Ask about LIPA-742."), "Hello.");
   assert.equal(stripReplayedNextSteps("- **Next step:** x\nText"), "Text");
+  assert.equal(stripReplayedNextSteps("Text\n**Next Step:** x"), "Text");
+  // The Bulgarian label counts in any case.
+  assert.equal(stripReplayedNextSteps("Текст\nследва: x\nСЛЕДВАЩА СТЪПКА: y"), "Текст");
+});
+
+test("code and ordinary lines are never taken for a Next line", () => {
+  const code = [
+    "Use it like this:",
+    "```ts",
+    "function handle(",
+    "  next: NextFunction,",
+    ") {}",
+    "const page = {",
+    "  next: null,",
+    "  Next: 'kept',",
+    "};",
+    "```",
+  ].join("\n");
+  assert.equal(stripReplayedNextSteps(`${code}\nNext: Add it to the router.`), code);
+  // Outside code, a lowercase "next:" is text, and so are lines that only start
+  // with the same word.
+  const text = "Next week: the review.\nСледващата седмица: прегледът.\nnext: x";
+  assert.equal(stripReplayedNextSteps(text), text);
 });
 
 test("only assistant turns are cleaned and empty ones are dropped", () => {

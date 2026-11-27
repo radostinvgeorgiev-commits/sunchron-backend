@@ -53,6 +53,7 @@ import {
   buildProjectConversationReference,
   sanitizeAssistantHistory,
   loadProjectConversationContext,
+  nextStepLineIndexes,
 } from "../services/projectConversationContextService.js";
 import {
   buildKnowledgeContext,
@@ -78,6 +79,7 @@ import {
   isGitHubReadRequest,
 } from "../services/githubService.js";
 import {
+  CALENDAR_LIMITS,
   confirmCalendarEvent,
   extractCalendarConfirmationId,
   formatCalendarEventResult,
@@ -1091,7 +1093,6 @@ function capabilityLabel(capability) {
 }
 
 const GOOGLE_RECONNECT_CODES = new Set([
-  "NOT_CONNECTED",
   "TOKEN_EXPIRED",
   "REFRESH_FAILED",
   "GOOGLE_RECONNECT_REQUIRED",
@@ -1099,28 +1100,56 @@ const GOOGLE_RECONNECT_CODES = new Set([
 const CALENDAR_FORMAT_CODES = new Set([
   "CALENDAR_EVENT_FORMAT_REQUIRED",
   "CALENDAR_EVENT_FIELD_MISSING",
-  "CALENDAR_EVENT_FIELD_TOO_LONG",
-  "CALENDAR_EVENT_DATE_INVALID",
-  "CALENDAR_EVENT_DURATION_INVALID",
-  "CALENDAR_REMINDER_OFFSET_INVALID",
-  "CALENDAR_SLOT_TIME_INVALID",
 ]);
 
+// The connect link in a Google error, or the site's own.
+function googleConnectUrl(message) {
+  return (
+    message.match(/https?:\/\/[^)\s]+/u)?.[0]?.replace(/[.,;:]+$/u, "") ||
+    process.env.GOOGLE_CONNECT_URL ||
+    "https://cloudaicore.com/api/google/connect"
+  );
+}
+
+// Why a calendar check failed, with the limits the check itself uses, or ""
+// for a code without its own reason.
+function englishCalendarReason(error) {
+  const limits = CALENDAR_LIMITS;
+  switch (error.code) {
+    case "CALENDAR_EVENT_FIELD_TOO_LONG":
+      return ["title", "location", "description"].includes(error.field)
+        ? `The ${error.field} is too long. The maximum is ${limits[error.field]} characters.`
+        : "A text in the event is too long.";
+    case "CALENDAR_EVENT_DATE_INVALID":
+      return "The date or time is not valid. Write a real date and time like 2026-08-05 14:30.";
+    case "CALENDAR_EVENT_DURATION_INVALID":
+      return `The duration must be between ${limits.minDurationMinutes} and ${limits.maxDurationMinutes} minutes.`;
+    case "CALENDAR_REMINDER_OFFSET_INVALID":
+      return `The reminder must be between 0 and ${limits.maxReminderMinutes} minutes before the event.`;
+    case "CALENDAR_SLOT_TIME_INVALID":
+      return "The start time for finding free time slots is not valid.";
+    default:
+      return "";
+  }
+}
+
 // Google errors are written in Bulgarian; an English page gets the same
-// meaning in English (and the same reconnect link), never the Bulgarian text.
+// meaning in English (and the same connect link), never the Bulgarian text.
 export function englishGoogleFailure(error) {
   const message = String(error?.message || "");
   if (!/\p{Script=Cyrillic}/u.test(message)) return message;
   if (error.code === "GOOGLE_SCOPE_REQUIRED") {
     return googleAllowReply(error, true) || "This Google service is not allowed yet.";
   }
-  if (GOOGLE_RECONNECT_CODES.has(error.code)) {
-    const url =
-      message.match(/https?:\/\/[^)\s]+/u)?.[0]?.replace(/[.,;:]+$/u, "") ||
-      process.env.GOOGLE_CONNECT_URL ||
-      "https://cloudaicore.com/api/google/connect";
-    return `The Google connection has expired. [Connect Google again](${url})`;
+  // Never connected is not "expired".
+  if (error.code === "NOT_CONNECTED") {
+    return `Google is not connected yet. [Connect Google](${googleConnectUrl(message)})`;
   }
+  if (GOOGLE_RECONNECT_CODES.has(error.code)) {
+    return `The Google connection has expired. [Connect Google again](${googleConnectUrl(message)})`;
+  }
+  const calendarReason = englishCalendarReason(error);
+  if (calendarReason) return calendarReason;
   if (error.code === "GOOGLE_API_DISABLED") {
     return "This Google service is not turned on for AI CORE yet.";
   }
@@ -1279,11 +1308,8 @@ function googleAllowReply(error, english) {
 // The model answers the request itself; when its answer leaves out the link
 // for a missing Google permission, the exact allow line is added, so the
 // "use the allow link above" step always has its link.
-// The answer's own last "Next:"/"Следва:" line (the page turns it into the
-// Next card only while it is the last line).
-const TRAILING_NEXT_LINE =
-  /\n[ \t]*(?:[-*•][ \t]*)?(?:\*\*)?(?:Следва|Следваща стъпка|Next(?: step)?)(?:\*\*)?[ \t]*:[^\n]*$/iu;
-
+// The answer's own "Next:"/"Следва:" line stays last, also when it is the
+// whole answer: the page turns it into the Next card only while it is last.
 export function withGoogleAllowLinks(reply, capabilityResults, language) {
   const english = useEnglishReplyFallback(language);
   const lines = [];
@@ -1294,10 +1320,11 @@ export function withGoogleAllowLinks(reply, capabilityResults, language) {
     if (!lines.includes(line)) lines.push(line);
   }
   if (!lines.length) return reply;
-  const text = String(reply).trimEnd();
-  const next = text.match(TRAILING_NEXT_LINE);
-  const body = next ? text.slice(0, next.index).trimEnd() : text;
-  return [body, ...lines, next ? next[0].trim() : ""].filter(Boolean).join("\n\n");
+  const replyLines = String(reply).trimEnd().split("\n");
+  const last = replyLines.length - 1;
+  const next = nextStepLineIndexes(replyLines).at(-1) === last ? replyLines[last].trim() : "";
+  const body = (next ? replyLines.slice(0, last) : replyLines).join("\n").trimEnd();
+  return [body, ...lines, next].filter(Boolean).join("\n\n");
 }
 
 export function buildCapabilityReplies(capabilityResults, options = {}) {

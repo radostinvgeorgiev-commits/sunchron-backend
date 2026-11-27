@@ -58,14 +58,34 @@ export async function loadProjectConversationContext({
   };
 }
 
-// A "Следва:" (or, on English pages, "Next:") line is an instruction the
-// model gave itself; replayed in later context it reads like a fact (an
-// invented "ЛИПА-742" spread this way). Strip those lines from earlier AI
-// replies before they are reused.
+// The model's "Следва:" (or, on English pages, "Next:") line. The Bulgarian
+// label counts in any case; the English one only as "Next" or "Next step"
+// with a capital N, so code such as "next: NextFunction," is never one.
+const BULGARIAN_NEXT_LINE = /^\s*(?:[-*•]\s*)?(?:\*\*)?(?:Следва|Следваща стъпка)(?:\*\*)?\s*:/iu;
+const ENGLISH_NEXT_LINE = /^\s*(?:[-*•]\s*)?(?:\*\*)?Next(?: [Ss]tep)?(?:\*\*)?\s*:/u;
+
+// The indexes of those lines. A line inside a ``` code block is code and
+// never counts, so code is never moved or removed.
+export function nextStepLineIndexes(lines) {
+  const found = [];
+  let code = false;
+  lines.forEach((line, index) => {
+    if (line.trimStart().startsWith("```")) code = !code;
+    else if (!code && (BULGARIAN_NEXT_LINE.test(line) || ENGLISH_NEXT_LINE.test(line))) {
+      found.push(index);
+    }
+  });
+  return found;
+}
+
+// A "Следва:"/"Next:" line is an instruction the model gave itself; replayed
+// in later context it reads like a fact (an invented "ЛИПА-742" spread this
+// way). Strip those lines from earlier AI replies before they are reused.
 export function stripReplayedNextSteps(content) {
-  return String(content || "")
-    .split("\n")
-    .filter((line) => !/^\s*(?:[-*•]\s*)?(?:\*\*)?(?:Следва|Следваща стъпка|Next(?: step)?)(?:\*\*)?\s*:/iu.test(line))
+  const lines = String(content || "").split("\n");
+  const next = new Set(nextStepLineIndexes(lines));
+  return lines
+    .filter((line, index) => !next.has(index))
     .join("\n")
     .trim();
 }

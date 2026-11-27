@@ -1352,22 +1352,30 @@ export async function searchGoogleContacts(
   const cleanQuery = cleanHeader(query, 200, "заявка за контакт", {
     required: true,
   });
-  const params = new URLSearchParams({
-    query: cleanQuery,
-    readMask: "names,emailAddresses,phoneNumbers",
-    pageSize: String(Math.min(Math.max(Number(limit) || 10, 1), 30)),
-  });
-  const response = await googleFetch(
-    id,
-    `${PEOPLE_API_URL}/people:searchContacts?${params}`,
-    {},
-    fetchImpl,
-    "Google Contacts",
-  );
-  const data = await response.json();
-  return (Array.isArray(data.results) ? data.results : [])
-    .map((item) => normalizeGoogleContact(item.person))
-    .filter((item) => item.resourceName);
+  const search = async (text) => {
+    const params = new URLSearchParams({
+      query: text,
+      readMask: "names,emailAddresses,phoneNumbers",
+      pageSize: String(Math.min(Math.max(Number(limit) || 10, 1), 30)),
+    });
+    const response = await googleFetch(
+      id,
+      `${PEOPLE_API_URL}/people:searchContacts?${params}`,
+      {},
+      fetchImpl,
+      "Google Contacts",
+    );
+    const data = await response.json();
+    return (Array.isArray(data.results) ? data.results : [])
+      .map((item) => normalizeGoogleContact(item.person))
+      .filter((item) => item.resourceName);
+  };
+  const found = await search(cleanQuery);
+  if (found.length) return found;
+  // Google's contact search answers from a cache that an empty "warmup"
+  // query refreshes; without it new or rarely used contacts are missed.
+  await search("");
+  return search(cleanQuery);
 }
 
 export async function createGoogleContact(id, draft, fetchImpl = fetch) {

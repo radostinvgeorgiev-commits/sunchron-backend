@@ -592,3 +592,19 @@ test("a member's first Google connection asks only for scopes Google's free chec
     process.env = saved;
   }
 });
+
+test("contact search warms Google's cache and retries once when nothing is found", async () => {
+  const sessionId = await createSession({ access_token: "token", expires_in: 3600 });
+  const queries = [];
+  const contacts = await searchGoogleContacts(sessionId, "Нов", 10, async (url) => {
+    const query = new URL(String(url)).searchParams.get("query");
+    queries.push(query);
+    return jsonResponse(
+      queries.length === 3
+        ? { results: [{ person: { resourceName: "people/p2", names: [{ displayName: "Нов" }] } }] }
+        : {},
+    );
+  });
+  assert.deepEqual(queries, ["Нов", "", "Нов"]);
+  assert.equal(contacts[0].resourceName, "people/p2");
+});

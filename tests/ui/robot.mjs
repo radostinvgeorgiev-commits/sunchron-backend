@@ -794,7 +794,7 @@ async function publicChecks(origin) {
   const { page, errors } = await openPage(origin, { width: 390, height: 844 });
   await step("Жив сайт: екранът за вход зарежда без грешки", async () => {
     await page.waitForTimeout(1500);
-    expect(await page.locator("#authScreen, .auth-screen, form").first().isVisible(), "няма екран за вход");
+    expect(await page.locator("#authCard, #authScreen, .auth-screen").first().isVisible(), "няма екран за вход");
     expect(!errors.length, errors[0]);
   });
   await step("Жив сайт: има бутон „Вход с Google“", async () => {

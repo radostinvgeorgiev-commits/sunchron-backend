@@ -36,6 +36,11 @@ Novarium ти помага да анализираш информация, да 
 Вход за собственик|Owner sign-in
 Продължи с GitHub|Continue with GitHub
 Продължи с Google|Continue with Google
+Входът с GitHub беше отказан.|GitHub sign-in was cancelled.
+Входът с GitHub изтече. Опитай пак.|GitHub sign-in expired. Try again.
+Входът с GitHub още не е включен.|GitHub sign-in is not enabled yet.
+Имейлът от GitHub вече има профил. Влез с „Продължи с Google“ или с паролата си.|The email from GitHub already has an account. Sign in with Continue with Google or with your password.
+Входът с GitHub не успя. Опитай пак.|GitHub sign-in failed. Try again.
 Без парола. Новият профил се създава сам при първия вход.|No password. Your account is created on your first sign-in.
 С входа приемаш|By signing in, you accept the
 Имаш профил с имейл и парола?|Have an account with an email and password?

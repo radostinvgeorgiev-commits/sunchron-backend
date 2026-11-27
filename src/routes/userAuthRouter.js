@@ -25,6 +25,10 @@ import {
   isGoogleSignInEnabled,
   startGoogleSignIn,
 } from "../services/googleSignInService.js";
+import {
+  isGitHubSignInEnabled,
+  startGitHubSignIn,
+} from "../services/githubSignInService.js";
 import { logSafeError } from "../utils/safeLogging.js";
 import { recordActivity } from "../services/activityService.js";
 
@@ -54,10 +58,13 @@ router.get("/session", async (req, res) => {
       configuration: getUserAuthConfigurationStatus(),
       // New profiles are made only by signing in with an outside account
       // (Google today). Existing email/password profiles can still sign in.
-      registrationEnabled: isUserAuthConfigured() && isGoogleSignInEnabled(),
+      registrationEnabled:
+        isUserAuthConfigured() &&
+        (isGoogleSignInEnabled() || isGitHubSignInEnabled()),
       registrationMode: isPublicRegistration() ? "public" : "invite",
       passwordRegistration: false,
       googleSignIn: isGoogleSignInEnabled(),
+      githubSignIn: isGitHubSignInEnabled(),
       authProvider: getUserAuthProvider(),
       authenticated: Boolean(identity),
       user: identity
@@ -110,6 +117,20 @@ router.get("/google/start", (_req, res) => {
   } catch (error) {
     logSafeError("[Google sign-in] start", error);
     return res.redirect(302, `/?auth_error=${encodeURIComponent(error.code || "AUTH_GOOGLE_FAILED")}`);
+  }
+});
+
+// "Вход с GitHub" for every person. The callback is the GitHub app's
+// registered /api/github/callback (githubOAuthRouter), told apart from the
+// owner's connection by its own state cookie.
+router.get("/github/start", (_req, res) => {
+  try {
+    const { url, cookie } = startGitHubSignIn();
+    res.setHeader("Set-Cookie", cookie);
+    return res.redirect(302, url);
+  } catch (error) {
+    logSafeError("[GitHub sign-in] start", error);
+    return res.redirect(302, `/?auth_error=${encodeURIComponent(error.code || "AUTH_GITHUB_FAILED")}`);
   }
 });
 

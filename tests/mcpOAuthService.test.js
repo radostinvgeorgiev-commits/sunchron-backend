@@ -24,6 +24,7 @@ import {
   MCP_GOOGLE_READ_SCOPE,
   MCP_GOOGLE_WRITE_SCOPE,
   MCP_INFRASTRUCTURE_WRITE_SCOPE,
+  MCP_MEDIA_WRITE_SCOPE,
   MCP_MEMORY_WRITE_SCOPE,
   MCP_OFFLINE_ACCESS_SCOPE,
   MCP_READ_SCOPE,
@@ -235,6 +236,7 @@ test("publishes OAuth 2.1 protected-resource and authorization metadata", () => 
       MCP_GOOGLE_WRITE_SCOPE,
       MCP_AUDIT_READ_SCOPE,
       MCP_INFRASTRUCTURE_WRITE_SCOPE,
+      MCP_MEDIA_WRITE_SCOPE,
     ],
   });
   const authorization = getMcpAuthorizationServerMetadata(ENV);
@@ -258,6 +260,7 @@ test("publishes OAuth 2.1 protected-resource and authorization metadata", () => 
     MCP_GOOGLE_WRITE_SCOPE,
     MCP_AUDIT_READ_SCOPE,
     MCP_INFRASTRUCTURE_WRITE_SCOPE,
+    MCP_MEDIA_WRITE_SCOPE,
     CHATGPT_MCP_SCOPE,
     MCP_OFFLINE_ACCESS_SCOPE,
   ]);
@@ -679,6 +682,7 @@ test("blocks every owner-only authorization for a tester identity", async () => 
     MCP_GOOGLE_WRITE_SCOPE,
     MCP_AUDIT_READ_SCOPE,
     MCP_INFRASTRUCTURE_WRITE_SCOPE,
+    MCP_MEDIA_WRITE_SCOPE,
   ]) {
     const request = await validateMcpAuthorizationRequest(
       authorizationInput([scope]),

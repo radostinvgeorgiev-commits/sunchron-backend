@@ -36,6 +36,7 @@ const SCOPE_LABELS = Object.freeze({
   "synchron:google.write": "Чернови и потвърждавани Google промени",
   "synchron:audit.read": "Четене на безопасния журнал и последните грешки",
   "synchron:infrastructure.write": "Потвърждавани промени в инфраструктурата",
+  "synchron:media.write": "Видеа: правене и качване в твоя Google Drive и YouTube",
 });
 
 function noStore(res) {

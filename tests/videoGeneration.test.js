@@ -134,9 +134,11 @@ test("until the owner opens them, only the owner can make videos", async () => {
 
 test("the connector makes a video and saves it to the owner's Google Drive", async () => {
   const { MCP_CAPABILITY_TOOLS, createMcpCapabilityHandler } = await import("../src/services/mcpCapabilityService.js");
-  const { requiredScopesForMcpTool, MCP_GOOGLE_WRITE_SCOPE } = await import("../src/services/mcpOAuthService.js");
+  const { requiredScopesForMcpTool, MCP_MEDIA_WRITE_SCOPE, CLAUDE_SCOPES } = await import("../src/services/mcpOAuthService.js");
   assert.ok(MCP_CAPABILITY_TOOLS.some(({ name }) => name === "generate_video"));
-  assert.deepEqual(requiredScopesForMcpTool("generate_video"), [MCP_GOOGLE_WRITE_SCOPE]);
+  assert.deepEqual(requiredScopesForMcpTool("generate_video"), [MCP_MEDIA_WRITE_SCOPE]);
+  // The Claude connector must be able to get it (it was refused with 403).
+  assert.ok(CLAUDE_SCOPES.includes(MCP_MEDIA_WRITE_SCOPE));
   const saved = [];
   const handler = createMcpCapabilityHandler({
     audit: async () => {},
@@ -168,8 +170,8 @@ test("a video goes to Drive with a resumable upload", async () => {
 
 test("the connector uploads a Drive video to YouTube, private unless asked, only after the upload step", async () => {
   const { createMcpCapabilityHandler } = await import("../src/services/mcpCapabilityService.js");
-  const { requiredScopesForMcpTool, MCP_GOOGLE_WRITE_SCOPE } = await import("../src/services/mcpOAuthService.js");
-  assert.deepEqual(requiredScopesForMcpTool("publish_video_to_youtube"), [MCP_GOOGLE_WRITE_SCOPE]);
+  const { requiredScopesForMcpTool, MCP_MEDIA_WRITE_SCOPE } = await import("../src/services/mcpOAuthService.js");
+  assert.deepEqual(requiredScopesForMcpTool("publish_video_to_youtube"), [MCP_MEDIA_WRITE_SCOPE]);
   const uploads = [];
   const make = (publishId) =>
     createMcpCapabilityHandler({

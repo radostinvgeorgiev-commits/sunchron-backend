@@ -15,7 +15,8 @@ import { probeVertexOpenModels } from "./vertexOpenModelsService.js";
 // A self-test the owner's connector can run instead of clicking through the
 // site by hand. Every check is a real call (a few cents of AI use in total),
 // touches only its own throwaway data and reports pass/fail with a plain
-// reason. Secrets and answers' full text are never returned.
+// reason. Secrets are never returned; a wrong chat answer is shown only as a
+// one-line excerpt of at most 60 characters.
 const CHAT_PROVIDERS = ["claude", "openai", "gemini", "grok", "vertex-gemini"];
 const CHECK_TIMEOUT_MS = 30_000;
 
@@ -90,6 +91,23 @@ async function check(name, run) {
 
 const skip = (message) => Object.assign(new Error(message), { skip: true });
 
+// A model may group the thousands ("4 821", "4,821"), as people write
+// numbers. Only the whole number counts: "48.21", "14 821", "4,821,000" and
+// digits split across lines are different numbers.
+export function answerHasNumber(text, marker) {
+  const joined = String(text || "").replace(/(\d)[\p{Zs}.,'’](?=\d{3}(?!\d))/gu, "$1");
+  return (joined.match(/\d+/gu) || []).includes(String(marker));
+}
+
+// What the model said instead, on one short line, so a failure can be read.
+// Cut by characters, not UTF-16 units, so an emoji is never split in half.
+export function answerExcerpt(text) {
+  const line = String(text || "").replace(/[\s\p{Cc}]+/gu, " ").trim();
+  if (!line) return "празен отговор";
+  const chars = Array.from(line);
+  return chars.length > 60 ? `${chars.slice(0, 59).join("")}…` : line;
+}
+
 export async function runSelfTest({
   env = process.env,
   askAi = requestAiText,
@@ -112,7 +130,9 @@ export async function runSelfTest({
         reasoningEffort: "low",
         verbosity: "low",
       });
-      if (!String(text || "").includes(marker)) throw new Error("неочакван отговор");
+      if (!answerHasNumber(text, marker)) {
+        throw new Error(`неочакван отговор: „${answerExcerpt(text)}“`);
+      }
       return "отговори вярно";
     }),
   );

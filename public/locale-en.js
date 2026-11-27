@@ -595,5 +595,27 @@ YouTube видео|YouTube video
 Бележка към автора (по желание)|Note to the author (optional)
 Бележка от прегледа|Review note
 Одобрена. Вече е в магазина.|Approved. It is now in the store.
+Проверявам задачата и избирам нужните инструменти…|Checking the request and choosing the tools…
+Задачата е запазена и има устойчив checkpoint.|Task saved.
+Задачата не изисква външен инструмент.|No tool needed. Writing the answer…
+Изпълнявам задачата с избрания инструмент…|Running the chosen tool…
+Изпълнявам {count} проверени стъпки…|Running {count} checked steps…
+Стъпка {step} от {total}: {capability}|Step {step} of {total}: {capability}
+Задачата е изпълнена и проверена.|Done and checked.
+Задачата е изпълнена частично.|Partly done.
+Задачата е изпълнена частично и може да продължи.|Partly done. It can continue.
+Задачата чака конкретно потвърждение.|Waiting for your confirmation.
+Задачата не можа да бъде изпълнена.|The task could not be completed.
+AI CORE обработва задачата.|AI CORE is working on it.
+Отговаря агентът|Answered by
+Работа със свързани чатове|Using linked chats
+Работа без заредени свързани чатове|Linked chats not loaded
+Работа без активен проект|No active project
+AI доставчик и модел|AI provider and model
+Отвори Дневника на задачите и продължи първата незавършена стъпка.|Open the task journal and continue the first unfinished step.
+Отвори Дневника на задачите и прегледай причината за неуспешната задача.|Open the task journal to see why the task did not complete.
+Натисни линка за разрешение по-горе и попитай отново.|Use the allow link above, then ask again.
+Запазването в Google иска еднократно разрешение.|Saving to Google needs a one-time permission.
+Разреши|Allow
 `.trim().split("\n").map((line) => line.split("|")),
 );

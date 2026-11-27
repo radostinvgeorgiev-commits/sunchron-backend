@@ -163,3 +163,66 @@ test("the stronger Claude models cost more units and answer with low effort in c
   assert.deepEqual(bodies[0].output_config, { effort: "low" });
   assert.equal(bodies[1].output_config, undefined);
 });
+
+test("connectors go to Anthropic as MCP servers with the MCP beta; skills become instructions", async () => {
+  const { claudeWorkBetas, skillInstructions } = await import("../src/services/claudeWorkService.js");
+  const body = buildClaudeWorkRequest({
+    model: "m",
+    task: "x",
+    connectors: [{ name: "Времето", url: "https://mcp.example.com/mcp" }],
+  });
+  assert.deepEqual(body.mcp_servers, [{ type: "url", url: "https://mcp.example.com/mcp", name: "connector-1" }]);
+  assert.deepEqual(body.tools.at(-1), { type: "mcp_toolset", mcp_server_name: "connector-1" });
+  assert.equal(claudeWorkBetas(body), "code-execution-2025-08-25,mcp-client-2025-11-20");
+  assert.equal(claudeWorkBetas(buildClaudeWorkRequest({ model: "m", task: "x" })), "code-execution-2025-08-25");
+  assert.equal(skillInstructions([{ name: "Стил", instructions: "Пиши весело." }]), "## Стил\nПиши весело.");
+});
+
+test("skills and connectors are add-ons: checked, reviewed as a whole, and picked for Claude", async () => {
+  const { createAddonService } = await import("../src/services/addonService.js");
+  let id = 0;
+  const addons = createAddonService({ store: memoryStore(), createId: () => `a${++id}` });
+  await assert.rejects(addons.save("me", { kind: "skill", name: "Празно" }), /Напиши какво да прави Claude/u);
+  await assert.rejects(addons.save("me", { kind: "connector", name: "Вътрешен", mcpUrl: "https://localhost/mcp" }), /публичен/u);
+  await assert.rejects(addons.save("me", { kind: "connector", name: "Без https", mcpUrl: "http://example.com/mcp" }), /https/u);
+  const { item: skill } = await addons.save("me", { kind: "skill", name: "Реклами", instructions: "Пиши кратки реклами." });
+  const { item: connector } = await addons.save("me", { kind: "connector", name: "Данни", mcpUrl: "https://mcp.example.com/mcp" });
+  assert.equal((await addons.runMine("me", skill.id, "")).ok, false);
+
+  await addons.submit("me", skill.id);
+  assert.equal((await addons.listPending())[0].instructions, "Пиши кратки реклами.");
+  await addons.approve(skill.id);
+  const store = await addons.listPublic();
+  assert.equal(store[0].kind, "skill");
+
+  // Another person sees the approved skill, but not my private connector.
+  assert.deepEqual((await addons.claudeChoices("other")).map((row) => row.id), [skill.id]);
+  const picked = await addons.forClaude("other", [skill.id, connector.id, "missing"]);
+  assert.deepEqual(picked, { skills: [{ name: "Реклами", instructions: "Пиши кратки реклами." }], connectors: [] });
+  const mine = await addons.forClaude("me", [connector.id]);
+  assert.deepEqual(mine.connectors, [{ name: "Данни", url: "https://mcp.example.com/mcp" }]);
+});
+
+test("the router hands the chosen add-ons to Claude", async () => {
+  const seen = [];
+  const service = {
+    skills: () => [],
+    listFiles: async () => [],
+    run: async (_owner, body) => (seen.push(body), { text: "ok", files: [] }),
+  };
+  const addons = {
+    claudeChoices: async () => [{ id: "s1", kind: "skill", name: "Реклами" }],
+    forClaude: async (_owner, ids) => ({
+      skills: ids.includes("s1") ? [{ name: "Реклами", instructions: "Кратко." }] : [],
+      connectors: [{ name: "Данни", url: "https://mcp.example.com/mcp" }],
+    }),
+  };
+  const app = express();
+  app.use(express.json());
+  app.use((req, _res, next) => ((req.owner = { memoryOwnerId: "o1", role: "owner" }), next()));
+  app.use("/api/claude-work", createClaudeWorkRouter({ service, addons, reserve: async () => async () => false }));
+  assert.equal((await request(app).get("/api/claude-work")).body.addons[0].id, "s1");
+  await request(app).post("/api/claude-work").send({ task: "Реклама", addons: ["s1"] });
+  assert.equal(seen[0].instructions, "## Реклами\nКратко.");
+  assert.deepEqual(seen[0].connectors, [{ name: "Данни", url: "https://mcp.example.com/mcp" }]);
+});

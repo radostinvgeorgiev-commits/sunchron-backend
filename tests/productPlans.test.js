@@ -402,3 +402,16 @@ test("the shared cap lets about 30–50 people use AI on the same day", async ()
   }
   await service.reserve(other, 1);
 });
+
+test("a refund gives one reservation back once, only to its own account", async () => {
+  const store = memoryStore();
+  const service = createProductPlansService({ store, now });
+  const id = await service.reserve(member, 100);
+  assert.equal(typeof id, "string");
+  assert.equal((await service.usage(member)).remaining, 0);
+  assert.equal(await service.refund(other, id), false);
+  assert.equal(await service.refund(member, id), true);
+  assert.equal(await service.refund(member, id), false);
+  assert.equal((await service.usage(member)).remaining, 100);
+  await assert.rejects(() => service.reserve(member, 101), { code: "PRODUCT_UNAVAILABLE" });
+});

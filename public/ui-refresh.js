@@ -36,6 +36,10 @@
         <i class="fa-solid fa-palette" aria-hidden="true"></i>
         <span>${text("Нарисувай картинка")}<small>${text("От описанието в полето")}</small></span>
       </button>
+      <button type="button" role="menuitem" data-plus="video">
+        <i class="fa-solid fa-film" aria-hidden="true"></i>
+        <span>${text("Направи видео")}<small>${text("Рекламен клип до 10 секунди, със звук")}</small></span>
+      </button>
       <button type="button" role="menuitem" data-plus="knowledge">
         <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
         <span>${text("Моите файлове")}<small>${text("AI търси в тях при всеки въпрос")}</small></span>
@@ -107,6 +111,9 @@
       }
       if (key === "draw") {
         document.dispatchEvent(new CustomEvent("aicore:draw-image"));
+      }
+      if (key === "video") {
+        document.dispatchEvent(new CustomEvent("aicore:make-video"));
       }
       if (key === "day") {
         document.dispatchEvent(new CustomEvent("aicore:daily-plan"));

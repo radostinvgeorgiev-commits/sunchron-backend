@@ -278,6 +278,10 @@
 .generated-image img { max-width: min(100%, 420px); border-radius: 12px; }
 .generated-video { margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .generated-video video { max-width: min(100%, 420px); max-height: 70vh; border-radius: 12px; background: #000; }
+.generated-video .video-actions { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.generated-video .video-actions button { font: inherit; padding: 6px 12px; border-radius: 999px; border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; }
+.generated-video .video-actions button:disabled { opacity: .6; cursor: default; }
+.generated-video .video-note { font-size: .92em; }
 
 /* "Отвори отстрани": the document panel. */
 .doc-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(46vw, 720px); z-index: 60; display: flex; flex-direction: column; background: #fff; border-left: 1px solid #d5ddd8; box-shadow: -8px 0 24px rgba(0, 0, 0, 0.08); }
@@ -588,6 +592,3 @@ body.talk-mode .voice-btn.listening {
   .chat-toolbar > .interaction-mode-bar .interaction-mode-switch button { width: auto !important; padding: 0 10px !important; gap: 6px; }
   .chat-toolbar > .interaction-mode-bar .interaction-mode-switch button span { display: inline !important; }
 }
-
-/* Videos: the owner tries them first (decision 2026-11-27). */
-body:not([data-user-role="owner"]) [data-plus="video"] { display: none; }

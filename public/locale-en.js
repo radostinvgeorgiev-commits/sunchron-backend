@@ -626,5 +626,11 @@ AI доставчик и модел|AI provider and model
 Отвори отстрани|Open on the side
 Запазването в Google иска еднократно разрешение.|Saving to Google needs a one-time permission.
 Разреши|Allow
+Качи в YouTube|Upload to YouTube
+Качвам в YouTube…|Uploading to YouTube…
+Качено в YouTube.|Uploaded to YouTube.
+Качено в YouTube, засега скрито (YouTube още проверява AI CORE). Можеш да го направиш публично от YouTube Studio.|Uploaded to YouTube, private for now (YouTube is still reviewing AI CORE). You can make it public in YouTube Studio.
+Качването в YouTube иска еднократно разрешение. После пак натисни „Качи в YouTube“.|Uploading to YouTube needs a one-time permission. Then press “Upload to YouTube” again.
+YouTube не прие видеото. Опитай пак.|YouTube did not accept the video. Try again.
 `.trim().split("\n").map((line) => line.split("|")),
 );

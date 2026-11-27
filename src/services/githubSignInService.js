@@ -22,7 +22,7 @@ const STATE_MAX_AGE_SECONDS = 600;
 
 // Switched on in code once the GitHub provider is enabled in Identity
 // Platform; GITHUB_SIGN_IN=on|off in the environment overrides it.
-const GITHUB_SIGN_IN_ENABLED_IN_CODE = false;
+const GITHUB_SIGN_IN_ENABLED_IN_CODE = true;
 
 function clientId(env) {
   return String(env.GITHUB_CLIENT_ID || "").trim();

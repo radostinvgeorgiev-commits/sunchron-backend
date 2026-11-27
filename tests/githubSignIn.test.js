@@ -20,8 +20,9 @@ const env = {
 };
 const cookieHeader = "x=1; synchron_github_signin_state=s1";
 
-test("GitHub sign-in stays off until switched on, and needs the GitHub app", () => {
-  assert.equal(isGitHubSignInEnabled({ ...env, GITHUB_SIGN_IN: "" }), false);
+test("GitHub sign-in is on by default, can be switched off, and needs the GitHub app", () => {
+  assert.equal(isGitHubSignInEnabled({ ...env, GITHUB_SIGN_IN: "" }), true);
+  assert.equal(isGitHubSignInEnabled({ ...env, GITHUB_SIGN_IN: "off" }), false);
   assert.equal(isGitHubSignInEnabled({ ...env, GITHUB_CLIENT_SECRET: "" }), false);
   assert.equal(isGitHubSignInEnabled({ ...env, USER_REGISTRATION_MODE: "invite" }), false);
   assert.equal(isGitHubSignInEnabled(env), true);

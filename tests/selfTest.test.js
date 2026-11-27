@@ -77,7 +77,7 @@ const echoMarker = (content) => /\d{4}/u.exec(content)[0];
 
 test("the built-in samples are accepted by the real validators", () => {
   assert.equal(parseAudioPayload({ audio: silentWav().toString("base64"), mimeType: "audio/wav" }).extension, "wav");
-  const pdf = tinyPdf("AI CORE TEST 1234");
+  const pdf = tinyPdf("Novarium TEST 1234");
   assert.match(pdf.toString("latin1"), /^%PDF-1\.4[\s\S]*%%EOF\n$/u);
   validateImageInput({
     dataUrl: `data:application/pdf;base64,${pdf.toString("base64")}`,

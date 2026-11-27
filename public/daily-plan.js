@@ -155,7 +155,7 @@
         const data = await response.json().catch(() => ({}));
         if (response.ok && data.url) {
           if (data.privacy === "public") say(text("Качено в YouTube."), data.url, text("Отвори"));
-          else say(text("Качено в YouTube, засега скрито (YouTube още проверява AI CORE). Можеш да го направиш публично от YouTube Studio."), data.studio || data.url, text("Отвори"));
+          else say(text("Качено в YouTube, засега скрито (YouTube още проверява Novarium). Можеш да го направиш публично от YouTube Studio."), data.studio || data.url, text("Отвори"));
           return;
         }
         if (typeof data.connect === "string" && data.connect.startsWith("/api/google/connect")) {

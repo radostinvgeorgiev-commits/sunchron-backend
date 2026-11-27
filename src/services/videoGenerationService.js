@@ -5,7 +5,7 @@ import { resolveVertexAiProjectId } from "./vertexAiGeminiService.js";
 import { getVideoSoundService } from "./videoSoundService.js";
 
 // "Направи видео": a short clip (ads and other) from a text description.
-// Gemini Omni Flash through the Gemini API key that AI CORE already uses.
+// Gemini Omni Flash through the Gemini API key that Novarium already uses.
 // It makes up to about 10 seconds of 720p video with sound, about
 // 0.10 US dollars a second, so a member pays a fixed 100 units.
 export const DEFAULT_VIDEO_MODEL = "gemini-omni-1.1-flash";

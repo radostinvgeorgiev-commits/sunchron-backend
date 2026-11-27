@@ -129,7 +129,7 @@ function tool(name, title, description, inputSchema, annotations = READ_ONLY) {
 export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "send_message",
-    "Изпрати съобщение до AI CORE",
+    "Изпрати съобщение до Novarium",
     "Изпраща съобщение до агента в сайта, връща неговия отговор и започва нова нишка. Използва само регистрирани инструменти; read-only проверките се изпълняват, а записите се подготвят за отделно owner потвърждение.",
     {
       type: "object",
@@ -146,7 +146,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "read_reply",
     "Прочети последния отговор",
-    "Прочита последния отговор на AI CORE от точна нишка на текущия профил.",
+    "Прочита последния отговор на Novarium от точна нишка на текущия профил.",
     {
       type: "object",
       properties: {
@@ -158,7 +158,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   ),
   tool(
     "list_threads",
-    "Покажи нишките на AI CORE",
+    "Покажи нишките на Novarium",
     "Показва разговорите в сайта само за текущия профил.",
     {
       type: "object",
@@ -171,7 +171,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "read_history",
     "Прочети историята на нишка",
-    "Прочита съобщенията от точна AI CORE нишка само за текущия профил.",
+    "Прочита съобщенията от точна Novarium нишка само за текущия профил.",
     {
       type: "object",
       properties: {
@@ -183,7 +183,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   ),
   tool(
     "continue_session",
-    "Продължи AI CORE нишка",
+    "Продължи Novarium нишка",
     "Задава следващ въпрос в точна нишка. В една MCP сесия са разрешени до 10 потребителски въпроса.",
     {
       type: "object",
@@ -201,7 +201,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "suggest_memory",
     "Предложи факт за паметта",
-    "Изпраща факт към „Входящи“ в AI CORE. Потребителят го одобрява, редактира или отхвърля в сайта; нищо не влиза в постоянната памет без неговото одобрение. Използвай за трайни факти, решения и предпочитания, които ще са полезни в бъдещи разговори.",
+    "Изпраща факт към „Входящи“ в Novarium. Потребителят го одобрява, редактира или отхвърля в сайта; нищо не влиза в постоянната памет без неговото одобрение. Използвай за трайни факти, решения и предпочитания, които ще са полезни в бъдещи разговори.",
     {
       type: "object",
       properties: {
@@ -220,8 +220,8 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   ),
   tool(
     "save_conversation",
-    "Запази разговора в AI CORE",
-    "Запазва текущия разговор от Claude (или друг AI клиент) като нишка в AI CORE за текущия профил, за да може да се продължи по-късно оттук или от сайта. Изпращай само съобщенията, които потребителят иска да запази. Без sessionId създава нова нишка; с sessionId от предишен запис добавя новите съобщения към нея. Не записва факти в постоянната памет.",
+    "Запази разговора в Novarium",
+    "Запазва текущия разговор от Claude (или друг AI клиент) като нишка в Novarium за текущия профил, за да може да се продължи по-късно оттук или от сайта. Изпращай само съобщенията, които потребителят иска да запази. Без sessionId създава нова нишка; с sessionId от предишен запис добавя новите съобщения към нея. Не записва факти в постоянната памет.",
     {
       type: "object",
       properties: {
@@ -373,7 +373,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "read_runtime_logs",
     "Прочети логовете на сървъра",
-    "Само за собственика. Показва последните записи от Cloud Run логовете на AI CORE (по подразбиране предупреждения и грешки за последния час). Ключове, токени и имейли са скрити. Само четене.",
+    "Само за собственика. Показва последните записи от Cloud Run логовете на Novarium (по подразбиране предупреждения и грешки за последния час). Ключове, токени и имейли са скрити. Само четене.",
     {
       type: "object",
       properties: {
@@ -600,13 +600,13 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   ),
   tool(
     "get_google_cloud_project_diagnostics",
-    "Провери състоянието на AI CORE проекта",
+    "Провери състоянието на Novarium проекта",
     "Проверява само за четене сайта, MCP, Cloud Run, Cloud Build, Firestore, Monitoring, Logging, Cloud Resource Manager и метаданни за версии на тайни за текущия проект.",
     { type: "object", properties: {}, additionalProperties: false },
   ),
   tool(
     "run_ai_core_self_test",
-    "Пусни самопроверка на AI CORE",
+    "Пусни самопроверка на Novarium",
     "Само за собственика. Прави реални проверки отвътре: чат с всеки конфигуриран модел, гласово разпознаване с тестов запис, четене на PDF, създаване/отваряне/спиране на линк за споделяне и списъците с модели и асистенти. Струва няколко цента AI заявки, пипа само собствени тестови данни и ги изтрива.",
     { type: "object", properties: {}, additionalProperties: false },
   ),
@@ -633,7 +633,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "generate_video",
     "Направи видео и го запази в Google Drive",
-    "Само за собственика. Прави кратко видео (реклама и др.) от описание с Gemini Omni Flash: до 10 секунди, 720p, със звук; 9:16 за телефон или 16:9. Добавя глас зад кадър (narration — текстът; без него AI CORE пише кратък текст на езика на описанието) и фонова музика; sound=false ги спира. Записва MP4 файла като нов файл в Google Drive на собственика и връща линк. Отнема 1–4 минути и струва около 1 $. Нищо не се публикува.",
+    "Само за собственика. Прави кратко видео (реклама и др.) от описание с Gemini Omni Flash: до 10 секунди, 720p, със звук; 9:16 за телефон или 16:9. Добавя глас зад кадър (narration — текстът; без него Novarium пише кратък текст на езика на описанието) и фонова музика; sound=false ги спира. Записва MP4 файла като нов файл в Google Drive на собственика и връща линк. Отнема 1–4 минути и струва около 1 $. Нищо не се публикува.",
     {
       type: "object",
       properties: {
@@ -651,7 +651,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "publish_video_to_youtube",
     "Качи видео от Google Drive в YouTube",
-    "Само за собственика. Качва MP4 видео, което AI CORE е записал в Google Drive (fileId от generate_video), в YouTube канала на собственика. По подразбиране е private; unlisted или public само по негово изрично желание. Докато приложението не мине одита на YouTube API, YouTube държи каченото като private.",
+    "Само за собственика. Качва MP4 видео, което Novarium е записал в Google Drive (fileId от generate_video), в YouTube канала на собственика. По подразбиране е private; unlisted или public само по негово изрично желание. Докато приложението не мине одита на YouTube API, YouTube държи каченото като private.",
     {
       type: "object",
       properties: {
@@ -966,7 +966,7 @@ export function createMcpCapabilityHandler({
       )(args.limit || 20, ownerId);
       result = textResult(
         { items },
-        `Намерени са ${items.length} AI CORE нишки.`,
+        `Намерени са ${items.length} Novarium нишки.`,
       );
     } else if (name === "read_history" || name === "read_reply") {
       const items = await (
@@ -977,12 +977,12 @@ export function createMcpCapabilityHandler({
           items.findLast((item) => item.role === "assistant") || null;
         result = textResult(
           { sessionId: args.sessionId, reply },
-          reply?.content || "В тази нишка още няма отговор от AI CORE.",
+          reply?.content || "В тази нишка още няма отговор от Novarium.",
         );
       } else {
         result = textResult(
           { sessionId: args.sessionId, items },
-          `Прочетени са ${items.length} съобщения от AI CORE нишката.`,
+          `Прочетени са ${items.length} съобщения от Novarium нишката.`,
         );
       }
     } else if (name === "suggest_memory") {
@@ -997,8 +997,8 @@ export function createMcpCapabilityHandler({
       result = textResult(
         suggestion,
         suggestion.duplicate
-          ? "Това предложение вече чака във „Входящи“ в AI CORE."
-          : "Предложението е във „Входящи“ в AI CORE и чака одобрение. Паметта не е променена.",
+          ? "Това предложение вече чака във „Входящи“ в Novarium."
+          : "Предложението е във „Входящи“ в Novarium и чака одобрение. Паметта не е променена.",
       );
     } else if (name === "save_conversation") {
       const saved = await (
@@ -1015,7 +1015,7 @@ export function createMcpCapabilityHandler({
         saved,
         saved.appended
           ? `Добавени са ${saved.saved} съобщения към нишка ${saved.sessionId}.`
-          : `Разговорът е запазен в AI CORE като нишка ${saved.sessionId} (${saved.saved} съобщения).`,
+          : `Разговорът е запазен в Novarium като нишка ${saved.sessionId} (${saved.saved} съобщения).`,
       );
     } else if (name === "propose_memory_change") {
       const item = normalizeProfileMemoryDraft(

@@ -120,7 +120,7 @@ test("every progress line the task runner streams reaches an English page in Eng
   }
   // The lines the chat route and the planner send themselves.
   const literals = [chatRoute, orchestrator].flatMap((source) =>
-    [...source.matchAll(/"((?:Задачата|Проверявам задачата|AI CORE обработва задачата)[^"]*)"/gu)].map((match) => match[1]),
+    [...source.matchAll(/"((?:Задачата|Проверявам задачата|Novarium обработва задачата)[^"]*)"/gu)].map((match) => match[1]),
   );
   assert.ok(literals.length >= 6);
   for (const line of literals) {

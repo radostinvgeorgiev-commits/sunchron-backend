@@ -139,7 +139,7 @@ test("legacy workspaces receive specialized agents without pet settings", () => 
     agents: [
       {
         id: "synchron-builder",
-        name: "AI CORE",
+        name: "Novarium",
         role: "builder",
         engine: "ai-core",
       },

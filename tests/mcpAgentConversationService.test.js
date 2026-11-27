@@ -22,7 +22,7 @@ function workspace(engine = "ai-core") {
       agents: [
         {
           id: "agent-1",
-          name: engine === "codex" ? "Codex" : "AI CORE",
+          name: engine === "codex" ? "Codex" : "Novarium",
           role: engine === "codex" ? "coder" : "builder",
           model: "auto",
           purpose: "Върни проверим отговор",
@@ -49,7 +49,7 @@ test("MCP agent conversation reuses the owner workspace, memory and session", as
       },
       listMemories: async (options) => {
         calls.push(["memory", options]);
-        return [{ fact: "Проектът се казва AI CORE", scope: "project" }];
+        return [{ fact: "Проектът се казва Novarium", scope: "project" }];
       },
       listMessages: async (...args) => {
         calls.push(["history", args]);
@@ -79,7 +79,7 @@ test("MCP agent conversation reuses the owner workspace, memory and session", as
   );
 
   assert.equal(result.sessionId, "bridge-session-1");
-  assert.equal(result.agent.name, "AI CORE");
+  assert.equal(result.agent.name, "Novarium");
   assert.equal(result.project.name, "Мост тест");
   assert.equal(result.conversationPersisted, true);
   assert.equal(result.externalActionsExecuted, false);
@@ -187,7 +187,7 @@ test("MCP agent conversation returns owner confirmation for a write capability",
               output:
                 "GitHub промяната е подготвена. Потвърждение: confirmation-1.",
               permission: { decision: "confirm" },
-              tool: { name: "AI CORE Code Write" },
+              tool: { name: "Novarium Code Write" },
               requiresConfirmation: true,
             },
           },
@@ -228,7 +228,7 @@ test("MCP agent conversation cannot silently route to Codex", async () => {
     (error) =>
       error instanceof McpAgentConversationError &&
       error.code === -32602 &&
-      /само с AI CORE/u.test(error.message),
+      /само с Novarium/u.test(error.message),
   );
 });
 

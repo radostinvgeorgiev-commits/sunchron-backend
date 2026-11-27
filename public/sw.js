@@ -1,4 +1,4 @@
-// Minimal service worker: makes AI CORE installable and shows a friendly
+// Minimal service worker: makes Novarium installable and shows a friendly
 // page when there is no connection. It never caches the app, the API or any
 // personal data, so updates always arrive immediately.
 const OFFLINE_CACHE = "ai-core-offline-v1";

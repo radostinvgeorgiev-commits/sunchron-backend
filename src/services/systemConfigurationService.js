@@ -196,7 +196,7 @@ export async function getSystemConfigurationReport({
     summary: summarize(environment),
     environment,
     // The ecosystem is intentionally a declarative, fail-closed skeleton.
-    // Reporting it here makes the AI CORE status honest without enabling any
+    // Reporting it here makes the Novarium status honest without enabling any
     // legal, financial, token or entity-registration action.
     ecosystem: getEcosystemStatus(),
     googleCloud,

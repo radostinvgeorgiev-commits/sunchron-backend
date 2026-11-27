@@ -85,7 +85,7 @@ export function createRequireOwnerSession({
       if (!identity) {
         return res.status(401).json({
           error:
-            "Трябва да влезеш в потребителския си профил, за да използваш AI CORE.",
+            "Трябва да влезеш в потребителския си профил, за да използваш Novarium.",
           code: "AUTH_REQUIRED",
         });
       }

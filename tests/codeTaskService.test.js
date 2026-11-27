@@ -16,7 +16,7 @@ const plan = {
   title: "Подобри интерфейса за аватари",
   summary: "Добавя по-ясен избор и визуално състояние за аватарите.",
   commitMessage: "Improve avatar selection UI",
-  pullRequestBody: "AI CORE multi-engine code task.",
+  pullRequestBody: "Novarium multi-engine code task.",
   changes: [
     {
       path: "public/avatar-proof.js",
@@ -83,7 +83,7 @@ test("three engines are consulted before a bounded code confirmation is created"
   assert.doesNotMatch(prepared.output, /Codex/u);
   assert.equal(
     extractCodeTaskConfirmationId(
-      `Потвърждавам AI CORE кодова задача: ${prepared.confirmationId}`,
+      `Потвърждавам Novarium кодова задача: ${prepared.confirmationId}`,
     ),
     prepared.confirmationId,
   );

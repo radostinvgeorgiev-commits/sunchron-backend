@@ -24,7 +24,7 @@ test("export contains the member's own data and no system records", async () => 
     listMemories: async ({ ownerId }) => {
       assert.equal(ownerId, "owner-1");
       return [
-        { id: "canonical-project-definition", fact: "AI CORE е…", source: "system-canonical" },
+        { id: "canonical-project-definition", fact: "Novarium е…", source: "system-canonical" },
         { id: "m1", fact: "Обичам кафе.", scope: "personal" },
       ];
     },

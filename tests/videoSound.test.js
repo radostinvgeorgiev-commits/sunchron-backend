@@ -71,7 +71,7 @@ test("speech request uses Gemini speech with a prebuilt voice", async () => {
       return json({ steps: [{ content: [{ type: "audio", mime_type: "audio/L16;rate=24000", data: Buffer.alloc(960).toString("base64") }] }] });
     },
   });
-  const wav = await service.speak("Здравей от AI CORE");
+  const wav = await service.speak("Здравей от Novarium");
   assert.equal(body.model, "gemini-3.8-flash-tts");
   assert.deepEqual(body.response_format, { type: "audio" });
   assert.equal(body.generation_config.speech_config[0].voice, "Kore");
@@ -90,7 +90,7 @@ test("video service adds sound when it is wired in", async () => {
       return { video: sounded, narration: "Текст", music: true };
     },
   });
-  const made = await service.generate("кратка реклама за AI CORE", { narration: "Текст" });
+  const made = await service.generate("кратка реклама за Novarium", { narration: "Текст" });
   assert.equal(made.video, sounded);
   assert.equal(made.narration, "Текст");
   assert.equal(made.music, true);

@@ -287,6 +287,142 @@ AI Council, включително обобщаване|AI Council, including sy
 Услугата се предоставя от|The service is provided by
 , ЕИК 208554306.|, Bulgarian company ID 208554306.
 Фирмени данни и контакт|Company details and contact
+Пиши ни|Contact us
+Пиши ни през|Write to us through the
+формуляра за връзка|contact form
+. Отговаряме на имейла, който посочиш. Нямаме телефон за поддръжка.|. We reply to the email you give. We have no support phone line.
+Въпрос, проблем, идея или искане за твоите данни: пиши тук. Всяко съобщение се записва и получава номер.|A question, a problem, an idea or a request about your data: write here. Every message is saved and gets a number.
+Използваме имейла ти само за да ти отговорим.|We use your email only to reply to you.
+Име (по желание)|Name (optional)
+Имейл за отговор|Email for the reply
+Тема|Topic
+Въпрос|Question
+Проблем|Problem
+Идея|Idea
+Друго|Other
+Съобщение|Message
+Остави това поле празно|Leave this field empty
+Благодарим! Съобщението е изпратено под номер {ticket}. Ще ти отговорим на посочения имейл.|Thank you! Your message was sent with number {ticket}. We will reply to the email you gave.
+Благодарим! Съобщението е изпратено. Ще ти отговорим на посочения имейл.|Thank you! Your message was sent. We will reply to the email you gave.
+Провери имейла и напиши съобщение от поне 10 знака.|Check the email and write a message of at least 10 characters.
+Твърде много съобщения за кратко време. Опитай отново след час.|Too many messages in a short time. Try again in an hour.
+Съобщението не беше изпратено. Опитай отново след малко.|The message was not sent. Try again in a moment.
+Формуляр за връзка|Contact form
+Съобщения до нас:|Messages to us:
+име (по желание), имейл и текстът, който ни пишеш през формуляра за връзка.|name (optional), email and the text you write to us through the contact form.
+За да отговорим на съобщенията, които ни пишеш през формуляра за връзка (легитимен интерес, чл. 6, ал. 1, б. „е“).|To reply to the messages you write to us through the contact form (legitimate interest, Art. 6(1)(f)).
+Съобщенията от формуляра за връзка — до 1 година от получаването, после се изтриват сами.|Messages from the contact form: up to 1 year after we receive them, then they are deleted automatically.
+можеш сам да изтеглиш копие на всички данни (JSON) и да изтриеш профила си. За всичко останало ни пиши през|you can download a copy of all your data (JSON) and delete your account yourself. For anything else, write to us through the
+Последна промяна: 28.11.2026 г.|Last updated: 28 November 2026.
+Пиши ни през формуляра за връзка с темата „Моите данни“ и имейла на профила. Ще ти пишем на този имейл, за да потвърдим, че профилът е твой, и ще изтрием всичко до 30 дни.|Write to us through the contact form with the topic “My data” and your account's email. We will write to that email to confirm the account is yours, and we will delete everything within 30 days.
+Поверителност · NovariumAI|Privacy · NovariumAI
+ПОВЕРИТЕЛНОСТ|PRIVACY
+Как пазим данните ти.|How we protect your data.
+Кратко и ясно: какво събираме, защо и как можеш да го изтеглиш или изтриеш.|Short and clear: what we collect, why, and how you can download or delete it.
+Кой обработва данните ти|Who processes your data
+Администратор на личните данни е|The data controller is
+, ЕИК 208554306, със седалище и адрес на управление гр. Варна, район „Владислав Варненчик“, ж.к. „Вл. Варненчик“, бл. 12, вх. 1, ет. 5, ап. 14. Връзка:|, Bulgarian company ID (EIK) 208554306, registered office: Varna, Vladislav Varnenchik district, Vl. Varnenchik residential area, block 12, entrance 1, floor 5, apartment 14, Bulgaria. Contact:
+Какви данни обработваме|What data we process
+Профил:|Account:
+имейл адрес, име и идентификатор. Ако влизаш с Google, GitHub или друг външен профил, получаваме от него само тези данни. Ако влизаш с имейл и парола, паролата се съхранява и проверява от Google Identity Platform; ние не я виждаме.|email address, name and identifier. If you sign in with Google, GitHub or another external account, we receive only these details from it. If you sign in with email and password, the password is stored and checked by Google Identity Platform; we never see it.
+Съдържание, което създаваш:|Content you create:
+разговори, запазена памет, предложения във „Входящи“, проекти и настройки.|conversations, saved memory, suggestions in “Inbox”, projects and settings.
+Свързани AI асистенти:|Connected AI assistants:
+кои асистенти (например Claude или ChatGPT) си свързал, кога и кога са използвани за последно.|which assistants (for example Claude or ChatGPT) you connected, when, and when they were last used.
+Използване и плащания:|Usage and payments:
+план, оставащи AI единици и потвърждения за плащания. Данните за карта се обработват от платежния оператор Stripe; ние не ги съхраняваме.|plan, remaining AI credits and payment confirmations. Card details are processed by the payment provider Stripe; we do not store them.
+Технически данни и сигурност:|Technical data and security:
+журнал на действията, кодове на грешки и защитни ограничения на заявките.|activity log, error codes and protective request limits.
+Защо и на какво основание|Why and on what legal basis
+За да предоставим услугата, която използваш — профил, разговори, памет и връзки с AI асистенти (договор, чл. 6, ал. 1, б. „б“ от GDPR).|To provide the service you use: account, conversations, memory and connections to AI assistants (contract, Art. 6(1)(b) GDPR).
+За счетоводни и данъчни задължения при плащания (законово задължение, чл. 6, ал. 1, б. „в“).|For accounting and tax obligations on payments (legal obligation, Art. 6(1)(c)).
+За сигурност, предотвратяване на злоупотреби и отстраняване на грешки (легитимен интерес, чл. 6, ал. 1, б. „е“).|For security, abuse prevention and fixing errors (legitimate interest, Art. 6(1)(f)).
+Не продаваме данни, не показваме реклама и не използваме проследяващи или аналитични бисквитки.|We do not sell data, show ads or use tracking or analytics cookies.
+AI доставчици|AI providers
+Когато зададеш въпрос в NovariumAI, текстът на заявката и нужният контекст се изпращат към избрания AI доставчик (OpenAI, Google Gemini, xAI Grok или Anthropic Claude), за да бъде генериран отговор. Когато свържеш свой AI асистент, той вижда само това, което ти разрешиш при свързването, и може да предлага записи, които ти одобряваш.|When you ask a question in NovariumAI, the text of the request and the needed context are sent to the chosen AI provider (OpenAI, Google Gemini, xAI Grok or Anthropic Claude) to generate an answer. When you connect your own AI assistant, it sees only what you allow when connecting, and it can suggest entries that you approve.
+Данни от Google акаунта|Data from your Google account
+Само ако сам натиснеш „Свържи Google“, NovariumAI получава достъп до твоя Google акаунт, и то само до услугите, които разрешиш: Календар (четене и добавяне на събития), Контакти (търсене и добавяне), изпращане на писма от твое име след твое потвърждение и файловете в Google Drive, които NovariumAI създава за теб. Четене на цялата поща (Gmail) или целия Drive се иска отделно и само ако го включиш.|Only if you yourself press “Connect Google” does NovariumAI get access to your Google account, and only to the services you allow: Calendar (reading and adding events), Contacts (searching and adding), sending emails on your behalf after your confirmation, and the Google Drive files NovariumAI creates for you. Reading your whole mailbox (Gmail) or your whole Drive is requested separately and only if you turn it on.
+Използваме тези данни само за функциите, които ти виждаш и ползваш: да ти покажем събитията, писмата или файла, да подготвим отговор или обобщение, което ти поискаш, и да изпълним действие, което ти потвърдиш. Когато поискаш обобщение или отговор, нужният текст се изпраща към избрания AI доставчик само за този отговор. Не продаваме тези данни, не ги използваме за реклама, не ги използваме за обучение на AI модели и хора не ги четат, освен с твое изрично съгласие, за сигурност или ако го изисква законът.|We use this data only for the features you see and use: to show you events, emails or a file, to prepare an answer or summary you ask for, and to carry out an action you confirm. When you ask for a summary or answer, the needed text is sent to the chosen AI provider only for that answer. We do not sell this data, do not use it for advertising, do not use it to train AI models, and people do not read it, except with your explicit consent, for security, or where the law requires it.
+Можеш да прекъснеш връзката по всяко време от „Google Drive“ → „Прекъсни връзката“ или от|You can disconnect at any time from “Google Drive” → “Disconnect” or at
+; тогава изтриваме съхранения ключ за достъп.|; we then delete the stored access key.
+Получатели и предаване извън ЕС|Recipients and transfers outside the EU
+Използваме обработващи данни: Google Cloud (хостинг, база данни и вход; приложението работи в регион europe-west1, Белгия), Stripe (плащания) и посочените AI доставчици. Част от тях са установени в САЩ. Предаването се извършва въз основа на решение за адекватност (EU-U.S. Data Privacy Framework) или стандартни договорни клаузи, когато е приложимо.|We use data processors: Google Cloud (hosting, database and sign-in; the app runs in the europe-west1 region, Belgium), Stripe (payments) and the AI providers listed above. Some of them are based in the USA. Transfers rely on an adequacy decision (EU-U.S. Data Privacy Framework) or standard contractual clauses where applicable.
+Колко дълго пазим данните|How long we keep data
+Данните в профила — докато не ги изтриеш или не изтриеш профила.|Account data: until you delete it or delete the account.
+Предложенията във „Входящи“ — до 30 дни, ако не ги одобриш.|Suggestions in “Inbox”: up to 30 days if you do not approve them.
+Счетоводни документи за плащания — 10 години, както изисква Законът за счетоводството.|Accounting documents for payments: 10 years, as the Bulgarian Accountancy Act requires.
+Технически журнали — само толкова, колкото е нужно за сигурност и отстраняване на грешки.|Technical logs: only as long as needed for security and fixing errors.
+Твоите права|Your rights
+Имаш право на достъп, коригиране, изтриване, ограничаване, преносимост и възражение. От менюто на профила →|You have the right of access, rectification, erasure, restriction, portability and objection. From the profile menu →
+„Моите данни“|“My data”
+Имаш право на жалба до Комисията за защита на личните данни (|You have the right to complain to the Bulgarian Commission for Personal Data Protection (
+, гр. София 1592, бул. „Проф. Цветан Лазаров“ № 2).|, 2 Prof. Tsvetan Lazarov Blvd., Sofia 1592, Bulgaria).
+Бисквитки и локално съхранение|Cookies and local storage
+Използваме само необходима бисквитка за влизане (криптирана сесия) и локално съхранение в браузъра за настройки като език и размер на шрифта. Те не служат за проследяване.|We only use a necessary sign-in cookie (an encrypted session) and local browser storage for settings such as language and font size. They are not used for tracking.
+Възраст и промени|Age and changes
+Услугата е за лица над 16 години. При съществени промени в тази политика ще ги публикуваме тук с нова дата.|The service is for people over 16. If this policy changes significantly, we will publish the changes here with a new date.
+Преводите на тази страница са за удобство; при разлика важи българският текст.|Translations of this page are for convenience; if they differ, the Bulgarian text prevails.
+Общи условия · NovariumAI|Terms · NovariumAI
+ОБЩИ УСЛОВИЯ|TERMS
+Условия за ползване на NovariumAI.|Terms of use for NovariumAI.
+Какво предлагаме, какво очакваме и какви са правата ти.|What we offer, what we expect and what your rights are.
+Доставчик|Provider
+Услугата NovariumAI се предоставя от|The NovariumAI service is provided by
+Услугата|The service
+NovariumAI е онлайн работно пространство с AI разговори, памет под твой контрол, проекти и връзки с външни AI асистенти. Регистрацията е безплатна. Влизаш с Google, GitHub или друг външен профил, или с потвърден имейл и парола. Отговаряш за сигурността на профила си и за действията в него.|NovariumAI is an online workspace with AI conversations, memory under your control, projects and connections to external AI assistants. Registration is free. You sign in with Google, GitHub or another external account, or with a confirmed email and password. You are responsible for the security of your account and for the actions in it.
+Допустимо използване|Acceptable use
+Не използвай услугата за незаконна дейност, нарушаване на чужди права, разпространение на зловреден код, опити за неоторизиран достъп или масово автоматизирано натоварване. Можем да ограничим или спрем профил при нарушение.|Do not use the service for illegal activity, violating other people's rights, spreading malicious code, attempts at unauthorized access or mass automated load. We may limit or suspend an account in case of a violation.
+AI отговори|AI answers
+AI отговорите се генерират автоматично и могат да съдържат грешки. Не ги използвай като единствен източник за медицински, правни, финансови или други важни решения. Действия, които променят данни или външни системи, се изпълняват само след твое изрично потвърждение.|AI answers are generated automatically and may contain errors. Do not use them as the only source for medical, legal, financial or other important decisions. Actions that change data or external systems are carried out only after your explicit confirmation.
+AI единици и плащания|AI credits and payments
+AI единиците са вътрешна мярка за достъп, не са пари и не се изплащат. Безплатните единици се подновяват на всеки 30 дни. Платените пакети са еднократни, без автоматично подновяване; цената и съдържанието им се показват преди плащане на страницата|AI credits are an internal measure of access; they are not money and are not paid out. Free credits renew every 30 days. Paid packages are one-time, with no automatic renewal; their price and content are shown before payment on the page
+. Платените покупки се активират само след завършване на необходимите търговски условия.|. Paid purchases are enabled only after the required commercial terms are completed.
+Като потребител имаш право да се откажеш от договор от разстояние в 14-дневен срок. Ако изрично поискаш единиците да бъдат предоставени веднага и потвърдиш, че губиш правото си на отказ след предоставянето им, правото на отказ отпада съгласно чл. 57, т. 13 от Закона за защита на потребителите.|As a consumer, you have the right to withdraw from a distance contract within 14 days. If you explicitly ask for the credits to be provided immediately and confirm that you lose your right of withdrawal once they are provided, the right of withdrawal no longer applies under Art. 57(13) of the Bulgarian Consumer Protection Act.
+Данни и прекратяване|Data and termination
+Данните ти принадлежат на теб. Обработваме ги според|Your data belongs to you. We process it according to the
+. Можеш по всяко време да изтеглиш данните си и да изтриеш профила си от „Моите данни“; изтриването е окончателно.|. You can download your data and delete your account at any time from “My data”; deletion is permanent.
+Отговорност|Liability
+Полагаме разумни усилия услугата да е налична и сигурна, но не гарантираме непрекъсната работа. Доколкото законът позволява, не отговаряме за косвени вреди от използването на AI отговори. Нищо в тези условия не ограничава правата ти като потребител по закон.|We make reasonable efforts to keep the service available and secure, but we do not guarantee uninterrupted operation. As far as the law allows, we are not liable for indirect damage from using AI answers. Nothing in these terms limits your statutory rights as a consumer.
+Приложимо право и спорове|Governing law and disputes
+Прилага се българското право. Спорове се решават по споразумение, а при невъзможност — от компетентния български съд. Можеш да се обърнеш и към Комисията за защита на потребителите (|Bulgarian law applies. Disputes are settled by agreement or, if that is not possible, by the competent Bulgarian court. You can also contact the Bulgarian Consumer Protection Commission (
+). При промяна на условията ще я публикуваме тук.|). If these terms change, we will publish the change here.
+Преводите на тези условия са за удобство; при разлика важи българският текст.|Translations of these terms are for convenience; if they differ, the Bulgarian text prevails.
+Парола (само ако влизаш с имейл и парола)|Password (only if you sign in with email and password)
+Ако влизаш с Google, GitHub или друг профил, не ти трябва парола: излез, влез отново и изтрий профила до 5 минути.|If you sign in with Google, GitHub or another account, you do not need a password: sign out, sign in again and delete your account within 5 minutes.
+Кои бисквитки ползва NovariumAI: само необходимите за вход и настройки, без реклама и проследяване.|Which cookies NovariumAI uses: only those needed for sign-in and settings, with no ads or tracking.
+Бисквитки · NovariumAI|Cookies · NovariumAI
+БИСКВИТКИ|COOKIES
+Бисквитки|Cookies
+Само необходимото.|Only what is needed.
+NovariumAI не използва рекламни, проследяващи или аналитични бисквитки. Затова няма и банер за съгласие: ползваме само това, без което входът и настройките не работят.|NovariumAI does not use advertising, tracking or analytics cookies. That is why there is no consent banner: we only use what sign-in and settings cannot work without.
+Пази входа ти в профила. Криптирана е и важи до 30 дни или докато излезеш.|Keeps you signed in. It is encrypted and lasts up to 30 days or until you sign out.
+Защита при вход с външен профил (Google, GitHub и други). Важи 10 минути.|Protects sign-in with an external account (Google, GitHub and others). Lasts 10 minutes.
+Защита при свързване на Google акаунт. Важи 10 минути.|Protects connecting a Google account. Lasts 10 minutes.
+Локално съхранение в браузъра|Local storage in the browser
+Пазим в браузъра ти само настройки: език, размер на шрифта, гласа за четене и номера на текущия разговор. Те не напускат устройството ти и не служат за проследяване.|We only keep settings in your browser: language, font size, reading voice and the number of the current conversation. They never leave your device and are not used for tracking.
+Как да ги изтриеш|How to delete them
+Можеш да изтриеш бисквитките и локалното съхранение от настройките на браузъра. Тогава ще трябва да влезеш отново.|You can delete cookies and local storage in your browser settings. You will then need to sign in again.
+Последна промяна: 27.11.2026 г.|Last updated: 27 November 2026.
+Как да изтриеш данните си в NovariumAI: стъпки, какво се изтрива и какво остава.|How to delete your data in NovariumAI: the steps, what is deleted and what is kept.
+Изтриване на данни · NovariumAI|Data deletion · NovariumAI
+ИЗТРИВАНЕ НА ДАННИ|DATA DELETION
+Изтриване на данни|Data deletion
+Твоите данни, твоето решение.|Your data, your decision.
+Можеш по всяко време да изтеглиш копие на данните си и да изтриеш профила си заедно с всичко в него.|At any time you can download a copy of your data and delete your account together with everything in it.
+Как да изтриеш профила си|How to delete your account
+Влез в NovariumAI.|Sign in to NovariumAI.
+Отвори менюто на профила и избери „Моите данни“.|Open the profile menu and choose “My data”.
+По желание първо натисни „Изтегли копие“, за да запазиш данните си.|If you wish, first press “Download a copy” to keep your data.
+В „Изтрий профила“ напиши ИЗТРИЙ и потвърди.|In “Delete account”, type ИЗТРИЙ (DELETE) and confirm.
+Какво се изтрива|What is deleted
+Паметта, разговорите, проектите, задачите, предложенията, профилът на аватара, връзката „Питай моя аватар“ и профилът за вход. Свързаните AI асистенти се прекъсват веднага.|Memory, conversations, projects, tasks, suggestions, the avatar profile, the “Ask my avatar” link and the sign-in account. Connected AI assistants are disconnected at once.
+Какво остава|What is kept
+Счетоводните документи за плащания се пазят 10 години, защото така изисква Законът за счетоводството. Те не съдържат разговорите и паметта ти.|Accounting documents for payments are kept for 10 years, as the Bulgarian Accountancy Act requires. They do not contain your conversations or memory.
+Вход с Facebook, Google или друг профил|Sign-in with Facebook, Google or another account
+Ако си влизал с външен профил, можеш да махнеш и достъпа на NovariumAI от настройките на този профил (например „Приложения и уебсайтове“ във Facebook или myaccount.google.com/permissions). Това спира входа, но не трие данните в NovariumAI. За тях изтрий профила, както е описано по-горе.|If you signed in with an external account, you can also remove NovariumAI's access in that account's settings (for example “Apps and websites” on Facebook or myaccount.google.com/permissions). This stops the sign-in but does not delete the data in NovariumAI. To delete it, delete your account as described above.
+Ако не можеш да влезеш|If you cannot sign in
+Всички бисквитки|All cookies
+Как да изтриеш данните си|How to delete your data
 Твоят AI. Твоят свят.|Your AI. Your world.
 Връщане на вложеното: парите, които собственикът е вложил във фирмата, за да плаща разходите в началото, му се връщат като заем.|Return of the investment: the money the owner put into the company to pay the costs at the start is paid back to him as a loan.
 Всички разходи се плащат от фирмената сметка. В началото собственикът я захранва със свои пари.|All costs are paid from the company account. At the start, the owner funds it with his own money.
@@ -341,9 +477,6 @@ AI Council събира мнения от избраните двигатели 
 Не въвеждай чужди чувствителни данни без основание. Подробности има в|Enter other people's sensitive information only when you have a valid reason. Details are in the
 Общите условия.|Terms.
 Поддръжка и условия за продажба|Support and sales terms
-Използвай|Use
-формата за запитване|the inquiry form
-. Запитванията се записват за собственика; не обещаваме автоматично изпращане на имейл или срок за отговор.|. Inquiries are recorded for the owner. An automatic email or response time is not guaranteed.
 Преди приемане на плащания трябва да бъдат завършени условията за продажба, отказ и възстановяване на плащания. Те не са заместени с този технически преглед. Дотогава платените покупки са изключени.|Sales, cancellation, and refund terms must be finalized before payments can be accepted. This guide is an overview of the service. Purchases remain disabled until those terms are ready.
 Данни за търговеца|Merchant information
 Фирма|Company

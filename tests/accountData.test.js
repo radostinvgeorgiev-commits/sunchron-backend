@@ -151,7 +151,7 @@ test("account routes download a file and clear the session after deletion", asyn
       exportData: async () => ({ exportedAt: "2026-11-25T12:00:00.000Z", memories: [] }),
       removeAccount: async (owner, input) => {
         assert.equal(owner.id, "uid-1");
-        assert.deepEqual(input, { password: "p", confirm: "ИЗТРИЙ" });
+        assert.deepEqual(input, { password: "p", confirm: "ИЗТРИЙ", session: null });
         return { deleted: true };
       },
     }),
@@ -183,4 +183,76 @@ test("legal pages are published and linked from registration", async () => {
   assert.match(terms, /чл\. 57, т\. 13/u);
   assert.match(server, /app\.get\("\/privacy"/u);
   assert.match(server, /app\.get\("\/terms"/u);
+});
+
+function fakeIdToken(authTimeSeconds) {
+  const part = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  return `${part({ alg: "none" })}.${part({ auth_time: authTimeSeconds })}.sig`;
+}
+
+test("people who sign in with Google or GitHub delete with a recent sign-in instead of a password", async () => {
+  const nowMs = Date.parse("2026-11-27T22:00:00Z");
+  const recent = fakeIdToken(nowMs / 1000 - 60);
+  const old = fakeIdToken(nowMs / 1000 - 3600);
+  const depsFor = (calls, token, userId = "uid-1") => {
+    const deps = deletionDeps(calls, {
+      signIn: async () => {
+        throw new Error("no password sign-in for external profiles");
+      },
+    });
+    const base = deps.authClient();
+    deps.authClient = () => ({
+      auth: {
+        ...base.auth,
+        getUser: async (value) => ({
+          data: { user: value === token ? { id: userId } : null },
+          error: value === token ? null : new Error("expired"),
+        }),
+        refreshSession: async () => ({
+          data: { session: { access_token: token }, user: { id: userId } },
+          error: null,
+        }),
+      },
+    });
+    deps.now = () => nowMs;
+    return deps;
+  };
+
+  const calls = [];
+  await deleteAccount(
+    member,
+    { confirm: ACCOUNT_DELETE_PHRASE, session: { access_token: recent, refresh_token: "r" } },
+    depsFor(calls, recent),
+  );
+  assert.deepEqual(calls.at(-2), ["deleteAccount", recent]);
+
+  const refreshedCalls = [];
+  await deleteAccount(
+    member,
+    { confirm: ACCOUNT_DELETE_PHRASE, session: { access_token: "expired", refresh_token: "r" } },
+    depsFor(refreshedCalls, recent),
+  );
+  assert.deepEqual(refreshedCalls.at(-2), ["deleteAccount", recent]);
+
+  const oldCalls = [];
+  await assert.rejects(
+    deleteAccount(
+      member,
+      { confirm: ACCOUNT_DELETE_PHRASE, session: { access_token: old, refresh_token: "r" } },
+      depsFor(oldCalls, old),
+    ),
+    { code: "ACCOUNT_DELETE_SIGN_IN_AGAIN" },
+  );
+  assert.equal(oldCalls.length, 0);
+
+  const otherCalls = [];
+  await assert.rejects(
+    deleteAccount(
+      member,
+      { confirm: ACCOUNT_DELETE_PHRASE, session: { access_token: recent, refresh_token: "r" } },
+      depsFor(otherCalls, recent, "someone-else"),
+    ),
+    { code: "ACCOUNT_DELETE_REAUTH_FAILED" },
+  );
+  assert.equal(otherCalls.length, 0);
 });

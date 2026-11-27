@@ -1695,8 +1695,8 @@ function openMyDataDrawer() {
       <h3>${localizedMarkup("Изтрий профила")}</h3>
       <p>${localizedMarkup("Изтрива окончателно паметта, разговорите, проектите, предложенията и профила за вход и прекъсва свързаните AI асистенти. Счетоводните документи за плащания се пазят, както изисква законът.")}</p>
       <form class="my-data-delete" data-account-delete>
-        <label for="accountDeletePassword">${localizedMarkup("Парола")}</label>
-        <input id="accountDeletePassword" type="password" autocomplete="current-password" required />
+        <label for="accountDeletePassword">${localizedMarkup("Парола (само ако влизаш с имейл и парола)")}</label>
+        <input id="accountDeletePassword" type="password" autocomplete="current-password" />
         <label for="accountDeleteConfirm">${localizedMarkup("Напиши ИЗТРИЙ за потвърждение")}</label>
         <input id="accountDeleteConfirm" type="text" autocomplete="off" required />
         <button type="submit" class="connection-revoke">${localizedMarkup("Изтрий профила завинаги")}</button>

@@ -4,7 +4,12 @@ import {
   deleteAccount,
   exportAccountData,
 } from "../services/accountDataService.js";
-import { clearUserSessionCookie } from "../services/userAuthService.js";
+import {
+  USER_SESSION_COOKIE,
+  clearUserSessionCookie,
+  decryptUserSession,
+  parseCookies,
+} from "../services/userAuthService.js";
 import { logSafeError } from "../utils/safeLogging.js";
 
 function sendError(res, error) {
@@ -47,6 +52,7 @@ export function createAccountRouter({
       const result = await removeAccount(req.owner, {
         password: req.body?.password,
         confirm: req.body?.confirm,
+        session: decryptUserSession(parseCookies(req.headers.cookie)[USER_SESSION_COOKIE]),
       });
       res.append("Set-Cookie", clearUserSessionCookie());
       return res.json(result);

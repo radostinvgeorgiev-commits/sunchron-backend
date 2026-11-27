@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="/readability.css?v=20261125" />
     <script src="/locale-en.js"></script>
     <script src="/locale.js"></script>
+    <script src="/contact.js" defer></script>
   </head>
   <body class="public-document">
     <main class="plans-shell doc-layout">
@@ -36,6 +37,7 @@
         <a href="#start">Регистрация</a><a href="#chat">Разговори</a
         ><a href="#credits">AI единици</a><a href="#data">Данни</a
         ><a href="#support">Помощ</a>
+        <a href="#contact">Пиши ни</a>
         <a href="#merchant">Търговец</a>
       </nav>
       <section class="product-section" id="start">
@@ -126,6 +128,7 @@
           изтривания от интерфейса. От менюто на профила → „Моите данни“ можеш
           да изтеглиш копие на всички данни и да изтриеш профила си.
         </p>
+        <p><a href="/data-deletion">Как да изтриеш данните си</a></p>
         <p>
           Не въвеждай чужди чувствителни данни без основание. Подробности има в
           <a href="/privacy">Политиката за поверителност</a> и
@@ -135,15 +138,75 @@
       <section class="product-section" id="support">
         <h2>Поддръжка и условия за продажба</h2>
         <p>
-          Използвай <a href="/plans#early-access">формата за запитване</a>.
-          Запитванията се записват за собственика; не обещаваме автоматично
-          изпращане на имейл или срок за отговор.
+          Пиши ни през <a href="#contact">формуляра за връзка</a>. Отговаряме
+          на имейла, който посочиш. Нямаме телефон за поддръжка.
         </p>
         <p>
           Преди приемане на плащания трябва да бъдат завършени условията за
           продажба, отказ и възстановяване на плащания. Те не са заместени с
           този технически преглед. Дотогава платените покупки са изключени.
         </p>
+      </section>
+      <section class="request-panel contact-panel" id="contact">
+        <div>
+          <h2>Пиши ни</h2>
+          <p>
+            Въпрос, проблем, идея или искане за твоите данни: пиши тук. Всяко
+            съобщение се записва и получава номер.
+          </p>
+          <p>
+            Използваме имейла ти само за да ти отговорим.
+            <a href="/privacy">Поверителност</a>
+          </p>
+        </div>
+        <form id="contact-form" method="post" action="/api/contact">
+          <label for="contact-name">Име (по желание)</label>
+          <input
+            id="contact-name"
+            name="name"
+            type="text"
+            autocomplete="name"
+            maxlength="100"
+          />
+          <label for="contact-email">Имейл за отговор</label>
+          <input
+            id="contact-email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            maxlength="254"
+            required
+          />
+          <label for="contact-topic">Тема</label>
+          <select id="contact-topic" name="topic">
+            <option value="question">Въпрос</option>
+            <option value="problem">Проблем</option>
+            <option value="idea">Идея</option>
+            <option value="data">Моите данни</option>
+            <option value="other">Друго</option>
+          </select>
+          <label for="contact-message">Съобщение</label>
+          <textarea
+            id="contact-message"
+            name="message"
+            rows="6"
+            minlength="10"
+            maxlength="4000"
+            required
+          ></textarea>
+          <div class="contact-trap" hidden>
+            <label for="contact-website">Остави това поле празно</label>
+            <input
+              id="contact-website"
+              name="website"
+              type="text"
+              tabindex="-1"
+              autocomplete="off"
+            />
+          </div>
+          <button class="plans-button" type="submit">Изпрати</button>
+          <p id="contact-status" role="status" hidden></p>
+        </form>
       </section>
       <section
         class="product-section"

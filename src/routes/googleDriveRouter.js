@@ -4,10 +4,11 @@ import {
   analyzeDriveFile,
   buildAuthorizationUrl,
   createNonce,
-  createSession,
-  disconnectSession,
+  disconnectGoogleAccount,
   downloadDriveFile,
   exchangeCode,
+  finishGoogleConnection,
+  forgetLinkedSession,
   getLatestGoogleSessionId,
   hasSession,
   listGmailMessages,
@@ -17,8 +18,10 @@ import {
   parseCookies,
   getYoutubeChannelSummary,
   googleConnectPath,
+  googleLoginHint,
+  grantedExtras,
   isGoogleScopeMissing,
-  linkSaveSession,
+  latestMainSessionFor,
   GOOGLE_LINKED_EXTRAS,
   saveAnswerToGoogle,
   saveSessionFor,
@@ -44,6 +47,12 @@ async function sessionId(req) {
   return (await sessionBelongsTo(id, req.owner)) ? id : null;
 }
 
+// This browser's connection, or else the account's newest one (a new
+// browser, or the cookie expired), so a connect keeps what the person has.
+async function accountSessionId(req) {
+  return (await sessionId(req)) || (await latestMainSessionFor(req.owner));
+}
+
 function ownerOnly(req, res, next) {
   if (req.owner?.role === "owner") return next();
   return res.status(403).json({
@@ -60,26 +69,33 @@ function sendError(res, error) {
       known
         ? error.message
         : "Google Drive временно не е достъпен.",
+    // Lets the page offer "Разреши" only when a permission is really missing.
+    ...(known && error.code ? { code: error.code } : {}),
   });
 }
 
-router.get("/connect", (req, res) => {
+router.get("/connect", async (req, res) => {
   try {
-    const state = createNonce();
-    const add = typeof req.query.add === "string" ? [req.query.add] : [];
-    const stateCookie = `synchron_google_state=${state}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`;
+    const add = typeof req.query.add === "string" ? req.query.add : "";
+    // Saving files (save) and uploading videos (publish) each get their own
+    // token, linked from the main connection.
+    const linked = GOOGLE_LINKED_EXTRAS.includes(add) ? add : "";
+    // The step travels in the state, which Google sends back unchanged and
+    // the callback checks against this browser's cookie.
+    const state = `${linked ? `${linked}.` : ""}${createNonce()}`;
+    // Everyone, the owner too, starts with the scopes Google's free check
+    // covers. A renewed connection, or one more service (add=youtube / gmail /
+    // drive), asks again for every service this connection already has.
+    const current = await accountSessionId(req);
+    const keep = current && !linked ? await grantedExtras(current) : [];
+    const loginHint = current ? await googleLoginHint(current) : "";
     res.setHeader(
       "Set-Cookie",
-      GOOGLE_LINKED_EXTRAS.includes(add[0])
-        ? [
-            stateCookie,
-            `synchron_google_add=${add[0]}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
-          ]
-        : stateCookie,
+      `synchron_google_state=${state}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
     );
-    // Everyone, the owner too, starts with the scopes Google's free check covers;
-    // full Gmail / Drive are the separate add=gmail / add=drive steps.
-    res.redirect(buildAuthorizationUrl(state, add));
+    res.redirect(
+      buildAuthorizationUrl(state, linked ? [linked] : [...keep, add], { loginHint }),
+    );
   } catch (error) {
     sendError(res, error);
   }
@@ -88,11 +104,8 @@ router.get("/connect", (req, res) => {
 router.get("/callback", async (req, res) => {
   try {
     const cookies = parseCookies(req.headers.cookie);
-    if (
-      !req.query.code ||
-      !req.query.state ||
-      req.query.state !== cookies.synchron_google_state
-    ) {
+    const state = typeof req.query.state === "string" ? req.query.state : "";
+    if (!req.query.code || !state || state !== cookies.synchron_google_state) {
       throw new GoogleDriveError(
         "Невалидно или изтекло Google потвърждение.",
         400,
@@ -100,21 +113,21 @@ router.get("/callback", async (req, res) => {
       );
     }
     const tokens = await exchangeCode(String(req.query.code));
-    const newId = await createSession(tokens, req.owner);
-    const linked = GOOGLE_LINKED_EXTRAS.includes(cookies.synchron_google_add)
-      ? cookies.synchron_google_add
-      : null;
-    const mainId = linked ? await sessionId(req) : null;
-    const id = mainId && (await linkSaveSession(mainId, newId, linked)) ? mainId : newId;
+    const { id, partial } = await finishGoogleConnection(tokens, req.owner, {
+      previousId: await accountSessionId(req),
+      linked: GOOGLE_LINKED_EXTRAS.find((kind) => state.startsWith(`${kind}.`)) || null,
+    });
     res.setHeader("Set-Cookie", [
       `synchron_google_session=${id}; ${COOKIE_OPTIONS}`,
       "synchron_google_state=; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
       "synchron_google_add=; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
     ]);
-    res.redirect("/?google=connected");
+    res.redirect(partial ? "/?google=partial" : "/?google=connected");
   } catch (error) {
     logSafeError("[Google OAuth callback]", error);
-    res.redirect("/?google=error");
+    res.redirect(
+      error?.code === "GOOGLE_ACCOUNT_MISMATCH" ? "/?google=error&reason=account" : "/?google=error",
+    );
   }
 });
 
@@ -156,7 +169,7 @@ const GOOGLE_CHECKS = {
   drive: (id) => listDriveFiles(id),
   gmail: (id) => listGmailMessages(id, 1),
   calendar: (id) => listGoogleCalendarEvents(id, 1, 1),
-  contacts: (id) => searchGoogleContacts(id, "a", 1),
+  contacts: (id) => searchGoogleContacts(id, "a", 1, undefined, { fresh: false }),
   youtube: (id) => getYoutubeChannelSummary(id, 1),
 };
 // A service the person has not turned on yet is not "broken": the tools
@@ -228,8 +241,7 @@ router.get("/check", async (req, res) => {
 });
 
 router.post("/disconnect", async (req, res) => {
-  const id = await sessionId(req);
-  if (id) await disconnectSession(id);
+  await disconnectGoogleAccount(await sessionId(req), req.owner);
   res.setHeader(
     "Set-Cookie",
     "synchron_google_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
@@ -291,17 +303,27 @@ router.post("/gmail/reply-draft", publicAiBudgetContext, async (req, res) => {
 
 // Saves one answer as a Google Doc or Sheet in the person's own Drive.
 router.post("/save", async (req, res) => {
+  let mainId = null;
+  let saveId = null;
   try {
     const { kind, title, text } = req.body || {};
+    mainId = await sessionId(req);
+    saveId = await saveSessionFor(mainId);
     res.json(
-      await saveAnswerToGoogle(await saveSessionFor(await sessionId(req)), {
+      await saveAnswerToGoogle(saveId, {
         kind: kind === "sheet" ? "sheet" : "doc",
         title: typeof title === "string" ? title : "",
         text: typeof text === "string" ? text : "",
       }),
     );
   } catch (error) {
-    if (isGoogleScopeMissing(error)) {
+    // The linked save token itself stopped working: forget it and ask for a
+    // new one, instead of offering a reconnect that would keep it.
+    const deadSaveToken =
+      saveId && mainId && saveId !== mainId &&
+      error instanceof GoogleDriveError && RECONNECT_CODES.has(error.code);
+    if (deadSaveToken) await forgetLinkedSession(mainId, saveId, "save");
+    if (deadSaveToken || isGoogleScopeMissing(error)) {
       // Saving needs its own small permission (only files AI CORE creates).
       return res.status(403).json({
         error: "Запазването в Google още не е разрешено.",

@@ -829,6 +829,12 @@ async function liveSignedIn(origin) {
     await page.click(`.mine-group [data-plus="${key}"]`);
   };
   await step("Жив сайт: вход с тестовия профил", async () => {
+    // New profiles use Google; the old email/password sign-in is folded away.
+    expect(await page.locator("#googleSignInBtn").isVisible(), "няма бутон „Продължи с Google“");
+    expect((await page.locator("#registerForm").count()) === 0, "още има регистрация с имейл и парола");
+    if (!(await page.locator("#loginEmail").isVisible())) {
+      await page.click("#passwordSignIn summary");
+    }
     await page.fill("#loginEmail", email);
     await page.fill("#loginPassword", password);
     await page.click("#loginBtn");

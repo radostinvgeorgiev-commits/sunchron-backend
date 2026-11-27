@@ -13,7 +13,7 @@ body {
   margin: 0;
 }
 a {
-  color: #075f47;
+  color: #4a2fc9;
   text-underline-offset: 0.2em;
 }
 h1,
@@ -49,7 +49,7 @@ li {
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
-  border-bottom: 1px solid #cedbd2;
+  border-bottom: 1px solid #dcd9f2;
   padding-bottom: 1.1rem;
 }
 .plans-brand {
@@ -74,7 +74,7 @@ li {
   flex-direction: column;
   gap: 0.75rem;
   padding: clamp(1.1rem, 3vw, 1.75rem);
-  border: 1px solid #cedbd2;
+  border: 1px solid #dcd9f2;
   border-radius: 1rem;
   background: #fff;
 }
@@ -85,7 +85,7 @@ li {
 .plan-price {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #075f47;
+  color: #4a2fc9;
 }
 .plan ul {
   padding-left: 1.25rem;
@@ -100,7 +100,7 @@ li {
   border: 0;
   border-radius: 0.6rem;
   padding: 0.7rem 1rem;
-  background: #075f47;
+  background: #4a2fc9;
   color: white;
   text-decoration: none;
   font: inherit;
@@ -118,7 +118,7 @@ li {
   margin-top: 2rem;
   padding: clamp(1.25rem, 4vw, 2rem);
   background: #fff;
-  border: 1px solid #cedbd2;
+  border: 1px solid #dcd9f2;
   border-radius: 1rem;
 }
 .request-panel p {
@@ -144,7 +144,7 @@ li {
 }
 .request-consent input {
   margin-top: 0.35rem;
-  accent-color: #075f47;
+  accent-color: #4a2fc9;
 }
 .request-panel .plans-button {
   justify-self: start;
@@ -168,7 +168,7 @@ li {
 .requests-table td {
   text-align: left;
   padding: 0.55rem 0.7rem;
-  border-bottom: 1px solid #cedbd2;
+  border-bottom: 1px solid #dcd9f2;
 }
 
 @media (max-width: 46rem) {
@@ -181,7 +181,7 @@ li {
 .product-section {
   margin-top: 2rem;
   padding: 1.5rem;
-  border: 1px solid #cedbd2;
+  border: 1px solid #dcd9f2;
   border-radius: 1rem;
   background: white;
 }

@@ -39,7 +39,7 @@
 
 .interaction-mode-switch button[aria-pressed="true"] {
   color: #fff;
-  background: #12201d;
+  background: #12132b;
   box-shadow: 0 4px 12px rgba(18, 32, 29, 0.18);
 }
 
@@ -196,7 +196,7 @@
   padding: 9px 11px;
   border: 1px solid #cbd5e1;
   border-radius: 13px;
-  color: #0f5132;
+  color: #4a2fc9;
   background: #f8faf9;
   font: inherit;
   font-size: 12px;
@@ -360,7 +360,7 @@
   border: 0;
   border-radius: 11px;
   color: #fff;
-  background: #12201d;
+  background: #12132b;
   font: inherit;
   font-weight: 800;
   cursor: pointer;
@@ -382,7 +382,7 @@
 }
 
 .work-activity-item strong {
-  color: #1b6f57;
+  color: #5b3fe0;
   font-size: 13px;
 }
 
@@ -400,7 +400,7 @@
 
 .work-activity-item small {
   grid-column: 2;
-  color: #1b6f57;
+  color: #5b3fe0;
   font-weight: 800;
 }
 
@@ -476,7 +476,7 @@
   border: 1px solid #c3d5cd;
   border-radius: 10px;
   background: #fff;
-  color: #155a47;
+  color: #4a2fc9;
   font: inherit;
   text-align: left;
   overflow-wrap: anywhere;
@@ -485,12 +485,12 @@
 
 .work-project-chat-controls > :first-child,
 .work-project-chat-action[aria-current="true"] {
-  border-color: #155a47;
-  background: #155a47;
+  border-color: #4a2fc9;
+  background: #4a2fc9;
   color: #fff;
 }
 
 .work-project-chat-action:focus-visible {
-  outline: 2px solid #155a47;
+  outline: 2px solid #4a2fc9;
   outline-offset: 2px;
 }

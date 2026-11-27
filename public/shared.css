@@ -2,7 +2,7 @@
 body {
   margin: 0; background: #f4f6f4; color: #000; font: 600 18px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-a { color: #2f6b52; }
+a { color: #5b3fe0; }
 .shared-header {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
   padding: 12px 18px; background: #fff; border-bottom: 1px solid #dde2df;
@@ -14,7 +14,7 @@ a { color: #2f6b52; }
 .shared-meta { margin: 0 0 20px; color: #3a3a3a; font-size: .9rem; }
 .shared-messages { display: flex; flex-direction: column; gap: 14px; }
 .shared-message { padding: 14px 16px; border-radius: 16px; background: #fff; border: 1px solid #dde2df; overflow-wrap: anywhere; }
-.shared-message.user { background: #2f6b52; border-color: #2f6b52; color: #fff; margin-left: 12%; }
+.shared-message.user { background: #5b3fe0; border-color: #5b3fe0; color: #fff; margin-left: 12%; }
 .shared-who { font-size: .8rem; font-weight: 800; opacity: .75; margin-bottom: 4px; }
 .shared-body { white-space: normal; }
 .shared-message.user .shared-body { white-space: pre-wrap; }
@@ -28,6 +28,6 @@ a { color: #2f6b52; }
   border: 1px solid #c9d1cc; border-radius: 14px; resize: vertical;
 }
 .avatar-ask button {
-  font: inherit; padding: 0 18px; border: 0; border-radius: 14px; background: #2f6b52; color: #fff; cursor: pointer;
+  font: inherit; padding: 0 18px; border: 0; border-radius: 14px; background: #5b3fe0; color: #fff; cursor: pointer;
 }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

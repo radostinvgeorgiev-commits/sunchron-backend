@@ -287,6 +287,7 @@ AI Council, включително обобщаване|AI Council, including sy
 Услугата се предоставя от|The service is provided by
 , ЕИК 208554306.|, Bulgarian company ID 208554306.
 Фирмени данни и контакт|Company details and contact
+Твоят AI. Твоят свят.|Your AI. Your world.
 Връщане на вложеното: парите, които собственикът е вложил във фирмата, за да плаща разходите в началото, му се връщат като заем.|Return of the investment: the money the owner put into the company to pay the costs at the start is paid back to him as a loan.
 Всички разходи се плащат от фирмената сметка. В началото собственикът я захранва със свои пари.|All costs are paid from the company account. At the start, the owner funds it with his own money.
 Тук се вижда колко е вложено и колко е върнато.|This page shows how much has been put in and how much has been paid back.

@@ -36,6 +36,12 @@ Novarium ти помага да анализираш информация, да 
 Вход за собственик|Owner sign-in
 Продължи с GitHub|Continue with GitHub
 Продължи с Google|Continue with Google
+Продължи с Microsoft|Continue with Microsoft
+Продължи с Facebook|Continue with Facebook
+Входът с Facebook не успя. Опитай пак.|Facebook sign-in failed. Try again.
+Входът с Microsoft не успя. Опитай пак.|Microsoft sign-in failed. Try again.
+Имейлът от Facebook вече има профил. Влез с „Продължи с Google“ или с паролата си.|The email from Facebook already has an account. Sign in with Continue with Google or with your password.
+Имейлът от Microsoft вече има профил. Влез с „Продължи с Google“ или с паролата си.|The email from Microsoft already has an account. Sign in with Continue with Google or with your password.
 Входът с GitHub беше отказан.|GitHub sign-in was cancelled.
 Входът с GitHub изтече. Опитай пак.|GitHub sign-in expired. Try again.
 Входът с GitHub още не е включен.|GitHub sign-in is not enabled yet.

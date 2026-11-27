@@ -238,6 +238,8 @@ const GOOGLE_SIGN_IN_ERRORS = Object.freeze({
   AUTH_GITHUB_DISABLED: "Входът с GitHub още не е включен.",
   AUTH_GITHUB_PROVIDER_DISABLED: "Входът с GitHub още не е включен.",
   AUTH_GITHUB_EXISTING_ACCOUNT: "Имейлът от GitHub вече има профил. Влез с „Продължи с Google“ или с паролата си.",
+  AUTH_FACEBOOK_EXISTING_ACCOUNT: "Имейлът от Facebook вече има профил. Влез с „Продължи с Google“ или с паролата си.",
+  AUTH_MICROSOFT_EXISTING_ACCOUNT: "Имейлът от Microsoft вече има профил. Влез с „Продължи с Google“ или с паролата си.",
 });
 
 function showGoogleSignInError() {
@@ -249,7 +251,11 @@ function showGoogleSignInError() {
       GOOGLE_SIGN_IN_ERRORS[code] ||
         (code.startsWith("AUTH_GITHUB")
           ? "Входът с GitHub не успя. Опитай пак."
-          : "Входът с Google не успя. Опитай пак."),
+          : code.startsWith("AUTH_FACEBOOK")
+            ? "Входът с Facebook не успя. Опитай пак."
+            : code.startsWith("AUTH_MICROSOFT")
+              ? "Входът с Microsoft не успя. Опитай пак."
+              : "Входът с Google не успя. Опитай пак."),
     ),
   );
   if (code === "AUTH_GOOGLE_PASSWORD_ACCOUNT" && elements.passwordSignIn) {
@@ -320,11 +326,15 @@ async function init() {
     if (googleSignInBtn) googleSignInBtn.hidden = session.googleSignIn !== true;
     const githubSignInBtn = document.getElementById("githubSignInBtn");
     if (githubSignInBtn) githubSignInBtn.hidden = session.githubSignIn !== true;
+    for (const button of document.querySelectorAll("a[data-provider]")) {
+      button.hidden = session.providerSignIn?.[button.dataset.provider] !== true;
+    }
     // Without Google the password form is the only way in, so keep it open.
     if (
       elements.passwordSignIn &&
       session.googleSignIn !== true &&
-      session.githubSignIn !== true
+      session.githubSignIn !== true &&
+      !Object.values(session.providerSignIn || {}).some(Boolean)
     ) {
       elements.passwordSignIn.open = true;
     }

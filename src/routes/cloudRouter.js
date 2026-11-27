@@ -20,7 +20,7 @@ router.post("/", (req, res) => {
     status: "error",
     code: "LEGACY_CLOUD_ROUTE_REMOVED",
     message:
-      "Този стар маршрут не изпълнява памет или модули. Използвай официалните Novarium API маршрути.",
+      "Този стар маршрут не изпълнява памет или модули. Използвай официалните NovariumAI API маршрути.",
   });
 });
 

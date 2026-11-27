@@ -15,7 +15,7 @@ test("keeps liveness and sign-in routes public", async () => {
     .get("/")
     .set("Host", "cloudaicore.com")
     .expect(200);
-  assert.match(publicEntry.text, /Novarium/u);
+  assert.match(publicEntry.text, /NovariumAI/u);
   // Old /register links still open the sign-in page, now without a
   // password sign-up form.
   const registration = await request(app).get("/register").expect(200);

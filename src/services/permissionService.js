@@ -144,7 +144,7 @@ const POLICY = Object.freeze({
     decision: "allow",
     risk: "medium",
     reason:
-      "Разговорът е ограничен до собствения Novarium профил и не изпълнява външни действия.",
+      "Разговорът е ограничен до собствения NovariumAI профил и не изпълнява външни действия.",
   }),
   "external.send": Object.freeze({
     decision: "confirm",

@@ -84,9 +84,9 @@ stateless Cloud Run service без отделно проектирано съх�
 6. `npm start` под service manager. `/mcp` слуша само на 127.0.0.1.
 7. TLS reverse proxy публикува само нужния endpoint. Bearer е задължителен за
    всички MCP методи. Само `/health` е публичен и не показва лични данни.
-   Не задавайте `WHATSAPP_BRIDGE_TOKEN` на стойността на production Novarium token.
+   Не задавайте `WHATSAPP_BRIDGE_TOKEN` на стойността на production NovariumAI token.
 8. Private MCP endpoint се конфигурира в отделен plugin с authorization header.
-   Текущото приложение Novarium няма тези нови инструменти, докато няма отделна
+   Текущото приложение NovariumAI няма тези нови инструменти, докато няма отделна
    проверена интеграция; кодът не ги добавя тихомълком в production каталога.
 9. В поддържан ChatGPT Work клиент се прави rescan и реално subscribe за
    `whatsapp.message.created`, `conversation_id=beyza` с инструкция: преведи на

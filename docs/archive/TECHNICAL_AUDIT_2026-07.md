@@ -4,7 +4,7 @@
 продуктово приемане и следващите стъпки използвай
 [`../CURRENT_PRODUCT_ACCEPTANCE.md`](../CURRENT_PRODUCT_ACCEPTANCE.md).
 
-# Пълен технически одит на Novarium
+# Пълен технически одит на NovariumAI
 
 Дата: 31 юли 2026 г.
 
@@ -70,9 +70,9 @@ GitHub Actions, приложният код и автоматичните тес
 6. Същите разрешени инструменти са изложени към ChatGPT през `/mcp`; discovery и
    OAuth endpoints са публични, а `tools/call` е защитен.
 
-Novarium вече може да бъде собствено работно място, а ChatGPT — външен клиент
+NovariumAI вече може да бъде собствено работно място, а ChatGPT — външен клиент
 към същите инструменти. Това не пренася автоматично ChatGPT Memory, Projects,
-Library или други вътрешни ChatGPT данни в Novarium.
+Library или други вътрешни ChatGPT данни в NovariumAI.
 
 ## Потвърдени защити
 
@@ -171,7 +171,7 @@ Library или други вътрешни ChatGPT данни в Novarium.
 - **Реален проблем:** конфигурация, provider policy, callback URL, consent scope
   или account permission може да се провали едва при реалния потребител.
 - **Проверка:** на computer web добави `https://synchron.foundation/mcp` в
-  ChatGPT Developer mode, влез в Novarium, извикай read-only system tool,
+  ChatGPT Developer mode, влез в NovariumAI, извикай read-only system tool,
   рестартирай/изчакай deployment и провери refresh. Отделно изпълни малък
   GitHub write в test branch и Google event в тестов календар — само след
   точните потребителски потвърждения.

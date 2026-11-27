@@ -124,7 +124,7 @@ test("нова инсталация записва актуалния roadmap", 
   assert.equal(dom.window.SynchronTaskJournal.roadmapVersion, 3);
 });
 
-test("последната стъпка от Novarium се пази като една текуща задача", () => {
+test("последната стъпка от NovariumAI се пази като една текуща задача", () => {
   const dom = createHarness();
   const journal = dom.window.SynchronTaskJournal;
 
@@ -140,7 +140,7 @@ test("последната стъпка от Novarium се пази като е�
   assert.equal(currentTasks.length, 1);
   assert.equal(currentTasks[0].title, "Провери резултата в production.");
   assert.equal(currentTasks[0].status, "now");
-  assert.equal(currentTasks[0].priority, "Следва от Novarium");
+  assert.equal(currentTasks[0].priority, "Следва от NovariumAI");
 
   journal.openCurrentNext();
   assert.equal(dom.window.document.getElementById("dataDrawer").hidden, false);

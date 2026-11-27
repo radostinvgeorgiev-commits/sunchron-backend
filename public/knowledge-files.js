@@ -27,7 +27,7 @@
   const $ = (selector) => dialog.querySelector(selector);
   $("h2").textContent = text("Моите файлове");
   $(".share-note").textContent = text(
-    "Добави текстови файлове или PDF. При всеки въпрос Novarium търси в тях и ползва намереното. Виждаш ги само ти и можеш да ги изтриеш по всяко време.",
+    "Добави текстови файлове или PDF. При всеки въпрос NovariumAI търси в тях и ползва намереното. Виждаш ги само ти и можеш да ги изтриеш по всяко време.",
   );
   $(".knowledge-add").textContent = text("Добави файл");
   $(".archive-add").textContent = text("Внеси архив (Facebook, Instagram, LinkedIn, X, Google, ChatGPT, Claude)");
@@ -108,7 +108,7 @@
           : { name: file.name, text: await read(file, "readAsText") },
       );
       await load();
-      status(text("Файлът е добавен. Novarium вече ще търси в него."));
+      status(text("Файлът е добавен. NovariumAI вече ще търси в него."));
     } catch (error) {
       status(error.message);
     }

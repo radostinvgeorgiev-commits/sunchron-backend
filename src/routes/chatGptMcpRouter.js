@@ -28,7 +28,7 @@ import { logSafeError } from "../utils/safeLogging.js";
 const widgetUri = "ui://novarium/workspace-v1.html";
 const widget = {
   uri: widgetUri,
-  name: "Novarium workspace",
+  name: "NovariumAI workspace",
   mimeType: "text/html;profile=mcp-app",
 };
 const conversationIdPattern =
@@ -39,9 +39,9 @@ const securitySchemes = [{ type: "oauth2", scopes: [CHATGPT_MCP_SCOPE] }];
 const tools = [
   {
     name: "open_novarium_workspace",
-    title: "Open Novarium workspace",
+    title: "Open NovariumAI workspace",
     description:
-      "Open the interactive Novarium workspace in the current ChatGPT conversation.",
+      "Open the interactive NovariumAI workspace in the current ChatGPT conversation.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -56,9 +56,9 @@ const tools = [
   },
   {
     name: "ask_novarium",
-    title: "Ask Novarium",
+    title: "Ask NovariumAI",
     description:
-      "Get a Novarium answer to a specific question using the connected account. Costs three AI credits for standard accounts and saves the question and answer to the connected account. Send only the question and context the user chose to share.",
+      "Get a NovariumAI answer to a specific question using the connected account. Costs three AI credits for standard accounts and saves the question and answer to the connected account. Send only the question and context the user chose to share.",
     inputSchema: {
       type: "object",
       properties: {
@@ -77,9 +77,9 @@ const tools = [
   },
   {
     name: "get_novarium_balance",
-    title: "Check Novarium balance",
+    title: "Check NovariumAI balance",
     description:
-      "Read the AI credit balance of the connected Novarium account.",
+      "Read the AI credit balance of the connected NovariumAI account.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -155,7 +155,7 @@ export function createChatGptMcpRouter({
       );
       if (!identity)
         throw new McpOAuthError(
-          "Connect your Novarium account.",
+          "Connect your NovariumAI account.",
           401,
           "invalid_token",
         );
@@ -179,7 +179,7 @@ export function createChatGptMcpRouter({
       return res.status(status).json({
         jsonrpc: "2.0",
         id: req.body.id ?? null,
-        result: result("Connect your Novarium account.", {
+        result: result("Connect your NovariumAI account.", {
           "mcp/www_authenticate": [challenge],
         }),
       });
@@ -231,7 +231,7 @@ export function createChatGptMcpRouter({
         if (params?.name === "open_novarium_workspace") {
           if (Object.keys(args).length)
             return failure(-32602, "This tool takes no arguments.");
-          return reply(result("Novarium is open."));
+          return reply(result("NovariumAI is open."));
         }
         if (params?.name === "get_novarium_balance") {
           if (Object.keys(args).length)
@@ -288,19 +288,19 @@ export function createChatGptMcpRouter({
             await saveTurn(sessionId, question, answer, ownerId);
           } catch (error) {
             conversationPersisted = false;
-            logSafeError("[Novarium plugin] Save conversation", error);
+            logSafeError("[NovariumAI plugin] Save conversation", error);
           }
           return reply({
             ...result(answer),
             structuredContent: { answer, sessionId, conversationPersisted },
           });
         }
-        return failure(-32602, "Unknown Novarium tool.");
+        return failure(-32602, "Unknown NovariumAI tool.");
       } catch (error) {
         const message =
           error instanceof ProductError
             ? error.message
-            : "Novarium is temporarily unavailable. Try again shortly.";
+            : "NovariumAI is temporarily unavailable. Try again shortly.";
         return reply({ ...result(message), isError: true });
       }
     },

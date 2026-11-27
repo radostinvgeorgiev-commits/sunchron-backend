@@ -49,7 +49,7 @@ test("connection and permission controls lead to real setup actions", async () =
   assert.match(app, /\/api\/google\/disconnect/u);
   assert.match(app, /\/api\/github\/disconnect/u);
   assert.match(app, /GitHub Read проверява/u);
-  assert.match(app, /Novarium Code Write подготвя отделен branch/u);
+  assert.match(app, /NovariumAI Code Write подготвя отделен branch/u);
   assert.match(app, /Не поставяй token или private key в чата/u);
   assert.doesNotMatch(app, /GITHUB_CLIENT_ID/u);
   assert.doesNotMatch(app, /GITHUB_CLIENT_SECRET/u);

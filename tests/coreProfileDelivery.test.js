@@ -50,7 +50,7 @@ test("every real chat request sends Core Profile and owner memory to OpenAI", as
 
   try {
     for (const [sessionId, message] of [
-      ["core-profile-first", "Какво е Novarium?"],
+      ["core-profile-first", "Какво е NovariumAI?"],
       ["core-profile-second", "Как работим по техническа задача?"],
     ]) {
       const response = await request(app)
@@ -75,7 +75,7 @@ test("every real chat request sends Core Profile and owner memory to OpenAI", as
       input[0].content,
       /\[ПОСТОЯНЕН ОСНОВЕН КОНТЕКСТ НА ПРОЕКТА\]/u,
     );
-    assert.match(input[0].content, /Novarium е лична AI операционна система/u);
+    assert.match(input[0].content, /NovariumAI е лична AI операционна система/u);
     assert.match(input[0].content, /\[ЛИЧЕН ПРОФИЛ НА РАДКО\]/u);
     assert.match(
       input[0].content,
@@ -83,7 +83,7 @@ test("every real chat request sends Core Profile and owner memory to OpenAI", as
     );
     assert.equal(
       input[1].content,
-      index === 0 ? "Какво е Novarium?" : "Как работим по техническа задача?",
+      index === 0 ? "Какво е NovariumAI?" : "Как работим по техническа задача?",
     );
   }
 });

@@ -238,7 +238,7 @@ function durableTaskRunMessage(status, fallback) {
   if (status === "waiting_confirmation") {
     return "Задачата чака конкретно потвърждение.";
   }
-  return fallback || "Novarium обработва задачата.";
+  return fallback || "NovariumAI обработва задачата.";
 }
 
 async function auditAction(event) {
@@ -275,7 +275,7 @@ export function getConversationPersistenceMetadata(conversationPersisted) {
 
 const ASSISTANT_CONTEXT = [
   "[КОНТЕКСТ И ПРАВИЛА ЗА ТОЗИ РАЗГОВОР]",
-  "Ти си Novarium — личната AI операционна система на Радко.",
+  "Ти си NovariumAI — личната AI операционна система на Радко.",
   `[КАНОНИЧНА ФОРМУЛИРОВКА] ${PROJECT_DEFINITION}`,
   AVATAR_DEFINITION,
   "[ПОСТОЯНЕН ОСНОВЕН КОНТЕКСТ НА ПРОЕКТА]",
@@ -285,7 +285,7 @@ const ASSISTANT_CONTEXT = [
   "Тази формулировка е по-нова и има предимство пред стари записи, които описват целия проект само като AI аватар.",
   "Паметта, инструментите, разрешенията и изборът на AI модел са отделни части на системата.",
   "Използвай само инструменти, които реално са изпълнени и разрешени. Не твърди, че услуга е свързана, ако не е проверена.",
-  "GitHub Read работи чрез отделен проверим инструмент. Novarium Code Write подготвя отделен branch, commit и Pull Request само след точно потвърждение; никога не предлагай нов GitHub App, private key, token или secret без проверена необходимост и изрично решение.",
+  "GitHub Read работи чрез отделен проверим инструмент. NovariumAI Code Write подготвя отделен branch, commit и Pull Request само след точно потвърждение; никога не предлагай нов GitHub App, private key, token или secret без проверена необходимост и изрично решение.",
   "Човекът, с когото разговаряш, е Радко. Никога не казвай, че ти си Радко.",
   "Обръщай се към Радко на „ти“. Говори естествено, спокойно, директно и човешки.",
   "Отговаряй първо на същината. Не започвай всеки отговор с поздрав, представяне или името на Радко.",
@@ -320,7 +320,7 @@ const ASSISTANT_CONTEXT = [
 function memberAssistantContext(personName) {
   return [
     "[КОНТЕКСТ И ПРАВИЛА ЗА ТОЗИ РАЗГОВОР]",
-    `Ти си Novarium — личен AI асистент на ${personName}.`,
+    `Ти си NovariumAI — личен AI асистент на ${personName}.`,
     AVATAR_DEFINITION,
     "Този е личен потребителски профил с отделна постоянна памет.",
     "Можеш да използваш актуално интернет търсене и постоянната памет само на този профил.",
@@ -340,7 +340,7 @@ function memberAssistantContext(personName) {
   ].join("\n");
 }
 
-// The owner's Council knows the Novarium project; a member's Council knows
+// The owner's Council knows the NovariumAI project; a member's Council knows
 // that member's own avatar profile and never the project's facts.
 export function buildCouncilContext({ owner, avatarProfile = "", projectReference = "" }) {
   return [
@@ -554,7 +554,7 @@ export function buildContextualTaskMessage(message, recentHistory = []) {
   return [
     "[КОНТЕКСТ ЗА КРАТКО ПРОДЪЛЖЕНИЕ]",
     previousUser ? `Предишна заявка: ${previousUser.content}` : "",
-    `Последно предложение на Novarium: ${previousAssistant.content}`,
+    `Последно предложение на NovariumAI: ${previousAssistant.content}`,
     `Текущ отговор на потребителя: ${cleanMessage}`,
     "Използвай това само за планиране на предложената следваща стъпка.",
     "Не го приемай като точно потвърждение за рисково действие; защитеният confirmation процес остава задължителен.",
@@ -820,7 +820,7 @@ export function detectCapabilityRequests(message) {
         capability: "memory.read",
         action: "memory.read",
         message: subtask,
-        scope: /(?:проекта|ai\s*core|novarium)/iu.test(subtask)
+        scope: /(?:проекта|novarium(?:\s*ai)?)/iu.test(subtask)
           ? "project"
           : undefined,
       });
@@ -1172,7 +1172,7 @@ export function englishGoogleFailure(error) {
   const calendarReason = englishCalendarReason(error);
   if (calendarReason) return calendarReason;
   if (error.code === "GOOGLE_API_DISABLED") {
-    return "This Google service is not turned on for Novarium yet.";
+    return "This Google service is not turned on for NovariumAI yet.";
   }
   if (error.code === "GOOGLE_REQUEST_FAILED") {
     return "Google is temporarily unavailable. Try again in a moment.";
@@ -1458,7 +1458,7 @@ export function buildToolEvidence(replies, { english = false, includesCodexRevie
           "Write the answer in the language of the latest request, not in the language of any other context.",
         ],
         codex: [
-          "The code analysis result (Claude) is already verified input for Novarium. Analyze it, say what is actually proven and suggest only one next step.",
+          "The code analysis result (Claude) is already verified input for NovariumAI. Analyze it, say what is actually proven and suggest only one next step.",
           "Do not send a new task automatically and do not claim a code change without a separately confirmed capability process.",
         ],
       }
@@ -1473,7 +1473,7 @@ export function buildToolEvidence(replies, { english = false, includesCodexRevie
           "Отговори на езика на последната заявка, а не на езика на останалия контекст.",
         ],
         codex: [
-          "Резултатът от кодовия анализ (Claude) вече е проверен вход за Novarium. Анализирай го, посочи какво реално е доказано и предложи само една следваща стъпка.",
+          "Резултатът от кодовия анализ (Claude) вече е проверен вход за NovariumAI. Анализирай го, посочи какво реално е доказано и предложи само една следваща стъпка.",
           "Не изпращай автоматично нова задача и не заявявай запис в кода без отделно потвърден capability процес.",
         ],
       };
@@ -1553,7 +1553,7 @@ router.post("/compare", async (req, res) => {
   const input = [
     {
       role: "system",
-      content: `Ти си Novarium. Отговори ясно и кратко (до около 200 думи). ${replyLanguageInstruction(req.body?.language) || ""}`,
+      content: `Ти си NovariumAI. Отговори ясно и кратко (до около 200 думи). ${replyLanguageInstruction(req.body?.language) || ""}`,
     },
     { role: "user", content: message },
   ];
@@ -2313,7 +2313,7 @@ router.post("/chat", async (req, res) => {
         message:
           error instanceof CodeTaskError || error instanceof GitHubOAuthError
             ? error.message
-            : "Novarium кодовата задача не можа да бъде изпълнена.",
+            : "NovariumAI кодовата задача не можа да бъде изпълнена.",
       });
     }
     res.end();
@@ -2429,8 +2429,8 @@ router.post("/chat", async (req, res) => {
           error?.status === 207 || error?.code === "OWNER_ONLY"
             ? error.message
             : useEnglishReplyFallback(language)
-              ? "The confirmed Novarium task could not be completed."
-              : "Потвърдената Novarium задача не можа да бъде изпълнена.",
+              ? "The confirmed NovariumAI task could not be completed."
+              : "Потвърдената NovariumAI задача не можа да бъде изпълнена.",
         code: error?.code || "TASK_WRITE_FAILED",
       });
     }
@@ -2474,7 +2474,7 @@ router.post("/chat", async (req, res) => {
   const isProfileOverviewQuestion = isOverviewQuestion(cleanMessage, "мен");
   const isProjectOverviewQuestion = isOverviewQuestion(
     cleanMessage,
-    "(?:проекта|ai\\s*core|novarium)",
+    "(?:проекта|novarium(?:\\s*ai)?)",
   );
   if (isProfileOverviewQuestion || isProjectOverviewQuestion) {
     const requestedScope = isProjectOverviewQuestion ? "project" : "personal";
@@ -2525,7 +2525,7 @@ router.post("/chat", async (req, res) => {
         intentId: councilIntentId,
       });
       taskMessage = [
-        "[ИЗБРАНА ПРЕПОРЪКА ОТ Novarium COUNCIL]",
+        "[ИЗБРАНА ПРЕПОРЪКА ОТ NovariumAI COUNCIL]",
         `Първоначална заявка: ${selectedCouncilIntent.question}`,
         `Обща препоръка: ${selectedCouncilIntent.recommendation}`,
         selectedCouncilIntent.rationale
@@ -2988,7 +2988,7 @@ router.post("/chat", async (req, res) => {
         attemptTimedOut = deadline?.aborted === true;
         if (index === attempts.length - 1 || abortController.signal.aborted)
           throw error;
-        logSafeError("[Novarium] Work provider attempt failed", error);
+        logSafeError("[NovariumAI] Work provider attempt failed", error);
       }
     }
     const fullReply = isRuntimeAiIdentityRequest(cleanMessage)
@@ -3034,14 +3034,14 @@ router.post("/chat", async (req, res) => {
       ...getConversationPersistenceMetadata(conversationPersisted),
     });
     console.log(
-      `[Novarium] ${aiResponse.provider} success for ${cleanSessionId}`,
+      `[NovariumAI] ${aiResponse.provider} success for ${cleanSessionId}`,
     );
     console.info(
       `[Chat] Response completed (agent stream) for ${cleanSessionId}`,
     );
   } catch (error) {
     if (abortController.signal.aborted && !timedOut) return;
-    logSafeError("[Novarium] Failure", error);
+    logSafeError("[NovariumAI] Failure", error);
     if (isWork && capabilityReplies.length) {
       await sendCapabilityFallback();
       return;

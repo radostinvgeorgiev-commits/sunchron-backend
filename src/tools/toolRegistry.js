@@ -99,7 +99,7 @@ export function registerCoreTools() {
     {
       id: "synchron-agent-chat",
       provider: "synchron",
-      name: "Novarium Conversation",
+      name: "NovariumAI Conversation",
       version: "1.0.0",
       category: "chat",
       capabilities: [
@@ -124,7 +124,7 @@ export function registerCoreTools() {
     {
       id: "synchron-integrations-status",
       provider: "synchron",
-      name: "Novarium Status",
+      name: "NovariumAI Status",
       version: "1.0.0",
       category: "system",
       capabilities: [
@@ -191,7 +191,7 @@ export function registerCoreTools() {
     {
       id: "github-write",
       provider: "github",
-      name: "Novarium Code Write",
+      name: "NovariumAI Code Write",
       version: "1.0.0",
       category: "code",
       capabilities: [
@@ -361,7 +361,7 @@ export function registerCoreTools() {
     {
       id: "synchron-tasks",
       provider: "synchron",
-      name: "Novarium Tasks",
+      name: "NovariumAI Tasks",
       version: "1.0.0",
       category: "tasks",
       capabilities: [

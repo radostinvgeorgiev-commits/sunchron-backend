@@ -1,8 +1,8 @@
-# Codex агент в Novarium
+# Codex агент в NovariumAI
 
 > Исторически документ — не е текущ roadmap. Codex вече не се използва; текущите правила са в AGENTS.md, а цените в `src/services/productPlansService.js` и `docs/AVATAR_ROADMAP.md`.
 
-Codex е основният code/ops изпълнител в Novarium, но винаги под owner control.
+Codex е основният code/ops изпълнител в NovariumAI, но винаги под owner control.
 Той работи в стандартния защитен поток:
 
 `read → branch → write → commit → PR → tests → owner review → merge/deploy само след потвърждение`.

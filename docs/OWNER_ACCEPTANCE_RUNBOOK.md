@@ -17,7 +17,7 @@ acceptance от CI.
 2. Провери, че се показват OpenAI, Gemini, Grok и coding ролята.
 3. Провери точните файлове и че няма secrets или deployment конфигурация.
 4. Въведи единствено показаната фраза
-   `Потвърждавам Novarium кодова задача: <uuid>`.
+   `Потвърждавам NovariumAI кодова задача: <uuid>`.
 5. Провери branch, commit, Pull Request и CI; `main` не трябва да е променен
    директно.
 

@@ -9,7 +9,7 @@ import { recordAuditEvent } from "../services/permissionService.js";
 import { logSafeError } from "../utils/safeLogging.js";
 
 // Lets every signed-in account see and disconnect the AI assistants (Claude,
-// ChatGPT, Gemini, ...) that it connected to Novarium over MCP. Only the
+// ChatGPT, Gemini, ...) that it connected to NovariumAI over MCP. Only the
 // caller's own grants are listed or revoked.
 
 const KNOWN_CLIENTS = Object.freeze([

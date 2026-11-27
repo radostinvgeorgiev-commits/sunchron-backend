@@ -1,4 +1,4 @@
-# Novarium operations runbook
+# NovariumAI operations runbook
 
 ## Production proof
 

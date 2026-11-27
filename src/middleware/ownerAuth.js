@@ -85,7 +85,7 @@ export function createRequireOwnerSession({
       if (!identity) {
         return res.status(401).json({
           error:
-            "Трябва да влезеш в потребителския си профил, за да използваш Novarium.",
+            "Трябва да влезеш в потребителския си профил, за да използваш NovariumAI.",
           code: "AUTH_REQUIRED",
         });
       }

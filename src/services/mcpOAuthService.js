@@ -545,7 +545,7 @@ export const CLAUDE_SCOPES = Object.freeze([
 function assertClientAllowedForRole(clientId, role, code = "access_denied") {
   if (clientId === CLAUDE_CLIENT_ID && role !== "owner") {
     throw new McpOAuthError(
-      "Claude е достъпен само за собственика на Novarium.",
+      "Claude е достъпен само за собственика на NovariumAI.",
       403,
       code,
     );
@@ -780,7 +780,7 @@ export function createMcpAuthorizationCode(
   env = process.env,
 ) {
   if (!identity?.id || !identity?.memoryOwnerId || !identity?.role) {
-    throw new McpOAuthError("Липсва валиден Novarium профил.", 401);
+    throw new McpOAuthError("Липсва валиден NovariumAI профил.", 401);
   }
   assertClientAllowedForRole(request.clientId, identity.role);
   if (requiresOwnerRole(request.scopes) && identity.role !== "owner") {
@@ -838,7 +838,7 @@ export function createMcpConsentToken(
   now = Math.floor(Date.now() / 1_000),
 ) {
   if (!identity?.id) {
-    throw new McpOAuthError("Липсва валиден Novarium профил.", 401);
+    throw new McpOAuthError("Липсва валиден NovariumAI профил.", 401);
   }
   assertClientAllowedForRole(request.clientId, identity.role);
   return encryptPayload(

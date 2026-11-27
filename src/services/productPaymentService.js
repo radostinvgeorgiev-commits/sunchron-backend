@@ -76,7 +76,7 @@ export async function createProductCheckout(
     "payment_method_types[0]": "card",
     "line_items[0][price_data][currency]": "eur",
     "line_items[0][price_data][unit_amount]": String(plan.amountCents),
-    "line_items[0][price_data][product_data][name]": `Novarium · ${plan.name} · ${plan.credits} AI единици / 30 дни`,
+    "line_items[0][price_data][product_data][name]": `NovariumAI · ${plan.name} · ${plan.credits} AI единици / 30 дни`,
     "line_items[0][quantity]": "1",
     "metadata[account]": productAccountId(identity),
     "metadata[plan]": plan.id,

@@ -94,7 +94,7 @@ test("loads a supported catalog and safely falls back when a catalog is unavaila
   fallback.window.close();
 });
 
-test("a language chosen in Novarium is not translated again by the browser", async () => {
+test("a language chosen in NovariumAI is not translated again by the browser", async () => {
   const chosen = await render(landing, { path: "/?lang=en", browserLanguage: "bg-BG" });
   const doc = chosen.window.document;
   assert.equal(doc.documentElement.getAttribute("translate"), "no");

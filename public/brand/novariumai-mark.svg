@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0A1630"/>
+      <stop offset="1" stop-color="#0C2E52"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#3B82F6"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FFE7A3" stop-opacity="0.9"/>
+      <stop offset="0.45" stop-color="#FFC857" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#FFC857" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="r"><rect width="512" height="512" rx="116"/></clipPath>
+  </defs>
+  <g clip-path="url(#r)">
+    <rect width="512" height="512" fill="url(#bg)"/>
+    <path d="M0 330 C 90 290, 170 370, 256 330 S 420 290, 512 330 L512 512 L0 512 Z" fill="url(#water)" opacity="0.55"/>
+    <path d="M0 372 C 100 336, 160 410, 260 374 S 430 340, 512 374 L512 512 L0 512 Z" fill="url(#water)"/>
+    <circle cx="150" cy="440" r="13" fill="#E0F7FF" opacity="0.8"/>
+    <circle cx="186" cy="410" r="8" fill="#E0F7FF" opacity="0.7"/>
+    <circle cx="372" cy="452" r="10" fill="#E0F7FF" opacity="0.6"/>
+  </g>
+  <circle cx="256" cy="196" r="150" fill="url(#glow)"/>
+  <path d="M256 70 C 268 160, 290 182, 380 196 C 290 210, 268 232, 256 322 C 244 232, 222 210, 132 196 C 222 182, 244 160, 256 70 Z" fill="#FFFFFF"/>
+  
+</svg>

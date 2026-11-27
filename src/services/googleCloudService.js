@@ -65,7 +65,7 @@ export function getGoogleCloudRuntimeStatus({ env = process.env } = {}) {
 export function formatGoogleCloudRuntimeStatus(status) {
   const running = status.cloudRunDetected === true;
   return [
-    "Проверих активния Google Cloud runtime на Novarium.",
+    "Проверих активния Google Cloud runtime на NovariumAI.",
     `• Каноничен сайт: ${status.canonicalOrigin}.`,
     `• Google Cloud project: ${status.projectId || "не е конфигуриран"}.`,
     `• Cloud Run: ${running ? "потвърден от runtime средата" : "не е потвърден от runtime средата"}.`,

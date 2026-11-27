@@ -25,7 +25,7 @@ function useStore(t, documents) {
   });
 }
 
-test("a customer's memory never contains the Novarium product definition", async (t) => {
+test("a customer's memory never contains the NovariumAI product definition", async (t) => {
   useStore(t, []);
   assert.deepEqual(await listProfileMemories({ ownerId: "identity-platform:customer" }), []);
   assert.deepEqual(

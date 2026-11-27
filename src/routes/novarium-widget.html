@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Novarium</title>
+    <title>NovariumAI</title>
     <style>
       :root {
         color-scheme: light;
@@ -182,10 +182,10 @@
   </head>
   <body>
     <div class="workspace">
-      <aside aria-label="Novarium">
+      <aside aria-label="NovariumAI">
         <div class="brand">
-          <img src="https://cloudaicore.com/novarium-mark.png" alt="" />
-          <div><strong>Novarium</strong><small>Novarium</small></div>
+          <img src="https://cloudaicore.com/novariumai-mark.png" alt="" />
+          <div><strong>NovariumAI</strong><small>NovariumAI</small></div>
         </div>
         <button id="new" type="button" disabled>+ New chat</button>
         <p id="credit-label" role="status"></p>
@@ -198,7 +198,7 @@
         >
       </aside>
       <main>
-        <h1 id="heading">Chat with Novarium</h1>
+        <h1 id="heading">Chat with NovariumAI</h1>
         <div id="messages" role="log" aria-live="polite"></div>
         <p id="status" role="status"></p>
         <form id="composer">
@@ -208,8 +208,8 @@
             maxlength="6000"
             required
             disabled
-            aria-label="Message to Novarium"
-            placeholder="Write to Novarium"
+            aria-label="Message to NovariumAI"
+            placeholder="Write to NovariumAI"
           ></textarea>
           <button id="send" type="submit" disabled>Send</button>
         </form>
@@ -228,11 +228,11 @@
           messages = byId("messages"),
           credits = byId("credit-label");
         byId("heading").textContent = t(
-          "Chat with Novarium",
-          "Разговор с Novarium",
+          "Chat with NovariumAI",
+          "Разговор с NovariumAI",
         );
         byId("website").textContent = t("Open website ↗", "Отвори сайта ↗");
-        question.placeholder = t("Write to Novarium", "Пиши на Novarium");
+        question.placeholder = t("Write to NovariumAI", "Пиши на NovariumAI");
         question.setAttribute("aria-label", question.placeholder);
         send.textContent = t("Send", "Изпрати");
         reset.textContent = t("+ New chat", "+ Нов разговор");
@@ -306,7 +306,7 @@
           const box = document.createElement("div"),
             title = document.createElement("strong");
           box.className = "message " + role;
-          title.textContent = role === "user" ? t("You", "Ти") : "Novarium";
+          title.textContent = role === "user" ? t("You", "Ти") : "NovariumAI";
           box.append(title, document.createTextNode(value));
           messages.append(box);
           messages.scrollTop = messages.scrollHeight;
@@ -323,7 +323,7 @@
           if (busy || !value) return;
           busy = true;
           send.disabled = reset.disabled = true;
-          status.textContent = t("Novarium is answering…", "Novarium отговаря…");
+          status.textContent = t("NovariumAI is answering…", "NovariumAI отговаря…");
           try {
             const reply = await tool("ask_novarium", {
               question: value,
@@ -358,8 +358,8 @@
         });
         if (window.parent === window) {
           status.textContent = t(
-            "Open the Novarium workspace in ChatGPT to start.",
-            "Отвори Novarium в ChatGPT, за да започнеш.",
+            "Open the NovariumAI workspace in ChatGPT to start.",
+            "Отвори NovariumAI в ChatGPT, за да започнеш.",
           );
           return;
         }

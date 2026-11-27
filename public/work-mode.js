@@ -11,7 +11,7 @@
     coder: "Код разработчик (Claude)",
   });
   const ENGINE_OPTIONS = Object.freeze({
-    "novarium": "Novarium",
+    "novarium": "NovariumAI",
     codex: "Claude код · анализ и branch/PR",
   });
   const MODEL_OPTIONS = Object.freeze({
@@ -496,7 +496,7 @@
     elements.workModeToolbarBtn?.setAttribute("aria-pressed", String(isWork));
     elements.chatInput.placeholder = text(isWork
       ? "Какъв резултат да изработим?"
-      : "Пиши на Novarium");
+      : "Пиши на NovariumAI");
     const project = activeProject();
     const agent = activeAgent();
     elements.projectLabel.textContent = isWork
@@ -504,7 +504,7 @@
       : text("Разговор");
     // Built-in agent names ("Изпълни") are translated; names people gave
     // their own agents stay as written.
-    elements.agentLabel.textContent = agent?.name ? text(agent.name) : "Novarium";
+    elements.agentLabel.textContent = agent?.name ? text(agent.name) : "NovariumAI";
     activateMobileCommand(isWork ? "work" : "chat");
     // The header model picker shows chat models in "Чат" and the work
     // agent's models in "Работа".
@@ -1128,7 +1128,7 @@
     addText(
       elements.drawerBody,
       "p",
-      "Избери проект и ясен работен режим. Novarium използва контекста, показва напредъка и спира преди рискови действия.",
+      "Избери проект и ясен работен режим. NovariumAI използва контекста, показва напредъка и спира преди рискови действия.",
       "work-manager-intro",
     );
     addText(
@@ -1194,7 +1194,7 @@
           conversationIds: project?.conversationIds || [],
         },
         agent: {
-          name: agent?.name || "Novarium",
+          name: agent?.name || "NovariumAI",
           role: agent?.role || "general",
           model: agent?.model || "auto",
           purpose: agent?.purpose || "",

@@ -380,7 +380,7 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general(
       "GITHUB_REPOSITORY",
       "GitHub",
-      "Разрешеното хранилище на Novarium.",
+      "Разрешеното хранилище на NovariumAI.",
       { hasDefault: true },
     ),
     general(

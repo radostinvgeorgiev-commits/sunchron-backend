@@ -27,6 +27,9 @@ export const MCP_GOOGLE_READ_SCOPE = "synchron:google.read";
 export const MCP_GOOGLE_WRITE_SCOPE = "synchron:google.write";
 export const MCP_AUDIT_READ_SCOPE = "synchron:audit.read";
 export const MCP_INFRASTRUCTURE_WRITE_SCOPE = "synchron:infrastructure.write";
+// Making the owner's videos and saving/uploading them to his own Drive and
+// YouTube (owner's request 2026-11-27: the agent makes and uploads them).
+export const MCP_MEDIA_WRITE_SCOPE = "synchron:media.write";
 export const MCP_OFFLINE_ACCESS_SCOPE = "offline_access";
 export const MCP_SCOPES = Object.freeze([
   MCP_READ_SCOPE,
@@ -38,6 +41,7 @@ export const MCP_SCOPES = Object.freeze([
   MCP_GOOGLE_WRITE_SCOPE,
   MCP_AUDIT_READ_SCOPE,
   MCP_INFRASTRUCTURE_WRITE_SCOPE,
+  MCP_MEDIA_WRITE_SCOPE,
 ]);
 const MCP_AUTHORIZATION_SCOPES = Object.freeze([
   ...MCP_SCOPES,
@@ -50,6 +54,7 @@ const MCP_OWNER_ONLY_SCOPES = Object.freeze([
   MCP_GOOGLE_WRITE_SCOPE,
   MCP_AUDIT_READ_SCOPE,
   MCP_INFRASTRUCTURE_WRITE_SCOPE,
+  MCP_MEDIA_WRITE_SCOPE,
 ]);
 
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
@@ -363,8 +368,6 @@ export function requiredScopesForMcpTool(name) {
   if (
     [
       "create_gmail_draft",
-      "generate_video",
-      "publish_video_to_youtube",
       "prepare_gmail_send",
       "prepare_gmail_delete",
       "confirm_google_action",
@@ -381,6 +384,9 @@ export function requiredScopesForMcpTool(name) {
     )
   ) {
     return [MCP_AUDIT_READ_SCOPE];
+  }
+  if (["generate_video", "publish_video_to_youtube"].includes(name)) {
+    return [MCP_MEDIA_WRITE_SCOPE];
   }
   if (["prepare_github_change", "confirm_github_change"].includes(name)) {
     return [MCP_GITHUB_WRITE_SCOPE];
@@ -524,11 +530,13 @@ export const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
 // The owner explicitly allowed Google Cloud changes from Claude (2026-11-26):
 // each one is still a prepared, exact, audited action that needs a separate
 // confirm call. Memory, task, GitHub and Google Workspace writes stay out.
+// Videos (2026-11-27): the owner asked the agent to make and upload them.
 export const CLAUDE_SCOPES = Object.freeze([
   MCP_READ_SCOPE,
   MCP_AGENT_CHAT_SCOPE,
   MCP_AUDIT_READ_SCOPE,
   MCP_INFRASTRUCTURE_WRITE_SCOPE,
+  MCP_MEDIA_WRITE_SCOPE,
   MCP_OFFLINE_ACCESS_SCOPE,
 ]);
 

@@ -51,10 +51,10 @@ import { extractMemoryCandidates } from "../services/memoryCandidateService.js";
 import { PUBLIC_FILE_CREDITS } from "../services/publicAiBudget.js";
 import {
   buildProjectConversationReference,
+  codeBlocksOfLines,
   isNextStepLine,
   sanitizeAssistantHistory,
   loadProjectConversationContext,
-  nextStepLineIndexes,
 } from "../services/projectConversationContextService.js";
 import {
   buildKnowledgeContext,
@@ -535,10 +535,35 @@ export function combineConversationHistory(persistent, recent) {
 // of each and maxLength in all, so it uses at most maxLength / 6,000 long
 // answers and shorter ones of maxLength in all. A long answer is split from
 // at most its last CLEANED_ANSWER_LENGTH characters, the end the cut keeps,
-// and loses its last line there when that is a Next line; real answers are
+// and loses its own Next line there (withoutOwnNextLine); real answers are
 // far shorter and are stripped whole.
 const CLEANED_HISTORY_MARGIN = 4;
 const CLEANED_ANSWER_LENGTH = 100_000;
+// A line with a Google allow link: besides blank lines, the only line that may
+// follow the answer's own Next line, as the page reads it.
+const GOOGLE_ALLOW_LINE = /\/api\/google\/connect/u;
+
+// The kept end of a long answer may start inside a code block, where the
+// answer's own Next line would read as code and be replayed. That line is the
+// last one but for blank lines and allow lines. It goes when the kept end
+// reads it as text, or as code in a block opened by a bare fence line, which
+// may be the closing fence of a block the cut started in; in a block opened
+// with an info string it is code and stays.
+function withoutOwnNextLine(content) {
+  const lines = content.split("\n");
+  let last = lines.length - 1;
+  while (
+    last > 0 &&
+    !isNextStepLine(lines[last]) &&
+    (!lines[last].trim() || GOOGLE_ALLOW_LINE.test(lines[last]))
+  ) {
+    last -= 1;
+  }
+  if (!isNextStepLine(lines[last])) return content;
+  const block = codeBlocksOfLines(lines)[last];
+  if (block && !block.bare) return content;
+  return [...lines.slice(0, last), ...lines.slice(last + 1)].join("\n");
+}
 
 function newestForCleaning(messages, { maxMessages, maxLength }) {
   if (!Array.isArray(messages)) return [];
@@ -558,13 +583,7 @@ function newestForCleaning(messages, { maxMessages, maxLength }) {
     // The cut trims an answer and keeps its end, so a longer one keeps the
     // end of its text, not trailing blank lines.
     if (content.length > allowed) content = content.trimEnd();
-    if (content.length > allowed) {
-      content = content.slice(content.length - allowed);
-      // The kept end may start inside a code block, where the answer's own
-      // last Next line would read as code and be replayed; it goes here.
-      const lastBreak = content.lastIndexOf("\n");
-      if (isNextStepLine(content.slice(lastBreak + 1))) content = content.slice(0, Math.max(lastBreak, 0));
-    }
+    if (content.length > allowed) content = withoutOwnNextLine(content.slice(content.length - allowed));
     room -= content.length;
     newest.push(content === message.content ? message : { ...message, content });
   }
@@ -1388,17 +1407,21 @@ function googleAllowReply(error, english) {
 // The answer's own "Next:"/"Следва:" line stays last, also when it is the
 // whole answer: the page turns it into the Next card only while it is last.
 // A link only in that line does not count: the page takes the line out of the
-// text, so the allow line is still added above it.
+// text, so the allow line is still added above it. Nor does a link only in
+// code, where the page shows it as text that cannot be clicked.
 export function withGoogleAllowLinks(reply, capabilityResults, language) {
   const english = useEnglishReplyFallback(language);
   const replyLines = String(reply).trimEnd().split("\n");
   const last = replyLines.length - 1;
-  const next = nextStepLineIndexes(replyLines).at(-1) === last ? replyLines[last].trim() : "";
-  const body = (next ? replyLines.slice(0, last) : replyLines).join("\n").trimEnd();
+  const blocks = codeBlocksOfLines(replyLines);
+  const next = !blocks[last] && isNextStepLine(replyLines[last]) ? replyLines[last].trim() : "";
+  const bodyLines = next ? replyLines.slice(0, last) : replyLines;
+  const body = bodyLines.join("\n").trimEnd();
+  const shown = bodyLines.filter((line, index) => !blocks[index]).join("\n");
   const lines = [];
   for (const { status, error } of capabilityResults || []) {
     const allow = status === "rejected" ? googleAllowLink(error) : null;
-    if (!allow || body.includes(allow.url)) continue;
+    if (!allow || shown.includes(allow.url)) continue;
     const line = googleAllowReply(error, english);
     if (!lines.includes(line)) lines.push(line);
   }

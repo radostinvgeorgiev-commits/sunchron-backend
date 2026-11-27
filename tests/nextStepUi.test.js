@@ -16,7 +16,7 @@ function nextStepFunctions(catalog = {}) {
   assert.ok(start > 0 && end > start);
   return new Function(
     "chatText",
-    `${app.slice(start, end)}\nreturn { nextStepFromReply, localizedNextLines, resolveNextStep, answerNextLineIndex };`,
+    `${app.slice(start, end)}\nreturn { nextStepFromReply, localizedNextLines, resolveNextStep, answerNextLineIndex, nextLineCodeBlocks };`,
   )((value) => catalog[value] ?? value);
 }
 const ENGLISH_PAGE = {
@@ -236,14 +236,207 @@ const FENCE_CASES = [
   // A closing fence left of the list item's text closes the block, as the
   // model meant it to; marked would start a new block there instead.
   ["- ```bash\n  npm test\n```\n\nNext: x", [4]],
+  // A block's fences are measured from where the text of its list item starts
+  // (column 0 outside lists), and only a closing fence at most three columns
+  // past it closes the block: the nested blocks of a README, a docs page or a
+  // heredoc written in an item are code. A fence two columns under "1. " is
+  // outside the list, as is one two columns in at the top, so their closing
+  // fences are at most three columns in.
+  [
+    [
+      "Готово. Ето стъпките:",
+      "",
+      "1. Създай `README.md`:",
+      "",
+      "    ```markdown",
+      "    # Synchron",
+      "",
+      "    ## Инсталиране",
+      "",
+      "    1. Инсталирай зависимостите:",
+      "       ```bash",
+      "       npm install",
+      "       ```",
+      "    2. Пусни сървъра:",
+      "       ```bash",
+      "       npm start",
+      "       ```",
+      "    ```",
+      "",
+      "2. Качи промяната в GitHub.",
+      "",
+      "Следва: Пусни `npm test` и ми кажи резултата.",
+    ].join("\n"),
+    [21],
+  ],
+  [
+    [
+      "Here is the change:",
+      "",
+      "- Update `README.md`:",
+      "    ```markdown",
+      "    ## Quick start",
+      "    - Install:",
+      "      ```bash",
+      "      npm install",
+      "      ```",
+      "    - Run:",
+      "      ```bash",
+      "      npm start",
+      "      ```",
+      "    ```",
+      "",
+      "Next: Run `npm test` and tell me the result.",
+    ].join("\n"),
+    [15],
+  ],
+  [
+    [
+      "- Добави `docs/setup.md`:",
+      "   ```md",
+      "   1. Клонирай хранилището:",
+      "      ```bash",
+      "      git clone https://example.com/app.git",
+      "      ```",
+      "   2. Инсталирай:",
+      "      ```bash",
+      "      npm ci",
+      "      ```",
+      "   ```",
+      "",
+      "**Следва:** Отвори `docs/setup.md` в GitHub и провери как изглежда.",
+    ].join("\n"),
+    [12],
+  ],
+  [
+    [
+      "- Add `scripts/init.sh`:",
+      "    ```bash",
+      "    if [ ! -f README.md ]; then",
+      "      cat > README.md <<'EOF'",
+      "      ```bash",
+      "      npm start",
+      "      ```",
+      "    EOF",
+      "    fi",
+      "    ```",
+      "",
+      "Next: Run `bash scripts/init.sh` and tell me what it prints.",
+    ].join("\n"),
+    [11],
+  ],
+  [
+    [
+      "1. Create `README.md`:",
+      "  ```markdown",
+      "  ## Setup",
+      "  - Install:",
+      "    ```bash",
+      "    npm install",
+      "    ```",
+      "  ```",
+      "",
+      "Next: Run `npm test` and tell me the result.",
+    ].join("\n"),
+    [9],
+  ],
+  [
+    [
+      "README:",
+      "",
+      "  ```markdown",
+      "  ## Usage",
+      "  - Run:",
+      "    ```bash",
+      "    npm start",
+      "    ```",
+      "  ```",
+      "",
+      "Следва: Пусни `npm start`.",
+    ].join("\n"),
+    [10],
+  ],
+  // A block on its own line in a list item ends with the item too: a fence
+  // line that only closes a nested block leaves a new block open, and the
+  // line after the blank line ends it with the item. So does an unindented
+  // heredoc line after a blank line, and the closing fence then opens a block.
+  ["1. Create:\n   ```bash\n   cat > a <<EOF\n\nhello\nEOF\n   ```\n\nNext: Run the tests and tell me the result.", []],
+  [
+    [
+      "1. Създай `prompt.py`:",
+      "   ```python",
+      '   PROMPT = """',
+      "   Върни резултата като JSON:",
+      "   ```json",
+      '   {"ok": true}',
+      "   ```",
+      '   """',
+      "   ```",
+      "",
+      "Следва: Пусни `python prompt.py` и ми кажи какво връща.",
+    ].join("\n"),
+    [10],
+  ],
+  [
+    [
+      "- Create the README:",
+      "  ```bash",
+      "  cat > README.md <<'EOF'",
+      "  # App",
+      "  ```bash",
+      "  npm start",
+      "  ```",
+      "  EOF",
+      "  ```",
+      "",
+      "Next: Run the script and tell me what it prints.",
+    ].join("\n"),
+    [10],
+  ],
+  [
+    [
+      "1. Създай `docs/usage.md`:",
+      "   ~~~markdown",
+      "   Пример:",
+      "   ~~~bash",
+      "   npm start",
+      "   ~~~",
+      "   ~~~",
+      "",
+      "Следва: Отвори `docs/usage.md` в GitHub.",
+    ].join("\n"),
+    [8],
+  ],
+  // A line left of the item's text that starts with a fence ends the item and
+  // its block, and so does one right below a bare fence line that opened a
+  // block in the item, while that fence is fewer columns past the item's text
+  // than the item's text is past its parent's.
+  ["- ```bash\n  npm test\n```diff\n- a\n+ b\n```\nNext: x", [6]],
+  ["1. Пусни:\n   ```bash\n   npm test\n   ```\n   ```\nСледва: x", [5]],
+  ["- ```\nnpm test\nNext: x", [2]],
+  ["- a\n  - b\n    ```\n  c\nNext: x", [4]],
+  ["- a\n    ```\nb\nNext: x", []],
+  // Lines right below a fence with an info string stay in its block, as the
+  // model meant them, so its closing fence still closes it; marked's other
+  // item endings, such as a heading, are not read.
+  ["1. ```bash\nnpm test\n```\n\nNext: x", [4]],
+  ["- ```bash\nnpm test\nNext: x", []],
+  ["- ```bash\n  npm test\n# done\nNext: x", []],
 ];
-// The cases where the rule knowingly reads the answer as the model meant it,
-// not as marked shows it.
-const MODEL_MEANT_CASES = new Set(["- ```bash\n  npm test\n```\n\nNext: x"]);
+// Where the rule knowingly reads an answer otherwise than marked, with
+// marked's Next lines: the model's closing fence closes its block, and lines
+// below a fence with an info string stay code, where marked ends the list
+// item (a block left open then swallows a later Next line).
+const KNOWN_DIFFERENCES = new Map([
+  ["- ```bash\n  npm test\n```\n\nNext: x", []],
+  ["1. ```bash\nnpm test\n```\n\nNext: x", []],
+  ["- ```bash\nnpm test\nNext: x", [2]],
+  ["- ```bash\n  npm test\n# done\nNext: x", [3]],
+]);
 
 test("the server and the page find the same Next lines outside the same code blocks", async () => {
-  const { nextStepLineIndexes } = await import("../src/services/projectConversationContextService.js");
-  const { answerNextLineIndex } = nextStepFunctions();
+  const { codeBlocksOfLines, nextStepLineIndexes } = await import("../src/services/projectConversationContextService.js");
+  const { answerNextLineIndex, nextLineCodeBlocks } = nextStepFunctions();
   // The page gives the last Next line; asked for each line with the lines
   // above it, it gives every one.
   const pageIndexes = (lines) =>
@@ -253,28 +446,36 @@ test("the server and the page find the same Next lines outside the same code blo
     assert.deepEqual(nextStepLineIndexes(lines), expected, text);
     assert.equal(answerNextLineIndex(lines), expected.at(-1) ?? -1, text);
     assert.deepEqual(pageIndexes(lines), expected, text);
+    assert.deepEqual(nextLineCodeBlocks(lines), codeBlocksOfLines(lines), text);
   }
-  // And every answer of up to four lines made of these agrees too.
+  // And every answer of up to four lines made of these agrees too, in every
+  // line's code block.
   const vocabulary = [
     "```js",
     "```",
     "````",
     "~~~",
     "- ```bash",
+    "- ```",
     "  ```",
+    "   ```bash",
     "    ```",
     "``` js",
     "```npm test```",
     "Next: x",
     "**Следва:** y",
     "- text",
+    "1. text",
     "text",
     "",
   ];
   let answers = [[]];
   for (let length = 1; length <= 4; length += 1) {
     answers = answers.flatMap((lines) => vocabulary.map((line) => [...lines, line]));
-    for (const lines of answers) assert.deepEqual(pageIndexes(lines), nextStepLineIndexes(lines), lines.join("\n"));
+    for (const lines of answers) {
+      assert.deepEqual(pageIndexes(lines), nextStepLineIndexes(lines), lines.join("\n"));
+      assert.deepEqual(nextLineCodeBlocks(lines), codeBlocksOfLines(lines), lines.join("\n"));
+    }
   }
 });
 
@@ -297,9 +498,9 @@ test("the Next lines outside code are the ones marked shows outside code", () =>
       return blocks.some((block) => block.includes("PROBEWORD")) ? [] : [index];
     });
   for (const [text, expected] of FENCE_CASES) {
-    if (!MODEL_MEANT_CASES.has(text)) assert.deepEqual(markedNextLines(text.split("\n")), expected, text);
+    const shown = KNOWN_DIFFERENCES.has(text) ? KNOWN_DIFFERENCES.get(text) : expected;
+    assert.deepEqual(markedNextLines(text.split("\n")), shown, text);
   }
-  assert.deepEqual(markedNextLines("- ```bash\n  npm test\n```\n\nNext: x".split("\n")), []);
 });
 
 test("a link only in the answer's own Next line stays in the text above the Next card", async () => {
@@ -332,6 +533,27 @@ test("a link only in the answer's own Next line stays in the text above the Next
     assert.equal(next.chatOnly, true, language);
     assert.ok(next.displayText.includes(url), `${language}: the allow link is shown`);
   }
+});
+
+test("an allow link only in code does not count as shown, so the clickable allow line is added", async () => {
+  const { withGoogleAllowLinks } = await import("../src/routes/chat.js");
+  const { GoogleDriveError } = await import("../src/services/googleDriveService.js");
+  const url = "https://cloudaicore.com/api/google/connect?add=youtube";
+  const notAllowed = {
+    status: "rejected",
+    request: { capability: "youtube.channel" },
+    error: new GoogleDriveError(`YouTube още не е разрешен. [Свържи YouTube](${url}).`, 403, "GOOGLE_SCOPE_REQUIRED"),
+  };
+  const linksOutsideCode = (text) => marked.parse(text).replace(/<pre[\s\S]*?<\/pre>/gu, "").includes(`href="${url}"`);
+  // The Next line is code in the list item's open block, as marked shows it.
+  const answer = `- \`\`\`bash\n  npm test\nNext: [Allow YouTube](${url}), then ask me again.`;
+  assert.equal(linksOutsideCode(answer), false);
+  const reply = withGoogleAllowLinks(answer, [notAllowed], "en");
+  assert.equal(reply, `${answer}\n\nYouTube is not allowed yet. [Allow YouTube](${url})`);
+  assert.equal(linksOutsideCode(reply), true);
+  // A link on a line outside code is shown, and nothing is added.
+  const shown = `You can allow it here: [Allow YouTube](${url}).\n\n- \`\`\`bash\n  npm test\n  \`\`\``;
+  assert.equal(withGoogleAllowLinks(shown, [notAllowed], "en"), shown);
 });
 
 test("a missing Google permission stays out of the journal even when the answer has its own Next line", () => {

@@ -133,6 +133,37 @@ test("an answer longer than the cut still loses its own last Next line", () => {
   }
 });
 
+test("a long answer loses its own Next line before blank and allow lines too, but never a line of code", () => {
+  // The cut's end starts inside the code block, where the closing fence reads
+  // as a bare opening one; blank lines and an allow line follow the answer's
+  // own Next line, and that line still goes.
+  const allow = "[Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)";
+  const file = `Ето целия файл:\n\`\`\`js\n${"x();\n".repeat(21_000)}\`\`\``;
+  const answer = `${file}\n\nСледва: Пусни тестовете за ЛИПА-742.\n\n${allow}\n\n`;
+  for (const history of [
+    effectiveConversationHistory([], [{ role: "assistant", content: answer }]),
+    effectiveConversationHistory([{ role: "assistant", content: answer }], []),
+  ]) {
+    assert.equal(history.length, 1);
+    assert.doesNotMatch(history[0].content, /Следва|ЛИПА-742/u);
+    assert.ok(history[0].content.endsWith(`x();\n\`\`\`\n\n\n${allow}`));
+  }
+  // So does a Next line that carries the allow link itself.
+  const linked = `${file}\n\nNext: [Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube), then ask me again.`;
+  assert.ok(effectiveConversationHistory([], [{ role: "assistant", content: linked }])[0].content.endsWith("x();\n```"));
+  // A Next-looking line at the end of a block opened with an info string is
+  // code, also in the cut's end, and stays.
+  const tail = "```yaml\nsteps:\n  - run: npm test\nNext: page-2";
+  const head = "Ето CI файла:\n";
+  const config = `${head}${"x".repeat(120_050 - head.length - tail.length - 1)}\n${tail}`;
+  assert.equal(config.length, 120_050);
+  assert.ok(effectiveConversationHistory([], [{ role: "assistant", content: config }])[0].content.endsWith(tail));
+  // In a block opened by a bare fence line, which may be a closing fence read
+  // as an opening one, it goes.
+  const bare = config.replace("```yaml", "```");
+  assert.ok(effectiveConversationHistory([], [{ role: "assistant", content: bare }])[0].content.endsWith("- run: npm test"));
+});
+
 test("the saved turns and the page's recent ones still overlap once their Next lines are stripped", () => {
   const answer = "Ето файла:\n```js\n" + "x();\n".repeat(1500) + "```\nСледва: отвори ЛИПА-742.";
   const saved = [

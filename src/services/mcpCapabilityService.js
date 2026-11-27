@@ -35,6 +35,9 @@ import {
   listGoogleCalendarEvents,
   saveSessionFor,
   saveVideoToDrive,
+  downloadOwnDriveVideo,
+  publishSessionFor,
+  uploadVideoToYoutube,
   searchGmailMessages,
   searchGoogleContacts,
   suggestGoogleCalendarSlots,
@@ -643,6 +646,23 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
     REVERSIBLE_WRITE,
   ),
   tool(
+    "publish_video_to_youtube",
+    "Качи видео от Google Drive в YouTube",
+    "Само за собственика. Качва MP4 видео, което AI CORE е записал в Google Drive (fileId от generate_video), в YouTube канала на собственика. По подразбиране е private; unlisted или public само по негово изрично желание. Докато приложението не мине одита на YouTube API, YouTube държи каченото като private.",
+    {
+      type: "object",
+      properties: {
+        driveFileId: { type: "string", minLength: 5, maxLength: 200 },
+        title: { type: "string", maxLength: 100 },
+        description: { type: "string", maxLength: 5000 },
+        privacy: { type: "string", enum: ["private", "unlisted", "public"], default: "private" },
+      },
+      required: ["driveFileId"],
+      additionalProperties: false,
+    },
+    CONFIRMED_WRITE,
+  ),
+  tool(
     "create_gmail_draft",
     "Създай Gmail чернова",
     "Създава чернова за преглед, но не я изпраща.",
@@ -903,6 +923,7 @@ function permissionAction(name) {
   }
   if (name === "list_google_drive_files") return "drive.read";
   if (name === "generate_video") return "drive.write";
+  if (name === "publish_video_to_youtube") return "youtube.write";
   return "infrastructure.read";
 }
 
@@ -1329,6 +1350,29 @@ export function createMcpCapabilityHandler({
         result = textResult(
           { file: saved, aspectRatio: made.aspectRatio, model: made.model, bytes: made.video.length },
           `Видеото е готово (${made.aspectRatio}) и е в Google Drive: ${saved.url || saved.name}. Нищо не е публикувано.`,
+        );
+      } else if (name === "publish_video_to_youtube") {
+        const publishId = await (dependencies.publishSessionFor || publishSessionFor)(googleSessionId);
+        if (!publishId) {
+          throw new GoogleDriveError(
+            "YouTube качването още не е разрешено. Отвори https://cloudaicore.com/api/google/connect?add=publish и разреши.",
+            403,
+            "GOOGLE_SCOPE_REQUIRED",
+          );
+        }
+        const file = await (dependencies.downloadOwnDriveVideo || downloadOwnDriveVideo)(
+          await (dependencies.saveSessionFor || saveSessionFor)(googleSessionId),
+          args.driveFileId,
+        );
+        const uploaded = await (dependencies.uploadVideoToYoutube || uploadVideoToYoutube)(publishId, {
+          bytes: file.bytes,
+          title: args.title || file.name,
+          description: args.description || "",
+          privacy: args.privacy || "private",
+        });
+        result = textResult(
+          uploaded,
+          `Видеото е качено в YouTube (${uploaded.privacy}): ${uploaded.url}`,
         );
       } else if (name === "create_gmail_draft") {
         const draft = await (dependencies.createGmailDraft || createGmailDraft)(

@@ -19,6 +19,7 @@ import {
   googleConnectPath,
   isGoogleScopeMissing,
   linkSaveSession,
+  GOOGLE_LINKED_EXTRAS,
   saveAnswerToGoogle,
   saveSessionFor,
   sessionBelongsTo,
@@ -69,10 +70,10 @@ router.get("/connect", (req, res) => {
     const stateCookie = `synchron_google_state=${state}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`;
     res.setHeader(
       "Set-Cookie",
-      add[0] === "save"
+      GOOGLE_LINKED_EXTRAS.includes(add[0])
         ? [
             stateCookie,
-            "synchron_google_add=save; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600",
+            `synchron_google_add=${add[0]}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
           ]
         : stateCookie,
     );
@@ -100,9 +101,11 @@ router.get("/callback", async (req, res) => {
     }
     const tokens = await exchangeCode(String(req.query.code));
     const newId = await createSession(tokens, req.owner);
-    const mainId =
-      cookies.synchron_google_add === "save" ? await sessionId(req) : null;
-    const id = mainId && (await linkSaveSession(mainId, newId)) ? mainId : newId;
+    const linked = GOOGLE_LINKED_EXTRAS.includes(cookies.synchron_google_add)
+      ? cookies.synchron_google_add
+      : null;
+    const mainId = linked ? await sessionId(req) : null;
+    const id = mainId && (await linkSaveSession(mainId, newId, linked)) ? mainId : newId;
     res.setHeader("Set-Cookie", [
       `synchron_google_session=${id}; ${COOKIE_OPTIONS}`,
       "synchron_google_state=; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=0",

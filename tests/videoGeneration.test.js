@@ -165,3 +165,32 @@ test("a video goes to Drive with a resumable upload", async () => {
   await assert.rejects(() => saveVideoToDrive("s", { bytes: Buffer.alloc(0) }), { code: "GOOGLE_SAVE_INVALID" });
   assert.match(readFileSync(new URL("../src/services/googleDriveService.js", import.meta.url), "utf8"), /uploadType=resumable/u);
 });
+
+test("the connector uploads a Drive video to YouTube, private unless asked, only after the upload step", async () => {
+  const { createMcpCapabilityHandler } = await import("../src/services/mcpCapabilityService.js");
+  const { requiredScopesForMcpTool, MCP_GOOGLE_WRITE_SCOPE } = await import("../src/services/mcpOAuthService.js");
+  assert.deepEqual(requiredScopesForMcpTool("publish_video_to_youtube"), [MCP_GOOGLE_WRITE_SCOPE]);
+  const uploads = [];
+  const make = (publishId) =>
+    createMcpCapabilityHandler({
+      audit: async () => {},
+      resolveLatestGoogleSession: async () => "main",
+      dependencies: {
+        publishSessionFor: async () => publishId,
+        saveSessionFor: async () => "save",
+        downloadOwnDriveVideo: async (id, fileId) => ({ name: `клип ${id} ${fileId}`, bytes: Buffer.from("MP4") }),
+        uploadVideoToYoutube: async (id, video) => (uploads.push([id, video.title, video.privacy]), { id: "y1", url: "https://www.youtube.com/watch?v=y1", privacy: video.privacy }),
+      },
+    });
+  await assert.rejects(() => make(null)("publish_video_to_youtube", { driveFileId: "file1" }, { ownerId: "owner" }), /add=publish/u);
+  const { result } = await make("pub")("publish_video_to_youtube", { driveFileId: "file1" }, { ownerId: "owner" });
+  assert.deepEqual(uploads, [["pub", "клип save file1", "private"]]);
+  assert.match(result.content[0].text, /YouTube \(private\): https:\/\/www\.youtube\.com\/watch\?v=y1/u);
+});
+
+test("the YouTube upload step asks only for youtube.upload in its own token", async () => {
+  const { GOOGLE_EXTRA_SCOPES, GOOGLE_LINKED_EXTRAS, uploadVideoToYoutube } = await import("../src/services/googleDriveService.js");
+  assert.equal(GOOGLE_EXTRA_SCOPES.publish, "https://www.googleapis.com/auth/youtube.upload");
+  assert.ok(GOOGLE_LINKED_EXTRAS.includes("publish"));
+  await assert.rejects(() => uploadVideoToYoutube("s", { bytes: Buffer.alloc(0) }), { code: "YOUTUBE_UPLOAD_INVALID" });
+});

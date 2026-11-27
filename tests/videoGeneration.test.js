@@ -151,7 +151,7 @@ test("the connector makes a video and saves it to the owner's Google Drive", asy
         model: "gemini-omni-1.1-flash",
         aspectRatio: options.aspectRatio || "16:9",
       }),
-      saveSessionFor: async (id) => `${id}-save`,
+      fileSaveSessionFor: async (id) => `${id}-save`,
       saveVideoToDrive: async (id, file) => (saved.push([id, file.name, file.bytes.toString()]), { id: "f1", name: "x.mp4", url: "https://drive.google.com/file/d/f1/view" }),
     },
   });
@@ -252,4 +252,16 @@ test("a Vertex safety filter is a refusal and gives the units back", async () =>
   });
   await assert.rejects(() => service.generate("нещо"), { code: "VIDEO_REFUSED" });
   assert.equal(refunds, 1);
+});
+
+test("no video is made (and paid for) when it cannot be saved to Drive", async () => {
+  const { createMcpCapabilityHandler } = await import("../src/services/mcpCapabilityService.js");
+  let made = 0;
+  const handler = createMcpCapabilityHandler({
+    audit: async () => {},
+    resolveLatestGoogleSession: async () => "main",
+    dependencies: { fileSaveSessionFor: async () => null, generateVideo: async () => made++ },
+  });
+  await assert.rejects(() => handler("generate_video", { prompt: "реклама" }, { ownerId: "owner" }), /add=save/u);
+  assert.equal(made, 0);
 });

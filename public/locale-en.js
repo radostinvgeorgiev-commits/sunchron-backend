@@ -31,6 +31,7 @@ AI CORE ти помага да анализираш информация, да �
 Профилът, разговорите и паметта са отделени за всеки потребител.|Your account, conversations, and memory are kept separate from those of other users.
 Планове и потребление|Plans and usage
 Помощ|Help
+Блог|Blog
 За разработчици|Developers
 Фирмени данни|Company details
 Вход за собственик|Owner sign-in

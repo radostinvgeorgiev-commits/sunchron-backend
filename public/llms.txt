@@ -8,6 +8,7 @@
 - [Plans](https://cloudaicore.com/plans): free daily chat, AI units for heavier work, no automatic extra charges
 - [Help](https://cloudaicore.com/help): how to use the avatar, memory, tasks and connections
 - [Developers](https://cloudaicore.com/developers): MCP server at https://cloudaicore.com/mcp with OAuth, for Claude and other AI clients
+- [Blog](https://cloudaicore.com/blog/): articles about AI CORE in several languages
 - [Status](https://cloudaicore.com/status): live service status
 
 ## Key facts

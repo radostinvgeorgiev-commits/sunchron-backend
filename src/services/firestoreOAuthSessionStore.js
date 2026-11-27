@@ -102,9 +102,13 @@ export function createFirestoreOAuthSessionStore({
         if (!isMissingSessionIndexError(error)) throw error;
 
         // OAuth sessions remain readable while the preferred composite index
-        // is being built or is missing. Keep the scan bounded and sort locally.
+        // is being built or is missing. A range on updatedAt ordered by
+        // updatedAt uses the automatic single-field index, so the newest
+        // sessions still come first (an unordered read returns them by random
+        // id). The provider is checked below.
         documents = await store.query(collection, {
-          filters: [{ field: "firestoreProvider", value: provider }],
+          filters: [{ field: "updatedAt", op: "GREATER_THAN", value: "" }],
+          orderBy: { field: "updatedAt", direction: "DESCENDING" },
           limit: MAX_SESSION_SCAN_DOCUMENTS,
         });
       }

@@ -711,14 +711,19 @@ export async function disconnectSession(id) {
 // "Прекъсни връзката": every stored Google token of the person goes (older
 // connections and step tokens too), so none stays stored and the next
 // "Свържи Google" starts clean instead of finding an older connection.
+// The tokens are found before anything is removed, and this browser's own
+// connection goes last: if the store fails on the way, that connection and
+// its button stay, and pressing it again finishes the job.
 export async function disconnectGoogleAccount(id, owner) {
-  if (id) await disconnectSession(id);
-  if (!owner?.memoryOwnerId) return;
   const own = new Set();
-  for (const [sessionId, session] of [...(await knownSessions(1000)), ...sessions.entries()]) {
-    if (sessionOwnedBy(session, owner)) own.add(sessionId);
+  if (owner?.memoryOwnerId) {
+    for (const [sessionId, session] of [...(await knownSessions(1000)), ...sessions.entries()]) {
+      if (sessionOwnedBy(session, owner)) own.add(sessionId);
+    }
   }
+  own.delete(id);
   for (const sessionId of own) await deleteStoredSession(sessionId);
+  if (id) await disconnectSession(id);
 }
 
 // Several checks start at once when the tools list opens; they share one

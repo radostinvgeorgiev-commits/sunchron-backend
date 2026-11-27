@@ -263,6 +263,34 @@ test("Firestore surfaces embedded runQuery failures for higher-level fallbacks",
   );
 });
 
+test("a refused runQuery answers 400 with a list, and its status still reaches the fallbacks", async () => {
+  // What Firestore really sends for a query whose composite index is missing.
+  const fetchImpl = async (url) => {
+    if (String(url).includes("metadata.google.internal")) {
+      return jsonResponse({ access_token: "runtime-token", expires_in: 3600 });
+    }
+    return jsonResponse(
+      [{ error: { code: 400, status: "FAILED_PRECONDITION", message: "private index detail" } }],
+      400,
+    );
+  };
+  const store = createFirestoreDocumentStore({ env: ENV, fetchImpl });
+
+  await assert.rejects(
+    () =>
+      store.queryEqual("sessions", "firestoreProvider", "google", 1000, {
+        orderBy: { field: "updatedAt", direction: "DESCENDING" },
+      }),
+    (error) => {
+      assert.equal(error.code, "FIRESTORE_UNAVAILABLE");
+      assert.equal(error.upstreamStatus, 400);
+      assert.equal(error.upstreamErrorStatus, "FAILED_PRECONDITION");
+      assert.doesNotMatch(error.message, /private index detail/u);
+      return true;
+    },
+  );
+});
+
 test("Firestore normalizes only the upstream status code without exposing its message", async () => {
   const fetchImpl = async (url) => {
     if (String(url).includes("metadata.google.internal")) {

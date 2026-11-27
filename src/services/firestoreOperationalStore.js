@@ -81,14 +81,18 @@ export function createFirestoreOperationalStore({
         if (!isMissingAuditIndexError(error)) throw error;
 
         // A missing composite index must not make the read-only audit MCP
-        // capability unavailable. The fallback remains bounded and sorts
-        // locally; the index in firestore.indexes.json is still preferred.
-        entries = await store.queryEqual(
-          auditCollection,
-          "firestorePartition",
-          AUDIT_PARTITION,
-          MAX_AUDIT_SCAN_DOCUMENTS,
-        );
+        // capability unavailable. A range on timestamp ordered by timestamp
+        // uses the automatic single-field index, so the newest entries still
+        // come first (an unordered read returns them by random id); the
+        // partition is checked here. The index in firestore.indexes.json is
+        // still preferred.
+        entries = (
+          await store.query(auditCollection, {
+            filters: [{ field: "timestamp", op: "GREATER_THAN", value: "" }],
+            orderBy: { field: "timestamp", direction: "DESCENDING" },
+            limit: MAX_AUDIT_SCAN_DOCUMENTS,
+          })
+        ).filter(({ data }) => data?.firestorePartition === AUDIT_PARTITION);
       }
 
       return entries

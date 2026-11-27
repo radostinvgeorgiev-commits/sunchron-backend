@@ -194,9 +194,22 @@
       return;
     }
 
-    if (event.target.closest("#disconnectGoogleDrive")) {
-      await request("/api/google/disconnect", { method: "POST" });
-      renderDrive();
+    const disconnect = event.target.closest("#disconnectGoogleDrive");
+    if (disconnect) {
+      disconnect.disabled = true;
+      let failed = false;
+      try {
+        await request("/api/google/disconnect", { method: "POST" });
+      } catch {
+        failed = true;
+      }
+      await renderDrive();
+      if (failed) {
+        body.insertAdjacentHTML(
+          "afterbegin",
+          `<div class="drawer-state drawer-error">${escapeHtml(text("Връзката с Google не се прекъсна. Опитай отново."))}</div>`,
+        );
+      }
     }
   });
 

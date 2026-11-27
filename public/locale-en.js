@@ -415,6 +415,7 @@ Google временно не е достъпен.|Google is temporarily unavaila
 Пощата ми|My mail
 Календарът ми|My calendar
 Прекъсни връзката|Disconnect
+Връзката с Google не се прекъсна. Опитай отново.|Google was not disconnected. Try again.
 Google е свързан. В разговора можеш да питаш за календара и контактите си, да добавяш събития и контакти и да пращаш имейли. Нищо не се записва и не се изпраща без твоето „Потвърди“.|Google is connected. In the chat you can ask about your calendar and contacts, add events and contacts, and send emails. Nothing is saved or sent until you press Confirm.
 Файловете ти в Drive не се виждат. „Запази в Google“ под отговор прави документ, до който AI CORE има достъп.|AI CORE cannot see your Drive files. “Save to Google” under an answer creates a document that AI CORE can access.
 Свържи Google отново|Connect Google again

@@ -94,6 +94,22 @@ test("loads a supported catalog and safely falls back when a catalog is unavaila
   fallback.window.close();
 });
 
+test("a language chosen in AI CORE is not translated again by the browser", async () => {
+  const chosen = await render(landing, { path: "/?lang=en", browserLanguage: "bg-BG" });
+  const doc = chosen.window.document;
+  assert.equal(doc.documentElement.getAttribute("translate"), "no");
+  assert.equal(doc.querySelectorAll('meta[name="google"][content="notranslate"]').length, 1);
+  chosen.window.close();
+  const remembered = await render(landing, { browserLanguage: "en-US", saved: "bg" });
+  assert.equal(remembered.window.document.documentElement.getAttribute("translate"), "no");
+  remembered.window.close();
+  // Only the browser's own language: the browser may still offer to translate.
+  const detected = await render(landing, { browserLanguage: "pl-PL" });
+  assert.equal(detected.window.document.documentElement.getAttribute("translate"), null);
+  assert.equal(detected.window.document.querySelector('meta[name="google"]'), null);
+  detected.window.close();
+});
+
 test("Google's sign-in and consent screens follow the page language", async () => {
   const google = "https://cloudaicore.com/api/google/connect";
   const english = await render(landing, { path: "/?lang=en", browserLanguage: "bg-BG" });

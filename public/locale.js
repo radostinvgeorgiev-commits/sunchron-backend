@@ -21,6 +21,18 @@
   let language = [requested, saved, browserLanguage, "en"].find((code) =>
     supported.has(code),
   );
+  // A language the person chose here is not translated again by the
+  // browser (Chrome's "always translate" would turn English back into
+  // Bulgarian, for example).
+  if (language === requested || language === saved) {
+    document.documentElement.setAttribute("translate", "no");
+    if (!document.querySelector('meta[name="google"][content="notranslate"]')) {
+      const meta = document.createElement("meta");
+      meta.name = "google";
+      meta.content = "notranslate";
+      document.head.append(meta);
+    }
+  }
   let catalog = english;
   const normalize = (value) => value.replace(/\s+/gu, " ").trim();
   const attributes = [

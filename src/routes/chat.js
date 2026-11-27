@@ -157,6 +157,7 @@ import {
   canPlanCapabilities,
   filterCapabilityRequestsForIdentity,
   isMemberIdentity,
+  isMemberOwnGoogleWrite,
 } from "../services/memberCapabilityPolicy.js";
 import {
   AiCouncilError,
@@ -615,6 +616,12 @@ export function detectCapabilityRequests(message) {
       { capability: "mail.send", action: "mail.send", message, input: emailSend },
     ];
   }
+  const contact = parseContactCreateRequest(message);
+  if (contact) {
+    return [
+      { capability: "contacts.create", action: "contacts.write", message, input: { contact } },
+    ];
+  }
   const requests = [];
   // "Не използвай инструменти" anywhere in the message keeps the paid Gemini
   // tools out, even when the sentence is split into separate subtasks.
@@ -986,6 +993,27 @@ export function parseEmailSendRequest(message) {
   const body = match[3].trim();
   if (!body) return null;
   return { to: match[1], subject: match[2], body };
+}
+
+// "Добави контакт: Иван Петров | ivan@example.com | +359 88 123 4567",
+// "Add a contact: Ana Lee | ana@example.com": a new Google contact with a
+// name and an email and/or a phone. It is only prepared here; saving waits
+// for the person's confirmation.
+export function parseContactCreateRequest(message) {
+  const match = String(message || "")
+    .trim()
+    .match(
+      /^(?:моля[,\s]+|please[,\s]+)?(?:добави|създай|запиши|запази|add|create|save)\s+(?:(?:нов|a\s+new|a|new)\s+)?(?:google\s+)?(?:контакт|contact)\s*:?\s*([^|]+?)\s*\|\s*([^|]+?)\s*(?:\|\s*([^|]+?)\s*)?$/iu,
+    );
+  if (!match) return null;
+  const name = match[1].trim();
+  const fields = [match[2], match[3]].map((value) => (value || "").trim()).filter(Boolean);
+  const email = fields.find((value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(value)) || "";
+  const phone = fields.find((value) => /^\+?[\d\s().-]{5,}$/u.test(value)) || "";
+  if (!name || name.length > 300) return null;
+  // Every field is used: an unknown field means it is not a contact request.
+  if (fields.length !== [email, phone].filter(Boolean).length) return null;
+  return { name, email, phone };
 }
 
 // "Намери контакт Иван", "Намери в контактите ми Мария": the name after the
@@ -1791,7 +1819,9 @@ router.post("/chat", async (req, res) => {
       code: "OWNER_ONLY",
     });
   }
-  if (taskConfirmationId && !ownerToolsAllowed) {
+  // A member confirms only steps on their own Google (checked per step when
+  // the task runs).
+  if (taskConfirmationId && !ownerToolsAllowed && !isMemberIdentity(req.owner)) {
     return res.status(403).json({
       error: "Записващите действия са достъпни само за собственика.",
       code: "OWNER_ONLY",
@@ -2130,6 +2160,9 @@ router.post("/chat", async (req, res) => {
         githubSessionId,
         googleSessionId,
         language,
+        ...(ownerToolsAllowed
+          ? {}
+          : { allowItem: (item) => Boolean(googleSessionId) && isMemberOwnGoogleWrite(item.capability) }),
       });
       const fullReply = formatConfirmedTask(confirmed, useEnglishReplyFallback(language));
       const conversationPersisted = await saveConversationTurnBestEffort(
@@ -2166,9 +2199,11 @@ router.post("/chat", async (req, res) => {
       sendEvent("error", {
         status: error?.status || 500,
         message:
-          error?.status === 207
+          error?.status === 207 || error?.code === "OWNER_ONLY"
             ? error.message
-            : "Потвърдената AI CORE задача не можа да бъде изпълнена.",
+            : useEnglishReplyFallback(language)
+              ? "The confirmed AI CORE task could not be completed."
+              : "Потвърдената AI CORE задача не можа да бъде изпълнена.",
         code: error?.code || "TASK_WRITE_FAILED",
       });
     }

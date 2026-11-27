@@ -24,6 +24,9 @@ export async function confirmTaskWrite({
   githubSessionId,
   googleSessionId,
   language,
+  // A member may confirm only steps on their own Google; the whole task is
+  // refused, before anything runs, when one step is not allowed.
+  allowItem,
   env = process.env,
   executeCapability,
   confirmCodeTask,
@@ -48,6 +51,14 @@ export async function confirmTaskWrite({
     throw confirmationError(
       "В потвърждението няма подготвени операции.",
       "TASK_CONFIRMATION_ITEMS_MISSING",
+    );
+  }
+
+  if (typeof allowItem === "function" && !items.every((item) => allowItem(item))) {
+    throw confirmationError(
+      "Тази задача съдържа действие, достъпно само за собственика.",
+      "OWNER_ONLY",
+      403,
     );
   }
 

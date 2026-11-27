@@ -320,7 +320,7 @@ export function getMcpAuthorizationServerMetadata(env = process.env) {
 export function requiredScopesForMcpTool(name) {
   if (
     [
-      "talk_to_ai_core",
+      "talk_to_novarium",
       "send_message",
       "read_reply",
       "list_threads",

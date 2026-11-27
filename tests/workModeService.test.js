@@ -52,7 +52,7 @@ test("work context is bounded and uses a server-owned role allowlist", () => {
   assert.equal(context.agent.role, "general");
   assert.equal(context.agent.model, "auto");
   assert.equal(context.agent.name, "Моят агент");
-  assert.equal(context.agent.engine, "ai-core");
+  assert.equal(context.agent.engine, "novarium");
   assert.ok(!Object.hasOwn(context.agent, "petId"));
   assert.equal(context.project.id, "project-one");
   assert.equal(context.project.run.sequence, 4);
@@ -140,7 +140,7 @@ test("the available personal-agent roles are explicit", () => {
 test("the available agent engines are explicit and Codex replaces code writes with isolated analysis", () => {
   assert.deepEqual(
     listWorkAgentEngines().map(({ id }) => id),
-    ["ai-core", "codex"],
+    ["novarium", "codex"],
   );
   const requests = routeSelectedWorkAgentCapabilities(
     [

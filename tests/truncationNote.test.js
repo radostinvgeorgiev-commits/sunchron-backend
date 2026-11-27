@@ -5,7 +5,7 @@ import {
   requestGeminiResponse,
   requestGrokResponse,
   requestOpenAIResponse,
-} from "../src/services/aiCoreService.js";
+} from "../src/services/novariumService.js";
 import { withTruncationNote } from "../src/routes/chat.js";
 
 // A member's answer has a length cap; when a model stops there the person is

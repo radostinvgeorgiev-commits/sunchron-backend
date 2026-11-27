@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { requestClaudeResponse, toClaudeMessages } from "../src/services/aiCoreService.js";
+import { requestClaudeResponse, toClaudeMessages } from "../src/services/novariumService.js";
 
 test("Claude messages start and end with the user and never repeat a role", () => {
   assert.deepEqual(

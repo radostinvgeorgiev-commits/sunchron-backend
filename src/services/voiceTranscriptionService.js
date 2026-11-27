@@ -1,4 +1,4 @@
-import { reportAiUsage } from "./aiCoreService.js";
+import { reportAiUsage } from "./novariumService.js";
 import { reservePublicAiVoice } from "./publicAiBudget.js";
 import { ProductError } from "./productPlansService.js";
 

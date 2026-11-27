@@ -10,9 +10,9 @@ test("Google Cloud runtime reports Cloud Run and Firestore without secrets", () 
   const status = getGoogleCloudRuntimeStatus({
     env: {
       GOOGLE_CLOUD_PROJECT: "project-1",
-      K_SERVICE: "ai-core",
-      K_REVISION: "ai-core-00042",
-      K_CONFIGURATION: "ai-core",
+      K_SERVICE: "novarium",
+      K_REVISION: "novarium-00042",
+      K_CONFIGURATION: "novarium",
       GOOGLE_CLOUD_REGION: "europe-west1",
       MEMORY_BACKEND: "firestore",
       PERSISTENCE_BACKEND: "firestore",

@@ -23,7 +23,7 @@ const VALID_ROLES = new Set([
   "builder",
   "coder",
 ]);
-const VALID_ENGINES = new Set(["ai-core", "codex"]);
+const VALID_ENGINES = new Set(["novarium", "codex"]);
 const VALID_RUN_STATUSES = new Set([
   "complete",
   "ready_for_next_step",
@@ -48,7 +48,7 @@ const DEFAULT_AGENTS = Object.freeze([
     role: "builder",
     model: "auto",
     purpose: "Подготвя реален резултат и показва какво е проверено.",
-    engine: "ai-core",
+    engine: "novarium",
   }),
   Object.freeze({
     id: "research-agent",
@@ -56,7 +56,7 @@ const DEFAULT_AGENTS = Object.freeze([
     role: "researcher",
     model: "auto",
     purpose: "Проверява актуални източници и отделя фактите от изводите.",
-    engine: "ai-core",
+    engine: "novarium",
   }),
   Object.freeze({
     id: "organizer-agent",
@@ -64,7 +64,7 @@ const DEFAULT_AGENTS = Object.freeze([
     role: "organizer",
     model: "auto",
     purpose: "Подрежда задачи и календар, като спира преди външни промени.",
-    engine: "ai-core",
+    engine: "novarium",
   }),
   Object.freeze({
     id: "documents-agent",
@@ -72,7 +72,7 @@ const DEFAULT_AGENTS = Object.freeze([
     role: "documents",
     model: "auto",
     purpose: "Работи с разрешени файлове, документи и поща.",
-    engine: "ai-core",
+    engine: "novarium",
   }),
   Object.freeze({
     id: "codex-agent",
@@ -235,7 +235,7 @@ export function normalizeWorkspaceState(value, { now } = {}) {
             ? "auto"
             : normalizeAgentModel(agent?.model),
         purpose: cleanText(agent?.purpose, 400),
-        engine: VALID_ENGINES.has(agent?.engine) ? agent.engine : "ai-core",
+        engine: VALID_ENGINES.has(agent?.engine) ? agent.engine : "novarium",
       }))
     : fallback.agents;
   const activities = Array.isArray(value.activities)

@@ -1,4 +1,4 @@
-import { DEFAULT_CLAUDE_CHAT_MODEL, reportAiUsage } from "./aiCoreService.js";
+import { DEFAULT_CLAUDE_CHAT_MODEL, reportAiUsage } from "./novariumService.js";
 import { publicAiOutputLimit, reservePublicAiFile } from "./publicAiBudget.js";
 
 const ALLOWED_IMAGE_TYPES = new Set([

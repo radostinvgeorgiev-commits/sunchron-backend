@@ -33,7 +33,7 @@ const AGENT_ROLES = Object.freeze({
 });
 
 const AGENT_ENGINES = Object.freeze({
-  "ai-core": { label: "Novarium" },
+  "novarium": { label: "Novarium" },
   codex: { label: "Claude код" },
 });
 
@@ -162,7 +162,7 @@ export function sanitizeWorkContext(value) {
     purpose: cleanText(value.agent?.purpose, 400),
     engine: Object.hasOwn(AGENT_ENGINES, cleanText(value.agent?.engine, 30))
       ? cleanText(value.agent?.engine, 30)
-      : "ai-core",
+      : "novarium",
   };
 
   if (!project.name && !project.objective && !agent.purpose) return null;

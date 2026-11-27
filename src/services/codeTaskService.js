@@ -7,7 +7,7 @@ import {
   requestGeminiResponse,
   requestGrokResponse,
   requestOpenAIResponse,
-} from "./aiCoreService.js";
+} from "./novariumService.js";
 import {
   createDurableConfirmation,
   markDurableConfirmationUsed,
@@ -475,7 +475,7 @@ export async function prepareCodeTask({
           jsonMode: true,
           maxTokens: 8192,
           outputSchema: CODE_TASK_SCHEMA,
-          outputSchemaName: "ai_core_code_task",
+          outputSchemaName: "novarium_code_task",
         });
         plan = validatePlan(response?.text, process.env);
         executor = {
@@ -559,7 +559,7 @@ export async function prepareCodeTask({
         executor,
       };
     }
-    const branch = `ai-core/task-${randomUUID().slice(0, 8)}`;
+    const branch = `novarium/task-${randomUUID().slice(0, 8)}`;
     const confirmation = await createConfirmation({
       sessionId,
       action: CODE_TASK_ACTION,
@@ -627,7 +627,7 @@ export function extractCodeTaskConfirmationId(message) {
   const match = message
     .trim()
     .match(
-      /^Потвърждавам (?:Novarium|AI CORE) кодова задача:\s*([0-9a-f]{8}-[0-9a-f-]{27,})$/iu,
+      /^Потвърждавам Novarium кодова задача:\s*([0-9a-f]{8}-[0-9a-f-]{27,})$/iu,
     );
   return match?.[1] || null;
 }
@@ -679,7 +679,7 @@ export async function confirmCodeTask({
   return executeWrite({
     action: "github.write",
     capability: "code.write",
-    actor: "ai-core-code-task",
+    actor: "novarium-code-task",
     sessionId,
     confirmationId,
     resource: confirmation.resource.repository,

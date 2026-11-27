@@ -8,7 +8,7 @@ import {
   getConfiguredAiProvider,
   isAiProviderConfigured,
   requestAiResponse,
-} from "../src/services/aiCoreService.js";
+} from "../src/services/novariumService.js";
 import {
   buildVertexAiGenerateContentEndpoint,
   extractVertexAiOutputText,

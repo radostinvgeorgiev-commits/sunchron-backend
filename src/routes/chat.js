@@ -140,7 +140,7 @@ import {
   isAiProviderConfigured,
   creditsForChatModel,
   requestAiResponse,
-} from "../services/aiCoreService.js";
+} from "../services/novariumService.js";
 import { executeTaskPlan } from "../services/taskExecutionService.js";
 import {
   confirmTaskWrite,
@@ -820,7 +820,7 @@ export function detectCapabilityRequests(message) {
         capability: "memory.read",
         action: "memory.read",
         message: subtask,
-        scope: /(?:проекта|ai\s*core|synchron-x|novarium)/iu.test(subtask)
+        scope: /(?:проекта|ai\s*core|novarium)/iu.test(subtask)
           ? "project"
           : undefined,
       });
@@ -2304,7 +2304,7 @@ router.post("/chat", async (req, res) => {
         action: "github.write",
         decision: "confirmed",
         outcome: "failed",
-        resource: "ai-core-code-task",
+        resource: "novarium-code-task",
         details: safeErrorCode(error, "CODE_TASK_FAILED"),
         sessionId: cleanSessionId,
       });
@@ -2474,7 +2474,7 @@ router.post("/chat", async (req, res) => {
   const isProfileOverviewQuestion = isOverviewQuestion(cleanMessage, "мен");
   const isProjectOverviewQuestion = isOverviewQuestion(
     cleanMessage,
-    "(?:проекта|ai\\s*core|synchron-x)",
+    "(?:проекта|ai\\s*core|novarium)",
   );
   if (isProfileOverviewQuestion || isProjectOverviewQuestion) {
     const requestedScope = isProjectOverviewQuestion ? "project" : "personal";

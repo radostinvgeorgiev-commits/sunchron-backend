@@ -11,7 +11,7 @@ export function readCampaignAttribution(query) {
   if (
     query?.utm_source !== "chatgpt" ||
     query.utm_medium !== "paid" ||
-    query.utm_campaign !== "ai-core-launch" ||
+    query.utm_campaign !== "novarium-launch" ||
     !trackedVariants.has(query.utm_content)
   ) {
     return null;

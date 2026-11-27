@@ -8,7 +8,7 @@ import { readCampaignAttribution } from "../src/services/campaignAttribution.js"
 const campaign = {
   utm_source: "chatgpt",
   utm_medium: "paid",
-  utm_campaign: "ai-core-launch",
+  utm_campaign: "novarium-launch",
   utm_content: "variant-2",
 };
 

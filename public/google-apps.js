@@ -10,7 +10,7 @@
   if (!drawer || !body || !gmailButton || !calendarButton || !mapsButton)
     return;
 
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
   const escapeHtml = (value) => {
     const div = document.createElement("div");
     div.textContent = String(value ?? "");
@@ -150,7 +150,7 @@
             <article class="permission-card">
               <div>
                 <strong>${escapeHtml(event.title)}</strong>
-                <p>${event.start ? new Date(event.start).toLocaleString(globalThis.AiCoreLocale?.browserLocale || "bg-BG") : ""}</p>
+                <p>${event.start ? new Date(event.start).toLocaleString(globalThis.NovariumLocale?.browserLocale || "bg-BG") : ""}</p>
                 ${event.location ? `<p>${escapeHtml(event.location)}</p>` : ""}
               </div>
               ${event.url ? `<a href="${escapeHtml(event.url)}" target="_blank" rel="noopener noreferrer">${text("Отвори")}</a>` : ""}

@@ -229,7 +229,7 @@ test("an owner can review a pinned diff, approve the exact change once and see C
   );
   assert.equal(writes[0].body.tree[0].content, changed);
   assert.deepEqual(writes[1].body.parents, [sha]);
-  assert.match(writes[2].body.ref, /^refs\/heads\/ai-core\/task-/u);
+  assert.match(writes[2].body.ref, /^refs\/heads\/novarium\/task-/u);
   assert.deepEqual(
     audits.map(({ phase }) => phase),
     ["intent", "outcome"],

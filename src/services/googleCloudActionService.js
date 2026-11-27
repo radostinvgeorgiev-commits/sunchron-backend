@@ -792,7 +792,7 @@ export async function confirmGoogleCloudAction(
   return executeWrite({
     action: "infrastructure.write",
     capability: confirmation.action,
-    actor: "synchron-x-google-cloud",
+    actor: "novarium-google-cloud",
     sessionId,
     confirmationId,
     resource: resource.projectId,

@@ -1,7 +1,7 @@
 // Minimal service worker: makes Novarium installable and shows a friendly
 // page when there is no connection. It never caches the app, the API or any
 // personal data, so updates always arrive immediately.
-const OFFLINE_CACHE = "ai-core-offline-v1";
+const OFFLINE_CACHE = "novarium-offline-v1";
 const OFFLINE_URL = "/offline.html";
 
 self.addEventListener("install", (event) => {

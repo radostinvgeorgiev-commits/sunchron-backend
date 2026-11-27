@@ -76,7 +76,7 @@ jobs:
           set -euo pipefail
           page="$(curl --fail --silent --show-error --retry 3 --retry-all-errors --max-time 30 "${PRODUCTION_ORIGIN}/")"
           grep -q '<title>Novarium' <<< "${page}"
-          grep -q 'href="/ai-core-mark.png"' <<< "${page}"
+          grep -q 'href="/novarium-mark.png"' <<< "${page}"
           grep -q 'src="/work-mode.js?' <<< "${page}"
 
       - name: Check application health and readiness
@@ -193,7 +193,7 @@ jobs:
                   const expected = [
                     "get_personal_context",
                     "get_project_context",
-                    "talk_to_ai_core",
+                    "talk_to_novarium",
                     "get_google_cloud_runtime_status",
                     "get_system_configuration",
                     "list_available_capabilities",

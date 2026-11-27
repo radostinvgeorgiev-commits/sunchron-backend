@@ -8,7 +8,7 @@
   let lastAnalysis = "";
 
   if (!button || !drawer || !body) return;
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
 
   // The stored Google sign-in no longer works: "Свържи Google отново".
   const RECONNECT_CODES = new Set([
@@ -95,7 +95,7 @@
             <article class="permission-card">
               <button type="button" data-drive-file="${escapeHtml(file.id)}" data-drive-name="${escapeHtml(file.name)}" style="text-align:left;background:none;border:0;padding:0;color:inherit">
                 <strong>${escapeHtml(file.name)}</strong>
-                <p>${file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString(globalThis.AiCoreLocale?.browserLocale || "bg-BG") : text("Файл от Google Drive")}</p>
+                <p>${file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString(globalThis.NovariumLocale?.browserLocale || "bg-BG") : text("Файл от Google Drive")}</p>
               </button>
               <button type="button" data-drive-file="${escapeHtml(file.id)}" data-drive-name="${escapeHtml(file.name)}">${text("Отвори текста")}</button>
             </article>`,

@@ -9,8 +9,8 @@ import {
 import {
   getAiProviderStatus,
   hasConfiguredAiProvider,
-  isAiCoreConfigured,
-} from "../services/aiCoreService.js";
+  isNovariumConfigured,
+} from "../services/novariumService.js";
 import { answerGitHubReadRequest } from "../services/githubService.js";
 import { useEnglishReplyFallback } from "../config/replyLanguage.js";
 import {
@@ -360,7 +360,7 @@ export async function buildIntegrationStatusReport(
     ["Google Cloud Read", googleCloud],
     [
       "Novarium разговор",
-      isAiCoreConfigured(env) &&
+      isNovariumConfigured(env) &&
         providerProbe.some(
           ({ id, working }) =>
             id === getAiProviderStatus(env).primaryProvider && working,

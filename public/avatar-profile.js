@@ -1,7 +1,7 @@
 (() => {
   // "Моят аватар": the person tells their avatar who they are, how they speak,
   // their goals, habits and limits. Saved per account and used in every answer.
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
   const HINTS = {
     about: "Например: казвам се Мария, счетоводител съм, живея в Пловдив, имам две деца.",
     style: "Например: кратко и директно, без сложни думи, с малко хумор.",
@@ -86,7 +86,7 @@
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !dialog.hidden) close();
   });
-  document.addEventListener("aicore:avatar-profile", async () => {
+  document.addEventListener("novarium:avatar-profile", async () => {
     dialog.hidden = false;
     status(text("Зареждане…"));
     try {

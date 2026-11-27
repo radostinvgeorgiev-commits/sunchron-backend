@@ -1,4 +1,4 @@
-# SYNCHRON-X repository instructions
+# Novarium repository instructions
 
 Read and follow `AGENTS.md` before changing anything. It is the authoritative
 project workflow and safety policy.
@@ -16,7 +16,7 @@ project workflow and safety policy.
 - Work from the current `main` in a separate branch and open a Draft PR.
 - Never push directly to `main`, merge your own PR or deploy production.
 - Keep each task narrow. Preserve unrelated user changes and existing behavior.
-- Do not modify personal memory, Firestore data, AI Core architecture,
+- Do not modify personal memory, Firestore data, Novarium architecture,
   production secrets or paid resources unless the issue explicitly requires it.
 - Treat GitHub, Google Cloud, Google Workspace and memory writes as external side effects.
   Keep the existing permission and confirmation boundaries.

@@ -324,7 +324,7 @@ export async function confirmGoogleAction(
           ? "mail.delete"
           : "contacts.write",
     capability: action,
-    actor: "synchron-x-google",
+    actor: "novarium-google",
     sessionId,
     confirmationId,
     resource:

@@ -34,7 +34,7 @@ export function createAccountRouter({
       const day = data.exportedAt.slice(0, 10);
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename="ai-core-data-${day}.json"`,
+        `attachment; filename="novarium-data-${day}.json"`,
       );
       return res.json(data);
     } catch (error) {

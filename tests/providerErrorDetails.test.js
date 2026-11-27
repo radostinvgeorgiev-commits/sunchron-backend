@@ -3,16 +3,16 @@ import test from "node:test";
 
 import { providerFailureSummary } from "../src/services/aiCouncilService.js";
 import {
-  AiCoreError,
+  NovariumError,
   requestOpenAIResponse,
   supportsOpenAIReasoning,
-} from "../src/services/aiCoreService.js";
+} from "../src/services/novariumService.js";
 
 test("provider failures expose only provider, code and HTTP status", () => {
   assert.deepEqual(
     providerFailureSummary(
       "claude",
-      new AiCoreError("Claude върна грешка 404.", "CLAUDE_UPSTREAM_ERROR", 404),
+      new NovariumError("Claude върна грешка 404.", "CLAUDE_UPSTREAM_ERROR", 404),
     ),
     { provider: "claude", code: "CLAUDE_UPSTREAM_ERROR", status: 404 },
   );

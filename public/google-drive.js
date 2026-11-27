@@ -103,10 +103,12 @@
                   .join("")
               : `<div class="drawer-empty">${text("Няма намерени поддържани файлове.")}</div>`
           }
-          <a class="permission-default" href="/api/google/connect?add=drive">${text("Ако не виждаш всичките си файлове, натисни тук и разреши целия Drive в Google.")}</a>
-          <button type="button" id="openMyMail">${text("Пощата ми")}</button>
-          <button type="button" id="openMyCalendar">${text("Календарът ми")}</button>
-          <button type="button" id="disconnectGoogleDrive">${text("Прекъсни връзката")}</button>
+          <div class="permission-default drawer-note"><a href="/api/google/connect?add=drive">${text("Ако не виждаш всичките си файлове, натисни тук и разреши целия Drive в Google.")}</a></div>
+          <div class="drawer-actions">
+            <button type="button" id="openMyMail">${text("Пощата ми")}</button>
+            <button type="button" id="openMyCalendar">${text("Календарът ми")}</button>
+            <button type="button" id="disconnectGoogleDrive">${text("Прекъсни връзката")}</button>
+          </div>
         </section>`;
     } catch (error) {
       // "Свържи Google" does not open the whole Drive: the connection works
@@ -116,8 +118,10 @@
           <section class="drawer-section">
             <div class="permission-default">${text("Google е свързан. В разговора можеш да питаш за календара и контактите си, да добавяш събития и контакти и да пращаш имейли. Нищо не се записва и не се изпраща без твоето „Потвърди“.")}</div>
             <div class="permission-default">${text("Файловете ти в Drive не се виждат. „Запази в Google“ под отговор прави документ, до който AI CORE има достъп.")}</div>
-            <button type="button" id="openMyCalendar">${text("Календарът ми")}</button>
-            <button type="button" id="disconnectGoogleDrive">${text("Прекъсни връзката")}</button>
+            <div class="drawer-actions">
+              <button type="button" id="openMyCalendar">${text("Календарът ми")}</button>
+              <button type="button" id="disconnectGoogleDrive">${text("Прекъсни връзката")}</button>
+            </div>
           </section>`;
         return;
       }

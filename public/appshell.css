@@ -459,6 +459,34 @@
   display: grid;
   gap: 2px;
 }
+/* "Моят Google": the drawer's own buttons, not plain browser buttons. */
+.drawer-empty + .drawer-note {
+  margin-top: 12px;
+}
+.drawer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.drawer-actions button {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  color: #1f2937;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.drawer-actions button:hover {
+  background: #f1f5f9;
+}
+.drawer-actions button:focus-visible {
+  outline: 2px solid #146c52;
+  outline-offset: 2px;
+}
 .permission-card {
   align-items: center;
 }

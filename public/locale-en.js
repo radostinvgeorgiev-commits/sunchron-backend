@@ -287,6 +287,41 @@ AI Council, включително обобщаване|AI Council, including sy
 Услугата се предоставя от|The service is provided by
 , ЕИК 208554306.|, Bulgarian company ID 208554306.
 Фирмени данни и контакт|Company details and contact
+Кои бисквитки ползва NovariumAI: само необходимите за вход и настройки, без реклама и проследяване.|Which cookies NovariumAI uses: only those needed for sign-in and settings, with no ads or tracking.
+Бисквитки · NovariumAI|Cookies · NovariumAI
+БИСКВИТКИ|COOKIES
+Бисквитки|Cookies
+Само необходимото.|Only what is needed.
+NovariumAI не използва рекламни, проследяващи или аналитични бисквитки. Затова няма и банер за съгласие: ползваме само това, без което входът и настройките не работят.|NovariumAI does not use advertising, tracking or analytics cookies. That is why there is no consent banner: we only use what sign-in and settings cannot work without.
+Пази входа ти в профила. Криптирана е и важи до 30 дни или докато излезеш.|Keeps you signed in. It is encrypted and lasts up to 30 days or until you sign out.
+Защита при вход с външен профил (Google, GitHub и други). Важи 10 минути.|Protects sign-in with an external account (Google, GitHub and others). Lasts 10 minutes.
+Защита при свързване на Google акаунт. Важи 10 минути.|Protects connecting a Google account. Lasts 10 minutes.
+Локално съхранение в браузъра|Local storage in the browser
+Пазим в браузъра ти само настройки: език, размер на шрифта, гласа за четене и номера на текущия разговор. Те не напускат устройството ти и не служат за проследяване.|We only keep settings in your browser: language, font size, reading voice and the number of the current conversation. They never leave your device and are not used for tracking.
+Как да ги изтриеш|How to delete them
+Можеш да изтриеш бисквитките и локалното съхранение от настройките на браузъра. Тогава ще трябва да влезеш отново.|You can delete cookies and local storage in your browser settings. You will then need to sign in again.
+Последна промяна: 27.11.2026 г.|Last updated: 27 November 2026.
+Как да изтриеш данните си в NovariumAI: стъпки, какво се изтрива и какво остава.|How to delete your data in NovariumAI: the steps, what is deleted and what is kept.
+Изтриване на данни · NovariumAI|Data deletion · NovariumAI
+ИЗТРИВАНЕ НА ДАННИ|DATA DELETION
+Изтриване на данни|Data deletion
+Твоите данни, твоето решение.|Your data, your decision.
+Можеш по всяко време да изтеглиш копие на данните си и да изтриеш профила си заедно с всичко в него.|At any time you can download a copy of your data and delete your account together with everything in it.
+Как да изтриеш профила си|How to delete your account
+Влез в NovariumAI.|Sign in to NovariumAI.
+Отвори менюто на профила и избери „Моите данни“.|Open the profile menu and choose “My data”.
+По желание първо натисни „Изтегли копие“, за да запазиш данните си.|If you wish, first press “Download a copy” to keep your data.
+В „Изтрий профила“ напиши ИЗТРИЙ и потвърди.|In “Delete account”, type ИЗТРИЙ (DELETE) and confirm.
+Какво се изтрива|What is deleted
+Паметта, разговорите, проектите, задачите, предложенията, профилът на аватара, връзката „Питай моя аватар“ и профилът за вход. Свързаните AI асистенти се прекъсват веднага.|Memory, conversations, projects, tasks, suggestions, the avatar profile, the “Ask my avatar” link and the sign-in account. Connected AI assistants are disconnected at once.
+Какво остава|What is kept
+Счетоводните документи за плащания се пазят 10 години, защото така изисква Законът за счетоводството. Те не съдържат разговорите и паметта ти.|Accounting documents for payments are kept for 10 years, as the Bulgarian Accountancy Act requires. They do not contain your conversations or memory.
+Вход с Facebook, Google или друг профил|Sign-in with Facebook, Google or another account
+Ако си влизал с външен профил, можеш да махнеш и достъпа на NovariumAI от настройките на този профил (например „Приложения и уебсайтове“ във Facebook или myaccount.google.com/permissions). Това спира входа, но не трие данните в NovariumAI. За тях изтрий профила, както е описано по-горе.|If you signed in with an external account, you can also remove NovariumAI's access in that account's settings (for example “Apps and websites” on Facebook or myaccount.google.com/permissions). This stops the sign-in but does not delete the data in NovariumAI. To delete it, delete your account as described above.
+Ако не можеш да влезеш|If you cannot sign in
+Пиши ни от имейла на профила. Ще изтрием всичко до 30 дни и ще ти потвърдим.|Write to us from the account's email. We will delete everything within 30 days and confirm it to you.
+Всички бисквитки|All cookies
+Как да изтриеш данните си|How to delete your data
 Твоят AI. Твоят свят.|Your AI. Your world.
 Връщане на вложеното: парите, които собственикът е вложил във фирмата, за да плаща разходите в началото, му се връщат като заем.|Return of the investment: the money the owner put into the company to pay the costs at the start is paid back to him as a loan.
 Всички разходи се плащат от фирмената сметка. В началото собственикът я захранва със свои пари.|All costs are paid from the company account. At the start, the owner funds it with his own money.

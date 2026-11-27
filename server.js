@@ -539,6 +539,12 @@ app.get("/privacy", (_req, res) =>
 app.get("/terms", (_req, res) =>
   res.sendFile("public/terms.html", { root: process.cwd() }),
 );
+app.get("/cookies", (_req, res) =>
+  res.sendFile("public/cookies.html", { root: process.cwd() }),
+);
+app.get("/data-deletion", (_req, res) =>
+  res.sendFile("public/data-deletion.html", { root: process.cwd() }),
+);
 app.get("/transparency", (_req, res) =>
   res.sendFile("public/transparency.html", { root: process.cwd() }),
 );

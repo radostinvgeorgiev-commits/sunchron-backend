@@ -4,10 +4,10 @@ import {
   analyzeDriveFile,
   buildAuthorizationUrl,
   createNonce,
-  createSession,
   disconnectSession,
   downloadDriveFile,
   exchangeCode,
+  finishGoogleConnection,
   getLatestGoogleSessionId,
   hasSession,
   listGmailMessages,
@@ -17,8 +17,8 @@ import {
   parseCookies,
   getYoutubeChannelSummary,
   googleConnectPath,
+  grantedExtras,
   isGoogleScopeMissing,
-  linkSaveSession,
   saveAnswerToGoogle,
   saveSessionFor,
   sessionBelongsTo,
@@ -59,26 +59,28 @@ function sendError(res, error) {
       known
         ? error.message
         : "Google Drive временно не е достъпен.",
+    // Lets the page offer "Разреши" only when a permission is really missing.
+    ...(known && error.code ? { code: error.code } : {}),
   });
 }
 
-router.get("/connect", (req, res) => {
+router.get("/connect", async (req, res) => {
   try {
-    const state = createNonce();
-    const add = typeof req.query.add === "string" ? [req.query.add] : [];
-    const stateCookie = `synchron_google_state=${state}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`;
+    const add = typeof req.query.add === "string" ? req.query.add : "";
+    const saving = add === "save";
+    // The step travels in the state, which Google sends back unchanged and
+    // the callback checks against this browser's cookie.
+    const state = `${saving ? "save." : ""}${createNonce()}`;
+    // Everyone, the owner too, starts with the scopes Google's free check
+    // covers. A renewed connection, or one more service (add=youtube / gmail /
+    // drive), asks again for every service this connection already has.
+    const current = saving ? null : await sessionId(req);
+    const keep = current ? await grantedExtras(current) : [];
     res.setHeader(
       "Set-Cookie",
-      add[0] === "save"
-        ? [
-            stateCookie,
-            "synchron_google_add=save; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600",
-          ]
-        : stateCookie,
+      `synchron_google_state=${state}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
     );
-    // Everyone, the owner too, starts with the scopes Google's free check covers;
-    // full Gmail / Drive are the separate add=gmail / add=drive steps.
-    res.redirect(buildAuthorizationUrl(state, add));
+    res.redirect(buildAuthorizationUrl(state, saving ? ["save"] : [...keep, add]));
   } catch (error) {
     sendError(res, error);
   }
@@ -87,11 +89,8 @@ router.get("/connect", (req, res) => {
 router.get("/callback", async (req, res) => {
   try {
     const cookies = parseCookies(req.headers.cookie);
-    if (
-      !req.query.code ||
-      !req.query.state ||
-      req.query.state !== cookies.synchron_google_state
-    ) {
+    const state = typeof req.query.state === "string" ? req.query.state : "";
+    if (!req.query.code || !state || state !== cookies.synchron_google_state) {
       throw new GoogleDriveError(
         "Невалидно или изтекло Google потвърждение.",
         400,
@@ -99,10 +98,10 @@ router.get("/callback", async (req, res) => {
       );
     }
     const tokens = await exchangeCode(String(req.query.code));
-    const newId = await createSession(tokens, req.owner);
-    const mainId =
-      cookies.synchron_google_add === "save" ? await sessionId(req) : null;
-    const id = mainId && (await linkSaveSession(mainId, newId)) ? mainId : newId;
+    const id = await finishGoogleConnection(tokens, req.owner, {
+      previousId: await sessionId(req),
+      saving: state.startsWith("save."),
+    });
     res.setHeader("Set-Cookie", [
       `synchron_google_session=${id}; ${COOKIE_OPTIONS}`,
       "synchron_google_state=; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
@@ -153,7 +152,7 @@ const GOOGLE_CHECKS = {
   drive: (id) => listDriveFiles(id),
   gmail: (id) => listGmailMessages(id, 1),
   calendar: (id) => listGoogleCalendarEvents(id, 1, 1),
-  contacts: (id) => searchGoogleContacts(id, "a", 1),
+  contacts: (id) => searchGoogleContacts(id, "a", 1, undefined, { fresh: false }),
   youtube: (id) => getYoutubeChannelSummary(id, 1),
 };
 // A service the person has not turned on yet is not "broken": the tools

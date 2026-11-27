@@ -187,15 +187,20 @@ test("the main Google connection asks only for scopes Google's free check covers
     assert.doesNotMatch(scope, /gmail\.readonly|gmail\.compose|gmail\.modify|drive\.readonly|youtube/u);
     const save = new URL(buildAuthorizationUrl("state", ["save"])).searchParams.get("scope");
     assert.equal(save, "openid email https://www.googleapis.com/auth/drive.file");
-    // Its own token: no merge with an already granted YouTube.
-    assert.equal(
-      new URL(buildAuthorizationUrl("state", ["save"])).searchParams.get("include_granted_scopes"),
-      null,
-    );
-    assert.equal(
-      new URL(buildAuthorizationUrl("state", ["youtube"])).searchParams.get("include_granted_scopes"),
-      "true",
-    );
+    // No request merges earlier grants: Google refuses drive.file and
+    // youtube.readonly in one grant, so a merge would break every later step.
+    for (const extras of [[], ["save"], ["youtube"], ["gmail"], ["drive"]]) {
+      assert.equal(
+        new URL(buildAuthorizationUrl("state", extras)).searchParams.get("include_granted_scopes"),
+        null,
+      );
+    }
+    // One more service asks again for the main scopes plus that service.
+    const youtube = new URL(buildAuthorizationUrl("state", ["youtube"])).searchParams.get("scope");
+    assert.equal(youtube, `${scope} https://www.googleapis.com/auth/youtube.readonly`);
+    // drive.file never shares a request with anything else.
+    const mixed = new URL(buildAuthorizationUrl("state", ["youtube", "save"])).searchParams.get("scope");
+    assert.equal(mixed, "openid email https://www.googleapis.com/auth/drive.file");
   } finally {
     if (original.clientId === undefined) delete process.env.GOOGLE_CLIENT_ID;
     else process.env.GOOGLE_CLIENT_ID = original.clientId;
@@ -598,26 +603,42 @@ test("a member's first Google connection asks only for scopes Google's free chec
     const owner = new URL(buildAuthorizationUrl("s", [], { owner: true })).searchParams.get("scope");
     assert.match(owner, /gmail\.readonly/u);
     const gmail = new URL(buildAuthorizationUrl("s", ["gmail"], { owner: false })).searchParams.get("scope");
-    assert.equal(gmail, `openid email ${GOOGLE_EXTRA_SCOPES.gmail}`);
+    assert.equal(gmail, `${member} ${GOOGLE_EXTRA_SCOPES.gmail}`);
   } finally {
     process.env = saved;
   }
 });
 
-test("contact search warms Google's cache and retries once when nothing is found", async () => {
+test("contact search warms Google's cache first and retries once when nothing is found", async () => {
   const sessionId = await createSession({ access_token: "token", expires_in: 3600 });
-  const queries = [];
-  const contacts = await searchGoogleContacts(sessionId, "Нов", 10, async (url) => {
-    const query = new URL(String(url)).searchParams.get("query");
-    queries.push(query);
-    return jsonResponse(
-      queries.length === 3
-        ? { results: [{ person: { resourceName: "people/p2", names: [{ displayName: "Нов" }] } }] }
-        : {},
+  const found = { results: [{ person: { resourceName: "people/p2", names: [{ displayName: "Нов" }] } }] };
+  const run = async (answerOn) => {
+    const queries = [];
+    const contacts = await searchGoogleContacts(
+      sessionId,
+      "Нов",
+      10,
+      async (url) => {
+        queries.push(new URL(String(url)).searchParams.get("query"));
+        return jsonResponse(queries.length === answerOn ? found : {});
+      },
+      { retryDelayMs: 0 },
     );
-  });
-  assert.deepEqual(queries, ["Нов", "", "Нов"]);
-  assert.equal(contacts[0].resourceName, "people/p2");
+    return { queries, contacts };
+  };
+  const first = await run(2);
+  assert.deepEqual(first.queries, ["", "Нов"]);
+  assert.equal(first.contacts[0].resourceName, "people/p2");
+  const late = await run(3);
+  assert.deepEqual(late.queries, ["", "Нов", "Нов"]);
+  assert.equal(late.contacts[0].resourceName, "people/p2");
+  // The tools list check asks once, without the warmup.
+  const queries = [];
+  await searchGoogleContacts(sessionId, "a", 1, async (url) => {
+    queries.push(new URL(String(url)).searchParams.get("query"));
+    return jsonResponse({});
+  }, { fresh: false });
+  assert.deepEqual(queries, ["a"]);
 });
 
 test("the save token is linked to the main connection, which keeps its id", async () => {

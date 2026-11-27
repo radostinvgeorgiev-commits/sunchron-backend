@@ -49,7 +49,8 @@ test("every signed-in account can connect Google; restore stays owner-only", () 
   const router = read("../src/routes/googleDriveRouter.js");
   assert.match(router, /router\.get\("\/restore", ownerOnly/u);
   assert.match(router, /router\.post\("\/analyze", publicAiBudgetContext/u);
-  assert.match(router, /createSession\(tokens, req\.owner\)/u);
+  // The new connection belongs to the signed-in account.
+  assert.match(router, /finishGoogleConnection\(tokens, req\.owner,/u);
   assert.match(router, /sessionBelongsTo\(id, req\.owner\)/u);
   assert.match(read("../src/routes/chat.js"), /sessionBelongsTo\(cookieGoogleSession, req\.owner\)/u);
 });

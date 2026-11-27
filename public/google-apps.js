@@ -46,9 +46,9 @@
       </button>`,
     );
     document.getElementById("reconnectGoogle").addEventListener("click", () => {
-      // A first connection takes the main step; add=<service> only extends
-      // an existing one (it asks for that service's scopes alone).
-      window.location.href = add && status.connected
+      // add=<service> asks for the main scopes too, so one step both
+      // connects Google and turns on the service the person opened.
+      window.location.href = add
         ? `/api/google/connect?add=${encodeURIComponent(add)}`
         : "/api/google/connect";
     });

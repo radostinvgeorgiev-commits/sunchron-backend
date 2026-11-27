@@ -25,8 +25,11 @@
   async function request(path, options) {
     const response = await fetch(path, { cache: "no-store", ...options });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(data.error || "Google Drive временно не е достъпен.");
+    if (!response.ok) {
+      const error = new Error(data.error || "Google Drive временно не е достъпен.");
+      error.code = data.code || "";
+      throw error;
+    }
     return data;
   }
 
@@ -94,9 +97,10 @@
         </section>`;
     } catch (error) {
       // A light Google connection has no Drive access yet: show the step
-      // that adds it, not only the error.
+      // that adds it, not only the error. Other errors (Google busy, expired
+      // sign-in) keep their own message and are not a missing permission.
       body.innerHTML = `<div class="drawer-state drawer-error">${escapeHtml(error.message)}</div>${
-        connected
+        connected && error.code === "GOOGLE_SCOPE_REQUIRED"
           ? '<a class="new-chat" href="/api/google/connect?add=drive"><i class="fa-brands fa-google-drive"></i><span>Разреши Google Drive</span></a>'
           : ""
       }`;

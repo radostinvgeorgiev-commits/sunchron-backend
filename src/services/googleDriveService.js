@@ -204,10 +204,10 @@ function configuration() {
 }
 
 // Extra Google services a person turns on one at a time, only when they
-// use them. Each one is asked for in its own small consent (sign-in plus that
-// one scope); include_granted_scopes keeps everything granted before. The main
-// "Свържи Google" never carries them, so a service Google refuses can never
-// break the whole Google connection.
+// use them. The first "Свържи Google" never carries them. Turning one on asks
+// again for the main scopes, the extras the connection already has and the new
+// one, so the new token has everything. Saving files (drive.file) always gets
+// its own token instead (see buildAuthorizationUrl).
 export const GOOGLE_EXTRA_SCOPES = Object.freeze({
   youtube: "https://www.googleapis.com/auth/youtube.readonly",
   // Only files AI CORE itself creates (answers saved as Docs/Sheets).
@@ -254,42 +254,179 @@ export function googleConnectPath(extra = "") {
   return GOOGLE_EXTRA_SCOPES[extra] ? `/api/google/connect?add=${extra}` : "/api/google/connect";
 }
 
+// Google refuses drive.file and youtube.readonly in one grant (400
+// invalid_request, "cannot be requested together"). include_granted_scopes
+// would add every earlier grant to each new request, so once a person has
+// turned on both YouTube and saving, every later connection would fail. So no
+// request uses it: each one names exactly the scopes its token needs, and
+// saving (drive.file) always gets its own token.
 export function buildAuthorizationUrl(state, extras = [], { owner = false } = {}) {
   const { clientId, redirectUri } = configuration();
-  const extraScopes = (Array.isArray(extras) ? extras : [])
-    .map((name) => GOOGLE_EXTRA_SCOPES[name])
-    .filter(Boolean);
+  const names = (Array.isArray(extras) ? extras : []).filter(
+    (name) => typeof name === "string" && Object.hasOwn(GOOGLE_EXTRA_SCOPES, name),
+  );
+  const scopes = names.includes("save")
+    ? ["openid", "email", GOOGLE_EXTRA_SCOPES.save]
+    : [
+        ...(owner ? GOOGLE_BASE_SCOPES : GOOGLE_MEMBER_SCOPES),
+        ...names.flatMap((name) => GOOGLE_EXTRA_SCOPES[name].split(" ")),
+      ];
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: (extraScopes.length
-      ? ["openid", "email", ...extraScopes]
-      : owner ? GOOGLE_BASE_SCOPES : GOOGLE_MEMBER_SCOPES
-    ).join(" "),
+    scope: [...new Set(scopes)].join(" "),
     access_type: "offline",
     prompt: "consent",
-    // Saving files gets its own token: Google refuses drive.file together
-    // with an already granted youtube.readonly in one grant.
-    ...(extras.includes?.("save") ? {} : { include_granted_scopes: "true" }),
     state,
   });
   return `${GOOGLE_AUTH_URL}?${params}`;
 }
 
+function grantedScopes(scope) {
+  return new Set(String(scope || "").split(/\s+/u).filter(Boolean));
+}
+
+// The extra services (YouTube, whole Gmail, whole Drive) that a main
+// connection's token already covers, so renewing it or adding one more service
+// keeps them.
+export async function grantedExtras(id) {
+  const session = await loadSession(id);
+  if (!session || isSaveSession(session)) return [];
+  const granted = grantedScopes(session.scope);
+  return Object.entries(GOOGLE_EXTRA_SCOPES)
+    .filter(
+      ([name, scopes]) =>
+        name !== "save" && scopes.split(" ").some((scope) => granted.has(scope)),
+    )
+    .map(([name]) => name);
+}
+
+// A token that can only save files (the add=save step), never a main
+// connection.
+export function isSaveOnlyGrant(scope) {
+  const granted = grantedScopes(scope);
+  if (!granted.has(GOOGLE_EXTRA_SCOPES.save)) return false;
+  const basic = new Set([
+    "openid",
+    "email",
+    "https://www.googleapis.com/auth/userinfo.email",
+    GOOGLE_EXTRA_SCOPES.save,
+  ]);
+  return [...granted].every((scope) => basic.has(scope));
+}
+
+// The Google account behind a token (the "sub" of its sign-in id_token).
+// It comes straight from Google's token endpoint, so it is only read here.
+function googleSubject(session) {
+  try {
+    const payload = String(session?.id_token || "").split(".")[1];
+    if (!payload) return "";
+    return String(JSON.parse(Buffer.from(payload, "base64url").toString("utf8")).sub || "");
+  } catch {
+    return "";
+  }
+}
+
+// Unknown counts as the same, as before tokens were compared.
+function sameGoogleAccount(left, right) {
+  const a = googleSubject(left);
+  const b = googleSubject(right);
+  return !a || !b || a === b;
+}
+
+function isSaveSession(session) {
+  return Boolean(session?.saveOnly) || isSaveOnlyGrant(session?.scope);
+}
+
+async function deleteStoredSession(id) {
+  if (!id) return;
+  sessions.delete(id);
+  if (resolvePersistenceBackend(process.env) === "firestore") {
+    await getFirestoreSessionStore().delete(id);
+  }
+}
+
 // The separate "save" token lives in its own session, linked from the main
-// one, so the main connection keeps every other permission.
+// one, so the main connection keeps every other permission. In production the
+// link must be stored, or "Запази в Google" would ask again after a restart.
 export async function linkSaveSession(mainId, saveId) {
   const session = await loadSession(mainId);
-  if (!session || !saveId) return false;
+  if (!session || !saveId || saveId === mainId) return false;
+  const previous = session.saveSessionId;
   session.saveSessionId = saveId;
-  sessions.set(mainId, session);
+  let persisted = false;
   try {
-    await persistSession(mainId, session);
+    persisted = await persistSession(mainId, session);
   } catch (error) {
     logSafeError("[Google session] Save link persistence failure", error);
   }
+  if (!persisted && requiresPersistentGoogleSessions()) {
+    if (previous) session.saveSessionId = previous;
+    else delete session.saveSessionId;
+    return false;
+  }
+  if (previous && previous !== saveId) {
+    try {
+      await deleteStoredSession(previous);
+    } catch (error) {
+      logSafeError("[Google session] Old save token cleanup failure", error);
+    }
+  }
   return true;
+}
+
+// A renewed main connection keeps "Запази в Google": the save token linked
+// to the old connection (or the old connection itself, when it was only a
+// save token) is linked to the new one.
+export async function carrySaveSession(previousId, newId) {
+  const previous = await loadSession(previousId);
+  if (!previous || previousId === newId) return false;
+  const saveId = isSaveSession(previous) ? previousId : previous.saveSessionId;
+  if (!saveId || saveId === newId) return false;
+  const [save, current] = [await loadSession(saveId), await loadSession(newId)];
+  // Answers are saved only to the Google account that is connected now.
+  if (!save || !current || !sameGoogleAccount(save, current)) return false;
+  return linkSaveSession(newId, saveId);
+}
+
+// After Google's consent. A save-only token is linked beside the person's
+// main connection, which keeps its id, also when the step started before this
+// version (its scopes tell what it is). Any other token becomes the main
+// connection and keeps the linked save token.
+export async function finishGoogleConnection(
+  tokens,
+  owner,
+  { previousId = null, saving = false } = {},
+) {
+  const save = saving || isSaveOnlyGrant(tokens?.scope);
+  const newId = await createSession(tokens, owner, { saveOnly: save });
+  if (save && previousId) {
+    const main = await loadSession(previousId);
+    if (main && !sameGoogleAccount(main, tokens)) {
+      await disconnectSession(newId);
+      throw new GoogleDriveError(
+        "Избери същия Google профил, с който е свързан AI CORE.",
+        409,
+        "GOOGLE_ACCOUNT_MISMATCH",
+      );
+    }
+    if (await linkSaveSession(previousId, newId)) return previousId;
+    await disconnectSession(newId);
+    throw new GoogleDriveError(
+      "Google връзката не можа да бъде запазена защитено.",
+      503,
+      "GOOGLE_SESSION_PERSISTENCE_FAILED",
+    );
+  }
+  if (previousId) {
+    try {
+      await carrySaveSession(previousId, newId);
+    } catch (error) {
+      logSafeError("[Google session] Save link carry failure", error);
+    }
+  }
+  return newId;
 }
 
 export async function saveSessionFor(mainId) {
@@ -344,7 +481,7 @@ export async function sessionBelongsTo(id, owner) {
   return session.accountKey === googleAccountKey(owner.memoryOwnerId);
 }
 
-export async function createSession(tokens, owner = null) {
+export async function createSession(tokens, owner = null, { saveOnly = false } = {}) {
   const id = createNonce();
   const session = {
     ...tokens,
@@ -355,6 +492,8 @@ export async function createSession(tokens, owner = null) {
           primaryOwner: owner.role === "owner",
         }
       : {}),
+    // Only saves files (add=save): never a main connection for owner tools.
+    ...(saveOnly ? { saveOnly: true } : {}),
   };
   let persisted = false;
   try {
@@ -375,12 +514,14 @@ export async function createSession(tokens, owner = null) {
   return id;
 }
 
+// Disconnecting removes the connection and its linked save token, so no
+// Google token of the person stays stored.
 export async function disconnectSession(id) {
-  if (id) sessions.delete(id);
-  const backend = resolvePersistenceBackend(process.env);
-  if (backend === "firestore") {
-    if (id) await getFirestoreSessionStore().delete(id);
-  }
+  if (!id) return;
+  const session = await loadSession(id);
+  const saveId = session?.saveSessionId;
+  await deleteStoredSession(id);
+  if (saveId && saveId !== id) await deleteStoredSession(saveId);
 }
 
 // Several checks start at once when the tools list opens; they share one
@@ -546,10 +687,16 @@ export async function hasSession(id) {
 }
 
 export async function getLatestGoogleSessionId() {
-  // Only the owner's connections: a member's Google never reaches owner tools.
-  const ownerSession = (session) => session?.primaryOwner !== false;
-  for (const [id, session] of [...sessions.entries()].reverse()) {
-    if (ownerSession(session) && (await hasSession(id))) return id;
+  // Only the owner's main connections: a member's Google never reaches owner
+  // tools, and a save-only token (drive.file) would fail every other tool.
+  const linkedSaves = (list) =>
+    new Set(list.map((session) => session?.saveSessionId).filter(Boolean));
+  const usable = (id, session, saves) =>
+    session?.primaryOwner !== false && !isSaveSession(session) && !saves.has(id);
+  const cached = [...sessions.entries()].reverse();
+  const cachedSaves = linkedSaves(cached.map(([, session]) => session));
+  for (const [id, session] of cached) {
+    if (usable(id, session, cachedSaves) && (await hasSession(id))) return id;
   }
 
   const backend = resolvePersistenceBackend(process.env);
@@ -562,15 +709,22 @@ export async function getLatestGoogleSessionId() {
     } else {
       return null;
     }
+    const decoded = [];
     for (const hit of hits) {
       try {
-        const session = decryptGoogleSession(hit._source);
-        if (session?.access_token && ownerSession(session)) {
-          sessions.set(hit._id, session);
-          return hit._id;
-        }
+        decoded.push({ id: hit._id, session: decryptGoogleSession(hit._source) });
       } catch {
         // Ignore stale or unreadable sessions and continue fail-closed.
+      }
+    }
+    const saves = linkedSaves([
+      ...decoded.map(({ session }) => session),
+      ...sessions.values(),
+    ]);
+    for (const { id, session } of decoded) {
+      if (session?.access_token && usable(id, session, saves)) {
+        sessions.set(id, session);
+        return id;
       }
     }
   } catch (error) {
@@ -1371,6 +1525,7 @@ export async function searchGoogleContacts(
   query,
   limit = 10,
   fetchImpl = fetch,
+  { fresh = true, retryDelayMs = 1500 } = {},
 ) {
   const cleanQuery = cleanHeader(query, 200, "заявка за контакт", {
     required: true,
@@ -1393,11 +1548,16 @@ export async function searchGoogleContacts(
       .map((item) => normalizeGoogleContact(item.person))
       .filter((item) => item.resourceName);
   };
+  if (!fresh) return search(cleanQuery);
+  // Google answers contact searches from a cache that an empty "warmup"
+  // query refreshes, and asks for it before searching. The refresh can take a
+  // moment, so an empty answer is tried once more after a short wait.
+  await search("");
   const found = await search(cleanQuery);
   if (found.length) return found;
-  // Google's contact search answers from a cache that an empty "warmup"
-  // query refreshes; without it new or rarely used contacts are missed.
-  await search("");
+  if (retryDelayMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+  }
   return search(cleanQuery);
 }
 

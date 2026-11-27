@@ -822,9 +822,10 @@ async function googleErrorDetails(response) {
     return {
       message: String(data?.error?.message || ""),
       reasons: errors.map((item) => String(item?.reason || "")).filter(Boolean),
+      status: String(data?.error?.status || ""),
     };
   } catch {
-    return { message: "", reasons: [] };
+    return { message: "", reasons: [], status: "" };
   }
 }
 
@@ -878,11 +879,17 @@ async function googleFetch(
     );
   }
 
-  throw new GoogleDriveError(
+  const failure = new GoogleDriveError(
     `${serviceName} временно не е достъпен (Google грешка ${response.status}).`,
     502,
     "GOOGLE_REQUEST_FAILED",
   );
+  // Google's own status (for example FAILED_PRECONDITION) lets a caller tell
+  // a refused write from an outage; it is an enum name, safe to log.
+  if (/^[A-Z][A-Z0-9_]{1,63}$/u.test(details.status)) {
+    failure.upstreamErrorStatus = details.status;
+  }
+  throw failure;
 }
 
 export async function hasSession(id) {
@@ -1838,11 +1845,17 @@ const CONTACT_READ = Object.freeze({
   sources: "READ_SOURCE_TYPE_CONTACT",
 });
 
-// The contact's own (and, among several, its main) value of a field.
-function ownValue(items) {
+// The contact's own values of a field, without a linked profile's.
+function ownItems(items) {
   const list = Array.isArray(items) ? items.filter(Boolean) : [];
   const own = list.filter((item) => item.metadata?.source?.type === "CONTACT");
-  const pool = own.length ? own : list;
+  return own.length ? own : list;
+}
+
+// The contact's own (and, among several, its main) value of a field. Google
+// keeps no fixed order, so the main one is found by its marker.
+function ownValue(items) {
+  const pool = ownItems(items);
   return (
     pool.find((item) => item.metadata?.primary || item.metadata?.sourcePrimary) ||
     pool[0] ||
@@ -1886,28 +1899,34 @@ function withNameReport(contact, requestedName) {
 }
 
 // Google replaces a whole field (every email, every phone) on update. The
-// new value takes the place of the contact's main one; the other values and
-// their labels (work, home, mobile) stay. null: the field stays as it is.
+// new value takes the place of the contact's main one and stays the main
+// one; the other values and their labels (work, home, mobile) stay.
+// null: the field stays as it is.
 function withMainValue(items, value, sameValue) {
   if (!value) return null;
-  const list = (Array.isArray(items) ? items : []).filter(
-    (item) => typeof item?.value === "string" && item.value,
+  const list = ownItems(items).filter(
+    (item) => typeof item.value === "string" && item.value,
   );
   if (list.some((item) => sameValue(item.value, value))) return null;
   if (!list.length) return [{ value }];
   const main = ownValue(list);
-  return list.map((item) => {
-    // Output-only parts and the source metadata are Google's to set.
-    const { metadata, formattedType, canonicalForm, ...kept } = item;
-    return item === main ? { ...kept, value } : kept;
-  });
+  // Output-only parts and the source metadata are Google's to set.
+  const writable = ({ metadata, formattedType, canonicalForm, ...kept }) => kept;
+  return [
+    { ...writable(main), value, metadata: { sourcePrimary: true } },
+    ...list.filter((item) => item !== main).map(writable),
+  ];
 }
 
 const sameEmail = (left, right) =>
   left.trim().toLowerCase() === right.trim().toLowerCase();
+// Phones match by their digits ("+359 88 123 4567" is "+359881234567"); a
+// number written with letters (1-800-FLOWERS) matches only as written.
 const samePhone = (left, right) => {
   const digits = (value) => value.replace(/\D/gu, "");
-  return digits(left) ? digits(left) === digits(right) : left.trim() === right.trim();
+  return digits(left) && !/\p{L}/u.test(left + right)
+    ? digits(left) === digits(right)
+    : left.trim().toLowerCase() === right.trim().toLowerCase();
 };
 
 export async function searchGoogleContacts(
@@ -2024,17 +2043,34 @@ export async function updateGoogleContact(
     updatePersonFields: fields.join(","),
     ...CONTACT_READ,
   });
-  const response = await googleFetch(
-    id,
-    `${PEOPLE_API_URL}/${cleanResourceName}:updateContact?${params}`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ etag: cleanEtag, ...changes }),
-    },
-    fetchImpl,
-    "Google Contacts",
-  );
+  let response;
+  try {
+    response = await googleFetch(
+      id,
+      `${PEOPLE_API_URL}/${cleanResourceName}:updateContact?${params}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ etag: cleanEtag, ...changes }),
+      },
+      fetchImpl,
+      "Google Contacts",
+    );
+  } catch (error) {
+    // Google refuses a write with an older etag: the contact changed after
+    // it was found, and it stays as it is. A new search gives the new etag.
+    if (
+      error?.code === "GOOGLE_REQUEST_FAILED" &&
+      error.upstreamErrorStatus === "FAILED_PRECONDITION"
+    ) {
+      throw new GoogleDriveError(
+        "Контактът е променен след търсенето. Потърси го отново и подготви промяната пак.",
+        409,
+        "GOOGLE_CONTACT_CHANGED",
+      );
+    }
+    throw error;
+  }
   const updated = normalizeGoogleContact(await response.json());
   if (updated.resourceName !== cleanResourceName) {
     throw new GoogleDriveError(

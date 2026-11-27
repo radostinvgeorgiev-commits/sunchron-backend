@@ -594,3 +594,34 @@ test("a found contact with no name, email or phone still gets a readable line", 
     global.fetch = originalFetch;
   }
 });
+
+test("a contact change without a name, or with only a name, gets a clean summary", async () => {
+  const env = {
+    GOOGLE_CLIENT_ID: "client",
+    GOOGLE_CLIENT_SECRET: "secret",
+    GOOGLE_REDIRECT_URI: "https://example.test/api/google/callback",
+  };
+  const prepare = (contact, language) =>
+    executeCapability(
+      "contacts.update",
+      {
+        ownerId: "member-1",
+        googleSessionId: "google-1",
+        sessionId: "chat-1",
+        ...(language ? { language } : {}),
+        input: { contact: { resourceName: "people/c1", etag: "etag-1", ...contact } },
+      },
+      { env, prepareConfirmation: true },
+    );
+  const phoneOnly = { name: "", phone: "+359 88 000 0001" };
+  assert.equal(
+    (await prepare(phoneOnly, "en")).metadata.summary,
+    "Update the Google contact (+359 88 000 0001).",
+  );
+  assert.equal(
+    (await prepare(phoneOnly)).metadata.summary,
+    "Промяна на Google контакт (+359 88 000 0001).",
+  );
+  assert.equal((await prepare({ name: "Нов" }, "en")).metadata.summary, 'Update the Google contact "Нов".');
+  assert.equal((await prepare({ name: "Нов" })).metadata.summary, "Промяна на Google контакт „Нов“.");
+});

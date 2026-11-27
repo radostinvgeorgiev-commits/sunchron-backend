@@ -368,6 +368,8 @@ test("searches, creates and version-safely updates Google contacts", async () =>
     requests.map(({ method, url }) => `${method} ${url.pathname.split("/").pop()}`),
     ["GET person_2", "PATCH person_2:updateContact"],
   );
+  // Google refuses a contact read without personFields.
+  assert.equal(requests[0].url.searchParams.get("personFields"), "names,emailAddresses,phoneNumbers");
   assert.equal(requests[0].url.searchParams.get("sources"), "READ_SOURCE_TYPE_CONTACT");
   const update = requests[1];
   assert.equal(update.url.searchParams.get("updatePersonFields"), "names,emailAddresses");
@@ -423,11 +425,61 @@ test("a contact change keeps the contact's other emails and phones and its uncha
   assert.equal(update.url.searchParams.get("updatePersonFields"), "emailAddresses");
   assert.equal("names" in body, false);
   assert.equal("phoneNumbers" in body, false);
-  // The main email is replaced in place with its label; the other one stays.
+  // The main email is replaced with its label and stays the main one (Google
+  // keeps no order, so it is marked); the other one stays as it was.
   assert.deepEqual(body.emailAddresses, [
+    { value: "new@firma.bg", type: "work", metadata: { sourcePrimary: true } },
     { value: "home@example.com", type: "home" },
-    { value: "new@firma.bg", type: "work" },
   ]);
+});
+
+test("a contact change reports a new name Google did not keep, and a contact changed since it was found", async () => {
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
+  const current = {
+    resourceName: "people/person_12",
+    etag: "etag-12",
+    names: [{ displayName: "Старо име" }],
+    phoneNumbers: [{ value: "+359 88 000 0001" }],
+  };
+  const renamed = await updateGoogleContact(
+    sessionId,
+    { resourceName: "people/person_12", etag: "etag-12", name: "Ново име" },
+    async (_url, options = {}) =>
+      jsonResponse(
+        options.method
+          ? { resourceName: "people/person_12", etag: "etag-13", phoneNumbers: current.phoneNumbers }
+          : current,
+      ),
+  );
+  assert.equal(renamed.name, "");
+  assert.equal(renamed.nameSaved, false);
+
+  // Someone changed the contact after the search: Google refuses the old
+  // etag, and the person is told to search again instead of "Google is down".
+  await assert.rejects(
+    () =>
+      updateGoogleContact(
+        sessionId,
+        { resourceName: "people/person_12", etag: "etag-12", phone: "+359 88 000 0002" },
+        async (_url, options = {}) =>
+          options.method
+            ? new Response(
+                JSON.stringify({
+                  error: {
+                    code: 400,
+                    message: "Request person.etag is different than the current person.etag.",
+                    status: "FAILED_PRECONDITION",
+                  },
+                }),
+                { status: 400, headers: { "Content-Type": "application/json" } },
+              )
+            : jsonResponse(current),
+      ),
+    (error) => error.code === "GOOGLE_CONTACT_CHANGED" && error.status === 409,
+  );
 });
 
 test("a contact change with nothing new writes nothing", async () => {
@@ -456,6 +508,24 @@ test("a contact change with nothing new writes nothing", async () => {
     () => updateGoogleContact(sessionId, { resourceName: "people/person_8", etag: "etag-8" }),
     (error) => error.code === "GOOGLE_CONTACT_INVALID",
   );
+
+  // Numbers written with letters are not the same just because their digits are.
+  let written;
+  await updateGoogleContact(
+    sessionId,
+    { resourceName: "people/person_8", etag: "etag-8", phone: "1-800-GOTJUNK" },
+    async (_url, options = {}) => {
+      if (options.method) written = JSON.parse(options.body);
+      return jsonResponse({
+        resourceName: "people/person_8",
+        etag: "etag-8",
+        phoneNumbers: [{ value: "1-800-FLOWERS" }],
+      });
+    },
+  );
+  assert.deepEqual(written.phoneNumbers, [
+    { value: "1-800-GOTJUNK", metadata: { sourcePrimary: true } },
+  ]);
 });
 
 test("a contact Google saved without its name is reported, never named from the request", async () => {

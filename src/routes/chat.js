@@ -143,6 +143,7 @@ import { executeTaskPlan } from "../services/taskExecutionService.js";
 import {
   confirmTaskWrite,
   extractTaskConfirmationId,
+  formatConfirmedTask,
   formatTaskConfirmation,
 } from "../services/taskConfirmationService.js";
 import { createTaskConfirmation } from "../services/confirmationService.js";
@@ -1005,13 +1006,14 @@ export function parseContactSearchQuery(message) {
   return query.length >= 2 && query.length <= 100 ? query : "";
 }
 
-// "моят YouTube канал", "каналът ми в YouTube", "колко гледания имат видеата ми".
+// "моят YouTube канал", "каналът ми в YouTube", "колко гледания имат видеата ми",
+// "show my YouTube channel", "how many subscribers do I have on YouTube".
 export function isOwnYoutubeChannelRequest(message) {
   const text = String(message || "");
   if (!/(?:youtube|ютюб|ютуб)/iu.test(text)) return false;
   return /(?:мо(?:я|ят|ите|ето)\s+(?:youtube\s+|ютюб\s+|ютуб\s+)?(?:канал|видеа|видеоклипове|клипове)|канал(?:а|ът)\s+ми|видеата\s+ми|клиповете\s+ми|абонати(?:те)?\s+ми)/iu.test(
     text,
-  );
+  ) || /\bmy\s+(?:own\s+)?(?:youtube\s+)?(?:channel|videos|subscribers)\b|\bsubscribers\s+do\s+i\s+have\b/iu.test(text);
 }
 
 function capabilityLabel(capability) {
@@ -1173,7 +1175,12 @@ export function buildCapabilityReplies(capabilityResults, options = {}) {
     );
   }
   if (taskConfirmation) {
-    addUniqueReply(formatTaskConfirmation(taskConfirmation, english));
+    const summaries = capabilityResults
+      .filter(
+        (item) => item.status === "fulfilled" && item.result?.requiresConfirmation,
+      )
+      .map((item) => item.result?.metadata?.summary);
+    addUniqueReply(formatTaskConfirmation(taskConfirmation, english, summaries));
   }
   if (capabilityResults.length > 1) {
     const statusByCapability = new Map();
@@ -2122,8 +2129,9 @@ router.post("/chat", async (req, res) => {
         taskConfirmationId,
         githubSessionId,
         googleSessionId,
+        language,
       });
-      const fullReply = `Потвърдената AI CORE задача е изпълнена: ${confirmed.results.length} операции.`;
+      const fullReply = formatConfirmedTask(confirmed, useEnglishReplyFallback(language));
       const conversationPersisted = await saveConversationTurnBestEffort(
         cleanSessionId,
         cleanMessage,
@@ -2461,6 +2469,7 @@ router.post("/chat", async (req, res) => {
       ownerId,
       sessionId: cleanSessionId,
       workContext: cleanWorkContext,
+      ...(language ? { language } : {}),
       prepareConfirmation: true,
       createTaskConfirmation: (options) =>
         createTaskConfirmation({

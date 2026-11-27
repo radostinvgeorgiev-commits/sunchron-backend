@@ -292,3 +292,17 @@ test("calendar adapter is not called when the audited write guard blocks", async
   );
   assert.equal(created, false);
 });
+
+test("recognizes the same calendar requests in English", () => {
+  const message = "Create a calendar event: AI CORE demo | 2026-08-05 14:30 | 30";
+  assert.equal(isCalendarWriteRequest(message), true);
+  assert.equal(isCalendarReadRequest(message), false);
+  assert.equal(parseCalendarEventDraft(message).title, "AI CORE demo");
+  assert.equal(
+    parseCalendarEventDraft("Add an event to my calendar: Team call | 2026-08-05 15:00 | 45").title,
+    "Team call",
+  );
+  assert.equal(isCalendarReadRequest("What is on my calendar this week?"), true);
+  assert.equal(isCalendarReadRequest("What is the Gregorian calendar?"), false);
+  assert.equal(isCalendarWriteRequest("What is the Gregorian calendar?"), false);
+});

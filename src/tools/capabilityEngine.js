@@ -12,6 +12,7 @@ import {
   isAiCoreConfigured,
 } from "../services/aiCoreService.js";
 import { answerGitHubReadRequest } from "../services/githubService.js";
+import { useEnglishReplyFallback } from "../config/replyLanguage.js";
 import {
   formatAiProviderProbe,
   probeAiProviders,
@@ -693,12 +694,17 @@ const executors = Object.freeze({
       );
     }
     const events = await listGoogleCalendarEvents(input.googleSessionId);
-    if (!events.length) return "Няма предстоящи събития в Google Calendar.";
+    const english = useEnglishReplyFallback(input.language);
+    if (!events.length) {
+      return english
+        ? "No upcoming events in Google Calendar."
+        : "Няма предстоящи събития в Google Calendar.";
+    }
     return [
-      "Предстоящи събития:",
+      english ? "Upcoming events:" : "Предстоящи събития:",
       ...events.map(
         (event) =>
-          `• ${event.title} — ${event.start || "без посочен начален час"}`,
+          `• ${event.title} — ${event.start || (english ? "no start time" : "без посочен начален час")}`,
       ),
     ].join("\n");
   },
@@ -709,18 +715,25 @@ const executors = Object.freeze({
         sessionId: input.sessionId,
         googleSessionId: input.googleSessionId,
       });
-      return `Календарното събитие е създадено: ${event.title}.`;
+      return useEnglishReplyFallback(input.language)
+        ? `Calendar event created: ${event.title}.`
+        : `Календарното събитие е създадено: ${event.title}.`;
     }
     const prepared = await prepareCalendarEvent({
       sessionId: input.sessionId,
       googleSessionId: input.googleSessionId,
       message: input.message,
     });
+    const { draft } = prepared;
+    const when = `${String(draft?.start || "").replace("T", " ")} (${draft?.timeZone || ""})`;
     return {
       output: prepared.output,
       metadata: {
         confirmationId: prepared.confirmationId,
         confirmationType: "capability",
+        summary: useEnglishReplyFallback(input.language)
+          ? `Create the Google Calendar event "${draft?.title}": ${when}, ${draft?.durationMinutes} min.`
+          : `Създаване на събитие „${draft?.title}“ в Google Calendar: ${when}, ${draft?.durationMinutes} мин.`,
       },
     };
   },
@@ -749,6 +762,13 @@ const executors = Object.freeze({
           sessionId: input.sessionId,
           confirmationId: requiredInput(input.confirmationId, "confirmationId"),
         });
+        if (useEnglishReplyFallback(input.language)) {
+          return capability === "mail.send"
+            ? changed.to
+              ? `Email sent to ${changed.to}.`
+              : `Gmail draft sent: ${changed.id}.`
+            : `Gmail message moved to Trash: ${changed.id}.`;
+        }
         return capability === "mail.send"
           ? changed.to
             ? `Имейлът е изпратен до ${changed.to}.`
@@ -773,6 +793,9 @@ const executors = Object.freeze({
           metadata: {
             confirmationId: prepared.confirmationId,
             confirmationType: "capability",
+            summary: useEnglishReplyFallback(input.language)
+              ? `Send an email to ${prepared.message.to} (subject: ${prepared.message.subject || "no subject"}).`
+              : `Изпращане на имейл до ${prepared.message.to} (тема: ${prepared.message.subject || "без тема"}).`,
           },
         };
       }
@@ -821,6 +844,18 @@ const executors = Object.freeze({
   },
   "youtube-channel": async ({ input }) => {
     const { channel, videos } = await getYoutubeChannelSummary(input.googleSessionId);
+    if (useEnglishReplyFallback(input.language)) {
+      if (!channel) return "This Google account has no YouTube channel.";
+      const count = (value) => (value === null ? "hidden" : value.toLocaleString("en-US"));
+      return [
+        `YouTube channel "${channel.title}": ${count(channel.subscribers)} subscribers, ${count(channel.views)} views, ${count(channel.videos)} videos.`,
+        ...(videos.length ? ["Latest videos:"] : []),
+        ...videos.map(
+          (video) =>
+            `• ${video.title} (${String(video.publishedAt || "").slice(0, 10)}) — ${count(video.views)} views, ${count(video.likes)} likes, ${count(video.comments)} comments — ${video.url}`,
+        ),
+      ].join("\n");
+    }
     if (!channel) return "Към този Google профил няма YouTube канал.";
     const number = (value) => (value === null ? "скрито" : value.toLocaleString("bg-BG"));
     return [
@@ -839,9 +874,12 @@ const executors = Object.freeze({
         requiredInput(input.query || input.message, "заявка за контакт"),
         input.limit || 10,
       );
-      if (!contacts.length) return "Няма намерени Google контакти.";
+      const english = useEnglishReplyFallback(input.language);
+      if (!contacts.length) {
+        return english ? "No Google contacts found." : "Няма намерени Google контакти.";
+      }
       return [
-        "Намерени контакти:",
+        english ? "Contacts found:" : "Намерени контакти:",
         ...contacts.map(
           (contact) =>
             `• ${contact.name}${contact.email ? ` — ${contact.email}` : ""}${contact.phone ? ` — ${contact.phone}` : ""}`,

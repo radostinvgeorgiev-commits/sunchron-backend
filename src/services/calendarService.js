@@ -138,19 +138,26 @@ function isReminderWriteRequest(message) {
   return /^(?:моля[,\s]+)?напомни\s+ми(?=\s|:|$)/iu.test(text);
 }
 
+// "Създай събитие в календара: …", "Create a calendar event: …",
+// "Add an event to my calendar: …".
 export function isCalendarWriteRequest(message) {
   const text = typeof message === "string" ? message.trim() : "";
   return (
     /(?:създай|добави|запиши|направи)\s+(?:ми\s+)?(?:календарно\s+)?(?:събитие|среща|ангажимент)(?:\s+в\s+(?:google\s+)?календара)?/iu.test(
       text,
-    ) || isReminderWriteRequest(text)
+    ) ||
+    /\b(?:create|add|schedule|make|book)\s+(?:me\s+)?(?:an?\s+)?(?:new\s+)?(?:calendar\s+)?(?:event|meeting|appointment)\b/iu.test(
+      text,
+    ) ||
+    isReminderWriteRequest(text)
   );
 }
 
 export function isCalendarReadRequest(message) {
   const text = typeof message === "string" ? message.toLowerCase() : "";
   return (
-    /(?:календар|събития|ангажимент|срещи|програмата ми)/u.test(text) &&
+    (/(?:календар|събития|ангажимент|срещи|програмата ми)/u.test(text) ||
+      /\bmy\s+(?:google\s+)?(?:calendar|events|meetings|schedule|agenda)\b/u.test(text)) &&
     !isCalendarWriteRequest(message)
   );
 }
@@ -192,7 +199,7 @@ export function parseCalendarEventDraft(message) {
 
   const title = cleanLimitedText(
     segments[0].replace(
-      /^.*?(?:събитие|среща|ангажимент)(?:\s+в\s+(?:google\s+)?календара)?\s*:\s*/iu,
+      /^.*?(?:събитие|среща|ангажимент|event|meeting|appointment)(?:\s+(?:в\s+(?:google\s+)?календара|(?:in|to|on)\s+(?:my\s+|the\s+)?(?:google\s+)?calendar))?\s*:\s*/iu,
       "",
     ),
     MAX_TITLE_LENGTH,

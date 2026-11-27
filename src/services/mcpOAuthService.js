@@ -363,6 +363,8 @@ export function requiredScopesForMcpTool(name) {
   if (
     [
       "create_gmail_draft",
+      "generate_video",
+      "publish_video_to_youtube",
       "prepare_gmail_send",
       "prepare_gmail_delete",
       "confirm_google_action",

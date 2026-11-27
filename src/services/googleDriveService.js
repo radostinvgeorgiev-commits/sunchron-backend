@@ -212,6 +212,9 @@ export const GOOGLE_EXTRA_SCOPES = Object.freeze({
   youtube: "https://www.googleapis.com/auth/youtube.readonly",
   // Only files AI CORE itself creates (answers saved as Docs/Sheets).
   save: "https://www.googleapis.com/auth/drive.file",
+  // Uploading the person's own videos to their YouTube channel. Like "save",
+  // it gets its own token, so it never clashes with youtube.readonly.
+  publish: "https://www.googleapis.com/auth/youtube.upload",
   // Reading the whole mailbox / whole Drive. Google calls these "restricted":
   // until the app passes Google's paid security audit, each person who turns
   // them on sees the "unverified app" warning. So members ask for them only
@@ -271,7 +274,7 @@ export function buildAuthorizationUrl(state, extras = [], { owner = false } = {}
     prompt: "consent",
     // Saving files gets its own token: Google refuses drive.file together
     // with an already granted youtube.readonly in one grant.
-    ...(extras.includes?.("save") ? {} : { include_granted_scopes: "true" }),
+    ...(extras.includes?.("save") || extras.includes?.("publish") ? {} : { include_granted_scopes: "true" }),
     state,
   });
   return `${GOOGLE_AUTH_URL}?${params}`;
@@ -279,10 +282,13 @@ export function buildAuthorizationUrl(state, extras = [], { owner = false } = {}
 
 // The separate "save" token lives in its own session, linked from the main
 // one, so the main connection keeps every other permission.
-export async function linkSaveSession(mainId, saveId) {
+// Extra steps whose token lives in its own linked session.
+export const GOOGLE_LINKED_EXTRAS = Object.freeze(["save", "publish"]);
+
+export async function linkSaveSession(mainId, saveId, kind = "save") {
   const session = await loadSession(mainId);
-  if (!session || !saveId) return false;
-  session.saveSessionId = saveId;
+  if (!session || !saveId || !GOOGLE_LINKED_EXTRAS.includes(kind)) return false;
+  session[`${kind}SessionId`] = saveId;
   sessions.set(mainId, session);
   try {
     await persistSession(mainId, session);
@@ -290,6 +296,13 @@ export async function linkSaveSession(mainId, saveId) {
     logSafeError("[Google session] Save link persistence failure", error);
   }
   return true;
+}
+
+// The linked YouTube upload token, or null when it was never turned on.
+export async function publishSessionFor(mainId) {
+  const session = await loadSession(mainId);
+  const id = session?.publishSessionId;
+  return id && (await hasSession(id)) ? id : null;
 }
 
 export async function saveSessionFor(mainId) {
@@ -835,6 +848,109 @@ export async function saveAnswerToGoogle(
   );
   const data = await response.json();
   return { id: data.id, name: data.name || name, url: data.webViewLink || null, kind };
+}
+
+// Saves a generated video (MP4) as a new file in the person's own Drive.
+// A resumable upload, because a clip is often bigger than the 5 MB that a
+// simple multipart upload allows. drive.file: only files AI CORE creates.
+export async function saveVideoToDrive(id, { name = "", bytes, mimeType = "video/mp4" } = {}, fetchImpl = fetch) {
+  if (!Buffer.isBuffer(bytes) || !bytes.length || mimeType !== "video/mp4") {
+    throw new GoogleDriveError("Няма видео за запазване.", 400, "GOOGLE_SAVE_INVALID");
+  }
+  const fileName =
+    `${String(name || "").replace(/[\u0000-\u001f\u007f/\\]/gu, " ").trim().slice(0, 100) || "AI CORE видео"}.mp4`;
+  const start = await googleFetch(
+    id,
+    `${DRIVE_UPLOAD_URL}?uploadType=resumable&fields=id,name,webViewLink`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json; charset=UTF-8",
+        "X-Upload-Content-Type": mimeType,
+        "X-Upload-Content-Length": String(bytes.length),
+      },
+      body: JSON.stringify({ name: fileName, mimeType }),
+    },
+    fetchImpl,
+    "Google Drive",
+  );
+  const location = start.headers?.get?.("location");
+  if (!location || !location.startsWith(`${DRIVE_UPLOAD_URL}?`)) {
+    throw new GoogleDriveError("Google Drive не прие видеото. Опитай пак.", 502, "GOOGLE_UPLOAD_FAILED");
+  }
+  const response = await googleFetch(
+    id,
+    location,
+    { method: "PUT", headers: { "Content-Type": mimeType }, body: bytes },
+    fetchImpl,
+    "Google Drive",
+  );
+  const data = await response.json();
+  return { id: data.id, name: data.name || fileName, url: data.webViewLink || null };
+}
+
+// Reads back an MP4 that AI CORE saved in the person's Drive (drive.file).
+export async function downloadOwnDriveVideo(id, fileId, fetchImpl = fetch) {
+  if (!/^[A-Za-z0-9_-]+$/u.test(fileId || "")) {
+    throw new GoogleDriveError("Невалиден Google Drive файл.", 400, "INVALID_FILE_ID");
+  }
+  const meta = await (
+    await googleFetch(id, `${DRIVE_API_URL}/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size`, {}, fetchImpl, "Google Drive")
+  ).json();
+  if (meta.mimeType !== "video/mp4" || Number(meta.size) > 256 * 1024 * 1024) {
+    throw new GoogleDriveError("Това не е видео от AI CORE.", 400, "GOOGLE_NOT_VIDEO");
+  }
+  const response = await googleFetch(id, `${DRIVE_API_URL}/files/${encodeURIComponent(fileId)}?alt=media`, {}, fetchImpl, "Google Drive");
+  return { name: String(meta.name || "").replace(/\.mp4$/iu, ""), bytes: Buffer.from(await response.arrayBuffer()) };
+}
+
+const YOUTUBE_UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos";
+export const YOUTUBE_PRIVACY = Object.freeze(["private", "unlisted", "public"]);
+
+// Uploads a video to the person's own YouTube channel (youtube.upload).
+// Google keeps uploads from apps that have not passed YouTube's API audit
+// private, whatever is asked; the answer says what YouTube actually set.
+export async function uploadVideoToYoutube(
+  id,
+  { bytes, title = "", description = "", privacy = "private" } = {},
+  fetchImpl = fetch,
+) {
+  if (!Buffer.isBuffer(bytes) || !bytes.length) {
+    throw new GoogleDriveError("Няма видео за качване.", 400, "YOUTUBE_UPLOAD_INVALID");
+  }
+  const status = YOUTUBE_PRIVACY.includes(privacy) ? privacy : "private";
+  const clean = (value, max) => String(value || "").replace(/[\u0000-\u0008\u000b-\u001f\u007f<>]/gu, " ").trim().slice(0, max);
+  const start = await googleFetch(
+    id,
+    `${YOUTUBE_UPLOAD_URL}?uploadType=resumable&part=snippet,status`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json; charset=UTF-8",
+        "X-Upload-Content-Type": "video/mp4",
+        "X-Upload-Content-Length": String(bytes.length),
+      },
+      body: JSON.stringify({
+        snippet: { title: clean(title, 100) || "AI CORE видео", description: clean(description, 5000) },
+        status: { privacyStatus: status, selfDeclaredMadeForKids: false, containsSyntheticMedia: true },
+      }),
+    },
+    fetchImpl,
+    "YouTube",
+  );
+  const location = start.headers?.get?.("location");
+  if (!location || !location.startsWith(`${YOUTUBE_UPLOAD_URL}?`)) {
+    throw new GoogleDriveError("YouTube не прие видеото. Опитай пак.", 502, "YOUTUBE_UPLOAD_FAILED");
+  }
+  const data = await (
+    await googleFetch(id, location, { method: "PUT", headers: { "Content-Type": "video/mp4" }, body: bytes }, fetchImpl, "YouTube")
+  ).json();
+  return {
+    id: data.id,
+    url: data.id ? `https://www.youtube.com/watch?v=${data.id}` : null,
+    studio: data.id ? `https://studio.youtube.com/video/${data.id}/edit` : null,
+    privacy: data.status?.privacyStatus || status,
+  };
 }
 
 export function isGoogleScopeMissing(error) {

@@ -29,3 +29,17 @@ test("sitemap lists every public page and llms.txt describes the product", async
 test("IndexNow key file is served so Bing and Yandex accept update pings", async () => {
   assert.equal(await read("b1b8926aa2b2276601d0435a82d89360.txt"), "b1b8926aa2b2276601d0435a82d89360");
 });
+
+test("blog lists its articles, each linked from the sitemap", async () => {
+  const index = await read("blog/index.html");
+  const sitemap = await read("sitemap.xml");
+  const links = [...index.matchAll(/href="\/blog\/([a-z0-9-]+\.html)"/gu)].map((m) => m[1]);
+  assert.ok(links.length >= 2);
+  for (const file of links) {
+    const page = await read(`blog/${file}`);
+    assert.match(page, /<h1>/u);
+    assert.match(page, /"@type": ?"Article"/u);
+    assert.match(sitemap, new RegExp(`/blog/${file.replace(".", "\\.")}<`, "u"));
+  }
+  assert.match(await read("index.html"), /href="\/blog\/"/u);
+});

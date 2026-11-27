@@ -85,6 +85,24 @@ test("the built-in samples are accepted by the real validators", () => {
   });
 });
 
+// "Работа с Claude" without the network: writes the number it was asked for.
+function fakeClaudeWork() {
+  const files = new Map();
+  return {
+    async run(ownerId, { task }) {
+      const number = task.match(/\d{4}/u)[0];
+      files.set(ownerId, number);
+      return { text: "Готово.", files: [{ id: "f1", name: "self-test.txt" }], model: "claude-haiku-5-5" };
+    },
+    async download(ownerId) {
+      return { body: Buffer.from(files.get(ownerId) || "") };
+    },
+    async clear(ownerId) {
+      files.delete(ownerId);
+    },
+  };
+}
+
 test("all checks pass, Grok without a key is skipped, nothing secret is returned", async () => {
   const report = await runSelfTest({
     env,
@@ -100,14 +118,16 @@ test("all checks pass, Grok without a key is skipped, nothing secret is returned
     knowledgeService: memoryKnowledge(),
     libraryService: memoryLibrary(),
     avatarProfileService: memoryAvatar(),
+    claudeWorkService: fakeClaudeWork(),
   });
   assert.equal(report.checks.find(({ name }) => name.startsWith("Запис от среща")).detail, "Gemini прие и прочете записа");
   assert.equal(report.status, "pass");
   assert.equal(report.failed, 0);
   assert.equal(report.checks.find(({ name }) => name === "Чат · grok").status, "skipped");
   assert.equal(report.checks.find(({ name }) => name === "Чат · vertex-gemini").status, "skipped");
-  assert.equal(report.checks.length, 14);
-  assert.match(formatSelfTest(report), /11 минаха, 0 не минаха, 3 пропуснати/u);
+  assert.equal(report.checks.length, 15);
+  assert.match(formatSelfTest(report), /12 минаха, 0 не минаха, 3 пропуснати/u);
+  assert.match(report.checks.find(({ name }) => name.startsWith("Работа с Claude")).detail, /self-test\.txt/u);
   assert.doesNotMatch(JSON.stringify(report), /"a"|"o"|"g"/u);
 });
 
@@ -125,6 +145,7 @@ test("a failing provider is reported as a failure with a short reason", async ()
     knowledgeService: memoryKnowledge(),
     libraryService: memoryLibrary(),
     avatarProfileService: memoryAvatar(),
+    claudeWorkService: fakeClaudeWork(),
   });
   assert.equal(report.status, "fail");
   assert.equal(report.checks.find(({ name }) => name === "Чат · gemini").detail, "GEMINI_UPSTREAM_ERROR");
@@ -189,6 +210,7 @@ test("an unexpected chat answer is shown on one short line", async () => {
     knowledgeService: memoryKnowledge(),
     libraryService: memoryLibrary(),
     avatarProfileService: memoryAvatar(),
+    claudeWorkService: fakeClaudeWork(),
   });
   const grok = report.checks.find(({ name }) => name === "Чат · grok");
   assert.equal(grok.status, "fail");

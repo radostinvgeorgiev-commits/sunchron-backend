@@ -632,5 +632,17 @@ AI доставчик и модел|AI provider and model
 Качено в YouTube, засега скрито (YouTube още проверява AI CORE). Можеш да го направиш публично от YouTube Studio.|Uploaded to YouTube, private for now (YouTube is still reviewing AI CORE). You can make it public in YouTube Studio.
 Качването в YouTube иска еднократно разрешение. После пак натисни „Качи в YouTube“.|Uploading to YouTube needs a one-time permission. Then press “Upload to YouTube” again.
 YouTube не прие видеото. Опитай пак.|YouTube did not accept the video. Try again.
+Работа с Claude|Work with Claude
+Възложи по-голяма задача на Claude: реклама, презентация, документ, таблица или PDF. Claude работи в своя затворена среда, не вижда данните ти и връща текст и готови файлове за изтегляне. Една задача струва 10 единици.|Hand a bigger task to Claude: an ad, a presentation, a document, a spreadsheet or a PDF. Claude works in its own closed space, does not see your data, and returns text and finished files to download. One task costs 10 units.
+Какви файлове да може да прави|Which files it may make
+Възложи на Claude|Give it to Claude
+Последните ми файлове от Claude|My latest files from Claude
+Задача за Claude|Task for Claude
+Може да търси в интернет|It may search the web
+Презентация (PowerPoint)|Presentation (PowerPoint)
+Документ (Word)|Document (Word)
+Таблица (Excel)|Spreadsheet (Excel)
+Задачата не е довършена докрай. Опитай с по-малка част.|The task was not fully finished. Try a smaller part.
+Claude работи по задачата. Може да отнеме до 3–4 минути…|Claude is working on the task. It can take up to 3–4 minutes…
 `.trim().split("\n").map((line) => line.split("|")),
 );

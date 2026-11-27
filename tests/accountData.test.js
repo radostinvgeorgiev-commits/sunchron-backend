@@ -72,6 +72,7 @@ function deletionDeps(calls, { signIn } = {}) {
     forgetAvatarLink: async (ownerId) => calls.push(["avatar-link", ownerId]),
     clearTodos: async (ownerId) => calls.push(["todos", ownerId]),
     clearAddons: async (ownerId) => calls.push(["addons", ownerId]),
+    clearClaudeWork: async (ownerId) => calls.push(["claude-work", ownerId]),
     forgetAvatarProfile: async (ownerId) => calls.push(["avatar-profile", ownerId]),
     audit: async (event) => calls.push(["audit", event.action]),
   };
@@ -113,6 +114,7 @@ test("deletion requires the phrase and a fresh password check, then removes ever
     ["avatar-link", "owner-1"],
     ["todos", "owner-1"],
     ["addons", "owner-1"],
+    ["claude-work", "owner-1"],
     ["avatar-profile", "owner-1"],
     ["deleteAccount", "fresh"],
     ["audit", "account.delete"],

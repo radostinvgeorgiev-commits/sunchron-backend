@@ -57,6 +57,7 @@ export function startStubServer(port = 0) {
   let googleConnected = false;
   let googleLight = false;
   let workspace = null;
+  let claudeWorkFiles = [];
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://stub");
     let p = url.pathname;
@@ -118,6 +119,24 @@ export function startStubServer(port = 0) {
         return undefined;
       }
       return json(res, { name: avatarLink.card.name, intro: avatarLink.card.intro });
+    }
+    // "Работа с Claude": a fixed answer with one file, so the page can be checked.
+    if (p === "/api/claude-work") {
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        const skills = [{ id: "pptx", label: "Презентация (PowerPoint)" }, { id: "pdf", label: "PDF" }];
+        if (req.method === "GET") return json(res, { skills, files: claudeWorkFiles });
+        const data = JSON.parse(body || "{}");
+        const file = { id: "file_robot", name: "reklama.pptx", mimeType: "application/octet-stream", size: 5 };
+        claudeWorkFiles = [file];
+        return json(res, { text: `Готово: ${data.task} (${(data.skills || []).join(",")})`, files: [file], model: "claude-haiku-5-5" });
+      });
+      return undefined;
+    }
+    if (p === "/api/claude-work/files/file_robot") {
+      res.writeHead(200, { "Content-Type": "application/octet-stream", "Content-Disposition": 'attachment; filename="reklama.pptx"' });
+      return res.end("PPTX!");
     }
     if (p.startsWith("/api/addons/")) {
       let body = "";

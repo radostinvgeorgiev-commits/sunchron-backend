@@ -25,11 +25,25 @@
     <div class="share-card addon-card">
       <div class="share-head"><h2></h2><button type="button" class="share-close"></button></div>
       <div class="addon-tabs" role="tablist">
+        <button type="button" role="tab" data-tab="claude"></button>
         <button type="button" role="tab" data-tab="store"></button>
         <button type="button" role="tab" data-tab="mine"></button>
         <button type="button" role="tab" data-tab="review"></button>
       </div>
-      <section data-pane="store"><p class="share-note"></p><ul class="addon-list"></ul></section>
+      <section data-pane="claude" hidden>
+        <p class="share-note"></p>
+        <form class="claude-work-form">
+          <label><span data-label="task"></span><textarea name="task" rows="5" maxlength="8000"></textarea></label>
+          <fieldset class="claude-work-skills"><legend></legend></fieldset>
+          <label class="claude-work-check"><input type="checkbox" name="webSearch" /> <span data-label="webSearch"></span></label>
+          <div class="share-actions"><button type="submit" class="primary claude-work-run"></button></div>
+        </form>
+        <pre class="addon-output claude-work-output" hidden></pre>
+        <ul class="claude-work-files"></ul>
+        <div class="share-actions claude-work-after" hidden><button type="button" class="claude-work-chat"></button></div>
+        <details class="claude-work-recent" hidden><summary></summary><ul class="claude-work-files"></ul></details>
+      </section>
+      <section data-pane="store" hidden><p class="share-note"></p><ul class="addon-list"></ul></section>
       <section data-pane="mine" hidden>
         <p class="share-note"></p>
         <form class="addon-editor">
@@ -57,6 +71,7 @@
   $("h2").textContent = text("Добавки");
   $(".share-close").textContent = "✕";
   $(".share-close").setAttribute("aria-label", text("Затвори"));
+  $('[data-tab="claude"]').textContent = text("Работа с Claude");
   $('[data-tab="store"]').textContent = text("Магазин");
   $('[data-tab="mine"]').textContent = text("Моите добавки");
   $('[data-tab="review"]').textContent = text("За преглед");
@@ -67,7 +82,16 @@
     "Напиши функция run(input, data). Тя работи в затворена среда без достъп до интернет и до данните ти. Ако посочиш адрес за данни, сайтът го чете и подава резултата като data; {input} в адреса се заменя с това, което напишеш. Добавката е само твоя, докато не я изпратиш за преглед.",
   );
   $('[data-pane="review"] .share-note').textContent = text("Прочети кода, пробвай и реши. Одобрената добавка се вижда от всички.");
+  $('[data-pane="claude"] .share-note').textContent = text(
+    "Възложи по-голяма задача на Claude: реклама, презентация, документ, таблица или PDF. Claude работи в своя затворена среда, не вижда данните ти и връща текст и готови файлове за изтегляне. Една задача струва 10 единици.",
+  );
+  $(".claude-work-skills legend").textContent = text("Какви файлове да може да прави");
+  $(".claude-work-run").textContent = text("Възложи на Claude");
+  $(".claude-work-chat").textContent = text("Прати в чата");
+  $(".claude-work-recent summary").textContent = text("Последните ми файлове от Claude");
   const labels = {
+    task: "Задача за Claude",
+    webSearch: "Може да търси в интернет",
     name: "Име",
     description: "Какво прави",
     dataUrl: "Адрес за данни (по желание)",
@@ -202,9 +226,73 @@
     if (!items.length) list.append(element("li", "todo-empty", text("Няма добавки за преглед.")));
   };
 
+  const claudeForm = $(".claude-work-form");
+  const fileLinks = (list, files) =>
+    list.replaceChildren(
+      ...files.map((file) => {
+        const item = element("li");
+        const link = element("a", "", `⬇ ${file.name}`);
+        link.href = `/api/claude-work/files/${encodeURIComponent(file.id)}`;
+        link.download = file.name;
+        item.append(link);
+        return item;
+      }),
+    );
+  const claudeCall = async (method, body) => {
+    const response = await fetch("/api/claude-work", {
+      method,
+      credentials: "same-origin",
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || text("Нещо се обърка. Опитай отново."));
+    return data;
+  };
+  let claudeLoaded = false;
+  const loadClaude = async () => {
+    const { skills = [], files = [] } = await claudeCall("GET");
+    if (!claudeLoaded) {
+      claudeLoaded = true;
+      $(".claude-work-skills").append(
+        ...skills.map((skill) => {
+          const label = element("label", "claude-work-check");
+          const box = element("input");
+          box.type = "checkbox";
+          box.name = "skill";
+          box.value = skill.id;
+          label.append(box, " ", element("span", "", text(skill.label)));
+          return label;
+        }),
+      );
+    }
+    $(".claude-work-recent").hidden = !files.length;
+    fileLinks($(".claude-work-recent .claude-work-files"), files);
+  };
+  claudeForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const box = $(".claude-work-output");
+    void run(async () => {
+      const result = await claudeCall("POST", {
+        task: claudeForm.elements.task.value,
+        skills: [...claudeForm.querySelectorAll('input[name="skill"]:checked')].map((input) => input.value),
+        webSearch: claudeForm.elements.webSearch.checked,
+      });
+      box.hidden = false;
+      box.textContent = result.unfinished ? `${result.text}\n\n⚠ ${text("Задачата не е довършена докрай. Опитай с по-малка част.")}` : result.text;
+      box.dataset.output = result.text || "";
+      fileLinks($('[data-pane="claude"] > .claude-work-files'), result.files || []);
+      $(".claude-work-after").hidden = !result.text;
+      await loadClaude();
+    }, text("Claude работи по задачата. Може да отнеме до 3–4 минути…"));
+    return false;
+  });
+  $(".claude-work-chat").addEventListener("click", () => toChat($(".claude-work-output").dataset.output));
+
   const showTab = (name) => {
     for (const tab of dialog.querySelectorAll("[data-tab]")) tab.setAttribute("aria-selected", String(tab.dataset.tab === name));
     for (const pane of dialog.querySelectorAll("[data-pane]")) pane.hidden = pane.dataset.pane !== name;
+    if (name === "claude") void run(loadClaude, text("Зареждане…"));
     if (name === "store") void run(loadStore, text("Зареждане…"));
     if (name === "mine") void run(() => loadMine(), text("Зареждане…"));
     if (name === "review") void run(loadReview, text("Зареждане…"));
@@ -298,6 +386,6 @@
     $('[data-tab="review"]').hidden = !isOwner();
     if (!form.elements.code.value) fill(EXAMPLE);
     dialog.hidden = false;
-    showTab("store");
+    showTab("claude");
   });
 })();

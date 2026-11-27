@@ -271,6 +271,22 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect(await box.isHidden(), "прозорецът не се затвори");
     await page.fill("#chatInput", "");
   });
+  await step(`${label}: „Работа с Claude“ връща текст и файл за изтегляне`, async () => {
+    await openMine("addons");
+    const box = page.locator(".addon-dialog");
+    await box.waitFor({ state: "visible", timeout: 5000 });
+    const pane = box.locator('[data-pane="claude"]');
+    await pane.waitFor({ state: "visible", timeout: 5000 });
+    await pane.locator('input[name="skill"][value="pptx"]').check();
+    await pane.locator('[name="task"]').fill("Реклама за AI CORE");
+    await pane.locator(".claude-work-run").click();
+    await pane.locator(".claude-work-output").waitFor({ state: "visible", timeout: 8000 });
+    expect((await pane.locator(".claude-work-output").innerText()).includes("Реклама за AI CORE (pptx)"), "Claude не върна текста");
+    const link = pane.locator(':scope > .claude-work-files a', { hasText: "reklama.pptx" });
+    await link.waitFor({ timeout: 5000 });
+    expect((await link.getAttribute("href")) === "/api/claude-work/files/file_robot", "връзката към файла е грешна");
+    await box.locator(".share-close").click();
+  });
   await step(`${label}: запис от среща става обобщение и задачи`, async () => {
     await page.click("#attachBtn");
     const chooser = page.waitForEvent("filechooser", { timeout: 5000 });

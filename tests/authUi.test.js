@@ -45,7 +45,9 @@ test("new profiles are made only with Google; there is no password sign-up", () 
   assert.match(html, /„Продължи с Google“ със същия имейл/u);
   assert.match(html, /href="\/terms"/u);
   // Without Google the password form opens so nobody is locked out.
-  assert.match(app, /session\.githubSignIn !== true\s*\) \{\s*elements\.passwordSignIn\.open = true/u);
+  assert.match(app, /session\.githubSignIn !== true &&\s*!Object\.values\(session\.providerSignIn \|\| \{\}\)\.some\(Boolean\)\s*\) \{\s*elements\.passwordSignIn\.open = true/u);
+  assert.match(html, /id="facebookSignInBtn"[^>]*href="\/api\/auth\/facebook\/start" data-provider="facebook" hidden/u);
+  assert.match(html, /id="microsoftSignInBtn"[^>]*href="\/api\/auth\/microsoft\/start" data-provider="microsoft" hidden/u);
   assert.match(html, /id="githubSignInBtn"[^>]*href="\/api\/auth\/github\/start" hidden/u);
   assert.match(app, /AUTH_GOOGLE_PASSWORD_ACCOUNT/u);
   assert.doesNotMatch(

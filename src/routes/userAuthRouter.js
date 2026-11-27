@@ -29,6 +29,13 @@ import {
   isGitHubSignInEnabled,
   startGitHubSignIn,
 } from "../services/githubSignInService.js";
+import {
+  clearProviderSignInCookie,
+  finishProviderSignIn,
+  providerSignInStatus,
+  SIGN_IN_PROVIDERS,
+  startProviderSignIn,
+} from "../services/providerSignInService.js";
 import { logSafeError } from "../utils/safeLogging.js";
 import { recordActivity } from "../services/activityService.js";
 
@@ -60,11 +67,14 @@ router.get("/session", async (req, res) => {
       // (Google today). Existing email/password profiles can still sign in.
       registrationEnabled:
         isUserAuthConfigured() &&
-        (isGoogleSignInEnabled() || isGitHubSignInEnabled()),
+        (isGoogleSignInEnabled() ||
+          isGitHubSignInEnabled() ||
+          Object.values(providerSignInStatus()).some(Boolean)),
       registrationMode: isPublicRegistration() ? "public" : "invite",
       passwordRegistration: false,
       googleSignIn: isGoogleSignInEnabled(),
       githubSignIn: isGitHubSignInEnabled(),
+      providerSignIn: providerSignInStatus(),
       authProvider: getUserAuthProvider(),
       authenticated: Boolean(identity),
       user: identity
@@ -133,6 +143,60 @@ router.get("/github/start", (_req, res) => {
     return res.redirect(302, `/?auth_error=${encodeURIComponent(error.code || "AUTH_GITHUB_FAILED")}`);
   }
 });
+
+// "Вход с Facebook" / "Вход с Microsoft" through Identity Platform's own
+// redirect flow (providerSignInService).
+export function createProviderSignInHandlers(
+  name,
+  {
+    start = startProviderSignIn,
+    finish = finishProviderSignIn,
+    logError = logSafeError,
+  } = {},
+) {
+  const failed = (res, error) =>
+    res.redirect(
+      302,
+      `/?auth_error=${encodeURIComponent(error?.code || `AUTH_${name.toUpperCase()}_FAILED`)}`,
+    );
+  return {
+    async start(_req, res) {
+      try {
+        const { url, cookie } = await start(name);
+        res.setHeader("Set-Cookie", cookie);
+        return res.redirect(302, url);
+      } catch (error) {
+        logError(`[${name} sign-in] start`, error);
+        return failed(res, error);
+      }
+    },
+    async callback(req, res) {
+      try {
+        const result = await finish(name, {
+          query: req.query,
+          cookieHeader: req.headers.cookie,
+          originalUrl: req.originalUrl,
+        });
+        if (result.created) recordActivity({ registrations: 1 });
+        res.setHeader("Set-Cookie", [
+          userSessionCookie(result.session),
+          clearProviderSignInCookie(name),
+        ]);
+        return res.redirect(302, "/");
+      } catch (error) {
+        logError(`[${name} sign-in] callback`, error);
+        res.setHeader("Set-Cookie", clearProviderSignInCookie(name));
+        return failed(res, error);
+      }
+    },
+  };
+}
+
+for (const name of Object.keys(SIGN_IN_PROVIDERS)) {
+  const handlers = createProviderSignInHandlers(name);
+  router.get(`/${name}/start`, handlers.start);
+  router.get(`/${name}/callback`, handlers.callback);
+}
 
 // "Вход с Google" finished in a browser that already holds the verified owner
 // GitHub session links that Google account to the owner: from then on a

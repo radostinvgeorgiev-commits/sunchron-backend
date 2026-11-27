@@ -53,7 +53,7 @@ import {
   buildProjectConversationReference,
   codeBlocksOfLines,
   isNextStepLine,
-  sanitizeAssistantHistory,
+  stripReplayedNextSteps,
   loadProjectConversationContext,
 } from "../services/projectConversationContextService.js";
 import {
@@ -535,8 +535,9 @@ export function combineConversationHistory(persistent, recent) {
 // of each and maxLength in all, so it uses at most maxLength / 6,000 long
 // answers and shorter ones of maxLength in all. A long answer is split from
 // at most its last CLEANED_ANSWER_LENGTH characters, the end the cut keeps,
-// and loses its own Next line there (withoutOwnNextLine); real answers are
-// far shorter and are stripped whole.
+// and loses its own Next line there (cleanedKeptEnd); real answers are far
+// shorter and are stripped whole. Either way each answer is split into lines
+// and scanned for code once.
 const CLEANED_HISTORY_MARGIN = 4;
 const CLEANED_ANSWER_LENGTH = 100_000;
 // A line with a Google allow link: besides blank lines, the only line that may
@@ -548,9 +549,11 @@ const GOOGLE_ALLOW_LINE = /\/api\/google\/connect/u;
 // last one but for blank lines and allow lines. It goes when the kept end
 // reads it as text, or as code in a block opened by a bare fence line, which
 // may be the closing fence of a block the cut started in; in a block opened
-// with an info string it is code and stays.
-function withoutOwnNextLine(content) {
-  const lines = content.split("\n");
+// with an info string it is code and stays. The other Next lines outside code
+// go too, as from a whole answer, found in the same scan. The room the cut
+// has left counts the kept end without its own Next line.
+function cleanedKeptEnd(end) {
+  const lines = end.split("\n");
   let last = lines.length - 1;
   while (
     last > 0 &&
@@ -559,13 +562,21 @@ function withoutOwnNextLine(content) {
   ) {
     last -= 1;
   }
-  if (!isNextStepLine(lines[last])) return content;
-  const block = codeBlocksOfLines(lines)[last];
-  if (block && !block.bare) return content;
-  return [...lines.slice(0, last), ...lines.slice(last + 1)].join("\n");
+  const blocks = codeBlocksOfLines(lines);
+  const own = isNextStepLine(lines[last]) && (!blocks[last] || blocks[last].bare) ? last : -1;
+  const kept = lines.filter(
+    (line, index) => index !== own && (blocks[index] || !isNextStepLine(line)),
+  );
+  return {
+    content: kept.join("\n").trim(),
+    // Taking out one of several lines also takes out a line break.
+    counted: own < 0 ? end.length : end.length - lines[own].length - (lines.length > 1 ? 1 : 0),
+  };
 }
 
-function newestForCleaning(messages, { maxMessages, maxLength }) {
+// The newest entries the cut can use, each answer without its Next lines as
+// stripReplayedNextSteps strips them, and without the entries left empty.
+function newestCleaned(messages, { maxMessages, maxLength }) {
   if (!Array.isArray(messages)) return [];
   const newest = [];
   // Room for the long answers the cut can use and for the shorter ones.
@@ -583,11 +594,19 @@ function newestForCleaning(messages, { maxMessages, maxLength }) {
     // The cut trims an answer and keeps its end, so a longer one keeps the
     // end of its text, not trailing blank lines.
     if (content.length > allowed) content = content.trimEnd();
-    if (content.length > allowed) content = withoutOwnNextLine(content.slice(content.length - allowed));
-    room -= content.length;
-    newest.push(content === message.content ? message : { ...message, content });
+    if (content.length > allowed) {
+      const end = cleanedKeptEnd(content.slice(content.length - allowed));
+      room -= end.counted;
+      content = end.content;
+    } else {
+      room -= content.length;
+      content = stripReplayedNextSteps(content);
+    }
+    newest.push({ ...message, content });
   }
-  return newest.reverse();
+  return newest
+    .reverse()
+    .filter((message) => typeof message?.content !== "string" || message.content);
 }
 
 // The history the model sees. "Следва:"/"Next:" lines are stripped from whole
@@ -596,10 +615,8 @@ function newestForCleaning(messages, { maxMessages, maxLength }) {
 // and be replayed. The saved turns and the client's recent ones are stripped
 // the same way, so the merge still finds where they overlap.
 export function effectiveConversationHistory(persistent, recent, { rewrite = false } = {}) {
-  const stripped = (messages, limits) =>
-    sanitizeAssistantHistory(newestForCleaning(messages, limits));
   const cleanRecent = normalizeRecentConversationHistory(
-    stripped(recent, {
+    newestCleaned(recent, {
       maxMessages: MAX_RECENT_CONVERSATION_MESSAGES,
       maxLength: MAX_RECENT_CONVERSATION_TOTAL_LENGTH,
     }),
@@ -608,7 +625,7 @@ export function effectiveConversationHistory(persistent, recent, { rewrite = fal
   // turns would otherwise bring the replaced answer back into context.
   return rewrite
     ? cleanRecent
-    : combineConversationHistory(stripped(persistent, COMBINED_CONVERSATION_LIMITS), cleanRecent);
+    : combineConversationHistory(newestCleaned(persistent, COMBINED_CONVERSATION_LIMITS), cleanRecent);
 }
 
 const SHORT_CONTINUATION_PATTERN =

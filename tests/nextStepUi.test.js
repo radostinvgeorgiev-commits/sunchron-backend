@@ -187,6 +187,39 @@ test("a fence in a list item, or closed by a longer run, leaves the Next line af
   }
 });
 
+// Answers the rule knowingly reads otherwise than marked (KNOWN_DIFFERENCES).
+// A heredoc with a blank line in a list step after a step whose code was
+// written unindented.
+const HEREDOC_AFTER_UNINDENTED_STEP = [
+  "1. Инсталирай зависимостите:",
+  "   ```bash",
+  "npm install express",
+  "   ```",
+  "2. Създай `README.md`:",
+  "   ```bash",
+  "   cat > README.md <<'EOF'",
+  "# Synchron",
+  "",
+  "Асистент за проекти.",
+  "EOF",
+  "   ```",
+  "",
+  "Следва: Пусни `npm start` и ми кажи какво пише.",
+].join("\n");
+// Unindented HTML in a bare fence of a list step.
+const BARE_FENCE_HTML = [
+  "1. Добави картата в `index.html`:",
+  "   ```",
+  '<div class="card">',
+  "  <h1>Заглавие</h1>",
+  "</div>",
+  "   ```",
+  "",
+  "Следва: Отвори страницата и ми кажи как изглежда.",
+].join("\n");
+// A closing fence seven columns in, four past the item's text.
+const OVER_INDENTED_CLOSER = "1. Install:\n   ```bash\n   npm install\n       ```\nСледва: x";
+
 // Code fences as CommonMark (and marked) reads them, and the Next lines
 // outside code.
 const FENCE_CASES = [
@@ -422,25 +455,91 @@ const FENCE_CASES = [
   ["1. ```bash\nnpm test\n```\n\nNext: x", [4]],
   ["- ```bash\nnpm test\nNext: x", []],
   ["- ```bash\n  npm test\n# done\nNext: x", []],
+  // When that line is left of the item's text, the block stays open at the
+  // endings of its item while a line further down would close it, so it ends
+  // at its own closing fence, also after a blank line and an unindented line;
+  // with none further down, it ends with its item.
+  [
+    [
+      "1. Инсталирай Express:",
+      "   ```bash",
+      "npm install express",
+      "   ```",
+      "2. Създай `server.js`:",
+      "   ```js",
+      'const express = require("express");',
+      "",
+      "const app = express();",
+      'app.get("/", (req, res) => res.send("Здравей!"));',
+      "app.listen(3000);",
+      "   ```",
+      "",
+      "Следва: Пусни `node server.js` и ми кажи какво пише.",
+    ].join("\n"),
+    [13],
+  ],
+  [
+    [
+      "1. Install:",
+      "   ```bash",
+      "   npm install",
+      "```",
+      "1. Създай `app.py`:",
+      "   ```python",
+      "def f():",
+      "    return 1",
+      "",
+      "def g():",
+      "    return 2",
+      "   ```",
+      "",
+      "Следва: Пусни тестовете и ми кажи резултата.",
+    ].join("\n"),
+    [13],
+  ],
+  ["- ```bash\nnpm test\n- b\nNext: x", [3]],
+  // A closing line further down that is too far in, too short, or of the other
+  // character does not keep such a block open.
+  ["- ```bash\nnpm test\n- b\n      ```\nNext: x", [4]],
+  ["- ````bash\nnpm test\n- b\n```\n```\nNext: x", [5]],
+  ["- ~~~bash\nnpm test\n- b\n```\n```\nNext: x", [5]],
+  // The rule reads these otherwise than marked: a block whose first line is
+  // at the item's text ends with its item at a blank line and an unindented
+  // line, also after such a step; an HTML block is not read, so the closing
+  // fence after it opens a block; and an item does not end below a line four
+  // or more columns past its text.
+  [HEREDOC_AFTER_UNINDENTED_STEP, []],
+  [BARE_FENCE_HTML, []],
+  [OVER_INDENTED_CLOSER, []],
 ];
 // Where the rule knowingly reads an answer otherwise than marked, with
 // marked's Next lines: the model's closing fence closes its block, and lines
 // below a fence with an info string stay code, where marked ends the list
-// item (a block left open then swallows a later Next line).
+// item (a block left open then swallows a later Next line); marked's other
+// item endings are not read.
 const KNOWN_DIFFERENCES = new Map([
   ["- ```bash\n  npm test\n```\n\nNext: x", []],
   ["1. ```bash\nnpm test\n```\n\nNext: x", []],
   ["- ```bash\nnpm test\nNext: x", [2]],
   ["- ```bash\n  npm test\n# done\nNext: x", [3]],
+  // marked ends step 1 at its unindented code and pairs every later fence one off.
+  [HEREDOC_AFTER_UNINDENTED_STEP, [13]],
+  // marked's HTML block runs to the blank line and takes the closing fence with it.
+  [BARE_FENCE_HTML, [7]],
+  // marked ends the item below a line four or more columns past the item's text.
+  [OVER_INDENTED_CLOSER, [4]],
 ]);
 
 test("the server and the page find the same Next lines outside the same code blocks", async () => {
   const { codeBlocksOfLines, nextStepLineIndexes } = await import("../src/services/projectConversationContextService.js");
   const { answerNextLineIndex, nextLineCodeBlocks } = nextStepFunctions();
-  // The page gives the last Next line; asked for each line with the lines
-  // above it, it gives every one.
-  const pageIndexes = (lines) =>
-    lines.flatMap((line, index) => (answerNextLineIndex(lines.slice(0, index + 1)) === index ? [index] : []));
+  // The page gives the last Next line of the whole answer. Every one is a line
+  // it takes for a Next line on its own that its code blocks leave outside
+  // code (a block may look further down, so a shorter answer can differ).
+  const pageIndexes = (lines) => {
+    const blocks = nextLineCodeBlocks(lines);
+    return lines.flatMap((line, index) => (!blocks[index] && answerNextLineIndex([line]) === 0 ? [index] : []));
+  };
   for (const [text, expected] of FENCE_CASES) {
     const lines = text.split("\n");
     assert.deepEqual(nextStepLineIndexes(lines), expected, text);
@@ -473,7 +572,9 @@ test("the server and the page find the same Next lines outside the same code blo
   for (let length = 1; length <= 4; length += 1) {
     answers = answers.flatMap((lines) => vocabulary.map((line) => [...lines, line]));
     for (const lines of answers) {
-      assert.deepEqual(pageIndexes(lines), nextStepLineIndexes(lines), lines.join("\n"));
+      const indexes = nextStepLineIndexes(lines);
+      assert.deepEqual(pageIndexes(lines), indexes, lines.join("\n"));
+      assert.equal(answerNextLineIndex(lines), indexes.at(-1) ?? -1, lines.join("\n"));
       assert.deepEqual(nextLineCodeBlocks(lines), codeBlocksOfLines(lines), lines.join("\n"));
     }
   }

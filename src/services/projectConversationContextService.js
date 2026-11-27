@@ -83,10 +83,15 @@ const ENGLISH_NEXT_LINE = /^\s*(?:[-*•]\s*)?(?:\*\*)?Next(?: [Ss]tep)?(?:\*\*)
 // block in the item, while the fence is fewer columns past the item's text
 // than that text is past its parent item's text (column 0 at the top
 // level), as marked limits it. Such a bare line is often a closing fence
-// read as an opening one. Lines right below a fence with an info string
-// stay in its block, as the model meant them (marked would end the item
-// there), and marked's other item endings, such as a heading, an HTML
-// block, a quote or a rule, are not read.
+// read as an opening one. A line right below a fence with an info string
+// does not end the item by being there, as the model meant it to be code
+// (marked would end the item there). When that line is left of the item's
+// text, the model wrote the block's code unindented: the block then stays
+// open at the endings of its item while a line further down would close it,
+// so it ends at its own closing fence, or with its item when none follows.
+// marked's other item endings, such as a heading, an HTML block, a quote, a
+// rule, or a line left of the item's text right below one four or more
+// columns past it, are not read.
 // The page (nextLineCodeBlocks in public/app.js) uses the same rule.
 const CODE_FENCE_OPEN = /^([ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?)(?:(`{3,})[^`]*|(~{3,})[\s\S]*)$/u;
 const CODE_FENCE_CLOSE = /^([ \t]*)(`{3,}|~{3,}) *\r?$/u;
@@ -107,14 +112,57 @@ export function isNextStepLine(line) {
   return BULGARIAN_NEXT_LINE.test(line) || ENGLISH_NEXT_LINE.test(line);
 }
 
+// The lines that could close a code block, in groups of one fence character
+// and run length: each group's lines with their index and indent, in order.
+function closingFenceLines(lines) {
+  const groups = new Map();
+  lines.forEach((line, index) => {
+    const close = line.match(CODE_FENCE_CLOSE);
+    if (!close) return;
+    const [, spaces, run] = close;
+    const key = `${run[0]}${run.length}`;
+    if (!groups.has(key)) {
+      groups.set(key, { char: run[0], length: run.length, lines: [], last: new Map() });
+    }
+    groups.get(key).lines.push({ index, indent: indentWidth(spaces) });
+  });
+  return [...groups.values()];
+}
+
+// The index of the last line that could close the block: one of its fence
+// character, with a run at least as long as the opening one, at most three
+// columns past the item's text (-1 when there is none). A group is searched
+// from its end once for each such column limit.
+function lastClosingLine(groups, block) {
+  const limit = block.base + 3;
+  let last = -1;
+  for (const group of groups) {
+    if (group.char !== block.char || group.length < block.length) continue;
+    if (!group.last.has(limit)) {
+      let at = group.lines.length - 1;
+      while (at >= 0 && group.lines[at].indent > limit) at -= 1;
+      group.last.set(limit, at < 0 ? -1 : group.lines[at].index);
+    }
+    last = Math.max(last, group.last.get(limit));
+  }
+  return last;
+}
+
 // For each line, the code block it is in (its fence lines too), or null
-// outside code. A block is bare when its opening fence has no info string.
+// outside code. A block is bare when its opening fence has no info string,
+// and unindented when the line right below a fence with one is left of the
+// item's text.
 export function codeBlocksOfLines(lines) {
   // Where the text of each open list item starts, the innermost last.
   const items = [];
   // The open code block, null outside code.
   let fence = null;
   let afterBlank = false;
+  // For an unindented block that looks further down: the lines that could
+  // close a block, found once per answer, and for each fence character, run
+  // length and item column, the last line that would close such a block.
+  let closings = null;
+  const lastClosings = new Map();
   return lines.map((line, index) => {
     const followsBlank = afterBlank;
     afterBlank = !line.trim();
@@ -140,8 +188,17 @@ export function codeBlocksOfLines(lines) {
         fence = null;
         return block;
       }
-      // Any other line ends the block only where it ends the block's item.
+      // Code right below a fence with an info string, left of the item's text.
+      if (block.line === index - 1 && !block.bare && indent < block.base) block.unindented = true;
+      // Any other line ends the block only where it ends the block's item,
+      // and an unindented block only when no line further down would close it.
       if (!endsItems || indent >= block.base) return block;
+      if (block.unindented) {
+        closings ??= closingFenceLines(lines);
+        const key = `${block.char}${block.length} ${block.base}`;
+        if (!lastClosings.has(key)) lastClosings.set(key, lastClosingLine(closings, block));
+        if (lastClosings.get(key) > index) return block;
+      }
       fence = null;
     }
     if (endsItems) while (items.length && items.at(-1) > indent) items.pop();
@@ -159,6 +216,7 @@ export function codeBlocksOfLines(lines) {
       length: run.length,
       base,
       bare,
+      unindented: false,
       line: index,
       endsItemBelow: bare && column - base < base - (items.at(-2) ?? 0),
     };

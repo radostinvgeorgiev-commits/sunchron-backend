@@ -4,7 +4,7 @@ import {
   analyzeDriveFile,
   buildAuthorizationUrl,
   createNonce,
-  disconnectSession,
+  disconnectGoogleAccount,
   downloadDriveFile,
   exchangeCode,
   finishGoogleConnection,
@@ -238,8 +238,7 @@ router.get("/check", async (req, res) => {
 });
 
 router.post("/disconnect", async (req, res) => {
-  const id = await sessionId(req);
-  if (id) await disconnectSession(id);
+  await disconnectGoogleAccount(await sessionId(req), req.owner);
   res.setHeader(
     "Set-Cookie",
     "synchron_google_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",

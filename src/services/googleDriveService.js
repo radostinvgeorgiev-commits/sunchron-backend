@@ -346,23 +346,23 @@ function isSaveSession(session) {
   return Boolean(session?.saveOnly) || isSaveOnlyGrant(session?.scope);
 }
 
-// What a token can do, by service: each main scope and each extra service.
-function grantedServices(scope) {
-  const granted = grantedScopes(scope);
-  const services = new Set(
-    GOOGLE_MEMBER_SCOPES.filter((item) => item.startsWith("https://") && granted.has(item)),
-  );
-  for (const [name, scopes] of Object.entries(GOOGLE_EXTRA_SCOPES)) {
-    if (name !== "save" && scopes.split(" ").some((item) => granted.has(item))) {
-      services.add(name);
-    }
-  }
-  return services;
-}
+// Every scope a main "Свържи Google" can ask for. Older scopes (the first
+// owner set's contacts.readonly, drive.file on an old main token) are left
+// out, so a renewal is never "partial" for a scope it cannot ask for.
+const MAIN_CONNECT_SCOPES = new Set([
+  ...GOOGLE_MEMBER_SCOPES.filter((item) => item.startsWith("https://")),
+  ...Object.entries(GOOGLE_EXTRA_SCOPES)
+    .filter(([name]) => name !== "save")
+    .flatMap(([, scopes]) => scopes.split(" ")),
+]);
 
-function coversServices(scope, previousScope) {
-  const now = grantedServices(scope);
-  return [...grantedServices(previousScope)].every((service) => now.has(service));
+// A new grant replaces the old one only when it keeps every scope the old one
+// had, one by one: mail with only "read" ticked is less than read + drafts.
+function coversScopes(scope, previousScope) {
+  const now = grantedScopes(scope);
+  return [...grantedScopes(previousScope)]
+    .filter((item) => MAIN_CONNECT_SCOPES.has(item))
+    .every((item) => now.has(item));
 }
 
 export async function googleLoginHint(id) {
@@ -421,10 +421,10 @@ export async function linkSaveSession(mainId, saveId) {
 
 // Every stored session (or, without storage, every session of this
 // instance), for finding which connection links a save token.
-async function knownSessions() {
+async function knownSessions(limit = 100) {
   if (resolvePersistenceBackend(process.env) !== "firestore") return [...sessions.entries()];
   const known = [];
-  for (const { id, payload } of await getFirestoreSessionStore().listLatest(100)) {
+  for (const { id, payload } of await getFirestoreSessionStore().listLatest(limit)) {
     try {
       known.push([id, decryptGoogleSession(payload)]);
     } catch {
@@ -529,7 +529,7 @@ export async function finishGoogleConnection(
     previous &&
     !isSaveSession(previous) &&
     sameGoogleAccount(previous, tokens) &&
-    !coversServices(tokens?.scope, previous.scope)
+    !coversScopes(tokens?.scope, previous.scope)
   ) {
     return { id: previousId, partial: true };
   }
@@ -632,14 +632,26 @@ export async function createSession(tokens, owner = null, { saveOnly = false } =
   return id;
 }
 
-// Disconnecting removes the connection and its linked save token, so no
-// Google token of the person stays stored.
+// Removes one connection and its linked save token.
 export async function disconnectSession(id) {
   if (!id) return;
   const session = await loadSessionWithLink(id);
   const saveId = session?.saveSessionId;
   await deleteStoredSession(id);
   if (saveId && saveId !== id) await deleteUnlinkedSaveSession(saveId, id);
+}
+
+// "Прекъсни връзката": every stored Google token of the person goes (older
+// connections and save tokens too), so none stays stored and the next
+// "Свържи Google" starts clean instead of finding an older connection.
+export async function disconnectGoogleAccount(id, owner) {
+  if (id) await disconnectSession(id);
+  if (!owner?.memoryOwnerId) return;
+  const own = new Set();
+  for (const [sessionId, session] of [...(await knownSessions(1000)), ...sessions.entries()]) {
+    if (sessionOwnedBy(session, owner)) own.add(sessionId);
+  }
+  for (const sessionId of own) await deleteStoredSession(sessionId);
 }
 
 // Several checks start at once when the tools list opens; they share one
@@ -805,29 +817,26 @@ export async function hasSession(id) {
   return Boolean(await loadSession(id));
 }
 
-// The newest main connection (never a save token) that `belongs` accepts:
-// first this instance's sessions, then the stored ones.
+// The newest main connection (never a save token) that `belongs` accepts.
+// With storage, the stored list decides: a connection removed on another
+// server instance can still sit in this instance's memory.
 async function findLatestMainSession(belongs) {
   const linkedSaves = (list) =>
     new Set(list.map((session) => session?.saveSessionId).filter(Boolean));
   const usable = (id, session, saves) =>
     belongs(session) && !isSaveSession(session) && !saves.has(id);
-  const cached = [...sessions.entries()].reverse();
-  const cachedSaves = linkedSaves(cached.map(([, session]) => session));
-  for (const [id, session] of cached) {
-    if (usable(id, session, cachedSaves) && (await hasSession(id))) return id;
+  const backend = resolvePersistenceBackend(process.env);
+  if (backend !== "firestore") {
+    const cached = [...sessions.entries()].reverse();
+    const cachedSaves = linkedSaves(cached.map(([, session]) => session));
+    const found = cached.find(([id, session]) => usable(id, session, cachedSaves));
+    return found ? found[0] : null;
   }
 
-  const backend = resolvePersistenceBackend(process.env);
   try {
-    let hits = [];
-    if (backend === "firestore") {
-      hits = (await getFirestoreSessionStore().listLatest(100)).map(
-        ({ id, payload }) => ({ _id: id, _source: payload }),
-      );
-    } else {
-      return null;
-    }
+    const hits = (await getFirestoreSessionStore().listLatest(100)).map(
+      ({ id, payload }) => ({ _id: id, _source: payload }),
+    );
     const decoded = [];
     for (const hit of hits) {
       try {

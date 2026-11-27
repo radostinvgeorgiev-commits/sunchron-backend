@@ -290,7 +290,7 @@ AI Council, включително обобщаване|AI Council, including sy
 Връщане на вложеното: парите, които собственикът е вложил във фирмата, за да плаща разходите в началото, му се връщат като заем.|Return of the investment: the money the owner put into the company to pay the costs at the start is paid back to him as a loan.
 Всички разходи се плащат от фирмената сметка. В началото собственикът я захранва със свои пари.|All costs are paid from the company account. At the start, the owner funds it with his own money.
 Тук се вижда колко е вложено и колко е върнато.|This page shows how much has been put in and how much has been paid back.
-Всеки месец приходите се разпределят в този ред: разходи (с заплатата на управителя), данъци, връщане на вложеното от собственика, резерв 10% и остатък: 80% за каузи, които хората сами предлагат и избират в „Каузи“, и 20% за собственика.|Every month, revenue is split in this order: costs (including the director's salary), taxes, repayment of the owner's investment, a 10% reserve, and the rest: 80% for causes that people propose and choose themselves in “Causes”, and 20% for the owner.
+Всеки месец приходите се разпределят в този ред: разходи (с заплатата на управителя), данъци в България, връщане на вложеното от собственика, резерв 10% и остатък: 80% за каузи, които хората сами предлагат и избират в „Каузи“, и 20% за собственика.|Every month, revenue is split in this order: costs (including the director's salary), taxes in Bulgaria, repayment of the owner's investment, a 10% reserve, and the rest: 80% for causes that people propose and choose themselves in “Causes”, and 20% for the owner.
 Прозрачност · NovariumAI|Transparency · NovariumAI
 Къде отиват парите на NovariumAI: разходи, данъци, резерв, 80% за каузи и 20% за собственика.|Where NovariumAI's money goes: costs, taxes, reserve, 80% for causes and 20% for the owner.
 Прозрачност|Transparency
@@ -298,7 +298,7 @@ AI Council, включително обобщаване|AI Council, including sy
 Къде отиват парите|Where the money goes
 Всеки месец приходите на NovariumAI се разпределят в този ред.|Every month, NovariumAI's revenue is split in this order.
 Разходи: сървъри, AI, такси за плащане и заплатата на управителя на фирмата.|Costs: servers, AI, payment fees and the company director's salary.
-Данъци.|Taxes.
+Данъци в България.|Taxes in Bulgaria.
 Резерв: 10% от остатъка, докато се съберат около 3 месеца разходи.|Reserve: 10% of what remains, until about 3 months of costs are saved.
 Остатъкът: 80% за каузи, които хората сами предлагат и избират в „Каузи“, и 20% за собственика.|The rest: 80% for causes that people propose and choose themselves in “Causes”, and 20% for the owner.
 Месечни числа|Monthly figures

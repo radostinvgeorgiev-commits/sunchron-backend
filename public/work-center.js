@@ -732,6 +732,13 @@
               icon: "fa-solid fa-inbox",
               status: "Само за собственика",
             }),
+            createExternalCard({
+              title: "Съобщения от сайта",
+              description: "Писмата от формуляра „Пиши ни“ в „Помощ“.",
+              url: "/admin/contact",
+              icon: "fa-solid fa-envelope-open-text",
+              status: "Само за собственика",
+            }),
           ]
         : []),
       createInternalCard({

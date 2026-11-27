@@ -790,6 +790,41 @@ async function statusPage(origin, live) {
   await page.close();
 }
 
+// The contact form on /help, the way a person uses it on a phone: write,
+// send, see the number. If sending fails, the text is still there.
+async function contactForm(origin, contactMessages) {
+  const { page, errors } = await openPage(origin, { width: 390, height: 844 }, "/help?lang=en#contact");
+  const fill = async (message, result) => {
+    await page.fill("#contact-name", "Robot");
+    await page.fill("#contact-email", "robot@example.test");
+    await page.selectOption("#contact-topic", "idea");
+    await page.fill("#contact-message", message);
+    await Promise.all([page.waitForURL(new RegExp(`contact=${result}`, "u")), page.click('#contact-form button[type="submit"]')]);
+    await page.waitForTimeout(800);
+  };
+  await step("Формуляр за връзка: изпраща и показва номер", async () => {
+    const form = await page.locator("#contact-form").boundingBox();
+    expect(form && form.x >= 0 && form.x + form.width <= 390, "формулярът излиза извън екрана");
+    expect(!(await page.locator("#contact-website").isVisible()), "скритото поле се вижда");
+    await fill("A test message from the robot.", "received");
+    const status = await page.textContent("#contact-status");
+    expect(/ABCD0001/u.test(status) && /Thank you/u.test(status), `няма потвърждение с номер: ${status}`);
+    expect(page.url().includes("lang=en"), "езикът се загуби");
+    const sent = contactMessages.at(-1) || {};
+    expect(sent.topic === "idea" && sent.email === "robot@example.test", "съобщението не стигна до сървъра");
+    expect(sent.website === "", "скритото поле не е празно");
+    expect((await page.inputValue("#contact-message")) === "", "текстът остана след изпращане");
+  });
+  await step("Формуляр за връзка: при грешка текстът остава", async () => {
+    await fill("Please keep this text [unavailable]", "unavailable");
+    expect((await page.textContent("#contact-status")).includes("not sent"), "няма съобщение за грешка");
+    expect((await page.inputValue("#contact-message")) === "Please keep this text [unavailable]", "текстът се загуби");
+    expect((await page.inputValue("#contact-email")) === "robot@example.test", "имейлът се загуби");
+    expect(!errors.length, errors[0]);
+  });
+  await page.close();
+}
+
 async function publicChecks(origin) {
   const { page, errors } = await openPage(origin, { width: 390, height: 844 });
   await step("Жив сайт: екранът за вход зарежда без грешки", async () => {
@@ -808,6 +843,15 @@ async function publicChecks(origin) {
     expect(!shared.errors.length, shared.errors[0]);
   });
   await shared.page.close();
+  // Only looks: the live robot runs after every release and must not send.
+  const help = await openPage(origin, { width: 390, height: 844 }, "/help#contact");
+  await step("Жив сайт: формулярът за връзка е в „Помощ“", async () => {
+    for (const field of ["#contact-email", "#contact-topic", "#contact-message", '#contact-form button[type="submit"]'])
+      expect(await help.page.locator(field).isVisible(), `липсва ${field}`);
+    expect(!(await help.page.locator("#contact-website").isVisible()), "скритото поле се вижда");
+    expect(!help.errors.length, help.errors[0]);
+  });
+  await help.page.close();
 }
 
 // Signed in on the live site with a test account. Only free actions: no AI
@@ -918,6 +962,7 @@ if (publicOrigin) {
   await sharedPage(stub.origin);
   await talkFlow(stub.origin, stub.requests);
   await statusPage(stub.origin, false);
+  await contactForm(stub.origin, stub.contactMessages);
   stub.server.close();
 }
 await browser.close();

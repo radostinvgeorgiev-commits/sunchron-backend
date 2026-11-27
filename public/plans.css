@@ -129,7 +129,7 @@ li {
   gap: 0.75rem;
   align-content: start;
 }
-.request-panel input[type="email"] {
+.request-panel :is(input[type="email"], input[type="text"], select, textarea) {
   width: 100%;
   padding: 0.7rem;
   border: 1px solid #829b8d;
@@ -149,8 +149,25 @@ li {
 .request-panel .plans-button {
   justify-self: start;
 }
-#request-status {
+#request-status,
+#contact-status {
   font-weight: 700;
+}
+.request-panel textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+.contact-panel label {
+  font-weight: 600;
+}
+/* A field only bots fill in; people and the browser's autofill never see it. */
+.contact-trap {
+  display: none;
+}
+.contact-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-width: 16rem;
 }
 .requests-table {
   overflow: auto;

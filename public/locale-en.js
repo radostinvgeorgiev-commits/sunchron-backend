@@ -287,6 +287,34 @@ AI Council, включително обобщаване|AI Council, including sy
 Услугата се предоставя от|The service is provided by
 , ЕИК 208554306.|, Bulgarian company ID 208554306.
 Фирмени данни и контакт|Company details and contact
+Пиши ни|Contact us
+Пиши ни през|Write to us through the
+формуляра за връзка|contact form
+. Отговаряме на имейла, който посочиш. Нямаме телефон за поддръжка.|. We reply to the email you give. We have no support phone line.
+Въпрос, проблем, идея или искане за твоите данни: пиши тук. Всяко съобщение се записва и получава номер.|A question, a problem, an idea or a request about your data: write here. Every message is saved and gets a number.
+Използваме имейла ти само за да ти отговорим.|We use your email only to reply to you.
+Име (по желание)|Name (optional)
+Имейл за отговор|Email for the reply
+Тема|Topic
+Въпрос|Question
+Проблем|Problem
+Идея|Idea
+Друго|Other
+Съобщение|Message
+Остави това поле празно|Leave this field empty
+Благодарим! Съобщението е изпратено под номер {ticket}. Ще ти отговорим на посочения имейл.|Thank you! Your message was sent with number {ticket}. We will reply to the email you gave.
+Благодарим! Съобщението е изпратено. Ще ти отговорим на посочения имейл.|Thank you! Your message was sent. We will reply to the email you gave.
+Провери имейла и напиши съобщение от поне 10 знака.|Check the email and write a message of at least 10 characters.
+Твърде много съобщения за кратко време. Опитай отново след час.|Too many messages in a short time. Try again in an hour.
+Съобщението не беше изпратено. Опитай отново след малко.|The message was not sent. Try again in a moment.
+Формуляр за връзка|Contact form
+Съобщения до нас:|Messages to us:
+име (по желание), имейл и текстът, който ни пишеш през формуляра за връзка.|name (optional), email and the text you write to us through the contact form.
+За да отговорим на съобщенията, които ни пишеш през формуляра за връзка (легитимен интерес, чл. 6, ал. 1, б. „е“).|To reply to the messages you write to us through the contact form (legitimate interest, Art. 6(1)(f)).
+Съобщенията от формуляра за връзка — до 1 година от получаването, после се изтриват сами.|Messages from the contact form: up to 1 year after we receive them, then they are deleted automatically.
+можеш сам да изтеглиш копие на всички данни (JSON) и да изтриеш профила си. За всичко останало ни пиши през|you can download a copy of all your data (JSON) and delete your account yourself. For anything else, write to us through the
+Последна промяна: 28.11.2026 г.|Last updated: 28 November 2026.
+Пиши ни през формуляра за връзка с темата „Моите данни“ и имейла на профила. Ще ти пишем на този имейл, за да потвърдим, че профилът е твой, и ще изтрием всичко до 30 дни.|Write to us through the contact form with the topic “My data” and your account's email. We will write to that email to confirm the account is yours, and we will delete everything within 30 days.
 Поверителност · NovariumAI|Privacy · NovariumAI
 ПОВЕРИТЕЛНОСТ|PRIVACY
 Как пазим данните ти.|How we protect your data.
@@ -327,7 +355,6 @@ AI доставчици|AI providers
 Твоите права|Your rights
 Имаш право на достъп, коригиране, изтриване, ограничаване, преносимост и възражение. От менюто на профила →|You have the right of access, rectification, erasure, restriction, portability and objection. From the profile menu →
 „Моите данни“|“My data”
-можеш сам да изтеглиш копие на всички данни (JSON) и да изтриеш профила си. За всичко останало пиши на имейла по-горе.|you can download a copy of all your data (JSON) and delete your account yourself. For anything else, write to the email above.
 Имаш право на жалба до Комисията за защита на личните данни (|You have the right to complain to the Bulgarian Commission for Personal Data Protection (
 , гр. София 1592, бул. „Проф. Цветан Лазаров“ № 2).|, 2 Prof. Tsvetan Lazarov Blvd., Sofia 1592, Bulgaria).
 Бисквитки и локално съхранение|Cookies and local storage
@@ -394,7 +421,6 @@ NovariumAI не използва рекламни, проследяващи ил
 Вход с Facebook, Google или друг профил|Sign-in with Facebook, Google or another account
 Ако си влизал с външен профил, можеш да махнеш и достъпа на NovariumAI от настройките на този профил (например „Приложения и уебсайтове“ във Facebook или myaccount.google.com/permissions). Това спира входа, но не трие данните в NovariumAI. За тях изтрий профила, както е описано по-горе.|If you signed in with an external account, you can also remove NovariumAI's access in that account's settings (for example “Apps and websites” on Facebook or myaccount.google.com/permissions). This stops the sign-in but does not delete the data in NovariumAI. To delete it, delete your account as described above.
 Ако не можеш да влезеш|If you cannot sign in
-Пиши ни от имейла на профила. Ще изтрием всичко до 30 дни и ще ти потвърдим.|Write to us from the account's email. We will delete everything within 30 days and confirm it to you.
 Всички бисквитки|All cookies
 Как да изтриеш данните си|How to delete your data
 Твоят AI. Твоят свят.|Your AI. Your world.
@@ -451,9 +477,6 @@ AI Council събира мнения от избраните двигатели 
 Не въвеждай чужди чувствителни данни без основание. Подробности има в|Enter other people's sensitive information only when you have a valid reason. Details are in the
 Общите условия.|Terms.
 Поддръжка и условия за продажба|Support and sales terms
-Използвай|Use
-формата за запитване|the inquiry form
-. Запитванията се записват за собственика; не обещаваме автоматично изпращане на имейл или срок за отговор.|. Inquiries are recorded for the owner. An automatic email or response time is not guaranteed.
 Преди приемане на плащания трябва да бъдат завършени условията за продажба, отказ и възстановяване на плащания. Те не са заместени с този технически преглед. Дотогава платените покупки са изключени.|Sales, cancellation, and refund terms must be finalized before payments can be accepted. This guide is an overview of the service. Purchases remain disabled until those terms are ready.
 Данни за търговеца|Merchant information
 Фирма|Company

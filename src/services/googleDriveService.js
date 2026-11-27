@@ -1826,14 +1826,28 @@ function normalizeContactDraft({ name, email, phone } = {}) {
   return { name: displayName, email: cleanContactEmail, phone: cleanPhone };
 }
 
+// Google fills names[].displayName itself; a contact without any name keeps
+// an empty name here, so callers can show the email or phone instead.
 function normalizeGoogleContact(person = {}) {
+  const name = person.names?.[0] || {};
   return {
     resourceName: person.resourceName || null,
     etag: person.etag || null,
-    name: person.names?.[0]?.displayName || "Контакт",
+    name:
+      name.displayName ||
+      name.unstructuredName ||
+      [name.givenName, name.familyName].filter(Boolean).join(" ") ||
+      "",
     email: person.emailAddresses?.[0]?.value || "",
     phone: person.phoneNumbers?.[0]?.value || "",
   };
+}
+
+// names[].displayName is output only in the People API: a contact written
+// with it alone is saved without a name. unstructuredName is the free-form
+// name Google stores (and splits into given and family name).
+function contactNames(contact) {
+  return [{ unstructuredName: contact.name }];
 }
 
 export async function searchGoogleContacts(
@@ -1886,7 +1900,7 @@ export async function createGoogleContact(id, draft, fetchImpl = fetch) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        names: [{ displayName: contact.name }],
+        names: contactNames(contact),
         ...(contact.email
           ? { emailAddresses: [{ value: contact.email }] }
           : {}),
@@ -1904,7 +1918,7 @@ export async function createGoogleContact(id, draft, fetchImpl = fetch) {
       "GOOGLE_CONTACT_EMPTY_RESULT",
     );
   }
-  return created;
+  return { ...created, name: created.name || contact.name };
 }
 
 export async function updateGoogleContact(
@@ -1928,7 +1942,7 @@ export async function updateGoogleContact(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         etag: cleanEtag,
-        names: [{ displayName: contact.name }],
+        names: contactNames(contact),
         emailAddresses: contact.email ? [{ value: contact.email }] : [],
         phoneNumbers: contact.phone ? [{ value: contact.phone }] : [],
       }),
@@ -1944,7 +1958,7 @@ export async function updateGoogleContact(
       "GOOGLE_CONTACT_EMPTY_RESULT",
     );
   }
-  return updated;
+  return { ...updated, name: updated.name || contact.name };
 }
 
 export async function listGoogleCalendarEvents(

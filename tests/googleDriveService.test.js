@@ -319,7 +319,11 @@ test("searches, creates and version-safely updates Google contacts", async () =>
     },
   );
   assert.equal(createBody.phoneNumbers[0].value, "+359 88 123 4567");
+  // displayName is output only in the People API; the name is written as
+  // unstructuredName, otherwise Google saves the contact without a name.
+  assert.deepEqual(createBody.names, [{ unstructuredName: "Нов клиент" }]);
   assert.equal(created.resourceName, "people/person_2");
+  assert.equal(created.name, "Нов клиент");
 
   let updateRequest;
   const updated = await updateGoogleContact(
@@ -342,7 +346,51 @@ test("searches, creates and version-safely updates Google contacts", async () =>
   );
   assert.match(updateRequest.url, /people\/person_2:updateContact/u);
   assert.equal(updateRequest.body.etag, "etag-2");
+  assert.deepEqual(updateRequest.body.names, [
+    { unstructuredName: "Обновен клиент" },
+  ]);
   assert.equal(updated.email, "updated@example.com");
+});
+
+test("a saved contact keeps the requested name when Google's answer has none", async () => {
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
+  const created = await createGoogleContact(
+    sessionId,
+    { name: "Reviewer Demo", email: "reviewer.demo@example.com" },
+    async () =>
+      jsonResponse({
+        resourceName: "people/person_9",
+        etag: "etag-9",
+        emailAddresses: [{ value: "reviewer.demo@example.com" }],
+      }),
+  );
+  assert.equal(created.name, "Reviewer Demo");
+
+  const found = await searchGoogleContacts(sessionId, "reviewer", 10, async () =>
+    jsonResponse({
+      results: [
+        {
+          person: {
+            resourceName: "people/person_9",
+            names: [{ givenName: "Reviewer", familyName: "Demo" }],
+          },
+        },
+        {
+          person: {
+            resourceName: "people/person_10",
+            emailAddresses: [{ value: "nameless@example.com" }],
+          },
+        },
+      ],
+    }),
+  );
+  assert.deepEqual(
+    found.map((contact) => contact.name),
+    ["Reviewer Demo", ""],
+  );
 });
 
 test("suggests bounded working-hour slots without overlapping calendar events", () => {

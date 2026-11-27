@@ -882,7 +882,7 @@ const executors = Object.freeze({
         english ? "Contacts found:" : "Намерени контакти:",
         ...contacts.map(
           (contact) =>
-            `• ${contact.name}${contact.email ? ` — ${contact.email}` : ""}${contact.phone ? ` — ${contact.phone}` : ""}`,
+            `• ${[contact.name, contact.email, contact.phone].filter(Boolean).join(" — ")}`,
         ),
       ].join("\n");
     }

@@ -484,7 +484,7 @@
   background: #f1f5f9;
 }
 .drawer-actions button:focus-visible {
-  outline: 2px solid #146c52;
+  outline: 2px solid #5b3fe0;
   outline-offset: 2px;
 }
 .permission-card {

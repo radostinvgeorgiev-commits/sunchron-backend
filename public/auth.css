@@ -14,7 +14,7 @@
   display: grid;
   place-items: center;
   overflow-y: auto;
-  color: #12201d;
+  color: #12132b;
   background:
     radial-gradient(
       circle at 10% 8%,
@@ -69,7 +69,7 @@
 
 .auth-wordmark small {
   margin-top: 5px;
-  color: #146c52;
+  color: #5b3fe0;
   font-size: 12px;
   font-weight: 850;
   letter-spacing: 0.16em;
@@ -77,7 +77,7 @@
 
 .auth-kicker,
 .auth-card-kicker {
-  color: #146c52;
+  color: #5b3fe0;
   font-size: 12px;
   font-weight: 850;
   letter-spacing: 0.14em;
@@ -115,7 +115,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid rgba(20, 108, 82, 0.15);
+  border: 1px solid rgba(91, 63, 224, 0.15);
   border-radius: 999px;
   color: #25443a;
   background: rgba(255, 255, 255, 0.58);
@@ -124,12 +124,12 @@
 }
 
 .auth-trust i {
-  color: #146c52;
+  color: #5b3fe0;
 }
 
 .auth-stage {
   margin: 22px 0 0;
-  color: #65736e;
+  color: #5a5c7a;
   font-size: 14px;
 }
 
@@ -157,7 +157,7 @@
 
 .auth-intro {
   margin: 14px 0 24px;
-  color: #65736e;
+  color: #5a5c7a;
   line-height: 1.45;
 }
 
@@ -179,14 +179,14 @@
   border: 1px solid rgba(18, 32, 29, 0.18);
   border-radius: 15px;
   outline: 0;
-  color: #12201d;
+  color: #12132b;
   background: #fff;
   font-size: 17px;
 }
 
 .auth-form input:focus {
-  border-color: #146c52;
-  box-shadow: 0 0 0 4px rgba(20, 108, 82, 0.15);
+  border-color: #5b3fe0;
+  box-shadow: 0 0 0 4px rgba(91, 63, 224, 0.15);
 }
 
 .auth-primary {
@@ -195,7 +195,7 @@
   border: 0;
   border-radius: 16px;
   color: #fff;
-  background: #146c52;
+  background: #5b3fe0;
   cursor: pointer;
   font-weight: 850;
 }
@@ -212,7 +212,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #1b6f57;
+  color: #5b3fe0;
   border-radius: 12px;
   background: transparent;
   cursor: pointer;
@@ -223,15 +223,15 @@
 
 .auth-field-help {
   margin-top: -3px;
-  color: #65736e;
+  color: #5a5c7a;
   font-size: 12px;
   line-height: 1.4;
 }
 
 .auth-link:hover,
 .auth-link:focus-visible {
-  background: #edf4f1;
-  outline: 3px solid rgba(20, 108, 82, 0.14);
+  background: #f4f4fb;
+  outline: 3px solid rgba(91, 63, 224, 0.14);
 }
 
 .auth-message {
@@ -242,12 +242,12 @@
 }
 
 .auth-message.success {
-  color: #1b6f57;
+  color: #5b3fe0;
 }
 
 .auth-privacy {
   margin: 12px 0 0;
-  color: #65736e;
+  color: #5a5c7a;
   font-size: 12px;
   line-height: 1.45;
 }
@@ -259,7 +259,7 @@
 }
 
 .auth-owner summary {
-  color: #65736e;
+  color: #5a5c7a;
   font-size: 12px;
   cursor: pointer;
   list-style-position: inside;
@@ -274,7 +274,7 @@
   gap: 9px;
   border: 1px solid rgba(18, 32, 29, 0.16);
   border-radius: 14px;
-  color: #12201d;
+  color: #12132b;
   text-decoration: none;
   font-weight: 800;
 }
@@ -313,8 +313,8 @@
   display: grid;
   place-items: center;
   border-radius: 13px;
-  color: #146c52;
-  background: rgba(20, 108, 82, 0.1);
+  color: #5b3fe0;
+  background: rgba(91, 63, 224, 0.1);
 }
 
 .auth-features h2 {
@@ -324,7 +324,7 @@
 
 .auth-features p {
   margin: 0;
-  color: #65736e;
+  color: #5a5c7a;
   font-size: 13px;
   line-height: 1.45;
 }
@@ -353,7 +353,7 @@
 }
 
 .profile-button-visible #profileRole {
-  color: #1b6f57;
+  color: #5b3fe0;
   font-weight: 800;
 }
 
@@ -384,7 +384,7 @@
 
 .profile-actions button:hover,
 .profile-actions button:focus-visible {
-  background: #edf4f1;
+  background: #f4f4fb;
   outline: none;
 }
 
@@ -465,7 +465,7 @@
 
 .auth-provider-note {
   margin: 10px 0 0;
-  color: #65736e;
+  color: #5a5c7a;
   font-size: 12px;
   line-height: 1.45;
 }
@@ -475,7 +475,7 @@
 }
 
 .auth-password summary {
-  color: #1b6f57;
+  color: #5b3fe0;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;

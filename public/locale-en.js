@@ -546,6 +546,7 @@ AI задача|AI task
 Инструменти:|Tools:
 Свързано|Connected
 Не е свързано|Not connected
+Не е свързан|Not connected
 Свържи Google|Connect Google
 Търсене в интернет|Web search
 Google Календар|Google Calendar

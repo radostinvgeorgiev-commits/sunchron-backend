@@ -58,13 +58,14 @@ export async function loadProjectConversationContext({
   };
 }
 
-// A "Следва:" line is an instruction the model gave itself; replayed in
-// later context it reads like a fact (an invented "ЛИПА-742" spread this
-// way). Strip those lines from earlier AI replies before they are reused.
+// A "Следва:" (or, on English pages, "Next:") line is an instruction the
+// model gave itself; replayed in later context it reads like a fact (an
+// invented "ЛИПА-742" spread this way). Strip those lines from earlier AI
+// replies before they are reused.
 export function stripReplayedNextSteps(content) {
   return String(content || "")
     .split("\n")
-    .filter((line) => !/^\s*(?:[-*•]\s*)?(?:\*\*)?(?:Следва|Следваща стъпка)(?:\*\*)?\s*:/iu.test(line))
+    .filter((line) => !/^\s*(?:[-*•]\s*)?(?:\*\*)?(?:Следва|Следваща стъпка|Next(?: step)?)(?:\*\*)?\s*:/iu.test(line))
     .join("\n")
     .trim();
 }

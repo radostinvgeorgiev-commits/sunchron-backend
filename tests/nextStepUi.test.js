@@ -94,3 +94,32 @@ test("a missing Google permission points at the allow link and stays out of the 
   assert.match(app, /if \(fromStructuredResult && !next\.chatOnly\) \{/u);
   assert.match(app, /if \(!next\.chatOnly\) card\.append\(openButton\);/u);
 });
+
+test("an English page reads an English Next line and never shows a Bulgarian one", () => {
+  const start = app.indexOf("function cleanNextStep(");
+  const end = app.indexOf("function showNextStep(");
+  assert.ok(start > 0 && end > start);
+  const load = (catalog) =>
+    new Function(
+      "chatText",
+      `${app.slice(start, end)}\nreturn { nextStepFromReply, localizedNextLines };`,
+    )((value) => catalog[value] ?? value);
+  const english = load({ Следва: "Next" });
+  // The model's English last line becomes the Next card.
+  assert.deepEqual(english.nextStepFromReply("Your channel has 12 videos.\n\nNext: Allow YouTube."), {
+    step: "Allow YouTube.",
+    displayText: "Your channel has 12 videos.",
+  });
+  // A Bulgarian marker that is not the last line is shown as "Next".
+  assert.equal(
+    english.nextStepFromReply("Answer.\n\n**Следва:** Allow YouTube.\n\n[Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)").displayText,
+    "Answer.\n\n**Next:** Allow YouTube.\n\n[Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)",
+  );
+  assert.equal(english.localizedNextLines("Answer.\n- Следваща стъпка: X"), "Answer.\n- Next: X");
+  // A Bulgarian page keeps its own label, and the text otherwise stays as it is.
+  const bulgarian = load({});
+  assert.equal(bulgarian.localizedNextLines("Отговор.\nСледва: X\nОще"), "Отговор.\nСледва: X\nОще");
+  assert.equal(bulgarian.nextStepFromReply("Отговор.\nСледва: Провери.").step, "Провери.");
+  // A restored conversation shows the label in the page language too.
+  assert.match(app, /item\.role === "assistant" \? localizedNextLines\(item\.content\) : item\.content/u);
+});

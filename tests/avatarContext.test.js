@@ -71,6 +71,29 @@ test("avatar preserves conversation order without repeating its instructions", (
   assert.equal(messages[3].content, "Следващ въпрос");
 });
 
+test("an English page asks for an English Next line, a Bulgarian page keeps Следва", () => {
+  const english = buildAvatarMessages([], [], "Show my YouTube channel", undefined, {
+    mode: "chat",
+    language: "en",
+  })[0].content;
+  assert.match(english, /`Next: one specific step`/u);
+  assert.doesNotMatch(english, /`Следва: конкретна стъпка`/u);
+  const member = buildAvatarMessages(
+    [],
+    [],
+    "Find contact Reviewer Demo",
+    { role: "member", displayName: "Ana" },
+    { mode: "chat", language: "en" },
+  )[0].content;
+  assert.match(member, /`Next: one specific step`/u);
+  const bulgarian = buildAvatarMessages([], [], "Покажи канала ми", undefined, {
+    mode: "chat",
+    language: "bg",
+  })[0].content;
+  assert.match(bulgarian, /`Следва: конкретна стъпка`/u);
+  assert.doesNotMatch(bulgarian, /`Next: one specific step`/u);
+});
+
 test("member context uses the member identity and safe personal tools", () => {
   const messages = buildAvatarMessages(
     [{ fact: "Любимият ми цвят е зелен", scope: "personal" }],

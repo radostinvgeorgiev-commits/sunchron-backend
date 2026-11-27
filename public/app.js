@@ -602,7 +602,7 @@ async function restoreConversation() {
       ) {
         appendMessage(
           item.role === "assistant" ? "agent" : "user",
-          item.content,
+          item.role === "assistant" ? localizedNextLines(item.content) : item.content,
         );
       }
     }
@@ -3016,18 +3016,30 @@ function cleanNextStep(value) {
     .slice(0, 240);
 }
 
+// A "Следва:" line the answer keeps (not its last line, or a restored
+// answer) is shown with the page's own label, "Next" on an English page.
+function localizedNextLines(text) {
+  const label = chatText("Следва");
+  if (typeof text !== "string" || label === "Следва") return text;
+  return text.replace(
+    /(^|\n)([ \t]*(?:[-*•][ \t]*)?(?:\*\*)?)(?:Следва|Следваща стъпка)((?:\*\*)?[ \t]*:)/gu,
+    `$1$2${label}$3`,
+  );
+}
+
 function nextStepFromReply(text) {
   const value = typeof text === "string" ? text.trimEnd() : "";
   const match = value.match(
-    /(?:^|\n)\s*(?:[-*•]\s*)?(?:\*\*)?(?:Следва|Следваща стъпка)(?:\*\*)?\s*:\s*(.+?)\s*$/iu,
+    /(?:^|\n)\s*(?:[-*•]\s*)?(?:\*\*)?(?:Следва|Следваща стъпка|Next(?: step)?)(?:\*\*)?\s*:\s*(.+?)\s*$/iu,
   );
   const step = cleanNextStep(match?.[1]);
   return {
     step,
-    displayText:
+    displayText: localizedNextLines(
       step && match && match.index > 0
         ? value.slice(0, match.index).trimEnd()
         : value,
+    ),
   };
 }
 

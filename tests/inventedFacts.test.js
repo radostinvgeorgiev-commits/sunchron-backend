@@ -13,6 +13,9 @@ test("a 'Следва:' line from an earlier AI reply is not replayed", () => {
     "Здравей.",
   );
   assert.equal(stripReplayedNextSteps("**Следваща стъпка:** x\nТекст"), "Текст");
+  // On English pages the line is "Next:".
+  assert.equal(stripReplayedNextSteps("Hello.\n\nNext: Ask about LIPA-742."), "Hello.");
+  assert.equal(stripReplayedNextSteps("- **Next step:** x\nText"), "Text");
 });
 
 test("only assistant turns are cleaned and empty ones are dropped", () => {

@@ -167,7 +167,7 @@ export function createVideoSoundService({
   }
 
   async function mix(video, voiceWav, musicWav) {
-    const dir = await mkdtemp(join(tmpdir(), "aicore-sound-"));
+    const dir = await mkdtemp(join(tmpdir(), "novarium-sound-"));
     try {
       const files = { video: join(dir, "in.mp4"), voice: join(dir, "voice.wav"), music: join(dir, "music.wav"), out: join(dir, "out.mp4") };
       await writeFile(files.video, video);

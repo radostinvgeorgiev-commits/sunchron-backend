@@ -15,7 +15,7 @@ import { loadWorkspaceState } from "./workspaceStateService.js";
 export const MEMORY_SUGGESTION_COLLECTION = "synchron-memory-suggestions-v1";
 export const MEMORY_SUGGESTION_TTL_MS = 30 * 86_400_000;
 export const MAX_PENDING_SUGGESTIONS = 100;
-const SOURCES = new Set(["claude", "chatgpt", "gemini", "ai-core", "other"]);
+const SOURCES = new Set(["claude", "chatgpt", "gemini", "novarium", "other"]);
 
 export class MemorySuggestionError extends Error {
   constructor(message, status = 400, code = "MEMORY_SUGGESTION_INVALID") {

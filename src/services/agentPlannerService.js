@@ -1,7 +1,7 @@
 import {
   DEFAULT_OPENAI_PLANNER_MODEL,
   requestOpenAIText,
-} from "./aiCoreService.js";
+} from "./novariumService.js";
 
 const DEFAULT_PLANNER_TIMEOUT_MS = 30000;
 const MAX_PLANNED_CALLS = 8;

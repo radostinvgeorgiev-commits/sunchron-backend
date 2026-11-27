@@ -13,7 +13,7 @@ import {
   requestGrokResponse,
   requestOpenAIResponse,
   requestOpenAIText,
-} from "../src/services/aiCoreService.js";
+} from "../src/services/novariumService.js";
 
 test("Novarium reports any configured chat provider", () => {
   assert.equal(hasConfiguredAiProvider({ GEMINI_API_KEY: "gemini" }), true);

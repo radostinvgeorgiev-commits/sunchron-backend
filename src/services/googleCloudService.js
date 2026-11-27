@@ -6,7 +6,7 @@ import {
 } from "../config/memoryBackend.js";
 import { getUserAuthProvider } from "./userAuthService.js";
 
-export const AI_CORE_PUBLIC_ORIGIN = "https://cloudaicore.com";
+export const NOVARIUM_PUBLIC_ORIGIN = "https://cloudaicore.com";
 export const GOOGLE_CLOUD_CONSOLE_ORIGIN = "https://console.cloud.google.com";
 
 function cleanRuntimeValue(value, maxLength = 180) {
@@ -52,7 +52,7 @@ export function getGoogleCloudRuntimeStatus({ env = process.env } = {}) {
     configuration,
     region,
     commit,
-    canonicalOrigin: AI_CORE_PUBLIC_ORIGIN,
+    canonicalOrigin: NOVARIUM_PUBLIC_ORIGIN,
     consoleUrl: cloudConsoleUrl(projectId),
     memoryBackend: memoryBackend === "firestore" ? memoryBackend : null,
     persistenceBackend:

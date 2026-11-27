@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { requestAiText } from "./aiCoreService.js";
+import { requestAiText } from "./novariumService.js";
 import { createFirestoreDocumentStore } from "./firestoreDocumentStore.js";
 
 // "Каузи": anyone with an account can propose a social cause, and people show
@@ -17,7 +17,7 @@ export function buildProjectPrompt(cause) {
     {
       role: "system",
       content: [
-        "Ти си агентът на NOVARIUM Corp, който подготвя социални проекти без печалба.",
+        "Ти си агентът на Novarium Corp, който подготвя социални проекти без печалба.",
         "Подготви кратък, практичен проект на български по каузата отдолу, с тези раздели:",
         "1. Цел — едно-две изречения.",
         "2. Какво точно ще се направи.",

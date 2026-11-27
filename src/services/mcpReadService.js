@@ -130,7 +130,7 @@ export const MCP_TOOLS = Object.freeze([
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
-    name: "talk_to_ai_core",
+    name: "talk_to_novarium",
     title: "Говори с Novarium",
     description:
       "Изпраща съобщение до Novarium в собствения профил, връща отговора и запазва разговора. Може да продължи същата нишка чрез sessionId. Използва само регистрирани инструменти; read-only проверките се изпълняват, а записите се подготвят за отделно owner потвърждение.",
@@ -145,7 +145,7 @@ export const MCP_TOOLS = Object.freeze([
       required: ["message"],
       additionalProperties: false,
     },
-    securitySchemes: mcpToolSecuritySchemes("talk_to_ai_core"),
+    securitySchemes: mcpToolSecuritySchemes("talk_to_novarium"),
     annotations: CONVERSATION_ANNOTATIONS,
   },
   {
@@ -324,7 +324,7 @@ export function createMcpRequestHandler({
         { sessionId, items },
         `Прочетени са ${items.length} съобщения от избрания разговор.`,
       );
-    } else if (name === "talk_to_ai_core") {
+    } else if (name === "talk_to_novarium") {
       const conversation = await runAgentConversation({
         ownerId,
         message: args?.message,
@@ -398,7 +398,7 @@ export function createMcpRequestHandler({
     await audit({
       actor: "chatgpt-mcp",
       action:
-        name === "talk_to_ai_core"
+        name === "talk_to_novarium"
           ? "agent.chat"
           : name.includes("github")
             ? "github.write"
@@ -410,7 +410,7 @@ export function createMcpRequestHandler({
       outcome: "succeeded",
       resource: name,
       details:
-        name === "talk_to_ai_core"
+        name === "talk_to_novarium"
           ? "conversation-mcp"
           : name.startsWith("confirm_")
             ? "confirmed-write-mcp"
@@ -438,9 +438,9 @@ export function createMcpRequestHandler({
           result: {
             protocolVersion: MCP_PROTOCOL_VERSION,
             capabilities: { tools: { listChanged: false } },
-            serverInfo: { name: "synchron-x-memory", version: "1.0.0" },
+            serverInfo: { name: "novarium-memory", version: "1.0.0" },
             instructions:
-              "Използвай само нужните за задачата права. Личният и проектният контекст са различни. Повечето инструменти са само за четене. Разговорът с Novarium пази нишката, а регистрираните инструменти връщат реални резултати. Всеки запис подготвя отделен точен план и се изпълнява само след еднократно потвърждение от owner. GitHub merge е достъпен само за конкретен PR към main, точен head SHA и зелени CI проверки; промяна на secrets и production deployment не са достъпни през този MCP. Основно правило на собственика: агентът води и работи автономно — сам казва следващата стъпка, сам проверява (run_ai_core_self_test, read_runtime_logs, diagnostics) и върши работата; не кара собственика да проверява или да прави нещо. Собственикът дава насоките и одобрява. Когато нещо спира агента, той казва точно какво го спира и какъв вариант (право или промяна в кода) ще му позволи да го направи сам след одобрение. Правилата за работа са в AGENTS.md в хранилището.",
+              "Използвай само нужните за задачата права. Личният и проектният контекст са различни. Повечето инструменти са само за четене. Разговорът с Novarium пази нишката, а регистрираните инструменти връщат реални резултати. Всеки запис подготвя отделен точен план и се изпълнява само след еднократно потвърждение от owner. GitHub merge е достъпен само за конкретен PR към main, точен head SHA и зелени CI проверки; промяна на secrets и production deployment не са достъпни през този MCP. Основно правило на собственика: агентът води и работи автономно — сам казва следващата стъпка, сам проверява (run_novarium_self_test, read_runtime_logs, diagnostics) и върши работата; не кара собственика да проверява или да прави нещо. Собственикът дава насоките и одобрява. Когато нещо спира агента, той казва точно какво го спира и какъв вариант (право или промяна в кода) ще му позволи да го направи сам след одобрение. Правилата за работа са в AGENTS.md в хранилището.",
           },
         };
       }

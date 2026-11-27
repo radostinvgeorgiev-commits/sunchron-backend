@@ -2,7 +2,7 @@
   // "Отвори отстрани": an answer opens in a side panel, like Canvas in ChatGPT
   // or Artifacts in Claude — to read, copy, download, print as PDF, and to see
   // number tables as a bar chart.
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
   const panel = document.createElement("aside");
   panel.className = "doc-panel";
   panel.hidden = true;
@@ -124,7 +124,7 @@
     if (action === "download") {
       const link = document.createElement("a");
       link.href = URL.createObjectURL(new Blob([raw], { type: "text/markdown;charset=utf-8" }));
-      link.download = "aicore-dokument.md";
+      link.download = "novarium-dokument.md";
       link.click();
       setTimeout(() => URL.revokeObjectURL(link.href), 1000);
     }

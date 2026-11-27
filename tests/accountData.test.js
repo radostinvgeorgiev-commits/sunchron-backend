@@ -157,7 +157,7 @@ test("account routes download a file and clear the session after deletion", asyn
     }),
   );
   const exported = await request(app).get("/api/account/export").expect(200);
-  assert.match(exported.headers["content-disposition"], /ai-core-data-2026-11-25\.json/u);
+  assert.match(exported.headers["content-disposition"], /novarium-data-2026-11-25\.json/u);
   assert.equal(exported.headers["cache-control"], "no-store");
   const deleted = await request(app)
     .post("/api/account/delete")

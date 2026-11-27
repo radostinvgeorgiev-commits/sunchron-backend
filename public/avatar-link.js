@@ -1,7 +1,7 @@
 (() => {
   // "Питай моя аватар": the person writes what visitors may know and gets a
   // link. Only that text is used for visitors; the link can be stopped.
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
   const dialog = document.createElement("div");
   dialog.className = "share-dialog avatar-link-dialog";
   dialog.hidden = true;
@@ -124,7 +124,7 @@
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !dialog.hidden) close();
   });
-  document.addEventListener("aicore:avatar-link", () => {
+  document.addEventListener("novarium:avatar-link", () => {
     dialog.hidden = false;
     void run(() => call("GET"), text("Зареждане…"));
   });

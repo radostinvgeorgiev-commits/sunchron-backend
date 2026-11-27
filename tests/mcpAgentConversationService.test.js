@@ -6,7 +6,7 @@ import {
   sendMcpAgentMessage,
 } from "../src/services/mcpAgentConversationService.js";
 
-function workspace(engine = "ai-core") {
+function workspace(engine = "novarium") {
   return {
     state: {
       activeProjectId: "project-1",

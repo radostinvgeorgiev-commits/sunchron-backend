@@ -3,7 +3,7 @@
   // TypingMind and Open WebUI). Both only shape the request; the server
   // checks the assistant id against its own list.
   const $ = (id) => document.getElementById(id);
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
   const input = $("chatInput");
   const composer = input?.closest(".composer-wrap");
   if (!input || !composer) return;
@@ -128,7 +128,7 @@
     gmail: "Покажи последните ми писма в Gmail",
     drive: "Покажи последните ми файлове в Google Drive",
   };
-  const TOOL_EVENTS = { web: "aicore:web-search", files: "aicore:knowledge-files", todos: "aicore:todos" };
+  const TOOL_EVENTS = { web: "novarium:web-search", files: "novarium:knowledge-files", todos: "novarium:todos" };
   // These need the person's own words (a link, a place), so the box is
   // filled and focused instead of sent.
   const TOOL_PREFILL = { youtube: "Обобщи това видео:", maps: "Намери наблизо:" };
@@ -303,7 +303,7 @@
       add,
     );
   };
-  document.addEventListener("aicore:pick-assistant", () => {
+  document.addEventListener("novarium:pick-assistant", () => {
     renderPicker();
     openPicker(true);
   });
@@ -323,7 +323,7 @@
       .catch(() => {});
   loadAssistants();
   // Before sign-in the list is refused; load it again once the person is in.
-  document.addEventListener("aicore:signed-in", () => {
+  document.addEventListener("novarium:signed-in", () => {
     if (!assistants.length) loadAssistants();
   });
 

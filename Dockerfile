@@ -10,7 +10,7 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
-# ffmpeg mixes the voice and music into AI CORE videos.
+# ffmpeg mixes the voice and music into Novarium videos.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*

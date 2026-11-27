@@ -30,7 +30,7 @@ async function render(
   Object.defineProperty(window.navigator, "language", {
     value: browserLanguage,
   });
-  if (saved) window.localStorage.setItem("ai-core-language", saved);
+  if (saved) window.localStorage.setItem("novarium-language", saved);
   window.fetch = async (endpoint) => {
     if (endpoint.startsWith("/locales/")) {
       if (failCatalog) return { ok: false };
@@ -44,7 +44,7 @@ async function render(
   window.eval(english);
   window.eval(locale);
   if (runPlans) window.eval(plansScript);
-  await window.AiCoreLocale.ready;
+  await window.NovariumLocale.ready;
   return dom;
 }
 
@@ -72,7 +72,7 @@ test("loads a supported catalog and safely falls back when a catalog is unavaila
   const german = await render(landing, { path: "/?lang=de" });
   assert.equal(german.window.document.documentElement.lang, "de");
   assert.equal(german.window.document.documentElement.dir, "ltr");
-  assert.equal(german.window.localStorage.getItem("ai-core-language"), "de");
+  assert.equal(german.window.localStorage.getItem("novarium-language"), "de");
   assert.deepEqual(
     [...german.window.document.querySelector(".language-select").options]
       .map(({ value }) => value)
@@ -131,18 +131,18 @@ test("the Google sign-in button is English on the English page", async () => {
 test("Google's sign-in and consent screens follow the page language", async () => {
   const google = "https://cloudaicore.com/api/google/connect";
   const english = await render(landing, { path: "/?lang=en", browserLanguage: "bg-BG" });
-  assert.match(english.cookieJar.getCookieStringSync(google), /(?:^|; )ai_core_language=en(?:;|$)/u);
+  assert.match(english.cookieJar.getCookieStringSync(google), /(?:^|; )novarium_language=en(?:;|$)/u);
   // Only the Google routes receive it.
-  assert.doesNotMatch(english.cookieJar.getCookieStringSync("https://cloudaicore.com/chat"), /ai_core_language/u);
+  assert.doesNotMatch(english.cookieJar.getCookieStringSync("https://cloudaicore.com/chat"), /novarium_language/u);
   english.window.close();
   const bulgarian = await render(landing, { browserLanguage: "bg-BG" });
-  assert.match(bulgarian.cookieJar.getCookieStringSync(google), /(?:^|; )ai_core_language=bg(?:;|$)/u);
+  assert.match(bulgarian.cookieJar.getCookieStringSync(google), /(?:^|; )novarium_language=bg(?:;|$)/u);
   bulgarian.window.close();
 });
 
 test("keeps the selected language and attribution when navigating to registration", async () => {
   const dom = await render(plans, {
-    path: "/plans?lang=en&utm_source=chatgpt&utm_campaign=ai-core-launch&utm_content=variant-2",
+    path: "/plans?lang=en&utm_source=chatgpt&utm_campaign=novarium-launch&utm_content=variant-2",
     runPlans: true,
   });
   const link = dom.window.document.querySelector(".plans-grid a.plans-button");

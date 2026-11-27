@@ -81,7 +81,7 @@ test("every progress line the task runner streams reaches an English page in Eng
       .filter((line) => line.includes("|") && !line.includes("`"))
       .map((line) => line.split("|")),
   );
-  // The same lookup and {name} filling as AiCoreLocale.text.
+  // The same lookup and {name} filling as NovariumLocale.text.
   const chatText = (value, values = {}) =>
     (catalog.get(value) ?? value).replace(/\{(\w+)\}/gu, (match, name) =>
       Object.hasOwn(values, name) ? String(values[name]) : match,

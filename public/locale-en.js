@@ -1,5 +1,5 @@
-window.AiCoreLanguages = ["bg", "de", "en", "es", "fr", "it", "ro"];
-window.AiCoreEnglish = new Map(
+window.NovariumLanguages = ["bg", "de", "en", "es", "fr", "it", "ro"];
+window.NovariumEnglish = new Map(
   `
 Език на интерфейса|Interface language
 Novarium · Твоята лична AI система|Novarium · Your personal AI workspace
@@ -185,7 +185,7 @@ GitHub хранилище|GitHub repository
 Подготви промени|Prepare changes
 Потвърди и създай PR|Confirm and create PR
 Обнови GitHub проверките|Refresh GitHub checks
-Novarium е лична AI операционна система за разговори, контролирана памет и изпълнение на разрешени задачи чрез Novarium.|Novarium is a personal AI workspace for conversations, project memory, and approved actions powered by Novarium.
+Novarium е лична AI операционна система за разговори, контролирана памет и изпълнение на разрешени задачи.|Novarium is a personal AI workspace for conversations, project memory, and approved actions.
 Един AI център за разговори, памет и реална работа под твой контрол.|One AI workspace for conversations, project memory, and work you control.
 Novarium — начало|Novarium home
 Основни принципи|Principles
@@ -319,8 +319,6 @@ AI Council събира мнения от избраните двигатели 
 Данни за търговеца|Merchant information
 Фирма|Company
 ЕИК|Bulgarian company ID
-Управител|Managing director
-Радостин Великов Георгиев|Radostin Velikov Georgiev
 Седалище и адрес на управление|Registered office and address
 гр. Варна, район „Владислав Варненчик“, ж.к. „Вл. Варненчик“, бл. 12, вх. 1, ет. 5, ап. 14|Varna, Vladislav Varnenchik district, Vl. Varnenchik residential area, block 12, entrance 1, floor 5, apartment 14, Bulgaria
 Имейл за контакт|Contact email

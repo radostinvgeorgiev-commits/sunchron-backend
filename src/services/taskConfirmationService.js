@@ -133,7 +133,7 @@ export function extractTaskConfirmationId(message) {
   const match = message
     .trim()
     .match(
-      /^(?:Потвърждавам (?:Novarium|AI CORE) задача|Confirm (?:Novarium|AI CORE) task):\s*([0-9a-f]{8}-[0-9a-f-]{27,})$/iu,
+      /^(?:Потвърждавам Novarium задача|Confirm Novarium task):\s*([0-9a-f]{8}-[0-9a-f-]{27,})$/iu,
     );
   return match?.[1] || null;
 }

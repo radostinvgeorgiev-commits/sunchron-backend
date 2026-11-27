@@ -405,7 +405,7 @@ export async function confirmGitHubChange(
   return executeWrite({
     action: "github.write",
     capability: confirmation.action,
-    actor: "synchron-x-github",
+    actor: "novarium-github",
     sessionId,
     confirmationId,
     resource: resource.repository,

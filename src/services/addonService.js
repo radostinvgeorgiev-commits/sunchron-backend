@@ -238,12 +238,12 @@ export async function runInSandbox(code, { input = "", data = null, timeMs = ADD
     consoleObject.dispose();
     log.dispose();
     const args = vm.newString(JSON.stringify({ input: String(input).slice(0, ADDON_LIMITS.input), data }));
-    vm.setProp(vm.global, "__aicoreArgs", args);
+    vm.setProp(vm.global, "__novariumArgs", args);
     args.dispose();
     const source = [
       "(function () {",
-      "  const { input, data } = JSON.parse(globalThis.__aicoreArgs);",
-      "  delete globalThis.__aicoreArgs;",
+      "  const { input, data } = JSON.parse(globalThis.__novariumArgs);",
+      "  delete globalThis.__novariumArgs;",
       "  return (function () {",
       cleanCode(code),
       "  ;if (typeof run !== 'function') throw new Error('Липсва функция run(input, data).');",

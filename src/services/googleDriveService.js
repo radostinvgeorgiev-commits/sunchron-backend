@@ -1291,7 +1291,7 @@ export async function saveAnswerToGoogle(
       .replace(/[\u0000-\u001f\u007f]/gu, " ")
       .trim()
       .slice(0, 120) || "Novarium";
-  const boundary = `aicore${createNonce()}`;
+  const boundary = `novarium${createNonce()}`;
   const multipart = [
     `--${boundary}`,
     "Content-Type: application/json; charset=UTF-8",

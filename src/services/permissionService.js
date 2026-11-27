@@ -194,7 +194,7 @@ function buildAuditEntry(event) {
     id: randomUUID(),
     auditId: cleanText(event.auditId),
     timestamp: new Date().toISOString(),
-    actor: cleanText(event.actor, "synchron-x"),
+    actor: cleanText(event.actor, "novarium"),
     action: permission.action,
     capability: cleanText(event.capability),
     decision: cleanText(event.decision, permission.decision),

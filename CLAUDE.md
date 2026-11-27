@@ -1,4 +1,4 @@
-# CLAUDE.md — AI CORE
+# CLAUDE.md — Novarium
 
 Правилата за работа по това хранилище са в [AGENTS.md](AGENTS.md). Прочети го
 преди всяка промяна; то важи изцяло и за Claude.
@@ -25,7 +25,7 @@
 - `npm test` и `git diff --check` преди всеки PR.
 - `node tests/ui/robot.mjs` — робот с истински браузър срещу локално копие.
 - След merge: изчакай `synchron/production-smoke` за точния SHA, после пусни
-  MCP действието `run_ai_core_self_test` и прочети `read_runtime_logs`.
+  MCP действието `run_novarium_self_test` и прочети `read_runtime_logs`.
 - Един merge наведнъж (виж `docs/OPERATIONS_RUNBOOK.md`).
 - Никога не показвай и не записвай ключове; не променяй тайни и IAM без
   изрично разрешение.

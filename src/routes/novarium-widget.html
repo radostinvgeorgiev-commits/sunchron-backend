@@ -184,7 +184,7 @@
     <div class="workspace">
       <aside aria-label="Novarium">
         <div class="brand">
-          <img src="https://cloudaicore.com/ai-core-mark.png" alt="" />
+          <img src="https://cloudaicore.com/novarium-mark.png" alt="" />
           <div><strong>Novarium</strong><small>Novarium</small></div>
         </div>
         <button id="new" type="button" disabled>+ New chat</button>
@@ -286,7 +286,7 @@
         }
         async function updateCredits() {
           try {
-            const balance = await tool("get_synchron_x_balance");
+            const balance = await tool("get_novarium_balance");
             if (balance?.owner)
               credits.textContent = t("Owner account", "Профил на собственик");
             else if (Number.isFinite(balance?.remaining)) {
@@ -325,7 +325,7 @@
           send.disabled = reset.disabled = true;
           status.textContent = t("Novarium is answering…", "Novarium отговаря…");
           try {
-            const reply = await tool("ask_synchron_x", {
+            const reply = await tool("ask_novarium", {
               question: value,
               ...(sessionId ? { sessionId } : {}),
             });
@@ -365,7 +365,7 @@
         }
         status.textContent = t("Connecting…", "Свързване…");
         call("ui/initialize", {
-          appInfo: { name: "synchron-x", version: "0.2.0" },
+          appInfo: { name: "novarium", version: "0.2.0" },
           appCapabilities: {},
           protocolVersion: "2026-01-26",
         })

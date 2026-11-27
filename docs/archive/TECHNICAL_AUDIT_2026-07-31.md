@@ -4,7 +4,7 @@
 продуктово приемане и следващите стъпки използвай
 [`../CURRENT_PRODUCT_ACCEPTANCE.md`](../CURRENT_PRODUCT_ACCEPTANCE.md).
 
-# Технически одит на NOVARIUM / SYNCHRON-X
+# Технически одит на Novarium
 
 Дата: 31 юли 2026 г.
 Проверен commit: `a394f4e9f93f6c87f2ef07d3d68eafffc48f1efe`
@@ -20,7 +20,7 @@
   - `registrationEnabled: true`;
   - `projectConnection: true`;
   - `sessionProtection: true`.
-- Supabase проектът `SYNCHRON-X` е `ACTIVE_HEALTHY`, PostgreSQL 17, регион
+- Supabase проектът `Novarium` е `ACTIVE_HEALTHY`, PostgreSQL 17, регион
   `eu-central-1`.
 - Supabase няма таблици в `public`, няма миграции и няма предупреждения от
   security или performance advisors.

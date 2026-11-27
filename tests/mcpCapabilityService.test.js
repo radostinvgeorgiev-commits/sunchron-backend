@@ -99,7 +99,7 @@ test("Google Cloud MCP write path preserves the prepare-confirm boundary", async
     {
       operation: "grant_project_role",
       input: {
-        principal: "serviceAccount:ai-core-admin@example.com",
+        principal: "serviceAccount:novarium-admin@example.com",
         role: "roles/owner",
       },
     },

@@ -493,14 +493,14 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
       (await last().locator(".morning-toggle").getAttribute("aria-pressed")) === "true",
       "бутонът „всяка сутрин“ не се включи",
     );
-    expect((await page.evaluate(() => localStorage.getItem("aicore-morning-plan"))) === "on", "изборът не се запази");
+    expect((await page.evaluate(() => localStorage.getItem("novarium-morning-plan"))) === "on", "изборът не се запази");
   });
   await step(`${label}: „Моята седмица“ показва прегледа и може да идва сама всеки понеделник`, async () => {
     await openMine("week");
     await page.waitForTimeout(600);
     expect((await last().innerText()).includes("Трите най-важни за седмицата"), "прегледът не се показа");
     await last().locator('.morning-toggle[data-period="week"]').click();
-    expect((await page.evaluate(() => localStorage.getItem("aicore-weekly-plan"))) === "on", "изборът не се запази");
+    expect((await page.evaluate(() => localStorage.getItem("novarium-weekly-plan"))) === "on", "изборът не се запази");
   });
   await step(`${label}: „Моите задачи“: бележка става на задачи, отмятане и изтриване`, async () => {
     await openMine("todos");
@@ -678,8 +678,8 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
   });
   await step(`${label}: „всяка сутрин“ и „всеки понеделник“ идват сами при първото отваряне`, async () => {
     await page.evaluate(() => {
-      localStorage.setItem("aicore-morning-plan-day", "2000-01-01");
-      localStorage.setItem("aicore-weekly-plan-day", "2000-01-03");
+      localStorage.setItem("novarium-morning-plan-day", "2000-01-01");
+      localStorage.setItem("novarium-weekly-plan-day", "2000-01-03");
     });
     await page.reload();
     await page.waitForTimeout(3500);
@@ -690,8 +690,8 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.waitForTimeout(2000);
     expect(!(await page.locator(".assistant-turn").last().innerText().catch(() => "")).includes("Най-важното днес"), "планът дойде втори път в същия ден");
     await page.evaluate(() => {
-      localStorage.removeItem("aicore-morning-plan");
-      localStorage.removeItem("aicore-weekly-plan");
+      localStorage.removeItem("novarium-morning-plan");
+      localStorage.removeItem("novarium-weekly-plan");
     });
   });
   await step(`${label}: без грешки в страницата накрая`, async () => expect(!errors.length, errors[0]));

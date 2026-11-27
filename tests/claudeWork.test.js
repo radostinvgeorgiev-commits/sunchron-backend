@@ -148,7 +148,7 @@ test("units come back when the task fails, and the file is sent as a download", 
 });
 
 test("the stronger Claude models cost more units and answer with low effort in chat", async () => {
-  const { creditsForChatModel, requestClaudeResponse } = await import("../src/services/aiCoreService.js");
+  const { creditsForChatModel, requestClaudeResponse } = await import("../src/services/novariumService.js");
   assert.equal(creditsForChatModel("claude-haiku-5-5"), 1);
   assert.equal(creditsForChatModel("claude-sonnet-5-5"), 4);
   assert.equal(creditsForChatModel("claude-opus-5-5"), 8);

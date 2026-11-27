@@ -59,7 +59,7 @@ test("MCP initialize and tool discovery work without credentials", async () => {
     .post("/mcp")
     .send({ jsonrpc: "2.0", id: 1, method: "initialize" })
     .expect(200);
-  assert.equal(initialized.body.result.serverInfo.name, "synchron-x-memory");
+  assert.equal(initialized.body.result.serverInfo.name, "novarium-memory");
   const listed = await request(app)
     .post("/mcp")
     .send({ jsonrpc: "2.0", id: 2, method: "tools/list" })

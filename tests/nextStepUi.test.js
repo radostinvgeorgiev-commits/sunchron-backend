@@ -213,7 +213,33 @@ const FENCE_CASES = [
   ["Run:\n  ```bash\nNext: x", []],
   // Every Next line outside code counts; the page takes the last one.
   ["Next: first\nText\n**Следва:** last", [0, 2]],
+  // A "```" line indented four or more columns past the opening line's text
+  // is code: in a Python string, a README example or a tab-indented line.
+  ['```python\nprompt = """\n    ```json\n    {}\n    ```\n"""\n```\nNext: run it', [7]],
+  ["```markdown\nExample:\n\n    ```\n    code\n    ```\n```\nNext: x", [7]],
+  ["Code:\n  ```md\n      ```\n  ```\nNext: x", [4]],
+  ["```js\ncode\n\t```\nNext: x\n```\nNext: y", [5]],
+  ["1. Run:\n   ```bash\n   npm test\n    ```\nNext: x", [4]],
+  // A closing fence may end in spaces, not in other text or a tab.
+  ["```\ncode\n```\t\nNext: x\n```\nNext: y", [5]],
+  // Tildes open and close blocks too; only the same character closes one.
+  ["~~~\nNext: x\n~~~\nNext: y", [3]],
+  ["~~~markdown\n```bash\n~~~\nNext: x", [3]],
+  ["```\n~~~\nNext: x\n```\nNext: y", [4]],
+  ["````\n~~~~\nNext: x\n```\nNext: y\n````\nNext: z", [6]],
+  // A block opened after a list marker ends with its list item: at a line
+  // left of the item's text after a blank line, or at a new item.
+  ["Пусни:\n- ```bash\n  npm test\n\nСледва: x", [4]],
+  ["1. ```bash\n   npm i\n   ```\n2. ```bash\n   npm test\n\nСледва: x", [6]],
+  ["- ```bash\n  npm test\n- **Следва:** x", [2]],
+  ["- ```bash\n  a\n\n  b\n  ```\nNext: x", [5]],
+  // A closing fence left of the list item's text closes the block, as the
+  // model meant it to; marked would start a new block there instead.
+  ["- ```bash\n  npm test\n```\n\nNext: x", [4]],
 ];
+// The cases where the rule knowingly reads the answer as the model meant it,
+// not as marked shows it.
+const MODEL_MEANT_CASES = new Set(["- ```bash\n  npm test\n```\n\nNext: x"]);
 
 test("the server and the page find the same Next lines outside the same code blocks", async () => {
   const { nextStepLineIndexes } = await import("../src/services/projectConversationContextService.js");
@@ -229,12 +255,51 @@ test("the server and the page find the same Next lines outside the same code blo
     assert.deepEqual(pageIndexes(lines), expected, text);
   }
   // And every answer of up to four lines made of these agrees too.
-  const vocabulary = ["```js", "```", "````", "- ```bash", "  ```", "``` js", "```npm test```", "Next: x", "**Следва:** y", "text"];
+  const vocabulary = [
+    "```js",
+    "```",
+    "````",
+    "~~~",
+    "- ```bash",
+    "  ```",
+    "    ```",
+    "``` js",
+    "```npm test```",
+    "Next: x",
+    "**Следва:** y",
+    "- text",
+    "text",
+    "",
+  ];
   let answers = [[]];
   for (let length = 1; length <= 4; length += 1) {
     answers = answers.flatMap((lines) => vocabulary.map((line) => [...lines, line]));
     for (const lines of answers) assert.deepEqual(pageIndexes(lines), nextStepLineIndexes(lines), lines.join("\n"));
   }
+});
+
+// marked, which shows the answer on the page, as the page loads it.
+const markedModule = { exports: {} };
+new Function("module", "exports", await readFile(new URL("../public/vendor/marked-18.0.7/marked.umd.js", import.meta.url), "utf8"))(
+  markedModule,
+  markedModule.exports,
+);
+const { marked } = markedModule.exports;
+
+test("the Next lines outside code are the ones marked shows outside code", () => {
+  const { answerNextLineIndex } = nextStepFunctions();
+  // Each Next line gets a probe word; it is code if the word lands in a <pre>.
+  const markedNextLines = (lines) =>
+    lines.flatMap((line, index) => {
+      if (answerNextLineIndex([line]) !== 0) return [];
+      const probe = lines.map((text, at) => (at === index ? text.replace(":", ": PROBEWORD ") : text));
+      const blocks = marked.parse(probe.join("\n")).match(/<pre[\s\S]*?<\/pre>/gu) || [];
+      return blocks.some((block) => block.includes("PROBEWORD")) ? [] : [index];
+    });
+  for (const [text, expected] of FENCE_CASES) {
+    if (!MODEL_MEANT_CASES.has(text)) assert.deepEqual(markedNextLines(text.split("\n")), expected, text);
+  }
+  assert.deepEqual(markedNextLines("- ```bash\n  npm test\n```\n\nNext: x".split("\n")), []);
 });
 
 test("a link only in the answer's own Next line stays in the text above the Next card", async () => {

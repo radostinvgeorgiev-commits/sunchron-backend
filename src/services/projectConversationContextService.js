@@ -63,30 +63,80 @@ export async function loadProjectConversationContext({
 // with a capital N, so code such as "next: NextFunction," is never one.
 const BULGARIAN_NEXT_LINE = /^\s*(?:[-*•]\s*)?(?:\*\*)?(?:Следва|Следваща стъпка)(?:\*\*)?\s*:/iu;
 const ENGLISH_NEXT_LINE = /^\s*(?:[-*•]\s*)?(?:\*\*)?Next(?: [Ss]tep)?(?:\*\*)?\s*:/u;
-// Backtick code fences as CommonMark (and the page's renderer) reads them.
-// Three or more backticks open a block, also after a list marker
-// ("- ```bash"); an info string cannot contain backticks, so a one-line
-// "```npm test```" is not a fence. Only a bare run at least as long as the
-// opening one closes the block, so a "```" line inside a "````" block, or a
-// list item's indented closing fence, is never taken for an opening one.
+// Code fences as marked, which shows the answer on the page, reads them.
+// Three or more backticks or tildes open a block, also after a list marker
+// ("- ```bash"); a backtick fence's info string cannot contain backticks, so
+// a one-line "```npm test```" is not a fence. Only a bare run of the same
+// character, at least as long as the opening one and indented at most three
+// columns past where the opening line's text starts, closes the block. So a
+// "```" line inside a "````" block, and an indented "    ```" in a Python
+// string or a README example, are code. A block opened after a list marker
+// also ends where marked ends that list item: at a line left of the item's
+// text that follows a blank line or starts a new item. A less indented
+// closing fence still closes the block, as the model meant it to.
 // The page (answerNextLineIndex in public/app.js) uses the same rule.
-const CODE_FENCE_OPEN = /^\s*(?:(?:[-*+]|\d{1,9}[.)])\s+)?(`{3,})[^`]*$/u;
-const CODE_FENCE_CLOSE = /^\s*(`{3,})\s*$/u;
+const CODE_FENCE_OPEN = /^([ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?)(?:(`{3,})[^`]*|(~{3,})[\s\S]*)$/u;
+const CODE_FENCE_CLOSE = /^([ \t]*)(`{3,}|~{3,}) *\r?$/u;
+const LIST_ITEM_START = /^[ \t]*(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/u;
+
+// The column a line's leading spaces and tabs reach; a tab moves to the next
+// multiple of four, as marked counts indentation.
+function indentWidth(text) {
+  let column = 0;
+  for (const char of text.match(/^[ \t]*/u)[0]) {
+    column = char === "\t" ? column + 4 - (column % 4) : column + 1;
+  }
+  return column;
+}
+
+export function isNextStepLine(line) {
+  return BULGARIAN_NEXT_LINE.test(line) || ENGLISH_NEXT_LINE.test(line);
+}
 
 // The indexes of those lines. A line inside a code block is code and never
 // counts, so code is never moved or removed.
 export function nextStepLineIndexes(lines) {
   const found = [];
-  // The opening fence's length while inside a code block, 0 outside.
-  let fence = 0;
+  // The open code block, null outside code.
+  let fence = null;
+  let afterBlank = false;
   lines.forEach((line, index) => {
+    const blank = !line.trim();
     if (fence) {
-      if ((line.match(CODE_FENCE_CLOSE)?.[1].length ?? 0) >= fence) fence = 0;
-    } else {
-      const open = line.match(CODE_FENCE_OPEN);
-      if (open) fence = open[1].length;
-      else if (BULGARIAN_NEXT_LINE.test(line) || ENGLISH_NEXT_LINE.test(line)) found.push(index);
+      const close = line.match(CODE_FENCE_CLOSE);
+      if (
+        close &&
+        close[2][0] === fence.char &&
+        close[2].length >= fence.length &&
+        indentWidth(close[1]) <= fence.column + 3
+      ) {
+        fence = null;
+        afterBlank = false;
+        return;
+      }
+      const itemEnds =
+        fence.listItem &&
+        !blank &&
+        indentWidth(line) < fence.column &&
+        (afterBlank || LIST_ITEM_START.test(line));
+      afterBlank = blank;
+      if (!itemEnds) return;
+      fence = null;
     }
+    const open = line.match(CODE_FENCE_OPEN);
+    if (open) {
+      const run = open[2] || open[3];
+      fence = {
+        char: run[0],
+        length: run.length,
+        // Where the opening line's text starts: past a list marker, if any.
+        column: indentWidth(open[1].replace(/\S/gu, " ")),
+        listItem: /\S/u.test(open[1]),
+      };
+    } else if (isNextStepLine(line)) {
+      found.push(index);
+    }
+    afterBlank = blank;
   });
   return found;
 }

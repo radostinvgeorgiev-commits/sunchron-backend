@@ -108,6 +108,31 @@ test("a Next line is stripped from the whole answer, before the history cuts it"
   assert.match(cut.content, /\n- x\nNext: page-2\n```\nГотово\.$/u);
 });
 
+test("an indented fence-looking line inside code does not end the block", () => {
+  // A Python string holds a fenced JSON example; its indented "```" lines are
+  // code, so the answer's own Next line after the block is still stripped.
+  const code = 'Код:\n```python\nprompt = """\n    ```json\n    {"a": 1}\n    ```\n"""\n```';
+  assert.equal(stripReplayedNextSteps(`${code}\n\nNext: Run it and tell me ЛИПА-742.`), code);
+  // A block opened after a list marker and left open ends with its list item.
+  const listed = "Пусни тестовете:\n- ```bash\n  npm test";
+  assert.equal(stripReplayedNextSteps(`${listed}\n\nСледва: Провери задача ЛИПА-742.`), listed);
+});
+
+test("an answer longer than the cut still loses its own last Next line", () => {
+  // Only the end of an answer over 100,000 characters is cleaned. That end
+  // starts inside the code block, where the closing fence reads as an opening
+  // one, so the answer's own last Next line is dropped with the cut.
+  const answer = `Ето целия файл:\n\`\`\`js\n${"x();\n".repeat(21_000)}\`\`\`\n\nСледва: Пусни тестовете за ЛИПА-742.`;
+  for (const history of [
+    effectiveConversationHistory([], [{ role: "assistant", content: answer }]),
+    effectiveConversationHistory([{ role: "assistant", content: answer }], []),
+  ]) {
+    assert.equal(history.length, 1);
+    assert.doesNotMatch(history[0].content, /Следва|ЛИПА-742/u);
+    assert.match(history[0].content, /x\(\);\n```$/u);
+  }
+});
+
 test("the saved turns and the page's recent ones still overlap once their Next lines are stripped", () => {
   const answer = "Ето файла:\n```js\n" + "x();\n".repeat(1500) + "```\nСледва: отвори ЛИПА-742.";
   const saved = [

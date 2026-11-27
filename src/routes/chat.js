@@ -51,6 +51,7 @@ import { extractMemoryCandidates } from "../services/memoryCandidateService.js";
 import { PUBLIC_FILE_CREDITS } from "../services/publicAiBudget.js";
 import {
   buildProjectConversationReference,
+  isNextStepLine,
   sanitizeAssistantHistory,
   loadProjectConversationContext,
   nextStepLineIndexes,
@@ -533,8 +534,9 @@ export function combineConversationHistory(persistent, recent) {
 // line, which are dropped once stripped. It keeps the last 6,000 characters
 // of each and maxLength in all, so it uses at most maxLength / 6,000 long
 // answers and shorter ones of maxLength in all. A long answer is split from
-// at most its last CLEANED_ANSWER_LENGTH characters, the end the cut keeps;
-// real answers are far shorter and are stripped whole.
+// at most its last CLEANED_ANSWER_LENGTH characters, the end the cut keeps,
+// and loses its last line there when that is a Next line; real answers are
+// far shorter and are stripped whole.
 const CLEANED_HISTORY_MARGIN = 4;
 const CLEANED_ANSWER_LENGTH = 100_000;
 
@@ -556,7 +558,13 @@ function newestForCleaning(messages, { maxMessages, maxLength }) {
     // The cut trims an answer and keeps its end, so a longer one keeps the
     // end of its text, not trailing blank lines.
     if (content.length > allowed) content = content.trimEnd();
-    if (content.length > allowed) content = content.slice(content.length - allowed);
+    if (content.length > allowed) {
+      content = content.slice(content.length - allowed);
+      // The kept end may start inside a code block, where the answer's own
+      // last Next line would read as code and be replayed; it goes here.
+      const lastBreak = content.lastIndexOf("\n");
+      if (isNextStepLine(content.slice(lastBreak + 1))) content = content.slice(0, Math.max(lastBreak, 0));
+    }
     room -= content.length;
     newest.push(content === message.content ? message : { ...message, content });
   }

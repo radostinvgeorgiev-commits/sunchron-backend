@@ -3032,33 +3032,79 @@ function nextLineMarker(line) {
   return line.match(NEXT_LINE_BULGARIAN) || line.match(NEXT_LINE_ENGLISH);
 }
 
-// Backtick code fences as CommonMark (and marked, which shows the answer)
-// reads them. Three or more backticks open a block, also after a list marker
-// ("- ```bash"); an info string cannot contain backticks, so a one-line
-// "```npm test```" is not a fence. Only a bare run at least as long as the
-// opening one closes the block, so a "```" line inside a "````" block, or a
-// list item's indented closing fence, is never taken for an opening one.
+// Code fences as marked, which shows the answer, reads them. Three or more
+// backticks or tildes open a block, also after a list marker ("- ```bash"); a
+// backtick fence's info string cannot contain backticks, so a one-line
+// "```npm test```" is not a fence. Only a bare run of the same character, at
+// least as long as the opening one and indented at most three columns past
+// where the opening line's text starts, closes the block. So a "```" line
+// inside a "````" block, and an indented "    ```" in a Python string or a
+// README example, are code. A block opened after a list marker also ends
+// where marked ends that list item: at a line left of the item's text that
+// follows a blank line or starts a new item. A less indented closing fence
+// still closes the block, as the model meant it to.
 // The server (nextStepLineIndexes) uses the same rule.
-const NEXT_LINE_FENCE_OPEN = /^\s*(?:(?:[-*+]|\d{1,9}[.)])\s+)?(`{3,})[^`]*$/u;
-const NEXT_LINE_FENCE_CLOSE = /^\s*(`{3,})\s*$/u;
+const NEXT_LINE_FENCE_OPEN = /^([ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?)(?:(`{3,})[^`]*|(~{3,})[\s\S]*)$/u;
+const NEXT_LINE_FENCE_CLOSE = /^([ \t]*)(`{3,}|~{3,}) *\r?$/u;
+const NEXT_LINE_LIST_ITEM = /^[ \t]*(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/u;
 // A line with a Google allow link: besides blank lines, the only line that may
 // follow the answer's own Next line (older answers have the allow line last).
 const NEXT_LINE_ALLOW_LINK = /\/api\/google\/connect/u;
 
+// The column a line's leading spaces and tabs reach; a tab moves to the next
+// multiple of four, as marked counts indentation.
+function nextLineIndentWidth(text) {
+  let column = 0;
+  for (const char of text.match(/^[ \t]*/u)[0]) {
+    column = char === "\t" ? column + 4 - (column % 4) : column + 1;
+  }
+  return column;
+}
+
 // The answer's own Next line is its last such line outside code blocks (-1
 // when there is none); earlier ones are content, and code never counts.
 function answerNextLineIndex(lines) {
-  // The opening fence's length while inside a code block, 0 outside.
-  let fence = 0;
+  // The open code block, null outside code.
+  let fence = null;
+  let afterBlank = false;
   let found = -1;
   lines.forEach((line, index) => {
+    const blank = !line.trim();
     if (fence) {
-      if ((line.match(NEXT_LINE_FENCE_CLOSE)?.[1].length ?? 0) >= fence) fence = 0;
-    } else {
-      const open = line.match(NEXT_LINE_FENCE_OPEN);
-      if (open) fence = open[1].length;
-      else if (nextLineMarker(line)) found = index;
+      const close = line.match(NEXT_LINE_FENCE_CLOSE);
+      if (
+        close &&
+        close[2][0] === fence.char &&
+        close[2].length >= fence.length &&
+        nextLineIndentWidth(close[1]) <= fence.column + 3
+      ) {
+        fence = null;
+        afterBlank = false;
+        return;
+      }
+      const itemEnds =
+        fence.listItem &&
+        !blank &&
+        nextLineIndentWidth(line) < fence.column &&
+        (afterBlank || NEXT_LINE_LIST_ITEM.test(line));
+      afterBlank = blank;
+      if (!itemEnds) return;
+      fence = null;
     }
+    const open = line.match(NEXT_LINE_FENCE_OPEN);
+    if (open) {
+      const run = open[2] || open[3];
+      fence = {
+        char: run[0],
+        length: run.length,
+        // Where the opening line's text starts: past a list marker, if any.
+        column: nextLineIndentWidth(open[1].replace(/\S/gu, " ")),
+        listItem: /\S/u.test(open[1]),
+      };
+    } else if (nextLineMarker(line)) {
+      found = index;
+    }
+    afterBlank = blank;
   });
   return found;
 }
@@ -3085,7 +3131,9 @@ function localizedNextLines(text) {
 }
 
 // The answer's own Next line becomes the Next card only while it is the last
-// line; the text above it is then shown without it.
+// line; the text above it is then shown without it. The step is on that line,
+// as the prompt asks: a bare "Следва:" with the step on the line below stays
+// text.
 function nextStepFromReply(text) {
   const value = typeof text === "string" ? text.trimEnd() : "";
   const lines = value.split("\n");

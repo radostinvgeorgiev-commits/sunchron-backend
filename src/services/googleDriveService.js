@@ -837,6 +837,45 @@ export async function saveAnswerToGoogle(
   return { id: data.id, name: data.name || name, url: data.webViewLink || null, kind };
 }
 
+// Saves a generated video (MP4) as a new file in the person's own Drive.
+// A resumable upload, because a clip is often bigger than the 5 MB that a
+// simple multipart upload allows. drive.file: only files AI CORE creates.
+export async function saveVideoToDrive(id, { name = "", bytes, mimeType = "video/mp4" } = {}, fetchImpl = fetch) {
+  if (!Buffer.isBuffer(bytes) || !bytes.length || mimeType !== "video/mp4") {
+    throw new GoogleDriveError("Няма видео за запазване.", 400, "GOOGLE_SAVE_INVALID");
+  }
+  const fileName =
+    `${String(name || "").replace(/[\u0000-\u001f\u007f/\\]/gu, " ").trim().slice(0, 100) || "AI CORE видео"}.mp4`;
+  const start = await googleFetch(
+    id,
+    `${DRIVE_UPLOAD_URL}?uploadType=resumable&fields=id,name,webViewLink`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json; charset=UTF-8",
+        "X-Upload-Content-Type": mimeType,
+        "X-Upload-Content-Length": String(bytes.length),
+      },
+      body: JSON.stringify({ name: fileName, mimeType }),
+    },
+    fetchImpl,
+    "Google Drive",
+  );
+  const location = start.headers?.get?.("location");
+  if (!location || !location.startsWith(`${DRIVE_UPLOAD_URL}?`)) {
+    throw new GoogleDriveError("Google Drive не прие видеото. Опитай пак.", 502, "GOOGLE_UPLOAD_FAILED");
+  }
+  const response = await googleFetch(
+    id,
+    location,
+    { method: "PUT", headers: { "Content-Type": mimeType }, body: bytes },
+    fetchImpl,
+    "Google Drive",
+  );
+  const data = await response.json();
+  return { id: data.id, name: data.name || fileName, url: data.webViewLink || null };
+}
+
 export function isGoogleScopeMissing(error) {
   return error instanceof GoogleDriveError && error.code === "GOOGLE_SCOPE_REQUIRED";
 }

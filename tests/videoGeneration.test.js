@@ -131,3 +131,37 @@ test("until the owner opens them, only the owner can make videos", async () => {
     server.close();
   }
 });
+
+test("the connector makes a video and saves it to the owner's Google Drive", async () => {
+  const { MCP_CAPABILITY_TOOLS, createMcpCapabilityHandler } = await import("../src/services/mcpCapabilityService.js");
+  const { requiredScopesForMcpTool, MCP_GOOGLE_WRITE_SCOPE } = await import("../src/services/mcpOAuthService.js");
+  assert.ok(MCP_CAPABILITY_TOOLS.some(({ name }) => name === "generate_video"));
+  assert.deepEqual(requiredScopesForMcpTool("generate_video"), [MCP_GOOGLE_WRITE_SCOPE]);
+  const saved = [];
+  const handler = createMcpCapabilityHandler({
+    audit: async () => {},
+    resolveLatestGoogleSession: async () => "main-session",
+    dependencies: {
+      generateVideo: async (prompt, options) => ({
+        video: Buffer.from("MP4"),
+        mimeType: "video/mp4",
+        prompt,
+        model: "gemini-omni-1.1-flash",
+        aspectRatio: options.aspectRatio || "16:9",
+      }),
+      saveSessionFor: async (id) => `${id}-save`,
+      saveVideoToDrive: async (id, file) => (saved.push([id, file.name, file.bytes.toString()]), { id: "f1", name: "x.mp4", url: "https://drive.google.com/file/d/f1/view" }),
+    },
+  });
+  const { result } = await handler("generate_video", { prompt: "реклама за кафене", aspectRatio: "9:16" }, { ownerId: "owner" });
+  assert.deepEqual(saved, [["main-session-save", "реклама за кафене", "MP4"]]);
+  assert.equal(result.structuredContent.file.url, "https://drive.google.com/file/d/f1/view");
+  assert.match(result.content[0].text, /9:16.*Google Drive.*Нищо не е публикувано/u);
+});
+
+test("a video goes to Drive with a resumable upload", async () => {
+  const { saveVideoToDrive } = await import("../src/services/googleDriveService.js");
+  assert.equal(typeof saveVideoToDrive, "function");
+  await assert.rejects(() => saveVideoToDrive("s", { bytes: Buffer.alloc(0) }), { code: "GOOGLE_SAVE_INVALID" });
+  assert.match(readFileSync(new URL("../src/services/googleDriveService.js", import.meta.url), "utf8"), /uploadType=resumable/u);
+});

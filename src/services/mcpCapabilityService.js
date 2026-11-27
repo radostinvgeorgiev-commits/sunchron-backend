@@ -33,6 +33,8 @@ import {
   GoogleDriveError,
   listDriveFiles,
   listGoogleCalendarEvents,
+  saveSessionFor,
+  saveVideoToDrive,
   searchGmailMessages,
   searchGoogleContacts,
   suggestGoogleCalendarSlots,
@@ -78,6 +80,7 @@ import {
   getAvatarProfileService,
 } from "./avatarProfileService.js";
 import { formatSelfTest, runSelfTest } from "./selfTestService.js";
+import { getVideoGenerationService } from "./videoGenerationService.js";
 import {
   getToolRuntimeAvailability,
   isToolExecutable,
@@ -624,6 +627,22 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
     },
   ),
   tool(
+    "generate_video",
+    "Направи видео и го запази в Google Drive",
+    "Само за собственика. Прави кратко видео (реклама и др.) от описание с Gemini Omni Flash: до 10 секунди, 720p, със звук; 9:16 за телефон или 16:9. Записва MP4 файла като нов файл в Google Drive на собственика и връща линк. Отнема 1–4 минути и струва около 1 $. Нищо не се публикува.",
+    {
+      type: "object",
+      properties: {
+        prompt: { type: "string", minLength: 3, maxLength: 2000 },
+        aspectRatio: { type: "string", enum: ["16:9", "9:16"] },
+        title: { type: "string", maxLength: 100 },
+      },
+      required: ["prompt"],
+      additionalProperties: false,
+    },
+    REVERSIBLE_WRITE,
+  ),
+  tool(
     "create_gmail_draft",
     "Създай Gmail чернова",
     "Създава чернова за преглед, но не я изпраща.",
@@ -883,6 +902,7 @@ function permissionAction(name) {
       : "calendar.write";
   }
   if (name === "list_google_drive_files") return "drive.read";
+  if (name === "generate_video") return "drive.write";
   return "infrastructure.read";
 }
 
@@ -1296,6 +1316,19 @@ export function createMcpCapabilityHandler({
         result = textResult(
           { messages },
           `Намерени са ${messages.length} Gmail съобщения.`,
+        );
+      } else if (name === "generate_video") {
+        const made = await (dependencies.generateVideo || ((prompt, options) => getVideoGenerationService().generate(prompt, options)))(
+          args.prompt,
+          { aspectRatio: args.aspectRatio },
+        );
+        const saved = await (dependencies.saveVideoToDrive || saveVideoToDrive)(
+          await (dependencies.saveSessionFor || saveSessionFor)(googleSessionId),
+          { name: args.title || made.prompt.slice(0, 60), bytes: made.video, mimeType: made.mimeType },
+        );
+        result = textResult(
+          { file: saved, aspectRatio: made.aspectRatio, model: made.model, bytes: made.video.length },
+          `Видеото е готово (${made.aspectRatio}) и е в Google Drive: ${saved.url || saved.name}. Нищо не е публикувано.`,
         );
       } else if (name === "create_gmail_draft") {
         const draft = await (dependencies.createGmailDraft || createGmailDraft)(

@@ -153,6 +153,17 @@ li {
 #contact-status {
   font-weight: 700;
 }
+#contact-status {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border-left: 4px solid #5b3fe0;
+  border-radius: 0.5rem;
+  background: #f1eefe;
+}
+#contact-status[data-result="received"] {
+  border-left-color: #137a4f;
+  background: #e8f6ef;
+}
 .request-panel textarea {
   min-height: 8rem;
   resize: vertical;

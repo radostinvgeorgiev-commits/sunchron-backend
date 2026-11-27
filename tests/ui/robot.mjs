@@ -809,6 +809,8 @@ async function contactForm(origin, contactMessages) {
     await fill("A test message from the robot.", "received");
     const status = await page.textContent("#contact-status");
     expect(/ABCD0001/u.test(status) && /Thank you/u.test(status), `няма потвърждение с номер: ${status}`);
+    const shown = await page.locator("#contact-status").boundingBox();
+    expect(shown && shown.y >= 0 && shown.y + shown.height <= 844, "потвърждението не се вижда без превъртане");
     expect(page.url().includes("lang=en"), "езикът се загуби");
     const sent = contactMessages.at(-1) || {};
     expect(sent.topic === "idea" && sent.email === "robot@example.test", "съобщението не стигна до сървъра");

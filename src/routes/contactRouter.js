@@ -137,6 +137,20 @@ function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/gu, (char) => htmlEscapes[char]);
 }
 
+// The owner reads the list in Bulgarian time, not UTC.
+function sofiaTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("bg-BG", {
+    timeZone: "Europe/Sofia",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function createContactAdminRouter({
   getStore = () => createFirestoreDocumentStore(),
   now = () => Date.now(),
@@ -155,7 +169,7 @@ export function createContactAdminRouter({
       });
       const rows = messages
         .map(({ data }) => {
-          const when = escapeHtml(String(data.submittedAt || "").slice(0, 16).replace("T", " "));
+          const when = escapeHtml(sofiaTime(data.submittedAt));
           const topic = escapeHtml(CONTACT_TOPICS[data.topic] || CONTACT_TOPICS.other);
           const subject = encodeURIComponent(`NovariumAI · ${data.ticket || ""}`);
           const name = data.name ? `${escapeHtml(data.name)}<br>` : "";
@@ -171,7 +185,7 @@ export function createContactAdminRouter({
 <h1>Съобщения от сайта</h1>
 ${
   rows
-    ? `<p>Последните до 100 съобщения от формуляра за връзка, най-новите първи (време UTC). Пазят се до 1 година.</p><div class="requests-table"><table>
+    ? `<p>Последните до 100 съобщения от формуляра за връзка, най-новите първи (българско време). Пазят се до 1 година.</p><div class="requests-table"><table>
 <caption>Получени съобщения</caption><thead><tr><th scope="col">Дата</th><th scope="col">Номер</th><th scope="col">Тема</th><th scope="col">От</th><th scope="col">Съобщение</th></tr></thead>
 <tbody>${rows}</tbody></table></div>`
     : "<p>Все още няма съобщения.</p>"

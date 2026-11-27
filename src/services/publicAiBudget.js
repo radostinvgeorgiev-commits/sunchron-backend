@@ -8,10 +8,12 @@ const context = new AsyncLocalStorage();
 export function createPublicAiBudgetContext({
   reserve = (identity, credits, details) =>
     getProductPlansService().reserve(identity, credits, details),
+  refund = (identity, reservationId) =>
+    getProductPlansService().refund(identity, reservationId),
 } = {}) {
   return (req, _res, next) => {
     if (req.owner?.role === "owner") return next();
-    return context.run({ identity: req.owner, calls: 0, reserve }, next);
+    return context.run({ identity: req.owner, calls: 0, reserve, refund }, next);
   };
 }
 export const publicAiBudgetContext = createPublicAiBudgetContext();
@@ -102,4 +104,20 @@ export async function reservePublicAiVoice(provider = "", model = "") {
   if (!scope) return;
   scope.calls++;
   await scope.reserve(scope.identity, PUBLIC_VOICE_CREDITS, { provider, model });
+}
+// A generated video (Gemini Omni Flash, up to 10 seconds at 720p with sound):
+// about 1 US dollar at cost, so 100 units. Units are given back when the
+// video could not be made. Returns a function that does that refund.
+export const PUBLIC_VIDEO_CREDITS = 100;
+export async function reservePublicAiVideo(provider = "", model = "") {
+  const scope = context.getStore();
+  if (!scope) return async () => false;
+  scope.calls++;
+  const reservationId = await scope.reserve(scope.identity, PUBLIC_VIDEO_CREDITS, { provider, model });
+  let returned = false;
+  return async () => {
+    if (returned || !reservationId || !scope.refund) return false;
+    returned = true;
+    return scope.refund(scope.identity, reservationId);
+  };
 }

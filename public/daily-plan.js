@@ -117,6 +117,55 @@
     }
   });
 
+  // "Направи видео": the description in the box becomes a short clip with
+  // sound (an ad or anything else). The server sends the MP4 file itself.
+  document.addEventListener("aicore:make-video", async () => {
+    const chat = globalThis.SynchronChat;
+    const prompt = input.value.trim();
+    if (!prompt) {
+      input.placeholder = text("Първо опиши видеото (напр. реклама за кафене, за телефон), после избери „Направи видео“");
+      input.focus();
+      return;
+    }
+    if (!chat || chat.busy?.()) return;
+    input.value = "";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    chat.append("user", `🎬 ${prompt}`);
+    chat.setBusy(true);
+    const bubble = chat.append("agent", text("🎬 Правя видеото… това отнема от една до четири минути. Не затваряй страницата."));
+    try {
+      const response = await fetch("/api/videos", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || text("Видеото не стана. Опитай пак."));
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const figure = document.createElement("figure");
+      figure.className = "generated-video";
+      const video = document.createElement("video");
+      video.src = url;
+      video.controls = true;
+      video.playsInline = true;
+      video.setAttribute("aria-label", prompt);
+      const save = document.createElement("a");
+      save.href = url;
+      save.download = "aicore-video.mp4";
+      save.textContent = text("Изтегли видеото");
+      figure.append(video, save);
+      bubble.replaceChildren(figure);
+    } catch (error) {
+      render(bubble, `❌ ${error.message}`);
+    } finally {
+      chat.setBusy(false);
+      list.scrollTop = list.scrollHeight;
+    }
+  });
+
   const preparePlan = async (period) => {
     const plan = PLANS[period];
     const chat = globalThis.SynchronChat;

@@ -3032,13 +3032,20 @@ function nextLineMarker(line) {
   return line.match(NEXT_LINE_BULGARIAN) || line.match(NEXT_LINE_ENGLISH);
 }
 
+// A line that opens or closes a ``` code block on its own. An info string
+// cannot contain backticks, so a one-line "```npm test```" is not a fence.
+const NEXT_LINE_CODE_FENCE = /^\s*```[^`]*$/u;
+// A line with a Google allow link: besides blank lines, the only line that may
+// follow the answer's own Next line (older answers have the allow line last).
+const NEXT_LINE_ALLOW_LINK = /\/api\/google\/connect/u;
+
 // The answer's own Next line is its last such line outside ``` code blocks
 // (-1 when there is none); earlier ones are content, and code never counts.
 function answerNextLineIndex(lines) {
   let code = false;
   let found = -1;
   lines.forEach((line, index) => {
-    if (line.trimStart().startsWith("```")) code = !code;
+    if (NEXT_LINE_CODE_FENCE.test(line)) code = !code;
     else if (!code && nextLineMarker(line)) found = index;
   });
   return found;
@@ -3046,14 +3053,17 @@ function answerNextLineIndex(lines) {
 
 // The answer's own "Следва:" line, when it is not the Next card (not the last
 // line, or a restored answer), is shown with the page's label, "Next" on an
-// English page. Other "Следва:" lines, such as a Bulgarian text the person
-// asked for, stay as they are.
+// English page. It is that line only where the answer's Next line goes: last,
+// or followed only by blank lines and allow lines. Other "Следва:" lines, such
+// as a Bulgarian text the person asked for, stay as they are.
 function localizedNextLines(text) {
   const label = chatText("Следва");
   if (typeof text !== "string" || label === "Следва") return text;
   const lines = text.split("\n");
   const index = answerNextLineIndex(lines);
   if (index < 0) return text;
+  const after = lines.slice(index + 1);
+  if (!after.every((line) => !line.trim() || NEXT_LINE_ALLOW_LINK.test(line))) return text;
   lines[index] = lines[index].replace(
     NEXT_LINE_BULGARIAN,
     (marker, start, end) => `${start}${label}${end}`,

@@ -145,6 +145,49 @@ test("only a capitalised English Next line is a Next line, so code is never one"
   assert.equal(english.nextStepFromReply("Config:\n```yaml\nNext: page-2").step, "");
 });
 
+test("a one-line ```code``` does not open a code block, so the Next line after it still counts", () => {
+  assert.deepEqual(nextStepFunctions().nextStepFromReply("Пусни:\n```npm test```\nСледва: провери ЛИПА-742."), {
+    step: "провери ЛИПА-742.",
+    displayText: "Пусни:\n```npm test```",
+  });
+  // A fence with an info string still opens a block, and a bare one closes it.
+  const english = nextStepFunctions(ENGLISH_PAGE);
+  assert.equal(english.nextStepFromReply("Run:\n  ```bash\nNext: x\n  ```").step, "");
+  assert.equal(english.nextStepFromReply("Run:\n```bash\nnpm test\n```\nNext: Check the result.").step, "Check the result.");
+});
+
+test("a link only in the answer's own Next line stays in the text above the Next card", async () => {
+  const { withGoogleAllowLinks } = await import("../src/routes/chat.js");
+  const { GoogleDriveError } = await import("../src/services/googleDriveService.js");
+  const url = "https://cloudaicore.com/api/google/connect?add=youtube";
+  const notAllowed = {
+    status: "rejected",
+    request: { capability: "youtube.channel" },
+    error: new GoogleDriveError(`YouTube още не е разрешен. [Свържи YouTube](${url}).`, 403, "GOOGLE_SCOPE_REQUIRED"),
+  };
+  const result = { task: { status: "failed", steps: [{ status: "failed", error: "GOOGLE_SCOPE_REQUIRED" }] } };
+  for (const [language, catalog, answer, step] of [
+    [
+      "en",
+      ENGLISH_PAGE,
+      `I can't see your YouTube channel yet.\n\nNext: [Allow YouTube](${url}), then ask me again.`,
+      "Use the allow link above, then ask again.",
+    ],
+    [
+      "bg",
+      {},
+      `Още нямам достъп до канала ти в YouTube.\n\nСледва: [Свържи YouTube](${url}) и ме попитай пак.`,
+      "Натисни линка за разрешение по-горе и попитай отново.",
+    ],
+  ]) {
+    const reply = withGoogleAllowLinks(answer, [notAllowed], language);
+    const next = nextStepFunctions(catalog).resolveNextStep(reply, result);
+    assert.equal(next.step, step, language);
+    assert.equal(next.chatOnly, true, language);
+    assert.ok(next.displayText.includes(url), `${language}: the allow link is shown`);
+  }
+});
+
 test("a missing Google permission stays out of the journal even when the answer has its own Next line", () => {
   const scopeOnly = { status: "failed", steps: [{ status: "failed", error: "GOOGLE_SCOPE_REQUIRED" }] };
   assert.deepEqual(
@@ -200,6 +243,17 @@ test("only the answer's own Next line is relabelled, never a text the person ask
     english.localizedNextLines(`${code}\n**Следва:** Y\n\n[Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)`),
     `${code}\n**Next:** Y\n\n[Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)`,
   );
+  // A translation usually has no Next line of its own: its "Следва:" line is
+  // followed by more of the text, so it is not the answer's and stays.
+  assert.equal(english.localizedNextLines(body), body);
+  assert.deepEqual(english.nextStepFromReply(body), { step: "", displayText: body });
+  assert.equal(
+    english.resolveNextStep(body, { task: { status: "failed", steps: [{ status: "failed", error: "GOOGLE_API_UNAVAILABLE" }] } })
+      .displayText,
+    body,
+  );
+  // Only blank lines after it: it is where the answer's own line goes.
+  assert.equal(english.localizedNextLines("Answer.\nСледва: X\n\n"), "Answer.\nNext: X\n\n");
 });
 
 test("a restored answer shows the page's Next label, and the history sent back keeps the stored text", async () => {
@@ -217,11 +271,16 @@ test("a restored answer shows the page's Next label, and the history sent back k
     assert.ok(start > 0 && end > start, `${from} … ${to}`);
     return app.slice(start, end);
   };
+  // A translation with a "Следва:" line inside it, and no Next line of its own.
+  const translation =
+    "Here is the Bulgarian version:\n\nГотово: докладът.\nСледва: обади се на клиента.\nПо-късно: фактурата.";
   const stored = [
     { role: "user", content: "Show my channel" },
     { role: "assistant", content: "I need YouTube access first.\n\nСледва: Разреши YouTube.\n\n[Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)" },
     { role: "user", content: "Done" },
     { role: "assistant", content: "Your channel has 12 videos." },
+    { role: "user", content: "Translate the plan into Bulgarian" },
+    { role: "assistant", content: translation },
   ];
   const shown = [];
   const logged = [];
@@ -261,10 +320,11 @@ test("a restored answer shows the page's Next label, and the history sent back k
   assert.deepEqual(shown, [
     "I need YouTube access first.\n\nNext: Разреши YouTube.\n\n[Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)",
     "Your channel has 12 videos.",
+    translation,
   ]);
   assert.deepEqual(
     [...window.document.querySelectorAll(".message.user")].map((node) => node.textContent),
-    ["Show my channel", "Done"],
+    ["Show my channel", "Done", "Translate the plan into Bulgarian"],
   );
   assert.deepEqual(state.recentConversationMessages, stored);
   window.close();

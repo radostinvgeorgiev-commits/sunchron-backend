@@ -734,3 +734,54 @@ test("Work keeps trying available models when a selected model fails and another
   assert.match(response.text, /"provider":"grok","model":"grok-test"/u);
   assert.doesNotMatch(response.text, /event: error/u);
 });
+
+test("a long answer cut by the history limit never replays its own Next line", async (t) => {
+  const { stripReplayedNextSteps } = await import(
+    "../src/services/projectConversationContextService.js"
+  );
+  const answer =
+    "Ето файла:\n```js\n" + "x();\n".repeat(1500) + "```\nСледва: отвори ЛИПА-742.";
+  const turns = [
+    { role: "user", content: "Дай ми файла." },
+    { role: "assistant", content: answer },
+  ];
+  setFirestoreMemoryStoreForTests({
+    listProfileDocuments: async () => [],
+    listConversationSessionDocuments: async () =>
+      turns.map((data, index) => ({
+        id: `cut-history-${index}`,
+        data: { ...data, createdAt: `2026-11-27T00:00:0${index}Z` },
+      })),
+    commitConversationDocuments: async () => {},
+  });
+  t.after(() => setFirestoreMemoryStoreForTests(null));
+  const inputs = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    assert.equal(String(url), "https://api.openai.com/v1/responses");
+    inputs.push(JSON.parse(options.body).input);
+    return Response.json({ output_text: "Разбирам." });
+  });
+  // From the saved turns alone, and with the page sending the same turns back.
+  for (const recentHistory of [[], turns]) {
+    await request(app)
+      .post("/chat/chat")
+      .set("Cookie", OWNER_COOKIE)
+      .send({ sessionId: "cut-history", message: "Какво мислиш?", recentHistory })
+      .expect(200);
+  }
+  assert.equal(inputs.length, 2);
+  for (const input of inputs) {
+    assert.deepEqual(
+      input.slice(1).map(({ role, content }) => ({ role, content })),
+      [
+        { role: "user", content: "Дай ми файла." },
+        {
+          role: "assistant",
+          content: stripReplayedNextSteps(answer).slice(-6000),
+        },
+        { role: "user", content: "Какво мислиш?" },
+      ],
+    );
+    assert.doesNotMatch(JSON.stringify(input), /ЛИПА-742/u);
+  }
+});

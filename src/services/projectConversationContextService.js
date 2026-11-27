@@ -63,6 +63,9 @@ export async function loadProjectConversationContext({
 // with a capital N, so code such as "next: NextFunction," is never one.
 const BULGARIAN_NEXT_LINE = /^\s*(?:[-*•]\s*)?(?:\*\*)?(?:Следва|Следваща стъпка)(?:\*\*)?\s*:/iu;
 const ENGLISH_NEXT_LINE = /^\s*(?:[-*•]\s*)?(?:\*\*)?Next(?: [Ss]tep)?(?:\*\*)?\s*:/u;
+// A line that opens or closes a ``` code block on its own. An info string
+// cannot contain backticks, so a one-line "```npm test```" is not a fence.
+const CODE_FENCE = /^\s*```[^`]*$/u;
 
 // The indexes of those lines. A line inside a ``` code block is code and
 // never counts, so code is never moved or removed.
@@ -70,7 +73,7 @@ export function nextStepLineIndexes(lines) {
   const found = [];
   let code = false;
   lines.forEach((line, index) => {
-    if (line.trimStart().startsWith("```")) code = !code;
+    if (CODE_FENCE.test(line)) code = !code;
     else if (!code && (BULGARIAN_NEXT_LINE.test(line) || ENGLISH_NEXT_LINE.test(line))) {
       found.push(index);
     }
@@ -80,7 +83,9 @@ export function nextStepLineIndexes(lines) {
 
 // A "Следва:"/"Next:" line is an instruction the model gave itself; replayed
 // in later context it reads like a fact (an invented "ЛИПА-742" spread this
-// way). Strip those lines from earlier AI replies before they are reused.
+// way). Strip those lines from earlier AI replies before they are reused,
+// from the whole reply: a reply cut inside a code block starts with a lone
+// closing fence, and its own last Next line would then count as code.
 export function stripReplayedNextSteps(content) {
   const lines = String(content || "").split("\n");
   const next = new Set(nextStepLineIndexes(lines));
@@ -90,10 +95,12 @@ export function stripReplayedNextSteps(content) {
     .trim();
 }
 
+// Only text is cleaned: anything else is left for the history checks to drop,
+// never turned into text.
 export function sanitizeAssistantHistory(messages = []) {
   return messages
     .map((message) =>
-      message?.role === "assistant"
+      message?.role === "assistant" && typeof message.content === "string"
         ? { ...message, content: stripReplayedNextSteps(message.content) }
         : message,
     )

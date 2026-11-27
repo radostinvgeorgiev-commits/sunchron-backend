@@ -1082,6 +1082,39 @@ test("the allow line goes before the answer's own Next line, which stays last", 
   }
 });
 
+test("a link only in the answer's own Next line still gets the allow line above it", () => {
+  const url = "https://cloudaicore.com/api/google/connect?add=youtube";
+  const notAllowed = {
+    status: "rejected",
+    request: { capability: "youtube.channel" },
+    error: new GoogleDriveError(`YouTube още не е разрешен. [Свържи YouTube](${url}).`, 403, "GOOGLE_SCOPE_REQUIRED"),
+  };
+  // The page takes that line out of the text, so its link does not count.
+  assert.equal(
+    withGoogleAllowLinks(
+      `I can't see your YouTube channel yet.\n\nNext: [Allow YouTube](${url}), then ask me again.`,
+      [notAllowed],
+      "en",
+    ),
+    `I can't see your YouTube channel yet.\n\nYouTube is not allowed yet. [Allow YouTube](${url})\n\nNext: [Allow YouTube](${url}), then ask me again.`,
+  );
+  assert.equal(
+    withGoogleAllowLinks(
+      `Още нямам достъп до канала ти в YouTube.\n\nСледва: [Свържи YouTube](${url}) и ме попитай пак.`,
+      [notAllowed],
+    ),
+    `Още нямам достъп до канала ти в YouTube.\n\nYouTube още не е разрешен. [Свържи YouTube](${url}).\n\nСледва: [Свържи YouTube](${url}) и ме попитай пак.`,
+  );
+  // A link in the text above the Next line is enough: nothing is added.
+  for (const reply of [
+    `Allow YouTube first: [Allow YouTube](${url})\n\nNext: Ask me again.`,
+    `Разреши YouTube: [Свържи YouTube](${url})\n\nСледва: [Свържи YouTube](${url}) и ме попитай пак.`,
+  ]) {
+    assert.equal(withGoogleAllowLinks(reply, [notAllowed], "en"), reply);
+    assert.equal(withGoogleAllowLinks(reply, [notAllowed]), reply);
+  }
+});
+
 test("in English, a Google error is never left in Bulgarian", () => {
   const google = (message, code, status = 502) => new GoogleDriveError(message, status, code);
   const failed = (error) =>
@@ -1186,8 +1219,11 @@ test("in English, a calendar check gives its own reason with the limits it uses"
     assert.equal(englishGoogleFailure(error), "The date or time is not valid. Write a real date and time like 2026-08-05 14:30.");
   }
   const duration = draftError("Create a calendar event: Demo | 2026-11-28 10:00 | 2000");
-  assert.equal(englishGoogleFailure(duration), "The duration must be between 5 and 1440 minutes.");
+  const durationReason = "The duration must be a whole number of minutes between 5 and 1440, like 30.";
+  assert.equal(englishGoogleFailure(duration), durationReason);
   assert.match(duration.message, /^Продължителността трябва да е между 5 и 1440 минути\./u);
+  // "30 min" is in range but not a number: the same sentence shows the format.
+  assert.equal(englishGoogleFailure(draftError("Create a calendar event: Demo | 2026-11-28 10:00 | 30 min")), durationReason);
   const reminder = "The reminder must be between 0 and 40320 minutes before the event.";
   const reminderDraft = draftError("Напомни ми: Обади се | 2026-11-28 10:00 | 50000 минути преди");
   assert.equal(englishGoogleFailure(reminderDraft), reminder);
@@ -1219,7 +1255,7 @@ test("in English, a calendar check gives its own reason with the limits it uses"
       [{ status: "rejected", request: { capability: "calendar.write" }, error: duration }],
       { language: "en" },
     )[0],
-    "Request failed for calendar.write: The duration must be between 5 and 1440 minutes.",
+    `Request failed for calendar.write: ${durationReason}`,
   );
 });
 

@@ -516,6 +516,19 @@ export function combineConversationHistory(persistent, recent) {
   return recent;
 }
 
+// The history the model sees. "Следва:"/"Next:" lines are stripped from whole
+// messages before any length cut: a cut inside a code block leaves a lone
+// closing fence, and the answer's own last Next line would then count as code
+// and be replayed. The saved turns and the client's recent ones are stripped
+// the same way, so the merge still finds where they overlap.
+export function effectiveConversationHistory(persistent, recent, { rewrite = false } = {}) {
+  const stripped = (messages) => (Array.isArray(messages) ? sanitizeAssistantHistory(messages) : []);
+  const cleanRecent = normalizeRecentConversationHistory(stripped(recent));
+  // Retry and edit send the trimmed history the person now sees; the saved
+  // turns would otherwise bring the replaced answer back into context.
+  return rewrite ? cleanRecent : combineConversationHistory(stripped(persistent), cleanRecent);
+}
+
 const SHORT_CONTINUATION_PATTERN =
   /^(?:да|давай|ок(?:ей)?|добре|направи го|продължи|изпълни\s+(?:препоръката|варианта)|избери\s+препоръката)(?:[.!?]+)?$/iu;
 
@@ -1122,8 +1135,9 @@ function englishCalendarReason(error) {
         : "A text in the event is too long.";
     case "CALENDAR_EVENT_DATE_INVALID":
       return "The date or time is not valid. Write a real date and time like 2026-08-05 14:30.";
+    // The format too: "30 min" is in range but not a plain number.
     case "CALENDAR_EVENT_DURATION_INVALID":
-      return `The duration must be between ${limits.minDurationMinutes} and ${limits.maxDurationMinutes} minutes.`;
+      return `The duration must be a whole number of minutes between ${limits.minDurationMinutes} and ${limits.maxDurationMinutes}, like 30.`;
     case "CALENDAR_REMINDER_OFFSET_INVALID":
       return `The reminder must be between 0 and ${limits.maxReminderMinutes} minutes before the event.`;
     case "CALENDAR_SLOT_TIME_INVALID":
@@ -1310,20 +1324,22 @@ function googleAllowReply(error, english) {
 // "use the allow link above" step always has its link.
 // The answer's own "Next:"/"Следва:" line stays last, also when it is the
 // whole answer: the page turns it into the Next card only while it is last.
+// A link only in that line does not count: the page takes the line out of the
+// text, so the allow line is still added above it.
 export function withGoogleAllowLinks(reply, capabilityResults, language) {
   const english = useEnglishReplyFallback(language);
-  const lines = [];
-  for (const { status, error } of capabilityResults || []) {
-    const allow = status === "rejected" ? googleAllowLink(error) : null;
-    if (!allow || String(reply).includes(allow.url)) continue;
-    const line = googleAllowReply(error, english);
-    if (!lines.includes(line)) lines.push(line);
-  }
-  if (!lines.length) return reply;
   const replyLines = String(reply).trimEnd().split("\n");
   const last = replyLines.length - 1;
   const next = nextStepLineIndexes(replyLines).at(-1) === last ? replyLines[last].trim() : "";
   const body = (next ? replyLines.slice(0, last) : replyLines).join("\n").trimEnd();
+  const lines = [];
+  for (const { status, error } of capabilityResults || []) {
+    const allow = status === "rejected" ? googleAllowLink(error) : null;
+    if (!allow || body.includes(allow.url)) continue;
+    const line = googleAllowReply(error, english);
+    if (!lines.includes(line)) lines.push(line);
+  }
+  if (!lines.length) return reply;
   return [body, ...lines, next].filter(Boolean).join("\n\n");
 }
 
@@ -1947,13 +1963,11 @@ router.post("/chat", async (req, res) => {
       logSafeError("[Project context] Workspace load failed", error);
     }
   }
-  // Retry and edit send the trimmed history the person now sees; the saved
-  // turns would otherwise bring the replaced answer back into context.
-  const effectiveHistory = sanitizeAssistantHistory(
-    rewrite === true
-      ? cleanRecentHistory
-      : combineConversationHistory(history, cleanRecentHistory),
-  );
+  // Next lines are stripped once, from whole messages: stripping the cut text
+  // again would take the code before a lone closing fence for text.
+  const effectiveHistory = effectiveConversationHistory(history, recentHistory, {
+    rewrite: rewrite === true,
+  });
   const conversationContextSource = cleanRecentHistory.length
     ? "client-recent"
     : history.length

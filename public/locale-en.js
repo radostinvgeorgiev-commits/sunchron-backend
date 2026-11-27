@@ -287,6 +287,10 @@ AI Council, включително обобщаване|AI Council, including sy
 Услугата се предоставя от|The service is provided by
 , ЕИК 208554306.|, Bulgarian company ID 208554306.
 Фирмени данни и контакт|Company details and contact
+Връщане на вложеното: парите, които собственикът е вложил във фирмата, за да плаща разходите в началото, му се връщат като заем.|Return of the investment: the money the owner put into the company to pay the costs at the start is paid back to him as a loan.
+Всички разходи се плащат от фирмената сметка. В началото собственикът я захранва със свои пари.|All costs are paid from the company account. At the start, the owner funds it with his own money.
+Тук се вижда колко е вложено и колко е върнато.|This page shows how much has been put in and how much has been paid back.
+Всеки месец приходите се разпределят в този ред: разходи (с заплатата на управителя), данъци, връщане на вложеното от собственика, резерв 10% и остатък: 80% за каузи, които хората сами предлагат и избират в „Каузи“, и 20% за собственика.|Every month, revenue is split in this order: costs (including the director's salary), taxes, repayment of the owner's investment, a 10% reserve, and the rest: 80% for causes that people propose and choose themselves in “Causes”, and 20% for the owner.
 Прозрачност · NovariumAI|Transparency · NovariumAI
 Къде отиват парите на NovariumAI: разходи, данъци, резерв, 80% за каузи и 20% за собственика.|Where NovariumAI's money goes: costs, taxes, reserve, 80% for causes and 20% for the owner.
 Прозрачност|Transparency
@@ -300,7 +304,6 @@ AI Council, включително обобщаване|AI Council, including sy
 Месечни числа|Monthly figures
 Всеки месец числата излизат тук. Докато няма приходи, страницата показва само правилата.|The figures are published here every month. Until there is revenue, this page shows only the rules.
 Размерът на заплатата на управителя ще бъде обявен тук, щом бъде определен.|The director's salary will be published here once it is set.
-Всеки месец приходите се разпределят в този ред: разходи (с заплатата на управителя), данъци, резерв 10% и остатък: 80% за каузи, които хората сами предлагат и избират в „Каузи“, и 20% за собственика.|Every month, revenue is split in this order: costs (including the director's salary), taxes, a 10% reserve, and the rest: 80% for causes that people propose and choose themselves in “Causes”, and 20% for the owner.
 Подробно и с месечните числа:|Details and monthly figures:
 Планове за NovariumAI с ясно включено AI потребление и без автоматично доплащане.|NovariumAI plans with clearly defined AI usage and no automatic top-ups.
 Твоето потребление|Your usage

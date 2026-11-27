@@ -59,6 +59,8 @@
     status.textContent = messages[result];
     status.hidden = false;
     status.dataset.result = result;
+    // The answer sits above the fields, so it is the first thing seen.
+    status.scrollIntoView({ block: "nearest" });
   };
   if (locale?.ready) void locale.ready.then(show);
   else show();

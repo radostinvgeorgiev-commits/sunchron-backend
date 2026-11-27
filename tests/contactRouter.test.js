@@ -167,7 +167,7 @@ test("the owner's list escapes the text and is private on the real server", asyn
   assert.match(list.text, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/u);
   assert.doesNotMatch(list.text, /<script>|<b>Иван/u);
   assert.match(list.text, /Проблем/u);
-  assert.match(list.text, /2026-11-28 09:30/u);
+  assert.match(list.text, /28\.11\.2026 г\., 11:30/u);
   assert.match(list.text, /mailto:ivan@example\.com\?subject=NovariumAI%20%C2%B7%20ABCDEF12/u);
   assert.equal(list.headers["cache-control"], "private, no-store");
 

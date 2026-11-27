@@ -831,6 +831,21 @@ test("the server and the page find the same Next lines outside the same code blo
   }
 });
 
+// How many times as long a scan takes on an answer as on the same answer with
+// plain lines in place of its closing lines: the fastest of a few runs each,
+// the two answers in turns, so a busy machine slows both alike.
+function timesAsLong(scan, withClosers, withPlain, runs = 5) {
+  const best = [Infinity, Infinity];
+  for (let run = 0; run < runs; run += 1) {
+    [withClosers, withPlain].forEach((lines, at) => {
+      const start = performance.now();
+      assert.equal(scan(lines).at(-1), null);
+      best[at] = Math.min(best[at], performance.now() - start);
+    });
+  }
+  return best[0] / best[1];
+}
+
 test("blocks with unindented code take about as long as plain lines, however many closing lines too far in are below them", async () => {
   const { codeBlocksOfLines } = await import("../src/services/projectConversationContextService.js");
   const { nextLineCodeBlocks } = nextStepFunctions();
@@ -851,19 +866,37 @@ test("blocks with unindented code take about as long as plain lines, however man
     const blocks = `- \`\`\`x\na\n${unit.repeat(15_000)}`;
     const answer = (below) => `${blocks}${below.join("\n")}\n\nNext: Run it.`.split("\n");
     for (const scan of [codeBlocksOfLines, nextLineCodeBlocks]) {
-      // The fastest of five runs, so a busy machine does not fail the check.
-      const fastest = (lines) => {
-        let best = Infinity;
-        for (let run = 0; run < 5; run += 1) {
-          const start = performance.now();
-          assert.equal(scan(lines).at(-1), null);
-          best = Math.min(best, performance.now() - start);
-        }
-        return best;
-      };
-      const times = fastest(answer(closers)) / fastest(answer(plain));
+      const times = timesAsLong(scan, answer(closers), answer(plain));
       assert.ok(times < 2.5, `${scan.name}, ${JSON.stringify(unit)}: ${times.toFixed(2)} times as long`);
     }
+  }
+});
+
+test("blocks of thousands of fence kinds take about as long as plain lines above closing lines too far in", async () => {
+  const { codeBlocksOfLines } = await import("../src/services/projectConversationContextService.js");
+  const { nextLineCodeBlocks } = nextStepFunctions();
+  // 6,400 blocks whose code is unindented, each of its own kind: runs of 3 to
+  // 82 backticks, items whose text starts 2 to 81 columns in (tabs after the
+  // marker), each block ended by the next item with nothing to close it.
+  const whitespace = (column) => (column >= 4 ? "\t".repeat(column >> 2) + " ".repeat(column & 3) : " ".repeat(column - 1));
+  const blocks = [];
+  for (let column = 2; column < 82; column += 1) {
+    for (let run = 3; run < 83; run += 1) blocks.push(`-${whitespace(column)}${"`".repeat(run)}${blocks.length ? "" : "x"}`);
+  }
+  // Below them, closing lines too far in to close any block, each left of
+  // every line of its run below it, so the look-up keeps every one: runs of
+  // 83 to 122 backticks, 88 to 127 columns in. The same answer with plain
+  // lines at the same columns in their place is the measure.
+  const closers = [];
+  for (let run = 83; run < 123; run += 1) {
+    for (let column = 0; column < 40; column += 1) closers.push(`${"\t".repeat(22)}${" ".repeat(column)}${"`".repeat(run)}`);
+  }
+  const plain = closers.map((line) => line.replace(/`+$/u, (run) => "x".repeat(run.length)));
+  const answer = (below) => [...blocks, ...below, "", "Next: Run it."];
+  for (const scan of [codeBlocksOfLines, nextLineCodeBlocks]) {
+    // Nine runs each, as one run is short.
+    const times = timesAsLong(scan, answer(closers), answer(plain), 9);
+    assert.ok(times < 2.5, `${scan.name}: ${times.toFixed(2)} times as long`);
   }
 });
 

@@ -164,7 +164,10 @@ function lastClosingLineBelow(closings, block, index) {
 // last line that would close it is further down. That line is looked up once
 // for all blocks of one fence character, run length and item column: it is
 // the answer's last such line, and when it is not below the block that asked
-// first (-1), it is below no later block either.
+// first (-1), it is below no later block either. Only the first 16 kinds in
+// an answer are looked up, so an answer made of many kinds costs no more than
+// a plain one; a block of a further kind ends with its item. Real answers
+// use at most three.
 export function codeBlocksOfLines(lines) {
   // Where the text of each open list item starts, the innermost last.
   const items = [];
@@ -220,7 +223,7 @@ export function codeBlocksOfLines(lines) {
       if (block.unindented) {
         closings ??= closingLinesFromEnd(lines);
         const key = `${block.char}${block.length} ${block.base}`;
-        if (!lastClosings.has(key)) lastClosings.set(key, lastClosingLineBelow(closings, block, index));
+        if (!lastClosings.has(key)) lastClosings.set(key, lastClosings.size < 16 ? lastClosingLineBelow(closings, block, index) : -1);
         if (lastClosings.get(key) > index) return block;
       }
       fence = null;

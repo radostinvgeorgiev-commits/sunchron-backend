@@ -94,6 +94,40 @@ test("loads a supported catalog and safely falls back when a catalog is unavaila
   fallback.window.close();
 });
 
+test("a language chosen in AI CORE is not translated again by the browser", async () => {
+  const chosen = await render(landing, { path: "/?lang=en", browserLanguage: "bg-BG" });
+  const doc = chosen.window.document;
+  assert.equal(doc.documentElement.getAttribute("translate"), "no");
+  assert.equal(doc.querySelectorAll('meta[name="google"][content="notranslate"]').length, 1);
+  chosen.window.close();
+  const remembered = await render(landing, { browserLanguage: "en-US", saved: "bg" });
+  assert.equal(remembered.window.document.documentElement.getAttribute("translate"), "no");
+  remembered.window.close();
+  // Only the browser's own language, supported or not: the browser may
+  // still offer to translate.
+  for (const browserLanguage of ["pl-PL", "de-DE", "bg-BG"]) {
+    const detected = await render(landing, { browserLanguage });
+    assert.equal(detected.window.document.documentElement.getAttribute("translate"), null, browserLanguage);
+    assert.equal(detected.window.document.querySelector('meta[name="google"]'), null, browserLanguage);
+    detected.window.close();
+  }
+  // A chosen language whose catalog did not load falls back to English the
+  // person did not choose, so the browser may translate it.
+  const fallback = await render(landing, { path: "/?lang=de", failCatalog: true });
+  assert.equal(fallback.window.document.documentElement.lang, "en");
+  assert.equal(fallback.window.document.documentElement.getAttribute("translate"), null);
+  assert.equal(fallback.window.document.querySelector('meta[name="google"]'), null);
+  fallback.window.close();
+});
+
+test("the Google sign-in button is English on the English page", async () => {
+  const english = await render(landing, { path: "/?lang=en", browserLanguage: "bg-BG" });
+  const button = english.window.document.querySelector("#googleSignInBtn");
+  assert.equal(button.textContent.trim(), "Continue with Google");
+  assert.ok(button.querySelector(".fa-google"), "the Google icon stays");
+  english.window.close();
+});
+
 test("Google's sign-in and consent screens follow the page language", async () => {
   const google = "https://cloudaicore.com/api/google/connect";
   const english = await render(landing, { path: "/?lang=en", browserLanguage: "bg-BG" });

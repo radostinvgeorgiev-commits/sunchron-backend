@@ -21,6 +21,19 @@
   let language = [requested, saved, browserLanguage, "en"].find((code) =>
     supported.has(code),
   );
+  // A language the person chose here is not translated again by the
+  // browser (Chrome's "always translate" would turn English back into
+  // Bulgarian, for example).
+  let noTranslateMeta = null;
+  if (language === requested || language === saved) {
+    document.documentElement.setAttribute("translate", "no");
+    if (!document.querySelector('meta[name="google"][content="notranslate"]')) {
+      noTranslateMeta = document.createElement("meta");
+      noTranslateMeta.name = "google";
+      noTranslateMeta.content = "notranslate";
+      document.head.append(noTranslateMeta);
+    }
+  }
   let catalog = english;
   const normalize = (value) => value.replace(/\s+/gu, " ").trim();
   const attributes = [
@@ -64,6 +77,10 @@
         );
       } catch {
         language = "en";
+        // The chosen language did not load, so the page is English the person
+        // did not choose: the browser may offer to translate it again.
+        document.documentElement.removeAttribute("translate");
+        noTranslateMeta?.remove();
       }
     }
     document.documentElement.lang = language;

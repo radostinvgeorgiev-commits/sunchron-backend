@@ -2698,11 +2698,25 @@ function showTypingIndicator() {
   scrollChatToBottom();
 }
 
+// The server streams its progress in Bulgarian; show it in the page language.
+function taskProgressText(task) {
+  if (Number.isInteger(task.step) && Number.isInteger(task.totalSteps) && task.capability) {
+    return chatText("Стъпка {step} от {total}: {capability}", {
+      step: task.step,
+      total: task.totalSteps,
+      capability: task.capability,
+    });
+  }
+  const steps = /^Изпълнявам (\d+) проверени стъпки…$/u.exec(task.message);
+  if (steps) return chatText("Изпълнявам {count} проверени стъпки…", { count: steps[1] });
+  return chatText(task.message);
+}
+
 function updateTaskIndicator(task) {
   const indicator = document.getElementById("typingIndicator");
   const label = indicator?.querySelector(".thinking-label");
   if (!indicator || !label || typeof task?.message !== "string") return;
-  label.textContent = task.message;
+  label.textContent = taskProgressText(task);
   indicator.dataset.taskStatus = task.status || "executing";
   scrollChatToBottom();
 }
@@ -2965,11 +2979,11 @@ function showAiResponseSource(message, provider, model, linkedProjectContext) {
   source.className = "ai-response-source";
   const context =
     linkedProjectContext === true
-      ? "Работа със свързани чатове"
+      ? chatText("Работа със свързани чатове")
       : linkedProjectContext === false
-        ? "Работа без заредени свързани чатове"
+        ? chatText("Работа без заредени свързани чатове")
         : linkedProjectContext === null
-          ? "Работа без активен проект"
+          ? chatText("Работа без активен проект")
           : "";
   const providerNames = {
     openai: "OpenAI",
@@ -2986,7 +3000,7 @@ function showAiResponseSource(message, provider, model, linkedProjectContext) {
   ]
     .filter(Boolean)
     .join(" · ");
-  source.setAttribute("aria-label", "AI доставчик и модел");
+  source.setAttribute("aria-label", chatText("AI доставчик и модел"));
 
   const actions = turn.querySelector(".message-actions");
   turn.insertBefore(source, actions || null);
@@ -3030,7 +3044,7 @@ function resolveNextStep(replyText, result = {}) {
 
   if (result?.mode === "council") {
     return {
-      step: "Прегледай общата препоръка и натисни „Изпълни препоръката“, ако я одобряваш.",
+      step: chatText("Прегледай общата препоръка и натисни „Изпълни препоръката“, ако я одобряваш."),
       displayText: parsedReply.displayText,
     };
   }
@@ -3042,15 +3056,29 @@ function resolveNextStep(replyText, result = {}) {
       displayText: parsedReply.displayText,
     };
   }
+  // Only a Google permission is missing: the reply already has the link, so
+  // the step stays in the chat and does not go to the journal.
+  const failedSteps = (result?.task?.steps || []).filter((item) => item?.status === "failed");
+  if (
+    (status === "failed" || status === "partial") &&
+    failedSteps.length &&
+    failedSteps.every((item) => item.error === "GOOGLE_SCOPE_REQUIRED")
+  ) {
+    return {
+      step: chatText("Натисни линка за разрешение по-горе и попитай отново."),
+      displayText: parsedReply.displayText,
+      chatOnly: true,
+    };
+  }
   if (status === "partial") {
     return {
-      step: "Отвори Дневника на задачите и продължи първата незавършена стъпка.",
+      step: chatText("Отвори Дневника на задачите и продължи първата незавършена стъпка."),
       displayText: parsedReply.displayText,
     };
   }
   if (status === "failed") {
     return {
-      step: "Отвори Дневника на задачите и прегледай причината за неуспешната задача.",
+      step: chatText("Отвори Дневника на задачите и прегледай причината за неуспешната задача."),
       displayText: parsedReply.displayText,
     };
   }
@@ -3075,7 +3103,7 @@ function showNextStep(message, replyText, result) {
       result?.council?.nextSteps?.[0] ||
       result?.task?.status,
   );
-  if (fromStructuredResult) {
+  if (fromStructuredResult && !next.chatOnly) {
     globalThis.SynchronTaskJournal?.setNextStep(next.step, {
       detail: "Записано автоматично от последния отговор на AI CORE.",
     });
@@ -3083,7 +3111,7 @@ function showNextStep(message, replyText, result) {
 
   const card = document.createElement("section");
   card.className = "next-step-card";
-  card.setAttribute("aria-label", "Следваща стъпка");
+  card.setAttribute("aria-label", chatText("Следваща стъпка"));
 
   const label = document.createElement("strong");
   label.textContent = chatText("Следва");
@@ -3124,7 +3152,7 @@ function showNextStep(message, replyText, result) {
     });
     card.append(confirmButton);
   }
-  card.append(openButton);
+  if (!next.chatOnly) card.append(openButton);
 
   const actions = turn.querySelector(".message-actions");
   turn.insertBefore(card, actions || null);
@@ -3720,6 +3748,7 @@ function showSaveGoogleNote(turn, message, url = "", linkLabel = "") {
     link.target = "_blank";
     link.rel = "noopener";
     link.textContent = chatText(linkLabel || "Отвори");
+    if (!/\s$/u.test(note.textContent)) note.append(" ");
     note.appendChild(link);
   }
 }

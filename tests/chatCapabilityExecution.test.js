@@ -866,3 +866,25 @@ test("deterministic replies use English fallback without changing facts or confi
     ],
   );
 });
+
+test("chat finds a contact by name and prepares an exact email", () => {
+  assert.deepEqual(
+    detectCapabilityRequests("Намери в Google контактите ми контакта Мария Петрова"),
+    [{ capability: "contacts.read", action: "contacts.read", message: "Мария Петрова" }],
+  );
+  assert.deepEqual(detectCapabilityRequests("Намери контакт Иван")[0].message, "Иван");
+  const [send] = detectCapabilityRequests(
+    "Изпрати имейл до ana@example.com | Среща | Здравей, Ана! Ще се видим в 10.",
+  );
+  assert.equal(send.capability, "mail.send");
+  assert.deepEqual(send.input, {
+    to: "ana@example.com",
+    subject: "Среща",
+    body: "Здравей, Ана! Ще се видим в 10.",
+  });
+  assert.ok(
+    !detectCapabilityRequests("намери ми аптека наблизо").some(
+      (request) => request.capability === "contacts.read",
+    ),
+  );
+});

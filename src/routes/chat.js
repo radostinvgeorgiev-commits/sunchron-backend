@@ -607,6 +607,13 @@ function isExplicitGitHubReadSubtask(subtask, hasGitHubContext) {
 }
 
 export function detectCapabilityRequests(message) {
+  // The whole message is the email (its text may hold several sentences).
+  const emailSend = parseEmailSendRequest(message);
+  if (emailSend) {
+    return [
+      { capability: "mail.send", action: "mail.send", message, input: emailSend },
+    ];
+  }
   const requests = [];
   // "Не използвай инструменти" anywhere in the message keeps the paid Gemini
   // tools out, even when the sentence is split into separate subtasks.
@@ -659,6 +666,15 @@ export function detectCapabilityRequests(message) {
         subtask,
       )
     ) {
+      continue;
+    }
+    const contactQuery = parseContactSearchQuery(subtask);
+    if (contactQuery) {
+      requests.push({
+        capability: "contacts.read",
+        action: "contacts.read",
+        message: contactQuery,
+      });
       continue;
     }
     if (
@@ -957,6 +973,38 @@ export async function executeDetectedCapabilities(
   return execution.results;
 }
 
+// "Изпрати имейл до ana@example.com | Тема | Текст": an exact email the person
+// wrote. It is only prepared here; sending waits for their confirmation.
+export function parseEmailSendRequest(message) {
+  const match = String(message || "")
+    .trim()
+    .match(
+      /^(?:моля[,\s]+)?(?:изпрати|прати|send)\s+(?:(?:(?:нов\s+)?(?:имейл|писмо|e-?mail)|an?\s+email)\s+)?(?:до|to)\s+([^\s|@]+@[^\s|@]+\.[^\s|]+)\s*\|\s*([^|]*?)\s*\|\s*([\s\S]+)$/iu,
+    );
+  if (!match) return null;
+  const body = match[3].trim();
+  if (!body) return null;
+  return { to: match[1], subject: match[2], body };
+}
+
+// "Намери контакт Иван", "Намери в контактите ми Мария": the name after the
+// last word for contact is what gets searched.
+export function parseContactSearchQuery(message) {
+  const text = String(message || "").trim();
+  if (!/(?:намери|търси|потърси|покажи|find|search|look\s+up)/iu.test(text)) {
+    return "";
+  }
+  const parts = text.split(/(?:контакт(?:а|ът|и|ите)?|contacts?)(?=[\s:,-]|$)/iu);
+  if (parts.length < 2) return "";
+  const query = parts[parts.length - 1]
+    .replace(/^\s*(?:ми|my)(?=[\s:,.!?-]|$)/iu, "")
+    .replace(/^[\s:,-]+/u, "")
+    .replace(/^(?:на|за|named|for)\s+/iu, "")
+    .replace(/[?.!]+$/u, "")
+    .trim();
+  return query.length >= 2 && query.length <= 100 ? query : "";
+}
+
 // "моят YouTube канал", "каналът ми в YouTube", "колко гледания имат видеата ми".
 export function isOwnYoutubeChannelRequest(message) {
   const text = String(message || "");
@@ -981,6 +1029,8 @@ function capabilityLabel(capability) {
     return "сливане на GitHub Pull Request";
   if (capability === "files.read") return "Google Drive";
   if (capability === "mail.read") return "Gmail";
+  if (capability === "mail.send") return "изпращане на имейл";
+  if (capability === "contacts.read") return "Google контакти";
   if (capability === "youtube.channel") return "YouTube канал";
   if (capability === "memory.read") return "памет";
   if (capability === "memory.verify") return "автоматичен тест на паметта";

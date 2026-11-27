@@ -21,6 +21,7 @@ const ALLOWED_ACTIONS = new Set([
   "memory.delete:profile",
   "tasks.write:update_status",
   "mail.send:draft",
+  "mail.send:message",
   "mail.delete:message",
   "contacts.write:create",
   "contacts.write:update",

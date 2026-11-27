@@ -5,6 +5,7 @@ import {
   confirmGoogleAction,
   GOOGLE_CONFIRMED_ACTIONS,
   prepareGmailDraftSend,
+  prepareGmailMessageSend,
   prepareGmailMessageTrash,
   prepareGoogleContactChange,
 } from "../src/services/googleActionService.js";
@@ -146,4 +147,62 @@ test("contact changes require an exact confirmation and reject session substitut
     (error) => error.code === "GOOGLE_ACTION_SESSION_MISMATCH",
   );
   assert.equal(consumed, false);
+});
+
+test("a new email is prepared, then sent only after the bound confirmation", async () => {
+  let confirmation;
+  const sent = [];
+  const prepared = await prepareGmailMessageSend(
+    {
+      ownerId: "primary-user",
+      googleSessionId: "google-session-1",
+      sessionId: "session-1",
+      to: "ana@example.com",
+      subject: "Среща",
+      body: "Здравей, Ана!",
+    },
+    {
+      createConfirmation: async (input) => {
+        confirmation = { id: "confirmation-3", ...input };
+        return confirmation;
+      },
+    },
+  );
+  assert.equal(sent.length, 0);
+  assert.equal(confirmation.action, GOOGLE_CONFIRMED_ACTIONS.SEND_MESSAGE);
+  assert.equal(prepared.message.to, "ana@example.com");
+
+  const order = [];
+  const result = await confirmGoogleAction(
+    {
+      ownerId: "primary-user",
+      googleSessionId: "google-session-1",
+      sessionId: "session-1",
+      confirmationId: "confirmation-3",
+    },
+    {
+      validateConfirmation: async () => confirmation,
+      consumeConfirmation: async () => order.push("consume"),
+      executeWrite: async ({ execute, action }) => {
+        order.push(`audit:${action}`);
+        return execute();
+      },
+      sendMessage: async (googleSessionId, message) => {
+        order.push("send");
+        assert.equal(googleSessionId, "google-session-1");
+        sent.push(message);
+        return { id: "sent-1", to: message.to };
+      },
+    },
+  );
+  assert.deepEqual(order, ["consume", "audit:mail.send", "send"]);
+  assert.equal(sent[0].body, "Здравей, Ана!");
+  assert.equal(result.to, "ana@example.com");
+
+  await assert.rejects(
+    prepareGmailMessageSend(
+      { ownerId: "o", googleSessionId: "g", sessionId: "s", to: "not-an-email", body: "x" },
+      { createConfirmation: async () => assert.fail("must not prepare") },
+    ),
+  );
 });

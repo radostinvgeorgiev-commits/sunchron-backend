@@ -8,6 +8,7 @@ const MEMBER_SAFE_CAPABILITIES = new Set([
 // connection. Writing or sending stays out; MCP clients do not get these.
 const MEMBER_OWN_GOOGLE_CAPABILITIES = new Set([
   "calendar.read",
+  "contacts.read",
   "files.read",
   "files.search",
   "mail.read",

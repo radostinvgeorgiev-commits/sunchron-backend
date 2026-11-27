@@ -1194,6 +1194,68 @@ export async function createGmailDraft(
   };
 }
 
+// Sends one plain-text email straight away (gmail.send only, no draft, so it
+// works without the restricted compose scope). Callers confirm first.
+export function cleanGmailMessage({ to, subject = "", body } = {}) {
+  const recipient = cleanEmail(to);
+  const cleanBody =
+    typeof body === "string" && body.trim() && body.length <= 20_000
+      ? body.trim()
+      : "";
+  if (!cleanBody) {
+    throw new GoogleDriveError(
+      "Липсва валиден текст за имейла.",
+      400,
+      "GMAIL_MESSAGE_INVALID",
+    );
+  }
+  return Object.freeze({
+    to: recipient,
+    subject: cleanHeader(subject, 500, "тема"),
+    body: cleanBody,
+  });
+}
+
+export async function sendGmailMessage(id, message, fetchImpl = fetch) {
+  const clean = cleanGmailMessage(message);
+  const mime = [
+    `To: ${clean.to}`,
+    `Subject: ${mimeSubject(clean.subject)}`,
+    "MIME-Version: 1.0",
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    clean.body,
+  ].join("\r\n");
+  const response = await googleFetch(
+    id,
+    `${GMAIL_API_URL}/users/me/messages/send`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        raw: Buffer.from(mime, "utf8").toString("base64url"),
+      }),
+    },
+    fetchImpl,
+    "Gmail",
+  );
+  const sent = await response.json();
+  if (!sent?.id) {
+    throw new GoogleDriveError(
+      "Gmail не потвърди изпращането.",
+      502,
+      "GMAIL_SEND_EMPTY_RESULT",
+    );
+  }
+  return {
+    id: sent.id,
+    threadId: sent.threadId || null,
+    to: clean.to,
+    url: `https://mail.google.com/mail/u/0/#sent/${sent.id}`,
+  };
+}
+
 export async function sendGmailDraft(id, draftId, fetchImpl = fetch) {
   const cleanDraftId = gmailMessageId(draftId, "Gmail draftId");
   const response = await googleFetch(

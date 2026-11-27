@@ -53,7 +53,7 @@ test("returns a repository summary in read-only mode", async () => {
       full_name: "radostinvgeorgiev-commits/sunchron-backend",
       default_branch: "main",
       private: false,
-      description: "Novarium",
+      description: "NovariumAI",
       updated_at: "2026-07-25T00:00:00Z",
       html_url: "https://github.com/radostinvgeorgiev-commits/sunchron-backend",
     });
@@ -213,7 +213,7 @@ test("answers a combined latest-commit and open-PR count request", async () => {
       return jsonResponse([
         {
           number: 325,
-          title: "Добави Anthropic Claude към Novarium",
+          title: "Добави Anthropic Claude към NovariumAI",
           state: "open",
           draft: false,
           head: { ref: "feature/claude" },

@@ -66,7 +66,7 @@ test("ChatGPT plugin exposes only its own tools and reserves credits for the ver
   const list = await call("tools/list", {}, false).expect(200);
   assert.deepEqual(
     list.body.result.tools.map((t) => t.name),
-    ["open_synchron_x_workspace", "ask_synchron_x", "get_synchron_x_balance"],
+    ["open_novarium_workspace", "ask_novarium", "get_novarium_balance"],
   );
   const uri = list.body.result.tools[0]._meta.ui.resourceUri;
   const widget = await call("resources/read", { uri }, false).expect(200);
@@ -76,7 +76,7 @@ test("ChatGPT plugin exposes only its own tools and reserves credits for the ver
   );
   assert.match(widget.body.result.contents[0].text, /id="composer"/u);
   const askParams = {
-    name: "ask_synchron_x",
+    name: "ask_novarium",
     arguments: { question: "Hello" },
   };
   await call("tools/call", askParams, false)
@@ -87,7 +87,7 @@ test("ChatGPT plugin exposes only its own tools and reserves credits for the ver
   }).expect(200);
   assert.equal(rejected.body.error.code, -32602);
   const balance = await call("tools/call", {
-    name: "get_synchron_x_balance",
+    name: "get_novarium_balance",
   }).expect(200);
   assert.match(balance.body.result.content[0].text, /10/);
   assert.equal(reservations.length, 0);
@@ -102,7 +102,7 @@ test("ChatGPT plugin exposes only its own tools and reserves credits for the ver
     member.memoryOwnerId,
   ]);
   await call("tools/call", {
-    name: "ask_synchron_x",
+    name: "ask_novarium",
     arguments: { question: "Continue", sessionId },
   }).expect(200);
   assert.equal(turns[1][0], sessionId);
@@ -122,7 +122,7 @@ test("ChatGPT plugin exposes only its own tools and reserves credits for the ver
           const result =
             message.method === "ui/initialize"
               ? {}
-              : message.params.name === "get_synchron_x_balance"
+              : message.params.name === "get_novarium_balance"
                 ? { structuredContent: { remaining: 10 } }
                 : {
                     structuredContent: {
@@ -157,7 +157,7 @@ test("ChatGPT plugin exposes only its own tools and reserves credits for the ver
       /Test reply/u,
     );
     assert.equal(
-      requests.find((item) => item.params?.name === "ask_synchron_x").params
+      requests.find((item) => item.params?.name === "ask_novarium").params
         .arguments.question,
       "Try the workspace",
     );

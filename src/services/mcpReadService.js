@@ -76,7 +76,7 @@ export const MCP_TOOLS = Object.freeze([
     name: "get_personal_context",
     title: "Прочети личния контекст",
     description:
-      "Прочита проверените лични факти за Радко от постоянната памет на Novarium. Използвай само когато са нужни за текущия въпрос.",
+      "Прочита проверените лични факти за Радко от постоянната памет на NovariumAI. Използвай само когато са нужни за текущия въпрос.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -89,7 +89,7 @@ export const MCP_TOOLS = Object.freeze([
     name: "get_project_context",
     title: "Прочети контекста на проекта",
     description:
-      "Прочита проверените факти за Novarium. Не ги смесвай с личните факти за Радко.",
+      "Прочита проверените факти за NovariumAI. Не ги смесвай с личните факти за Радко.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -100,9 +100,9 @@ export const MCP_TOOLS = Object.freeze([
   },
   {
     name: "list_synchron_conversations",
-    title: "Покажи разговорите в Novarium",
+    title: "Покажи разговорите в NovariumAI",
     description:
-      "Показва списък със запазените разговори в собствения чат на Novarium.",
+      "Показва списък със запазените разговори в собствения чат на NovariumAI.",
     inputSchema: {
       type: "object",
       properties: {
@@ -115,9 +115,9 @@ export const MCP_TOOLS = Object.freeze([
   },
   {
     name: "get_synchron_conversation",
-    title: "Прочети разговор от Novarium",
+    title: "Прочети разговор от NovariumAI",
     description:
-      "Прочита избран разговор от собствения чат на Novarium по неговия sessionId.",
+      "Прочита избран разговор от собствения чат на NovariumAI по неговия sessionId.",
     inputSchema: {
       type: "object",
       properties: {
@@ -130,10 +130,10 @@ export const MCP_TOOLS = Object.freeze([
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
-    name: "talk_to_ai_core",
-    title: "Говори с Novarium",
+    name: "talk_to_novarium",
+    title: "Говори с NovariumAI",
     description:
-      "Изпраща съобщение до Novarium в собствения профил, връща отговора и запазва разговора. Може да продължи същата нишка чрез sessionId. Използва само регистрирани инструменти; read-only проверките се изпълняват, а записите се подготвят за отделно owner потвърждение.",
+      "Изпраща съобщение до NovariumAI в собствения профил, връща отговора и запазва разговора. Може да продължи същата нишка чрез sessionId. Използва само регистрирани инструменти; read-only проверките се изпълняват, а записите се подготвят за отделно owner потвърждение.",
     inputSchema: {
       type: "object",
       properties: {
@@ -145,7 +145,7 @@ export const MCP_TOOLS = Object.freeze([
       required: ["message"],
       additionalProperties: false,
     },
-    securitySchemes: mcpToolSecuritySchemes("talk_to_ai_core"),
+    securitySchemes: mcpToolSecuritySchemes("talk_to_novarium"),
     annotations: CONVERSATION_ANNOTATIONS,
   },
   {
@@ -253,7 +253,7 @@ function safeMcpError(error) {
   }
   return {
     code: -32603,
-    message: "Novarium временно не може да изпълни заявката.",
+    message: "NovariumAI временно не може да изпълни заявката.",
   };
 }
 
@@ -297,19 +297,19 @@ export function createMcpRequestHandler({
       const items = await listMemories({ scope: "personal", ownerId });
       result = textResult(
         { scope: "personal", items },
-        `Прочетени са ${items.length} лични записа от Novarium.`,
+        `Прочетени са ${items.length} лични записа от NovariumAI.`,
       );
     } else if (name === "get_project_context") {
       const items = await listMemories({ scope: "project", ownerId });
       result = textResult(
         { scope: "project", items },
-        `Прочетени са ${items.length} проектни записа от Novarium.`,
+        `Прочетени са ${items.length} проектни записа от NovariumAI.`,
       );
     } else if (name === "list_synchron_conversations") {
       const items = await listConversations(safeLimit(args?.limit), ownerId);
       result = textResult(
         { items },
-        `Намерени са ${items.length} разговора в Novarium.`,
+        `Намерени са ${items.length} разговора в NovariumAI.`,
       );
     } else if (name === "get_synchron_conversation") {
       const sessionId =
@@ -324,7 +324,7 @@ export function createMcpRequestHandler({
         { sessionId, items },
         `Прочетени са ${items.length} съобщения от избрания разговор.`,
       );
-    } else if (name === "talk_to_ai_core") {
+    } else if (name === "talk_to_novarium") {
       const conversation = await runAgentConversation({
         ownerId,
         message: args?.message,
@@ -398,7 +398,7 @@ export function createMcpRequestHandler({
     await audit({
       actor: "chatgpt-mcp",
       action:
-        name === "talk_to_ai_core"
+        name === "talk_to_novarium"
           ? "agent.chat"
           : name.includes("github")
             ? "github.write"
@@ -410,7 +410,7 @@ export function createMcpRequestHandler({
       outcome: "succeeded",
       resource: name,
       details:
-        name === "talk_to_ai_core"
+        name === "talk_to_novarium"
           ? "conversation-mcp"
           : name.startsWith("confirm_")
             ? "confirmed-write-mcp"
@@ -438,9 +438,9 @@ export function createMcpRequestHandler({
           result: {
             protocolVersion: MCP_PROTOCOL_VERSION,
             capabilities: { tools: { listChanged: false } },
-            serverInfo: { name: "synchron-x-memory", version: "1.0.0" },
+            serverInfo: { name: "novarium-memory", version: "1.0.0" },
             instructions:
-              "Използвай само нужните за задачата права. Личният и проектният контекст са различни. Повечето инструменти са само за четене. Разговорът с Novarium пази нишката, а регистрираните инструменти връщат реални резултати. Всеки запис подготвя отделен точен план и се изпълнява само след еднократно потвърждение от owner. GitHub merge е достъпен само за конкретен PR към main, точен head SHA и зелени CI проверки; промяна на secrets и production deployment не са достъпни през този MCP. Основно правило на собственика: агентът води и работи автономно — сам казва следващата стъпка, сам проверява (run_ai_core_self_test, read_runtime_logs, diagnostics) и върши работата; не кара собственика да проверява или да прави нещо. Собственикът дава насоките и одобрява. Когато нещо спира агента, той казва точно какво го спира и какъв вариант (право или промяна в кода) ще му позволи да го направи сам след одобрение. Правилата за работа са в AGENTS.md в хранилището.",
+              "Използвай само нужните за задачата права. Личният и проектният контекст са различни. Повечето инструменти са само за четене. Разговорът с NovariumAI пази нишката, а регистрираните инструменти връщат реални резултати. Всеки запис подготвя отделен точен план и се изпълнява само след еднократно потвърждение от owner. GitHub merge е достъпен само за конкретен PR към main, точен head SHA и зелени CI проверки; промяна на secrets и production deployment не са достъпни през този MCP. Основно правило на собственика: агентът води и работи автономно — сам казва следващата стъпка, сам проверява (run_novarium_self_test, read_runtime_logs, diagnostics) и върши работата; не кара собственика да проверява или да прави нещо. Собственикът дава насоките и одобрява. Когато нещо спира агента, той казва точно какво го спира и какъв вариант (право или промяна в кода) ще му позволи да го направи сам след одобрение. Правилата за работа са в AGENTS.md в хранилището.",
           },
         };
       }

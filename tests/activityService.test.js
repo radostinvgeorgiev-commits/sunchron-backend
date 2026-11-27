@@ -54,6 +54,7 @@ test("the page is the owner's only and the counts are wired in", () => {
   const chat = readFileSync(new URL("../src/routes/chat.js", import.meta.url), "utf8");
   assert.match(chat, /recordActivity\(\{ messages: 1 \}\)/u);
   const auth = readFileSync(new URL("../src/routes/userAuthRouter.js", import.meta.url), "utf8");
+  // New profiles are made only through Google sign-in now.
   assert.equal((auth.match(/recordActivity\(\{ registrations: 1 \}\)/gu) || []).length, 2);
   const campaign = readFileSync(new URL("../src/services/campaignAttribution.js", import.meta.url), "utf8");
   assert.match(campaign, /recordActivity/u);

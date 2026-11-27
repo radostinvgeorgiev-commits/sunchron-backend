@@ -23,10 +23,10 @@ test("parses a multiline personal profile into separate memories", () => {
 test("parses numbered project context into separate project memories", () => {
   assert.deepEqual(
     extractPersistentMemoryCommands(`Запомни следното за проекта:
-1. Проектът се казва Novarium.
+1. Проектът се казва NovariumAI.
 2. Текущата цел на проекта е стабилен AI разговор.`),
     [
-      { fact: "Проектът се казва Novarium", scope: "project" },
+      { fact: "Проектът се казва NovariumAI", scope: "project" },
       {
         fact: "Текущата цел на проекта е стабилен AI разговор",
         scope: "project",

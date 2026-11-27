@@ -81,7 +81,7 @@ test("every progress line the task runner streams reaches an English page in Eng
       .filter((line) => line.includes("|") && !line.includes("`"))
       .map((line) => line.split("|")),
   );
-  // The same lookup and {name} filling as AiCoreLocale.text.
+  // The same lookup and {name} filling as NovariumLocale.text.
   const chatText = (value, values = {}) =>
     (catalog.get(value) ?? value).replace(/\{(\w+)\}/gu, (match, name) =>
       Object.hasOwn(values, name) ? String(values[name]) : match,
@@ -120,7 +120,7 @@ test("every progress line the task runner streams reaches an English page in Eng
   }
   // The lines the chat route and the planner send themselves.
   const literals = [chatRoute, orchestrator].flatMap((source) =>
-    [...source.matchAll(/"((?:Задачата|Проверявам задачата|Novarium обработва задачата)[^"]*)"/gu)].map((match) => match[1]),
+    [...source.matchAll(/"((?:Задачата|Проверявам задачата|NovariumAI обработва задачата)[^"]*)"/gu)].map((match) => match[1]),
   );
   assert.ok(literals.length >= 6);
   for (const line of literals) {

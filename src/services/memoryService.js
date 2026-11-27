@@ -490,7 +490,7 @@ export async function listProfileMemories(options = {}) {
   }
   const consolidated = consolidateMemoryView(memories);
   if (requestedScope === "personal") return consolidated;
-  // The Novarium product definition is the owner's project context only;
+  // The NovariumAI product definition is the owner's project context only;
   // customer accounts never see it as their own memory.
   if (ownerId !== OWNER_ID) {
     return requestedScope === "project"
@@ -834,7 +834,7 @@ function conversationImportError(message) {
 }
 
 // Saves a conversation held in another AI client (for example Claude) as an
-// Novarium thread for the same owner. A new thread gets a "<source>-<uuid>"
+// NovariumAI thread for the same owner. A new thread gets a "<source>-<uuid>"
 // id; an existing imported thread of the same source can be extended.
 export async function saveImportedConversation(
   { source = "claude", sessionId, messages } = {},

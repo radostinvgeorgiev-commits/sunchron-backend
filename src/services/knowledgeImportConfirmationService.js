@@ -130,7 +130,7 @@ export async function confirmKnowledgeImport({
   return executeWrite({
     action: "memory.write",
     capability: KNOWLEDGE_IMPORT_ACTION,
-    actor: "synchron-x-knowledge-import",
+    actor: "novarium-knowledge-import",
     sessionId,
     confirmationId,
     resource: "approved-knowledge",

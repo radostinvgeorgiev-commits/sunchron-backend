@@ -16,7 +16,7 @@ const plan = {
   title: "Подобри интерфейса за аватари",
   summary: "Добавя по-ясен избор и визуално състояние за аватарите.",
   commitMessage: "Improve avatar selection UI",
-  pullRequestBody: "Novarium multi-engine code task.",
+  pullRequestBody: "NovariumAI multi-engine code task.",
   changes: [
     {
       path: "public/avatar-proof.js",
@@ -45,8 +45,8 @@ test("three engines are consulted before a bounded code confirmation is created"
     geminiApiKey: "gemini-key",
     grokApiKey: "grok-key",
     createWorkspace: async () => ({
-      root: "C:/nonexistent-ai-core-code-task-test",
-      workspace: "C:/nonexistent-ai-core-code-task-test/source",
+      root: "C:/nonexistent-novarium-code-task-test",
+      workspace: "C:/nonexistent-novarium-code-task-test/source",
     }),
     createSnapshot: async () => ({ text: "public/app.js\n// source" }),
     advisorRequesters: {
@@ -83,7 +83,7 @@ test("three engines are consulted before a bounded code confirmation is created"
   assert.doesNotMatch(prepared.output, /Codex/u);
   assert.equal(
     extractCodeTaskConfirmationId(
-      `Потвърждавам Novarium кодова задача: ${prepared.confirmationId}`,
+      `Потвърждавам NovariumAI кодова задача: ${prepared.confirmationId}`,
     ),
     prepared.confirmationId,
   );
@@ -99,8 +99,8 @@ test("Claude leads the code plan when it is configured", async () => {
     apiKey: "openai-key",
     claudeApiKey: "claude-key",
     createWorkspace: async () => ({
-      root: "C:/nonexistent-ai-core-code-task-test",
-      workspace: "C:/nonexistent-ai-core-code-task-test/source",
+      root: "C:/nonexistent-novarium-code-task-test",
+      workspace: "C:/nonexistent-novarium-code-task-test/source",
     }),
     createSnapshot: async () => ({ text: "source" }),
     advisorRequesters: {
@@ -138,8 +138,8 @@ test("confirmation creates exactly one branch commit and pull request operation"
     geminiApiKey: "gemini-key",
     grokApiKey: "grok-key",
     createWorkspace: async () => ({
-      root: "C:/nonexistent-ai-core-code-task-test",
-      workspace: "C:/nonexistent-ai-core-code-task-test/source",
+      root: "C:/nonexistent-novarium-code-task-test",
+      workspace: "C:/nonexistent-novarium-code-task-test/source",
     }),
     createSnapshot: async () => ({ text: "source" }),
     advisorRequesters: {
@@ -224,8 +224,8 @@ test("normalizes safe repository-relative paths returned by the coding model", a
     geminiApiKey: "gemini-key",
     grokApiKey: "grok-key",
     createWorkspace: async () => ({
-      root: "C:/nonexistent-ai-core-code-task-test",
-      workspace: "C:/nonexistent-ai-core-code-task-test/source",
+      root: "C:/nonexistent-novarium-code-task-test",
+      workspace: "C:/nonexistent-novarium-code-task-test/source",
     }),
     createSnapshot: async () => ({ text: "public/app.js\n// source" }),
     advisorRequesters: {
@@ -257,7 +257,7 @@ test("normalizes safe repository-relative paths returned by the coding model", a
 });
 
 test("blocks a coding plan that collapses a large existing file", async () => {
-  const root = await mkdtemp(join(tmpdir(), "ai-core-rewrite-guard-"));
+  const root = await mkdtemp(join(tmpdir(), "novarium-rewrite-guard-"));
   const workspace = join(root, "source");
   await mkdir(join(workspace, "public"), { recursive: true });
   await writeFile(

@@ -133,7 +133,7 @@ export function extractTaskConfirmationId(message) {
   const match = message
     .trim()
     .match(
-      /^(?:Потвърждавам (?:Novarium|AI CORE) задача|Confirm (?:Novarium|AI CORE) task):\s*([0-9a-f]{8}-[0-9a-f-]{27,})$/iu,
+      /^(?:Потвърждавам NovariumAI задача|Confirm NovariumAI task):\s*([0-9a-f]{8}-[0-9a-f-]{27,})$/iu,
     );
   return match?.[1] || null;
 }
@@ -156,7 +156,7 @@ export function formatTaskConfirmation(confirmation, english = false, summaries 
         : `Prepared ${count} write operations. Nothing has been done yet.`,
       ...(steps.length ? [steps.join("\n")] : []),
       `Confirmation: ${confirmation.confirmationId}. Expires: ${expires}.`,
-      `To proceed, press Confirm or send this exact command: Confirm Novarium task: ${confirmation.confirmationId}`,
+      `To proceed, press Confirm or send this exact command: Confirm NovariumAI task: ${confirmation.confirmationId}`,
     ].join("\n\n");
   }
   return [
@@ -165,7 +165,7 @@ export function formatTaskConfirmation(confirmation, english = false, summaries 
       : `Подготвих ${count} точни записващи операции в една задача. Нищо не е записано още.`,
     ...(steps.length ? [steps.join("\n")] : []),
     `Потвърждение: ${confirmation.confirmationId}. Валидно до: ${expires}.`,
-    `За изпълнение натисни „Потвърди“ или изпрати точно: Потвърждавам Novarium задача: ${confirmation.confirmationId}`,
+    `За изпълнение натисни „Потвърди“ или изпрати точно: Потвърждавам NovariumAI задача: ${confirmation.confirmationId}`,
   ].join("\n\n");
 }
 
@@ -178,8 +178,8 @@ export function formatConfirmedTask(confirmed, english = false) {
     .map((output) => `- ${output.trim()}`);
   return [
     english
-      ? `Done: the confirmed Novarium task ran ${results.length} operation${results.length === 1 ? "" : "s"}.`
-      : `Потвърдената Novarium задача е изпълнена: ${results.length} операции.`,
+      ? `Done: the confirmed NovariumAI task ran ${results.length} operation${results.length === 1 ? "" : "s"}.`
+      : `Потвърдената NovariumAI задача е изпълнена: ${results.length} операции.`,
     ...(done.length ? [done.join("\n")] : []),
   ].join("\n\n");
 }

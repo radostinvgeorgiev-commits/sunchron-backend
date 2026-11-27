@@ -1,4 +1,4 @@
-# AI CORE operations runbook
+# NovariumAI operations runbook
 
 ## Production proof
 
@@ -85,7 +85,7 @@ Owner acceptance е описан в `OWNER_ACCEPTANCE_RUNBOOK.md`.
 ## Проследяване на първата кампания в ChatGPT Ads
 
 Рекламите водят към `https://cloudaicore.com/plans` с
-`utm_source=chatgpt&utm_medium=paid&utm_campaign=ai-core-launch` и
+`utm_source=chatgpt&utm_medium=paid&utm_campaign=novarium-launch` и
 `utm_content=variant-1`, `variant-2` или `variant-3`.
 
 В Logs Explorer филтрирай по следните условия:
@@ -93,7 +93,7 @@ Owner acceptance е описан в `OWNER_ACCEPTANCE_RUNBOOK.md`.
 ```text
 resource.type="cloud_run_revision"
 resource.labels.service_name="synchron-backend-google"
-jsonPayload.utm_campaign="ai-core-launch"
+jsonPayload.utm_campaign="novarium-launch"
 jsonPayload.utm_content!="smoke-test"
 ```
 

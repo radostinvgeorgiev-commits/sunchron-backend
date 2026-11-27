@@ -12,7 +12,7 @@
   --shadow: 0 8px 28px rgba(24, 54, 84, 0.06);
 }
 
-/* Novarium application shell */
+/* NovariumAI application shell */
 .app-shell {
   height: 100dvh;
   display: grid;
@@ -683,8 +683,8 @@ input {
 .next-step-card .next-step-confirm {
   margin-right: 8px;
   padding: 7px 18px;
-  border-color: #146c52;
-  background: #146c52;
+  border-color: #5b3fe0;
+  background: #5b3fe0;
   font-size: 13px;
 }
 

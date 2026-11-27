@@ -96,7 +96,7 @@ router.get("/connect", async (req, res) => {
       `synchron_google_state=${state}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
     );
     // The page's language (set by locale.js), so Google's screens match it.
-    const language = parseCookies(req.headers.cookie).ai_core_language || "";
+    const language = parseCookies(req.headers.cookie).novarium_language || "";
     res.redirect(
       buildAuthorizationUrl(state, linked ? [linked] : [...keep, add], {
         loginHint,
@@ -340,7 +340,7 @@ router.post("/save", async (req, res) => {
       error instanceof GoogleDriveError && RECONNECT_CODES.has(error.code);
     if (deadSaveToken) await forgetLinkedSession(mainId, saveId, "save");
     if (deadSaveToken || isGoogleScopeMissing(error)) {
-      // Saving needs its own small permission (only files Novarium creates).
+      // Saving needs its own small permission (only files NovariumAI creates).
       return res.status(403).json({
         error: "Запазването в Google още не е разрешено.",
         code: "GOOGLE_SCOPE_REQUIRED",
@@ -353,7 +353,7 @@ router.post("/save", async (req, res) => {
 
 // "Качи в YouTube" under a video made on the page: the MP4 goes to the
 // person's own channel with its own small permission (youtube.upload).
-// YouTube keeps it private until Google's audit of Novarium; the answer says
+// YouTube keeps it private until Google's audit of NovariumAI; the answer says
 // what YouTube actually set.
 router.post("/youtube", express.raw({ type: "video/mp4", limit: "64mb" }), async (req, res) => {
   let mainId = null;

@@ -144,7 +144,7 @@ const POLICY = Object.freeze({
     decision: "allow",
     risk: "medium",
     reason:
-      "Разговорът е ограничен до собствения Novarium профил и не изпълнява външни действия.",
+      "Разговорът е ограничен до собствения NovariumAI профил и не изпълнява външни действия.",
   }),
   "external.send": Object.freeze({
     decision: "confirm",
@@ -194,7 +194,7 @@ function buildAuditEntry(event) {
     id: randomUUID(),
     auditId: cleanText(event.auditId),
     timestamp: new Date().toISOString(),
-    actor: cleanText(event.actor, "synchron-x"),
+    actor: cleanText(event.actor, "novarium"),
     action: permission.action,
     capability: cleanText(event.capability),
     decision: cleanText(event.decision, permission.decision),

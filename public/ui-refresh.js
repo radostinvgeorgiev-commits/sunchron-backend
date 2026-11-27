@@ -2,7 +2,7 @@
   // Interface behaviours borrowed from the big multi-model apps. Each piece
   // reuses the existing buttons, so the original handlers keep working.
   const $ = (id) => document.getElementById(id);
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
 
   // Phone header: "new chat" next to the menu, like ChatGPT and Claude.
   $("mobileNewChatBtn")?.addEventListener("click", () => $("newChatBtn")?.click());
@@ -22,7 +22,7 @@
     menu.innerHTML = `
       <button type="button" role="menuitem" data-plus="file">
         <i class="fa-solid fa-paperclip" aria-hidden="true"></i>
-        <span>${text("Снимка или PDF")}<small>${text("Novarium ще го прочете")}</small></span>
+        <span>${text("Снимка или PDF")}<small>${text("NovariumAI ще го прочете")}</small></span>
       </button>
       <button type="button" role="menuitem" data-plus="search">
         <i class="fa-solid fa-globe" aria-hidden="true"></i>
@@ -103,47 +103,47 @@
       if (key === "file") $("imageInput")?.click();
       if (key === "council") council?.click();
       if (key === "search") {
-        document.dispatchEvent(new CustomEvent("aicore:web-search"));
+        document.dispatchEvent(new CustomEvent("novarium:web-search"));
       }
       if (key === "google") $("googleDriveBtn")?.click();
       if (key === "meeting") {
-        document.dispatchEvent(new CustomEvent("aicore:meeting"));
+        document.dispatchEvent(new CustomEvent("novarium:meeting"));
       }
       if (key === "draw") {
-        document.dispatchEvent(new CustomEvent("aicore:draw-image"));
+        document.dispatchEvent(new CustomEvent("novarium:draw-image"));
       }
       if (key === "video") {
-        document.dispatchEvent(new CustomEvent("aicore:make-video"));
+        document.dispatchEvent(new CustomEvent("novarium:make-video"));
       }
       if (key === "day") {
-        document.dispatchEvent(new CustomEvent("aicore:daily-plan"));
+        document.dispatchEvent(new CustomEvent("novarium:daily-plan"));
       }
       if (key === "week") {
-        document.dispatchEvent(new CustomEvent("aicore:weekly-plan"));
+        document.dispatchEvent(new CustomEvent("novarium:weekly-plan"));
       }
       if (key === "todos") {
-        document.dispatchEvent(new CustomEvent("aicore:todos"));
+        document.dispatchEvent(new CustomEvent("novarium:todos"));
       }
       if (key === "addons") {
-        document.dispatchEvent(new CustomEvent("aicore:addons"));
+        document.dispatchEvent(new CustomEvent("novarium:addons"));
       }
       if (key === "link") {
-        document.dispatchEvent(new CustomEvent("aicore:avatar-link"));
+        document.dispatchEvent(new CustomEvent("novarium:avatar-link"));
       }
       if (key === "causes") {
-        document.dispatchEvent(new CustomEvent("aicore:causes"));
+        document.dispatchEvent(new CustomEvent("novarium:causes"));
       }
       if (key === "avatar") {
-        document.dispatchEvent(new CustomEvent("aicore:avatar-profile"));
+        document.dispatchEvent(new CustomEvent("novarium:avatar-profile"));
       }
       if (key === "knowledge") {
-        document.dispatchEvent(new CustomEvent("aicore:knowledge-files"));
+        document.dispatchEvent(new CustomEvent("novarium:knowledge-files"));
       }
       if (key === "compare") {
-        document.dispatchEvent(new CustomEvent("aicore:blind-compare"));
+        document.dispatchEvent(new CustomEvent("novarium:blind-compare"));
       }
       if (key === "assistant") {
-        document.dispatchEvent(new CustomEvent("aicore:pick-assistant"));
+        document.dispatchEvent(new CustomEvent("novarium:pick-assistant"));
       }
       setTimeout(syncChip, 0);
     };
@@ -226,7 +226,7 @@
   // Start card "Моят ден" opens the real daily plan.
   $("quickStart")?.addEventListener("click", (event) => {
     if (event.target.closest?.('[data-start-action="day"]')) {
-      document.dispatchEvent(new CustomEvent("aicore:daily-plan"));
+      document.dispatchEvent(new CustomEvent("novarium:daily-plan"));
     }
   });
 
@@ -251,7 +251,7 @@
     if (!greeting) return;
     const first = (name?.textContent || "").trim().split(/\s+/u)[0];
     greeting.textContent =
-      first && !/Проверка|Novarium/u.test(first)
+      first && !/Проверка|NovariumAI/u.test(first)
         ? `${text("С какво да започнем")}, ${first}?`
         : text("С какво да започнем?");
   };
@@ -263,11 +263,11 @@
   // Model picker in the header, like "ChatGPT 5 ▾" or "Claude Sonnet ▾".
   // The choice is remembered on this device and sent with each chat message;
   // Work mode keeps using its agent's model.
-  const STORAGE_KEY = "aiCoreChatModel";
+  const STORAGE_KEY = "novariumChatModel";
   const button = document.getElementById("modelPickerBtn");
   const label = document.getElementById("modelPickerLabel");
   const menu = document.getElementById("modelPickerMenu");
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
   let choices = [];
   let current = "auto";
   try {
@@ -295,7 +295,7 @@
       ? chosen.id === "auto"
         ? text("Автоматичен")
         : chosen.label
-      : "Novarium";
+      : "NovariumAI";
     menu.replaceChildren(
       ...choices.map((choice) => {
         const item = document.createElement("button");
@@ -325,7 +325,7 @@
     button.dataset.pickerMode = "work";
     const currentWork = work().agentModel();
     const chosen = workChoices.find((choice) => choice.id === currentWork) || workChoices[0];
-    label.textContent = chosen ? (chosen.id === "auto" ? text("Автоматичен") : chosen.label) : "Novarium";
+    label.textContent = chosen ? (chosen.id === "auto" ? text("Автоматичен") : chosen.label) : "NovariumAI";
     const title = document.createElement("p");
     title.className = "model-picker-group";
     title.textContent = `${text("Модели за работа")}${work().agentName() ? ` · ${work().agentName()}` : ""}`;
@@ -350,7 +350,7 @@
       }),
     );
   }
-  document.addEventListener("aicore:mode-changed", () => render());
+  document.addEventListener("novarium:mode-changed", () => render());
   const close = () => {
     menu.hidden = true;
     button.setAttribute("aria-expanded", "false");

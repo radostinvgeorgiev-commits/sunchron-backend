@@ -278,10 +278,10 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     const pane = box.locator('[data-pane="claude"]');
     await pane.waitFor({ state: "visible", timeout: 5000 });
     await pane.locator('input[name="skill"][value="pptx"]').check();
-    await pane.locator('[name="task"]').fill("Реклама за Novarium");
+    await pane.locator('[name="task"]').fill("Реклама за NovariumAI");
     await pane.locator(".claude-work-run").click();
     await pane.locator(".claude-work-output").waitFor({ state: "visible", timeout: 8000 });
-    expect((await pane.locator(".claude-work-output").innerText()).includes("Реклама за Novarium (pptx)"), "Claude не върна текста");
+    expect((await pane.locator(".claude-work-output").innerText()).includes("Реклама за NovariumAI (pptx)"), "Claude не върна текста");
     const link = pane.locator(':scope > .claude-work-files a', { hasText: "reklama.pptx" });
     await link.waitFor({ timeout: 5000 });
     expect((await link.getAttribute("href")) === "/api/claude-work/files/file_robot", "връзката към файла е грешна");
@@ -493,14 +493,14 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
       (await last().locator(".morning-toggle").getAttribute("aria-pressed")) === "true",
       "бутонът „всяка сутрин“ не се включи",
     );
-    expect((await page.evaluate(() => localStorage.getItem("aicore-morning-plan"))) === "on", "изборът не се запази");
+    expect((await page.evaluate(() => localStorage.getItem("novarium-morning-plan"))) === "on", "изборът не се запази");
   });
   await step(`${label}: „Моята седмица“ показва прегледа и може да идва сама всеки понеделник`, async () => {
     await openMine("week");
     await page.waitForTimeout(600);
     expect((await last().innerText()).includes("Трите най-важни за седмицата"), "прегледът не се показа");
     await last().locator('.morning-toggle[data-period="week"]').click();
-    expect((await page.evaluate(() => localStorage.getItem("aicore-weekly-plan"))) === "on", "изборът не се запази");
+    expect((await page.evaluate(() => localStorage.getItem("novarium-weekly-plan"))) === "on", "изборът не се запази");
   });
   await step(`${label}: „Моите задачи“: бележка става на задачи, отмятане и изтриване`, async () => {
     await openMine("todos");
@@ -622,7 +622,7 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await confirm.click();
     await page.waitForTimeout(900);
     expect(
-      (await page.locator(".user-turn").last().innerText()).includes("Потвърждавам Novarium задача: 11111111-2222-3333-4444-555555555555"),
+      (await page.locator(".user-turn").last().innerText()).includes("Потвърждавам NovariumAI задача: 11111111-2222-3333-4444-555555555555"),
       "бутонът не изпрати точната команда",
     );
     expect((await last().innerText()).includes("Календарното събитие е създадено: Демо"), "събитието не е потвърдено");
@@ -678,8 +678,8 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
   });
   await step(`${label}: „всяка сутрин“ и „всеки понеделник“ идват сами при първото отваряне`, async () => {
     await page.evaluate(() => {
-      localStorage.setItem("aicore-morning-plan-day", "2000-01-01");
-      localStorage.setItem("aicore-weekly-plan-day", "2000-01-03");
+      localStorage.setItem("novarium-morning-plan-day", "2000-01-01");
+      localStorage.setItem("novarium-weekly-plan-day", "2000-01-03");
     });
     await page.reload();
     await page.waitForTimeout(3500);
@@ -690,8 +690,8 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.waitForTimeout(2000);
     expect(!(await page.locator(".assistant-turn").last().innerText().catch(() => "")).includes("Най-важното днес"), "планът дойде втори път в същия ден");
     await page.evaluate(() => {
-      localStorage.removeItem("aicore-morning-plan");
-      localStorage.removeItem("aicore-weekly-plan");
+      localStorage.removeItem("novarium-morning-plan");
+      localStorage.removeItem("novarium-weekly-plan");
     });
   });
   await step(`${label}: без грешки в страницата накрая`, async () => expect(!errors.length, errors[0]));
@@ -794,7 +794,7 @@ async function publicChecks(origin) {
   const { page, errors } = await openPage(origin, { width: 390, height: 844 });
   await step("Жив сайт: екранът за вход зарежда без грешки", async () => {
     await page.waitForTimeout(1500);
-    expect(await page.locator("#authScreen, .auth-screen, form").first().isVisible(), "няма екран за вход");
+    expect(await page.locator("#authCard, #authScreen, .auth-screen").first().isVisible(), "няма екран за вход");
     expect(!errors.length, errors[0]);
   });
   await step("Жив сайт: има бутон „Вход с Google“", async () => {
@@ -829,6 +829,12 @@ async function liveSignedIn(origin) {
     await page.click(`.mine-group [data-plus="${key}"]`);
   };
   await step("Жив сайт: вход с тестовия профил", async () => {
+    // New profiles use Google; the old email/password sign-in is folded away.
+    expect(await page.locator("#googleSignInBtn").isVisible(), "няма бутон „Продължи с Google“");
+    expect((await page.locator("#registerForm").count()) === 0, "още има регистрация с имейл и парола");
+    if (!(await page.locator("#loginEmail").isVisible())) {
+      await page.click("#passwordSignIn summary");
+    }
     await page.fill("#loginEmail", email);
     await page.fill("#loginPassword", password);
     await page.click("#loginBtn");

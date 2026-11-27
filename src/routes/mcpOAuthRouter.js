@@ -25,9 +25,9 @@ const MCP_OAUTH_CONTENT_SECURITY_POLICY = [
   "style-src 'unsafe-inline'",
 ].join("; ");
 const SCOPE_LABELS = Object.freeze({
-  "synchron:chatgpt.ask": "AI отговори и собствен баланс в плъгина Novarium",
+  "synchron:chatgpt.ask": "AI отговори и собствен баланс в плъгина NovariumAI",
   "synchron:read": "Четене на разрешените данни и системни статуси",
-  "synchron:agent.chat": "Разговор с Novarium в собствения профил",
+  "synchron:agent.chat": "Разговор с NovariumAI в собствения профил",
   "synchron:memory.write": "Потвърждавани промени в постоянната памет",
   "synchron:tasks.write": "Чернови, бележки и потвърждавани статуси на задачи",
   "synchron:github.write": "Потвърждавани промени в GitHub",
@@ -82,7 +82,7 @@ function oauthError(res, error) {
     error: known ? error.code : "server_error",
     error_description: known
       ? error.description
-      : "Novarium OAuth временно не е достъпен.",
+      : "NovariumAI OAuth временно не е достъпен.",
   });
 }
 
@@ -104,11 +104,11 @@ function consentPage(request, identity, consentToken) {
     .join("");
   const callbackHost = new URL(request.redirectUri).hostname;
   const clientName = escapeHtml(request.clientName || "ChatGPT");
-  return `<!doctype html><html lang="bg"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Novarium OAuth</title><style>body{font-family:system-ui;background:#08111f;color:#eef4ff;display:grid;place-items:center;min-height:100vh;margin:0}.card{max-width:520px;background:#111e31;padding:28px;border-radius:18px}button{font-size:18px;padding:12px 18px;border:0;border-radius:10px;margin-right:8px}.allow{background:#4f8cff;color:white}.deny{background:#26364d;color:white}</style></head><body><main class="card"><h1>Свързване на ${clientName} със Novarium</h1><p>Влязъл си като <strong>${escapeHtml(identity.displayName || identity.id)}</strong>.</p><p>Клиент: <strong>${clientName}</strong> · callback: <strong>${escapeHtml(callbackHost)}</strong></p><p>${clientName} иска следните права:</p><ul>${rights}</ul><p>Всяко действие за запис продължава да изисква отделно точно потвърждение.</p><p>Връзката може да се подновява, докато я използваш. Можеш да видиш правата и да спреш достъпа по всяко време от Novarium → Разрешения.</p><form method="post" action="/oauth/authorize">${hidden}<button class="allow" name="decision" value="allow" type="submit">Разреши</button><button class="deny" name="decision" value="deny" type="submit">Откажи</button></form></main></body></html>`;
+  return `<!doctype html><html lang="bg"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NovariumAI OAuth</title><style>body{font-family:system-ui;background:#08111f;color:#eef4ff;display:grid;place-items:center;min-height:100vh;margin:0}.card{max-width:520px;background:#111e31;padding:28px;border-radius:18px}button{font-size:18px;padding:12px 18px;border:0;border-radius:10px;margin-right:8px}.allow{background:#4f8cff;color:white}.deny{background:#26364d;color:white}</style></head><body><main class="card"><h1>Свързване на ${clientName} със NovariumAI</h1><p>Влязъл си като <strong>${escapeHtml(identity.displayName || identity.id)}</strong>.</p><p>Клиент: <strong>${clientName}</strong> · callback: <strong>${escapeHtml(callbackHost)}</strong></p><p>${clientName} иска следните права:</p><ul>${rights}</ul><p>Всяко действие за запис продължава да изисква отделно точно потвърждение.</p><p>Връзката може да се подновява, докато я използваш. Можеш да видиш правата и да спреш достъпа по всяко време от NovariumAI → Разрешения.</p><form method="post" action="/oauth/authorize">${hidden}<button class="allow" name="decision" value="allow" type="submit">Разреши</button><button class="deny" name="decision" value="deny" type="submit">Откажи</button></form></main></body></html>`;
 }
 
 function loginRequiredPage() {
-  return `<!doctype html><html lang="bg"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Вход в Novarium</title></head><body><main><h1>Нужен е вход в Novarium</h1><p>Отвори Novarium, влез в профила си, после се върни и обнови тази страница.</p><p><a href="/" target="_blank" rel="noopener">Отвори Novarium</a></p></main></body></html>`;
+  return `<!doctype html><html lang="bg"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Вход в NovariumAI</title></head><body><main><h1>Нужен е вход в NovariumAI</h1><p>Отвори NovariumAI, влез в профила си, после се върни и обнови тази страница.</p><p><a href="/" target="_blank" rel="noopener">Отвори NovariumAI</a></p></main></body></html>`;
 }
 
 export function createMcpOAuthRouter({
@@ -161,7 +161,7 @@ export function createMcpOAuthRouter({
         const identity = await resolveIdentity(req, res);
         if (!identity) {
           throw new McpOAuthError(
-            "Нужен е вход в Novarium.",
+            "Нужен е вход в NovariumAI.",
             401,
             "access_denied",
           );

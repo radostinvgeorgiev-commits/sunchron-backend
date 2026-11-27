@@ -1,14 +1,14 @@
 :root {
-  --sx-pine: #102b2a;
-  --sx-night: #0b2223;
-  --sx-mint: #c9f485;
-  --sx-mint-soft: #eef7e3;
-  --sx-paper: #f3f6f0;
+  --sx-pine: #0a0b24;
+  --sx-night: #05060f;
+  --sx-mint: #00f0ff;
+  --sx-mint-soft: #edeaff;
+  --sx-paper: #f4f4fb;
   --sx-surface: #fff;
-  --sx-ink: #182f2b;
-  --sx-muted: #506860;
-  --sx-line: #d6e2d9;
-  --sx-green: #1c654e;
+  --sx-ink: #12132b;
+  --sx-muted: #5a5c7a;
+  --sx-line: #dddcf0;
+  --sx-green: #5b3fe0;
   --sx-radius: 16px;
   --sx-font: "Aptos", "Segoe UI", system-ui, sans-serif;
 }
@@ -18,7 +18,7 @@ body {
 }
 
 :where(.auth-gate, .app-shell, .public-document) :where(a, button, input, textarea, select, summary):focus-visible {
-  outline: 3px solid #467c61;
+  outline: 3px solid #7b5cff;
   outline-offset: 3px;
 }
 
@@ -28,7 +28,7 @@ body {
   padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
     max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
   background: var(--sx-night);
-  color: #f2f8f4;
+  color: #f3f2fc;
 }
 
 .auth-shell {
@@ -170,7 +170,7 @@ body {
   padding: 18px;
   border: 1px solid #36524b;
   border-radius: 12px;
-  color: #f2f8f4;
+  color: #f3f2fc;
   background: #183632;
 }
 
@@ -199,7 +199,7 @@ body {
 
 .app-shell .sidebar {
   background: var(--sx-pine) !important;
-  color: #f2f8f4;
+  color: #f3f2fc;
   border-right-color: #1e3c36 !important;
 }
 
@@ -303,7 +303,7 @@ body {
   padding: clamp(23px, 5vw, 52px);
   border-radius: var(--sx-radius);
   line-height: 1.6;
-  color: #f2f8f4;
+  color: #f3f2fc;
   background: var(--sx-pine);
 }
 
@@ -519,7 +519,7 @@ body {
   border: 1px solid var(--sx-line);
   border-radius: 10px;
   background: var(--sx-surface);
-  box-shadow: 0 6px 24px #102b2a26;
+  box-shadow: 0 6px 24px #0a0b2426;
 }
 
 .chat-options-menu button {
@@ -564,7 +564,7 @@ body[data-user-role="owner"] .composer-note {
   }
 }
 
-/* Connections: link Claude, ChatGPT and other assistants to Novarium. */
+/* Connections: link Claude, ChatGPT and other assistants to NovariumAI. */
 .sidebar-nav .sidebar-primary {
   width: 100%;
   display: flex;
@@ -649,7 +649,7 @@ body[data-user-role="owner"] .composer-note {
   display: grid;
 }
 .connection-text small {
-  color: #5b6b66;
+  color: #5a5c7a;
 }
 .connection-dot {
   width: 10px;
@@ -658,7 +658,7 @@ body[data-user-role="owner"] .composer-note {
   background: #22a06b;
 }
 .connection-empty {
-  color: #5b6b66;
+  color: #5a5c7a;
 }
 
 /* Memory inbox: approve what AI assistants suggest remembering. */
@@ -699,7 +699,7 @@ body[data-user-role="owner"] .composer-note {
   font: inherit;
 }
 .inbox-item small {
-  color: #5b6b66;
+  color: #5a5c7a;
 }
 .inbox-actions {
   display: flex;
@@ -731,7 +731,7 @@ body[data-user-role="owner"] .composer-note {
 }
 .inbox-empty p {
   margin: 6px 0 12px;
-  color: #5b6b66;
+  color: #5a5c7a;
 }
 
 /* My data: export and account deletion. */
@@ -756,4 +756,20 @@ body[data-user-role="owner"] .composer-note {
 .my-data-delete button {
   margin-top: 6px;
   justify-self: start;
+}
+
+/* NovariumAI неонов вид „от бъдещето“ (2026-11-27): космически фон, неон в циан, виолет и розово. */
+.auth-gate {
+  background:
+    radial-gradient(60rem 40rem at 12% -10%, rgba(123, 92, 255, 0.28), transparent 70%),
+    radial-gradient(50rem 36rem at 100% 110%, rgba(0, 240, 255, 0.14), transparent 70%),
+    radial-gradient(30rem 24rem at 85% 5%, rgba(255, 61, 242, 0.12), transparent 70%),
+    var(--sx-night);
+}
+.auth-story h1 em,
+.auth-gate .accent {
+  background: linear-gradient(90deg, #00f0ff, #7b5cff 55%, #ff3df2);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }

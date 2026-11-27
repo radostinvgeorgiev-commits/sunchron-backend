@@ -1,4 +1,4 @@
-// Voice and music for Novarium videos: a short spoken line (Gemini speech),
+// Voice and music for NovariumAI videos: a short spoken line (Gemini speech),
 // background music (Vertex AI Lyria) and a mix with ffmpeg. Every step is
 // best effort: when one fails, the video is returned as it was made.
 import { execFile } from "node:child_process";
@@ -167,7 +167,7 @@ export function createVideoSoundService({
   }
 
   async function mix(video, voiceWav, musicWav) {
-    const dir = await mkdtemp(join(tmpdir(), "aicore-sound-"));
+    const dir = await mkdtemp(join(tmpdir(), "novarium-sound-"));
     try {
       const files = { video: join(dir, "in.mp4"), voice: join(dir, "voice.wav"), music: join(dir, "music.wav"), out: join(dir, "out.mp4") };
       await writeFile(files.video, video);

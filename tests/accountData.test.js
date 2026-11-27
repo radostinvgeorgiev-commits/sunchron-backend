@@ -24,7 +24,7 @@ test("export contains the member's own data and no system records", async () => 
     listMemories: async ({ ownerId }) => {
       assert.equal(ownerId, "owner-1");
       return [
-        { id: "canonical-project-definition", fact: "Novarium е…", source: "system-canonical" },
+        { id: "canonical-project-definition", fact: "NovariumAI е…", source: "system-canonical" },
         { id: "m1", fact: "Обичам кафе.", scope: "personal" },
       ];
     },
@@ -157,7 +157,7 @@ test("account routes download a file and clear the session after deletion", asyn
     }),
   );
   const exported = await request(app).get("/api/account/export").expect(200);
-  assert.match(exported.headers["content-disposition"], /ai-core-data-2026-11-25\.json/u);
+  assert.match(exported.headers["content-disposition"], /novarium-data-2026-11-25\.json/u);
   assert.equal(exported.headers["cache-control"], "no-store");
   const deleted = await request(app)
     .post("/api/account/delete")

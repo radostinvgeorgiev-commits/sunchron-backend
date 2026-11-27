@@ -107,7 +107,7 @@ function cleanPath(value) {
     path === ".do/app.yaml"
   ) {
     throw new GitHubActionError(
-      "Secrets, GitHub Actions и production конфигурацията не могат да се променят от Novarium.",
+      "Secrets, GitHub Actions и production конфигурацията не могат да се променят от NovariumAI.",
       403,
       "GITHUB_PROTECTED_PATH",
     );
@@ -405,7 +405,7 @@ export async function confirmGitHubChange(
   return executeWrite({
     action: "github.write",
     capability: confirmation.action,
-    actor: "synchron-x-github",
+    actor: "novarium-github",
     sessionId,
     confirmationId,
     resource: resource.repository,

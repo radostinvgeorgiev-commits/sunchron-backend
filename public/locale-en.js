@@ -1,17 +1,17 @@
-window.AiCoreLanguages = ["bg", "de", "en", "es", "fr", "it", "ro"];
-window.AiCoreEnglish = new Map(
+window.NovariumLanguages = ["bg", "de", "en", "es", "fr", "it", "ro"];
+window.NovariumEnglish = new Map(
   `
 Език на интерфейса|Interface language
-Novarium · Твоята лична AI система|Novarium · Your personal AI workspace
+NovariumAI · Твоята лична AI система|NovariumAI · Your personal AI workspace
 ЛИЧНА AI ОПЕРАЦИОННА СИСТЕМА|YOUR PERSONAL AI WORKSPACE
 Един AI център за разговори, памет и реална работа.|One AI workspace for conversations, projects, and everyday work.
-Novarium ти помага да анализираш информация, да подготвяш текстове и да планираш задачи. Сравнявай отговори от различни AI модели и продължавай оттам, където си спрял, с паметта на проекта.|Novarium helps you analyze information, draft content, and plan tasks. Compare answers from multiple AI models and pick up where you left off with project memory.
+NovariumAI ти помага да анализираш информация, да подготвяш текстове и да планираш задачи. Сравнявай отговори от различни AI модели и продължавай оттам, където си спрял, с паметта на проекта.|NovariumAI helps you analyze information, draft content, and plan tasks. Compare answers from multiple AI models and pick up where you left off with project memory.
 Ти даваш правата|You manage access
 Ти контролираш паметта|You control what is remembered
 Ти одобряваш действията|You approve actions
 Създай профил, потвърди имейла си и започни с включените AI единици.|Create an account, verify your email, and start with the included AI credits.
 СИГУРЕН ДОСТЪП|SECURE ACCESS
-Вход в Novarium|Sign in to Novarium
+Вход в NovariumAI|Sign in to NovariumAI
 Продължи към личното си работно пространство.|Continue to your personal workspace.
 Имейл|Email
 Парола|Password
@@ -36,9 +36,27 @@ Novarium ти помага да анализираш информация, да 
 Вход за собственик|Owner sign-in
 Продължи с GitHub|Continue with GitHub
 Продължи с Google|Continue with Google
+Продължи с Microsoft|Continue with Microsoft
+Продължи с Facebook|Continue with Facebook
+Входът с Facebook не успя. Опитай пак.|Facebook sign-in failed. Try again.
+Входът с Microsoft не успя. Опитай пак.|Microsoft sign-in failed. Try again.
+Имейлът от Facebook вече има профил. Влез с „Продължи с Google“ или с паролата си.|The email from Facebook already has an account. Sign in with Continue with Google or with your password.
+Имейлът от Microsoft вече има профил. Влез с „Продължи с Google“ или с паролата си.|The email from Microsoft already has an account. Sign in with Continue with Google or with your password.
+Входът с GitHub беше отказан.|GitHub sign-in was cancelled.
+Входът с GitHub изтече. Опитай пак.|GitHub sign-in expired. Try again.
+Входът с GitHub още не е включен.|GitHub sign-in is not enabled yet.
+Имейлът от GitHub вече има профил. Влез с „Продължи с Google“ или с паролата си.|The email from GitHub already has an account. Sign in with Continue with Google or with your password.
+Входът с GitHub не успя. Опитай пак.|GitHub sign-in failed. Try again.
+Без парола. Новият профил се създава сам при първия вход.|No password. Your account is created on your first sign-in.
+С входа приемаш|By signing in, you accept the
+Имаш профил с имейл и парола?|Have an account with an email and password?
+Най-лесно: натисни „Продължи с Google“ със същия имейл. Ако имейлът ти не е в Google, влез тук както досега.|Easiest: select Continue with Google using the same email. If your email is not a Google account, sign in here as before.
+Имейлът или паролата не съвпадат. Нямаш профил? Натисни „Продължи с Google“ — профилът се създава сам.|The email or password does not match. No account yet? Select Continue with Google; your account is created automatically.
+Този имейл вече има профил с парола. Влез с паролата си от „Имаш профил с имейл и парола?“.|This email already has an account with a password. Sign in with your password under Have an account with an email and password?
+Входът с Google не успя. Опитай пак.|Google sign-in failed. Try again.
 За защитения вход и приложението е нужен JavaScript. Формите никога не изпращат парола чрез адреса на страницата.|JavaScript is required for secure sign-in and the workspace. These forms never send your password in the page address.
 Стабилен разговор|Conversations with context
-Един Novarium запазва контекста на работата ти.|Novarium keeps track of the context for your work.
+Един NovariumAI запазва контекста на работата ти.|NovariumAI keeps track of the context for your work.
 Проекти с памет|Projects with memory
 Цели, решения, файлове и следващи стъпки на едно място.|Goals, decisions, files, and next steps in one place.
 Действия с контрол|Actions you control
@@ -77,7 +95,7 @@ Google таблица|Google Sheet
 Google не е свързан.|Google is not connected.
 Google не прие файла. Опитай пак.|Google did not accept the file. Try again.
 Няма връзка. Опитай пак.|No connection. Try again.
-Обикновен разговор с Novarium|A regular chat with Novarium
+Обикновен разговор с NovariumAI|A regular chat with NovariumAI
 Разговори|Conversations
 Работа|Work
 Дневник на задачите|Task journal
@@ -178,12 +196,12 @@ GitHub хранилище|GitHub repository
 Подготви промени|Prepare changes
 Потвърди и създай PR|Confirm and create PR
 Обнови GitHub проверките|Refresh GitHub checks
-Novarium е лична AI операционна система за разговори, контролирана памет и изпълнение на разрешени задачи чрез Novarium.|Novarium is a personal AI workspace for conversations, project memory, and approved actions powered by Novarium.
+NovariumAI е лична AI операционна система за разговори, контролирана памет и изпълнение на разрешени задачи.|NovariumAI is a personal AI workspace for conversations, project memory, and approved actions.
 Един AI център за разговори, памет и реална работа под твой контрол.|One AI workspace for conversations, project memory, and work you control.
-Novarium — начало|Novarium home
+NovariumAI — начало|NovariumAI home
 Основни принципи|Principles
 Информация за продукта|Product information
-Какво предлага Novarium|What Novarium offers
+Какво предлага NovariumAI|What NovariumAI offers
 Основно меню|Main menu
 Търси разговори|Search conversations
 Меню|Menu
@@ -199,8 +217,8 @@ Novarium — начало|Novarium home
 Избрана снимка|Selected image
 Премахни снимката|Remove image
 Добави файл|Add file
-Съобщение до Novarium|Message Novarium
-Пиши на Novarium|Message Novarium
+Съобщение до NovariumAI|Message NovariumAI
+Пиши на NovariumAI|Message NovariumAI
 Гласово въвеждане|Voice input
 Разговор с глас|Talk with voice
 Свързано с твоите неща:|Connected to your own things:
@@ -214,7 +232,7 @@ Novarium — начало|Novarium home
 Основна мобилна навигация|Main mobile navigation
 Опиши промяната и посочи конкретни файлове, ако ги знаеш.|Describe the change and identify the files if you know them.
 Преглед на задачата|Task review
-Планове и потребление · Novarium|Plans and usage · Novarium
+Планове и потребление · NovariumAI|Plans and usage · NovariumAI
 Вход|Sign in
 ПЛАНОВЕ И ПОТРЕБЛЕНИЕ|PLANS AND USAGE
 Ясна цена.|Clear pricing.
@@ -247,8 +265,6 @@ Novarium — начало|Novarium home
 2 единици|2 credits
 Къде отива всеки лев|Where every lev goes
 Цената е реалната себестойност: AI заявките в най-скъпия случай (около 0,8 евроцента на единица) и таксата за плащане, плюс малък запас около 10% за сървъри и грешки.|The price is the real cost: AI requests in the most expensive case (about 0.8 euro cents per credit) and the payment fee, plus a small reserve of about 10% for servers and errors.
-Всичко над реалните разходи е предназначено за каузи, които хората сами предлагат и избират в „Каузи“. Никой не прибира печалба от тях.|Everything above the real costs is meant for causes that people propose and choose themselves in “Causes”. Nobody takes a profit from it.
-Управлението на проекта получава фиксирано възнаграждение, което ще бъде обявено тук публично, щом бъде определено.|The people running the project receive a fixed fee, which will be published here once it is set.
 Фондацията още не е регистрирана. Затова засега пари за каузи не се събират и не се разпределят.|The foundation is not registered yet, so no money for causes is collected or distributed for now.
 Действие|Action
 Разход|Cost
@@ -259,7 +275,7 @@ AI Council, включително обобщаване|AI Council, including sy
 Четене на запазен разговор|Reading a saved conversation
 Без AI единици|No AI credits used
 Опитите към резервен двигател също използват единици. Опит, изпратен към доставчик, може да изразходва ресурс дори при грешка или прекъсване. AI Council изисква поне 6 свободни единици преди начало, а се отчита по 1 за всеки реален опит. Снимка или PDF струва 2 единици. Потребителските отговори са до 1024 изходни токена на опит; дългият контекст се ограничава.|Fallback attempts also use credits. An attempt sent to a provider can consume resources even if it fails or is interrupted. AI Council requires at least 6 available credits to start and uses 1 per actual attempt. A picture or PDF costs 2 credits. Member responses are limited to 1,024 output tokens per attempt, and long contexts are capped.
-Единиците са вътрешна мярка за достъп, не пари и не токени на конкретен доставчик. Не се теглят като пари. При изчерпване заявките спират; няма автоматично презареждане. Нов закупен пакет добавя единици и осигурява поне още 30 дни валидност за наличния баланс. Безплатните 100 единици се подновяват на всеки 30 дни.|Credits measure access within Novarium. They are neither provider tokens nor redeemable for cash. Requests stop when credits run out, and automatic top-ups are disabled. Buying a package adds credits and extends the existing balance for at least 30 more days. The free 100 credits renew every 30 days.
+Единиците са вътрешна мярка за достъп, не пари и не токени на конкретен доставчик. Не се теглят като пари. При изчерпване заявките спират; няма автоматично презареждане. Нов закупен пакет добавя единици и осигурява поне още 30 дни валидност за наличния баланс. Безплатните 100 единици се подновяват на всеки 30 дни.|Credits measure access within NovariumAI. They are neither provider tokens nor redeemable for cash. Requests stop when credits run out, and automatic top-ups are disabled. Buying a package adds credits and extends the existing balance for at least 30 more days. The free 100 credits renew every 30 days.
 Преди плащане|Before paying
 Пакетите включват само функциите, достъпни за потребителски профил. Инфраструктурни операции, кодови промени и външни интеграции на собственика не се предоставят на всеки регистриран профил. AI може да греши. Наличността на отделен двигател зависи от конфигурацията и доставчика.|Packages cover features available to member accounts. Infrastructure operations, code changes, and the owner's external integrations are restricted. AI may make mistakes. Individual model availability depends on configuration and the provider.
 Цената при активирана продажба е крайната сума в евро за показания пакет. Платените покупки остават изключени до настройване на платежния оператор, търговските данни, условията за продажба и проверка на разходите. Няма да приемаме плащане, преди тези стъпки да са завършени.|When sales open, the displayed price is the total in euros for that package. Purchases remain disabled until payment processing, merchant details, sales terms, and cost checks are complete.
@@ -271,12 +287,32 @@ AI Council, включително обобщаване|AI Council, including sy
 Услугата се предоставя от|The service is provided by
 , ЕИК 208554306.|, Bulgarian company ID 208554306.
 Фирмени данни и контакт|Company details and contact
-Планове за Novarium с ясно включено AI потребление и без автоматично доплащане.|Novarium plans with clearly defined AI usage and no automatic top-ups.
+Твоят AI. Твоят свят.|Your AI. Your world.
+Връщане на вложеното: парите, които собственикът е вложил във фирмата, за да плаща разходите в началото, му се връщат като заем.|Return of the investment: the money the owner put into the company to pay the costs at the start is paid back to him as a loan.
+Всички разходи се плащат от фирмената сметка. В началото собственикът я захранва със свои пари.|All costs are paid from the company account. At the start, the owner funds it with his own money.
+Тук се вижда колко е вложено и колко е върнато.|This page shows how much has been put in and how much has been paid back.
+Отчет за каузите: всеки месец тук пише колко пари са отишли за каузи, за кои и какво е направено с тях.|Causes report: every month this page shows how much money went to causes, to which ones, and what was done with it.
+Всеки месец приходите се разпределят в този ред: разходи (с заплатата на управителя), данъци в България, връщане на вложеното от собственика, резерв 10% и остатък: 80% за каузи, които хората сами предлагат и избират в „Каузи“, и 20% за собственика.|Every month, revenue is split in this order: costs (including the director's salary), taxes in Bulgaria, repayment of the owner's investment, a 10% reserve, and the rest: 80% for causes that people propose and choose themselves in “Causes”, and 20% for the owner.
+Прозрачност · NovariumAI|Transparency · NovariumAI
+Къде отиват парите на NovariumAI: разходи, данъци, резерв, 80% за каузи и 20% за собственика.|Where NovariumAI's money goes: costs, taxes, reserve, 80% for causes and 20% for the owner.
+Прозрачност|Transparency
+ПРОЗРАЧНОСТ|TRANSPARENCY
+Къде отиват парите|Where the money goes
+Всеки месец приходите на NovariumAI се разпределят в този ред.|Every month, NovariumAI's revenue is split in this order.
+Разходи: сървъри, AI, такси за плащане и заплатата на управителя на фирмата.|Costs: servers, AI, payment fees and the company director's salary.
+Данъци в България, без офшорни фирми.|Taxes in Bulgaria, with no offshore companies.
+Резерв: 10% от остатъка, докато се съберат около 3 месеца разходи.|Reserve: 10% of what remains, until about 3 months of costs are saved.
+Остатъкът: 80% за каузи, които хората сами предлагат и избират в „Каузи“, и 20% за собственика.|The rest: 80% for causes that people propose and choose themselves in “Causes”, and 20% for the owner.
+Месечни числа|Monthly figures
+Всеки месец числата излизат тук. Докато няма приходи, страницата показва само правилата.|The figures are published here every month. Until there is revenue, this page shows only the rules.
+Размерът на заплатата на управителя ще бъде обявен тук, щом бъде определен.|The director's salary will be published here once it is set.
+Подробно и с месечните числа:|Details and monthly figures:
+Планове за NovariumAI с ясно включено AI потребление и без автоматично доплащане.|NovariumAI plans with clearly defined AI usage and no automatic top-ups.
 Твоето потребление|Your usage
-Помощ и документация · Novarium|Help and documentation · Novarium
+Помощ и документация · NovariumAI|Help and documentation · NovariumAI
 Планове|Plans
 РЪКОВОДСТВО|GUIDE
-Започни работа с Novarium.|Get started with Novarium.
+Започни работа с NovariumAI.|Get started with NovariumAI.
 Разговори, проекти и памет под твой контрол.|Conversations, projects, and memory you control.
 Регистрация|Registration
 AI единици|AI credits
@@ -312,17 +348,15 @@ AI Council събира мнения от избраните двигатели 
 Данни за търговеца|Merchant information
 Фирма|Company
 ЕИК|Bulgarian company ID
-Управител|Managing director
-Радостин Великов Георгиев|Radostin Velikov Georgiev
 Седалище и адрес на управление|Registered office and address
 гр. Варна, район „Владислав Варненчик“, ж.к. „Вл. Варненчик“, бл. 12, вх. 1, ет. 5, ап. 14|Varna, Vladislav Varnenchik district, Vl. Varnenchik residential area, block 12, entrance 1, floor 5, apartment 14, Bulgaria
 Имейл за контакт|Contact email
 Регистрация по ДДС|VAT registration
 Да, от 04.11.2025 г.|Yes, since 4 November 2025
 Съдържание|Contents
-За разработчици · Novarium|Developers · Novarium
+За разработчици · NovariumAI|Developers · NovariumAI
 ЗА РАЗРАБОТЧИЦИ|FOR DEVELOPERS
-Свържи се с Novarium.|Connect to Novarium.
+Свържи се с NovariumAI.|Connect to NovariumAI.
 Публични проверки, защитена сесия и MCP интерфейс. Не предлагаме универсален публичен API ключ или неограничен API достъп.|Public health checks, a secure session, and an MCP interface. There is no universal public API key or unlimited API access.
 Удостоверяване|Authentication
 Грешки|Errors
@@ -362,9 +396,9 @@ AI Council събира мнения от избраните двигатели 
 Чатът връща SSE събития; след началото на потока грешките са събития, а не нов HTTP статус. Не повтаряй автоматично платени заявки при неизвестен резултат. Външните write действия изискват конкретно еднократно потвърждение.|Chat returns SSE events. Once streaming begins, errors are emitted as events without a new HTTP status. Avoid automatically retrying paid requests with an unknown result. External writes require specific one-time confirmation.
 Влизане…|Signing in…
 Създаване…|Creating…
-Вход · Novarium|Sign in · Novarium
+Вход · NovariumAI|Sign in · NovariumAI
 Създай личен профил с отделни разговори, проекти и контролирана памет.|Create a personal account with your own conversations, projects, and memory controls.
-Създай профил · Novarium|Create an account · Novarium
+Създай профил · NovariumAI|Create an account · NovariumAI
 Входът временно не е достъпен.|Sign-in is temporarily unavailable.
 Сесията не беше създадена.|The session could not be started.
 Отвори линка от писмото. Ако видиш бутон „Complete verification“, натисни го. После влез.|Open the link in the email. If you see a Complete verification button, select it. Then sign in.
@@ -405,7 +439,7 @@ AI отговорът приключи неочаквано.|The AI response end
 Зареждане…|Loading…
 Търси|Search
 Google временно не е достъпен.|Google is temporarily unavailable.
-Свържи своя Google профил. Novarium ще вижда календара и контактите ти, а събития, контакти и имейли ще създава само след твоето „Потвърди“. Файловете ти в Drive не вижда, освен тези, които сам запазиш от Novarium.|Connect your Google account. Novarium will see your calendar and contacts, and will create events, contacts and emails only after you press Confirm. It cannot see your Drive files, except the ones you save from Novarium.
+Свържи своя Google профил. NovariumAI ще вижда календара и контактите ти, а събития, контакти и имейли ще създава само след твоето „Потвърди“. Файловете ти в Drive не вижда, освен тези, които сам запазиш от NovariumAI.|Connect your Google account. NovariumAI will see your calendar and contacts, and will create events, contacts and emails only after you press Confirm. It cannot see your Drive files, except the ones you save from NovariumAI.
 Възстанови старата Google връзка|Restore the previous Google connection
 Свързан е достъп само за четене. Поддържа PDF, Google Docs, Word, текст, Google Sheets, Excel и снимки.|Read-only access is connected. Supports PDF, Google Docs, Word, text, Google Sheets, Excel and images.
 Отвори текста|Open text
@@ -417,14 +451,14 @@ Google временно не е достъпен.|Google is temporarily unavaila
 Прекъсни връзката|Disconnect
 Връзката с Google не се прекъсна. Опитай отново.|Google was not disconnected. Try again.
 Google е свързан. В разговора можеш да питаш за календара и контактите си, да добавяш събития и контакти и да пращаш имейли. Нищо не се записва и не се изпраща без твоето „Потвърди“.|Google is connected. In the chat you can ask about your calendar and contacts, add events and contacts, and send emails. Nothing is saved or sent until you press Confirm.
-Файловете ти в Drive не се виждат. „Запази в Google“ под отговор прави документ, до който Novarium има достъп.|Novarium cannot see your Drive files. “Save to Google” under an answer creates a document that Novarium can access.
+Файловете ти в Drive не се виждат. „Запази в Google“ под отговор прави документ, до който NovariumAI има достъп.|NovariumAI cannot see your Drive files. “Save to Google” under an answer creates a document that NovariumAI can access.
 Свържи Google отново|Connect Google again
 Анализирам…|Analyzing…
 Изпрати в разговора|Send to the conversation
 Назад към файловете|Back to files
 Анализирай|Analyze
 Google не даде всички разрешения, затова остава старата връзка. Свържи отново и отметни всички.|Google did not grant every permission, so the previous connection stays. Connect again and tick every box.
-Избери същия Google профил, с който е свързан Novarium.|Choose the same Google account that Novarium is connected to.
+Избери същия Google профил, с който е свързан NovariumAI.|Choose the same Google account that NovariumAI is connected to.
 Връзката с Google не стана. Опитай отново.|Connecting Google did not work. Try again.
 Google услугата временно не е достъпна.|The Google service is temporarily unavailable.
 Последни имейли. „Чернова от мое име“ записва отговор в твоя стил като чернова в Gmail; нищо не се изпраща без теб.|Latest emails. “Draft as me” saves a reply in your style as a Gmail draft; nothing is sent without you.
@@ -488,7 +522,7 @@ AI задача|AI task
 Текущ разговор|Current conversation
 Свържи AI|Connect AI
 Свържи своите AI асистенти|Connect your AI assistants
-Свържи Claude, ChatGPT и други AI асистенти с Novarium. Всички ще работят с една и съща памет и проекти, а ти одобряваш какво се запазва.|Connect Claude, ChatGPT and other AI assistants to Novarium. They all share one memory and the same projects, and you approve what gets saved.
+Свържи Claude, ChatGPT и други AI асистенти с NovariumAI. Всички ще работят с една и съща памет и проекти, а ти одобряваш какво се запазва.|Connect Claude, ChatGPT and other AI assistants to NovariumAI. They all share one memory and the same projects, and you approve what gets saved.
 Копирай адреса|Copy address
 Копирано|Copied
 Копирай ръчно|Copy it manually
@@ -505,7 +539,7 @@ AI задача|AI task
 Връзките временно не са достъпни.|Connections are temporarily unavailable.
 Връзката не беше прекъсната.|The connection was not removed.
 Отвори Claude → Настройки → Connectors.|Open Claude → Settings → Connectors.
-Натисни „Add custom connector“, име: Novarium.|Click “Add custom connector” and name it Novarium.
+Натисни „Add custom connector“, име: NovariumAI.|Click “Add custom connector” and name it NovariumAI.
 Постави адреса отгоре и натисни „Connect“.|Paste the address above and click “Connect”.
 Постави адреса отгоре.|Paste the address above.
 В „Advanced settings“ въведи Client ID: synchron-claude. Client secret остава празно.|In “Advanced settings”, enter Client ID: synchron-claude. Leave Client secret empty.
@@ -521,7 +555,7 @@ AI задача|AI task
 Запази|Save
 Отхвърли|Dismiss
 Няма нови предложения.|No new suggestions.
-Когато Claude, ChatGPT или Novarium предложат нещо за запомняне, ще го видиш тук и ще решиш дали да се запази.|When Claude, ChatGPT or Novarium suggest something to remember, it shows up here and you decide whether to keep it.
+Когато Claude, ChatGPT или NovariumAI предложат нещо за запомняне, ще го видиш тук и ще решиш дали да се запази.|When Claude, ChatGPT or NovariumAI suggest something to remember, it shows up here and you decide whether to keep it.
 Тук AI асистентите ти предлагат какво да запомнят. Нищо не влиза в паметта без твоето одобрение.|Your AI assistants suggest what to remember here. Nothing enters your memory without your approval.
 Входящите временно не са достъпни.|The inbox is temporarily unavailable.
 Действието не беше изпълнено.|The action was not completed.
@@ -611,7 +645,7 @@ YouTube видео|YouTube video
 Задачата е изпълнена частично и може да продължи.|Partly done. It can continue.
 Задачата чака конкретно потвърждение.|Waiting for your confirmation.
 Задачата не можа да бъде изпълнена.|The task could not be completed.
-Novarium обработва задачата.|Novarium is working on it.
+NovariumAI обработва задачата.|NovariumAI is working on it.
 Отговаря агентът|Answered by
 Работа със свързани чатове|Using linked chats
 Работа без заредени свързани чатове|Linked chats not loaded
@@ -629,7 +663,7 @@ AI доставчик и модел|AI provider and model
 Качи в YouTube|Upload to YouTube
 Качвам в YouTube…|Uploading to YouTube…
 Качено в YouTube.|Uploaded to YouTube.
-Качено в YouTube, засега скрито (YouTube още проверява Novarium). Можеш да го направиш публично от YouTube Studio.|Uploaded to YouTube, private for now (YouTube is still reviewing Novarium). You can make it public in YouTube Studio.
+Качено в YouTube, засега скрито (YouTube още проверява NovariumAI). Можеш да го направиш публично от YouTube Studio.|Uploaded to YouTube, private for now (YouTube is still reviewing NovariumAI). You can make it public in YouTube Studio.
 Качването в YouTube иска еднократно разрешение. После пак натисни „Качи в YouTube“.|Uploading to YouTube needs a one-time permission. Then press “Upload to YouTube” again.
 YouTube не прие видеото. Опитай пак.|YouTube did not accept the video. Try again.
 Работа с Claude|Work with Claude

@@ -23,7 +23,7 @@ test("Google Cloud IAM change is normalized and prepared without execution", asy
       operation: "grant_project_role",
       input: {
         principal:
-          "serviceAccount:ai-core-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com",
+          "serviceAccount:novarium-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com",
         role: "roles/owner",
       },
       env,
@@ -41,7 +41,7 @@ test("Google Cloud IAM change is normalized and prepared without execution", asy
   assert.equal(captured.resource.projectId, env.GOOGLE_CLOUD_PROJECT);
   assert.equal(
     captured.resource.principal,
-    "serviceAccount:ai-core-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com",
+    "serviceAccount:novarium-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com",
   );
   assert.equal(captured.resource.role, "roles/owner");
 });
@@ -54,7 +54,7 @@ test("Cloud Run service identity changes are limited to the configured service a
       operation: "update_cloud_run_service_account",
       input: {
         serviceAccount:
-          "ai-core-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com",
+          "novarium-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com",
       },
       env,
     },
@@ -70,7 +70,7 @@ test("Cloud Run service identity changes are limited to the configured service a
   assert.equal(result.resource.region, "europe-west1");
   assert.equal(
     result.params.serviceAccount,
-    "ai-core-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com",
+    "novarium-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com",
   );
 
   await assert.rejects(
@@ -82,7 +82,7 @@ test("Cloud Run service identity changes are limited to the configured service a
         input: {
           serviceName: "another-production-service",
           serviceAccount:
-            "ai-core-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com",
+            "novarium-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com",
         },
         env,
       }),
@@ -100,7 +100,7 @@ test("Google Cloud confirmation checks owner and delegates the exact action", as
       operation: "grant_project_role",
       input: {
         principal:
-          "serviceAccount:ai-core-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com",
+          "serviceAccount:novarium-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com",
         role: "roles/owner",
       },
       env,
@@ -356,7 +356,7 @@ test("Cloud Run service identity confirmation uses the Admin API v2 patch contra
   let preparedConfirmation;
   const requests = [];
   const serviceAccount =
-    "ai-core-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com";
+    "novarium-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com";
   await prepareGoogleCloudAction(
     {
       ownerId: "owner-1",
@@ -446,7 +446,7 @@ test("Cloud Run service identity confirmation uses the Admin API v2 patch contra
 test("Cloud Run service identity errors preserve provider codes without leaking response text", async () => {
   let preparedConfirmation;
   const serviceAccount =
-    "ai-core-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com";
+    "novarium-admin@handy-boulevard-479120-q9.iam.gserviceaccount.com";
   await prepareGoogleCloudAction(
     {
       ownerId: "owner-1",

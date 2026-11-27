@@ -24,7 +24,7 @@
   изпълнение.
 - Claude е водещ кодов изпълнител в branch/PR поток под owner confirmation;
   OpenAI, Gemini и Grok дават предложения и са резерва.
-- AI CORE Code Write подготвя ограничен multi-engine plan и след точно
+- NovariumAI Code Write подготвя ограничен multi-engine plan и след точно
   потвърждение създава отделен branch, commit и Pull Request.
 - MCP има OAuth boundary и актуален каталог.
 - GitHub, Google Workspace, web search, memory и задачи минават през Capability

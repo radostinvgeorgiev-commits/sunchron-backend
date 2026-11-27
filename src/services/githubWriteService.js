@@ -38,7 +38,7 @@ function githubWriteHeaders(accessToken) {
   const token = requireToken(accessToken);
   return {
     Accept: "application/vnd.github+json",
-    "User-Agent": "Novarium",
+    "User-Agent": "NovariumAI",
     "X-GitHub-Api-Version": "2022-11-28",
     "Content-Type": "application/json",
     Authorization: `token ${token}`,
@@ -105,7 +105,7 @@ function assertValidPath(path) {
     path === ".do/app.yaml"
   ) {
     throw new GitHubServiceError(
-      "Този чувствителен файл не може да се променя от Novarium.",
+      "Този чувствителен файл не може да се променя от NovariumAI.",
       403,
       "PROTECTED_PATH",
     );
@@ -614,7 +614,7 @@ export async function createCodeTaskPullRequest({
     {
       method: "POST",
       body: JSON.stringify({
-        message: commitMessage || "Novarium code task",
+        message: commitMessage || "NovariumAI code task",
         tree: createdTree.sha,
         parents: [baseSha],
       }),

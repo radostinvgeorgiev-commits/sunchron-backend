@@ -11,6 +11,13 @@ import {
   isGitHubOAuthConfigured,
   parseGitHubCookies,
 } from "../services/githubOAuthService.js";
+import {
+  clearGitHubSignInStateCookie,
+  finishGitHubSignIn,
+  isGitHubSignInCallback,
+} from "../services/githubSignInService.js";
+import { userSessionCookie } from "../services/userAuthService.js";
+import { recordActivity } from "../services/activityService.js";
 import { logSafeError } from "../utils/safeLogging.js";
 
 const router = express.Router();
@@ -44,6 +51,46 @@ router.get("/connect", (_req, res) => {
     sendError(res, error);
   }
 });
+
+export function createGitHubCallbackHandler({
+  finishSignIn = finishGitHubSignIn,
+  logError = logSafeError,
+} = {}) {
+  return async function githubSignInCallback(req, res, next) {
+    if (
+      !isGitHubSignInCallback({
+        state: req.query.state,
+        cookieHeader: req.headers.cookie,
+      })
+    ) {
+      return next();
+    }
+    try {
+      const result = await finishSignIn({
+        code: req.query.code,
+        state: req.query.state,
+        error: req.query.error,
+        cookieHeader: req.headers.cookie,
+      });
+      if (result.created) recordActivity({ registrations: 1 });
+      res.setHeader("Set-Cookie", [
+        userSessionCookie(result.session),
+        clearGitHubSignInStateCookie(),
+      ]);
+      return res.redirect(302, "/");
+    } catch (error) {
+      logError("[GitHub sign-in] callback", error);
+      res.setHeader("Set-Cookie", clearGitHubSignInStateCookie());
+      return res.redirect(
+        302,
+        `/?auth_error=${encodeURIComponent(error.code || "AUTH_GITHUB_FAILED")}`,
+      );
+    }
+  };
+}
+
+// A person's "Вход с GitHub" comes back here too; it is handled first.
+router.get("/callback", createGitHubCallbackHandler());
 
 router.get("/callback", async (req, res) => {
   try {

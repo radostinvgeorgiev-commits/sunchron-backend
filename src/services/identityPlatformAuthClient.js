@@ -174,6 +174,96 @@ export function createIdentityPlatformAuthClient({
               },
             },
           );
+          // With "one account per email" an existing profile with the same
+          // email can answer needConfirmation instead of a session: the
+          // person has to sign in the old way first.
+          if (payload.needConfirmation === true && !payload.idToken)
+            throw upstreamError(409, { error: { message: "NEED_CONFIRMATION" } });
+          const session = normalizeSession(payload);
+          if (!session)
+            throw upstreamError(502, { error: { message: "SESSION_INCOMPLETE" } });
+          const user = await lookupUser(session.access_token);
+          return {
+            data: { user, session, isNewUser: payload.isNewUser === true },
+            error: null,
+          };
+        } catch (error) {
+          return { data: null, error };
+        }
+      },
+      async signInWithGitHubAccessToken({ accessToken, requestUri }) {
+        try {
+          const payload = await request(
+            IDENTITY_TOOLKIT_ORIGIN,
+            "accounts:signInWithIdp",
+            {
+              body: {
+                postBody: new URLSearchParams({
+                  access_token: accessToken,
+                  providerId: "github.com",
+                }).toString(),
+                requestUri,
+                returnSecureToken: true,
+                returnIdpCredential: true,
+              },
+            },
+          );
+          if (payload.needConfirmation === true && !payload.idToken)
+            throw upstreamError(409, { error: { message: "NEED_CONFIRMATION" } });
+          const session = normalizeSession(payload);
+          if (!session)
+            throw upstreamError(502, { error: { message: "SESSION_INCOMPLETE" } });
+          const user = await lookupUser(session.access_token);
+          return {
+            data: { user, session, isNewUser: payload.isNewUser === true },
+            error: null,
+          };
+        } catch (error) {
+          return { data: null, error };
+        }
+      },
+      // Identity Platform's own redirect flow (Facebook, Microsoft): it builds
+      // the provider address and later swaps the code with the secret it
+      // stores, so the provider secret never has to live in this service.
+      async createProviderAuthUri({ providerId, continueUri, scopes = [] }) {
+        try {
+          const payload = await request(
+            IDENTITY_TOOLKIT_ORIGIN,
+            "accounts:createAuthUri",
+            {
+              body: {
+                providerId,
+                continueUri,
+                ...(scopes.length ? { oauthScope: scopes.join(",") } : {}),
+              },
+            },
+          );
+          if (typeof payload.authUri !== "string" || !payload.sessionId)
+            throw upstreamError(502, { error: { message: "AUTH_URI_INCOMPLETE" } });
+          return {
+            data: { authUri: payload.authUri, sessionId: payload.sessionId },
+            error: null,
+          };
+        } catch (error) {
+          return { data: null, error };
+        }
+      },
+      async signInWithProviderRedirect({ requestUri, sessionId }) {
+        try {
+          const payload = await request(
+            IDENTITY_TOOLKIT_ORIGIN,
+            "accounts:signInWithIdp",
+            {
+              body: {
+                requestUri,
+                sessionId,
+                returnSecureToken: true,
+                returnIdpCredential: true,
+              },
+            },
+          );
+          if (payload.needConfirmation === true && !payload.idToken)
+            throw upstreamError(409, { error: { message: "NEED_CONFIRMATION" } });
           const session = normalizeSession(payload);
           if (!session)
             throw upstreamError(502, { error: { message: "SESSION_INCOMPLETE" } });

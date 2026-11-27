@@ -1,4 +1,4 @@
-# SYNCHRON-X AI CORE — архитектура
+# NovariumAI — архитектура
 
 ## Основен поток
 

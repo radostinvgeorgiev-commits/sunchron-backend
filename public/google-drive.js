@@ -8,7 +8,7 @@
   let lastAnalysis = "";
 
   if (!button || !drawer || !body) return;
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
 
   // The stored Google sign-in no longer works: "Свържи Google отново".
   const RECONNECT_CODES = new Set([
@@ -57,7 +57,7 @@
       if (!status.connected) {
         body.innerHTML = `
           <section class="drawer-section">
-            <div class="permission-default">${text("Свържи своя Google профил. Novarium ще вижда календара и контактите ти, а събития, контакти и имейли ще създава само след твоето „Потвърди“. Файловете ти в Drive не вижда, освен тези, които сам запазиш от Novarium.")}</div>
+            <div class="permission-default">${text("Свържи своя Google профил. NovariumAI ще вижда календара и контактите ти, а събития, контакти и имейли ще създава само след твоето „Потвърди“. Файловете ти в Drive не вижда, освен тези, които сам запазиш от NovariumAI.")}</div>
             <button type="button" class="new-chat" id="connectGoogleDrive">
               <i class="fa-brands fa-google"></i><span>${text("Свържи Google")}</span>
             </button>
@@ -95,7 +95,7 @@
             <article class="permission-card">
               <button type="button" data-drive-file="${escapeHtml(file.id)}" data-drive-name="${escapeHtml(file.name)}" style="text-align:left;background:none;border:0;padding:0;color:inherit">
                 <strong>${escapeHtml(file.name)}</strong>
-                <p>${file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString(globalThis.AiCoreLocale?.browserLocale || "bg-BG") : text("Файл от Google Drive")}</p>
+                <p>${file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString(globalThis.NovariumLocale?.browserLocale || "bg-BG") : text("Файл от Google Drive")}</p>
               </button>
               <button type="button" data-drive-file="${escapeHtml(file.id)}" data-drive-name="${escapeHtml(file.name)}">${text("Отвори текста")}</button>
             </article>`,
@@ -117,7 +117,7 @@
         body.innerHTML = `
           <section class="drawer-section">
             <div class="permission-default">${text("Google е свързан. В разговора можеш да питаш за календара и контактите си, да добавяш събития и контакти и да пращаш имейли. Нищо не се записва и не се изпраща без твоето „Потвърди“.")}</div>
-            <div class="permission-default">${text("Файловете ти в Drive не се виждат. „Запази в Google“ под отговор прави документ, до който Novarium има достъп.")}</div>
+            <div class="permission-default">${text("Файловете ти в Drive не се виждат. „Запази в Google“ под отговор прави документ, до който NovariumAI има достъп.")}</div>
             <div class="drawer-actions">
               <button type="button" id="openMyCalendar">${text("Календарът ми")}</button>
               <button type="button" id="disconnectGoogleDrive">${text("Прекъсни връзката")}</button>
@@ -222,7 +222,7 @@
       outcome === "partial"
         ? text("Google не даде всички разрешения, затова остава старата връзка. Свържи отново и отметни всички.")
         : outcome === "error" && params.get("reason") === "account"
-          ? text("Избери същия Google профил, с който е свързан Novarium.")
+          ? text("Избери същия Google профил, с който е свързан NovariumAI.")
           : outcome === "error"
             ? text("Връзката с Google не стана. Опитай отново.")
             : "";

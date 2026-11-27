@@ -1,7 +1,7 @@
 (() => {
   // "Моите файлове": the person's knowledge base. Files added here are
   // searched on every question and matching passages go to the AI.
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
   const TEXT_TYPES = /\.(txt|md|csv|json|log|html?|xml|ya?ml)$/iu;
   const MAX_PDF_BYTES = 4 * 1024 * 1024;
 
@@ -27,7 +27,7 @@
   const $ = (selector) => dialog.querySelector(selector);
   $("h2").textContent = text("Моите файлове");
   $(".share-note").textContent = text(
-    "Добави текстови файлове или PDF. При всеки въпрос Novarium търси в тях и ползва намереното. Виждаш ги само ти и можеш да ги изтриеш по всяко време.",
+    "Добави текстови файлове или PDF. При всеки въпрос NovariumAI търси в тях и ползва намереното. Виждаш ги само ти и можеш да ги изтриеш по всяко време.",
   );
   $(".knowledge-add").textContent = text("Добави файл");
   $(".archive-add").textContent = text("Внеси архив (Facebook, Instagram, LinkedIn, X, Google, ChatGPT, Claude)");
@@ -108,7 +108,7 @@
           : { name: file.name, text: await read(file, "readAsText") },
       );
       await load();
-      status(text("Файлът е добавен. Novarium вече ще търси в него."));
+      status(text("Файлът е добавен. NovariumAI вече ще търси в него."));
     } catch (error) {
       status(error.message);
     }
@@ -121,7 +121,7 @@
     event.target.value = "";
     if (!file) return;
     try {
-      const reader = globalThis.AiCoreArchive;
+      const reader = globalThis.NovariumArchive;
       if (!reader || typeof DecompressionStream === "undefined") {
         throw new Error(text("Този браузър не може да отвори архива. Опитай с по-нов Chrome, Edge или Safari."));
       }
@@ -147,7 +147,7 @@
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !dialog.hidden) close();
   });
-  document.addEventListener("aicore:knowledge-files", async () => {
+  document.addEventListener("novarium:knowledge-files", async () => {
     dialog.hidden = false;
     status(text("Зареждане…"));
     try {

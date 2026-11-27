@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { requestAiText } from "./aiCoreService.js";
+import { requestAiText } from "./novariumService.js";
 import { createFirestoreDocumentStore } from "./firestoreDocumentStore.js";
 
 // "Моите задачи": a plain to-do list per account, for every account. A spoken

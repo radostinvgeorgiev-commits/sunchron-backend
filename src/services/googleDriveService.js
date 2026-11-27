@@ -218,7 +218,7 @@ function configuration() {
 // GOOGLE_LINKED_EXTRAS).
 export const GOOGLE_EXTRA_SCOPES = Object.freeze({
   youtube: "https://www.googleapis.com/auth/youtube.readonly",
-  // Only files Novarium itself creates (answers saved as Docs/Sheets).
+  // Only files NovariumAI itself creates (answers saved as Docs/Sheets).
   save: "https://www.googleapis.com/auth/drive.file",
   // Uploading the person's own videos to their YouTube channel.
   publish: "https://www.googleapis.com/auth/youtube.upload",
@@ -578,7 +578,7 @@ export async function finishGoogleConnection(
   if (kind) {
     if (previous && !sameGoogleAccount(previous, tokens)) {
       throw new GoogleDriveError(
-        "Избери същия Google профил, с който е свързан Novarium.",
+        "Избери същия Google профил, с който е свързан NovariumAI.",
         409,
         "GOOGLE_ACCOUNT_MISMATCH",
       );
@@ -735,7 +735,7 @@ export async function disconnectSession(id) {
 }
 
 // Google keeps an app's access until it is revoked, even when the app has
-// forgotten every token. Revoking one token removes Novarium from the
+// forgotten every token. Revoking one token removes NovariumAI from the
 // person's Google account, with every permission it had, so the next
 // "Свържи Google" shows the full consent screen again. A failed revoke
 // (Google unreachable, a token that is already dead) never keeps the tokens
@@ -771,12 +771,12 @@ function sessionToken(session) {
 // The tokens are found before anything is removed, and this browser's own
 // connection goes last: if the store fails on the way, that connection and
 // its button stay, and pressing it again finishes the job. Before that,
-// Novarium's access is revoked at Google too.
+// NovariumAI's access is revoked at Google too.
 export async function disconnectGoogleAccount(id, owner) {
   const own = new Map();
   // Google keeps one grant per Google account, and revoking any token ends
   // all of them: the Google accounts other people (or the person's other
-  // Novarium profile) still connect here are never revoked, only forgotten.
+  // NovariumAI profile) still connect here are never revoked, only forgotten.
   // When that cannot be told for sure, nothing is revoked at all.
   const otherAccounts = new Set();
   const check = { storedConnections: 0, listComplete: false, unknownElsewhere: false };
@@ -1267,7 +1267,7 @@ export function answerTablesToCsv(text) {
 }
 
 // Saves an answer as a new Google Doc or Sheet in the person's own Drive.
-// drive.file lets Novarium touch only the files it creates.
+// drive.file lets NovariumAI touch only the files it creates.
 export async function saveAnswerToGoogle(
   id,
   { kind = "doc", title = "", text = "" } = {},
@@ -1290,8 +1290,8 @@ export async function saveAnswerToGoogle(
     String(title || "")
       .replace(/[\u0000-\u001f\u007f]/gu, " ")
       .trim()
-      .slice(0, 120) || "Novarium";
-  const boundary = `aicore${createNonce()}`;
+      .slice(0, 120) || "NovariumAI";
+  const boundary = `novarium${createNonce()}`;
   const multipart = [
     `--${boundary}`,
     "Content-Type: application/json; charset=UTF-8",
@@ -1321,13 +1321,13 @@ export async function saveAnswerToGoogle(
 
 // Saves a generated video (MP4) as a new file in the person's own Drive.
 // A resumable upload, because a clip is often bigger than the 5 MB that a
-// simple multipart upload allows. drive.file: only files Novarium creates.
+// simple multipart upload allows. drive.file: only files NovariumAI creates.
 export async function saveVideoToDrive(id, { name = "", bytes, mimeType = "video/mp4" } = {}, fetchImpl = fetch) {
   if (!Buffer.isBuffer(bytes) || !bytes.length || mimeType !== "video/mp4") {
     throw new GoogleDriveError("Няма видео за запазване.", 400, "GOOGLE_SAVE_INVALID");
   }
   const fileName =
-    `${String(name || "").replace(/[\u0000-\u001f\u007f/\\]/gu, " ").trim().slice(0, 100) || "Novarium видео"}.mp4`;
+    `${String(name || "").replace(/[\u0000-\u001f\u007f/\\]/gu, " ").trim().slice(0, 100) || "NovariumAI видео"}.mp4`;
   const start = await googleFetch(
     id,
     `${DRIVE_UPLOAD_URL}?uploadType=resumable&fields=id,name,webViewLink`,
@@ -1358,7 +1358,7 @@ export async function saveVideoToDrive(id, { name = "", bytes, mimeType = "video
   return { id: data.id, name: data.name || fileName, url: data.webViewLink || null };
 }
 
-// Reads back an MP4 that Novarium saved in the person's Drive (drive.file).
+// Reads back an MP4 that NovariumAI saved in the person's Drive (drive.file).
 export async function downloadOwnDriveVideo(id, fileId, fetchImpl = fetch) {
   if (!/^[A-Za-z0-9_-]+$/u.test(fileId || "")) {
     throw new GoogleDriveError("Невалиден Google Drive файл.", 400, "INVALID_FILE_ID");
@@ -1367,7 +1367,7 @@ export async function downloadOwnDriveVideo(id, fileId, fetchImpl = fetch) {
     await googleFetch(id, `${DRIVE_API_URL}/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size`, {}, fetchImpl, "Google Drive")
   ).json();
   if (meta.mimeType !== "video/mp4" || Number(meta.size) > 256 * 1024 * 1024) {
-    throw new GoogleDriveError("Това не е видео от Novarium.", 400, "GOOGLE_NOT_VIDEO");
+    throw new GoogleDriveError("Това не е видео от NovariumAI.", 400, "GOOGLE_NOT_VIDEO");
   }
   const response = await googleFetch(id, `${DRIVE_API_URL}/files/${encodeURIComponent(fileId)}?alt=media`, {}, fetchImpl, "Google Drive");
   return { name: String(meta.name || "").replace(/\.mp4$/iu, ""), bytes: Buffer.from(await response.arrayBuffer()) };
@@ -1400,7 +1400,7 @@ export async function uploadVideoToYoutube(
         "X-Upload-Content-Length": String(bytes.length),
       },
       body: JSON.stringify({
-        snippet: { title: clean(title, 100) || "Novarium видео", description: clean(description, 5000) },
+        snippet: { title: clean(title, 100) || "NovariumAI видео", description: clean(description, 5000) },
         status: { privacyStatus: status, selfDeclaredMadeForKids: false, containsSyntheticMedia: true },
       }),
     },

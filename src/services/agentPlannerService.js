@@ -1,7 +1,7 @@
 import {
   DEFAULT_OPENAI_PLANNER_MODEL,
   requestOpenAIText,
-} from "./aiCoreService.js";
+} from "./novariumService.js";
 
 const DEFAULT_PLANNER_TIMEOUT_MS = 30000;
 const MAX_PLANNED_CALLS = 8;
@@ -32,7 +32,7 @@ const CAPABILITY_ACTIONS = Object.freeze({
 });
 
 const PLANNER_INSTRUCTIONS = [
-  "Ти си планировчикът на Novarium.",
+  "Ти си планировчикът на NovariumAI.",
   "Определи кои реални способности трябва да бъдат извикани, за да се изпълни последната заявка.",
   "Не отговаряй на потребителя и не обяснявай решението си.",
   "Върни само валиден JSON във формат:",

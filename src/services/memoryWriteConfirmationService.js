@@ -239,7 +239,7 @@ export async function confirmMemoryWrite({
   return executeWrite({
     action: "memory.write",
     capability: confirmation.action,
-    actor: "synchron-x-memory",
+    actor: "novarium-memory",
     sessionId,
     confirmationId,
     resource: "profile-memory",

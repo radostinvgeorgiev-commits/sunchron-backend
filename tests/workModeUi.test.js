@@ -159,7 +159,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   assert.equal(payload.workContext.project.decisions.length, 0);
   assert.equal(payload.workContext.project.resources.length, 0);
   assert.equal(payload.workContext.project.toolIds.length, 0);
-  assert.equal(payload.workContext.agent.engine, "ai-core");
+  assert.equal(payload.workContext.agent.engine, "novarium");
   assert.match(
     dom.window.localStorage.getItem("synchronWorkMode:tester-one"),
     /Тестов проект/u,
@@ -227,7 +227,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   editForm.querySelector("#editWorkAgentName").value = "Обновен ръководител";
   editForm.querySelector("#editWorkAgentRole").value = "builder";
   editForm.querySelector("#editWorkAgentModel").value = "gpt-5.6-terra";
-  editForm.querySelector("#editWorkAgentEngine").value = "ai-core";
+  editForm.querySelector("#editWorkAgentEngine").value = "novarium";
   assert.equal(editForm.querySelector("#editWorkAgentPet"), null);
   editForm.querySelector("#editWorkAgentPurpose").value =
     "Строи и проверява резултата";
@@ -239,7 +239,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   assert.equal(editedPayload.workContext.agent.name, "Обновен ръководител");
   assert.equal(editedPayload.workContext.agent.role, "builder");
   assert.equal(editedPayload.workContext.agent.model, "gpt-5.6-terra");
-  assert.equal(editedPayload.workContext.agent.engine, "ai-core");
+  assert.equal(editedPayload.workContext.agent.engine, "novarium");
   assert.equal(
     editedPayload.workContext.agent.purpose,
     "Строи и проверява резултата",
@@ -308,10 +308,10 @@ test("legacy stored pet fields are ignored and status migrates", async () => {
       agents: [
         {
           id: "synchron-builder",
-          name: "Novarium",
+          name: "NovariumAI",
           role: "builder",
           model: "auto",
-          engine: "ai-core",
+          engine: "novarium",
         },
         {
           id: "codex-agent",

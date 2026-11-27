@@ -93,7 +93,7 @@ test("a task goes on after a pause, keeps the container, and only its owner can 
     fetchImpl: fakeApi(calls),
     now: () => 1000,
   });
-  const result = await service.run("owner-1", { task: "Направи презентация за Novarium", skills: ["pptx"] });
+  const result = await service.run("owner-1", { task: "Направи презентация за NovariumAI", skills: ["pptx"] });
   assert.equal(result.text, "Започвам. Готово: презентацията е в reklama.pptx.");
   assert.deepEqual(result.files, [
     { id: "file_abc", name: "reklama.pptx", mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", size: 5 },
@@ -148,7 +148,7 @@ test("units come back when the task fails, and the file is sent as a download", 
 });
 
 test("the stronger Claude models cost more units and answer with low effort in chat", async () => {
-  const { creditsForChatModel, requestClaudeResponse } = await import("../src/services/aiCoreService.js");
+  const { creditsForChatModel, requestClaudeResponse } = await import("../src/services/novariumService.js");
   assert.equal(creditsForChatModel("claude-haiku-5-5"), 1);
   assert.equal(creditsForChatModel("claude-sonnet-5-5"), 4);
   assert.equal(creditsForChatModel("claude-opus-5-5"), 8);

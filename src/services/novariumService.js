@@ -62,10 +62,10 @@ function withUsage(result, inputTokens, outputTokens) {
   return { ...result, usage };
 }
 
-export class AiCoreError extends Error {
-  constructor(message, code = "AI_CORE_ERROR", status = 502) {
+export class NovariumError extends Error {
+  constructor(message, code = "NOVARIUM_ERROR", status = 502) {
     super(message);
-    this.name = "AiCoreError";
+    this.name = "NovariumError";
     this.code = code;
     this.status = status;
   }
@@ -157,7 +157,7 @@ export async function requestOpenAIResponse({
   outputSchemaName = "structured_response",
 }) {
   if (!apiKey) {
-    throw new AiCoreError(
+    throw new NovariumError(
       "OpenAI не е конфигуриран.",
       "OPENAI_NOT_CONFIGURED",
       503,
@@ -205,7 +205,7 @@ export async function requestOpenAIResponse({
 
   if (!response.ok) {
     console.error(`[OpenAI] Upstream request failed: ${response.status}`);
-    throw new AiCoreError(
+    throw new NovariumError(
       `OpenAI върна грешка ${response.status}.`,
       "OPENAI_UPSTREAM_ERROR",
       response.status,
@@ -215,7 +215,7 @@ export async function requestOpenAIResponse({
   const data = await response.json();
   const text = extractOpenAIOutputText(data);
   if (!text.trim()) {
-    throw new AiCoreError(
+    throw new NovariumError(
       "OpenAI не върна текстов отговор.",
       "OPENAI_EMPTY_RESPONSE",
     );
@@ -247,7 +247,7 @@ export async function requestGeminiResponse({
   jsonMode = false,
 }) {
   if (!apiKey) {
-    throw new AiCoreError(
+    throw new NovariumError(
       "Gemini не е конфигуриран.",
       "GEMINI_NOT_CONFIGURED",
       503,
@@ -300,7 +300,7 @@ export async function requestGeminiResponse({
 
   if (!response.ok) {
     console.error(`[Gemini] Upstream request failed: ${response.status}`);
-    throw new AiCoreError(
+    throw new NovariumError(
       `Gemini върна грешка ${response.status}.`,
       "GEMINI_UPSTREAM_ERROR",
       response.status,
@@ -310,7 +310,7 @@ export async function requestGeminiResponse({
   const data = await response.json();
   const text = extractGeminiOutputText(data);
   if (!text.trim()) {
-    throw new AiCoreError(
+    throw new NovariumError(
       "Gemini не върна текстов отговор.",
       "GEMINI_EMPTY_RESPONSE",
     );
@@ -343,7 +343,7 @@ export async function requestGrokResponse({
   jsonMode = false,
 }) {
   if (!apiKey) {
-    throw new AiCoreError(
+    throw new NovariumError(
       "Grok не е конфигуриран.",
       "GROK_NOT_CONFIGURED",
       503,
@@ -369,7 +369,7 @@ export async function requestGrokResponse({
 
   if (!response.ok) {
     console.error(`[Grok] Upstream request failed: ${response.status}`);
-    throw new AiCoreError(
+    throw new NovariumError(
       `Grok върна грешка ${response.status}.`,
       "GROK_UPSTREAM_ERROR",
       response.status,
@@ -379,7 +379,7 @@ export async function requestGrokResponse({
   const data = await response.json();
   const text = extractGrokOutputText(data);
   if (!text.trim()) {
-    throw new AiCoreError(
+    throw new NovariumError(
       "Grok не върна текстов отговор.",
       "GROK_EMPTY_RESPONSE",
     );
@@ -446,7 +446,7 @@ export async function requestClaudeResponse({
   maxTokens = 2048,
 }) {
   if (!apiKey) {
-    throw new AiCoreError(
+    throw new NovariumError(
       "Claude не е конфигуриран.",
       "CLAUDE_NOT_CONFIGURED",
       503,
@@ -456,7 +456,7 @@ export async function requestClaudeResponse({
   const system = normalized.filter((item) => item.role === "system").map((item) => item.content).join("\n\n");
   const messages = toClaudeMessages(normalized);
   if (!messages.length) {
-    throw new AiCoreError(
+    throw new NovariumError(
       "Няма потребителско съобщение за Claude.",
       "CLAUDE_EMPTY_REQUEST",
       400,
@@ -483,7 +483,7 @@ export async function requestClaudeResponse({
     console.error(
       `[Claude] Upstream request failed: ${response.status}${await describeClaudeError(response)}`,
     );
-    throw new AiCoreError(
+    throw new NovariumError(
       `Claude върна грешка ${response.status}.`,
       "CLAUDE_UPSTREAM_ERROR",
       response.status,
@@ -498,7 +498,7 @@ export async function requestClaudeResponse({
         .trim()
     : "";
   if (!text)
-    throw new AiCoreError(
+    throw new NovariumError(
       "Claude не върна текстов отговор.",
       "CLAUDE_EMPTY_RESPONSE",
     );
@@ -586,7 +586,7 @@ export function isAiProviderConfigured(provider, env = process.env) {
   }
 }
 
-export function isAiCoreConfigured(env = process.env) {
+export function isNovariumConfigured(env = process.env) {
   const provider = getConfiguredAiProvider(env);
   return Boolean(provider && isAiProviderConfigured(provider, env));
 }
@@ -650,7 +650,7 @@ export async function requestAiResponse({ provider, ...options } = {}) {
       ? getConfiguredAiProvider(options.env || process.env)
       : normalizeAiProvider(provider);
   if (!selectedProvider) {
-    throw new AiCoreError(
+    throw new NovariumError(
       "AI доставчикът е невалидно конфигуриран.",
       "AI_PROVIDER_INVALID",
       503,
@@ -658,7 +658,7 @@ export async function requestAiResponse({ provider, ...options } = {}) {
   }
 
   if (publicAiOutputLimit() && selectedProvider === "vertex-gemini")
-    throw new AiCoreError(
+    throw new NovariumError(
       "Този двигател не е включен в потребителските планове.",
       "PUBLIC_PROVIDER_UNAVAILABLE",
       403,
@@ -680,7 +680,7 @@ export async function requestAiResponse({ provider, ...options } = {}) {
     case "vertex-open":
       return requestVertexOpenResponse(options);
     default:
-      throw new AiCoreError(
+      throw new NovariumError(
         "AI доставчикът не е разрешен.",
         "AI_PROVIDER_UNSUPPORTED",
         503,

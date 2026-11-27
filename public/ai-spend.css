@@ -5,13 +5,13 @@
 }
 .ai-spend > summary::-webkit-details-marker { display: none; }
 .ai-spend-track { fill: none; stroke: #e2e6e3; stroke-width: 4; }
-.ai-spend-fill { fill: none; stroke: #2f6b52; stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset .4s ease; }
+.ai-spend-fill { fill: none; stroke: #5b3fe0; stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset .4s ease; }
 .ai-spend[data-level="mid"] .ai-spend-fill { stroke: #c98a12; }
 .ai-spend[data-level="high"] .ai-spend-fill { stroke: #c0392b; }
 .ai-spend-percent { position: absolute; font-size: 10px; font-weight: 800; color: #000; }
 .ai-spend-panel {
   position: fixed; right: 12px; top: 72px; z-index: 40; width: min(320px, calc(100vw - 24px));
-  background: #fff; color: #000; border: 1px solid #d6dbd8; border-radius: 14px;
+  background: #fff; color: #000; border: 1px solid #dddcf0; border-radius: 14px;
   padding: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.15);
 }
 .ai-spend-total { display: block; font-size: 1.05rem; }
@@ -20,6 +20,6 @@
 .ai-spend-limit { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .ai-spend-limit label { width: 100%; font-weight: 700; }
 .ai-spend-limit input { flex: 1; min-width: 0; padding: 8px; border: 1px solid #b9c1bd; border-radius: 8px; }
-.ai-spend-limit button { padding: 8px 14px; border-radius: 8px; border: 0; background: #2f6b52; color: #fff; font-weight: 800; }
+.ai-spend-limit button { padding: 8px 14px; border-radius: 8px; border: 0; background: #5b3fe0; color: #fff; font-weight: 800; }
 .ai-ratings-title { display: block; margin-top: 10px; }
 .ai-ratings { margin: 4px 0 10px; padding-left: 18px; font-size: .9rem; }

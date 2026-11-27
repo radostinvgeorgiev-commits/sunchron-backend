@@ -82,7 +82,7 @@ test("workspace state is bounded and strips untrusted values", () => {
   assert.deepEqual(state.projects[0].conversationIds, ["thread-1"]);
   assert.equal(state.agents[0].role, "general");
   assert.equal(state.agents[0].model, "auto");
-  assert.equal(state.agents[0].engine, "ai-core");
+  assert.equal(state.agents[0].engine, "novarium");
   assert.ok(state.agents.some((agent) => agent.engine === "codex"));
   assert.ok(state.agents.some((agent) => agent.role === "researcher"));
   assert.ok(state.agents.some((agent) => agent.role === "organizer"));
@@ -139,9 +139,9 @@ test("legacy workspaces receive specialized agents without pet settings", () => 
     agents: [
       {
         id: "synchron-builder",
-        name: "Novarium",
+        name: "NovariumAI",
         role: "builder",
-        engine: "ai-core",
+        engine: "novarium",
       },
       {
         id: "codex-agent",
@@ -230,7 +230,7 @@ test("the code agent runs on Claude: an older GPT choice becomes auto", () => {
   const state = normalizeWorkspaceState({
     agents: [
       { id: "codex-agent", name: "Код", role: "coder", model: "gpt-5.6-terra", engine: "codex" },
-      { id: "writer", name: "Пиши", role: "documents", model: "gpt-5.6-terra", engine: "ai-core" },
+      { id: "writer", name: "Пиши", role: "documents", model: "gpt-5.6-terra", engine: "novarium" },
     ],
   });
   assert.equal(state.agents.find(({ id }) => id === "codex-agent").model, "auto");

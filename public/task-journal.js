@@ -2,7 +2,7 @@
   const STORAGE_KEY = "synchronTaskJournalV1";
   const ROADMAP_VERSION_KEY = "synchronTaskJournalRoadmapVersion";
   const ROADMAP_VERSION = 3;
-  const CURRENT_NEXT_TASK_ID = "ai-core-current-next-step";
+  const CURRENT_NEXT_TASK_ID = "novarium-current-next-step";
   const STATUS_ORDER = ["now", "waiting", "done"];
   const STATUS_META = Object.freeze({
     now: {
@@ -27,7 +27,7 @@
       id: "autonomous-delivery",
       title: "Автономно безопасно развитие",
       detail:
-        "Novarium работи чрез отделен клон, тестове, PR, CI и точна production проверка.",
+        "NovariumAI работи чрез отделен клон, тестове, PR, CI и точна production проверка.",
       status: "now",
       priority: "Текущ режим",
     },
@@ -179,9 +179,9 @@
       id: CURRENT_NEXT_TASK_ID,
       title: nextStep,
       detail:
-        detail || "Текущата следваща стъпка от последния отговор на Novarium.",
+        detail || "Текущата следваща стъпка от последния отговор на NovariumAI.",
       status: "now",
-      priority: "Следва от Novarium",
+      priority: "Следва от NovariumAI",
       updatedAt: new Date().toISOString(),
     };
     tasks = [task, ...tasks.filter((item) => item.id !== CURRENT_NEXT_TASK_ID)];

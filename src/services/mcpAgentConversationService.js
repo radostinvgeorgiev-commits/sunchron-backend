@@ -14,7 +14,7 @@ import {
   getConfiguredAiProvider,
   isAiProviderConfigured,
   requestAiText,
-} from "./aiCoreService.js";
+} from "./novariumService.js";
 
 // The agent's own model answers first. If its provider is down (Gemini 503,
 // a timeout), the site default answers instead of failing the whole turn,
@@ -64,7 +64,7 @@ const MAX_SESSION_QUESTIONS = 10;
 const SAFE_ID_PATTERN = /^[a-z0-9:_-]+$/iu;
 const BRIDGE_BOUNDARY = [
   "[MCP МОСТ — ПРОВЕРЕН ИНСТРУМЕНТАЛЕН РЕЖИМ]",
-  "Заявките за инструменти се изпълняват само през проверения capability engine на Novarium.",
+  "Заявките за инструменти се изпълняват само през проверения capability engine на NovariumAI.",
   "Read-only проверките могат да се изпълнят и да върнат реален резултат.",
   "Записите, изпращанията и инфраструктурните промени никога не се изпълняват директно: подготви точните операции за текущата задача и изчакай едно owner потвърждение за тази задача.",
   "Не изпълнявай shell команди, произволни URL адреси или действия извън регистрираните инструменти; не показвай secrets.",
@@ -119,9 +119,9 @@ function resolveSelection(state, projectId, agentId) {
       -32602,
     );
   }
-  if (agent.engine !== "ai-core") {
+  if (agent.engine !== "novarium") {
     throw new McpAgentConversationError(
-      "Този MCP инструмент разговаря само с Novarium. Кодовият агент (Claude) остава отделен изолиран изпълнител.",
+      "Този MCP инструмент разговаря само с NovariumAI. Кодовият агент (Claude) остава отделен изолиран изпълнител.",
       -32602,
     );
   }
@@ -157,7 +157,7 @@ export async function sendMcpAgentMessage(
     getGoogleSession = getLatestGoogleSessionId,
     getGitHubSession = getLatestAuthorizedGitHubSession,
     auditTask = (event) =>
-      recordAuditEvent({ actor: "ai-core-avatar", ...event }),
+      recordAuditEvent({ actor: "novarium-avatar", ...event }),
   } = {},
 ) {
   const cleanOwnerId = cleanRequiredText(ownerId, 200, "проверен профил");
@@ -268,7 +268,7 @@ export async function sendMcpAgentMessage(
       githubSessionId: githubSession?.id || null,
       googleSessionId,
     });
-    const response = `Потвърдената Novarium задача е изпълнена: ${confirmed.results.length} операции.`;
+    const response = `Потвърдената NovariumAI задача е изпълнена: ${confirmed.results.length} операции.`;
     await saveTurn(cleanSessionId, cleanMessage, response, cleanOwnerId);
     return Object.freeze({
       sessionId: cleanSessionId,

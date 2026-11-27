@@ -17,7 +17,7 @@ import { executeCapability } from "./src/tools/capabilityEngine.js";
 import {
   getAiProviderStatus,
   setAiUsageRecorder,
-} from "./src/services/aiCoreService.js";
+} from "./src/services/novariumService.js";
 import { getAiSpendService } from "./src/services/aiSpendService.js";
 import createAiSpendRouter from "./src/routes/aiSpendRouter.js";
 import {
@@ -94,7 +94,7 @@ const mcpOAuthRouter = createMcpOAuthRouter({ oauthRateLimiter });
 const aiProviderStatus = getAiProviderStatus(process.env);
 if (!aiProviderStatus.configured) {
   console.warn(
-    `⚠️  AI CORE provider ${aiProviderStatus.selectedProvider ?? "unknown"} is not configured. Direct AI conversation is unavailable; independent tools can still run.`,
+    `⚠️  NovariumAI provider ${aiProviderStatus.selectedProvider ?? "unknown"} is not configured. Direct AI conversation is unavailable; independent tools can still run.`,
   );
 }
 
@@ -538,6 +538,9 @@ app.get("/privacy", (_req, res) =>
 );
 app.get("/terms", (_req, res) =>
   res.sendFile("public/terms.html", { root: process.cwd() }),
+);
+app.get("/transparency", (_req, res) =>
+  res.sendFile("public/transparency.html", { root: process.cwd() }),
 );
 app.get("/help", (_req, res) =>
   res.sendFile("public/help.html", { root: process.cwd() }),

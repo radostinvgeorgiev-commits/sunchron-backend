@@ -9,7 +9,7 @@ const runbook = read("../docs/OPERATIONS_RUNBOOK.md");
 const ownerRunbook = read("../docs/OWNER_ACCEPTANCE_RUNBOOK.md");
 const acceptance = read("../docs/CURRENT_PRODUCT_ACCEPTANCE.md");
 const direction = read("../docs/PRODUCT_DIRECTION.md");
-const architecture = read("../docs/SYNCHRON-X-V3-ARCHITECTURE.md");
+const architecture = read("../docs/NovariumAI-V3-ARCHITECTURE.md");
 const bridge = read("../docs/BRIDGE_AND_DIAGNOSTICS.md");
 const catalog = read("../docs/GOOGLE_CLOUD_CONFIGURATION_CATALOG.md");
 
@@ -50,7 +50,7 @@ test("code task documentation preserves multi-engine and confirmation boundaries
       new RegExp(marker, "u"),
     );
   }
-  assert.match(ownerRunbook, /Потвърждавам AI CORE кодова задача:/u);
+  assert.match(ownerRunbook, /Потвърждавам NovariumAI кодова задача:/u);
   assert.match(ownerRunbook, /Не стартирай write\s+acceptance от CI/u);
 });
 

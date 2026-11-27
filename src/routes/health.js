@@ -36,8 +36,8 @@ import { isToolExecutable } from "../tools/capabilityEngine.js";
 import { listTools, registerCoreTools } from "../tools/toolRegistry.js";
 import {
   getAiProviderStatus,
-  isAiCoreConfigured,
-} from "../services/aiCoreService.js";
+  isNovariumConfigured,
+} from "../services/novariumService.js";
 import { createFirestoreMemoryStore } from "../services/firestoreMemoryStore.js";
 import { getGoogleCloudRuntimeStatus } from "../services/googleCloudService.js";
 
@@ -310,7 +310,7 @@ export async function getBridgeDiagnosticsStatus({
       ),
       timeoutMs,
     );
-    responding = response?.result?.serverInfo?.name === "synchron-x-memory";
+    responding = response?.result?.serverInfo?.name === "novarium-memory";
   } catch {
     responding = false;
   }
@@ -372,7 +372,7 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
   const configuration = {
     "synchron-agent-chat": {
       configured:
-        isAiCoreConfigured() && isMemoryBackendConfigured(process.env),
+        isNovariumConfigured() && isMemoryBackendConfigured(process.env),
       authenticated: true,
     },
     "synchron-integrations-status": {

@@ -1,10 +1,10 @@
 (() => {
   // "+" → „Запис от среща“: pick a recording (a phone voice memo, a Zoom or
-  // Meet download); Novarium returns a summary, decisions and tasks, keeps the
+  // Meet download); NovariumAI returns a summary, decisions and tasks, keeps the
   // text in „Моите файлове“, and the tasks go to „Моите задачи“ in one press.
   const list = document.getElementById("chatMessages");
   if (!list) return;
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
   const MAX_BYTES = 30 * 1024 * 1024;
   const picker = document.createElement("input");
   picker.type = "file";
@@ -49,7 +49,7 @@
     turn.insertBefore(button, actions || null);
   };
 
-  document.addEventListener("aicore:meeting", () => {
+  document.addEventListener("novarium:meeting", () => {
     if (globalThis.SynchronChat?.busy?.()) return;
     picker.value = "";
     picker.click();

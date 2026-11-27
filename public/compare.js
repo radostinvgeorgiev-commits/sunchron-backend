@@ -5,7 +5,7 @@
   const input = document.getElementById("chatInput");
   const list = document.getElementById("chatMessages");
   if (!input || !list) return;
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
   const render = (element, value) => {
     if (globalThis.SynchronChat?.renderMarkdown) globalThis.SynchronChat.renderMarkdown(element, value);
     else element.textContent = value;
@@ -13,7 +13,7 @@
 
   // Web search: the question in the box is answered from the internet, with
   // the sources listed under the answer.
-  document.addEventListener("aicore:web-search", async () => {
+  document.addEventListener("novarium:web-search", async () => {
     const question = input.value.trim();
     const chat = globalThis.SynchronChat;
     if (!question) {
@@ -46,7 +46,7 @@
     }
   });
 
-  document.addEventListener("aicore:blind-compare", async () => {
+  document.addEventListener("novarium:blind-compare", async () => {
     const question = input.value.trim();
     if (!question) {
       input.placeholder = text("Първо напиши въпроса, после избери „Сляпо сравнение“");

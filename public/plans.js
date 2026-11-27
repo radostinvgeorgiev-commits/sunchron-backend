@@ -1,4 +1,4 @@
-const plansLocale = globalThis.AiCoreLocale;
+const plansLocale = globalThis.NovariumLocale;
 const plansText = (value, values) => plansLocale.text(value, values);
 const params = new URLSearchParams(window.location.search);
 const source = document.getElementById("request-source");

@@ -47,7 +47,7 @@
 - [ ] A4: разрешено действие спира на confirmation gate, изпълнява се след точно
       потвърждение и audit read връща проверим запис.
 - [ ] A5: staging fault injection доказва контролирана грешка и възстановяване.
-- [ ] Claude acceptance: заявка през Claude/OAuth стига до AI CORE, без да
+- [ ] Claude acceptance: заявка през Claude/OAuth стига до NovariumAI, без да
       променя чужди grants.
 - [ ] Код acceptance (Claude): ако е enabled, code task подготвя branch/PR и не променя
       `main` без owner approval.

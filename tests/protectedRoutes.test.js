@@ -15,9 +15,17 @@ test("keeps liveness and sign-in routes public", async () => {
     .get("/")
     .set("Host", "cloudaicore.com")
     .expect(200);
-  assert.match(publicEntry.text, /Novarium/u);
+  assert.match(publicEntry.text, /NovariumAI/u);
+  // Old /register links still open the sign-in page, now without a
+  // password sign-up form.
   const registration = await request(app).get("/register").expect(200);
-  assert.match(registration.text, /id="registerForm"/u);
+  assert.match(registration.text, /id="googleSignInBtn"/u);
+  assert.doesNotMatch(registration.text, /id="registerForm"/u);
+  const signUp = await request(app)
+    .post("/api/auth/register")
+    .send({ displayName: "X", email: "x@example.invalid", password: "long-enough-1" })
+    .expect(410);
+  assert.equal(signUp.body.code, "AUTH_PASSWORD_SIGNUP_REMOVED");
   const config = await request(app).get("/api/public-config").expect(200);
   assert.equal(config.body.chatgptWorkUrl, "https://chatgpt.com/");
   const auth = await request(app).get("/api/auth/session").expect(200);

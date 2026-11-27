@@ -52,7 +52,7 @@ test("work context is bounded and uses a server-owned role allowlist", () => {
   assert.equal(context.agent.role, "general");
   assert.equal(context.agent.model, "auto");
   assert.equal(context.agent.name, "Моят агент");
-  assert.equal(context.agent.engine, "ai-core");
+  assert.equal(context.agent.engine, "novarium");
   assert.ok(!Object.hasOwn(context.agent, "petId"));
   assert.equal(context.project.id, "project-one");
   assert.equal(context.project.run.sequence, 4);
@@ -140,7 +140,7 @@ test("the available personal-agent roles are explicit", () => {
 test("the available agent engines are explicit and Codex replaces code writes with isolated analysis", () => {
   assert.deepEqual(
     listWorkAgentEngines().map(({ id }) => id),
-    ["ai-core", "codex"],
+    ["novarium", "codex"],
   );
   const requests = routeSelectedWorkAgentCapabilities(
     [
@@ -149,7 +149,7 @@ test("the available agent engines are explicit and Codex replaces code writes wi
       { capability: "web.search", action: "web.read" },
     ],
     {
-      project: { name: "Novarium" },
+      project: { name: "NovariumAI" },
       agent: {
         name: "Codex",
         role: "coder",
@@ -176,7 +176,7 @@ test("Codex work mode preserves an explicit GitHub read-only request", () => {
   const requests = routeSelectedWorkAgentCapabilities(
     [{ capability: "code.read", action: "github.read", message }],
     {
-      project: { name: "Novarium" },
+      project: { name: "NovariumAI" },
       agent: {
         name: "Codex",
         role: "coder",
@@ -202,7 +202,7 @@ test("Codex work mode respects an explicit no-tools boundary", () => {
       },
     ],
     {
-      project: { name: "Novarium" },
+      project: { name: "NovariumAI" },
       agent: {
         name: "Codex",
         role: "coder",
@@ -210,7 +210,7 @@ test("Codex work mode respects an explicit no-tools boundary", () => {
         engine: "codex",
       },
     },
-    "Отговори само с „Novarium работи“ и не използвай инструменти.",
+    "Отговори само с „NovariumAI работи“ и не използвай инструменти.",
   );
 
   assert.deepEqual(requests, []);
@@ -227,7 +227,7 @@ test("runtime provider and model questions do not launch Codex code analysis", (
       routeSelectedWorkAgentCapabilities(
         [{ capability: "code.read", action: "github.read" }],
         {
-          project: { name: "Novarium" },
+          project: { name: "NovariumAI" },
           agent: {
             name: "Codex",
             role: "coder",
@@ -247,7 +247,7 @@ test("runtime provider and model questions do not launch Codex code analysis", (
   );
   assert.equal(
     isRuntimeAiIdentityRequest(
-      "Тест на Novarium: отговори само с „Novarium работи“ и не използвай инструменти.",
+      "Тест на NovariumAI: отговори само с „NovariumAI работи“ и не използвай инструменти.",
     ),
     false,
   );
@@ -266,9 +266,9 @@ test("active work context questions use verified state instead of chat history",
   );
 
   const reply = buildWorkContextStatusReply({
-    project: { name: "Novarium развитие", objective: "Работещ продукт" },
+    project: { name: "NovariumAI развитие", objective: "Работещ продукт" },
     agent: {
-      name: "Novarium Ръководител SOL",
+      name: "NovariumAI Ръководител SOL",
       role: "organizer",
       model: "gpt-5.6-sol",
       purpose: "Проверявай фактите",
@@ -278,11 +278,11 @@ test("active work context questions use verified state instead of chat history",
   assert.equal(
     reply,
     [
-      "Агент: Novarium Ръководител SOL",
+      "Агент: NovariumAI Ръководител SOL",
       "Модел: GPT-5.6 Sol",
       "Роля: Организатор",
-      "Изпълнител: Novarium",
-      "Проект: Novarium развитие",
+      "Изпълнител: NovariumAI",
+      "Проект: NovariumAI развитие",
     ].join("\n"),
   );
 });

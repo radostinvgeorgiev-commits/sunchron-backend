@@ -155,6 +155,13 @@ export async function finishGoogleSignIn(
   });
   if (idpError || !data?.user || !data?.session) {
     const upstream = String(idpError?.upstreamCode || "");
+    if (upstream === "NEED_CONFIRMATION") {
+      throw new UserAuthError(
+        "Този имейл вече има профил с парола. Влез с паролата си от „Имаш профил с имейл и парола?“.",
+        409,
+        "AUTH_GOOGLE_PASSWORD_ACCOUNT",
+      );
+    }
     if (/OPERATION_NOT_ALLOWED|INVALID_IDP_RESPONSE/u.test(upstream)) {
       throw new UserAuthError(
         "Входът с Google още не е включен в Identity Platform.",

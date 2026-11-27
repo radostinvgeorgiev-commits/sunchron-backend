@@ -97,7 +97,7 @@ test("the probe tries each region in turn and says which models answer", async (
 });
 
 test("chat sends a picked open model to Vertex, members pay its credits", async () => {
-  const { requestAiResponse } = await import("../src/services/aiCoreService.js");
+  const { requestAiResponse } = await import("../src/services/novariumService.js");
   const { createPublicAiBudgetContext } = await import("../src/services/publicAiBudget.js");
   const reserved = [];
   const budget = createPublicAiBudgetContext({ reserve: async (_identity, credits, details) => reserved.push([credits, details.model]) });
@@ -153,7 +153,7 @@ test("a stopped chat stops the Vertex call", async () => {
 });
 
 test("the chat checks a member has enough units for the picked model first", async () => {
-  const { creditsForChatModel } = await import("../src/services/aiCoreService.js");
+  const { creditsForChatModel } = await import("../src/services/novariumService.js");
   assert.equal(creditsForChatModel("zai-org/glm-5.2-maas"), 2);
   assert.equal(creditsForChatModel("claude-haiku-5-5"), 1);
   const { readFileSync } = await import("node:fs");

@@ -13,7 +13,7 @@ import { extname, join, relative, resolve, sep } from "node:path";
 import {
   DEFAULT_CLAUDE_CHAT_MODEL,
   requestClaudeResponse,
-} from "./aiCoreService.js";
+} from "./novariumService.js";
 
 // The code agent (internal id "codex", kept for saved workspaces) now runs on
 // Claude. Claude has no schema-enforced output here, so the schema is spelled
@@ -141,7 +141,7 @@ const REQUIRED_CONTEXT_FILES = new Map([
   ["src/tools/capabilityEngine.js", 9000],
   ["src/tools/toolRegistry.js", 8500],
   ["src/routes/chat.js", 8000],
-  ["src/services/aiCoreService.js", 7500],
+  ["src/services/novariumService.js", 7500],
   ["src/services/memoryService.js", 7000],
 ]);
 const TASK_STOP_WORDS = new Set([
@@ -519,7 +519,7 @@ function buildPrompt({
 }) {
   const previous = normalizePreviousRun(previousRun);
   return [
-    "Ти си кодовият специалист на Novarium (Claude).",
+    "Ти си кодовият специалист на NovariumAI (Claude).",
     "Работиш само за анализ на приложеното ограничено копие на кода.",
     "Нямаш shell или право да изпълняваш кода. Не твърди, че си изпълнил команда или тест.",
     "Не променяй файлове, не използвай интернет и не изпълнявай външни действия.",

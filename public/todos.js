@@ -1,7 +1,7 @@
 (() => {
   // "Моите задачи": a plain list for every account. A spoken or typed note
   // becomes suggested tasks; the person keeps the ones they want.
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
   const dialog = document.createElement("div");
   dialog.className = "share-dialog todo-dialog";
   dialog.hidden = true;
@@ -173,7 +173,7 @@
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ audio, mimeType: blob.type, language: globalThis.AiCoreLocale?.language || "bg" }),
+      body: JSON.stringify({ audio, mimeType: blob.type, language: globalThis.NovariumLocale?.language || "bg" }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || text("Записът не можа да се разпознае."));
@@ -225,7 +225,7 @@
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !dialog.hidden) close();
   });
-  document.addEventListener("aicore:todos", () => {
+  document.addEventListener("novarium:todos", () => {
     dialog.hidden = false;
     void run(async () => renderList((await call("GET")).items), text("Зареждане…"));
   });

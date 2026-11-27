@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { requestOpenAIText } from "../src/services/aiCoreService.js";
+import { requestOpenAIText } from "../src/services/novariumService.js";
 import { getRepositorySummary } from "../src/services/githubService.js";
 import { createFile } from "../src/services/githubWriteService.js";
 import { analyzeImage } from "../src/services/imageService.js";

@@ -4,7 +4,7 @@
   const input = document.getElementById("chatInput");
   const list = document.getElementById("chatMessages");
   if (!input || !list) return;
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
   const render = (element, value) => {
     if (globalThis.SynchronChat?.renderMarkdown) globalThis.SynchronChat.renderMarkdown(element, value);
     else element.textContent = value;
@@ -12,7 +12,7 @@
 
   // "Всяка сутрин": a per-device choice; the first visit of the day then
   // prepares the plan without a click.
-  const KEY = "aicore-morning-plan";
+  const KEY = "novarium-morning-plan";
   const store = {
     get: (name) => {
       try {
@@ -48,7 +48,7 @@
       off: "Показвай ми плана сам всяка сутрин",
     },
     week: {
-      key: "aicore-weekly-plan",
+      key: "novarium-weekly-plan",
       stamp: thisWeek,
       title: "Моята седмица",
       waiting: "🗓️ Подготвям прегледа на седмицата…",
@@ -75,7 +75,7 @@
   };
 
   // "Нарисувай картинка": the description in the box becomes a picture.
-  document.addEventListener("aicore:draw-image", async () => {
+  document.addEventListener("novarium:draw-image", async () => {
     const chat = globalThis.SynchronChat;
     const prompt = input.value.trim();
     if (!prompt) {
@@ -105,7 +105,7 @@
       image.alt = prompt;
       const save = document.createElement("a");
       save.href = data.image;
-      save.download = "aicore-kartinka.webp";
+      save.download = "novarium-kartinka.webp";
       save.textContent = text("Изтегли картинката");
       figure.append(image, save);
       bubble.replaceChildren(figure);
@@ -155,7 +155,7 @@
         const data = await response.json().catch(() => ({}));
         if (response.ok && data.url) {
           if (data.privacy === "public") say(text("Качено в YouTube."), data.url, text("Отвори"));
-          else say(text("Качено в YouTube, засега скрито (YouTube още проверява Novarium). Можеш да го направиш публично от YouTube Studio."), data.studio || data.url, text("Отвори"));
+          else say(text("Качено в YouTube, засега скрито (YouTube още проверява NovariumAI). Можеш да го направиш публично от YouTube Studio."), data.studio || data.url, text("Отвори"));
           return;
         }
         if (typeof data.connect === "string" && data.connect.startsWith("/api/google/connect")) {
@@ -175,7 +175,7 @@
 
   // "Направи видео": the description in the box becomes a short clip with
   // sound (an ad or anything else). The server sends the MP4 file itself.
-  document.addEventListener("aicore:make-video", async () => {
+  document.addEventListener("novarium:make-video", async () => {
     const chat = globalThis.SynchronChat;
     const prompt = input.value.trim();
     if (!prompt) {
@@ -211,7 +211,7 @@
       video.setAttribute("aria-label", prompt);
       const save = document.createElement("a");
       save.href = url;
-      save.download = "aicore-video.mp4";
+      save.download = "novarium-video.mp4";
       save.textContent = text("Изтегли видеото");
       const actions = document.createElement("div");
       actions.className = "video-actions";
@@ -263,8 +263,8 @@
       list.scrollTop = list.scrollHeight;
     }
   };
-  document.addEventListener("aicore:daily-plan", () => preparePlan("day"));
-  document.addEventListener("aicore:weekly-plan", () => preparePlan("week"));
+  document.addEventListener("novarium:daily-plan", () => preparePlan("day"));
+  document.addEventListener("novarium:weekly-plan", () => preparePlan("week"));
 
   // Wait until the person is signed in and the chat is ready. The weekly
   // review goes first; the day plan follows once the chat is free again.

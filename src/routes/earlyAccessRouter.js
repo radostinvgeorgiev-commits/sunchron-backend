@@ -111,9 +111,9 @@ export function createEarlyAccessAdminRouter({
       return res.type("html").send(`<!doctype html>
 <html lang="bg">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Заявки за ранен достъп · Novarium</title><link rel="stylesheet" href="/plans.css"></head>
+<title>Заявки за ранен достъп · NovariumAI</title><link rel="stylesheet" href="/plans.css"></head>
 <body><main class="plans-shell">
-<a href="/">Към Novarium</a>
+<a href="/">Към NovariumAI</a>
 <h1>Заявки за ранен достъп</h1>
 ${
   rows

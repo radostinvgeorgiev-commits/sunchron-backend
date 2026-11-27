@@ -1,8 +1,15 @@
-# AGENTS.md — AI CORE
+# AGENTS.md — NovariumAI
+
+## Котва
+
+Първо прочети [docs/MANIFESTO.md](docs/MANIFESTO.md) и
+[docs/CONTEXT.md](docs/CONTEXT.md). Манифестът е каноничната котва на проекта
+и има предимство пред всичко друго тук; променя се само с „да“ от собственика.
+Всяко ново решение на собственика се добавя в CONTEXT.md с дата.
 
 ## Проект
 
-AI CORE е лична AI операционна система с постоянна контролирана памет и
+NovariumAI е лична AI операционна система с постоянна контролирана памет и
 разрешени инструменти за реални задачи. Аватарът е нейният видим интерфейс, а
 не отделен продукт.
 
@@ -19,7 +26,7 @@ AI CORE е лична AI операционна система с постоян
   асистентите, гласът и споделянето са в `public/ui-refresh.js`,
   `public/prompt-tools.js`, `public/compare.js`, `public/share.js`;
 - автоматични проверки: `synchron/production-smoke`, робот с браузър
-  (`tests/ui/robot.mjs`, workflow „UI robot“), MCP `run_ai_core_self_test` и
+  (`tests/ui/robot.mjs`, workflow „UI robot“), MCP `run_novarium_self_test` и
   публична страница `/status`;
 - изпълнение: Task Orchestrator → Capability Engine → Tool Registry;
 - защитен кодов цикъл: Claude води кодовите задачи; OpenAI, Gemini и Grok

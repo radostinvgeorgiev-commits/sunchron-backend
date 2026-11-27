@@ -1,4 +1,4 @@
-const chatLocale = globalThis.AiCoreLocale;
+const chatLocale = globalThis.NovariumLocale;
 const chatText = (value, values) => chatLocale?.text(value, values) ?? value;
 const englishAuthErrors = {
   AUTH_INVALID_EMAIL: "Enter a valid email address.",
@@ -7,7 +7,8 @@ const englishAuthErrors = {
   AUTH_INVALID_CREDENTIALS: "The email address or password is incorrect.",
   AUTH_INVITE_INVALID: "Enter a valid early access code.",
   AUTH_REGISTRATION_CLOSED: "Registration is currently closed.",
-  AUTH_REGISTRATION_INCOMPLETE: "Account access is not active. If registration was interrupted, register again with the same email address and password.",
+  AUTH_REGISTRATION_INCOMPLETE: "Account access is not active. Continue with Google using the same email address.",
+  AUTH_PASSWORD_SIGNUP_REMOVED: "New accounts are no longer created with an email and password. Select Continue with Google; your account is created on first sign-in.",
   AUTH_EMAIL_NOT_VERIFIED: "Open the link in your verification email and select Complete verification. Then sign in.",
   AUTH_EMAIL_VERIFICATION_RESENT: "We sent a new verification email. Open the latest message, follow its link and select Complete verification. Check your spam folder if needed.",
   AUTH_UNAVAILABLE: "Sign-in is temporarily unavailable. Try again shortly.",
@@ -35,33 +36,21 @@ const state = {
   recognition: null,
   listening: false,
   authenticatedUser: null,
-  registrationEnabled: false,
-  registrationMode: "public",
   applicationStarted: false,
 };
 
-const REGISTRATION_PATH = "/register";
 const MAX_CHAT_INPUT_HEIGHT = 160;
 let statusReturnFocus = null;
 
 const elements = {
   authGate: document.getElementById("authGate"),
   authCard: document.getElementById("authCard"),
-  authTitle: document.getElementById("authTitle"),
-  authIntro: document.getElementById("authIntro"),
   appShell: document.getElementById("appShell"),
   loginForm: document.getElementById("loginForm"),
   loginEmail: document.getElementById("loginEmail"),
   loginPassword: document.getElementById("loginPassword"),
   loginBtn: document.getElementById("loginBtn"),
-  showRegisterBtn: document.getElementById("showRegisterBtn"),
-  registerForm: document.getElementById("registerForm"),
-  registerName: document.getElementById("registerName"),
-  registerEmail: document.getElementById("registerEmail"),
-  registerPassword: document.getElementById("registerPassword"),
-  registerInviteCode: document.getElementById("registerInviteCode"),
-  registerBtn: document.getElementById("registerBtn"),
-  backToLoginBtn: document.getElementById("backToLoginBtn"),
+  passwordSignIn: document.getElementById("passwordSignIn"),
   authMessage: document.getElementById("authMessage"),
   forgotPasswordBtn: document.getElementById("forgotPasswordBtn"),
   chatMessages: document.getElementById("chatMessages"),
@@ -175,51 +164,8 @@ function setCouncilMode(enabled) {
 
 function setAuthBusy(isBusy) {
   elements.loginBtn.disabled = isBusy;
-  elements.registerBtn.disabled = isBusy;
   elements.authCard?.setAttribute("aria-busy", String(isBusy));
   elements.loginBtn.textContent = isBusy ? chatText("Влизане…") : chatText("Влез");
-  elements.registerBtn.textContent = isBusy ? chatText("Създаване…") : chatText("Създай профил");
-}
-
-function replaceAuthPath(path) {
-  if (globalThis.location?.pathname === path) return;
-  const search = globalThis.location?.search || "";
-  globalThis.history?.replaceState?.({}, "", path + search);
-}
-
-function showLoginForm(event) {
-  event?.preventDefault?.();
-  elements.loginForm.hidden = false;
-  elements.registerForm.hidden = true;
-  elements.showRegisterBtn.hidden = !state.registrationEnabled;
-  elements.authTitle.textContent = chatText("Вход в Novarium");
-  elements.authIntro.textContent =
-    chatText("Продължи към личното си работно пространство.");
-  document.title = chatText("Вход · Novarium");
-  replaceAuthPath("/");
-  setAuthMessage();
-  elements.loginEmail.focus();
-}
-
-function showRegisterForm(event) {
-  event?.preventDefault?.();
-  if (!state.registrationEnabled) return;
-  elements.loginForm.hidden = true;
-  elements.registerForm.hidden = false;
-  elements.showRegisterBtn.hidden = true;
-  elements.authTitle.textContent = chatText("Създай профил");
-  elements.authIntro.textContent =
-    chatText("Създай личен профил с отделни разговори, проекти и контролирана памет.");
-  document.title = chatText("Създай профил · Novarium");
-  replaceAuthPath(REGISTRATION_PATH);
-  setAuthMessage();
-  elements.registerName.focus();
-}
-
-function isDirectRegistrationPage() {
-  return (
-    globalThis.location?.pathname?.replace(/\/+$/u, "") === REGISTRATION_PATH
-  );
 }
 
 async function readAuthSession() {
@@ -238,13 +184,12 @@ async function submitAuth(path, body) {
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    const action = path.endsWith("/register") ? "Регистрацията" : "Входът";
     const error = new Error(
       chatLocale && chatLocale.language !== "bg"
         ? (Object.hasOwn(englishAuthErrors, data?.code)
             ? englishAuthErrors[data.code]
-            : `${path.endsWith("/register") ? "Registration" : "Sign-in"} failed (HTTP ${response.status}).`)
-        : data?.error || `${action} не беше успешен (HTTP ${response.status}).`,
+            : `Sign-in failed (HTTP ${response.status}).`)
+        : data?.error || `Входът не беше успешен (HTTP ${response.status}).`,
     );
     error.code = data?.code || "AUTH_REQUEST_FAILED";
     error.status = response.status;
@@ -271,13 +216,12 @@ async function handleLogin(event) {
     await startApplication(session.user);
   } catch (error) {
     // Identity Platform answers the same for "no account" and "wrong
-    // password". New visitors often type a new password into the sign-in
-    // form, so offer registration with the same email right away.
-    if (error.code === "AUTH_INVALID_CREDENTIALS" && state.registrationEnabled) {
-      offerRegistration(elements.loginEmail.value);
-      return;
-    }
-    setAuthMessage(error.message);
+    // password". New profiles are made with Google, so point there.
+    setAuthMessage(
+      error.code === "AUTH_INVALID_CREDENTIALS"
+        ? chatText("Имейлът или паролата не съвпадат. Нямаш профил? Натисни „Продължи с Google“ — профилът се създава сам.")
+        : error.message,
+    );
   } finally {
     setAuthBusy(false);
   }
@@ -288,6 +232,14 @@ const GOOGLE_SIGN_IN_ERRORS = Object.freeze({
   AUTH_GOOGLE_STATE_INVALID: "Входът с Google изтече. Опитай пак.",
   AUTH_GOOGLE_DISABLED: "Входът с Google още не е включен.",
   AUTH_GOOGLE_PROVIDER_DISABLED: "Входът с Google още не е включен.",
+  AUTH_GOOGLE_PASSWORD_ACCOUNT: "Този имейл вече има профил с парола. Влез с паролата си от „Имаш профил с имейл и парола?“.",
+  AUTH_GITHUB_CANCELLED: "Входът с GitHub беше отказан.",
+  AUTH_GITHUB_STATE_INVALID: "Входът с GitHub изтече. Опитай пак.",
+  AUTH_GITHUB_DISABLED: "Входът с GitHub още не е включен.",
+  AUTH_GITHUB_PROVIDER_DISABLED: "Входът с GitHub още не е включен.",
+  AUTH_GITHUB_EXISTING_ACCOUNT: "Имейлът от GitHub вече има профил. Влез с „Продължи с Google“ или с паролата си.",
+  AUTH_FACEBOOK_EXISTING_ACCOUNT: "Имейлът от Facebook вече има профил. Влез с „Продължи с Google“ или с паролата си.",
+  AUTH_MICROSOFT_EXISTING_ACCOUNT: "Имейлът от Microsoft вече има профил. Влез с „Продължи с Google“ или с паролата си.",
 });
 
 function showGoogleSignInError() {
@@ -295,27 +247,23 @@ function showGoogleSignInError() {
   const code = params.get("auth_error");
   if (!code) return;
   setAuthMessage(
-    chatText(GOOGLE_SIGN_IN_ERRORS[code] || "Входът с Google не успя. Опитай пак или влез с имейл."),
+    chatText(
+      GOOGLE_SIGN_IN_ERRORS[code] ||
+        (code.startsWith("AUTH_GITHUB")
+          ? "Входът с GitHub не успя. Опитай пак."
+          : code.startsWith("AUTH_FACEBOOK")
+            ? "Входът с Facebook не успя. Опитай пак."
+            : code.startsWith("AUTH_MICROSOFT")
+              ? "Входът с Microsoft не успя. Опитай пак."
+              : "Входът с Google не успя. Опитай пак."),
+    ),
   );
+  if (code === "AUTH_GOOGLE_PASSWORD_ACCOUNT" && elements.passwordSignIn) {
+    elements.passwordSignIn.open = true;
+  }
   params.delete("auth_error");
   const rest = params.toString();
   globalThis.history?.replaceState?.({}, "", `${globalThis.location.pathname}${rest ? `?${rest}` : ""}`);
-}
-
-function offerRegistration(email) {
-  setAuthMessage(
-    chatText("Имейлът или паролата не съвпадат. Ако още нямаш профил, създай го — имейлът е попълнен."),
-  );
-  const link = document.createElement("button");
-  link.type = "button";
-  link.className = "auth-link auth-offer-register";
-  link.textContent = chatText("Създай профил с този имейл");
-  link.addEventListener("click", () => {
-    showRegisterForm();
-    elements.registerEmail.value = String(email || "").trim();
-    elements.registerName.focus();
-  });
-  elements.authMessage?.append(document.createElement("br"), link);
 }
 
 async function handleForgotPassword() {
@@ -330,72 +278,9 @@ async function handleForgotPassword() {
   try {
     await submitAuth("/api/auth/password-reset", { email });
     setAuthMessage(
-      chatText("Ако има профил с този имейл, изпратихме писмо с линк за нова парола (от noreply, провери и „Спам“/„Промоции“). Ако писмо не дойде до 5 минути, най-вероятно още нямаш профил — натисни „Създай безплатен профил“."),
+      chatText("Ако има профил с този имейл, изпратихме писмо с линк за нова парола (от noreply, провери и „Спам“/„Промоции“). Ако писмо не дойде до 5 минути, най-вероятно още нямаш профил — натисни „Продължи с Google“."),
       true,
     );
-  } catch (error) {
-    setAuthMessage(error.message);
-  } finally {
-    setAuthBusy(false);
-  }
-}
-
-// The browser's own validation bubbles are easy to miss on phones (a short
-// password simply did nothing), so registration is checked here and the
-// reason is written in the visible message area.
-function registrationProblem() {
-  const name = elements.registerName.value.trim();
-  const email = elements.registerEmail.value.trim();
-  const password = elements.registerPassword.value;
-  if (!name) return [elements.registerName, chatText("Напиши име.")];
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email))
-    return [elements.registerEmail, chatText("Имейлът не изглежда правилен. Провери за интервал или липсваща буква.")];
-  if (password.length < 8)
-    return [elements.registerPassword, chatText("Паролата трябва да е поне 8 знака.")];
-  return null;
-}
-
-async function handleRegistration(event) {
-  event.preventDefault();
-  const problem = registrationProblem();
-  if (problem) {
-    setAuthMessage(problem[1]);
-    problem[0].focus();
-    return;
-  }
-  elements.registerEmail.value = elements.registerEmail.value.trim();
-  setAuthBusy(true);
-  setAuthMessage();
-  try {
-    const params = new URLSearchParams(globalThis.location?.search || "");
-    const result = await submitAuth("/api/auth/register", {
-      displayName: elements.registerName.value,
-      email: elements.registerEmail.value,
-      password: elements.registerPassword.value,
-      inviteCode: elements.registerInviteCode.value,
-      campaign: params.has("utm_campaign")
-        ? {
-            utm_source: params.get("utm_source"),
-            utm_medium: params.get("utm_medium"),
-            utm_campaign: params.get("utm_campaign"),
-            utm_content: params.get("utm_content"),
-          }
-        : undefined,
-    });
-    elements.registerPassword.value = "";
-    elements.registerInviteCode.value = "";
-    if (result.confirmationRequired) {
-      showLoginForm();
-      elements.loginEmail.value = result.user?.email || "";
-      setAuthMessage(
-        chatText("Отвори линка от писмото. Ако видиш бутон „Complete verification“, натисни го. После влез."),
-        true,
-      );
-      return;
-    }
-    const session = await readAuthSession();
-    if (!session.authenticated) throw new Error(chatText("Сесията не беше създадена."));
-    await startApplication(session.user);
   } catch (error) {
     setAuthMessage(error.message);
   } finally {
@@ -434,22 +319,25 @@ function applyAuthenticatedUser(user) {
 async function init() {
   elements.loginForm.addEventListener("submit", handleLogin);
   elements.forgotPasswordBtn?.addEventListener("click", handleForgotPassword);
-  elements.registerForm.noValidate = true;
-  elements.registerForm.addEventListener("submit", handleRegistration);
-  elements.showRegisterBtn.addEventListener("click", showRegisterForm);
-  elements.backToLoginBtn.addEventListener("click", showLoginForm);
 
   try {
     const session = await readAuthSession();
-    state.registrationEnabled = Boolean(session.registrationEnabled);
-    state.registrationMode = session.registrationMode || "invite";
-    document.getElementById("inviteFields").hidden =
-      state.registrationMode !== "invite";
-    elements.registerInviteCode.disabled = state.registrationMode !== "invite";
-    elements.registerInviteCode.required = state.registrationMode === "invite";
-    elements.showRegisterBtn.hidden = !state.registrationEnabled;
     const googleSignInBtn = document.getElementById("googleSignInBtn");
     if (googleSignInBtn) googleSignInBtn.hidden = session.googleSignIn !== true;
+    const githubSignInBtn = document.getElementById("githubSignInBtn");
+    if (githubSignInBtn) githubSignInBtn.hidden = session.githubSignIn !== true;
+    for (const button of document.querySelectorAll("a[data-provider]")) {
+      button.hidden = session.providerSignIn?.[button.dataset.provider] !== true;
+    }
+    // Without Google the password form is the only way in, so keep it open.
+    if (
+      elements.passwordSignIn &&
+      session.googleSignIn !== true &&
+      session.githubSignIn !== true &&
+      !Object.values(session.providerSignIn || {}).some(Boolean)
+    ) {
+      elements.passwordSignIn.open = true;
+    }
     showGoogleSignInError();
     if (session.authenticated) {
       await startApplication(session.user);
@@ -457,10 +345,6 @@ async function init() {
     }
     elements.authGate.hidden = false;
     elements.appShell.hidden = true;
-    if (state.registrationEnabled && isDirectRegistrationPage()) {
-      showRegisterForm();
-      return;
-    }
     if (!session.configured) {
       setAuthMessage(
         chatText("Входът с потребителски профили още не е активиран. Собственикът може да влезе с GitHub."),
@@ -486,7 +370,7 @@ async function startApplication(user) {
   elements.appShell.hidden = false;
   // Parts that loaded before sign-in (e.g. the assistants row) reload now,
   // so signing in with a password needs no page refresh.
-  document.dispatchEvent(new CustomEvent("aicore:signed-in"));
+  document.dispatchEvent(new CustomEvent("novarium:signed-in"));
   if (user?.role === "owner") {
     globalThis.SynchronCodeWorkspace?.afterSignIn();
     globalThis.SynchronAiSpend?.start();
@@ -863,7 +747,7 @@ function prefersServerVoice() {
     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   let remembered = false;
   try {
-    remembered = localStorage.getItem("aiCoreServerVoice") === "1";
+    remembered = localStorage.getItem("novariumServerVoice") === "1";
   } catch {
     // storage unavailable; decide from the device
   }
@@ -909,7 +793,7 @@ function prepareVoiceInput() {
     ) {
       state.serverVoice = true;
       try {
-        localStorage.setItem("aiCoreServerVoice", "1");
+        localStorage.setItem("novariumServerVoice", "1");
       } catch {
         // remembered for this visit only
       }
@@ -1108,7 +992,7 @@ function setTalkUi(on) {
   const label = chatText(on ? "Спри разговора с глас" : "Разговор с глас");
   elements.talkBtn.title = label;
   elements.talkBtn.setAttribute("aria-label", label);
-  elements.chatInput.placeholder = chatText(on ? "Говори… кажи „стоп“ за край" : "Пиши на Novarium");
+  elements.chatInput.placeholder = chatText(on ? "Говори… кажи „стоп“ за край" : "Пиши на NovariumAI");
 }
 
 function toggleTalkMode() {
@@ -1546,7 +1430,7 @@ async function openToolsDrawer() {
     const descriptions = {
       "github-read": "Проверява commit-и и файлове. Само за четене.",
       "github-write":
-        "Novarium генерира ограничена кодова промяна и след точно потвърждение създава отделен branch, атомарен commit и Pull Request.",
+        "NovariumAI генерира ограничена кодова промяна и след точно потвърждение създава отделен branch, атомарен commit и Pull Request.",
       "github-confirmed-write":
         "Създава отделен branch, файл, commit или Pull Request само след точно потвърждение. Merge, secrets и production deployment са забранени.",
       "google-drive-read": "Чете разрешени файлове от Google Drive.",
@@ -1558,14 +1442,14 @@ async function openToolsDrawer() {
       "synchron-tasks":
         "Пази задачи, бележки, проектни връзки и потвърждавани статуси.",
       "synchron-agent-chat":
-        "Разговаря с Novarium до 10 последователни въпроса в една MCP нишка.",
+        "Разговаря с NovariumAI до 10 последователни въпроса в една MCP нишка.",
       "openai-web-search": "Търси актуална информация в интернет.",
       "synchron-system-inspector":
         "Проверява ядрото и Google Cloud runtime настройките без техните стойности.",
       "google-cloud-read":
         "Проверява текущия Cloud Run runtime, Firestore режима и активната revision без стойности на secrets.",
       "google-firestore-memory":
-        "Google Cloud Memory: постоянната памет на Novarium в Firestore.",
+        "Google Cloud Memory: постоянната памет на NovariumAI в Firestore.",
     };
     elements.dataDrawerBody.innerHTML = `
       <div class="permission-default">
@@ -1596,7 +1480,7 @@ async function openToolsDrawer() {
               Boolean(githubData.connected),
             );
             const description =
-              descriptions[tool.id] || "Инструмент на Novarium.";
+              descriptions[tool.id] || "Инструмент на NovariumAI.";
             return `
               <article class="permission-card tool-status-card">
                 <div>
@@ -1884,7 +1768,7 @@ const INBOX_SOURCES = Object.freeze({
   claude: "Claude",
   chatgpt: "ChatGPT",
   gemini: "Gemini",
-  "ai-core": "Novarium",
+  "novarium": "NovariumAI",
   other: "AI",
 });
 
@@ -1940,7 +1824,7 @@ function renderInbox(items) {
         .join("")
     : `<li class="inbox-empty">
         <strong>${localizedMarkup("Няма нови предложения.")}</strong>
-        <p>${localizedMarkup("Когато Claude, ChatGPT или Novarium предложат нещо за запомняне, ще го видиш тук и ще решиш дали да се запази.")}</p>
+        <p>${localizedMarkup("Когато Claude, ChatGPT или NovariumAI предложат нещо за запомняне, ще го видиш тук и ще решиш дали да се запази.")}</p>
         <button type="button" class="connection-copy" data-open-connections>${localizedMarkup("Свържи AI")}</button>
       </li>`;
   elements.dataDrawerBody.innerHTML = `
@@ -1994,7 +1878,7 @@ const CONNECTION_GUIDES = Object.freeze([
     client: "Claude",
     steps: [
       "Отвори Claude → Настройки → Connectors.",
-      "Натисни „Add custom connector“, име: Novarium.",
+      "Натисни „Add custom connector“, име: NovariumAI.",
       "Постави адреса отгоре.",
       "В „Advanced settings“ въведи Client ID: synchron-claude. Client secret остава празно.",
       "Натисни „Connect“, влез с този профил и натисни „Разреши“.",
@@ -2069,7 +1953,7 @@ function renderConnections(data) {
   ).join("");
   elements.dataDrawerBody.innerHTML = `
     <section class="drawer-section connections-intro">
-      <p>${localizedMarkup("Свържи Claude, ChatGPT и други AI асистенти с Novarium. Всички ще работят с една и съща памет и проекти, а ти одобряваш какво се запазва.")}</p>
+      <p>${localizedMarkup("Свържи Claude, ChatGPT и други AI асистенти с NovariumAI. Всички ще работят с една и съща памет и проекти, а ти одобряваш какво се запазва.")}</p>
       <div class="connection-url">
         <code id="connectionMcpUrl">${escapeHtml(mcpUrl)}</code>
         <button type="button" class="connection-copy" data-copy-connection-url>${localizedMarkup("Копирай адреса")}</button>
@@ -2211,10 +2095,10 @@ function renderMemoryItems() {
             }
         </section>`;
   elements.dataDrawerBody.innerHTML =
-    `<p class="memory-intro">${escapeHtml(chatText("Това е всичко, което Novarium помни за теб. Нищо не се записва без твое „да“, а всеки запис можеш да поправиш или изтриеш."))}</p>
+    `<p class="memory-intro">${escapeHtml(chatText("Това е всичко, което NovariumAI помни за теб. Нищо не се записва без твое „да“, а всеки запис можеш да поправиш или изтриеш."))}</p>
     <section class="memory-policy-card">
       <strong>Правило за запомняне</strong>
-      <p>Novarium никога не запомня автоматично. Избери дали да пита преди всеки запис или напълно да забрани записването.</p>
+      <p>NovariumAI никога не запомня автоматично. Избери дали да пита преди всеки запис или напълно да забрани записването.</p>
       <div class="memory-policy-actions">
         <button type="button" data-memory-policy="confirm" aria-pressed="${memoryMode === "confirm"}">Винаги питай</button>
         <button type="button" data-memory-policy="disabled" aria-pressed="${memoryMode === "disabled"}">Не записвай</button>
@@ -2261,7 +2145,7 @@ function renderKnowledgeImportCard() {
     : "";
   return `<section class="memory-policy-card knowledge-import-card">
       <strong>Архивно знание</strong>
-      <p>Избери ChatGPT JSON архив. Novarium само предлага кандидати; записът е отделен и изисква твое потвърждение.</p>
+      <p>Избери ChatGPT JSON архив. NovariumAI само предлага кандидати; записът е отделен и изисква твое потвърждение.</p>
       <input id="knowledgeArchiveInput" type="file" accept="application/json,.json" />
       <div class="memory-policy-actions">
         <button type="button" data-knowledge-preview>Прегледай архива</button>
@@ -2382,20 +2266,20 @@ function showGitHubSetup() {
   elements.dataDrawerBody.innerHTML = `
     <section class="setup-guide">
       <div class="permission-default">
-        GitHub Read проверява хранилището. Novarium Code Write подготвя отделен branch, commit и Pull Request след точно потвърждение.
+        GitHub Read проверява хранилището. NovariumAI Code Write подготвя отделен branch, commit и Pull Request след точно потвърждение.
       </div>
       <article class="setup-step">
         <span><i class="fa-solid fa-check"></i></span>
         <div>
           <strong>Четенето е активно</strong>
-          <p>Novarium може да проверява разрешеното хранилище, commit-и и Pull Request-и.</p>
+          <p>NovariumAI може да проверява разрешеното хранилище, commit-и и Pull Request-и.</p>
         </div>
       </article>
       <article class="setup-step">
         <span><i class="fa-solid fa-lock"></i></span>
         <div>
           <strong>Писането е защитено</strong>
-          <p>Първо виждаш точните файлове. Едва след потвърждение Novarium създава отделен branch, commit и Pull Request към main.</p>
+          <p>Първо виждаш точните файлове. Едва след потвърждение NovariumAI създава отделен branch, commit и Pull Request към main.</p>
         </div>
       </article>
       <div class="setup-note">
@@ -2408,9 +2292,9 @@ function showGitHubSetup() {
 function showPermissionInfo(action) {
   const messages = {
     "calendar.write":
-      "Записът в Google Calendar е активен след свързване на Google. Novarium първо показва точните данни и записва събитието само след еднократно потвърждение.",
+      "Записът в Google Calendar е активен след свързване на Google. NovariumAI първо показва точните данни и записва събитието само след еднократно потвърждение.",
     "memory.write":
-      "Записът в паметта е активен. Преди постоянен запис Novarium трябва да покаже точния текст и да поиска твоето потвърждение.",
+      "Записът в паметта е активен. Преди постоянен запис NovariumAI трябва да покаже точния текст и да поиска твоето потвърждение.",
     "memory.delete":
       "Изтриването е активно, но се изпълнява само след точно потвърждение за конкретния спомен.",
     "external.send":
@@ -2514,8 +2398,8 @@ async function handleDataDrawerAction(event) {
     if (
       !window.confirm(
         service === "chatgpt"
-          ? "Да отнема ли всички активни права на ChatGPT до Novarium?"
-          : `Да спра ли достъпа на Novarium до ${serviceName}?`,
+          ? "Да отнема ли всички активни права на ChatGPT до NovariumAI?"
+          : `Да спра ли достъпа на NovariumAI до ${serviceName}?`,
       )
     ) {
       return;
@@ -3344,7 +3228,7 @@ function showNextStep(message, replyText, result) {
   );
   if (fromStructuredResult && !next.chatOnly) {
     globalThis.SynchronTaskJournal?.setNextStep(next.step, {
-      detail: "Записано автоматично от последния отговор на Novarium.",
+      detail: "Записано автоматично от последния отговор на NovariumAI.",
     });
   }
 
@@ -3364,7 +3248,7 @@ function showNextStep(message, replyText, result) {
   openButton.addEventListener("click", () => {
     if (!fromStructuredResult) {
       globalThis.SynchronTaskJournal?.setNextStep(next.step, {
-        detail: "Добавено от Радко от отговор на Novarium.",
+        detail: "Добавено от Радко от отговор на NovariumAI.",
       });
     }
     globalThis.SynchronTaskJournal?.openCurrentNext();
@@ -3401,7 +3285,7 @@ function showNextStep(message, replyText, result) {
 // English, or "" when there is none.
 function taskConfirmationCommand(replyText) {
   const match = String(replyText || "").match(
-    /(?:Потвърждавам (?:Novarium|AI CORE) задача|Confirm (?:Novarium|AI CORE) task):\s*[0-9a-f]{8}-[0-9a-f-]{27,}/iu,
+    /(?:Потвърждавам NovariumAI задача|Confirm NovariumAI task):\s*[0-9a-f]{8}-[0-9a-f-]{27,}/iu,
   );
   return match ? match[0] : "";
 }

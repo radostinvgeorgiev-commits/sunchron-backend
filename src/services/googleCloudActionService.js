@@ -33,6 +33,7 @@ const ACTIONS = Object.freeze({
   USE_LATEST_SECRET_VERSION:
     "infrastructure.write:use_latest_secret_version",
   ENABLE_GOOGLE_SIGN_IN: "infrastructure.write:enable_google_sign_in",
+  ENABLE_GITHUB_SIGN_IN: "infrastructure.write:enable_github_sign_in",
   ENABLE_GOOGLE_API: "infrastructure.write:enable_google_api",
 });
 const SERVICE_USAGE_API = "https://serviceusage.googleapis.com/v1";
@@ -66,6 +67,7 @@ const OPERATION_ACTIONS = Object.freeze({
   run_cloud_build_trigger: ACTIONS.RUN_CLOUD_BUILD_TRIGGER,
   use_latest_secret_version: ACTIONS.USE_LATEST_SECRET_VERSION,
   enable_google_sign_in: ACTIONS.ENABLE_GOOGLE_SIGN_IN,
+  enable_github_sign_in: ACTIONS.ENABLE_GITHUB_SIGN_IN,
   enable_google_api: ACTIONS.ENABLE_GOOGLE_API,
 });
 
@@ -176,7 +178,7 @@ function normalizeCloudRunTarget(input = {}, env = process.env) {
   );
   if (serviceName !== configuredService) {
     throw new GoogleCloudActionError(
-      "Cloud Run промяната е ограничена до текущата Novarium услуга.",
+      "Cloud Run промяната е ограничена до текущата NovariumAI услуга.",
       403,
       "GOOGLE_CLOUD_SERVICE_PROTECTED",
     );
@@ -225,7 +227,7 @@ function normalizeCloudBuildTarget(input = {}, env = process.env) {
   );
   if (location !== DEFAULT_CLOUD_BUILD_LOCATION) {
     throw new GoogleCloudActionError(
-      "Cloud Build промяната е ограничена до global trigger-а на Novarium.",
+      "Cloud Build промяната е ограничена до global trigger-а на NovariumAI.",
       403,
       "GOOGLE_CLOUD_TRIGGER_PROTECTED",
     );
@@ -308,6 +310,22 @@ function normalizeOperation(operation, input = {}, env = process.env) {
       );
     }
     return { action, resource: { projectId, provider: "google.com" }, params: {} };
+  }
+
+  if (operation === "enable_github_sign_in") {
+    // Takes no input: the provider is always "github.com" in the current
+    // project and uses the GitHub OAuth app this service already runs with.
+    if (
+      !String(env.GITHUB_CLIENT_ID || "").trim() ||
+      !String(env.GITHUB_CLIENT_SECRET || "").trim()
+    ) {
+      throw new GoogleCloudActionError(
+        "GitHub OAuth приложението не е конфигурирано в услугата.",
+        503,
+        "GOOGLE_CLOUD_GITHUB_CLIENT_MISSING",
+      );
+    }
+    return { action, resource: { projectId, provider: "github.com" }, params: {} };
   }
 
   if (operation === "enable_google_api") {
@@ -568,21 +586,63 @@ export async function enableGoogleSignInProvider({
       "GOOGLE_CLOUD_OAUTH_CLIENT_MISSING",
     );
   }
+  return enableIdentityPlatformProvider({
+    projectId,
+    provider: "google.com",
+    clientId,
+    clientSecret,
+    fetchImpl,
+  });
+}
+
+// Turns on "Sign in with GitHub" in Identity Platform with the GitHub OAuth
+// app this service already uses. The secret is read from the environment
+// and sent only to Google; it is never returned or stored.
+export async function enableGitHubSignInProvider({
+  projectId,
+  env = process.env,
+  fetchImpl,
+}) {
+  const clientId = String(env.GITHUB_CLIENT_ID || "").trim();
+  const clientSecret = String(env.GITHUB_CLIENT_SECRET || "").trim();
+  if (!clientId || !clientSecret) {
+    throw new GoogleCloudActionError(
+      "GitHub OAuth приложението не е конфигурирано в услугата.",
+      503,
+      "GOOGLE_CLOUD_GITHUB_CLIENT_MISSING",
+    );
+  }
+  return enableIdentityPlatformProvider({
+    projectId,
+    provider: "github.com",
+    clientId,
+    clientSecret,
+    fetchImpl,
+  });
+}
+
+async function enableIdentityPlatformProvider({
+  projectId,
+  provider,
+  clientId,
+  clientSecret,
+  fetchImpl,
+}) {
   const base = `${IDENTITY_TOOLKIT_ADMIN_API}/projects/${encodeURIComponent(projectId)}/defaultSupportedIdpConfigs`;
   const body = { enabled: true, clientId, clientSecret };
   let created = false;
   try {
-    await googleJsonRequest(`${base}/google.com`, { fetchImpl });
+    await googleJsonRequest(`${base}/${provider}`, { fetchImpl });
     await googleJsonRequest(
-      `${base}/google.com?updateMask=enabled,clientId,clientSecret`,
+      `${base}/${provider}?updateMask=enabled,clientId,clientSecret`,
       { method: "PATCH", body, fetchImpl },
     );
   } catch (error) {
     if (error?.status !== 404) throw error;
-    await googleJsonRequest(`${base}?idpId=google.com`, { method: "POST", body, fetchImpl });
+    await googleJsonRequest(`${base}?idpId=${provider}`, { method: "POST", body, fetchImpl });
     created = true;
   }
-  return { projectId, provider: "google.com", enabled: true, created };
+  return { projectId, provider, enabled: true, created };
 }
 
 // Points one secret-backed environment variable of the current Cloud Run
@@ -760,6 +820,12 @@ export async function confirmGoogleCloudAction(
         fetchImpl,
       });
     }
+    if (confirmation.action === ACTIONS.ENABLE_GITHUB_SIGN_IN) {
+      return (adapters.enableGitHubSignInProvider || enableGitHubSignInProvider)({
+        projectId: resource.projectId,
+        fetchImpl,
+      });
+    }
     if (confirmation.action === ACTIONS.ENABLE_GOOGLE_API) {
       return (adapters.enableGoogleApi || enableGoogleApi)({
         projectId: resource.projectId,
@@ -792,7 +858,7 @@ export async function confirmGoogleCloudAction(
   return executeWrite({
     action: "infrastructure.write",
     capability: confirmation.action,
-    actor: "synchron-x-google-cloud",
+    actor: "novarium-google-cloud",
     sessionId,
     confirmationId,
     resource: resource.projectId,

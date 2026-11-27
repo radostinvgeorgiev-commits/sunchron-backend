@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import { requestAiText } from "./aiCoreService.js";
+import { requestAiText } from "./novariumService.js";
 import { createFirestoreDocumentStore } from "./firestoreDocumentStore.js";
 
 // "Питай моя аватар": a link the person gives to others. Visitors ask, and the

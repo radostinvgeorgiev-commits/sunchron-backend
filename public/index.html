@@ -7,15 +7,15 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#102b2a" />
+    <meta name="theme-color" content="#05060f" />
     <meta
       name="description"
-      content="Novarium е твоят личен AI аватар: разговори, контролирана памет, задачи, Google, GitHub и видео под твой контрол. Безплатен старт без банкова карта. Продукт на Novarium."
+      content="NovariumAI е твоят личен AI аватар: разговори, контролирана памет, задачи, Google, GitHub и видео под твой контрол. Безплатен старт без банкова карта. Продукт на NovariumAI."
     />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="bg_BG" />
-    <meta property="og:site_name" content="Novarium" />
-    <meta property="og:title" content="Novarium · Твоят личен AI аватар" />
+    <meta property="og:site_name" content="NovariumAI" />
+    <meta property="og:title" content="NovariumAI · Твоят личен AI аватар" />
     <meta
       property="og:description"
       content="Един AI център за разговори, памет и реална работа под твой контрол."
@@ -23,19 +23,19 @@
     <meta property="og:image" content="https://cloudaicore.com/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Novarium · Твоят личен AI аватар" />
+    <meta property="og:image:alt" content="NovariumAI · Твоят личен AI аватар" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Novarium · Твоят личен AI аватар" />
+    <meta name="twitter:title" content="NovariumAI · Твоят личен AI аватар" />
     <meta name="twitter:description" content="Един AI център за разговори, памет и реална работа под твой контрол." />
     <meta name="twitter:image" content="https://cloudaicore.com/og-image.png" />
     <meta property="og:url" content="https://cloudaicore.com/" />
     <link rel="canonical" href="https://cloudaicore.com/" />
-    <title>Novarium — твоят личен AI аватар</title>
+    <title>NovariumAI — твоят личен AI аватар</title>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
-        "name": "Novarium",
+        "name": "NovariumAI",
         "url": "https://cloudaicore.com/",
         "image": "https://cloudaicore.com/og-image.png",
         "applicationCategory": "BusinessApplication",
@@ -46,12 +46,12 @@
         "publisher": { "@type": "Organization", "name": "SINHRON H EOOD", "url": "https://cloudaicore.com/" }
       }
     </script>
-    <link rel="icon" type="image/png" href="/ai-core-mark.png" />
+    <link rel="icon" type="image/png" href="/novariumai-mark.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Novarium" />
+    <meta name="apple-mobile-web-app-title" content="NovariumAI" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="stylesheet" href="/styles.css?v=20260727-connection-actions" />
     <link rel="stylesheet" href="/appshell.css?v=20260731-chatgpt-app" />
@@ -87,9 +87,9 @@
     <section class="auth-gate" id="authGate" aria-labelledby="publicTitle">
       <div class="auth-shell">
         <header class="public-header">
-          <a class="auth-wordmark" href="/" aria-label="Novarium — начало">
-            <img src="/ai-core-mark.png" alt="" />
-            <strong>Novarium</strong>
+          <a class="auth-wordmark" href="/" aria-label="NovariumAI — начало">
+            <img src="/novariumai-mark.png" alt="" />
+            <strong>NovariumAI</strong>
           </a>
           <nav aria-label="Навигация на сайта">
             <a href="/plans">Планове</a>
@@ -100,12 +100,12 @@
         </header>
 
         <div class="auth-story">
-          <p class="auth-kicker">Novarium</p>
+          <p class="auth-kicker">Твоят AI. Твоят свят.</p>
           <h1 id="publicTitle">
             Твоето работно<br class="hero-break" /> пространство <em>с AI.</em>
           </h1>
           <p class="auth-lead">
-            Novarium ти помага да анализираш информация, да подготвяш текстове и
+            NovariumAI ти помага да анализираш информация, да подготвяш текстове и
             да планираш задачи. Сравнявай отговори от различни AI модели
             и продължавай оттам, където си спрял, с паметта на проекта.
           </p>
@@ -113,115 +113,72 @@
         </div>
 
         <div class="auth-card" id="authCard">
-          <h2 id="authTitle">Вход в Novarium</h2>
+          <h2 id="authTitle">Вход в NovariumAI</h2>
           <p class="auth-intro" id="authIntro">
             Продължи към личното си работно пространство.
           </p>
-
-          <form
-            id="loginForm"
-            class="auth-form"
-            method="post"
-            action="/api/auth/login"
-          >
-            <label for="loginEmail">Имейл</label>
-            <input
-              id="loginEmail"
-              name="email"
-              type="email"
-              autocomplete="username"
-              inputmode="email"
-              required
-            />
-            <label for="loginPassword">Парола</label>
-            <input
-              id="loginPassword"
-              name="password"
-              type="password"
-              autocomplete="current-password"
-              minlength="8"
-              maxlength="128"
-              required
-            />
-            <button id="loginBtn" class="auth-primary" type="submit">
-              Влез
-            </button>
-            <button id="forgotPasswordBtn" class="auth-link" type="button">
-              Забравена парола?
-            </button>
-          </form>
 
           <a id="googleSignInBtn" class="auth-google" href="/api/auth/google/start" hidden>
             <i class="fa-brands fa-google" aria-hidden="true"></i>
             Продължи с Google
           </a>
-          <a id="showRegisterBtn" class="auth-link" href="/register">
-            Създай безплатен профил
+          <a id="githubSignInBtn" class="auth-google" href="/api/auth/github/start" hidden>
+            <i class="fa-brands fa-github" aria-hidden="true"></i>
+            Продължи с GitHub
           </a>
-          <form
-            id="registerForm"
-            class="auth-form"
-            method="post"
-            action="/api/auth/register"
-            hidden
-          >
-            <label for="registerName">Име</label>
-            <input
-              id="registerName"
-              name="displayName"
-              type="text"
-              autocomplete="name"
-              maxlength="80"
-              required
-            />
-            <label for="registerEmail">Имейл</label>
-            <input
-              id="registerEmail"
-              name="email"
-              type="email"
-              autocomplete="username"
-              inputmode="email"
-              required
-            />
-            <label for="registerPassword">Парола</label>
-            <input
-              id="registerPassword"
-              name="password"
-              type="password"
-              autocomplete="new-password"
-              minlength="8"
-              maxlength="128"
-              required
-            />
-            <div id="inviteFields" hidden>
-              <label for="registerInviteCode">Код за ранен достъп</label>
+          <a id="microsoftSignInBtn" class="auth-google" href="/api/auth/microsoft/start" data-provider="microsoft" hidden>
+            <i class="fa-brands fa-microsoft" aria-hidden="true"></i>
+            Продължи с Microsoft
+          </a>
+          <a id="facebookSignInBtn" class="auth-google" href="/api/auth/facebook/start" data-provider="facebook" hidden>
+            <i class="fa-brands fa-facebook" aria-hidden="true"></i>
+            Продължи с Facebook
+          </a>
+          <p class="auth-provider-note" id="authProviderNote">
+            <span>Без парола. Новият профил се създава сам при първия вход.</span>
+            С входа приемаш <a href="/terms">Общите условия</a> и
+            <a href="/privacy">Политиката за поверителност</a>.
+          </p>
+
+          <details class="auth-password" id="passwordSignIn">
+            <summary>Имаш профил с имейл и парола?</summary>
+            <p class="auth-field-help">
+              Най-лесно: натисни „Продължи с Google“ със същия имейл. Ако имейлът
+              ти не е в Google, влез тук както досега.
+            </p>
+            <form
+              id="loginForm"
+              class="auth-form"
+              method="post"
+              action="/api/auth/login"
+            >
+              <label for="loginEmail">Имейл</label>
               <input
-                id="registerInviteCode"
-                disabled
-                name="inviteCode"
-                type="password"
-                autocomplete="off"
-                minlength="8"
-                maxlength="128"
-                aria-describedby="registerInviteHelp"
+                id="loginEmail"
+                name="email"
+                type="email"
+                autocomplete="username"
+                inputmode="email"
                 required
               />
-              <small id="registerInviteHelp" class="auth-field-help">
-                Това поле се използва само при ограничена регистрация.
-              </small>
-            </div>
-            <p>
-              С регистрацията приемаш <a href="/terms">Общите условия</a> и
-              <a href="/privacy">Политиката за поверителност</a>. Няма
-              автоматични плащания.
-            </p>
-            <button id="registerBtn" class="auth-primary" type="submit">
-              Създай профил
-            </button>
-            <button id="backToLoginBtn" class="auth-link" type="button">
-              Назад към входа
-            </button>
-          </form>
+              <label for="loginPassword">Парола</label>
+              <input
+                id="loginPassword"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                minlength="8"
+                maxlength="128"
+                required
+              />
+              <button id="loginBtn" class="auth-primary" type="submit">
+                Влез
+              </button>
+              <button id="forgotPasswordBtn" class="auth-link" type="button">
+                Забравена парола?
+              </button>
+            </form>
+          </details>
 
           <p
             id="authMessage"
@@ -244,7 +201,7 @@
           </noscript>
         </div>
 
-        <div class="auth-features" aria-label="Какво предлага Novarium">
+        <div class="auth-features" aria-label="Какво предлага NovariumAI">
           <article>
             <i class="fa-regular fa-message"></i>
             <div>
@@ -268,7 +225,7 @@
           </article>
         </div>
         <footer class="public-footer">
-          <span>Novarium</span>
+          <span>NovariumAI</span>
           <a href="/help#merchant">Фирмени данни и контакт</a>
         </footer>
       </div>
@@ -277,9 +234,9 @@
     <main class="app-shell" id="appShell" hidden>
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-brand">
-          <span class="brand-icon"><img src="/ai-core-mark.png" alt="" /></span>
+          <span class="brand-icon"><img src="/novariumai-mark.png" alt="" /></span>
           <span>
-            <strong>Novarium</strong>
+            <strong>NovariumAI</strong>
             <small>Личен AI аватар</small>
           </span>
         </div>
@@ -405,7 +362,7 @@
           </button>
           <div class="model-title">
             <button id="modelPickerBtn" class="model-picker-btn" type="button" aria-haspopup="menu" aria-expanded="false">
-              <strong id="modelPickerLabel">Novarium</strong>
+              <strong id="modelPickerLabel">NovariumAI</strong>
               <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
             </button>
             <div id="modelPickerMenu" class="model-picker-menu" role="menu" hidden></div>
@@ -463,7 +420,7 @@
               >
                 <span class="work-context-copy">
                   <strong id="workProjectLabel">Без активен проект</strong>
-                  <small id="workAgentLabel">Novarium</small>
+                  <small id="workAgentLabel">NovariumAI</small>
                 </span>
                 <i class="fa-solid fa-sliders"></i>
               </button>
@@ -626,8 +583,8 @@
             <textarea
               id="chatInput"
               rows="1"
-              aria-label="Съобщение до Novarium"
-              placeholder="Пиши на Novarium"
+              aria-label="Съобщение до NovariumAI"
+              placeholder="Пиши на NovariumAI"
               autocomplete="off"
               enterkeyhint="send"
               autofocus

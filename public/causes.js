@@ -1,7 +1,7 @@
 (() => {
   // "Каузи": propose a social cause and show with a like where you would want
   // the money to go. Only a list and votes; no money moves here.
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
 
   const dialog = document.createElement("div");
   dialog.className = "share-dialog causes-dialog";
@@ -150,7 +150,7 @@
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !dialog.hidden) close();
   });
-  document.addEventListener("aicore:causes", () => {
+  document.addEventListener("novarium:causes", () => {
     dialog.hidden = false;
     status(text("Зареждане…"));
     act(() => call("GET"));

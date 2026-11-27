@@ -8,7 +8,7 @@ import {
   getConfiguredAiProvider,
   isAiProviderConfigured,
   requestAiResponse,
-} from "../src/services/aiCoreService.js";
+} from "../src/services/novariumService.js";
 import {
   buildVertexAiGenerateContentEndpoint,
   extractVertexAiOutputText,
@@ -381,7 +381,7 @@ test("Vertex timeout and external abort stay distinct", async () => {
   await assert.rejects(pending, { code: "VERTEX_GEMINI_CLIENT_ABORT" });
 });
 
-test("Novarium defaults to Claude and only explicitly selects configured Vertex", () => {
+test("NovariumAI defaults to Claude and only explicitly selects configured Vertex", () => {
   assert.equal(getConfiguredAiProvider({}), "claude");
   assert.equal(getConfiguredAiProvider({ AI_CORE_PROVIDER: "openai" }), "openai");
   assert.equal(
@@ -432,7 +432,7 @@ test("Novarium defaults to Claude and only explicitly selects configured Vertex"
   );
 });
 
-test("Novarium dispatches an explicit Vertex request without fallback", async () => {
+test("NovariumAI dispatches an explicit Vertex request without fallback", async () => {
   const result = await requestAiResponse({
     env: { ...VERTEX_ENV, AI_CORE_PROVIDER: "vertex-gemini" },
     input: [{ role: "user", content: "Здравей" }],

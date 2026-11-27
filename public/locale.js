@@ -1,10 +1,10 @@
 (() => {
   const normalizeCode = (code) => (code === "ns" ? "nso" : code);
-  const supported = new Set((window.AiCoreLanguages || ["bg", "en"]).map(normalizeCode));
-  const preferenceKey = "ai-core-language";
+  const supported = new Set((window.NovariumLanguages || ["bg", "en"]).map(normalizeCode));
+  const preferenceKey = "novarium-language";
   const url = new URL(window.location.href);
   const requested = normalizeCode(url.searchParams.get("lang"));
-  const english = new Map(window.AiCoreEnglish);
+  const english = new Map(window.NovariumEnglish);
   english.set("Сървър онлайн", "Server online");
   english.set("Сървър офлайн", "Server offline");
   english.set("Действия за разговора", "Conversation actions");
@@ -87,7 +87,7 @@
     document.documentElement.dir = rtl.has(language) ? "rtl" : "ltr";
     // "Свържи Google" opens Google's screens in the same language.
     try {
-      document.cookie = `ai_core_language=${language}; Path=/api/google; Max-Age=31536000; SameSite=Lax${
+      document.cookie = `novarium_language=${language}; Path=/api/google; Max-Age=31536000; SameSite=Lax${
         location.protocol === "https:" ? "; Secure" : ""
       }`;
     } catch {
@@ -198,7 +198,7 @@
   const ready = Promise.all([load(), documentReady]).then(
     applyDocumentLanguage,
   );
-  window.AiCoreLocale = Object.freeze({
+  window.NovariumLocale = Object.freeze({
     get language() {
       return language;
     },

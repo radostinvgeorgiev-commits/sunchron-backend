@@ -150,7 +150,7 @@
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `ai-core-razgovor-${date}.md`;
+      link.download = `novarium-razgovor-${date}.md`;
       document.body.appendChild(link);
       link.click();
       link.remove();

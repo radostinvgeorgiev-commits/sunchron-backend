@@ -413,7 +413,7 @@ export async function confirmTaskStatusChange(
   return executeWrite({
     action: "tasks.update",
     capability: TASK_STATUS_ACTION,
-    actor: "synchron-x-tasks",
+    actor: "novarium-tasks",
     sessionId,
     confirmationId,
     resource: task.id,

@@ -1,4 +1,4 @@
-import { DEFAULT_GEMINI_API_URL, DEFAULT_GEMINI_CHAT_MODEL } from "./aiCoreService.js";
+import { DEFAULT_GEMINI_API_URL, DEFAULT_GEMINI_CHAT_MODEL } from "./novariumService.js";
 import { reservePublicAiFile } from "./publicAiBudget.js";
 import { searchWeb } from "./webSearchService.js";
 

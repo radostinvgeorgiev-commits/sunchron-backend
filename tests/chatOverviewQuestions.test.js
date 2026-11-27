@@ -10,11 +10,11 @@ test("recognizes Bulgarian personal overview questions with punctuation", () => 
 
 test("recognizes Bulgarian project overview questions with punctuation", () => {
   assert.equal(
-    isOverviewQuestion("Какво знаеш за проекта?", "(?:проекта|synchron-x)"),
+    isOverviewQuestion("Какво знаеш за проекта?", "(?:проекта|novarium)"),
     true,
   );
   assert.equal(
-    isOverviewQuestion("Какво знаеш за Synchron-X?", "(?:проекта|synchron-x)"),
+    isOverviewQuestion("Какво знаеш за Novarium?", "(?:проекта|novarium)"),
     true,
   );
 });

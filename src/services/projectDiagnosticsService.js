@@ -1,6 +1,6 @@
 import { resolveFirestoreProjectId } from "../config/memoryBackend.js";
 import {
-  AI_CORE_PUBLIC_ORIGIN,
+  NOVARIUM_PUBLIC_ORIGIN,
   getGoogleCloudRuntimeStatus,
 } from "./googleCloudService.js";
 import {
@@ -367,7 +367,7 @@ export async function getProjectDiagnostics({
   );
   // Diagnostics intentionally targets only the canonical production origin;
   // callers cannot turn this read-only check into an arbitrary URL fetcher.
-  const origin = AI_CORE_PUBLIC_ORIGIN;
+  const origin = NOVARIUM_PUBLIC_ORIGIN;
   const triggerId = clean(env.CLOUD_BUILD_TRIGGER_ID, 120);
   const triggerName =
     clean(env.CLOUD_BUILD_TRIGGER_NAME, 160) || DEFAULT_TRIGGER_NAME;

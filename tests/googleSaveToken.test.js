@@ -479,7 +479,7 @@ test("a connect from a new browser keeps the account's services and Google accou
           (
             await fetch(`http://127.0.0.1:${server.address().port}/api/google/connect`, {
               redirect: "manual",
-              headers: { cookie: "ai_core_language=en" },
+              headers: { cookie: "novarium_language=en" },
             })
           ).headers.get("location"),
         );

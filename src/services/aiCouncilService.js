@@ -8,7 +8,7 @@ import {
   requestGrokResponse,
   requestClaudeResponse,
   requestOpenAIResponse,
-} from "./aiCoreService.js";
+} from "./novariumService.js";
 import { replyLanguageInstruction } from "../config/replyLanguage.js";
 
 const MAX_REQUEST_LENGTH = 6_000;
@@ -411,7 +411,7 @@ export async function runAiCouncil({
           verbosity: "low",
           reasoningEffort: "medium",
           outputSchema: COUNCIL_SCHEMA,
-          outputSchemaName: "ai_core_council_synthesis",
+          outputSchemaName: "novarium_council_synthesis",
         },
         arbiterTimeoutMs,
         "AI_COUNCIL_ARBITER_TIMEOUT",

@@ -231,7 +231,7 @@ export async function confirmMemoryDelete({
   return executeWrite({
     action: "memory.delete",
     capability: MEMORY_DELETE_ACTION,
-    actor: "synchron-x-memory",
+    actor: "novarium-memory",
     sessionId,
     confirmationId,
     resource: "profile-memory",

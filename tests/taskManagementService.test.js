@@ -38,7 +38,7 @@ test("creates an owner-scoped task draft and lists it without exposing the owner
     {
       ownerId: "supabase:user-1",
       title: "Провери AI разговора",
-      projectId: "synchron-x",
+      projectId: "novarium",
       note: "Първо само read-only тест.",
     },
     {
@@ -49,7 +49,7 @@ test("creates an owner-scoped task draft and lists it without exposing the owner
   );
 
   assert.equal(task.status, "draft");
-  assert.equal(task.projectId, "synchron-x");
+  assert.equal(task.projectId, "novarium");
   assert.equal(task.notes[0].text, "Първо само read-only тест.");
   assert.doesNotMatch(
     JSON.stringify([...client.documents.values()]),

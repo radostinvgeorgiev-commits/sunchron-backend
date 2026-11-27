@@ -11,7 +11,7 @@ test("the interface presents Novarium as the system and Novarium as its core", a
 
   assert.match(html, /<title>Novarium/u);
   assert.match(html, /Вход в Novarium/u);
-  assert.match(html, /src="\/ai-core-mark\.png"/u);
+  assert.match(html, /src="\/novarium-mark\.png"/u);
   assert.match(html, />Novarium</u);
   assert.match(html, /<h1 id="publicTitle">/u);
   assert.match(authCss, /\.auth-wordmark img/u);

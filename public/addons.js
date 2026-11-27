@@ -1,7 +1,7 @@
 (() => {
   // "Добавки": every person can write a small program, try it in a closed
   // sandbox and send it for review. The store shows only approved add-ons.
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
   const isOwner = () => document.body.dataset.userRole === "owner";
   const EXAMPLE = {
     name: "Времето в София",
@@ -440,7 +440,7 @@
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !dialog.hidden) close();
   });
-  document.addEventListener("aicore:addons", () => {
+  document.addEventListener("novarium:addons", () => {
     $('[data-tab="review"]').hidden = !isOwner();
     if (!form.elements.code.value && !form.elements.instructions.value && !form.elements.mcpUrl.value) fill(EXAMPLE);
     dialog.hidden = false;

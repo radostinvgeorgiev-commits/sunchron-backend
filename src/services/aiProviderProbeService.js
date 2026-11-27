@@ -1,4 +1,4 @@
-import { requestAiResponse } from "./aiCoreService.js";
+import { requestAiResponse } from "./novariumService.js";
 
 // A key being present says nothing about whether the provider answers: the
 // model may be retired (404), overloaded (503) or the account out of credit

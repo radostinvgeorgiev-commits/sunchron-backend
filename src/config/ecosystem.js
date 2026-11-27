@@ -7,14 +7,14 @@ const DISABLED = Object.freeze({
 export const ECOSYSTEM_MODULES = Object.freeze({
   novarium: Object.freeze({
     id: "novarium",
-    name: "NOVARIUM",
+    name: "Novarium",
     purpose: "Проектна и продуктова екосистема около Novarium.",
     enabled: true,
     status: "design",
   }),
   token: Object.freeze({
     id: "token",
-    name: "NOVARIUM Token",
+    name: "Novarium Token",
     purpose: "Бъдещ модел за достъп или участие, не активна емисия.",
     ...DISABLED,
     safety: Object.freeze({
@@ -26,7 +26,7 @@ export const ECOSYSTEM_MODULES = Object.freeze({
   }),
   foundation: Object.freeze({
     id: "foundation",
-    name: "NOVARIUM Foundation",
+    name: "Novarium Foundation",
     purpose:
       "Бъдеща нестопанска структура за мисия, стандарти и обществена полза.",
     ...DISABLED,
@@ -38,7 +38,7 @@ export const ECOSYSTEM_MODULES = Object.freeze({
   }),
   corporation: Object.freeze({
     id: "corporation",
-    name: "NOVARIUM Corporation",
+    name: "Novarium Corporation",
     purpose:
       "Бъдещ изпълнител без печалба: подготвя проектите за каузите със собствени агенти, на реална себестойност.",
     ...DISABLED,

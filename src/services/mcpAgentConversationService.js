@@ -14,7 +14,7 @@ import {
   getConfiguredAiProvider,
   isAiProviderConfigured,
   requestAiText,
-} from "./aiCoreService.js";
+} from "./novariumService.js";
 
 // The agent's own model answers first. If its provider is down (Gemini 503,
 // a timeout), the site default answers instead of failing the whole turn,
@@ -119,7 +119,7 @@ function resolveSelection(state, projectId, agentId) {
       -32602,
     );
   }
-  if (agent.engine !== "ai-core") {
+  if (agent.engine !== "novarium") {
     throw new McpAgentConversationError(
       "Този MCP инструмент разговаря само с Novarium. Кодовият агент (Claude) остава отделен изолиран изпълнител.",
       -32602,
@@ -157,7 +157,7 @@ export async function sendMcpAgentMessage(
     getGoogleSession = getLatestGoogleSessionId,
     getGitHubSession = getLatestAuthorizedGitHubSession,
     auditTask = (event) =>
-      recordAuditEvent({ actor: "ai-core-avatar", ...event }),
+      recordAuditEvent({ actor: "novarium-avatar", ...event }),
   } = {},
 ) {
   const cleanOwnerId = cleanRequiredText(ownerId, 200, "проверен профил");

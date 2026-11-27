@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { isAiProviderConfigured, requestAiText } from "./aiCoreService.js";
+import { isAiProviderConfigured, requestAiText } from "./novariumService.js";
 import { ASSISTANT_PRESETS } from "./assistantPresets.js";
 import { analyzeImage } from "./imageService.js";
 import { createShareService } from "./shareService.js";

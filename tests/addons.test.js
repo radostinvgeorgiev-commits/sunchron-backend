@@ -45,7 +45,7 @@ test("the sandbox runs the person's code and returns its answer and logs", async
 
 test("the sandbox has no way out: no process, require, fetch, or host objects", async () => {
   const probe = await runInSandbox(
-    "function run() { return [typeof process, typeof require, typeof fetch, typeof globalThis.__aicoreArgs, typeof setTimeout, typeof XMLHttpRequest].join(','); }",
+    "function run() { return [typeof process, typeof require, typeof fetch, typeof globalThis.__novariumArgs, typeof setTimeout, typeof XMLHttpRequest].join(','); }",
   );
   assert.equal(probe.output, "undefined,undefined,undefined,undefined,undefined,undefined");
   const escape = await runInSandbox("function run() { return this.constructor.constructor('return typeof process')(); }");

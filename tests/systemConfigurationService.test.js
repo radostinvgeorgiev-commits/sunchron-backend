@@ -33,7 +33,7 @@ test("system report combines Google Cloud runtime and production proof", async (
       provider: "google-cloud",
       configured: true,
       cloudRunDetected: true,
-      service: "ai-core",
+      service: "novarium",
     }),
     getProductionStatus: async () => ({
       connected: true,
@@ -52,7 +52,7 @@ test("system report combines Google Cloud runtime and production proof", async (
   assert.equal(report.ecosystem.corporation.enabled, false);
   const output = formatSystemConfigurationReport(report);
   assert.match(output, /Google Cloud/u);
-  assert.match(output, /NOVARIUM/u);
+  assert.match(output, /Novarium/u);
   assert.match(output, /правен преглед/u);
   assert.doesNotMatch(output, /DigitalOcean|Cloudflare/iu);
 });

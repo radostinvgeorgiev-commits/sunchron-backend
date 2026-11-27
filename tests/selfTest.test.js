@@ -219,14 +219,14 @@ test("an unexpected chat answer is shown on one short line", async () => {
 });
 
 test("the MCP tool runs the self-test for the verified owner", async () => {
-  assert.ok(MCP_CAPABILITY_TOOLS.some(({ name }) => name === "run_ai_core_self_test"));
+  assert.ok(MCP_CAPABILITY_TOOLS.some(({ name }) => name === "run_novarium_self_test"));
   const handler = createMcpCapabilityHandler({
     audit: async () => {},
     dependencies: {
       runSelfTest: async () => ({ status: "pass", passed: 1, failed: 0, skipped: 0, checks: [], notCovered: [] }),
     },
   });
-  const { result } = await handler("run_ai_core_self_test", {}, { ownerId: "owner" });
+  const { result } = await handler("run_novarium_self_test", {}, { ownerId: "owner" });
   assert.equal(result.structuredContent.status, "pass");
   assert.match(result.content[0].text, /Самопроверка: 1 минаха/u);
 });

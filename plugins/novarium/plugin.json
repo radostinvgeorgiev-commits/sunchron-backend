@@ -1,0 +1,25 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "novarium",
+  "version": "0.2.0",
+  "description": "Ask Novarium a question and check your AI credit balance.",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Novarium",
+        "shortDescription": "Open the Novarium workspace in ChatGPT.",
+        "longDescription": "Connect your Novarium account to ask Novarium a question or check your remaining credits from ChatGPT.",
+        "developerName": "Novarium",
+        "supportURL": "https://cloudaicore.com/help",
+        "category": "Productivity",
+        "websiteURL": "https://cloudaicore.com/",
+        "defaultPrompt": [
+          "Open my Novarium workspace.",
+          "Check my Novarium AI credit balance."
+        ],
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/icon.png"
+      }
+    }
+  }
+}

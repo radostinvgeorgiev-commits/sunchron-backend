@@ -12,7 +12,7 @@ import {
   resolveChatGptMcpResource,
   verifyMcpAccessToken,
 } from "../services/mcpOAuthService.js";
-import { requestAiText } from "../services/aiCoreService.js";
+import { requestAiText } from "../services/novariumService.js";
 import { publicAiBudgetContext } from "../services/publicAiBudget.js";
 import {
   getProductPlansService,
@@ -25,7 +25,7 @@ import {
 } from "../services/memoryService.js";
 import { logSafeError } from "../utils/safeLogging.js";
 
-const widgetUri = "ui://synchron-x/workspace-v1.html";
+const widgetUri = "ui://novarium/workspace-v1.html";
 const widget = {
   uri: widgetUri,
   name: "Novarium workspace",
@@ -38,7 +38,7 @@ const securitySchemes = [{ type: "oauth2", scopes: [CHATGPT_MCP_SCOPE] }];
 
 const tools = [
   {
-    name: "open_synchron_x_workspace",
+    name: "open_novarium_workspace",
     title: "Open Novarium workspace",
     description:
       "Open the interactive Novarium workspace in the current ChatGPT conversation.",
@@ -55,7 +55,7 @@ const tools = [
     },
   },
   {
-    name: "ask_synchron_x",
+    name: "ask_novarium",
     title: "Ask Novarium",
     description:
       "Get a Novarium answer to a specific question using the connected account. Costs three AI credits for standard accounts and saves the question and answer to the connected account. Send only the question and context the user chose to share.",
@@ -76,7 +76,7 @@ const tools = [
     },
   },
   {
-    name: "get_synchron_x_balance",
+    name: "get_novarium_balance",
     title: "Check Novarium balance",
     description:
       "Read the AI credit balance of the connected Novarium account.",
@@ -97,7 +97,7 @@ const tools = [
   securitySchemes,
   _meta: {
     securitySchemes,
-    ...(tool.name === "open_synchron_x_workspace"
+    ...(tool.name === "open_novarium_workspace"
       ? { ui: { resourceUri: widgetUri } }
       : {}),
   },
@@ -130,7 +130,7 @@ export function createChatGptMcpRouter({
 } = {}) {
   const router = express.Router();
   const widgetHtml = readFileSync(
-    new URL("./synchron-x-widget.html", import.meta.url),
+    new URL("./novarium-widget.html", import.meta.url),
     "utf8",
   );
   const metadata = getChatGptMcpResourceMetadata(env);
@@ -200,7 +200,7 @@ export function createChatGptMcpRouter({
         return reply({
           protocolVersion: MCP_PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false }, resources: {} },
-          serverInfo: { name: "synchron-x", version: "0.2.0" },
+          serverInfo: { name: "novarium", version: "0.2.0" },
         });
       if (method === "notifications/initialized") return res.status(202).end();
       if (method === "ping") return reply({});
@@ -228,12 +228,12 @@ export function createChatGptMcpRouter({
         const args = params?.arguments ?? {};
         if (typeof args !== "object" || Array.isArray(args))
           return failure(-32602, "Expected an argument object.");
-        if (params?.name === "open_synchron_x_workspace") {
+        if (params?.name === "open_novarium_workspace") {
           if (Object.keys(args).length)
             return failure(-32602, "This tool takes no arguments.");
           return reply(result("Novarium is open."));
         }
-        if (params?.name === "get_synchron_x_balance") {
+        if (params?.name === "get_novarium_balance") {
           if (Object.keys(args).length)
             return failure(-32602, "This tool takes no arguments.");
           const usage = await getUsage(req.owner);
@@ -249,7 +249,7 @@ export function createChatGptMcpRouter({
             },
           });
         }
-        if (params?.name === "ask_synchron_x") {
+        if (params?.name === "ask_novarium") {
           const question =
             typeof args.question === "string" ? args.question.trim() : "";
           if (

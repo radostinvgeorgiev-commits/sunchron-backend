@@ -1,4 +1,4 @@
-import { requestAiText } from "./aiCoreService.js";
+import { requestAiText } from "./novariumService.js";
 import { getAvatarProfileService } from "./avatarProfileService.js";
 import {
   GoogleDriveError,

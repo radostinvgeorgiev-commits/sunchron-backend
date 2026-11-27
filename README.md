@@ -1,7 +1,7 @@
-# SYNCHRON-X AI CORE
+# Novarium
 
 Лична AI операционна система, достъпна на
-[cloudaicore.com](https://cloudaicore.com). AI CORE разговаря, пази изолирана
+[cloudaicore.com](https://cloudaicore.com). Novarium разговаря, пази изолирана
 памет и изпълнява само разрешени инструменти.
 
 ## Архитектура

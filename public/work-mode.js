@@ -1,5 +1,5 @@
 (() => {
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
   const STORAGE_VERSION = 6;
   const WORKSPACE_ENDPOINT = "/api/workspaces";
   const ROLE_LABELS = Object.freeze({
@@ -11,7 +11,7 @@
     coder: "Код разработчик (Claude)",
   });
   const ENGINE_OPTIONS = Object.freeze({
-    "ai-core": "Novarium",
+    "novarium": "Novarium",
     codex: "Claude код · анализ и branch/PR",
   });
   const MODEL_OPTIONS = Object.freeze({
@@ -44,7 +44,7 @@
       role: "builder",
       model: "auto",
       purpose: "Подготвя реален резултат и показва какво е проверено.",
-      engine: "ai-core",
+      engine: "novarium",
     }),
     Object.freeze({
       id: "research-agent",
@@ -52,7 +52,7 @@
       role: "researcher",
       model: "auto",
       purpose: "Проверява актуални източници и отделя фактите от изводите.",
-      engine: "ai-core",
+      engine: "novarium",
     }),
     Object.freeze({
       id: "organizer-agent",
@@ -60,7 +60,7 @@
       role: "organizer",
       model: "auto",
       purpose: "Подрежда задачи и календар, като спира преди външни промени.",
-      engine: "ai-core",
+      engine: "novarium",
     }),
     Object.freeze({
       id: "documents-agent",
@@ -68,7 +68,7 @@
       role: "documents",
       model: "auto",
       purpose: "Работи с разрешени файлове, документи и поща.",
-      engine: "ai-core",
+      engine: "novarium",
     }),
     Object.freeze({
       id: "codex-agent",
@@ -251,7 +251,7 @@
           purpose: cleanText(agent?.purpose, 400),
           engine: Object.hasOwn(ENGINE_OPTIONS, agent?.engine)
             ? agent.engine
-            : "ai-core",
+            : "novarium",
         }))
       : fallback.agents;
     const activities = Array.isArray(value.activities)
@@ -508,7 +508,7 @@
     activateMobileCommand(isWork ? "work" : "chat");
     // The header model picker shows chat models in "Чат" and the work
     // agent's models in "Работа".
-    document.dispatchEvent(new CustomEvent("aicore:mode-changed", { detail: { mode: workState.mode } }));
+    document.dispatchEvent(new CustomEvent("novarium:mode-changed", { detail: { mode: workState.mode } }));
   }
 
   function setMode(mode) {
@@ -990,7 +990,7 @@
         purpose: cleanText(purpose.value, 400),
         engine: Object.hasOwn(ENGINE_OPTIONS, engine.value)
           ? engine.value
-          : "ai-core",
+          : "novarium",
       };
       if (!agent.name) return;
       const previousActiveAgentId = workState.activeAgentId;
@@ -1092,7 +1092,7 @@
         purpose: cleanText(purpose.value, 400),
         engine: Object.hasOwn(ENGINE_OPTIONS, engine.value)
           ? engine.value
-          : "ai-core",
+          : "novarium",
       };
       if (!next.name || !next.purpose) return;
       const previous = { ...agent };
@@ -1198,7 +1198,7 @@
           role: agent?.role || "general",
           model: agent?.model || "auto",
           purpose: agent?.purpose || "",
-          engine: agent?.engine || "ai-core",
+          engine: agent?.engine || "novarium",
         },
       },
     };

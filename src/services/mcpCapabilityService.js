@@ -605,7 +605,7 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
     { type: "object", properties: {}, additionalProperties: false },
   ),
   tool(
-    "run_ai_core_self_test",
+    "run_novarium_self_test",
     "Пусни самопроверка на Novarium",
     "Само за собственика. Прави реални проверки отвътре: чат с всеки конфигуриран модел, гласово разпознаване с тестов запис, четене на PDF, създаване/отваряне/спиране на линк за споделяне и списъците с модели и асистенти. Струва няколко цента AI заявки, пипа само собствени тестови данни и ги изтрива.",
     { type: "object", properties: {}, additionalProperties: false },
@@ -1310,7 +1310,7 @@ export function createMcpCapabilityHandler({
         changed,
         "Точната потвърдена Google Cloud промяна е изпълнена.",
       );
-    } else if (name === "run_ai_core_self_test") {
+    } else if (name === "run_novarium_self_test") {
       const report = await (dependencies.runSelfTest || runSelfTest)();
       result = textResult(report, formatSelfTest(report));
     } else if (name === "get_google_cloud_project_diagnostics") {

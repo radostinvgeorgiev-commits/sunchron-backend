@@ -3,7 +3,7 @@
   // read-only link to a copy of the messages, which can be stopped any time.
   const button = document.getElementById("conversationShareBtn");
   if (!button) return;
-  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
+  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
 
   const dialog = document.createElement("div");
   dialog.className = "share-dialog";

@@ -99,7 +99,7 @@ test("export requires consent, excludes welcome and never exports another conver
   w.URL.revokeObjectURL = () => {};
   w.HTMLAnchorElement.prototype.click = function () {
     downloaded++;
-    assert.match(this.download, /ai-core-razgovor/);
+    assert.match(this.download, /novarium-razgovor/);
   };
   const messages = d.getElementById("chatMessages");
   messages.innerHTML =

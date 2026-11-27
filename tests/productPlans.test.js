@@ -252,7 +252,7 @@ test("public budgets cap provider output and charge each attempt before network 
     requestGeminiResponse,
     requestGrokResponse,
     requestClaudeResponse,
-  } = await import("../src/services/aiCoreService.js");
+  } = await import("../src/services/novariumService.js");
   let reserved = 0,
     calls = 0;
   const middleware = createPublicAiBudgetContext({
@@ -316,7 +316,7 @@ test("public budgets cap provider output and charge each attempt before network 
 // instead of the request stopping with "Контекстът е твърде дълъг".
 test("a long member conversation drops its oldest turns and still answers", async () => {
   const { createPublicAiBudgetContext } = await import("../src/services/publicAiBudget.js");
-  const { requestAiResponse } = await import("../src/services/aiCoreService.js");
+  const { requestAiResponse } = await import("../src/services/novariumService.js");
   const reply = "Подробен отговор с план и стъпки. ".repeat(80);
   const input = [{ role: "system", content: "Правила на аватара." }];
   for (let turn = 0; turn < 12; turn++) {

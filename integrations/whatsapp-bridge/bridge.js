@@ -365,7 +365,7 @@ export function createBridge({
           result = {
             protocolVersion: "2025-03-26",
             capabilities: { tools: {}, events: {} },
-            serverInfo: { name: "ai-core-private-whatsapp", version: "0.1.0" },
+            serverInfo: { name: "novarium-private-whatsapp", version: "0.1.0" },
           };
         } else {
           if (!sessions.has(sessionId) || sessions.get(sessionId) <= now())

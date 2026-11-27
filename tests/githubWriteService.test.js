@@ -20,7 +20,7 @@ test("Novarium code write creates one atomic tree, commit, branch and pull reque
     { tree: { sha: "base-tree" } },
     { sha: "new-tree" },
     { sha: "new-commit" },
-    { ref: "refs/heads/ai-core/task-proof" },
+    { ref: "refs/heads/novarium/task-proof" },
     { number: 77, html_url: "https://github.test/pull/77" },
   ];
   global.fetch = async (url, options = {}) => {
@@ -33,7 +33,7 @@ test("Novarium code write creates one atomic tree, commit, branch and pull reque
   try {
     const result = await createCodeTaskPullRequest({
       repository,
-      branchName: "ai-core/task-proof",
+      branchName: "novarium/task-proof",
       changes: [
         { path: "public/avatar-proof.js", content: "export default true;\n" },
       ],
@@ -53,7 +53,7 @@ test("Novarium code write creates one atomic tree, commit, branch and pull reque
     assert.match(calls[5].url, /\/pulls$/u);
     assert.equal(
       JSON.parse(calls[4].options.body).ref,
-      "refs/heads/ai-core/task-proof",
+      "refs/heads/novarium/task-proof",
     );
   } finally {
     global.fetch = originalFetch;
@@ -69,7 +69,7 @@ test("Novarium code write blocks protected deployment files", async () => {
     () =>
       createCodeTaskPullRequest({
         repository,
-        branchName: "ai-core/task-blocked",
+        branchName: "novarium/task-blocked",
         changes: [{ path: ".github/workflows/deploy.yml", content: "unsafe" }],
         commitMessage: "Unsafe",
         title: "Unsafe",
@@ -98,7 +98,7 @@ test("confirmed merge binds the exact head SHA and requires green checks", async
             merged: false,
             draft: false,
             base: { ref: "main", sha: baseSha },
-            head: { ref: "ai-core/task-proof", sha: headSha },
+            head: { ref: "novarium/task-proof", sha: headSha },
             mergeable: true,
             mergeable_state: "clean",
             html_url: "https://github.test/pull/356",

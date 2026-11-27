@@ -2,7 +2,7 @@
   const STORAGE_KEY = "synchronTaskJournalV1";
   const ROADMAP_VERSION_KEY = "synchronTaskJournalRoadmapVersion";
   const ROADMAP_VERSION = 3;
-  const CURRENT_NEXT_TASK_ID = "ai-core-current-next-step";
+  const CURRENT_NEXT_TASK_ID = "novarium-current-next-step";
   const STATUS_ORDER = ["now", "waiting", "done"];
   const STATUS_META = Object.freeze({
     now: {

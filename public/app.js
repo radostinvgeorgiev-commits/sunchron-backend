@@ -1,4 +1,4 @@
-const chatLocale = globalThis.AiCoreLocale;
+const chatLocale = globalThis.NovariumLocale;
 const chatText = (value, values) => chatLocale?.text(value, values) ?? value;
 const englishAuthErrors = {
   AUTH_INVALID_EMAIL: "Enter a valid email address.",
@@ -486,7 +486,7 @@ async function startApplication(user) {
   elements.appShell.hidden = false;
   // Parts that loaded before sign-in (e.g. the assistants row) reload now,
   // so signing in with a password needs no page refresh.
-  document.dispatchEvent(new CustomEvent("aicore:signed-in"));
+  document.dispatchEvent(new CustomEvent("novarium:signed-in"));
   if (user?.role === "owner") {
     globalThis.SynchronCodeWorkspace?.afterSignIn();
     globalThis.SynchronAiSpend?.start();
@@ -863,7 +863,7 @@ function prefersServerVoice() {
     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   let remembered = false;
   try {
-    remembered = localStorage.getItem("aiCoreServerVoice") === "1";
+    remembered = localStorage.getItem("novariumServerVoice") === "1";
   } catch {
     // storage unavailable; decide from the device
   }
@@ -909,7 +909,7 @@ function prepareVoiceInput() {
     ) {
       state.serverVoice = true;
       try {
-        localStorage.setItem("aiCoreServerVoice", "1");
+        localStorage.setItem("novariumServerVoice", "1");
       } catch {
         // remembered for this visit only
       }
@@ -1884,7 +1884,7 @@ const INBOX_SOURCES = Object.freeze({
   claude: "Claude",
   chatgpt: "ChatGPT",
   gemini: "Gemini",
-  "ai-core": "Novarium",
+  "novarium": "Novarium",
   other: "AI",
 });
 
@@ -3221,7 +3221,7 @@ function showNextStep(message, replyText, result) {
 // English, or "" when there is none.
 function taskConfirmationCommand(replyText) {
   const match = String(replyText || "").match(
-    /(?:Потвърждавам (?:Novarium|AI CORE) задача|Confirm (?:Novarium|AI CORE) task):\s*[0-9a-f]{8}-[0-9a-f-]{27,}/iu,
+    /(?:Потвърждавам Novarium задача|Confirm Novarium task):\s*[0-9a-f]{8}-[0-9a-f-]{27,}/iu,
   );
   return match ? match[0] : "";
 }

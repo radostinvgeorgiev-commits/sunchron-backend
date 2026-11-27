@@ -1,6 +1,6 @@
-# AI CORE MVP acceptance checklist
+# Novarium MVP acceptance checklist
 
-Този checklist превръща препоръката на AI CORE Council в минимален, проверим
+Този checklist превръща препоръката на Novarium Council в минимален, проверим
 критерий за готовност на MVP. Всеки сценарий има доказателство и резултат
 `PASS`/`FAIL`/`PENDING`; MVP не се обявява за готово при `PENDING` или `FAIL`.
 
@@ -24,7 +24,7 @@
 
 ## Безопасни проверки, изпълнени досега
 
-- Production сайтът е проверяван преди и е показвал AI CORE/аватар „Капка —
+- Production сайтът е проверяван преди и е показвал Novarium/аватар „Капка —
   Готово за преглед“ и „Сървър онлайн“.
 - Предишна `/health` проверка е била `ok` на commit
   `18912a2a739f6caafeefc643a8d9c9b256b02c6e`; този commit е исторически факт и
@@ -50,9 +50,9 @@
   нов разговор върна „Не знам“; лична памет не е използвана.
 - A4 partial: A2 използва реален allowlisted `memory.write` confirmation gate и
   успешен резултат; локалните permission/task тестове потвърждават intent →
-  adapter → outcome audit. През свързания ChatGPT AI CORE 1 конектор
+  adapter → outcome audit. През свързания ChatGPT Novarium 1 конектор
   `list_action_history` е наличен, но production извикването върна
-  `UNAVAILABLE` („SYNCHRON-X временно не може да изпълни заявката“); няма
+  `UNAVAILABLE` („Novarium временно не може да изпълни заявката“); няма
   направена промяна. Production audit read остава за отделен read-only
   adapter/runtime тест.
 - A5 local: **33 PASS, 0 FAIL** в chat resilience, task execution/orchestration,

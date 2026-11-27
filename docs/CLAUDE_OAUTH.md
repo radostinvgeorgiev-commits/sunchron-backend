@@ -1,4 +1,4 @@
-# Claude към AI CORE
+# Claude към Novarium
 
 Изключено по подразбиране. След одобрена промяна и deployment операторът
 задава MCP_CLAUDE_OAUTH_ENABLED=true. Не се променят Google или ChatGPT grants.
@@ -9,7 +9,7 @@
 - Authentication: Sign in now
 - OAuth client: Use your own OAuth client
 - Client ID: synchron-claude (в Advanced settings; без него Claude опитва
-  динамична регистрация, която AI CORE не поддържа)
+  динамична регистрация, която Novarium не поддържа)
 - Client secret: празно (public client с PKCE S256)
 - Callback: https://claude.ai/api/mcp/auth_callback
 

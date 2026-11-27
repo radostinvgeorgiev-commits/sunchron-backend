@@ -93,7 +93,7 @@ test("project diagnostics checks public runtime, MCP, Cloud Run and trigger with
       return response({
         name: "projects/project-1/locations/global/triggers/trigger-1",
         github: { push: { branch: "^main$" } },
-        serviceAccount: "ai-core-admin@project-1.iam.gserviceaccount.com",
+        serviceAccount: "novarium-admin@project-1.iam.gserviceaccount.com",
       });
     }
     if (url.includes("cloudresourcemanager.googleapis.com")) {

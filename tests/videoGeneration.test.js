@@ -100,7 +100,7 @@ test("videos are open to every account, go through the members' budget, and play
   assert.match(read("../src/routes/videoGenerationRouter.js"), /router\.post\("\/", publicAiBudgetContext/u);
   assert.match(read("../src/services/publicAiBudget.js"), /PUBLIC_VIDEO_CREDITS = 100/u);
   assert.match(read("../public/ui-refresh.js"), /data-plus="video"/u);
-  assert.match(read("../public/daily-plan.js"), /aicore:make-video/u);
+  assert.match(read("../public/daily-plan.js"), /novarium:make-video/u);
 });
 
 test("videos are open to members (owner's decision 2026-11-27), and the owner switch still works", async () => {

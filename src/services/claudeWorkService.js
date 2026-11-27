@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { DEFAULT_CLAUDE_CHAT_MODEL } from "./aiCoreService.js";
+import { DEFAULT_CLAUDE_CHAT_MODEL } from "./novariumService.js";
 import { createFirestoreDocumentStore } from "./firestoreDocumentStore.js";
 
 // "Работа с Claude": a person hands a bigger task to Claude, which works in

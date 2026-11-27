@@ -8,6 +8,7 @@
   let lastAnalysis = "";
 
   if (!button || !drawer || !body) return;
+  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
 
   // The stored Google sign-in no longer works: "Свържи Google отново".
   const RECONNECT_CODES = new Set([
@@ -28,7 +29,7 @@
   };
 
   function openDrawer() {
-    title.textContent = "Google Drive";
+    title.textContent = text("Моят Google");
     drawer.hidden = false;
     drawerBackdrop.hidden = false;
     sidebar.classList.remove("mobile-visible");
@@ -38,7 +39,7 @@
     const response = await fetch(path, { cache: "no-store", ...options });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const error = new Error(data.error || "Google Drive временно не е достъпен.");
+      const error = new Error(data.error || text("Google временно не е достъпен."));
       error.code = data.code || "";
       throw error;
     }
@@ -48,7 +49,7 @@
   async function renderDrive() {
     openDrawer();
     body.innerHTML =
-      '<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Зареждане…</div>';
+      `<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> ${text("Зареждане…")}</div>`;
     let connected = false;
     try {
       const status = await request("/api/google/status");
@@ -56,14 +57,14 @@
       if (!status.connected) {
         body.innerHTML = `
           <section class="drawer-section">
-            <div class="permission-default">AI CORE ще има достъп само за четене на избраните от теб файлове.</div>
+            <div class="permission-default">${text("Свържи своя Google профил. AI CORE ще вижда календара и контактите ти, а събития, контакти и имейли ще създава само след твоето „Потвърди“. Файловете ти в Drive не вижда, освен тези, които сам запазиш от AI CORE.")}</div>
             <button type="button" class="new-chat" id="connectGoogleDrive">
-              <i class="fa-brands fa-google-drive"></i><span>Свържи Google Drive</span>
+              <i class="fa-brands fa-google"></i><span>${text("Свържи Google")}</span>
             </button>
             ${
               status.canRestore
                 ? `<button type="button" class="new-chat" id="restoreGoogleDrive">
-              <i class="fa-solid fa-clock-rotate-left"></i><span>Възстанови старата Google връзка</span>
+              <i class="fa-solid fa-clock-rotate-left"></i><span>${text("Възстанови старата Google връзка")}</span>
             </button>`
                 : ""
             }
@@ -85,7 +86,7 @@
       const files = Array.isArray(data.files) ? data.files : [];
       body.innerHTML = `
         <section class="drawer-section">
-          <div class="permission-default">Свързан е достъп само за четене. Поддържа PDF, Google Docs, Word, текст, Google Sheets, Excel и снимки.</div>
+          <div class="permission-default">${text("Свързан е достъп само за четене. Поддържа PDF, Google Docs, Word, текст, Google Sheets, Excel и снимки.")}</div>
           ${
             files.length
               ? files
@@ -94,29 +95,37 @@
             <article class="permission-card">
               <button type="button" data-drive-file="${escapeHtml(file.id)}" data-drive-name="${escapeHtml(file.name)}" style="text-align:left;background:none;border:0;padding:0;color:inherit">
                 <strong>${escapeHtml(file.name)}</strong>
-                <p>${file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString("bg-BG") : "Файл от Google Drive"}</p>
+                <p>${file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString(globalThis.AiCoreLocale?.browserLocale || "bg-BG") : text("Файл от Google Drive")}</p>
               </button>
-              <button type="button" data-drive-file="${escapeHtml(file.id)}" data-drive-name="${escapeHtml(file.name)}">Отвори текста</button>
+              <button type="button" data-drive-file="${escapeHtml(file.id)}" data-drive-name="${escapeHtml(file.name)}">${text("Отвори текста")}</button>
             </article>`,
                   )
                   .join("")
-              : '<div class="drawer-empty">Няма намерени поддържани файлове.</div>'
+              : `<div class="drawer-empty">${text("Няма намерени поддържани файлове.")}</div>`
           }
-          <a class="permission-default" href="/api/google/connect?add=drive">Ако не виждаш всичките си файлове, натисни тук и разреши целия Drive в Google.</a>
-          <button type="button" id="openMyMail">Пощата ми</button>
-          <button type="button" id="openMyCalendar">Календарът ми</button>
-          <button type="button" id="disconnectGoogleDrive">Прекъсни връзката</button>
+          <a class="permission-default" href="/api/google/connect?add=drive">${text("Ако не виждаш всичките си файлове, натисни тук и разреши целия Drive в Google.")}</a>
+          <button type="button" id="openMyMail">${text("Пощата ми")}</button>
+          <button type="button" id="openMyCalendar">${text("Календарът ми")}</button>
+          <button type="button" id="disconnectGoogleDrive">${text("Прекъсни връзката")}</button>
         </section>`;
     } catch (error) {
-      // A light Google connection has no Drive access yet: show the step
-      // that adds it, not only the error. Other errors (Google busy, expired
-      // sign-in) keep their own message and are not a missing permission.
+      // "Свържи Google" does not open the whole Drive: the connection works
+      // for the calendar, contacts and email, so say that, not an error.
+      if (connected && error.code === "GOOGLE_SCOPE_REQUIRED") {
+        body.innerHTML = `
+          <section class="drawer-section">
+            <div class="permission-default">${text("Google е свързан. В разговора можеш да питаш за календара и контактите си, да добавяш събития и контакти и да пращаш имейли. Нищо не се записва и не се изпраща без твоето „Потвърди“.")}</div>
+            <div class="permission-default">${text("Файловете ти в Drive не се виждат. „Запази в Google“ под отговор прави документ, до който AI CORE има достъп.")}</div>
+            <button type="button" id="openMyCalendar">${text("Календарът ми")}</button>
+            <button type="button" id="disconnectGoogleDrive">${text("Прекъсни връзката")}</button>
+          </section>`;
+        return;
+      }
+      // Other errors (Google busy, expired sign-in) keep their own message.
       body.innerHTML = `<div class="drawer-state drawer-error">${escapeHtml(plainMessage(error.message))}</div>${
-        connected && error.code === "GOOGLE_SCOPE_REQUIRED"
-          ? '<a class="new-chat" href="/api/google/connect?add=drive"><i class="fa-brands fa-google-drive"></i><span>Разреши Google Drive</span></a>'
-          : connected && RECONNECT_CODES.has(error.code)
-            ? '<a class="new-chat" href="/api/google/connect"><i class="fa-brands fa-google"></i><span>Свържи Google отново</span></a>'
-            : ""
+        connected && RECONNECT_CODES.has(error.code)
+          ? `<a class="new-chat" href="/api/google/connect"><i class="fa-brands fa-google"></i><span>${text("Свържи Google отново")}</span></a>`
+          : ""
       }`;
     }
   }
@@ -127,7 +136,7 @@
       const fileId = fileButton.dataset.driveFile;
       const fileName = fileButton.dataset.driveName;
       fileButton.disabled = true;
-      fileButton.textContent = "Анализирам…";
+      fileButton.textContent = text("Анализирам…");
       try {
         const data = await request("/api/google/analyze", {
           method: "POST",
@@ -143,12 +152,12 @@
           <section class="drawer-section">
             <h3>${escapeHtml(data.fileName || fileName)}</h3>
             <div class="permission-default" style="white-space:pre-wrap">${escapeHtml(lastAnalysis)}</div>
-            <button type="button" id="sendDriveAnalysis">Изпрати в разговора</button>
-            <button type="button" id="backToDriveFiles">Назад към файловете</button>
+            <button type="button" id="sendDriveAnalysis">${text("Изпрати в разговора")}</button>
+            <button type="button" id="backToDriveFiles">${text("Назад към файловете")}</button>
           </section>`;
       } catch (error) {
         fileButton.disabled = false;
-        fileButton.textContent = "Анализирай";
+        fileButton.textContent = text("Анализирай");
         alert(error.message);
       }
       return;
@@ -194,11 +203,11 @@
     const outcome = params.get("google");
     const notice =
       outcome === "partial"
-        ? "Google не даде всички разрешения, затова остава старата връзка. Свържи отново и отметни всички."
+        ? text("Google не даде всички разрешения, затова остава старата връзка. Свържи отново и отметни всички.")
         : outcome === "error" && params.get("reason") === "account"
-          ? "Избери същия Google профил, с който е свързан AI CORE."
+          ? text("Избери същия Google профил, с който е свързан AI CORE.")
           : outcome === "error"
-            ? "Връзката с Google не стана. Опитай отново."
+            ? text("Връзката с Google не стана. Опитай отново.")
             : "";
     history.replaceState({}, "", window.location.pathname);
     renderDrive().then(() => {

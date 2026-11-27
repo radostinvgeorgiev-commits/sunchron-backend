@@ -1,4 +1,5 @@
 (() => {
+  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
   const STORAGE_VERSION = 6;
   const WORKSPACE_ENDPOINT = "/api/workspaces";
   const ROLE_LABELS = Object.freeze({
@@ -490,15 +491,17 @@
     document.body.dataset.interactionMode = workState.mode;
     elements.chatModeBtn?.setAttribute("aria-pressed", String(!isWork));
     elements.workModeToolbarBtn?.setAttribute("aria-pressed", String(isWork));
-    elements.chatInput.placeholder = isWork
+    elements.chatInput.placeholder = text(isWork
       ? "Какъв резултат да изработим?"
-      : "Пиши на AI CORE";
+      : "Пиши на AI CORE");
     const project = activeProject();
     const agent = activeAgent();
     elements.projectLabel.textContent = isWork
-      ? project?.name || "Без активен проект"
-      : "Разговор";
-    elements.agentLabel.textContent = agent?.name || "AI CORE";
+      ? project?.name || text("Без активен проект")
+      : text("Разговор");
+    // Built-in agent names ("Изпълни") are translated; names people gave
+    // their own agents stay as written.
+    elements.agentLabel.textContent = agent?.name ? text(agent.name) : "AI CORE";
     activateMobileCommand(isWork ? "work" : "chat");
     // The header model picker shows chat models in "Чат" and the work
     // agent's models in "Работа".

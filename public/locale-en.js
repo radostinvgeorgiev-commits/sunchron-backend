@@ -385,6 +385,54 @@ AI отговорът приключи неочаквано.|The AI response end
 Сървърна грешка. Опитай отново.|Server error. Try again.
 Следва|Next
 Отвори в Дневника|Open in task journal
+История|History
+Моят аватар|My avatar
+Кой съм аз|Who I am
+Моят Google|My Google
+Каузи|Causes
+Още|More
+Проекти и режими|Projects and modes
+Автоматичен|Automatic
+Разговор|Conversation
+Изпълни|Run
+Сподели разговора|Share conversation
+С какво да започнем|Where shall we start
+С какво да започнем?|Where shall we start?
+Какъв резултат да изработим?|What result shall we produce?
+Зареждане…|Loading…
+Търси|Search
+Google временно не е достъпен.|Google is temporarily unavailable.
+Свържи своя Google профил. AI CORE ще вижда календара и контактите ти, а събития, контакти и имейли ще създава само след твоето „Потвърди“. Файловете ти в Drive не вижда, освен тези, които сам запазиш от AI CORE.|Connect your Google account. AI CORE will see your calendar and contacts, and will create events, contacts and emails only after you press Confirm. It cannot see your Drive files, except the ones you save from AI CORE.
+Възстанови старата Google връзка|Restore the previous Google connection
+Свързан е достъп само за четене. Поддържа PDF, Google Docs, Word, текст, Google Sheets, Excel и снимки.|Read-only access is connected. Supports PDF, Google Docs, Word, text, Google Sheets, Excel and images.
+Отвори текста|Open text
+Файл от Google Drive|File from Google Drive
+Няма намерени поддържани файлове.|No supported files found.
+Ако не виждаш всичките си файлове, натисни тук и разреши целия Drive в Google.|If you don't see all your files, tap here and allow your whole Drive in Google.
+Пощата ми|My mail
+Календарът ми|My calendar
+Прекъсни връзката|Disconnect
+Google е свързан. В разговора можеш да питаш за календара и контактите си, да добавяш събития и контакти и да пращаш имейли. Нищо не се записва и не се изпраща без твоето „Потвърди“.|Google is connected. In the chat you can ask about your calendar and contacts, add events and contacts, and send emails. Nothing is saved or sent until you press Confirm.
+Файловете ти в Drive не се виждат. „Запази в Google“ под отговор прави документ, до който AI CORE има достъп.|AI CORE cannot see your Drive files. “Save to Google” under an answer creates a document that AI CORE can access.
+Свържи Google отново|Connect Google again
+Анализирам…|Analyzing…
+Изпрати в разговора|Send to the conversation
+Назад към файловете|Back to files
+Анализирай|Analyze
+Google не даде всички разрешения, затова остава старата връзка. Свържи отново и отметни всички.|Google did not grant every permission, so the previous connection stays. Connect again and tick every box.
+Избери същия Google профил, с който е свързан AI CORE.|Choose the same Google account that AI CORE is connected to.
+Връзката с Google не стана. Опитай отново.|Connecting Google did not work. Try again.
+Google услугата временно не е достъпна.|The Google service is temporarily unavailable.
+Последни имейли. „Чернова от мое име“ записва отговор в твоя стил като чернова в Gmail; нищо не се изпраща без теб.|Latest emails. “Draft as me” saves a reply in your style as a Gmail draft; nothing is sent without you.
+Чернова от мое име|Draft as me
+Няма намерени имейли.|No emails found.
+Пиша черновата…|Writing the draft…
+Черновата не беше записана.|The draft was not saved.
+Отвори черновата в Gmail — прегледай и изпрати сам|Open the draft in Gmail — review it and send it yourself
+Предстоящи събития за 14 дни.|Upcoming events for the next 14 days.
+Няма предстоящи събития.|No upcoming events.
+Потърси място, хотел, заведение или маршрут. Резултатът се отваря в Google Maps.|Search for a place, hotel, restaurant or route. The result opens in Google Maps.
+Например: хотел в Търново|For example: a hotel in Veliko Tarnovo
 Потвърди|Confirm
 Прегледай подготвеното действие и натисни „Потвърди“, ако е точно това.|Review the prepared action and press Confirm if it is exactly right.
 Онлайн|Online

@@ -83,6 +83,10 @@ import {
   createEarlyAccessAdminRouter,
   createEarlyAccessRouter,
 } from "./src/routes/earlyAccessRouter.js";
+import {
+  createContactAdminRouter,
+  createContactRouter,
+} from "./src/routes/contactRouter.js";
 import mcpRouter, { mcpJsonParseErrorHandler } from "./src/routes/mcpRouter.js";
 import { createChatGptMcpRouter, getChatGptMcpResourceMetadata } from "./src/routes/chatGptMcpRouter.js";
 import { createMcpOAuthRouter } from "./src/routes/mcpOAuthRouter.js";
@@ -203,6 +207,16 @@ app.use(
   requirePrimaryOwner,
   privateApiRateLimiter,
   createEarlyAccessAdminRouter(),
+);
+// The contact form on /help (manifesto §5: people reach us only through the
+// site). It limits itself and answers with a page, not JSON.
+app.use("/api/contact", createContactRouter());
+app.use(
+  "/admin/contact",
+  requireOwnerSession,
+  requirePrimaryOwner,
+  privateApiRateLimiter,
+  createContactAdminRouter(),
 );
 // The owner's „Активност“ page: daily counts only, no personal data.
 app.get(

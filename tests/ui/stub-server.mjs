@@ -58,6 +58,8 @@ export function startStubServer(port = 0) {
   let googleLight = false;
   let workspace = null;
   let claudeWorkFiles = [];
+  // What the contact form on /help sent, so the robot can check it arrived.
+  const contactMessages = [];
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://stub");
     let p = url.pathname;
@@ -413,6 +415,26 @@ export function startStubServer(port = 0) {
       return undefined;
     }
     if (p === "/api/workspaces") return json(res, { persisted: Boolean(workspace), state: workspace });
+    // The contact form posts a normal form and is sent back to /help, like the
+    // real server. A message with "[unavailable]" acts as a storage failure.
+    if (p === "/api/contact" && req.method === "POST") {
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        const form = Object.fromEntries(new URLSearchParams(body));
+        contactMessages.push(form);
+        const lang = url.searchParams.get("lang");
+        const result = form.message?.includes("[unavailable]") ? "unavailable" : "received";
+        const query = new URLSearchParams({
+          contact: result,
+          ...(result === "received" ? { ticket: "ABCD0001" } : {}),
+          ...(lang ? { lang } : {}),
+        });
+        res.writeHead(303, { Location: `/help?${query}#contact` });
+        res.end();
+      });
+      return undefined;
+    }
     if (p.startsWith("/api/") || p.startsWith("/memory") || p.startsWith("/health")) {
       return json(res, { items: [], status: "ok", state: {} });
     }
@@ -421,6 +443,7 @@ export function startStubServer(port = 0) {
     if (p.startsWith("/s/")) p = "/shared.html";
     if (p.startsWith("/a/")) p = "/avatar.html";
     if (p === "/status") p = "/status.html";
+    if (p === "/help") p = "/help.html";
     if (p === "/") p = "/index.html";
     const file = path.join(root, path.normalize(p));
     if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
@@ -432,7 +455,7 @@ export function startStubServer(port = 0) {
   });
   return new Promise((resolve) => {
     server.listen(port, "127.0.0.1", () =>
-      resolve({ server, requests, feedback, origin: `http://127.0.0.1:${server.address().port}` }),
+      resolve({ server, requests, feedback, contactMessages, origin: `http://127.0.0.1:${server.address().port}` }),
     );
   });
 }

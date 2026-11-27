@@ -206,6 +206,54 @@ const HEREDOC_AFTER_UNINDENTED_STEP = [
   "",
   "Следва: Пусни `npm start` и ми кажи какво пише.",
 ].join("\n");
+// The same after a step whose unindented code has a blank line.
+const HEREDOC_AFTER_UNINDENTED_BLANK_STEP = [
+  "1. Създай `server.js`:",
+  "   ```js",
+  'const express = require("express");',
+  "",
+  "const app = express();",
+  "app.listen(3000);",
+  "   ```",
+  "2. Създай `README.md`:",
+  "   ```bash",
+  "   cat > README.md <<'EOF'",
+  "# Synchron",
+  "",
+  "Асистент за проекти.",
+  "EOF",
+  "   ```",
+  "",
+  "Следва: Пусни `node server.js` и ми кажи какво пише.",
+].join("\n");
+// A fenced JSON example in a Python string, in a list step whose code was
+// written unindented.
+const FENCE_IN_UNINDENTED_PYTHON = [
+  "- Install:",
+  "    ```python",
+  'PROMPT = """',
+  "Return the result as JSON in a fenced block:",
+  "```json",
+  '{"ok": true}',
+  "```",
+  '"""',
+  "    ```",
+  "Next step: Commit the change.",
+].join("\n");
+// The same with the step's closing fence at the step's text, and a blank line
+// before the Next line.
+const FENCE_IN_UNINDENTED_PYTHON_AT_ITEM = [
+  "1. Install:",
+  "   ```python",
+  'PROMPT = """',
+  "```json",
+  '{"ok": true}',
+  "```",
+  '"""',
+  "   ```",
+  "",
+  "Следва: Пусни тестовете и ми кажи резултата.",
+].join("\n");
 // Unindented HTML in a bare fence of a list step.
 const BARE_FENCE_HTML = [
   "1. Добави картата в `index.html`:",
@@ -456,9 +504,10 @@ const FENCE_CASES = [
   ["- ```bash\nnpm test\nNext: x", []],
   ["- ```bash\n  npm test\n# done\nNext: x", []],
   // When that line is left of the item's text, the block stays open at the
-  // endings of its item while a line further down would close it, so it ends
-  // at its own closing fence, also after a blank line and an unindented line;
-  // with none further down, it ends with its item.
+  // endings of its item while a line further down would close it. It ends at
+  // the next such line, normally its own closing fence, also after a blank
+  // line and an unindented line, or a later block's fence when its own is
+  // missing; with none further down, it ends with its item.
   [
     [
       "1. Инсталирай Express:",
@@ -498,6 +547,21 @@ const FENCE_CASES = [
     [13],
   ],
   ["- ```bash\nnpm test\n- b\nNext: x", [3]],
+  [
+    "1. Install:\n   ```bash\nnpm install express\n2. Create `.env`:\n   ```\n   PORT=3000\n   ```\n\nСледва: Пусни `npm start` и ми кажи какво пише.",
+    [8],
+  ],
+  // After such a block, a bare fence right after its item's marker is read
+  // the same way when the line below it is left of the item's text. With no
+  // such block before it, or on a line of its own, the fence's item ends at
+  // that line.
+  ["1. ```diff\n- old\n+ new\n```\n2. ```\nconst page = {};\n```\n\nСледва: Пусни тестовете.", [8]],
+  [
+    "1. ```diff\n- old\n+ new\n```\n2. ```\nconst page = {\n  Next: 'kept',\n};\n```\n3. Провери:\n\nNext: Run `npm test` and tell me the result.",
+    [11],
+  ],
+  ["- ```\nnpm test\n```\nNext: x", []],
+  ["1. ```js\na\n```\n2. Step:\n   ```\nb\n   ```\nNext: x", []],
   // A closing line further down that is too far in, too short, or of the other
   // character does not keep such a block open.
   ["- ```bash\nnpm test\n- b\n      ```\nNext: x", [4]],
@@ -505,10 +569,14 @@ const FENCE_CASES = [
   ["- ~~~bash\nnpm test\n- b\n```\n```\nNext: x", [5]],
   // The rule reads these otherwise than marked: a block whose first line is
   // at the item's text ends with its item at a blank line and an unindented
-  // line, also after such a step; an HTML block is not read, so the closing
-  // fence after it opens a block; and an item does not end below a line four
-  // or more columns past its text.
+  // line, also after such a step; a fence nested in a block whose code is
+  // unindented closes that block, so the block's own closing fence opens one;
+  // an HTML block is not read, so the closing fence after it opens a block;
+  // and an item does not end below a line four or more columns past its text.
   [HEREDOC_AFTER_UNINDENTED_STEP, []],
+  [HEREDOC_AFTER_UNINDENTED_BLANK_STEP, []],
+  [FENCE_IN_UNINDENTED_PYTHON, []],
+  [FENCE_IN_UNINDENTED_PYTHON_AT_ITEM, [9]],
   [BARE_FENCE_HTML, []],
   [OVER_INDENTED_CLOSER, []],
 ];
@@ -524,6 +592,12 @@ const KNOWN_DIFFERENCES = new Map([
   ["- ```bash\n  npm test\n# done\nNext: x", [3]],
   // marked ends step 1 at its unindented code and pairs every later fence one off.
   [HEREDOC_AFTER_UNINDENTED_STEP, [13]],
+  [HEREDOC_AFTER_UNINDENTED_BLANK_STEP, [16]],
+  // marked ends the step at its unindented code: the JSON fences pair with each
+  // other, and the step's closing fence is text, or, at most three columns in,
+  // opens a block that runs to the end of the answer.
+  [FENCE_IN_UNINDENTED_PYTHON, [9]],
+  [FENCE_IN_UNINDENTED_PYTHON_AT_ITEM, []],
   // marked's HTML block runs to the blank line and takes the closing fence with it.
   [BARE_FENCE_HTML, [7]],
   // marked ends the item below a line four or more columns past the item's text.

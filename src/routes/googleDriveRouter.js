@@ -18,7 +18,9 @@ import {
   getYoutubeChannelSummary,
   googleConnectPath,
   isGoogleScopeMissing,
+  linkSaveSession,
   saveAnswerToGoogle,
+  saveSessionFor,
   sessionBelongsTo,
 } from "../services/googleDriveService.js";
 import { logSafeError } from "../utils/safeLogging.js";
@@ -63,11 +65,17 @@ function sendError(res, error) {
 router.get("/connect", (req, res) => {
   try {
     const state = createNonce();
+    const add = typeof req.query.add === "string" ? [req.query.add] : [];
+    const stateCookie = `synchron_google_state=${state}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`;
     res.setHeader(
       "Set-Cookie",
-      `synchron_google_state=${state}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
+      add[0] === "save"
+        ? [
+            stateCookie,
+            "synchron_google_add=save; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600",
+          ]
+        : stateCookie,
     );
-    const add = typeof req.query.add === "string" ? [req.query.add] : [];
     // Everyone, the owner too, starts with the scopes Google's free check covers;
     // full Gmail / Drive are the separate add=gmail / add=drive steps.
     res.redirect(buildAuthorizationUrl(state, add));
@@ -91,10 +99,14 @@ router.get("/callback", async (req, res) => {
       );
     }
     const tokens = await exchangeCode(String(req.query.code));
-    const id = await createSession(tokens, req.owner);
+    const newId = await createSession(tokens, req.owner);
+    const mainId =
+      cookies.synchron_google_add === "save" ? await sessionId(req) : null;
+    const id = mainId && (await linkSaveSession(mainId, newId)) ? mainId : newId;
     res.setHeader("Set-Cookie", [
       `synchron_google_session=${id}; ${COOKIE_OPTIONS}`,
       "synchron_google_state=; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
+      "synchron_google_add=; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
     ]);
     res.redirect("/?google=connected");
   } catch (error) {
@@ -279,7 +291,7 @@ router.post("/save", async (req, res) => {
   try {
     const { kind, title, text } = req.body || {};
     res.json(
-      await saveAnswerToGoogle(await sessionId(req), {
+      await saveAnswerToGoogle(await saveSessionFor(await sessionId(req)), {
         kind: kind === "sheet" ? "sheet" : "doc",
         title: typeof title === "string" ? title : "",
         text: typeof text === "string" ? text : "",

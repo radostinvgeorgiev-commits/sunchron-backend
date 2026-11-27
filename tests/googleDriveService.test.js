@@ -9,6 +9,8 @@ import {
   createGoogleCalendarEvent,
   createSession,
   decryptGoogleSession,
+  linkSaveSession,
+  saveSessionFor,
   downloadDriveFile,
   encryptGoogleSession,
   findAvailableCalendarSlots,
@@ -185,6 +187,15 @@ test("the main Google connection asks only for scopes Google's free check covers
     assert.doesNotMatch(scope, /gmail\.readonly|gmail\.compose|gmail\.modify|drive\.readonly|youtube/u);
     const save = new URL(buildAuthorizationUrl("state", ["save"])).searchParams.get("scope");
     assert.equal(save, "openid email https://www.googleapis.com/auth/drive.file");
+    // Its own token: no merge with an already granted YouTube.
+    assert.equal(
+      new URL(buildAuthorizationUrl("state", ["save"])).searchParams.get("include_granted_scopes"),
+      null,
+    );
+    assert.equal(
+      new URL(buildAuthorizationUrl("state", ["youtube"])).searchParams.get("include_granted_scopes"),
+      "true",
+    );
   } finally {
     if (original.clientId === undefined) delete process.env.GOOGLE_CLIENT_ID;
     else process.env.GOOGLE_CLIENT_ID = original.clientId;
@@ -607,4 +618,13 @@ test("contact search warms Google's cache and retries once when nothing is found
   });
   assert.deepEqual(queries, ["Нов", "", "Нов"]);
   assert.equal(contacts[0].resourceName, "people/p2");
+});
+
+test("the save token is linked to the main connection, which keeps its id", async () => {
+  const main = await createSession({ access_token: "main", expires_in: 3600 });
+  const save = await createSession({ access_token: "save", expires_in: 3600 });
+  assert.equal(await saveSessionFor(main), main);
+  assert.equal(await linkSaveSession(main, save), true);
+  assert.equal(await saveSessionFor(main), save);
+  assert.equal(await linkSaveSession("missing", save), false);
 });

@@ -269,10 +269,33 @@ export function buildAuthorizationUrl(state, extras = [], { owner = false } = {}
     ).join(" "),
     access_type: "offline",
     prompt: "consent",
-    include_granted_scopes: "true",
+    // Saving files gets its own token: Google refuses drive.file together
+    // with an already granted youtube.readonly in one grant.
+    ...(extras.includes?.("save") ? {} : { include_granted_scopes: "true" }),
     state,
   });
   return `${GOOGLE_AUTH_URL}?${params}`;
+}
+
+// The separate "save" token lives in its own session, linked from the main
+// one, so the main connection keeps every other permission.
+export async function linkSaveSession(mainId, saveId) {
+  const session = await loadSession(mainId);
+  if (!session || !saveId) return false;
+  session.saveSessionId = saveId;
+  sessions.set(mainId, session);
+  try {
+    await persistSession(mainId, session);
+  } catch (error) {
+    logSafeError("[Google session] Save link persistence failure", error);
+  }
+  return true;
+}
+
+export async function saveSessionFor(mainId) {
+  const session = await loadSession(mainId);
+  const saveId = session?.saveSessionId;
+  return saveId && (await hasSession(saveId)) ? saveId : mainId;
 }
 
 export async function exchangeCode(code, fetchImpl = fetch) {

@@ -1171,6 +1171,31 @@ export function mergeMemoryTaskStatus(task, memoryAction) {
   });
 }
 
+// The Google services an allow link can name, by the link's "add=" value or
+// by the name the Bulgarian message starts with: [name, name inside "Allow …"].
+const GOOGLE_ALLOW_BY_ADD = {
+  youtube: ["YouTube", "YouTube"],
+  publish: ["Uploading to YouTube", "uploading to YouTube"],
+  save: ["Saving to Google", "saving to Google"],
+  drive: ["Google Drive", "Google Drive"],
+  gmail: ["Gmail", "Gmail"],
+};
+const GOOGLE_ALLOW_BY_NAME = ["Google Contacts", "Google Calendar", "Google Drive", "Gmail", "YouTube"];
+
+// A missing Google permission with the link that allows it, or null.
+export function googleAllowLink(error) {
+  if (error?.code !== "GOOGLE_SCOPE_REQUIRED") return null;
+  const message = String(error.message || "");
+  const url = message.match(/https?:\/\/[^)\s]+/u)?.[0]?.replace(/[.,;:]+$/u, "");
+  if (!url) return null;
+  const add = url.match(/[?&]add=([a-z]+)/u)?.[1];
+  const name = GOOGLE_ALLOW_BY_NAME.find((item) => message.startsWith(`${item} `));
+  return {
+    url,
+    service: GOOGLE_ALLOW_BY_ADD[add] || (name ? [name, name] : null),
+  };
+}
+
 export function buildCapabilityReplies(capabilityResults, options = {}) {
   const replies = [];
   const seenReplyKeys = new Set();
@@ -1197,13 +1222,13 @@ export function buildCapabilityReplies(capabilityResults, options = {}) {
     const { request, error } = capabilityResult;
     // A Google service the person has not allowed yet: the reply is the
     // button-link to allow it, in the reply language.
-    const connectLink =
-      error?.code === "GOOGLE_SCOPE_REQUIRED"
-        ? String(error.message || "").match(/\]\((https?:\/\/[^)\s]+\?add=([a-z]+))\)/u)
-        : null;
-    if (english && connectLink) {
-      const service = { youtube: "YouTube", save: "Saving to Google", drive: "Google Drive", gmail: "Gmail" }[connectLink[2]] || "This Google service";
-      addUniqueReply(`${service} is not allowed yet. [Allow ${service === "Saving to Google" ? "saving to Google" : service}](${connectLink[1]})`);
+    const allow = english ? googleAllowLink(error) : null;
+    if (allow) {
+      addUniqueReply(
+        allow.service
+          ? `${allow.service[0]} is not allowed yet. [Allow ${allow.service[1]}](${allow.url})`
+          : `This Google service is not allowed yet. [Allow it](${allow.url})`,
+      );
       continue;
     }
     const message = formatCapabilityFailureMessage(error);
@@ -1267,7 +1292,7 @@ export function shouldReplyWithVerifiedToolOutput(capabilityResults) {
         DIRECT_CAPABILITY_REPLIES.has(request?.capability) ||
         // A Google service that is not allowed yet: the answer is exactly
         // its allow link, not a model's retelling that may drop the link.
-        (status === "rejected" && error?.code === "GOOGLE_SCOPE_REQUIRED"),
+        (status === "rejected" && Boolean(googleAllowLink(error))),
     )
   );
 }

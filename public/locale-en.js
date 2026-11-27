@@ -384,6 +384,7 @@ AI Council събира мнения от избраните двигатели 
 AI отговорът приключи неочаквано.|The AI response ended unexpectedly.
 Сървърна грешка. Опитай отново.|Server error. Try again.
 Следва|Next
+Следваща стъпка|Next step
 Отвори в Дневника|Open in task journal
 История|History
 Моят аватар|My avatar

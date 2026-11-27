@@ -65,3 +65,32 @@ test("each remembered fact shows when it was saved and who confirmed it", () => 
   assert.match(app, /потвърдено от теб/u);
   assert.match(app, /Нищо не се записва без твое „да“/u);
 });
+
+test("a missing Google permission points at the allow link and stays out of the journal", () => {
+  const start = app.indexOf("function cleanNextStep(");
+  const end = app.indexOf("function showNextStep(");
+  assert.ok(start > 0 && end > start);
+  const resolveNextStep = new Function(
+    "chatText",
+    `${app.slice(start, end)}\nreturn resolveNextStep;`,
+  )((value) => value);
+  const scopeOnly = { status: "failed", error: "GOOGLE_SCOPE_REQUIRED" };
+  const allow = "Натисни линка за разрешение по-горе и попитай отново.";
+  // Failed, or partly done with only the permission missing: the allow link.
+  for (const status of ["failed", "partial"]) {
+    const next = resolveNextStep("YouTube is not allowed yet.", {
+      task: { status, steps: [{ status: "completed" }, scopeOnly] },
+    });
+    assert.equal(next.step, allow);
+    assert.equal(next.chatOnly, true);
+  }
+  // Any other failure still goes to the journal.
+  const other = resolveNextStep("x", {
+    task: { status: "partial", steps: [scopeOnly, { status: "failed", error: "GOOGLE_API_UNAVAILABLE" }] },
+  });
+  assert.match(other.step, /Дневника/u);
+  assert.equal(other.chatOnly, undefined);
+  // The allow step is neither saved to the journal nor offered as a journal button.
+  assert.match(app, /if \(fromStructuredResult && !next\.chatOnly\) \{/u);
+  assert.match(app, /if \(!next\.chatOnly\) card\.append\(openButton\);/u);
+});

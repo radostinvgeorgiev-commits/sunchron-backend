@@ -3056,21 +3056,23 @@ function resolveNextStep(replyText, result = {}) {
       displayText: parsedReply.displayText,
     };
   }
-  if (status === "partial") {
-    return {
-      step: chatText("Отвори Дневника на задачите и продължи първата незавършена стъпка."),
-      displayText: parsedReply.displayText,
-    };
-  }
-  // Only a Google permission is missing: the reply already has the link.
+  // Only a Google permission is missing: the reply already has the link, so
+  // the step stays in the chat and does not go to the journal.
   const failedSteps = (result?.task?.steps || []).filter((item) => item?.status === "failed");
   if (
-    status === "failed" &&
+    (status === "failed" || status === "partial") &&
     failedSteps.length &&
     failedSteps.every((item) => item.error === "GOOGLE_SCOPE_REQUIRED")
   ) {
     return {
       step: chatText("Натисни линка за разрешение по-горе и попитай отново."),
+      displayText: parsedReply.displayText,
+      chatOnly: true,
+    };
+  }
+  if (status === "partial") {
+    return {
+      step: chatText("Отвори Дневника на задачите и продължи първата незавършена стъпка."),
       displayText: parsedReply.displayText,
     };
   }
@@ -3101,7 +3103,7 @@ function showNextStep(message, replyText, result) {
       result?.council?.nextSteps?.[0] ||
       result?.task?.status,
   );
-  if (fromStructuredResult) {
+  if (fromStructuredResult && !next.chatOnly) {
     globalThis.SynchronTaskJournal?.setNextStep(next.step, {
       detail: "Записано автоматично от последния отговор на AI CORE.",
     });
@@ -3109,7 +3111,7 @@ function showNextStep(message, replyText, result) {
 
   const card = document.createElement("section");
   card.className = "next-step-card";
-  card.setAttribute("aria-label", "Следваща стъпка");
+  card.setAttribute("aria-label", chatText("Следваща стъпка"));
 
   const label = document.createElement("strong");
   label.textContent = chatText("Следва");
@@ -3150,7 +3152,7 @@ function showNextStep(message, replyText, result) {
     });
     card.append(confirmButton);
   }
-  card.append(openButton);
+  if (!next.chatOnly) card.append(openButton);
 
   const actions = turn.querySelector(".message-actions");
   turn.insertBefore(card, actions || null);

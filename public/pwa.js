@@ -1,4 +1,4 @@
-// Registers the minimal service worker that makes Novarium installable
+// Registers the minimal service worker that makes NovariumAI installable
 // ("Add to Home Screen"). Failures are silent: the site works without it.
 if ("serviceWorker" in navigator) {
   addEventListener("load", () => {

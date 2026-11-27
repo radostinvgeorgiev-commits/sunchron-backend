@@ -1,4 +1,4 @@
-# CLAUDE.md — Novarium
+# CLAUDE.md — NovariumAI
 
 Правилата за работа по това хранилище са в [AGENTS.md](AGENTS.md). Прочети го
 преди всяка промяна; то важи изцяло и за Claude.

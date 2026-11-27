@@ -1,4 +1,4 @@
-// Voice and music for Novarium videos: a short spoken line (Gemini speech),
+// Voice and music for NovariumAI videos: a short spoken line (Gemini speech),
 // background music (Vertex AI Lyria) and a mix with ffmpeg. Every step is
 // best effort: when one fails, the video is returned as it was made.
 import { execFile } from "node:child_process";

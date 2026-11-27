@@ -2,7 +2,7 @@ import { DEFAULT_GEMINI_API_URL, DEFAULT_GEMINI_CHAT_MODEL } from "./novariumSer
 import { reservePublicAiFile } from "./publicAiBudget.js";
 import { searchWeb } from "./webSearchService.js";
 
-// Two tools that ride on the Gemini key Novarium already has, so nothing new
+// Two tools that ride on the Gemini key NovariumAI already has, so nothing new
 // is switched on in Google Cloud: a YouTube video read by Gemini from its link,
 // and places/routes answered with Google Maps grounding.
 

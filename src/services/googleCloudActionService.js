@@ -178,7 +178,7 @@ function normalizeCloudRunTarget(input = {}, env = process.env) {
   );
   if (serviceName !== configuredService) {
     throw new GoogleCloudActionError(
-      "Cloud Run промяната е ограничена до текущата Novarium услуга.",
+      "Cloud Run промяната е ограничена до текущата NovariumAI услуга.",
       403,
       "GOOGLE_CLOUD_SERVICE_PROTECTED",
     );
@@ -227,7 +227,7 @@ function normalizeCloudBuildTarget(input = {}, env = process.env) {
   );
   if (location !== DEFAULT_CLOUD_BUILD_LOCATION) {
     throw new GoogleCloudActionError(
-      "Cloud Build промяната е ограничена до global trigger-а на Novarium.",
+      "Cloud Build промяната е ограничена до global trigger-а на NovariumAI.",
       403,
       "GOOGLE_CLOUD_TRIGGER_PROTECTED",
     );

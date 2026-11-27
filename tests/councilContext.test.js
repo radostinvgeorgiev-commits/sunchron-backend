@@ -3,7 +3,7 @@ import test from "node:test";
 import { buildCouncilContext } from "../src/routes/chat.js";
 import { PROJECT_BASE_CONTEXT } from "../src/config/projectIdentity.js";
 
-test("the owner's Council gets the Novarium project context", () => {
+test("the owner's Council gets the NovariumAI project context", () => {
   const context = buildCouncilContext({ owner: true, avatarProfile: "Профил" });
   assert.match(context, new RegExp(PROJECT_BASE_CONTEXT[0].replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
   assert.doesNotMatch(context, /Профил/u);

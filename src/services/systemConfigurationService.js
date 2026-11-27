@@ -196,7 +196,7 @@ export async function getSystemConfigurationReport({
     summary: summarize(environment),
     environment,
     // The ecosystem is intentionally a declarative, fail-closed skeleton.
-    // Reporting it here makes the Novarium status honest without enabling any
+    // Reporting it here makes the NovariumAI status honest without enabling any
     // legal, financial, token or entity-registration action.
     ecosystem: getEcosystemStatus(),
     googleCloud,
@@ -224,7 +224,7 @@ export function formatSystemConfigurationReport(report) {
     `• ${protectedFallbacks.length} използват работещ защитен заместител.`,
     `• ${missing.length} задължителни настройки липсват.`,
     `• Google Cloud runtime: ${report.googleCloud?.cloudRunDetected ? "Cloud Run е потвърден" : report.googleCloud?.configured ? "проектът е конфигуриран, но Cloud Run не е потвърден" : "не е конфигуриран"}.`,
-    `• Екосистема: Novarium е в дизайн; token/foundation/corporation са изключени и чакат правен преглед и човешко одобрение.`,
+    `• Екосистема: NovariumAI е в дизайн; token/foundation/corporation са изключени и чакат правен преглед и човешко одобрение.`,
     productionReady
       ? `• Production /health/ready: готово; commit ${report.production.commit}.`
       : "• Production /health/ready: не е потвърдено.",

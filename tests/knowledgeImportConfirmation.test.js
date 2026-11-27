@@ -65,7 +65,7 @@ test("knowledge import consumes once and writes only after the exact owner match
       resource: { ownerFingerprint, itemCount: 1 },
       params: {
         items: [
-          { id: "a", text: "Одобрено знание за Novarium.", scope: "project" },
+          { id: "a", text: "Одобрено знание за NovariumAI.", scope: "project" },
         ],
       },
     }),
@@ -81,5 +81,5 @@ test("knowledge import consumes once and writes only after the exact owner match
 
   assert.equal(consumed, 1);
   assert.equal(written.ownerId, "owner-a");
-  assert.equal(result[0].text, "Одобрено знание за Novarium.");
+  assert.equal(result[0].text, "Одобрено знание за NovariumAI.");
 });

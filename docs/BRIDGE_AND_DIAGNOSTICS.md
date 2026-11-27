@@ -20,7 +20,7 @@
   Google, памет и инфраструктурни записи се подготвят за отделно owner
   потвърждение.
 - `save_conversation` — запазва разговор от Claude (или друг AI клиент) като
-  нишка `claude-<uuid>` в Novarium за текущия профил; с `sessionId` добавя нови
+  нишка `claude-<uuid>` в NovariumAI за текущия профил; с `sessionId` добавя нови
   съобщения към същата нишка. До 50 съобщения на извикване, само роли
   `user`/`assistant`, scope `synchron:agent.chat`. Не пише в постоянната памет.
 - `prepare_google_cloud_action` / `confirm_google_cloud_action` — owner-only, точни IAM, Cloud Run service identity или съществуващия `synchron-main-deploy` Cloud Build trigger за exact commit SHA, с еднократно потвърждение и audit журнал.

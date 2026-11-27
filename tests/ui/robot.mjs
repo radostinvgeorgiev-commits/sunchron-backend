@@ -278,10 +278,10 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     const pane = box.locator('[data-pane="claude"]');
     await pane.waitFor({ state: "visible", timeout: 5000 });
     await pane.locator('input[name="skill"][value="pptx"]').check();
-    await pane.locator('[name="task"]').fill("Реклама за Novarium");
+    await pane.locator('[name="task"]').fill("Реклама за NovariumAI");
     await pane.locator(".claude-work-run").click();
     await pane.locator(".claude-work-output").waitFor({ state: "visible", timeout: 8000 });
-    expect((await pane.locator(".claude-work-output").innerText()).includes("Реклама за Novarium (pptx)"), "Claude не върна текста");
+    expect((await pane.locator(".claude-work-output").innerText()).includes("Реклама за NovariumAI (pptx)"), "Claude не върна текста");
     const link = pane.locator(':scope > .claude-work-files a', { hasText: "reklama.pptx" });
     await link.waitFor({ timeout: 5000 });
     expect((await link.getAttribute("href")) === "/api/claude-work/files/file_robot", "връзката към файла е грешна");
@@ -622,7 +622,7 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await confirm.click();
     await page.waitForTimeout(900);
     expect(
-      (await page.locator(".user-turn").last().innerText()).includes("Потвърждавам Novarium задача: 11111111-2222-3333-4444-555555555555"),
+      (await page.locator(".user-turn").last().innerText()).includes("Потвърждавам NovariumAI задача: 11111111-2222-3333-4444-555555555555"),
       "бутонът не изпрати точната команда",
     );
     expect((await last().innerText()).includes("Календарното събитие е създадено: Демо"), "събитието не е потвърдено");

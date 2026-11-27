@@ -21,7 +21,7 @@ import { createSession } from "../src/services/googleDriveService.js";
 
 test.beforeEach(() => resetToolRegistryForTests());
 
-test("избира GitHub без Novarium да знае конкретния инструмент", () => {
+test("избира GitHub без NovariumAI да знае конкретния инструмент", () => {
   const result = resolveCapability("code.read");
   assert.equal(result.tool.id, "github-read");
   assert.equal(result.permission.decision, "allow");
@@ -89,7 +89,7 @@ test("блокира липсваща способност по подразби
   );
 });
 
-test("регистрира директния Novarium Code Write адаптер", () => {
+test("регистрира директния NovariumAI Code Write адаптер", () => {
   const result = resolveCapability("code.write");
   assert.equal(result.tool.id, "github-write");
   assert.equal(result.requiresConfirmation, true);
@@ -213,7 +213,7 @@ test("Google Cloud Write accepts the verified Cloud Run runtime markers", () => 
   assert.equal(result.available, true);
 });
 
-test("Novarium chat availability accepts a configured non-OpenAI provider", () => {
+test("NovariumAI chat availability accepts a configured non-OpenAI provider", () => {
   const result = getToolRuntimeAvailability(
     "synchron-agent-chat",
     { ownerId: "supabase:test" },
@@ -225,7 +225,7 @@ test("Novarium chat availability accepts a configured non-OpenAI provider", () =
   assert.equal(result.available, true);
 });
 
-test("Novarium chat and memory availability accept Firestore without OpenSearch", () => {
+test("NovariumAI chat and memory availability accept Firestore without OpenSearch", () => {
   const env = {
     OPENAI_API_KEY: "key",
     MEMORY_BACKEND: "firestore",
@@ -440,7 +440,7 @@ test("не обявява Google Cloud за работещ без runtime кон
   assert.match(report, /Google Cloud Read — реалната проверка е неуспешна/u);
 });
 
-test("връща фокусиран статус за директния Novarium Code Write", async () => {
+test("връща фокусиран статус за директния NovariumAI Code Write", async () => {
   const report = await buildIntegrationStatusReport(
     {
       message: "Работи ли GitHub Write мостът?",

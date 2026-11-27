@@ -10,7 +10,7 @@ const [html, app, css] = await Promise.all([
 
 test("renders a real login gate before the private application", () => {
   assert.match(html, /id="authGate"/u);
-  assert.match(html, /Novarium/u);
+  assert.match(html, /NovariumAI/u);
   assert.match(html, /id="publicTitle"/u);
   assert.match(html, /href="\/plans"/u);
   assert.match(html, /AI предлага, ти одобряваш/u);

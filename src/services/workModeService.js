@@ -33,7 +33,7 @@ const AGENT_ROLES = Object.freeze({
 });
 
 const AGENT_ENGINES = Object.freeze({
-  "novarium": { label: "Novarium" },
+  "novarium": { label: "NovariumAI" },
   codex: { label: "Claude код" },
 });
 
@@ -156,7 +156,7 @@ export function sanitizeWorkContext(value) {
     ? requestedModel
     : "auto";
   const agent = {
-    name: cleanText(value.agent?.name, 50) || "Novarium",
+    name: cleanText(value.agent?.name, 50) || "NovariumAI",
     role,
     model,
     purpose: cleanText(value.agent?.purpose, 400),

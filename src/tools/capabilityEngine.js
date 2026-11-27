@@ -174,12 +174,12 @@ export function getToolRuntimeAvailability(
       if (!hasConfiguredAiProvider(env) || !isMemoryBackendConfigured(env)) {
         return configured(
           false,
-          "Novarium разговорът или постоянната история не са конфигурирани.",
+          "NovariumAI разговорът или постоянната история не са конфигурирани.",
         );
       }
       return configured(
         Boolean(input.ownerId),
-        "Novarium разговорът изисква проверен профил.",
+        "NovariumAI разговорът изисква проверен профил.",
         "CAPABILITY_AUTH_REQUIRED",
       );
     case "synchron-integrations-status":
@@ -193,7 +193,7 @@ export function getToolRuntimeAvailability(
       ) {
         return configured(
           false,
-          "Novarium Code Write не е конфигуриран.",
+          "NovariumAI Code Write не е конфигуриран.",
           "CAPABILITY_NOT_CONFIGURED",
         );
       }
@@ -333,7 +333,7 @@ export async function buildIntegrationStatusReport(
   if (isGitHubWriteStatusRequest(input.message)) {
     return [
       "Проверих текущия режим за GitHub Write.",
-      "Резултат: Novarium подготвя diff, а реалният запис се изпълнява чрез свързания GitHub Write API.",
+      "Резултат: NovariumAI подготвя diff, а реалният запис се изпълнява чрез свързания GitHub Write API.",
       "След точно потвърждение създава отделен branch, атомарен commit и Pull Request; main не се променя директно.",
     ].join("\n");
   }
@@ -359,7 +359,7 @@ export async function buildIntegrationStatusReport(
     ["Google Cloud Memory", memory],
     ["Google Cloud Read", googleCloud],
     [
-      "Novarium разговор",
+      "NovariumAI разговор",
       isNovariumConfigured(env) &&
         providerProbe.some(
           ({ id, working }) =>
@@ -522,9 +522,9 @@ const executors = Object.freeze({
   "synchron-agent-chat": async ({ capability, input }) => {
     if (capability === "chat.list_threads") {
       const threads = await listConversationSummaries(20, input.ownerId);
-      if (!threads.length) return "Няма запазени разговори в Novarium.";
+      if (!threads.length) return "Няма запазени разговори в NovariumAI.";
       return [
-        "Разговори в Novarium:",
+        "Разговори в NovariumAI:",
         ...threads.map(
           (thread) =>
             `• ${thread.title} — ${thread.sessionId} — ${thread.messageCount} съобщения`,
@@ -543,13 +543,13 @@ const executors = Object.freeze({
       );
       if (capability === "chat.read_reply") {
         const reply = messages.findLast((item) => item.role === "assistant");
-        return reply?.content || "В тази нишка още няма отговор от Novarium.";
+        return reply?.content || "В тази нишка още няма отговор от NovariumAI.";
       }
       if (!messages.length) return "Избраният разговор е празен.";
       return messages
         .map(
           (item) =>
-            `${item.role === "user" ? "Радко" : "Novarium"}: ${item.content}`,
+            `${item.role === "user" ? "Радко" : "NovariumAI"}: ${item.content}`,
         )
         .join("\n\n");
     }

@@ -248,7 +248,7 @@
     none.setAttribute("aria-checked", String(!current));
     none.innerHTML = `<i class="fa-solid fa-robot" aria-hidden="true"></i><span><strong></strong><small></small></span>`;
     none.querySelector("strong").textContent = text("Без специалист");
-    none.querySelector("small").textContent = text("Обикновен разговор с Novarium");
+    none.querySelector("small").textContent = text("Обикновен разговор с NovariumAI");
     none.addEventListener("click", () => {
       setAssistant(null);
       openPicker(false);

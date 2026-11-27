@@ -94,7 +94,7 @@ const mcpOAuthRouter = createMcpOAuthRouter({ oauthRateLimiter });
 const aiProviderStatus = getAiProviderStatus(process.env);
 if (!aiProviderStatus.configured) {
   console.warn(
-    `⚠️  Novarium provider ${aiProviderStatus.selectedProvider ?? "unknown"} is not configured. Direct AI conversation is unavailable; independent tools can still run.`,
+    `⚠️  NovariumAI provider ${aiProviderStatus.selectedProvider ?? "unknown"} is not configured. Direct AI conversation is unavailable; independent tools can still run.`,
   );
 }
 

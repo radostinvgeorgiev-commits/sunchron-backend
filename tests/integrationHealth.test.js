@@ -54,7 +54,7 @@ test("integration status exposes Google Cloud and the three-engine code council 
   }
 });
 
-test("Novarium Code Write is configured when one engine is available", () => {
+test("NovariumAI Code Write is configured when one engine is available", () => {
   const original = Object.fromEntries(
     KEYS.map((key) => [key, process.env[key]]),
   );

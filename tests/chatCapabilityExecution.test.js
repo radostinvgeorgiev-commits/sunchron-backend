@@ -888,3 +888,37 @@ test("chat finds a contact by name and prepares an exact email", () => {
     ),
   );
 });
+
+test("the task confirmation lists what each prepared step will do, in English too", () => {
+  const confirmationId = "11111111-2222-3333-4444-555555555555";
+  const taskConfirmation = {
+    confirmationId,
+    expiresAt: "2026-11-27T10:00:00.000Z",
+    items: [{ confirmationId: "a" }, { confirmationId: "b" }],
+  };
+  const results = [
+    {
+      status: "fulfilled",
+      request: { capability: "calendar.write" },
+      result: {
+        requiresConfirmation: true,
+        output: "prepared",
+        metadata: { summary: 'Create the Google Calendar event "Demo": 2026-11-28 10:00 (Europe/Sofia), 30 min.' },
+      },
+    },
+    {
+      status: "fulfilled",
+      request: { capability: "mail.send" },
+      result: {
+        requiresConfirmation: true,
+        output: "prepared",
+        metadata: { summary: "Send an email to ana@example.com (subject: Demo)." },
+      },
+    },
+  ];
+  const reply = buildCapabilityReplies(results, { taskConfirmation, language: "en" }).join("\n");
+  assert.match(reply, /Ready, but nothing has been done yet:/);
+  assert.match(reply, /• Create the Google Calendar event "Demo"/);
+  assert.match(reply, /• Send an email to ana@example\.com \(subject: Demo\)\./);
+  assert.ok(reply.includes(`send this exact command: Confirm AI CORE task: ${confirmationId}`));
+});

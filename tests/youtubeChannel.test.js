@@ -75,6 +75,9 @@ test("chat asks for the channel only when the person means their own", () => {
   assert.equal(isOwnYoutubeChannelRequest("колко гледания имат видеата ми в ютюб"), true);
   assert.equal(isOwnYoutubeChannelRequest("обобщи това видео https://youtu.be/abc"), false);
   assert.equal(isOwnYoutubeChannelRequest("моят канал в Telegram"), false);
+  assert.equal(isOwnYoutubeChannelRequest("Show my YouTube channel and my latest videos"), true);
+  assert.equal(isOwnYoutubeChannelRequest("How many subscribers do I have on YouTube?"), true);
+  assert.equal(isOwnYoutubeChannelRequest("Summarize this YouTube video https://youtu.be/abc"), false);
   const member = { role: "member" };
   const request = [{ capability: "youtube.channel" }];
   assert.equal(filterCapabilityRequestsForIdentity(request, member, { ownGoogle: true }).length, 1);

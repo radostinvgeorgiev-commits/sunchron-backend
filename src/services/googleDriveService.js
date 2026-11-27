@@ -684,6 +684,19 @@ export async function sessionBelongsTo(id, owner) {
   return sessionOwnedBy(await loadSession(id), owner);
 }
 
+// This account's own Google connection as the chat sees it, from the same one
+// stored session `sessionBelongsTo` reads (no call to Google): the scopes
+// Google granted, or, for a token stored without them, the ones the first
+// "Свържи Google" asks for. null when the connection is not this account's.
+export async function googleConnectionFor(id, owner) {
+  if (!id || !owner?.memoryOwnerId) return null;
+  const session = await loadSession(id);
+  if (!sessionOwnedBy(session, owner)) return null;
+  return Object.freeze({
+    scopes: Object.freeze([...grantedScopes(session.scope || GOOGLE_MEMBER_SCOPES.join(" "))]),
+  });
+}
+
 export async function createSession(
   tokens,
   owner = null,

@@ -18,12 +18,17 @@ export function createVideoGenerationRouter({ service, forMembers = VIDEOS_FOR_M
       return res.status(403).json({ error: "Видеата скоро ще са достъпни за всички.", code: "VIDEO_NOT_YET_OPEN" });
     }
     try {
-      const result = await service.generate(req.body?.prompt, { aspectRatio: req.body?.aspectRatio });
+      const result = await service.generate(req.body?.prompt, {
+        aspectRatio: req.body?.aspectRatio,
+        narration: typeof req.body?.narration === "string" ? req.body.narration : undefined,
+        sound: req.body?.sound === false ? false : undefined,
+      });
       res.set({
         "Content-Type": result.mimeType,
         "Content-Length": String(result.video.length),
         "Cache-Control": "no-store",
         "X-Video-Aspect-Ratio": result.aspectRatio,
+        "X-Video-Sound": result.narration ? (result.music ? "voice+music" : "voice") : "none",
       });
       return res.send(result.video);
     } catch (error) {

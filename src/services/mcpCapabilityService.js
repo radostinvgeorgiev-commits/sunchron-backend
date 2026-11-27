@@ -633,13 +633,15 @@ export const MCP_CAPABILITY_TOOLS = Object.freeze([
   tool(
     "generate_video",
     "Направи видео и го запази в Google Drive",
-    "Само за собственика. Прави кратко видео (реклама и др.) от описание с Gemini Omni Flash: до 10 секунди, 720p, със звук; 9:16 за телефон или 16:9. Записва MP4 файла като нов файл в Google Drive на собственика и връща линк. Отнема 1–4 минути и струва около 1 $. Нищо не се публикува.",
+    "Само за собственика. Прави кратко видео (реклама и др.) от описание с Gemini Omni Flash: до 10 секунди, 720p, със звук; 9:16 за телефон или 16:9. Добавя глас зад кадър (narration — текстът; без него AI CORE пише кратък текст на езика на описанието) и фонова музика; sound=false ги спира. Записва MP4 файла като нов файл в Google Drive на собственика и връща линк. Отнема 1–4 минути и струва около 1 $. Нищо не се публикува.",
     {
       type: "object",
       properties: {
         prompt: { type: "string", minLength: 3, maxLength: 2000 },
         aspectRatio: { type: "string", enum: ["16:9", "9:16"] },
         title: { type: "string", maxLength: 100 },
+        narration: { type: "string", maxLength: 400 },
+        sound: { type: "boolean" },
       },
       required: ["prompt"],
       additionalProperties: false,
@@ -1352,15 +1354,15 @@ export function createMcpCapabilityHandler({
         }
         const made = await (dependencies.generateVideo || ((prompt, options) => getVideoGenerationService().generate(prompt, options)))(
           args.prompt,
-          { aspectRatio: args.aspectRatio },
+          { aspectRatio: args.aspectRatio, narration: args.narration, sound: args.sound },
         );
         const saved = await (dependencies.saveVideoToDrive || saveVideoToDrive)(
           saveId,
           { name: args.title || made.prompt.slice(0, 60), bytes: made.video, mimeType: made.mimeType },
         );
         result = textResult(
-          { file: saved, aspectRatio: made.aspectRatio, model: made.model, bytes: made.video.length },
-          `Видеото е готово (${made.aspectRatio}) и е в Google Drive: ${saved.url || saved.name}. Нищо не е публикувано.`,
+          { file: saved, aspectRatio: made.aspectRatio, model: made.model, bytes: made.video.length, narration: made.narration || "", music: Boolean(made.music) },
+          `Видеото е готово (${made.aspectRatio}${made.narration ? ", с глас" : ""}${made.music ? " и музика" : ""}) и е в Google Drive: ${saved.url || saved.name}. Нищо не е публикувано.`,
         );
       } else if (name === "publish_video_to_youtube") {
         const publishId = await (dependencies.publishSessionFor || publishSessionFor)(googleSessionId);

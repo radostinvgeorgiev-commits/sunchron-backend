@@ -102,19 +102,19 @@ test("the confirmation says what each step will do, in the person's language", (
   const english = formatTaskConfirmation(confirmation, true, [
     "Send an email to ana@example.com (subject: Hello).",
   ]);
-  assert.match(english, /^Ready, but nothing has been done yet:\n• Send an email to ana@example\.com/u);
-  assert.match(english, /send this exact command: Confirm AI CORE task: 12345678-1234-1234-1234-123456789012$/u);
+  assert.match(english, /^Ready, but nothing has been done yet:\n\n- Send an email to ana@example\.com/u);
+  assert.match(english, /press Confirm or send this exact command: Confirm AI CORE task: 12345678-1234-1234-1234-123456789012$/u);
   const bulgarian = formatTaskConfirmation(confirmation, false, [
     "Изпращане на имейл до ana@example.com (тема: Здравей).",
   ]);
-  assert.match(bulgarian, /• Изпращане на имейл до ana@example\.com/u);
+  assert.match(bulgarian, /\n- Изпращане на имейл до ana@example\.com/u);
   assert.match(bulgarian, /Потвърждавам AI CORE задача: 12345678-1234-1234-1234-123456789012$/u);
   assert.match(formatTaskConfirmation(confirmation, false), /Подготвих 1 точни записващи операции/u);
 
   const confirmed = { results: [{ result: { output: "Email sent to ana@example.com." } }] };
   assert.equal(
     formatConfirmedTask(confirmed, true),
-    "Done: the confirmed AI CORE task ran 1 operation.\n• Email sent to ana@example.com.",
+    "Done: the confirmed AI CORE task ran 1 operation.\n\n- Email sent to ana@example.com.",
   );
   assert.match(formatConfirmedTask(confirmed, false), /^Потвърдената AI CORE задача е изпълнена: 1 операции\./u);
 });

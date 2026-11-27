@@ -331,6 +331,22 @@ export function startStubServer(port = 0) {
           ] } });
           return res.end();
         }
+        // A prepared write waits for the exact command; the command runs it.
+        if (b.message.startsWith("Създай събитие в календара")) {
+          send("token", { token: [
+            "Подготвих, но още нищо не е направено:",
+            "- Създаване на събитие „Демо“ в Google Calendar: 2026-11-28 10:00 (Europe/Sofia), 30 мин.",
+            "Потвърждение: 11111111-2222-3333-4444-555555555555. Валидно до: 2026-11-28T10:00:00.000Z.",
+            "За изпълнение натисни „Потвърди“ или изпрати точно: Потвърждавам AI CORE задача: 11111111-2222-3333-4444-555555555555",
+          ].join("\n\n") });
+          send("done", { ok: true, mode: "verified-tool-output", task: { id: "t1", status: "waiting_confirmation", verified: false, totalSteps: 1 } });
+          return res.end();
+        }
+        if (b.message === "Потвърждавам AI CORE задача: 11111111-2222-3333-4444-555555555555") {
+          send("token", { token: "Потвърдената AI CORE задача е изпълнена: 1 операции.\n\n- Календарното събитие е създадено: Демо." });
+          send("done", { ok: true, mode: "task-confirmed-write", taskId: "t1" });
+          return res.end();
+        }
         const words = (b.message.includes("списък")
           ? "Ето списък за пазар:\n- Мляко\n- Хляб\n- **Яйца**"
           : `Отговор от ${b.model}${b.assistant ? ` [${b.assistant}]` : ""} на „${b.message}“ думи думи думи думи думи думи`

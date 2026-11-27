@@ -385,6 +385,8 @@ AI отговорът приключи неочаквано.|The AI response end
 Сървърна грешка. Опитай отново.|Server error. Try again.
 Следва|Next
 Отвори в Дневника|Open in task journal
+Потвърди|Confirm
+Прегледай подготвеното действие и натисни „Потвърди“, ако е точно това.|Review the prepared action and press Confirm if it is exactly right.
 Онлайн|Online
 Офлайн|Offline
 Следващото съобщение ще бъде изпратено до избраните AI двигатели|Your next message will be sent to the selected AI models

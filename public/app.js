@@ -3038,7 +3038,7 @@ function resolveNextStep(replyText, result = {}) {
   const status = result?.task?.status;
   if (status === "waiting_confirmation") {
     return {
-      step: "Прегледай подготвеното действие и използвай показаното точно потвърждение.",
+      step: chatText("Прегледай подготвеното действие и натисни „Потвърди“, ако е точно това."),
       displayText: parsedReply.displayText,
     };
   }
@@ -3102,10 +3102,41 @@ function showNextStep(message, replyText, result) {
     }
     globalThis.SynchronTaskJournal?.openCurrentNext();
   });
-  card.append(label, step, openButton);
+  card.append(label, step);
+  // A prepared write (an event, a contact, an email) waits for the exact
+  // command shown in the reply; "Потвърди" sends that command, so nobody has
+  // to type the long code on a phone.
+  const command =
+    result?.task?.status === "waiting_confirmation"
+      ? taskConfirmationCommand(replyText)
+      : "";
+  if (command) {
+    const confirmButton = document.createElement("button");
+    confirmButton.type = "button";
+    confirmButton.className = "next-step-confirm";
+    confirmButton.textContent = chatText("Потвърди");
+    confirmButton.addEventListener("click", () => {
+      if (state.chatBusy) return;
+      confirmButton.disabled = true;
+      elements.chatInput.value = command;
+      resizeChatInput();
+      void sendMessage();
+    });
+    card.append(confirmButton);
+  }
+  card.append(openButton);
 
   const actions = turn.querySelector(".message-actions");
   turn.insertBefore(card, actions || null);
+}
+
+// The exact confirmation command a task reply asks for, in Bulgarian or
+// English, or "" when there is none.
+function taskConfirmationCommand(replyText) {
+  const match = String(replyText || "").match(
+    /(?:Потвърждавам AI CORE задача|Confirm AI CORE task):\s*[0-9a-f]{8}-[0-9a-f-]{27,}/iu,
+  );
+  return match ? match[0] : "";
 }
 
 function memoryCandidateCategoryLabel(category) {

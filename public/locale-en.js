@@ -298,7 +298,7 @@ AI Council, включително обобщаване|AI Council, including sy
 Къде отиват парите|Where the money goes
 Всеки месец приходите на NovariumAI се разпределят в този ред.|Every month, NovariumAI's revenue is split in this order.
 Разходи: сървъри, AI, такси за плащане и заплатата на управителя на фирмата.|Costs: servers, AI, payment fees and the company director's salary.
-Данъци в България.|Taxes in Bulgaria.
+Данъци в България, без офшорни фирми.|Taxes in Bulgaria, with no offshore companies.
 Резерв: 10% от остатъка, докато се съберат около 3 месеца разходи.|Reserve: 10% of what remains, until about 3 months of costs are saved.
 Остатъкът: 80% за каузи, които хората сами предлагат и избират в „Каузи“, и 20% за собственика.|The rest: 80% for causes that people propose and choose themselves in “Causes”, and 20% for the owner.
 Месечни числа|Monthly figures

@@ -1,4 +1,4 @@
-// A tiny stand-in for the AI CORE server, so the browser robot can click
+// A tiny stand-in for the Novarium server, so the browser robot can click
 // through the real page (public/) without sign-in, secrets or AI cost.
 import http from "node:http";
 import fs from "node:fs";
@@ -354,7 +354,7 @@ export function startStubServer(port = 0) {
         res.writeHead(200, { "Content-Type": "text/event-stream" });
         const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
         if (b.council) {
-          send("token", { token: "## AI CORE Council\n\n### Claude · m1\nОтговор А.\n\n### Gemini · m2\nОтговор Б.\n\n### ✅ Съгласни\n- Да\n\n## Обща препоръка (high)\nДобре." });
+          send("token", { token: "## Novarium Council\n\n### Claude · m1\nОтговор А.\n\n### Gemini · m2\nОтговор Б.\n\n### ✅ Съгласни\n- Да\n\n## Обща препоръка (high)\nДобре." });
           send("done", { ok: true, mode: "council", council: { responses: [
             { provider: "claude", model: "m1", text: "Отговор А." },
             { provider: "gemini", model: "m2", text: "Отговор Б." },
@@ -367,13 +367,13 @@ export function startStubServer(port = 0) {
             "Подготвих, но още нищо не е направено:",
             "- Създаване на събитие „Демо“ в Google Calendar: 2026-11-28 10:00 (Europe/Sofia), 30 мин.",
             "Потвърждение: 11111111-2222-3333-4444-555555555555. Валидно до: 2026-11-28T10:00:00.000Z.",
-            "За изпълнение натисни „Потвърди“ или изпрати точно: Потвърждавам AI CORE задача: 11111111-2222-3333-4444-555555555555",
+            "За изпълнение натисни „Потвърди“ или изпрати точно: Потвърждавам Novarium задача: 11111111-2222-3333-4444-555555555555",
           ].join("\n\n") });
           send("done", { ok: true, mode: "verified-tool-output", task: { id: "t1", status: "waiting_confirmation", verified: false, totalSteps: 1 } });
           return res.end();
         }
-        if (b.message === "Потвърждавам AI CORE задача: 11111111-2222-3333-4444-555555555555") {
-          send("token", { token: "Потвърдената AI CORE задача е изпълнена: 1 операции.\n\n- Календарното събитие е създадено: Демо." });
+        if (b.message === "Потвърждавам Novarium задача: 11111111-2222-3333-4444-555555555555") {
+          send("token", { token: "Потвърдената Novarium задача е изпълнена: 1 операции.\n\n- Календарното събитие е създадено: Демо." });
           send("done", { ok: true, mode: "task-confirmed-write", taskId: "t1" });
           return res.end();
         }

@@ -93,7 +93,7 @@ test("a task goes on after a pause, keeps the container, and only its owner can 
     fetchImpl: fakeApi(calls),
     now: () => 1000,
   });
-  const result = await service.run("owner-1", { task: "Направи презентация за AI CORE", skills: ["pptx"] });
+  const result = await service.run("owner-1", { task: "Направи презентация за Novarium", skills: ["pptx"] });
   assert.equal(result.text, "Започвам. Готово: презентацията е в reklama.pptx.");
   assert.deepEqual(result.files, [
     { id: "file_abc", name: "reklama.pptx", mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", size: 5 },

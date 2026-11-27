@@ -294,10 +294,10 @@ test("calendar adapter is not called when the audited write guard blocks", async
 });
 
 test("recognizes the same calendar requests in English", () => {
-  const message = "Create a calendar event: AI CORE demo | 2026-08-05 14:30 | 30";
+  const message = "Create a calendar event: Novarium demo | 2026-08-05 14:30 | 30";
   assert.equal(isCalendarWriteRequest(message), true);
   assert.equal(isCalendarReadRequest(message), false);
-  assert.equal(parseCalendarEventDraft(message).title, "AI CORE demo");
+  assert.equal(parseCalendarEventDraft(message).title, "Novarium demo");
   assert.equal(
     parseCalendarEventDraft("Add an event to my calendar: Team call | 2026-08-05 15:00 | 45").title,
     "Team call",

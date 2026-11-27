@@ -8,7 +8,7 @@ export const ECOSYSTEM_MODULES = Object.freeze({
   novarium: Object.freeze({
     id: "novarium",
     name: "NOVARIUM",
-    purpose: "Проектна и продуктова екосистема около AI CORE.",
+    purpose: "Проектна и продуктова екосистема около Novarium.",
     enabled: true,
     status: "design",
   }),

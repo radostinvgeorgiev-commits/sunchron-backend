@@ -95,7 +95,7 @@ export async function exportAccountData(
   }
   return {
     exportedAt: now().toISOString(),
-    service: "AI CORE · СИНХРОН Х ЕООД",
+    service: "Novarium · СИНХРОН Х ЕООД",
     account: {
       id: identity.id,
       email: identity.email || null,

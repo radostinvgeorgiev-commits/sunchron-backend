@@ -38,7 +38,7 @@ test("rejects unknown actions", () => {
   assert.equal(isAllowedAction(""), false);
 });
 
-test("allows only the exact AI CORE code task action", () => {
+test("allows only the exact Novarium code task action", () => {
   assert.equal(isAllowedAction("github.write:code_task"), true);
   assert.equal(isAllowedAction("github.write:push_main"), false);
 });
@@ -280,7 +280,7 @@ test("rejects non-existent confirmation id", () => {
   );
 });
 
-test("one confirmation cannot approve a different AI CORE task — ids are unique", () => {
+test("one confirmation cannot approve a different Novarium task — ids are unique", () => {
   const conf1 = createConfirmation({
     sessionId: "sess-1",
     action: VALID_ACTION,

@@ -23,7 +23,7 @@ import {
 } from "../src/services/googleDriveService.js";
 import googleDriveRouter from "../src/routes/googleDriveRouter.js";
 
-// "Прекъсни връзката" also revokes AI CORE's access at Google. These tests
+// "Прекъсни връзката" also revokes Novarium's access at Google. These tests
 // never reach Google: they record which tokens would be revoked.
 const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 const passThroughFetch = globalThis.fetch;
@@ -638,7 +638,7 @@ test("disconnecting removes every stored Google token of the person, and nobody 
     assert.equal(await latestMainSessionFor(owner), null);
     assert.equal(await getLatestGoogleSessionId(), null);
     assert.equal(await latestMainSessionFor(member), theirs);
-    // AI CORE's access is revoked at Google too, once per token of this
+    // Novarium's access is revoked at Google too, once per token of this
     // person (the long-lived refresh token, which ends the whole grant);
     // the other person's token is not touched.
     assert.deepEqual(revokedTokens.sort(), ["main-refresh", "older-refresh", "save-refresh"]);

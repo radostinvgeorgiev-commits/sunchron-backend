@@ -89,7 +89,7 @@ test("links a task only to a project from the same owner workspace", async () =>
   const loadWorkspace = async (ownerId) => ({
     state: {
       projects:
-        ownerId === "owner-1" ? [{ id: "project-1", name: "SYNCHRON-X" }] : [],
+        ownerId === "owner-1" ? [{ id: "project-1", name: "Novarium" }] : [],
     },
   });
   const linked = await linkTaskToProject(

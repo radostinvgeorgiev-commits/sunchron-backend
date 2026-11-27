@@ -149,7 +149,7 @@ test("the available agent engines are explicit and Codex replaces code writes wi
       { capability: "web.search", action: "web.read" },
     ],
     {
-      project: { name: "AI CORE" },
+      project: { name: "Novarium" },
       agent: {
         name: "Codex",
         role: "coder",
@@ -176,7 +176,7 @@ test("Codex work mode preserves an explicit GitHub read-only request", () => {
   const requests = routeSelectedWorkAgentCapabilities(
     [{ capability: "code.read", action: "github.read", message }],
     {
-      project: { name: "SYNCHRON-X" },
+      project: { name: "Novarium" },
       agent: {
         name: "Codex",
         role: "coder",
@@ -202,7 +202,7 @@ test("Codex work mode respects an explicit no-tools boundary", () => {
       },
     ],
     {
-      project: { name: "SYNCHRON-X" },
+      project: { name: "Novarium" },
       agent: {
         name: "Codex",
         role: "coder",
@@ -210,7 +210,7 @@ test("Codex work mode respects an explicit no-tools boundary", () => {
         engine: "codex",
       },
     },
-    "Отговори само с „AI CORE работи“ и не използвай инструменти.",
+    "Отговори само с „Novarium работи“ и не използвай инструменти.",
   );
 
   assert.deepEqual(requests, []);
@@ -227,7 +227,7 @@ test("runtime provider and model questions do not launch Codex code analysis", (
       routeSelectedWorkAgentCapabilities(
         [{ capability: "code.read", action: "github.read" }],
         {
-          project: { name: "AI CORE" },
+          project: { name: "Novarium" },
           agent: {
             name: "Codex",
             role: "coder",
@@ -247,7 +247,7 @@ test("runtime provider and model questions do not launch Codex code analysis", (
   );
   assert.equal(
     isRuntimeAiIdentityRequest(
-      "Тест на AI CORE: отговори само с „AI CORE работи“ и не използвай инструменти.",
+      "Тест на Novarium: отговори само с „Novarium работи“ и не използвай инструменти.",
     ),
     false,
   );
@@ -266,9 +266,9 @@ test("active work context questions use verified state instead of chat history",
   );
 
   const reply = buildWorkContextStatusReply({
-    project: { name: "AI CORE развитие", objective: "Работещ продукт" },
+    project: { name: "Novarium развитие", objective: "Работещ продукт" },
     agent: {
-      name: "AI CORE Ръководител SOL",
+      name: "Novarium Ръководител SOL",
       role: "organizer",
       model: "gpt-5.6-sol",
       purpose: "Проверявай фактите",
@@ -278,11 +278,11 @@ test("active work context questions use verified state instead of chat history",
   assert.equal(
     reply,
     [
-      "Агент: AI CORE Ръководител SOL",
+      "Агент: Novarium Ръководител SOL",
       "Модел: GPT-5.6 Sol",
       "Роля: Организатор",
-      "Изпълнител: AI CORE",
-      "Проект: AI CORE развитие",
+      "Изпълнител: Novarium",
+      "Проект: Novarium развитие",
     ].join("\n"),
   );
 });

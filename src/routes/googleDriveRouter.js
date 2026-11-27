@@ -340,7 +340,7 @@ router.post("/save", async (req, res) => {
       error instanceof GoogleDriveError && RECONNECT_CODES.has(error.code);
     if (deadSaveToken) await forgetLinkedSession(mainId, saveId, "save");
     if (deadSaveToken || isGoogleScopeMissing(error)) {
-      // Saving needs its own small permission (only files AI CORE creates).
+      // Saving needs its own small permission (only files Novarium creates).
       return res.status(403).json({
         error: "Запазването в Google още не е разрешено.",
         code: "GOOGLE_SCOPE_REQUIRED",
@@ -353,7 +353,7 @@ router.post("/save", async (req, res) => {
 
 // "Качи в YouTube" under a video made on the page: the MP4 goes to the
 // person's own channel with its own small permission (youtube.upload).
-// YouTube keeps it private until Google's audit of AI CORE; the answer says
+// YouTube keeps it private until Google's audit of Novarium; the answer says
 // what YouTube actually set.
 router.post("/youtube", express.raw({ type: "video/mp4", limit: "64mb" }), async (req, res) => {
   let mainId = null;

@@ -40,7 +40,7 @@
     .then((card) => {
       name = card.name || "човека";
       $("avatarName").textContent = `Питай аватара на ${name}`;
-      document.title = `Аватарът на ${name} · AI CORE`;
+      document.title = `Аватарът на ${name} · Novarium`;
       $("avatarIntro").textContent = card.intro || "";
       add("agent", `Здравей! Аз съм AI аватарът на ${name}. Питай ме нещо. Знам само това, което ${name} ми е разрешил да казвам.`);
       form.hidden = false;

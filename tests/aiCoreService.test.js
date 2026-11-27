@@ -15,7 +15,7 @@ import {
   requestOpenAIText,
 } from "../src/services/aiCoreService.js";
 
-test("AI CORE reports any configured chat provider", () => {
+test("Novarium reports any configured chat provider", () => {
   assert.equal(hasConfiguredAiProvider({ GEMINI_API_KEY: "gemini" }), true);
   assert.equal(hasConfiguredAiProvider({ GROK_API_KEY: "grok" }), true);
   assert.equal(hasConfiguredAiProvider({}), false);

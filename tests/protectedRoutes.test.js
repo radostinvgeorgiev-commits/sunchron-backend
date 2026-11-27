@@ -15,7 +15,7 @@ test("keeps liveness and sign-in routes public", async () => {
     .get("/")
     .set("Host", "cloudaicore.com")
     .expect(200);
-  assert.match(publicEntry.text, /AI CORE/u);
+  assert.match(publicEntry.text, /Novarium/u);
   const registration = await request(app).get("/register").expect(200);
   assert.match(registration.text, /id="registerForm"/u);
   const config = await request(app).get("/api/public-config").expect(200);

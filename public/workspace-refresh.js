@@ -117,7 +117,7 @@
       options?.querySelector("summary")?.focus();
       const content = turns().map((turn) => {
         const message = turn.querySelector(".message");
-        const role = turn.classList.contains("user-turn") ? "Ти" : "AI CORE";
+        const role = turn.classList.contains("user-turn") ? "Ти" : "Novarium";
         const text = message?.dataset.rawText || message?.textContent || "";
         const image = message?.querySelector("img")
           ? "\n[Снимка — не е включена в текстовия отчет]"
@@ -143,7 +143,7 @@
       const date = new Date().toISOString().slice(0, 10);
       const blob = new Blob(
         [
-          `# AI CORE · Разговор\n\nДата на износ: ${date}\n\n${content.join("\n\n")}\n`,
+          `# Novarium · Разговор\n\nДата на износ: ${date}\n\n${content.join("\n\n")}\n`,
         ],
         { type: "text/markdown;charset=utf-8" },
       );

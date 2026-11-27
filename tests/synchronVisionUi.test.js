@@ -29,7 +29,7 @@ test("the chat composer is a labelled multiline control with bounded autosize", 
 
   assert.match(
     html,
-    /<textarea[\s\S]*?id="chatInput"[\s\S]*?aria-label="Съобщение до AI CORE"[\s\S]*?><\/textarea>/u,
+    /<textarea[\s\S]*?id="chatInput"[\s\S]*?aria-label="Съобщение до Novarium"[\s\S]*?><\/textarea>/u,
   );
   assert.match(css, /\.chat-input-area textarea\s*\{/u);
   assert.match(css, /max-height:\s*160px/u);

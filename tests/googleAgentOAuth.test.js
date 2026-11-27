@@ -293,7 +293,7 @@ test("real Google consent route labels the client, binds callback CSP, and excha
       .get("/oauth/authorize")
       .query(input())
       .expect(200);
-    assert.match(consent.text, /Свързване на Gemini CLI със AI CORE/u);
+    assert.match(consent.text, /Свързване на Gemini CLI със Novarium/u);
     assert.match(
       consent.headers["content-security-policy"],
       /http:\/\/127\.0\.0\.1:7777/u,

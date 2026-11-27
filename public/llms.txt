@@ -1,10 +1,10 @@
-# AI CORE
+# Novarium
 
-> AI CORE (https://cloudaicore.com) is a personal AI avatar and workspace by SYNCHRON-X. Every person gets their own avatar with controlled memory, tasks and connections (Google, GitHub, video). The AI suggests, the person approves. Interface in Bulgarian and English. Free start without a credit card.
+> Novarium (https://cloudaicore.com) is a personal AI avatar and workspace by SINHRON H EOOD (Bulgaria). Every person gets their own avatar with controlled memory, tasks and connections (Google, GitHub, video). The AI suggests, the person approves. Interface in Bulgarian and English. Free start without a credit card.
 
 ## Main pages
 
-- [Home and sign-up](https://cloudaicore.com/): what AI CORE does and how to start for free
+- [Home and sign-up](https://cloudaicore.com/): what Novarium does and how to start for free
 - [Plans](https://cloudaicore.com/plans): free daily chat, AI units for heavier work, no automatic extra charges
 - [Help](https://cloudaicore.com/help): how to use the avatar, memory, tasks and connections
 - [Developers](https://cloudaicore.com/developers): MCP server at https://cloudaicore.com/mcp with OAuth, for Claude and other AI clients

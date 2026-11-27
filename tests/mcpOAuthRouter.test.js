@@ -265,10 +265,10 @@ test("authorization consent issues a code bound to the browser profile", async (
   );
   const consent = await request(app).get("/oauth/authorize").expect(200);
   assert.equal(consent.headers["cross-origin-opener-policy"], "unsafe-none");
-  assert.match(consent.text, /Свързване на ChatGPT със AI CORE/u);
+  assert.match(consent.text, /Свързване на ChatGPT със Novarium/u);
   assert.match(consent.text, /Четене на разрешените данни/u);
   assert.match(consent.text, /отделно точно потвърждение/u);
-  assert.match(consent.text, /AI CORE → Разрешения/u);
+  assert.match(consent.text, /Novarium → Разрешения/u);
   const consentToken = consent.text.match(
     /name="consent_token" value="([^"]+)"/u,
   )?.[1];
@@ -598,7 +598,7 @@ test("authorization consent ignores altered repeated OAuth form fields", async (
   }
 });
 
-test("authorization consent names the AI CORE conversation permission", async () => {
+test("authorization consent names the Novarium conversation permission", async () => {
   const previous = process.env.MCP_ACCESS_TOKEN;
   process.env.MCP_ACCESS_TOKEN = SECRET;
   const app = express();
@@ -622,7 +622,7 @@ test("authorization consent names the AI CORE conversation permission", async ()
     }),
   );
   const consent = await request(app).get("/oauth/authorize").expect(200);
-  assert.match(consent.text, /Разговор с AI CORE в собствения профил/u);
+  assert.match(consent.text, /Разговор с Novarium в собствения профил/u);
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
   else process.env.MCP_ACCESS_TOKEN = previous;
 });

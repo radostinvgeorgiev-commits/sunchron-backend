@@ -161,7 +161,7 @@ export async function runSelfTest({
     if (!env.ANTHROPIC_API_KEY) throw skip("няма Claude ключ");
     const result = await readDocument({
       image: {
-        dataUrl: `data:application/pdf;base64,${tinyPdf(`AI CORE TEST ${marker}`).toString("base64")}`,
+        dataUrl: `data:application/pdf;base64,${tinyPdf(`Novarium TEST ${marker}`).toString("base64")}`,
         mimeType: "application/pdf",
         name: "self-test.pdf",
       },

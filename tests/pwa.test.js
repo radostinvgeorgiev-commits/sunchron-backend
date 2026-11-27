@@ -4,7 +4,7 @@ import test from "node:test";
 
 const read = (path) => readFileSync(new URL(`../public/${path}`, import.meta.url), "utf8");
 
-test("AI CORE is installable: manifest, icons, service worker", () => {
+test("Novarium is installable: manifest, icons, service worker", () => {
   const manifest = JSON.parse(read("manifest.webmanifest"));
   assert.equal(manifest.display, "standalone");
   assert.deepEqual(manifest.icons.map((icon) => icon.sizes), ["192x192", "512x512"]);

@@ -25,3 +25,7 @@ test("sitemap lists every public page and llms.txt describes the product", async
   assert.match(llms, /^# AI CORE/u);
   assert.match(llms, /https:\/\/cloudaicore\.com\/mcp/u);
 });
+
+test("IndexNow key file is served so Bing and Yandex accept update pings", async () => {
+  assert.equal(await read("b1b8926aa2b2276601d0435a82d89360.txt"), "b1b8926aa2b2276601d0435a82d89360");
+});

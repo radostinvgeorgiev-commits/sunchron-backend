@@ -689,9 +689,28 @@ test("a revoke that Google refuses or never answers still disconnects", { timeou
           resetGoogleSessionsForTests();
         }),
       );
-      // A 400 means the token is already dead: nothing at all is written.
+      // One summary of the disconnect (counts only); a 400 means the token
+      // is already dead, so no failure is written for it.
+      const summaries = output.filter(([context]) => context === "[Google disconnect] Summary");
       assert.deepEqual(
-        output.map(([context, metadata]) => [context, { ...metadata }]),
+        summaries.map(([, counts]) => counts),
+        [
+          {
+            connections: 2,
+            accounts: 1,
+            sharedAccounts: 0,
+            storedConnections: 2,
+            listComplete: true,
+            unknownElsewhere: false,
+            revoked: 2,
+          },
+        ],
+        `revoke answer ${answer}`,
+      );
+      assert.deepEqual(
+        output
+          .filter(([context]) => context !== "[Google disconnect] Summary")
+          .map(([context, metadata]) => [context, { ...metadata }]),
         expected,
         `revoke answer ${answer}`,
       );
@@ -719,8 +738,26 @@ test("a Google account that someone else still connects here is only forgotten, 
     await createSession(legacyTokens, owner);
     const memberMain = await createSession(fullTokens("member-main", MAIN, "google-1"), member);
 
-    const first = await callGoogle("/disconnect", `synchron_google_session=${ownerOnly}`);
+    let first;
+    const output = await consoleOutput(async () => {
+      first = await callGoogle("/disconnect", `synchron_google_session=${ownerOnly}`);
+    });
     assert.equal(first.status, 200);
+    // The summary says why only one of the owner's accounts was revoked.
+    assert.deepEqual(
+      output.filter(([context]) => context === "[Google disconnect] Summary").map(([, counts]) => counts),
+      [
+        {
+          connections: 3,
+          accounts: 2,
+          sharedAccounts: 1,
+          storedConnections: 4,
+          listComplete: true,
+          unknownElsewhere: false,
+          revoked: 1,
+        },
+      ],
+    );
     // Only the account nobody else uses is revoked; every token of the
     // owner is gone here, and the member keeps their connection.
     assert.deepEqual(revokedTokens, ["owner-only-refresh"]);
@@ -848,9 +885,21 @@ test("when it cannot be told who else uses a Google account, nothing is revoked,
         };
       }
       const main = await createSession(fullTokens("main", MAIN, "google-1"), owner);
-      const response = await callGoogle("/disconnect", `synchron_google_session=${main}`);
+      let response;
+      const output = await consoleOutput(async () => {
+        response = await callGoogle("/disconnect", `synchron_google_session=${main}`);
+      });
       assert.equal(response.status, 200, reason);
       assert.deepEqual(revokedTokens, [], reason);
+      // The summary says why nothing was revoked.
+      const [[, counts]] = output.filter(([context]) => context === "[Google disconnect] Summary");
+      assert.deepEqual(
+        { listComplete: counts.listComplete, unknownElsewhere: counts.unknownElsewhere, revoked: counts.revoked },
+        reason === "the stored list is cut at its limit"
+          ? { listComplete: false, unknownElsewhere: false, revoked: 0 }
+          : { listComplete: true, unknownElsewhere: true, revoked: 0 },
+        reason,
+      );
       // The person is still disconnected here.
       assert.deepEqual([...store.documents.keys()], kept, reason);
       assert.equal(await latestMainSessionFor(owner), null, reason);

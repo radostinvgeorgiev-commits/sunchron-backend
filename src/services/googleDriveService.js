@@ -779,11 +779,12 @@ export async function disconnectGoogleAccount(id, owner) {
   // AI CORE profile) still connect here are never revoked, only forgotten.
   // When that cannot be told for sure, nothing is revoked at all.
   const otherAccounts = new Set();
-  let canRevoke = false;
+  const check = { storedConnections: 0, listComplete: false, unknownElsewhere: false };
   if (owner?.memoryOwnerId) {
     const stored = await storedSessions(1000);
+    check.storedConnections = stored.list.length;
     // A list cut at its limit may have left out someone else's connection.
-    canRevoke = stored.complete;
+    check.listComplete = stored.complete;
     for (const [sessionId, session] of stored.list) {
       if (sessionOwnedBy(session, owner)) {
         own.set(sessionId, session);
@@ -791,7 +792,7 @@ export async function disconnectGoogleAccount(id, owner) {
         const account = googleSubject(session);
         // Someone else's connection with an unknown Google account could be
         // on any account.
-        if (!account && sessionToken(session)) canRevoke = false;
+        if (!account && sessionToken(session)) check.unknownElsewhere = true;
         otherAccounts.add(account);
       }
     }
@@ -803,11 +804,14 @@ export async function disconnectGoogleAccount(id, owner) {
     }
   }
   otherAccounts.delete("");
+  const canRevoke = check.listComplete && !check.unknownElsewhere;
   const current = id ? await loadSessionWithLink(id) : null;
+  const mine = [current, ...own.values()].filter(Boolean);
+  const accounts = new Set(mine.map(googleSubject).filter(Boolean));
   // A token whose Google account is unknown cannot be checked, so it is
   // only forgotten as well.
   const tokens = new Set(
-    [current, ...own.values()]
+    mine
       .filter((session) => {
         const account = googleSubject(session);
         return canRevoke && account && !otherAccounts.has(account);
@@ -815,6 +819,15 @@ export async function disconnectGoogleAccount(id, owner) {
       .map(sessionToken)
       .filter(Boolean),
   );
+  // Why a disconnect did or did not revoke at Google: counts only, never a
+  // token or an account.
+  console.info("[Google disconnect] Summary", {
+    connections: new Set([...own.keys(), ...(current ? [id] : [])]).size,
+    accounts: accounts.size,
+    sharedAccounts: [...accounts].filter((account) => otherAccounts.has(account)).length,
+    ...check,
+    revoked: tokens.size,
+  });
   await Promise.all([...tokens].map((token) => revokeGoogleToken(token)));
   own.delete(id);
   for (const sessionId of own.keys()) await deleteStoredSession(sessionId);

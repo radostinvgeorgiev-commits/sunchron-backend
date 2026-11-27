@@ -149,6 +149,61 @@ test("contact changes require an exact confirmation and reject session substitut
   assert.equal(consumed, false);
 });
 
+test("a contact change may leave the name out but must change something", async () => {
+  let confirmation;
+  const createConfirmation = async (input) => {
+    confirmation = { id: "confirmation-4", expiresAt: Date.now() + 60_000, ...input };
+    return confirmation;
+  };
+  const base = { ownerId: "primary-user", googleSessionId: "google-session-1", sessionId: "session-1" };
+  // A contact found without a name gets just a new phone.
+  const prepared = await prepareGoogleContactChange(
+    {
+      ...base,
+      operation: "update",
+      contact: { resourceName: "people/p1", etag: "etag-1", name: "", phone: "+359 88 123 4567" },
+    },
+    { createConfirmation },
+  );
+  assert.equal(prepared.contact.name, "");
+  assert.equal(confirmation.action, GOOGLE_CONFIRMED_ACTIONS.UPDATE_CONTACT);
+
+  let written;
+  await confirmGoogleAction(
+    { ...base, confirmationId: "confirmation-4" },
+    {
+      validateConfirmation: async () => confirmation,
+      consumeConfirmation: async () => {},
+      executeWrite: async ({ execute }) => execute(),
+      updateContact: async (_session, draft) => {
+        written = draft;
+        return { resourceName: "people/p1", name: "", phone: draft.phone };
+      },
+    },
+  );
+  assert.equal(written.name, "");
+  assert.equal(written.phone, "+359 88 123 4567");
+  assert.equal(written.etag, "etag-1");
+
+  // A change with nothing to change, and a new contact without a name, are refused.
+  await assert.rejects(
+    () =>
+      prepareGoogleContactChange(
+        { ...base, operation: "update", contact: { resourceName: "people/p1", etag: "etag-1" } },
+        { createConfirmation },
+      ),
+    (error) => error.code === "GOOGLE_CONTACT_INVALID",
+  );
+  await assert.rejects(
+    () =>
+      prepareGoogleContactChange(
+        { ...base, operation: "create", contact: { email: "client@example.com" } },
+        { createConfirmation },
+      ),
+    (error) => error.code === "GOOGLE_ACTION_FIELD_INVALID",
+  );
+});
+
 test("a new email is prepared, then sent only after the bound confirmation", async () => {
   let confirmation;
   const sent = [];

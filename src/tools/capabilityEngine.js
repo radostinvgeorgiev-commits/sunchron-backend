@@ -485,6 +485,29 @@ function extractPullRequestNumber(message) {
   return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
+const noContactName = (english) => (english ? "(no name)" : "(без име)");
+
+// The reply after a confirmed contact change names the contact as Google
+// saved it: its name, else its email or phone. When Google did not keep the
+// requested name, the reply says so instead of showing the request's name.
+export function contactSavedReply(contact = {}, english = false) {
+  const label =
+    contact.name || contact.email || contact.phone || noContactName(english);
+  if (contact.unchanged) {
+    return english
+      ? `The Google contact already has these details: ${label}.`
+      : `Google контактът вече има тези данни: ${label}.`;
+  }
+  if (contact.nameSaved === false) {
+    return english
+      ? `Google contact saved, but Google did not keep its name: ${label}.`
+      : `Google контактът е записан, но Google не запази името: ${label}.`;
+  }
+  return english
+    ? `Google contact saved: ${label}.`
+    : `Google контактът е записан: ${label}.`;
+}
+
 function confirmationOutput(prepared, label, exactCommand = null) {
   const lines = [
     `${label} е подготвено, но не е изпълнено.`,
@@ -882,7 +905,7 @@ const executors = Object.freeze({
         english ? "Contacts found:" : "Намерени контакти:",
         ...contacts.map(
           (contact) =>
-            `• ${[contact.name, contact.email, contact.phone].filter(Boolean).join(" — ")}`,
+            `• ${[contact.name, contact.email, contact.phone].filter(Boolean).join(" — ") || noContactName(english)}`,
         ),
       ].join("\n");
     }
@@ -894,9 +917,7 @@ const executors = Object.freeze({
         sessionId: input.sessionId,
         confirmationId: requiredInput(input.confirmationId, "confirmationId"),
       });
-      return english
-        ? `Google contact saved: ${contact.name}.`
-        : `Google контактът е записан: ${contact.name}.`;
+      return contactSavedReply(contact, english);
     }
     const prepared = await prepareGoogleContactChange({
       ownerId: input.ownerId,
@@ -906,16 +927,20 @@ const executors = Object.freeze({
       // From the chat command the contact comes as the request's input.
       contact: input.contact || input.input?.contact,
     });
-    const details = [prepared.contact.email, prepared.contact.phone].filter(Boolean).join(", ");
+    const { name, email, phone } = prepared.contact;
+    const details = [email, phone].filter(Boolean).join(", ");
     const creating = prepared.operation === "create";
+    // A change can leave the name out (or give only a new name).
+    const named = name ? (english ? ` "${name}"` : ` „${name}“`) : "";
+    const listed = details ? ` (${details})` : "";
     return {
       output: confirmationOutput(prepared, "Промяната на Google контакта"),
       metadata: {
         confirmationId: prepared.confirmationId,
         confirmationType: "capability",
         summary: english
-          ? `${creating ? "Add" : "Update"} the Google contact "${prepared.contact.name}" (${details}).`
-          : `${creating ? "Добавяне" : "Промяна"} на Google контакт „${prepared.contact.name}“ (${details}).`,
+          ? `${creating ? "Add" : "Update"} the Google contact${named}${listed}.`
+          : `${creating ? "Добавяне" : "Промяна"} на Google контакт${named}${listed}.`,
       },
     };
   },

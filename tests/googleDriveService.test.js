@@ -305,10 +305,12 @@ test("searches, creates and version-safely updates Google contacts", async () =>
   assert.equal(contacts[0].resourceName, "people/person_1");
 
   let createBody;
+  let createUrl;
   const created = await createGoogleContact(
     sessionId,
     { name: "Нов клиент", phone: "+359 88 123 4567" },
-    async (_url, options) => {
+    async (url, options) => {
+      createUrl = new URL(String(url));
       createBody = JSON.parse(options.body);
       return jsonResponse({
         resourceName: "people/person_2",
@@ -322,10 +324,14 @@ test("searches, creates and version-safely updates Google contacts", async () =>
   // displayName is output only in the People API; the name is written as
   // unstructuredName, otherwise Google saves the contact without a name.
   assert.deepEqual(createBody.names, [{ unstructuredName: "Нов клиент" }]);
+  // Google answers with the contact's own values only.
+  assert.equal(createUrl.searchParams.get("personFields"), "names,emailAddresses,phoneNumbers");
+  assert.equal(createUrl.searchParams.get("sources"), "READ_SOURCE_TYPE_CONTACT");
   assert.equal(created.resourceName, "people/person_2");
   assert.equal(created.name, "Нов клиент");
+  assert.equal(created.nameSaved, undefined);
 
-  let updateRequest;
+  const requests = [];
   const updated = await updateGoogleContact(
     sessionId,
     {
@@ -334,25 +340,125 @@ test("searches, creates and version-safely updates Google contacts", async () =>
       name: "Обновен клиент",
       email: "updated@example.com",
     },
-    async (url, options) => {
-      updateRequest = { url: String(url), body: JSON.parse(options.body) };
+    async (url, options = {}) => {
+      requests.push({
+        url: new URL(String(url)),
+        method: options.method || "GET",
+        body: options.body ? JSON.parse(options.body) : null,
+      });
+      if (!options.method) {
+        return jsonResponse({
+          resourceName: "people/person_2",
+          etag: "etag-2",
+          names: [{ displayName: "Нов клиент" }],
+          phoneNumbers: [{ value: "+359 88 123 4567", type: "mobile" }],
+        });
+      }
       return jsonResponse({
         resourceName: "people/person_2",
         etag: "etag-3",
         names: [{ displayName: "Обновен клиент" }],
         emailAddresses: [{ value: "updated@example.com" }],
+        phoneNumbers: [{ value: "+359 88 123 4567", type: "mobile" }],
       });
     },
   );
-  assert.match(updateRequest.url, /people\/person_2:updateContact/u);
-  assert.equal(updateRequest.body.etag, "etag-2");
-  assert.deepEqual(updateRequest.body.names, [
-    { unstructuredName: "Обновен клиент" },
-  ]);
+  // The contact is read first, then only the changed fields are written.
+  assert.deepEqual(
+    requests.map(({ method, url }) => `${method} ${url.pathname.split("/").pop()}`),
+    ["GET person_2", "PATCH person_2:updateContact"],
+  );
+  assert.equal(requests[0].url.searchParams.get("sources"), "READ_SOURCE_TYPE_CONTACT");
+  const update = requests[1];
+  assert.equal(update.url.searchParams.get("updatePersonFields"), "names,emailAddresses");
+  assert.equal(update.body.etag, "etag-2");
+  assert.deepEqual(update.body.names, [{ unstructuredName: "Обновен клиент" }]);
+  assert.deepEqual(update.body.emailAddresses, [{ value: "updated@example.com" }]);
+  // The phone was not part of the change, so it is neither sent nor cleared.
+  assert.equal("phoneNumbers" in update.body, false);
   assert.equal(updated.email, "updated@example.com");
+  assert.equal(updated.phone, "+359 88 123 4567");
 });
 
-test("a saved contact keeps the requested name when Google's answer has none", async () => {
+test("a contact change keeps the contact's other emails and phones and its unchanged name", async () => {
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
+  const own = (extra = {}) => ({ source: { type: "CONTACT" }, ...extra });
+  const requests = [];
+  await updateGoogleContact(
+    sessionId,
+    {
+      resourceName: "people/person_7",
+      etag: "etag-7",
+      name: "Иван Петров",
+      email: "new@firma.bg",
+      phone: "+359 88 111 1111",
+    },
+    async (url, options = {}) => {
+      requests.push({ method: options.method || "GET", url: new URL(String(url)), body: options.body });
+      if (!options.method) {
+        return jsonResponse({
+          resourceName: "people/person_7",
+          etag: "etag-7",
+          names: [{ displayName: "Иван Петров", honorificPrefix: "Д-р", metadata: own({ primary: true }) }],
+          emailAddresses: [
+            { value: "home@example.com", type: "home", formattedType: "Home", metadata: own() },
+            { value: "old@firma.bg", type: "work", formattedType: "Work", metadata: own({ primary: true }) },
+          ],
+          phoneNumbers: [
+            { value: "+359881111111", canonicalForm: "+359881111111", type: "mobile", metadata: own({ primary: true }) },
+            { value: "+359 2 222 2222", type: "work", metadata: own() },
+          ],
+        });
+      }
+      return jsonResponse({ resourceName: "people/person_7", etag: "etag-8" });
+    },
+  );
+  const update = requests.find(({ method }) => method === "PATCH");
+  const body = JSON.parse(update.body);
+  // Only the email changes: the name is the same and the phone is already
+  // there (written differently), so neither is rewritten.
+  assert.equal(update.url.searchParams.get("updatePersonFields"), "emailAddresses");
+  assert.equal("names" in body, false);
+  assert.equal("phoneNumbers" in body, false);
+  // The main email is replaced in place with its label; the other one stays.
+  assert.deepEqual(body.emailAddresses, [
+    { value: "home@example.com", type: "home" },
+    { value: "new@firma.bg", type: "work" },
+  ]);
+});
+
+test("a contact change with nothing new writes nothing", async () => {
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
+  const methods = [];
+  const result = await updateGoogleContact(
+    sessionId,
+    { resourceName: "people/person_8", etag: "etag-8", email: "SAME@example.com" },
+    async (_url, options = {}) => {
+      methods.push(options.method || "GET");
+      return jsonResponse({
+        resourceName: "people/person_8",
+        etag: "etag-8",
+        emailAddresses: [{ value: "same@example.com" }],
+      });
+    },
+  );
+  assert.deepEqual(methods, ["GET"]);
+  assert.equal(result.unchanged, true);
+  assert.equal(result.email, "same@example.com");
+  // A change must give at least one thing to change.
+  await assert.rejects(
+    () => updateGoogleContact(sessionId, { resourceName: "people/person_8", etag: "etag-8" }),
+    (error) => error.code === "GOOGLE_CONTACT_INVALID",
+  );
+});
+
+test("a contact Google saved without its name is reported, never named from the request", async () => {
   const sessionId = await createSession({
     access_token: "token",
     expires_in: 3600,
@@ -367,7 +473,27 @@ test("a saved contact keeps the requested name when Google's answer has none", a
         emailAddresses: [{ value: "reviewer.demo@example.com" }],
       }),
   );
-  assert.equal(created.name, "Reviewer Demo");
+  assert.equal(created.name, "");
+  assert.equal(created.nameSaved, false);
+  assert.equal(created.email, "reviewer.demo@example.com");
+
+  // When the answer also lists a linked Google profile, the contact's own
+  // name (the one the person saved) is the one reported.
+  const linked = await createGoogleContact(
+    sessionId,
+    { name: "Мама", email: "maria.ivanova@gmail.com" },
+    async () =>
+      jsonResponse({
+        resourceName: "people/person_11",
+        names: [
+          { displayName: "Maria Ivanova", metadata: { source: { type: "PROFILE" } } },
+          { displayName: "Мама", metadata: { primary: true, source: { type: "CONTACT" } } },
+        ],
+        emailAddresses: [{ value: "maria.ivanova@gmail.com" }],
+      }),
+  );
+  assert.equal(linked.name, "Мама");
+  assert.equal(linked.nameSaved, undefined);
 
   const found = await searchGoogleContacts(sessionId, "reviewer", 10, async () =>
     jsonResponse({

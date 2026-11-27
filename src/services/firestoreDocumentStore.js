@@ -233,8 +233,13 @@ export function createFirestoreDocumentStore({
         let upstreamErrorStatus = null;
         try {
           const payload = await response.json();
+          // runQuery streams its answer as a list, so its errors arrive as
+          // [{ error }] too (a missing index: 400 FAILED_PRECONDITION).
+          const upstream = Array.isArray(payload)
+            ? payload.find((item) => item?.error)?.error
+            : payload?.error;
           upstreamErrorStatus =
-            String(payload?.error?.status || "").trim() || null;
+            String(upstream?.status || "").trim() || null;
         } catch {
           // Error bodies are intentionally not retained or exposed.
         }

@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
 
+import {
+  createFirestoreDocumentStore,
+  encodeFirestoreFields,
+} from "../src/services/firestoreDocumentStore.js";
 import { createFirestoreMcpOAuthStore } from "../src/services/firestoreMcpOAuthStore.js";
 import { createFirestoreOAuthSessionStore } from "../src/services/firestoreOAuthSessionStore.js";
 import {
@@ -253,6 +257,45 @@ test("Firestore OAuth session reads fall back when the ordering index is missing
   });
   assert.equal(calls[1].options.limit, 1_000);
   assert.equal(calls[1].options.orderBy, undefined);
+});
+
+test("Google session reads fall back when Firestore refuses the ordered query with a 400 list", async () => {
+  // Firestore's own answer for a missing composite index, through the real
+  // document store: HTTP 400 with the error inside a list.
+  const queries = [];
+  const fetchImpl = async (url, options = {}) => {
+    if (String(url).includes("metadata.google.internal")) {
+      return Response.json({ access_token: "runtime-token", expires_in: 3600 });
+    }
+    const { structuredQuery } = JSON.parse(options.body);
+    queries.push(structuredQuery);
+    if (structuredQuery.orderBy) {
+      return Response.json(
+        [{ error: { code: 400, status: "FAILED_PRECONDITION", message: "index" } }],
+        { status: 400 },
+      );
+    }
+    const document = (id, updatedAt) => ({
+      document: {
+        name: `projects/p/databases/(default)/documents/synchron-google-sessions-v1/${id}`,
+        fields: encodeFirestoreFields({ firestoreProvider: "google", data: "encrypted", updatedAt }),
+      },
+    });
+    return Response.json([document("older", "2026-11-26T10:00:00.000Z"), document("newer", "2026-11-27T07:00:00.000Z")]);
+  };
+  const store = createFirestoreOAuthSessionStore({
+    provider: "google",
+    env: GCP_ENV,
+    documentStore: createFirestoreDocumentStore({ env: GCP_ENV, fetchImpl }),
+  });
+
+  assert.deepEqual(
+    (await store.listLatest(1000)).map(({ id }) => id),
+    ["newer", "older"],
+  );
+  assert.equal(queries.length, 2);
+  assert.equal(queries[1].orderBy, undefined);
+  assert.equal(queries[1].limit, 1_000);
 });
 
 test("GitHub and Google sessions persist encrypted through Firestore", async () => {

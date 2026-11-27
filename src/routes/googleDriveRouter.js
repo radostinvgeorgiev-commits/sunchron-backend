@@ -246,7 +246,16 @@ router.get("/check", async (req, res) => {
 });
 
 router.post("/disconnect", async (req, res) => {
-  await disconnectGoogleAccount(await sessionId(req), req.owner);
+  try {
+    await disconnectGoogleAccount(await sessionId(req), req.owner);
+  } catch (error) {
+    // The page says so and keeps its "Прекъсни връзката" button.
+    logSafeError("[Google disconnect]", error);
+    return res.status(503).json({
+      error: "Връзката с Google не се прекъсна. Опитай отново.",
+      code: "GOOGLE_DISCONNECT_FAILED",
+    });
+  }
   res.setHeader(
     "Set-Cookie",
     "synchron_google_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",

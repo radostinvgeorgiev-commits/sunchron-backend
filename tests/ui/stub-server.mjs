@@ -6,6 +6,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { listAssistantPresets } from "../../src/services/assistantPresets.js";
 import { createAddonService } from "../../src/services/addonService.js";
+// The server's own rules for pictures and video in the chat, so the robot can
+// only pass on what the server does.
+import {
+  chatMediaEvent,
+  mediaOffer,
+  mediaYesAnswer,
+  shortYesTurns,
+} from "../../src/services/chatMediaProposals.js";
+import { useEnglishReplyFallback } from "../../src/config/replyLanguage.js";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "public");
 const json = (res, body, status = 200) => {
@@ -21,9 +30,75 @@ const MODELS = [
 // The real list, so the robot sees what people see.
 const ASSISTANTS = listAssistantPresets();
 const TYPES = { ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".html": "text/html", ".png": "image/png", ".json": "application/json", ".webmanifest": "application/manifest+json" };
+// A 1×1 picture, as /api/images sends a made one.
+const TINY_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+// The pictures and the video an answer describes.
+export const MEDIA_DESCRIPTIONS = Object.freeze([
+  { kind: "image", prompt: "Чаша кафе на дървена маса, сутрешна светлина" },
+  { kind: "image", prompt: "Баристка подава кафе през прозорче, усмихва се" },
+  { kind: "video", prompt: "Пара над чаша кафе, после надпис „Добро утро“" },
+]);
+// The answer as the server's rule asks the model for it: a description per
+// item on its own line, a blank line after each, and the offer last.
+export const MEDIA_ANSWER = [
+  "Ето рекламата: „Кафе, което събужда града.“",
+  "",
+  ...MEDIA_DESCRIPTIONS.flatMap((item, at) => [
+    item.kind === "video" ? `Видео: ${item.prompt}` : `Картинка ${at + 1}: ${item.prompt}`,
+    "",
+  ]),
+  "Следва: напиши „да“ и правя картинките и видеото.",
+].join("\n");
+// The same offer for the first picture alone, with a short sentence after
+// the offer line: the card still comes, and a short yes still starts it.
+export const MEDIA_TRAILING_ANSWER = [
+  "Ето идеята за поста.",
+  "",
+  `Картинка 1: ${MEDIA_DESCRIPTIONS[0].prompt}`,
+  "",
+  "Следва: напиши „да“ и правя картинката.",
+  "",
+  "Ако искаш друг стил, кажи.",
+].join("\n");
+// A full card: four pictures and a video, ten lines of the page's own once
+// made (review r2: an edit of the yes after them lost the offer above).
+export const FULL_DESCRIPTIONS = Object.freeze([
+  { kind: "image", prompt: "Витрина на кафене сутрин, топла светлина, квадратен формат" },
+  { kind: "image", prompt: "Ръце държат чаша капучино със сърце от мляко, отгоре" },
+  { kind: "image", prompt: "Маса до прозорец с книга и кроасан, меки цветове" },
+  { kind: "image", prompt: "Баристка мели кафе, близък план, вертикално 4:5" },
+  { kind: "video", prompt: "Камерата минава покрай витрината и спира на чаша кафе" },
+]);
+export const MEDIA_FULL_ANSWER = [
+  "Ето кампанията за кафенето.",
+  "",
+  ...FULL_DESCRIPTIONS.flatMap((item, at) => [
+    item.kind === "video" ? `Видео: ${item.prompt}` : `Картинка ${at + 1}: ${item.prompt}`,
+    "",
+  ]),
+  "Следва: напиши „да“ и правя картинките и видеото.",
+].join("\n");
+// What the stub's account can make: both, as with the keys set.
+const MEDIA_AVAILABLE = Object.freeze({ images: true, video: true });
 
 export function startStubServer(port = 0) {
   const requests = [];
+  // Every picture and clip the page asked for: { path, prompt, at }.
+  const media = [];
+  // Whether the robot plays a member (pays units) and how long a picture or
+  // a clip takes, so „Спри“ can be pressed while one is being made.
+  let member = false;
+  let mediaDelay = 0;
+  // The next chat request fails with HTTP 502, as a proxy's error would.
+  let failNextChat = false;
+  // The saved turns of each conversation, as the server keeps them: the page
+  // restores them after a reload. The page's own picture lines are not saved.
+  const conversations = new Map();
+  const remember = (sent, reply) => {
+    const turns = conversations.get(sent.sessionId) || [];
+    turns.push({ role: "user", content: sent.message }, { role: "assistant", content: reply });
+    conversations.set(sent.sessionId, turns);
+  };
   const todos = [];
   // The real add-on service and sandbox, with memory instead of Firestore and
   // fixed weather instead of the internet.
@@ -96,8 +171,36 @@ export function startStubServer(port = 0) {
       googleLight = p.endsWith("/google-light");
       return json(res, { ok: true });
     }
-    if (p === "/api/images" && req.method === "POST") {
-      return json(res, { image: "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==", prompt: "котка" });
+    if (p === "/__robot/member" || p === "/__robot/owner") {
+      member = p.endsWith("/member");
+      return json(res, { ok: true });
+    }
+    if (p === "/__robot/fail-chat") {
+      failNextChat = true;
+      return json(res, { ok: true });
+    }
+    if (p === "/__robot/slow-media" || p === "/__robot/fast-media") {
+      mediaDelay = p.endsWith("/slow-media") ? 1500 : 0;
+      return json(res, { ok: true });
+    }
+    if (p.startsWith("/memory/conversation/") && req.method === "GET") {
+      const sessionId = decodeURIComponent(p.slice("/memory/conversation/".length));
+      return json(res, { items: conversations.get(sessionId) || [] });
+    }
+    if ((p === "/api/images" || p === "/api/videos") && req.method === "POST") {
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        const { prompt } = JSON.parse(body || "{}");
+        media.push({ path: p, prompt, at: Date.now() });
+        setTimeout(() => {
+          if (p === "/api/images") return json(res, { image: TINY_PNG, prompt });
+          // A few bytes in place of the MP4 file.
+          res.writeHead(200, { "Content-Type": "video/mp4" });
+          return res.end(Buffer.from("MP4 clip"));
+        }, mediaDelay);
+      });
+      return undefined;
     }
     if (p === "/api/avatar-link") {
       let body = "";
@@ -353,8 +456,19 @@ export function startStubServer(port = 0) {
       req.on("end", () => {
         const b = JSON.parse(body);
         requests.push(b);
+        if (failNextChat) {
+          failNextChat = false;
+          b.failed = true;
+          res.writeHead(502, { "Content-Type": "text/html" });
+          return res.end("<h1>502 Bad Gateway</h1>");
+        }
         res.writeHead(200, { "Content-Type": "text/event-stream" });
-        const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        const send = (event, data) => {
+          // When the answer ended, so the robot can tell that pictures and
+          // clips start only after it.
+          if (event === "done") b.doneAt = Date.now();
+          res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        };
         if (b.council) {
           send("token", { token: "## NovariumAI Council\n\n### Claude · m1\nОтговор А.\n\n### Gemini · m2\nОтговор Б.\n\n### ✅ Съгласни\n- Да\n\n## Обща препоръка (high)\nДобре." });
           send("done", { ok: true, mode: "council", council: { responses: [
@@ -379,6 +493,42 @@ export function startStubServer(port = 0) {
           send("done", { ok: true, mode: "task-confirmed-write", taskId: "t1" });
           return res.end();
         }
+        // An answer that describes pictures and a video: the server's card
+        // for it (a button each, the price for a member); nothing is made
+        // before a press or a short yes.
+        const mediaAnswer = b.message.includes("с картинки и видео")
+          ? MEDIA_ANSWER
+          : b.message.includes("с картинка и бележка")
+            ? MEDIA_TRAILING_ANSWER
+            : b.message.includes("с пълна карта")
+              ? MEDIA_FULL_ANSWER
+              : "";
+        if (mediaAnswer) {
+          const offer = mediaOffer(mediaAnswer, MEDIA_AVAILABLE);
+          const event = offer.card ? chatMediaEvent(offer.items, { member }) : null;
+          send("token", { token: mediaAnswer });
+          send("done", { ok: true, provider: "claude", model: b.model, ...(event ? { media: event } : {}) });
+          remember(b, mediaAnswer);
+          return res.end();
+        }
+        // A short yes to the previous answer's offer: the server's own reply,
+        // without the model. With the card the page shows it starts what the
+        // card has not made; without it the card comes under the reply.
+        if (!b.image) {
+          const turns = shortYesTurns(conversations.get(b.sessionId), b.recentHistory, { rewrite: b.rewrite === true });
+          const reply = mediaYesAnswer(b.message, turns, {
+            mediaCard: b.mediaCard,
+            available: MEDIA_AVAILABLE,
+            member,
+            english: useEnglishReplyFallback(b.language),
+          });
+          if (reply) {
+            send("token", { token: reply.text });
+            send("done", { ok: true, mode: "media-yes", ...(reply.media ? { media: reply.media } : {}) });
+            remember(b, reply.text);
+            return res.end();
+          }
+        }
         const words = (b.message.includes("списък")
           ? "Ето списък за пазар:\n- Мляко\n- Хляб\n- **Яйца**"
           : b.message.includes("команда")
@@ -389,6 +539,7 @@ export function startStubServer(port = 0) {
         const timer = setInterval(() => {
           if (i >= words.length) {
             clearInterval(timer);
+            remember(b, words.join(" "));
             send("done", {
               ok: true,
               provider: "claude",
@@ -457,7 +608,7 @@ export function startStubServer(port = 0) {
   });
   return new Promise((resolve) => {
     server.listen(port, "127.0.0.1", () =>
-      resolve({ server, requests, feedback, contactMessages, origin: `http://127.0.0.1:${server.address().port}` }),
+      resolve({ server, requests, media, feedback, contactMessages, origin: `http://127.0.0.1:${server.address().port}` }),
     );
   });
 }

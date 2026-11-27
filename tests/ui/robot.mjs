@@ -4,7 +4,7 @@
 //   node tests/ui/robot.mjs --public https://cloudaicore.com
 //                                      → signed-out checks on the live site
 import { makeZip } from "./make-zip.mjs";
-import { startStubServer } from "./stub-server.mjs";
+import { FULL_DESCRIPTIONS, MEDIA_DESCRIPTIONS, startStubServer } from "./stub-server.mjs";
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || "playwright");
 const publicIndex = process.argv.indexOf("--public");
@@ -48,7 +48,7 @@ async function openPage(origin, viewport, path = "/") {
   return { page, errors };
 }
 
-async function signedInFlows(origin, requests, label, viewport, feedback) {
+async function signedInFlows(origin, requests, label, viewport, feedback, media) {
   const { page, errors } = await openPage(origin, viewport);
   const last = () => page.locator(".assistant-turn").last();
   // The person's own things are in the "Моят аватар" group of the side menu.
@@ -585,12 +585,336 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
   });
   if (await page.locator(".avatar-link-dialog").isVisible()) await page.locator(".avatar-link-dialog .share-close").click();
   await step(`${label}: „Нарисувай картинка“ показва картинката`, async () => {
+    const before = media.length;
     await page.fill("#chatInput", "котка на луната");
     await page.click("#attachBtn");
     await page.click('[data-plus="draw"]');
     await page.waitForTimeout(600);
     expect((await last().locator(".generated-image img").count()) === 1, "няма картинка");
     expect((await last().locator(".generated-image a[download]").count()) === 1, "няма бутон за изтегляне");
+    const asked = media.slice(before);
+    expect(asked.length === 1 && asked[0].path === "/api/images" && asked[0].prompt === "котка на луната", `менюто „+“ не изпрати текста от полето: ${JSON.stringify(asked)}`);
+    expect((await page.inputValue("#chatInput")) === "", "полето не се изчисти");
+  });
+  // Pictures and video an answer describes: a card with a button for each,
+  // made only after a press or a short yes, one after another. Each card keeps
+  // its own state, and „Спри“ cancels what has not started.
+  const [picture1, picture2, clip] = MEDIA_DESCRIPTIONS.map((item) => item.prompt);
+  const cards = page.locator(".media-proposals");
+  // Which of a card's buttons are locked, e.g. "true,false,false,false".
+  const lockedButtons = async (card) =>
+    (await card.locator("button").evaluateAll((buttons) => buttons.map((button) => button.disabled))).join(",");
+  const waitForMedia = async (count, what) => {
+    for (let tries = 0; tries < 50 && media.length < count; tries += 1) await page.waitForTimeout(100);
+    expect(media.length >= count, what);
+  };
+  // The chat is free again: the answer ended and nothing is being made.
+  const chatFree = () =>
+    page.waitForFunction(() => !document.getElementById("chatInput").disabled, null, { timeout: 8000 });
+  // Asks for an ad with pictures and a clip and returns the card under the answer.
+  const askForOffer = async () => {
+    const before = await cards.count();
+    await send("Напиши реклама за кафене с картинки и видео");
+    await page.waitForFunction((count) => document.querySelectorAll(".media-proposals").length > count, before, { timeout: 5000 });
+    await chatFree();
+    return cards.last();
+  };
+  await step(`${label}: картинки и видео от отговора — бутон за всяко, цена за член, нищо без натискане`, async () => {
+    await page.evaluate(() => fetch("/__robot/member"));
+    try {
+      const before = media.length;
+      const card = await askForOffer();
+      const buttons = await card.locator("button").allInnerTexts();
+      expect(
+        buttons.join("|") === "🎨 Картинка 1 · 2 единици|🎨 Картинка 2 · 2 единици|🎬 Видео · 100 единици|Направи всичко",
+        `бутоните са ${buttons.join("|")}`,
+      );
+      // A screen reader also hears the start of the description.
+      const named = await card.locator("button").first().getAttribute("aria-label");
+      expect(named === `🎨 Картинка 1 · 2 единици — ${picture1}`, `името на бутона е ${named}`);
+      expect((await card.locator("strong").innerText()).toLowerCase() === "картинки и видео", "няма надпис „Картинки и видео“");
+      // The card sits above the Next card, as the answer's last line offers.
+      expect(await card.evaluate((node) => node.nextElementSibling?.classList.contains("next-step-card")), "картата не е над „Следва“");
+      // On a phone the buttons wrap inside the card, and nothing scrolls sideways.
+      const layout = await card.evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        const buttons = [...node.querySelectorAll("button")].map((button) => button.getBoundingClientRect());
+        const chat = document.getElementById("chatMessages");
+        return {
+          outside: buttons.filter((rect) => rect.left < box.left - 0.5 || rect.right > box.right + 0.5).length,
+          rows: new Set(buttons.map((rect) => Math.round(rect.top))).size,
+          cardScroll: node.scrollWidth - node.clientWidth,
+          chatScroll: chat.scrollWidth - chat.clientWidth,
+          pageScroll: document.documentElement.scrollWidth - window.innerWidth,
+        };
+      });
+      expect(layout.outside === 0 && layout.cardScroll <= 0, `бутоните излизат от картата: ${JSON.stringify(layout)}`);
+      expect(layout.chatScroll <= 0 && layout.pageScroll <= 0, `страницата се превърта настрани: ${JSON.stringify(layout)}`);
+      if (viewport.width < 500) expect(layout.rows > 1, "бутоните не се пренасят на телефона");
+      await page.waitForTimeout(400);
+      expect(media.length === before, "нещо се прави преди натискане");
+    } finally {
+      await page.evaluate(() => fetch("/__robot/owner"));
+    }
+  });
+  await step(`${label}: „Картинка 1“ прави само нея; редовете ѝ са без „Пробвай пак“ и „Редактирай“`, async () => {
+    const before = media.length;
+    const card = await askForOffer();
+    const buttons = await card.locator("button").allInnerTexts();
+    // The owner pays nothing, so no price is shown.
+    expect(buttons.join("|") === "🎨 Картинка 1|🎨 Картинка 2|🎬 Видео|Направи всичко", `бутоните са ${buttons.join("|")}`);
+    await page.waitForTimeout(400);
+    expect(media.length === before, "нещо се прави преди натискане");
+    await card.locator("button", { hasText: "Картинка 1" }).click();
+    // The pressed button locks and the focus moves to the next one in the card.
+    const focused = await page.evaluate(() => document.activeElement?.textContent || "");
+    expect(focused === "🎨 Картинка 2", `фокусът е на „${focused}“`);
+    await waitForMedia(before + 1, "картинката не беше поискана");
+    await last().locator(".generated-image img").waitFor({ timeout: 5000 });
+    await chatFree();
+    const asked = media.slice(before);
+    expect(asked.length === 1 && asked[0].path === "/api/images" && asked[0].prompt === picture1, `поискано: ${JSON.stringify(asked)}`);
+    expect((await lockedButtons(card)) === "true,false,false,false", `заключени: ${await lockedButtons(card)}`);
+    expect(!(await last().innerText()).includes("Рисувам"), "картинката не замени „Рисувам…“");
+    // The page's own lines (the „🎨 …“ request and the picture) cannot be
+    // retried or edited: that sent the description as a chat message.
+    const own = page.locator(".media-turn");
+    expect((await own.count()) >= 2, "няма редове за картинката");
+    const actions = await own.locator('[data-action="retry"], [data-action="retry-model"], [data-action="edit"]').count();
+    expect(actions === 0, `редовете на картинката имат ${actions} бутона „Пробвай пак“ или „Редактирай“`);
+  });
+  await step(`${label}: „ДА ДАВАЙ“ прави само останалите, след края на отговора`, async () => {
+    const before = media.length;
+    const card = cards.last();
+    await send("ДА ДАВАЙ");
+    await waitForMedia(before + 2, `направени са ${media.length - before} от 2`);
+    await page.locator(".generated-video video").last().waitFor({ timeout: 5000 });
+    await chatFree();
+    const yes = requests.at(-1);
+    // The page tells the server what the card has already made.
+    expect(
+      yes.message === "ДА ДАВАЙ" && JSON.stringify(yes.mediaCard) === JSON.stringify({ made: [`image:${picture1}`] }),
+      `изпратено: ${yes.message} ${JSON.stringify(yes.mediaCard)}`,
+    );
+    const asked = media.slice(before).map((item) => `${item.path} ${item.prompt}`);
+    expect(
+      asked.join("|") === `/api/images ${picture2}|/api/videos ${clip}`,
+      `поискано: ${asked.join("|")} (картинка 1 вече е направена)`,
+    );
+    expect(media.slice(before).every((item) => item.at >= yes.doneAt), "започна преди края на отговора");
+    // The server's own reply, without a model, and no second card under it.
+    const answer = page.locator(".assistant-turn.chat-answer").last();
+    const reply = await answer.innerText();
+    expect(
+      reply.includes("Правя картинката и видеото. Картинка отнема до половин минута, видеото — от една до четири минути."),
+      `отговорът е: ${reply.slice(0, 160)}`,
+    );
+    expect((await answer.locator(".media-proposals").count()) === 0, "отговорът на „ДА ДАВАЙ“ има карта");
+    // The clip has Download and YouTube.
+    const video = page.locator(".generated-video").last();
+    expect((await video.locator("a[download]").count()) === 1, "няма „Изтегли видеото“");
+    expect((await video.locator('[data-action="video-youtube"]').count()) === 1, "няма „Качи в YouTube“");
+    // The history remembers what was made, not the "drawing…" line.
+    const history = (yes.recentHistory || []).map((item) => `${item.role}: ${item.content}`);
+    expect(history.includes(`assistant: 🎨 Нарисувах картинка: ${picture1}`), `историята: ${history.slice(-3).join(" / ")}`);
+    expect(!history.some((line) => line.includes("Рисувам…")), "историята помни „Рисувам…“");
+    // The card shows all of them as made.
+    expect((await lockedButtons(card)) === "true,true,true,true", `заключени: ${await lockedButtons(card)}`);
+  });
+  await step(`${label}: редакция на „ДА ДАВАЙ“ след направеното: картинките и видеото остават, нищо не се прави отново`, async () => {
+    const before = media.length;
+    const card = cards.last();
+    const made = page.locator(".generated-image img, .generated-video video");
+    const shown = await made.count();
+    const yesTurn = page.locator(".user-turn:not(.media-turn)").last();
+    expect((await yesTurn.innerText()).includes("ДА ДАВАЙ"), "последният въпрос не е „ДА ДАВАЙ“");
+    const sent = requests.length;
+    await yesTurn.locator('[data-action="edit"]').click();
+    await page.click(".message-edit-buttons .primary");
+    for (let tries = 0; tries < 50 && requests.length === sent; tries += 1) await page.waitForTimeout(100);
+    await chatFree();
+    const again = requests.at(-1);
+    expect(again.message === "ДА ДАВАЙ" && again.rewrite === true, `изпратено: ${again.message} ${again.rewrite}`);
+    // The card still holds all three as made, so the server starts nothing.
+    const keys = [`image:${picture1}`, `image:${picture2}`, `video:${clip}`];
+    expect(
+      JSON.stringify([...(again.mediaCard?.made || [])].sort()) === JSON.stringify([...keys].sort()),
+      `изпратено: ${JSON.stringify(again.mediaCard)}`,
+    );
+    // The old yes and its reply left the history; the page's own lines stayed.
+    const history = (again.recentHistory || []).map((item) => `${item.role}: ${item.content}`);
+    expect(!history.includes("user: ДА ДАВАЙ"), `старото „ДА ДАВАЙ“ остана в историята: ${history.slice(-4).join(" / ")}`);
+    expect(history.includes(`assistant: 🎬 Направих видео: ${clip}`), `историята: ${history.slice(-4).join(" / ")}`);
+    const reply = await page.locator(".assistant-turn.chat-answer").last().innerText();
+    expect(reply.includes("Те вече се правят или са готови."), `отговорът е: ${reply.slice(0, 160)}`);
+    await page.waitForTimeout(400);
+    expect(media.length === before, "нещо се направи отново");
+    // What was made and paid for stays on the screen, and its card stays locked.
+    expect((await made.count()) === shown, `на екрана останаха ${await made.count()} от ${shown}`);
+    expect((await lockedButtons(card)) === "true,true,true,true", `заключени: ${await lockedButtons(card)}`);
+  });
+  await step(`${label}: нова карта със същите описания се натиска; „Спри“ отменя чакащите`, async () => {
+    // The card above made the same descriptions; this one starts fresh.
+    const card = await askForOffer();
+    expect((await lockedButtons(card)) === "false,false,false,false", `новата карта е заключена: ${await lockedButtons(card)}`);
+    await page.evaluate(() => fetch("/__robot/slow-media"));
+    try {
+      const before = media.length;
+      await card.locator(".media-proposals-all").click();
+      await waitForMedia(before + 1, "първата картинка не започна");
+      // While the first picture is being made, the send button is „Спри“.
+      await page.locator("#sendBtn.is-stop").click();
+      await chatFree();
+      // Long enough for the next item to start, had it not been cancelled.
+      await page.waitForTimeout(1000);
+      const asked = media.slice(before).map((item) => `${item.path} ${item.prompt}`);
+      expect(asked.join("|") === `/api/images ${picture1}`, `поискано: ${asked.join("|")}`);
+      // The picture being made finished; the others can be pressed again.
+      expect((await lockedButtons(card)) === "true,false,false,false", `заключени: ${await lockedButtons(card)}`);
+      expect((await last().locator(".generated-image img").count()) === 1, "започнатата картинка не се показа");
+    } finally {
+      await page.evaluate(() => fetch("/__robot/fast-media"));
+    }
+  });
+  await step(`${label}: „да“, „Спри“ и пак „да“ правят само останалите от картата`, async () => {
+    const card = await askForOffer();
+    await page.evaluate(() => fetch("/__robot/slow-media"));
+    let before = media.length;
+    try {
+      await send("да");
+      await waitForMedia(before + 1, "първата картинка не започна");
+      await page.locator("#sendBtn.is-stop").click();
+      await chatFree();
+      await page.waitForTimeout(1000);
+      const asked = media.slice(before).map((item) => `${item.path} ${item.prompt}`);
+      expect(asked.join("|") === `/api/images ${picture1}`, `поискано: ${asked.join("|")}`);
+      expect((await lockedButtons(card)) === "true,false,false,false", `заключени: ${await lockedButtons(card)}`);
+    } finally {
+      await page.evaluate(() => fetch("/__robot/fast-media"));
+    }
+    // The second yes looks past the server's reply to the card above it.
+    before = media.length;
+    await send("да");
+    await waitForMedia(before + 2, `направени са ${media.length - before} от 2`);
+    await chatFree();
+    const yes = requests.at(-1);
+    expect(
+      yes.message === "да" && JSON.stringify(yes.mediaCard) === JSON.stringify({ made: [`image:${picture1}`] }),
+      `изпратено: ${yes.message} ${JSON.stringify(yes.mediaCard)}`,
+    );
+    const asked = media.slice(before).map((item) => `${item.path} ${item.prompt}`);
+    expect(asked.join("|") === `/api/images ${picture2}|/api/videos ${clip}`, `поискано: ${asked.join("|")}`);
+    const reply = await page.locator(".assistant-turn.chat-answer").last().innerText();
+    expect(reply.includes("Правя картинката и видеото."), `отговорът е: ${reply.slice(0, 160)}`);
+    expect((await lockedButtons(card)) === "true,true,true,true", `заключени: ${await lockedButtons(card)}`);
+  });
+  await step(`${label}: след презареждане „да“ показва картата отново и не прави нищо`, async () => {
+    await page.reload();
+    // The saved conversation comes back, without the cards.
+    await page.locator(".assistant-turn", { hasText: "Кафе, което събужда града" }).last().waitFor({ timeout: 8000 });
+    expect((await cards.count()) === 0, "картите останаха след презареждане");
+    const before = media.length;
+    await send("да");
+    const card = last().locator(".media-proposals");
+    await card.waitFor({ timeout: 5000 });
+    await chatFree();
+    expect(requests.at(-1).message === "да" && requests.at(-1).mediaCard === undefined, `изпратено: ${JSON.stringify(requests.at(-1).mediaCard)}`);
+    const reply = await last().innerText();
+    expect(
+      reply.includes("Описанията са в предишния отговор. Натисни бутоните отдолу, за да ги направя."),
+      `отговорът е: ${reply.slice(0, 160)}`,
+    );
+    const buttons = await card.locator("button").allInnerTexts();
+    expect(buttons.join("|") === "🎨 Картинка 1|🎨 Картинка 2|🎬 Видео|Направи всичко", `бутоните са ${buttons.join("|")}`);
+    expect((await lockedButtons(card)) === "false,false,false,false", `заключени: ${await lockedButtons(card)}`);
+    await page.waitForTimeout(400);
+    expect(media.length === before, "„да“ след презареждане направи нещо");
+  });
+  await step(`${label}: изречение след реда „Следва“: картата идва и „да“ прави картинката`, async () => {
+    const before = media.length;
+    const count = await cards.count();
+    await send("Напиши пост с картинка и бележка");
+    await page.waitForFunction((n) => document.querySelectorAll(".media-proposals").length > n, count, { timeout: 5000 });
+    await chatFree();
+    const card = cards.last();
+    const buttons = await card.locator("button").allInnerTexts();
+    expect(buttons.join("|") === "🎨 Картинка 1", `бутоните са ${buttons.join("|")}`);
+    await page.waitForTimeout(400);
+    expect(media.length === before, "нещо се прави преди натискане");
+    await send("да");
+    await waitForMedia(before + 1, "картинката не започна");
+    await last().locator(".generated-image img").waitFor({ timeout: 5000 });
+    await chatFree();
+    const yes = requests.at(-1);
+    expect(yes.message === "да" && JSON.stringify(yes.mediaCard) === JSON.stringify({ made: [] }), `изпратено: ${JSON.stringify(yes.mediaCard)}`);
+    const asked = media.slice(before).map((item) => `${item.path} ${item.prompt}`);
+    expect(asked.join("|") === `/api/images ${picture1}`, `поискано: ${asked.join("|")}`);
+    const reply = await page.locator(".assistant-turn.chat-answer").last().innerText();
+    expect(reply.includes("Правя картинката. Отнема до половин минута."), `отговорът е: ${reply.slice(0, 160)}`);
+    expect((await lockedButtons(card)) === "true", `заключени: ${await lockedButtons(card)}`);
+  });
+  await step(`${label}: „да“ след грешка отговаря на предложението, а не на грешката`, async () => {
+    // Review r2 (page F3): the error line was remembered as the answer.
+    const card = await askForOffer();
+    const before = media.length;
+    await page.evaluate(() => fetch("/__robot/fail-chat"));
+    await send("да");
+    await last().filter({ hasText: "HTTP 502" }).waitFor({ timeout: 5000 });
+    await chatFree();
+    expect(requests.at(-1).failed === true, "заявката не мина през грешката");
+    const failed = page.locator(".user-turn").last();
+    expect(await failed.evaluate((node) => node.classList.contains("unsent-turn")), "неизпратеният въпрос не е отбелязан");
+    await send("да");
+    await waitForMedia(before + 3, `направени са ${media.length - before} от 3`);
+    await chatFree();
+    const yes = requests.at(-1);
+    const history = (yes.recentHistory || []).map((item) => `${item.role}: ${item.content}`);
+    expect(!history.some((line) => line.includes("HTTP 502")), `историята помни грешката: ${history.slice(-2).join(" / ")}`);
+    expect(history.at(-1)?.startsWith("assistant: Ето рекламата"), `последният отговор в историята: ${history.at(-1)?.slice(0, 80)}`);
+    expect(JSON.stringify(yes.mediaCard) === JSON.stringify({ made: [] }), `изпратено: ${JSON.stringify(yes.mediaCard)}`);
+    const reply = await page.locator(".assistant-turn.chat-answer").last().innerText();
+    expect(reply.includes("Правя 2 картинки и видеото."), `отговорът е: ${reply.slice(0, 160)}`);
+    expect((await lockedButtons(card)) === "true,true,true,true", `заключени: ${await lockedButtons(card)}`);
+  });
+  await step(`${label}: пълна карта (4 картинки и видео): редакция на „ДА ДАВАЙ“ помни предложението`, async () => {
+    // Review r2 (page F1): the ten lines of a made full card pushed the
+    // request and the offer out of the history the edit sends.
+    const count = await cards.count();
+    await send("Направи кампания с пълна карта");
+    await page.waitForFunction((n) => document.querySelectorAll(".media-proposals").length > n, count, { timeout: 5000 });
+    await chatFree();
+    const card = cards.last();
+    expect((await card.locator("button").count()) === 6, `бутоните са ${await card.locator("button").count()}`);
+    let before = media.length;
+    await send("ДА ДАВАЙ");
+    await waitForMedia(before + 5, `направени са ${media.length - before} от 5`);
+    await page.locator(".generated-video video").last().waitFor({ timeout: 8000 });
+    await chatFree();
+    const made = media.slice(before).map((item) => item.prompt);
+    expect(JSON.stringify(made) === JSON.stringify(FULL_DESCRIPTIONS.map((item) => item.prompt)), `поискано: ${made.join(" | ")}`);
+    before = media.length;
+    const sent = requests.length;
+    const yesTurn = page.locator(".user-turn:not(.media-turn)").last();
+    await yesTurn.locator('[data-action="edit"]').click();
+    await page.click(".message-edit-buttons .primary");
+    for (let tries = 0; tries < 50 && requests.length === sent; tries += 1) await page.waitForTimeout(100);
+    await chatFree();
+    const again = requests.at(-1);
+    expect(again.message === "ДА ДАВАЙ" && again.rewrite === true, `изпратено: ${again.message} ${again.rewrite}`);
+    const history = again.recentHistory || [];
+    // The window also holds the pictures made earlier in this conversation;
+    // the ten lines of this card come after the offer.
+    const offerAt = history.findIndex((item) => item.role === "assistant" && item.content.startsWith("Ето кампанията"));
+    expect(offerAt >= 0, "предложението липсва в историята");
+    expect(history[offerAt - 1]?.role === "user" && history[offerAt - 1]?.content === "Направи кампания с пълна карта", "въпросът липсва в историята");
+    const cardLines = history.slice(offerAt + 1);
+    expect(cardLines.length === 10 && cardLines.every((item) => item.page === true), `след предложението: ${cardLines.map((item) => (item.page ? "page" : item.role)).join(",")}`);
+    expect(history.filter((item) => item.page === true).length <= 24, `редовете на страницата: ${history.filter((item) => item.page === true).length}`);
+    const reply = await page.locator(".assistant-turn.chat-answer").last().innerText();
+    expect(reply.includes("Те вече се правят или са готови."), `отговорът е: ${reply.slice(0, 160)}`);
+    await page.waitForTimeout(400);
+    expect(media.length === before, "нещо се направи отново");
+    expect((await lockedButtons(card)) === "true,true,true,true,true,true", `заключени: ${await lockedButtons(card)}`);
   });
   await step(`${label}: „Отвори отстрани“ показва документа и графика от таблица`, async () => {
     await page.evaluate(() =>
@@ -733,13 +1057,13 @@ async function sharedPage(origin) {
 }
 
 // The browser's microphone and voice are replaced by a script: the person
-// "says" Здравей, hears the answer, then says "стоп".
-async function talkFlow(origin, requests) {
+// "says" each line of it in turn and hears the answers.
+async function openTalkPage(origin, script) {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: "bg-BG" });
   const errors = [];
   page.on("pageerror", (error) => errors.push(String(error)));
-  await page.addInitScript(() => {
-    window.__talkScript = ["Здравей", "стоп"];
+  await page.addInitScript((lines) => {
+    window.__talkScript = lines;
     window.__listens = 0;
     window.__spoken = [];
     class FakeRecognition {
@@ -777,9 +1101,15 @@ async function talkFlow(origin, requests) {
         },
       },
     });
-  });
+  }, script);
   await page.goto(origin + "/", { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(1200);
+  return { page, errors };
+}
+
+async function talkFlow(origin, requests, media) {
+  // The person says Здравей, hears the answer, then says "стоп".
+  const { page, errors } = await openTalkPage(origin, ["Здравей", "стоп"]);
   await step("Разговор с глас: слуша, праща сам, чете отговора и спира на „стоп“", async () => {
     const before = requests.length;
     expect(await page.locator("#talkBtn").isVisible(), "няма бутон за разговор с глас");
@@ -796,6 +1126,34 @@ async function talkFlow(origin, requests) {
     expect(!errors.length, errors[0]);
   });
   await page.close();
+
+  // A spoken „да“ to an answer with pictures and a clip makes them after the
+  // reply, and talk mode keeps listening until "стоп". Each one takes a while
+  // here, so talk mode finds the chat busy and must wait instead of stopping.
+  const yes = await openTalkPage(origin, ["Напиши реклама за кафене с картинки и видео", "да", "стоп"]);
+  await step("Разговор с глас: казано „да“ прави картинките и видеото и продължава да слуша", async () => {
+    const before = requests.length;
+    const madeBefore = media.length;
+    await yes.page.evaluate(() => fetch("/__robot/slow-media"));
+    try {
+      await yes.page.click("#talkBtn");
+      await yes.page.waitForFunction(() => !document.body.classList.contains("talk-mode"), null, { timeout: 20000 });
+    } finally {
+      await yes.page.evaluate(() => fetch("/__robot/fast-media"));
+    }
+    for (let tries = 0; tries < 50 && media.length < madeBefore + 3; tries += 1) await yes.page.waitForTimeout(100);
+    const sent = requests.slice(before).map((request) => request.message);
+    expect(sent.join("|") === "Напиши реклама за кафене с картинки и видео|да", `изпратено: ${sent.join("|")}`);
+    const asked = media.slice(madeBefore);
+    expect(asked.length === 3, `направени са ${asked.length} от 3`);
+    expect(asked.every((item) => item.at >= requests.at(-1).doneAt), "започна преди края на отговора");
+    const spoken = await yes.page.evaluate(() => window.__spoken.join(" "));
+    expect(spoken.includes("Правя 2 картинки и видеото"), "отговорът на „да“ не беше прочетен на глас");
+    expect((await yes.page.evaluate(() => window.__listens)) === 3, "не слуша отново след „да“");
+    expect((await yes.page.locator("#talkBtn").getAttribute("aria-pressed")) === "false", "бутонът остана включен");
+    expect(!yes.errors.length, yes.errors[0]);
+  });
+  await yes.page.close();
 }
 
 async function statusPage(origin, live) {
@@ -984,10 +1342,10 @@ if (publicOrigin) {
   await liveSignedIn(publicOrigin);
 } else {
   const stub = await startStubServer();
-  await signedInFlows(stub.origin, stub.requests, "Телефон", { width: 390, height: 844 }, stub.feedback);
-  await signedInFlows(stub.origin, stub.requests, "Компютър", { width: 1280, height: 800 }, stub.feedback);
+  await signedInFlows(stub.origin, stub.requests, "Телефон", { width: 390, height: 844 }, stub.feedback, stub.media);
+  await signedInFlows(stub.origin, stub.requests, "Компютър", { width: 1280, height: 800 }, stub.feedback, stub.media);
   await sharedPage(stub.origin);
-  await talkFlow(stub.origin, stub.requests);
+  await talkFlow(stub.origin, stub.requests, stub.media);
   await statusPage(stub.origin, false);
   await contactForm(stub.origin, stub.contactMessages);
   stub.server.close();

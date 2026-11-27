@@ -17,7 +17,7 @@ test("versioned application assets referenced by HTML are served", async () => {
     ),
   ].map((match) => match[1]);
   assert.deepEqual(assetUrls, [
-    "/assets/20260806-green-chat-v1/app.js",
+    "/assets/20261127-media-v4/app.js",
     "/assets/20260730-connections-v1/work-center.js",
   ]);
 

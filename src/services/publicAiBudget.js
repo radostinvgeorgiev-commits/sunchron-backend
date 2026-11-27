@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { PROJECT_REFERENCE_HEADER } from "./projectConversationContextService.js";
 import {
   getProductPlansService,
   ProductError,
@@ -57,18 +58,35 @@ export const PUBLIC_CONTEXT_LIMIT = 32000;
 // A member's long conversation used to stop with "Контекстът е твърде дълъг"
 // after about ten exchanges. Instead the oldest turns are left out, as a person
 // forgets the start of a long talk; the instructions and the newest message
-// always stay. Only applies inside a member's request (the owner has no cap).
+// always stay. The linked-chats reference, which comes before the history,
+// goes only when no older turn is left to drop. Only applies inside a
+// member's request (the owner has no cap).
 export function fitPublicAiInput(input, limit = PUBLIC_CONTEXT_LIMIT) {
   if (!context.getStore() || !Array.isArray(input)) return input;
   const size = (items) => JSON.stringify(items).length;
   if (size(input) <= limit) return input;
   const kept = [...input];
-  const lastIndex = () => kept.length - 1;
-  for (let index = 0; index < lastIndex() && size(kept) > limit; ) {
-    if (kept[index]?.role === "system") index++;
-    else kept.splice(index, 1);
-  }
+  // Drops the oldest items `canDrop` allows until the input fits; the newest
+  // item is never dropped.
+  const dropOldest = (canDrop) => {
+    for (let index = 0; index < kept.length - 1 && size(kept) > limit; ) {
+      if (canDrop(kept[index])) kept.splice(index, 1);
+      else index += 1;
+    }
+  };
+  dropOldest((item) => item?.role !== "system" && !isLinkedChatsReference(item));
+  dropOldest((item) => item?.role !== "system");
   return kept;
+}
+
+// The linked-chats reference: the user item that starts with the header
+// buildProjectConversationReference writes.
+function isLinkedChatsReference(item) {
+  return (
+    item?.role === "user" &&
+    typeof item.content === "string" &&
+    item.content.startsWith(PROJECT_REFERENCE_HEADER)
+  );
 }
 export async function reservePublicAiCall(input, provider = "", model = "", credits = PUBLIC_REQUEST_CREDITS) {
   const scope = context.getStore();

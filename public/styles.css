@@ -639,7 +639,8 @@ input {
   line-height: 1.4;
 }
 
-.next-step-card {
+.next-step-card,
+.media-proposals {
   margin-top: 12px;
   padding: 13px 14px;
   border: 1px solid #b8cce0;
@@ -648,7 +649,8 @@ input {
   background: #eef6ff;
 }
 
-.next-step-card strong {
+.next-step-card strong,
+.media-proposals strong {
   display: block;
   color: #0b57d0;
   font-size: 12px;
@@ -704,6 +706,58 @@ input {
 
 .next-step-card .next-step-confirm + button:hover {
   background: #dbe9fb;
+}
+
+/* Pictures and video an answer described: one button each, made only on a
+   press. The buttons wrap on a phone, as the Next card's text does. */
+.media-proposals-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.media-proposals-buttons button {
+  min-height: 34px;
+  max-width: 100%;
+  padding: 6px 11px;
+  border: 1px solid #0b57d0;
+  border-radius: 9px;
+  color: #fff;
+  background: #0b57d0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+  text-align: start;
+  cursor: pointer;
+}
+
+.media-proposals-buttons button:hover {
+  background: #0842a0;
+}
+
+/* "Направи всичко" steps back, like the journal button next to "Потвърди". */
+.media-proposals-buttons .media-proposals-all {
+  color: #0b57d0;
+  background: transparent;
+}
+
+.media-proposals-buttons .media-proposals-all:hover {
+  background: #dbe9fb;
+}
+
+.media-proposals-buttons button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.media-proposals-buttons button:disabled:hover {
+  background: #0b57d0;
+}
+
+.media-proposals-buttons .media-proposals-all:disabled:hover {
+  background: transparent;
 }
 
 .memory-candidate-card {

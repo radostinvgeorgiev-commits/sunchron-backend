@@ -48,7 +48,7 @@ test("Chat and Work are available with projects and agents, without pets", async
   assert.match(html, /\/work-mode\.js\?v=/u);
   assert.ok(
     html.indexOf("/work-mode.js") <
-      html.indexOf("/assets/20260806-green-chat-v1/app.js"),
+      html.indexOf("/assets/20261127-media-v4/app.js"),
   );
   assert.doesNotMatch(
     html.match(/<button[^>]+id="workModeBtn"[^>]*>/u)?.[0] || "",
@@ -103,7 +103,7 @@ test("work settings are scoped by authenticated user and payload is bounded", as
   );
   assert.match(script, /vertex-gemini-2\.5-flash/u);
   assert.doesNotMatch(script, /petId/u);
-  assert.match(script, /if \(busy && workState\?\.mode === "work"\)/u);
+  assert.match(script, /if \(busy\) setWorkStatus\("running"\);/u);
 });
 
 test("work mode runs in the browser and creates an isolated project payload", async () => {
@@ -164,6 +164,20 @@ test("work mode runs in the browser and creates an isolated project payload", as
     dom.window.localStorage.getItem("synchronWorkMode:tester-one"),
     /Тестов проект/u,
   );
+  // A picture or a clip from the chat runs without an answer to end it: the
+  // project is ready again afterwards instead of staying „В работа“; a
+  // status an answer set stays.
+  const workStatus = () =>
+    JSON.parse(dom.window.localStorage.getItem("synchronWorkMode:tester-one"))
+      .workStatus;
+  dom.window.SynchronWorkMode.setBusy(true);
+  assert.equal(workStatus(), "running");
+  dom.window.SynchronWorkMode.setBusy(false);
+  assert.equal(workStatus(), "ready");
+  dom.window.SynchronWorkMode.setBusy(true);
+  dom.window.SynchronWorkMode.onError();
+  dom.window.SynchronWorkMode.setBusy(false);
+  assert.equal(workStatus(), "blocked");
 
   const contextForm = dom.window.document.querySelector(
     ".work-project-context-form",

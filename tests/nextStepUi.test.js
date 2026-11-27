@@ -1071,7 +1071,9 @@ async function restoreOnPage(catalog, stored) {
     "showWelcomeMessage",
     [
       slice("function cleanNextStep(", "function showNextStep("),
-      slice("function rememberConversationMessage(", "async function checkHealth("),
+      // The history window (review r2) reads the page's mark on each line.
+      slice("function isPageMediaLine(", "// Retry and edit replace"),
+      slice("const RECENT_TURNS", "async function checkHealth("),
       slice("async function restoreConversation(", "async function startNewChat("),
       "return restoreConversation;",
     ].join("\n"),

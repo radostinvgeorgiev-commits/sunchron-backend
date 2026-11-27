@@ -769,7 +769,7 @@ YouTube видео|YouTube video
 Одобрена. Вече е в магазина.|Approved. It is now in the store.
 Проверявам задачата и избирам нужните инструменти…|Checking the request and choosing the tools…
 Задачата е запазена и има устойчив checkpoint.|Task saved.
-Задачата не изисква външен инструмент.|No tool needed. Writing the answer…
+Пиша отговора…|Writing the answer…
 Изпълнявам задачата с избрания инструмент…|Running the chosen tool…
 Изпълнявам {count} проверени стъпки…|Running {count} checked steps…
 Стъпка {step} от {total}: {capability}|Step {step} of {total}: {capability}
@@ -799,6 +799,25 @@ AI доставчик и модел|AI provider and model
 Качено в YouTube, засега скрито (YouTube още проверява NovariumAI). Можеш да го направиш публично от YouTube Studio.|Uploaded to YouTube, private for now (YouTube is still reviewing NovariumAI). You can make it public in YouTube Studio.
 Качването в YouTube иска еднократно разрешение. После пак натисни „Качи в YouTube“.|Uploading to YouTube needs a one-time permission. Then press “Upload to YouTube” again.
 YouTube не прие видеото. Опитай пак.|YouTube did not accept the video. Try again.
+Нарисувай картинка|Draw picture
+От описанието в полето|From the description in the box
+Направи видео|Make a video
+Рекламен клип до 10 секунди, със звук|An ad clip up to 10 seconds, with sound
+Първо опиши картинката, после избери „Нарисувай картинка“|First describe the picture, then choose “Draw picture”
+Първо опиши видеото (напр. реклама за кафене, за телефон), после избери „Направи видео“|First describe the video (for example an ad for a café, for phones), then choose “Make a video”
+🎨 Рисувам… това отнема до половин минута.|🎨 Drawing… this takes up to half a minute.
+🎬 Правя видеото… това отнема от една до четири минути. Не затваряй страницата.|🎬 Making the video… this takes one to four minutes. Keep this page open.
+Изтегли картинката|Download the picture
+Изтегли видеото|Download the video
+Картинката не стана. Опитай пак.|The picture did not work out. Try again.
+Видеото не стана. Опитай пак.|The video did not work out. Try again.
+🎨 Нарисувах картинка: {prompt}|🎨 Drew a picture: {prompt}
+🎬 Направих видео: {prompt}|🎬 Made a video: {prompt}
+Картинки и видео|Pictures and video
+Картинка|Picture
+Видео|Video
+Направи всичко|Make them all
+единици|units
 Работа с Claude|Work with Claude
 Възложи по-голяма задача на Claude: реклама, презентация, документ, таблица или PDF. Claude работи в своя затворена среда, не вижда данните ти и връща текст и готови файлове за изтегляне. Една задача струва 10 единици.|Hand a bigger task to Claude: an ad, a presentation, a document, a spreadsheet or a PDF. Claude works in its own closed space, does not see your data, and returns text and finished files to download. One task costs 10 units.
 Какви файлове да може да прави|Which files it may make

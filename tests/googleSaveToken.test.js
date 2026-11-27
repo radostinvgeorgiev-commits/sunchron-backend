@@ -80,7 +80,7 @@ test("only a token that can do nothing but save files counts as a save token", (
 test("a save token never becomes the connection owner tools use", async () => {
   resetGoogleSessionsForTests();
   const main = await createSession(tokens("main", `${MAIN} ${YOUTUBE}`), owner);
-  const id = await finishGoogleConnection(tokens("save", SAVE), owner, {
+  const { id } = await finishGoogleConnection(tokens("save", SAVE), owner, {
     previousId: main,
     saving: true,
   });
@@ -172,14 +172,23 @@ test("a renewed connection keeps its services and the save token of the same Goo
   assert.equal(await linkSaveSession(main, save), true);
   assert.deepEqual(await grantedExtras(save), []);
 
-  const renewed = await finishGoogleConnection(tokens("renewed", `${MAIN} ${YOUTUBE}`), owner, {
+  // Gmail was left unticked: the old connection stays and the page asks again.
+  const narrower = await finishGoogleConnection(tokens("narrower", `${MAIN} ${YOUTUBE}`), owner, {
     previousId: main,
   });
+  assert.deepEqual(narrower, { id: main, partial: true });
+
+  const { id: renewed } = await finishGoogleConnection(
+    tokens("renewed", `${MAIN} ${YOUTUBE} https://www.googleapis.com/auth/gmail.readonly`),
+    owner,
+    { previousId: main },
+  );
   assert.notEqual(renewed, main);
   assert.equal(await saveSessionFor(renewed), save);
 
   // Another Google account does not save into the first account's Drive.
-  const other = await finishGoogleConnection(tokens("other", MAIN, "google-2"), owner, {
+  // Another Google account is a new connection, not a narrower one.
+  const { id: other } = await finishGoogleConnection(tokens("other", MAIN, "google-2"), owner, {
     previousId: renewed,
   });
   assert.equal(await saveSessionFor(other), other);
@@ -188,7 +197,7 @@ test("a renewed connection keeps its services and the save token of the same Goo
 test("a save step from before this version is still recognised by its scopes", async () => {
   resetGoogleSessionsForTests();
   const main = await createSession(tokens("main", MAIN), owner);
-  const id = await finishGoogleConnection(tokens("save", SAVE), owner, { previousId: main });
+  const { id } = await finishGoogleConnection(tokens("save", SAVE), owner, { previousId: main });
   assert.equal(id, main);
   assert.notEqual(await saveSessionFor(main), main);
 });
@@ -258,7 +267,8 @@ test("connect asks for exactly what the token needs and never merges earlier gra
         assert.equal(save.merge, null);
         assert.ok(save.state.startsWith("save."));
 
-        // Without a connection, add=gmail connects Google and Gmail in one step.
+        // Without any connection, add=gmail connects Google and Gmail in one step.
+        resetGoogleSessionsForTests();
         const first = await open("/connect?add=gmail");
         assert.ok(first.scope.includes("https://www.googleapis.com/auth/calendar.events"));
         assert.ok(first.scope.includes("https://www.googleapis.com/auth/gmail.readonly"));
@@ -268,4 +278,167 @@ test("connect asks for exactly what the token needs and never merges earlier gra
   } finally {
     server.close();
   }
+});
+
+test("an older main token that itself holds drive.file keeps saving after a renewal", async () => {
+  resetGoogleSessionsForTests();
+  const older = await createSession(
+    tokens("older", `${MAIN} https://www.googleapis.com/auth/drive.file`),
+    owner,
+  );
+  const { id } = await finishGoogleConnection(tokens("renewed", MAIN), owner, { previousId: older });
+  assert.notEqual(id, older);
+  assert.equal(await saveSessionFor(id), older);
+  assert.equal(await getLatestGoogleSessionId(), id);
+});
+
+test("a save link made on another server instance is not lost", async () => {
+  const store = fakeSessionStore();
+  await withEnvironment(
+    {
+      GOOGLE_CLOUD_PROJECT: "handy-boulevard-479120-q9",
+      FIRESTORE_DATABASE_ID: "(default)",
+      PERSISTENCE_BACKEND: "firestore",
+      GOOGLE_SESSION_ENCRYPTION_KEY: "test-google-session-key",
+      GOOGLE_CLIENT_ID: "client",
+      GOOGLE_CLIENT_SECRET: "secret",
+      GOOGLE_REDIRECT_URI: "https://example.test/api/google/callback",
+    },
+    async () => {
+      resetGoogleSessionsForTests();
+      setFirestoreGoogleSessionStoreForTests(store);
+      // This instance cached the main connection before the link existed,
+      // and its token is about to expire.
+      const main = await createSession(
+        { ...tokens("main", MAIN), expires_in: 1, refresh_token: "refresh" },
+        owner,
+      );
+      const save = await createSession(tokens("save", SAVE), owner, { saveOnly: true });
+      const cached = await import("../src/services/googleDriveService.js");
+      // Another instance links the save token: only the stored copy changes.
+      const stored = cached.decryptGoogleSession(await store.get(main));
+      await store.set(main, cached.encryptGoogleSession({ ...stored, saveSessionId: save }));
+
+      // A token refresh here, with the old cached copy, keeps the stored link.
+      await cached.listGoogleCalendarEvents(main, 1, 1, async (url) =>
+        String(url).includes("oauth2.googleapis.com/token")
+          ? new Response(JSON.stringify({ access_token: "fresh", expires_in: 3600 }), { status: 200 })
+          : new Response(JSON.stringify({ items: [] }), { status: 200 }),
+      );
+      const afterRefresh = cached.decryptGoogleSession(await store.get(main));
+      assert.equal(afterRefresh.saveSessionId, save);
+      assert.equal(afterRefresh.access_token, "fresh");
+      assert.equal(await saveSessionFor(main), save);
+
+      // Disconnecting from here deletes the save token linked elsewhere.
+      await disconnectSession(main);
+      assert.equal(store.documents.size, 0);
+      resetGoogleSessionsForTests();
+    },
+  );
+});
+
+test("a connect from a new browser keeps the account's services and Google account", async () => {
+  resetGoogleSessionsForTests();
+  const main = await createSession(tokens("main", `${MAIN} ${YOUTUBE}`, "google-7"), owner);
+  const app = express();
+  app.use((req, _res, next) => {
+    req.owner = owner;
+    next();
+  });
+  app.use("/api/google", googleDriveRouter);
+  const server = app.listen(0);
+  try {
+    await withEnvironment(
+      {
+        GOOGLE_CLIENT_ID: "client",
+        GOOGLE_CLIENT_SECRET: "secret",
+        GOOGLE_REDIRECT_URI: "https://example.test/api/google/callback",
+      },
+      async () => {
+        const response = await fetch(
+          `http://127.0.0.1:${server.address().port}/api/google/connect`,
+          { redirect: "manual" },
+        );
+        const location = new URL(response.headers.get("location"));
+        assert.ok(location.searchParams.get("scope").split(" ").includes(YOUTUBE));
+        assert.equal(location.searchParams.get("login_hint"), "google-7");
+        const save = new URL(
+          (
+            await fetch(`http://127.0.0.1:${server.address().port}/api/google/connect?add=save`, {
+              redirect: "manual",
+            })
+          ).headers.get("location"),
+        );
+        assert.equal(save.searchParams.get("login_hint"), "google-7");
+      },
+    );
+  } finally {
+    server.close();
+  }
+  assert.ok(main);
+});
+
+test("the Drive drawer offers a reconnect for an expired Google sign-in", async () => {
+  const { readFileSync } = await import("node:fs");
+  const drawer = readFileSync(new URL("../public/google-drive.js", import.meta.url), "utf8");
+  assert.match(drawer, /RECONNECT_CODES\.has\(error\.code\)/u);
+  assert.match(drawer, /href="\/api\/google\/connect"/u);
+  assert.match(drawer, /google=partial|outcome === "partial"/u);
+});
+
+test("a save token two connections share is kept until the last one disconnects", async () => {
+  resetGoogleSessionsForTests();
+  const phone = await createSession(tokens("phone", MAIN), owner);
+  const desktop = await createSession(tokens("desktop", MAIN), owner);
+  const save = await createSession(tokens("save", SAVE), owner, { saveOnly: true });
+  assert.equal(await linkSaveSession(phone, save), true);
+  assert.equal(await linkSaveSession(desktop, save), true);
+  await disconnectSession(phone);
+  assert.equal(await hasSession(save), true);
+  assert.equal(await saveSessionFor(desktop), save);
+  await disconnectSession(desktop);
+  assert.equal(await hasSession(save), false);
+});
+
+test("a save token that stopped working is forgotten and saving asks again", async () => {
+  resetGoogleSessionsForTests();
+  const main = await createSession(tokens("main", MAIN), owner);
+  // Its access expired and Google gave no refresh token: it cannot work again.
+  const dead = await createSession({ ...tokens("dead", SAVE), expires_in: 1 }, owner, {
+    saveOnly: true,
+  });
+  assert.equal(await linkSaveSession(main, dead), true);
+  const app = express();
+  app.use(express.json());
+  app.use((req, _res, next) => {
+    req.owner = owner;
+    next();
+  });
+  app.use("/api/google", googleDriveRouter);
+  const server = app.listen(0);
+  try {
+    await withEnvironment(
+      {
+        GOOGLE_CLIENT_ID: "client",
+        GOOGLE_CLIENT_SECRET: "secret",
+        GOOGLE_REDIRECT_URI: "https://example.test/api/google/callback",
+      },
+      async () => {
+        const response = await fetch(`http://127.0.0.1:${server.address().port}/api/google/save`, {
+          method: "POST",
+          headers: { "content-type": "application/json", cookie: `synchron_google_session=${main}` },
+          body: JSON.stringify({ kind: "doc", title: "План", text: "Текст" }),
+        });
+        assert.equal(response.status, 403);
+        const data = await response.json();
+        assert.equal(data.code, "GOOGLE_SCOPE_REQUIRED");
+        assert.equal(data.connect, "/api/google/connect?add=save");
+      },
+    );
+  } finally {
+    server.close();
+  }
+  assert.equal(await saveSessionFor(main), main);
+  assert.equal(await hasSession(dead), false);
 });

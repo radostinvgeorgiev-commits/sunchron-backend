@@ -8,6 +8,7 @@ import {
   downloadDriveFile,
   exchangeCode,
   finishGoogleConnection,
+  forgetSaveSession,
   getLatestGoogleSessionId,
   hasSession,
   listGmailMessages,
@@ -17,8 +18,10 @@ import {
   parseCookies,
   getYoutubeChannelSummary,
   googleConnectPath,
+  googleLoginHint,
   grantedExtras,
   isGoogleScopeMissing,
+  latestMainSessionFor,
   saveAnswerToGoogle,
   saveSessionFor,
   sessionBelongsTo,
@@ -41,6 +44,12 @@ function cookieSessionId(req) {
 async function sessionId(req) {
   const id = cookieSessionId(req);
   return (await sessionBelongsTo(id, req.owner)) ? id : null;
+}
+
+// This browser's connection, or else the account's newest one (a new
+// browser, or the cookie expired), so a connect keeps what the person has.
+async function accountSessionId(req) {
+  return (await sessionId(req)) || (await latestMainSessionFor(req.owner));
 }
 
 function ownerOnly(req, res, next) {
@@ -74,13 +83,16 @@ router.get("/connect", async (req, res) => {
     // Everyone, the owner too, starts with the scopes Google's free check
     // covers. A renewed connection, or one more service (add=youtube / gmail /
     // drive), asks again for every service this connection already has.
-    const current = saving ? null : await sessionId(req);
-    const keep = current ? await grantedExtras(current) : [];
+    const current = await accountSessionId(req);
+    const keep = current && !saving ? await grantedExtras(current) : [];
+    const loginHint = current ? await googleLoginHint(current) : "";
     res.setHeader(
       "Set-Cookie",
       `synchron_google_state=${state}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
     );
-    res.redirect(buildAuthorizationUrl(state, saving ? ["save"] : [...keep, add]));
+    res.redirect(
+      buildAuthorizationUrl(state, saving ? ["save"] : [...keep, add], { loginHint }),
+    );
   } catch (error) {
     sendError(res, error);
   }
@@ -98,8 +110,8 @@ router.get("/callback", async (req, res) => {
       );
     }
     const tokens = await exchangeCode(String(req.query.code));
-    const id = await finishGoogleConnection(tokens, req.owner, {
-      previousId: await sessionId(req),
+    const { id, partial } = await finishGoogleConnection(tokens, req.owner, {
+      previousId: await accountSessionId(req),
       saving: state.startsWith("save."),
     });
     res.setHeader("Set-Cookie", [
@@ -107,10 +119,12 @@ router.get("/callback", async (req, res) => {
       "synchron_google_state=; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
       "synchron_google_add=; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
     ]);
-    res.redirect("/?google=connected");
+    res.redirect(partial ? "/?google=partial" : "/?google=connected");
   } catch (error) {
     logSafeError("[Google OAuth callback]", error);
-    res.redirect("/?google=error");
+    res.redirect(
+      error?.code === "GOOGLE_ACCOUNT_MISMATCH" ? "/?google=error&reason=account" : "/?google=error",
+    );
   }
 });
 
@@ -287,17 +301,27 @@ router.post("/gmail/reply-draft", publicAiBudgetContext, async (req, res) => {
 
 // Saves one answer as a Google Doc or Sheet in the person's own Drive.
 router.post("/save", async (req, res) => {
+  let mainId = null;
+  let saveId = null;
   try {
     const { kind, title, text } = req.body || {};
+    mainId = await sessionId(req);
+    saveId = await saveSessionFor(mainId);
     res.json(
-      await saveAnswerToGoogle(await saveSessionFor(await sessionId(req)), {
+      await saveAnswerToGoogle(saveId, {
         kind: kind === "sheet" ? "sheet" : "doc",
         title: typeof title === "string" ? title : "",
         text: typeof text === "string" ? text : "",
       }),
     );
   } catch (error) {
-    if (isGoogleScopeMissing(error)) {
+    // The linked save token itself stopped working: forget it and ask for a
+    // new one, instead of offering a reconnect that would keep it.
+    const deadSaveToken =
+      saveId && mainId && saveId !== mainId &&
+      error instanceof GoogleDriveError && RECONNECT_CODES.has(error.code);
+    if (deadSaveToken) await forgetSaveSession(mainId, saveId);
+    if (deadSaveToken || isGoogleScopeMissing(error)) {
       // Saving needs its own small permission (only files AI CORE creates).
       return res.status(403).json({
         error: "Запазването в Google още не е разрешено.",

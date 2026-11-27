@@ -260,7 +260,11 @@ export function googleConnectPath(extra = "") {
 // turned on both YouTube and saving, every later connection would fail. So no
 // request uses it: each one names exactly the scopes its token needs, and
 // saving (drive.file) always gets its own token.
-export function buildAuthorizationUrl(state, extras = [], { owner = false } = {}) {
+export function buildAuthorizationUrl(
+  state,
+  extras = [],
+  { owner = false, loginHint = "" } = {},
+) {
   const { clientId, redirectUri } = configuration();
   const names = (Array.isArray(extras) ? extras : []).filter(
     (name) => typeof name === "string" && Object.hasOwn(GOOGLE_EXTRA_SCOPES, name),
@@ -278,6 +282,9 @@ export function buildAuthorizationUrl(state, extras = [], { owner = false } = {}
     scope: [...new Set(scopes)].join(" "),
     access_type: "offline",
     prompt: "consent",
+    // The connected Google account is picked already, so a person with two
+    // accounts does not grant a step to the other one by mistake.
+    ...(loginHint ? { login_hint: loginHint } : {}),
     state,
   });
   return `${GOOGLE_AUTH_URL}?${params}`;
@@ -339,6 +346,50 @@ function isSaveSession(session) {
   return Boolean(session?.saveOnly) || isSaveOnlyGrant(session?.scope);
 }
 
+// What a token can do, by service: each main scope and each extra service.
+function grantedServices(scope) {
+  const granted = grantedScopes(scope);
+  const services = new Set(
+    GOOGLE_MEMBER_SCOPES.filter((item) => item.startsWith("https://") && granted.has(item)),
+  );
+  for (const [name, scopes] of Object.entries(GOOGLE_EXTRA_SCOPES)) {
+    if (name !== "save" && scopes.split(" ").some((item) => granted.has(item))) {
+      services.add(name);
+    }
+  }
+  return services;
+}
+
+function coversServices(scope, previousScope) {
+  const now = grantedServices(scope);
+  return [...grantedServices(previousScope)].every((service) => now.has(service));
+}
+
+export async function googleLoginHint(id) {
+  return googleSubject(await loadSession(id));
+}
+
+// The save link can be made or changed on another server instance, so the
+// stored copy decides. The cached session is updated in place, so a token
+// refresh that persists it never drops a link made elsewhere.
+async function withStoredSaveLink(id, session) {
+  if (!session || resolvePersistenceBackend(process.env) !== "firestore") return session;
+  try {
+    const payload = await getFirestoreSessionStore().get(id);
+    if (!payload) return session;
+    const stored = decryptGoogleSession(payload);
+    if (stored.saveSessionId) session.saveSessionId = stored.saveSessionId;
+    else delete session.saveSessionId;
+  } catch (error) {
+    logSafeError("[Google session] Save link read failure", error);
+  }
+  return session;
+}
+
+async function loadSessionWithLink(id) {
+  return withStoredSaveLink(id, await loadSession(id));
+}
+
 async function deleteStoredSession(id) {
   if (!id) return;
   sessions.delete(id);
@@ -351,27 +402,71 @@ async function deleteStoredSession(id) {
 // one, so the main connection keeps every other permission. In production the
 // link must be stored, or "Запази в Google" would ask again after a restart.
 export async function linkSaveSession(mainId, saveId) {
-  const session = await loadSession(mainId);
+  const session = await loadSessionWithLink(mainId);
   if (!session || !saveId || saveId === mainId) return false;
   const previous = session.saveSessionId;
-  session.saveSessionId = saveId;
+  // The shared session changes only once the link is stored, so a token
+  // refresh running meanwhile never stores a link that did not happen.
   let persisted = false;
   try {
-    persisted = await persistSession(mainId, session);
+    persisted = await persistSession(mainId, { ...session, saveSessionId: saveId });
   } catch (error) {
     logSafeError("[Google session] Save link persistence failure", error);
   }
-  if (!persisted && requiresPersistentGoogleSessions()) {
-    if (previous) session.saveSessionId = previous;
-    else delete session.saveSessionId;
-    return false;
-  }
-  if (previous && previous !== saveId) {
+  if (!persisted && requiresPersistentGoogleSessions()) return false;
+  session.saveSessionId = saveId;
+  if (previous && previous !== saveId) await deleteUnlinkedSaveSession(previous, mainId);
+  return true;
+}
+
+// Every stored session (or, without storage, every session of this
+// instance), for finding which connection links a save token.
+async function knownSessions() {
+  if (resolvePersistenceBackend(process.env) !== "firestore") return [...sessions.entries()];
+  const known = [];
+  for (const { id, payload } of await getFirestoreSessionStore().listLatest(100)) {
     try {
-      await deleteStoredSession(previous);
-    } catch (error) {
-      logSafeError("[Google session] Old save token cleanup failure", error);
+      known.push([id, decryptGoogleSession(payload)]);
+    } catch {
+      // Unreadable sessions link nothing.
     }
+  }
+  return known;
+}
+
+// A save token is deleted only when no other connection still uses it
+// (two devices can share one through "Възстанови").
+async function deleteUnlinkedSaveSession(saveId, exceptId) {
+  try {
+    const linkedElsewhere = (await knownSessions()).some(
+      ([id, session]) => id !== exceptId && id !== saveId && session?.saveSessionId === saveId,
+    );
+    if (!linkedElsewhere) await deleteStoredSession(saveId);
+  } catch (error) {
+    logSafeError("[Google session] Old save token cleanup failure", error);
+  }
+}
+
+// The linked save token no longer works (its Google permission was removed
+// or expired): forget it, so the next "Запази в Google" asks for a new one
+// instead of carrying the dead token to every renewed connection.
+export async function forgetSaveSession(mainId, saveId) {
+  if (!mainId || !saveId || mainId === saveId) return false;
+  const session = await loadSessionWithLink(mainId);
+  if (session?.saveSessionId === saveId) {
+    const { saveSessionId: _dropped, ...rest } = session;
+    try {
+      await persistSession(mainId, rest);
+      delete session.saveSessionId;
+    } catch (error) {
+      logSafeError("[Google session] Save unlink persistence failure", error);
+      return false;
+    }
+  }
+  try {
+    await deleteStoredSession(saveId);
+  } catch (error) {
+    logSafeError("[Google session] Dead save token cleanup failure", error);
   }
   return true;
 }
@@ -380,9 +475,17 @@ export async function linkSaveSession(mainId, saveId) {
 // to the old connection (or the old connection itself, when it was only a
 // save token) is linked to the new one.
 export async function carrySaveSession(previousId, newId) {
-  const previous = await loadSession(previousId);
+  const previous = await loadSessionWithLink(previousId);
   if (!previous || previousId === newId) return false;
-  const saveId = isSaveSession(previous) ? previousId : previous.saveSessionId;
+  let saveId = previous.saveSessionId;
+  // A save token used as the connection, or an older main token that itself
+  // holds drive.file (from before saving had its own token): it keeps saving.
+  if (
+    isSaveSession(previous) ||
+    (!saveId && grantedScopes(previous.scope).has(GOOGLE_EXTRA_SCOPES.save))
+  ) {
+    saveId = previousId;
+  }
   if (!saveId || saveId === newId) return false;
   const [save, current] = [await loadSession(saveId), await loadSession(newId)];
   // Answers are saved only to the Google account that is connected now.
@@ -393,25 +496,28 @@ export async function carrySaveSession(previousId, newId) {
 // After Google's consent. A save-only token is linked beside the person's
 // main connection, which keeps its id, also when the step started before this
 // version (its scopes tell what it is). Any other token becomes the main
-// connection and keeps the linked save token.
+// connection and keeps the linked save token, unless it can do less than the
+// connection of the same Google account it would replace (boxes left
+// unticked on Google's screen): then the old connection stays and `partial`
+// tells the page to ask again.
 export async function finishGoogleConnection(
   tokens,
   owner,
   { previousId = null, saving = false } = {},
 ) {
   const save = saving || isSaveOnlyGrant(tokens?.scope);
-  const newId = await createSession(tokens, owner, { saveOnly: save });
-  if (save && previousId) {
-    const main = await loadSession(previousId);
-    if (main && !sameGoogleAccount(main, tokens)) {
-      await disconnectSession(newId);
+  const previous = previousId ? await loadSessionWithLink(previousId) : null;
+  if (save) {
+    if (previous && !sameGoogleAccount(previous, tokens)) {
       throw new GoogleDriveError(
         "Избери същия Google профил, с който е свързан AI CORE.",
         409,
         "GOOGLE_ACCOUNT_MISMATCH",
       );
     }
-    if (await linkSaveSession(previousId, newId)) return previousId;
+    const newId = await createSession(tokens, owner, { saveOnly: true });
+    if (!previous) return { id: newId };
+    if (await linkSaveSession(previousId, newId)) return { id: previousId };
     await disconnectSession(newId);
     throw new GoogleDriveError(
       "Google връзката не можа да бъде запазена защитено.",
@@ -419,18 +525,27 @@ export async function finishGoogleConnection(
       "GOOGLE_SESSION_PERSISTENCE_FAILED",
     );
   }
-  if (previousId) {
+  if (
+    previous &&
+    !isSaveSession(previous) &&
+    sameGoogleAccount(previous, tokens) &&
+    !coversServices(tokens?.scope, previous.scope)
+  ) {
+    return { id: previousId, partial: true };
+  }
+  const newId = await createSession(tokens, owner);
+  if (previous) {
     try {
       await carrySaveSession(previousId, newId);
     } catch (error) {
       logSafeError("[Google session] Save link carry failure", error);
     }
   }
-  return newId;
+  return { id: newId };
 }
 
 export async function saveSessionFor(mainId) {
-  const session = await loadSession(mainId);
+  const session = await loadSessionWithLink(mainId);
   const saveId = session?.saveSessionId;
   return saveId && (await hasSession(saveId)) ? saveId : mainId;
 }
@@ -473,12 +588,15 @@ export function googleAccountKey(memoryOwnerId) {
     .slice(0, 32);
 }
 
-export async function sessionBelongsTo(id, owner) {
-  if (!id || !owner?.memoryOwnerId) return false;
-  const session = await loadSession(id);
-  if (!session) return false;
+function sessionOwnedBy(session, owner) {
+  if (!session || !owner?.memoryOwnerId) return false;
   if (!session.accountKey) return owner.role === "owner";
   return session.accountKey === googleAccountKey(owner.memoryOwnerId);
+}
+
+export async function sessionBelongsTo(id, owner) {
+  if (!id || !owner?.memoryOwnerId) return false;
+  return sessionOwnedBy(await loadSession(id), owner);
 }
 
 export async function createSession(tokens, owner = null, { saveOnly = false } = {}) {
@@ -518,10 +636,10 @@ export async function createSession(tokens, owner = null, { saveOnly = false } =
 // Google token of the person stays stored.
 export async function disconnectSession(id) {
   if (!id) return;
-  const session = await loadSession(id);
+  const session = await loadSessionWithLink(id);
   const saveId = session?.saveSessionId;
   await deleteStoredSession(id);
-  if (saveId && saveId !== id) await deleteStoredSession(saveId);
+  if (saveId && saveId !== id) await deleteUnlinkedSaveSession(saveId, id);
 }
 
 // Several checks start at once when the tools list opens; they share one
@@ -577,6 +695,7 @@ async function refreshSessionOnce(id, fetchImpl = fetch) {
     refresh_token: data.refresh_token || session.refresh_token,
     expiresAt: Date.now() + Number(data.expires_in || 3600) * 1000,
   });
+  await withStoredSaveLink(id, session);
   try {
     await persistSession(id, session);
   } catch (error) {
@@ -686,13 +805,13 @@ export async function hasSession(id) {
   return Boolean(await loadSession(id));
 }
 
-export async function getLatestGoogleSessionId() {
-  // Only the owner's main connections: a member's Google never reaches owner
-  // tools, and a save-only token (drive.file) would fail every other tool.
+// The newest main connection (never a save token) that `belongs` accepts:
+// first this instance's sessions, then the stored ones.
+async function findLatestMainSession(belongs) {
   const linkedSaves = (list) =>
     new Set(list.map((session) => session?.saveSessionId).filter(Boolean));
   const usable = (id, session, saves) =>
-    session?.primaryOwner !== false && !isSaveSession(session) && !saves.has(id);
+    belongs(session) && !isSaveSession(session) && !saves.has(id);
   const cached = [...sessions.entries()].reverse();
   const cachedSaves = linkedSaves(cached.map(([, session]) => session));
   for (const [id, session] of cached) {
@@ -723,7 +842,7 @@ export async function getLatestGoogleSessionId() {
     ]);
     for (const { id, session } of decoded) {
       if (session?.access_token && usable(id, session, saves)) {
-        sessions.set(id, session);
+        if (!sessions.has(id)) sessions.set(id, session);
         return id;
       }
     }
@@ -734,6 +853,19 @@ export async function getLatestGoogleSessionId() {
     }
   }
   return null;
+}
+
+export async function getLatestGoogleSessionId() {
+  // Only the owner's main connections: a member's Google never reaches owner
+  // tools, and a save-only token (drive.file) would fail every other tool.
+  return findLatestMainSession((session) => session?.primaryOwner !== false);
+}
+
+// The person's own newest main connection. A connect from a new browser, or
+// after the cookie expired, then keeps their services and their save token.
+export async function latestMainSessionFor(owner) {
+  if (!owner?.memoryOwnerId) return null;
+  return findLatestMainSession((session) => sessionOwnedBy(session, owner));
 }
 
 export function resetGoogleSessionsForTests() {

@@ -9,6 +9,18 @@
 
   if (!button || !drawer || !body) return;
 
+  // The stored Google sign-in no longer works: "Свържи Google отново".
+  const RECONNECT_CODES = new Set([
+    "NOT_CONNECTED",
+    "TOKEN_EXPIRED",
+    "REFRESH_FAILED",
+    "GOOGLE_RECONNECT_REQUIRED",
+  ]);
+  // Server messages may carry a chat-style [text](link); the drawer shows its
+  // own button instead.
+  const plainMessage = (value) =>
+    String(value ?? "").replace(/\[([^\]]+)\]\([^)]*\)/gu, "$1");
+
   const escapeHtml = (value) => {
     const div = document.createElement("div");
     div.textContent = String(value ?? "");
@@ -99,10 +111,12 @@
       // A light Google connection has no Drive access yet: show the step
       // that adds it, not only the error. Other errors (Google busy, expired
       // sign-in) keep their own message and are not a missing permission.
-      body.innerHTML = `<div class="drawer-state drawer-error">${escapeHtml(error.message)}</div>${
+      body.innerHTML = `<div class="drawer-state drawer-error">${escapeHtml(plainMessage(error.message))}</div>${
         connected && error.code === "GOOGLE_SCOPE_REQUIRED"
           ? '<a class="new-chat" href="/api/google/connect?add=drive"><i class="fa-brands fa-google-drive"></i><span>Разреши Google Drive</span></a>'
-          : ""
+          : connected && RECONNECT_CODES.has(error.code)
+            ? '<a class="new-chat" href="/api/google/connect"><i class="fa-brands fa-google"></i><span>Свържи Google отново</span></a>'
+            : ""
       }`;
     }
   }
@@ -177,7 +191,23 @@
 
   const params = new URLSearchParams(window.location.search);
   if (params.has("google")) {
+    const outcome = params.get("google");
+    const notice =
+      outcome === "partial"
+        ? "Google не даде всички разрешения, затова остава старата връзка. Свържи отново и отметни всички."
+        : outcome === "error" && params.get("reason") === "account"
+          ? "Избери същия Google профил, с който е свързан AI CORE."
+          : outcome === "error"
+            ? "Връзката с Google не стана. Опитай отново."
+            : "";
     history.replaceState({}, "", window.location.pathname);
-    renderDrive();
+    renderDrive().then(() => {
+      if (notice) {
+        body.insertAdjacentHTML(
+          "afterbegin",
+          `<div class="drawer-state drawer-error">${escapeHtml(notice)}</div>`,
+        );
+      }
+    });
   }
 })();

@@ -53,6 +53,7 @@ import {
   buildProjectConversationReference,
   sanitizeAssistantHistory,
   loadProjectConversationContext,
+  nextStepLineIndexes,
 } from "../services/projectConversationContextService.js";
 import {
   buildKnowledgeContext,
@@ -78,6 +79,7 @@ import {
   isGitHubReadRequest,
 } from "../services/githubService.js";
 import {
+  CALENDAR_LIMITS,
   confirmCalendarEvent,
   extractCalendarConfirmationId,
   formatCalendarEventResult,
@@ -349,6 +351,17 @@ export function buildCouncilContext({ owner, avatarProfile = "", projectReferenc
     .join("\n");
 }
 
+const NEXT_LINE_MARKER = "`Следва: конкретна стъпка`";
+const NEXT_LINE_MARKER_EN = "`Next: one specific step`";
+
+// On an English page the answer's last line is "Next: …", which the page
+// turns into its Next card; a Bulgarian "Следва:" would stay in the text.
+export function withNextLineLanguage(context, language) {
+  return useEnglishReplyFallback(language)
+    ? String(context).replaceAll(NEXT_LINE_MARKER, NEXT_LINE_MARKER_EN)
+    : context;
+}
+
 export function buildAvatarMessages(
   memories,
   history,
@@ -358,9 +371,12 @@ export function buildAvatarMessages(
   knowledge = [],
 ) {
   const personName = identity?.displayName || "Потребител";
-  const assistantContext = isMemberIdentity(identity)
-    ? memberAssistantContext(personName)
-    : ASSISTANT_CONTEXT;
+  const assistantContext = withNextLineLanguage(
+    isMemberIdentity(identity)
+      ? memberAssistantContext(personName)
+      : ASSISTANT_CONTEXT,
+    interaction.language,
+  );
   const systemContext = [
     assistantContext,
     replyLanguageInstruction(interaction.language),
@@ -498,6 +514,19 @@ export function combineConversationHistory(persistent, recent) {
     }
   }
   return recent;
+}
+
+// The history the model sees. "Следва:"/"Next:" lines are stripped from whole
+// messages before any length cut: a cut inside a code block leaves a lone
+// closing fence, and the answer's own last Next line would then count as code
+// and be replayed. The saved turns and the client's recent ones are stripped
+// the same way, so the merge still finds where they overlap.
+export function effectiveConversationHistory(persistent, recent, { rewrite = false } = {}) {
+  const stripped = (messages) => (Array.isArray(messages) ? sanitizeAssistantHistory(messages) : []);
+  const cleanRecent = normalizeRecentConversationHistory(stripped(recent));
+  // Retry and edit send the trimmed history the person now sees; the saved
+  // turns would otherwise bring the replaced answer back into context.
+  return rewrite ? cleanRecent : combineConversationHistory(stripped(persistent), cleanRecent);
 }
 
 const SHORT_CONTINUATION_PATTERN =
@@ -1076,13 +1105,92 @@ function capabilityLabel(capability) {
   return capability;
 }
 
+const GOOGLE_RECONNECT_CODES = new Set([
+  "TOKEN_EXPIRED",
+  "REFRESH_FAILED",
+  "GOOGLE_RECONNECT_REQUIRED",
+]);
+const CALENDAR_FORMAT_CODES = new Set([
+  "CALENDAR_EVENT_FORMAT_REQUIRED",
+  "CALENDAR_EVENT_FIELD_MISSING",
+]);
+
+// The connect link in a Google error, or the site's own.
+function googleConnectUrl(message) {
+  return (
+    message.match(/https?:\/\/[^)\s]+/u)?.[0]?.replace(/[.,;:]+$/u, "") ||
+    process.env.GOOGLE_CONNECT_URL ||
+    "https://cloudaicore.com/api/google/connect"
+  );
+}
+
+// Why a calendar check failed, with the limits the check itself uses, or ""
+// for a code without its own reason.
+function englishCalendarReason(error) {
+  const limits = CALENDAR_LIMITS;
+  switch (error.code) {
+    case "CALENDAR_EVENT_FIELD_TOO_LONG":
+      return ["title", "location", "description"].includes(error.field)
+        ? `The ${error.field} is too long. The maximum is ${limits[error.field]} characters.`
+        : "A text in the event is too long.";
+    case "CALENDAR_EVENT_DATE_INVALID":
+      return "The date or time is not valid. Write a real date and time like 2026-08-05 14:30.";
+    // The format too: "30 min" is in range but not a plain number.
+    case "CALENDAR_EVENT_DURATION_INVALID":
+      return `The duration must be a whole number of minutes between ${limits.minDurationMinutes} and ${limits.maxDurationMinutes}, like 30.`;
+    case "CALENDAR_REMINDER_OFFSET_INVALID":
+      return `The reminder must be between 0 and ${limits.maxReminderMinutes} minutes before the event.`;
+    case "CALENDAR_SLOT_TIME_INVALID":
+      return "The start time for finding free time slots is not valid.";
+    default:
+      return "";
+  }
+}
+
+// Google errors are written in Bulgarian; an English page gets the same
+// meaning in English (and the same connect link), never the Bulgarian text.
+export function englishGoogleFailure(error) {
+  const message = String(error?.message || "");
+  if (!/\p{Script=Cyrillic}/u.test(message)) return message;
+  if (error.code === "GOOGLE_SCOPE_REQUIRED") {
+    return googleAllowReply(error, true) || "This Google service is not allowed yet.";
+  }
+  // Never connected is not "expired".
+  if (error.code === "NOT_CONNECTED") {
+    return `Google is not connected yet. [Connect Google](${googleConnectUrl(message)})`;
+  }
+  if (GOOGLE_RECONNECT_CODES.has(error.code)) {
+    return `The Google connection has expired. [Connect Google again](${googleConnectUrl(message)})`;
+  }
+  const calendarReason = englishCalendarReason(error);
+  if (calendarReason) return calendarReason;
+  if (error.code === "GOOGLE_API_DISABLED") {
+    return "This Google service is not turned on for AI CORE yet.";
+  }
+  if (error.code === "GOOGLE_REQUEST_FAILED") {
+    return "Google is temporarily unavailable. Try again in a moment.";
+  }
+  if (error.code === "GOOGLE_SESSION_PERSISTENCE_FAILED") {
+    return "The Google connection could not be saved securely. Try again.";
+  }
+  if (CALENDAR_FORMAT_CODES.has(error.code)) {
+    return 'The event details are missing or not in the expected format. Write it like this: "Create a calendar event: Title | 2026-11-28 10:00 | 30" (title, date and time, minutes).';
+  }
+  if (error.code === "GOOGLE_CONTACT_INVALID") {
+    return "A contact needs a name and an email address or a phone number.";
+  }
+  return "Google could not complete this request. Try again.";
+}
+
 function formatCapabilityFailureMessage(error, english = false) {
+  if (error instanceof GoogleDriveError) {
+    return english ? englishGoogleFailure(error) : error.message;
+  }
   if (
     error instanceof GitHubServiceError ||
     error instanceof GitHubOAuthError ||
     error instanceof CodeTaskError ||
     error instanceof CodexAgentError ||
-    error instanceof GoogleDriveError ||
     error instanceof WebSearchError ||
     error instanceof GeminiToolError ||
     // Out of units or the shared cap: say so, so the person knows to wait or top up.
@@ -1214,16 +1322,25 @@ function googleAllowReply(error, english) {
 // The model answers the request itself; when its answer leaves out the link
 // for a missing Google permission, the exact allow line is added, so the
 // "use the allow link above" step always has its link.
+// The answer's own "Next:"/"Следва:" line stays last, also when it is the
+// whole answer: the page turns it into the Next card only while it is last.
+// A link only in that line does not count: the page takes the line out of the
+// text, so the allow line is still added above it.
 export function withGoogleAllowLinks(reply, capabilityResults, language) {
   const english = useEnglishReplyFallback(language);
+  const replyLines = String(reply).trimEnd().split("\n");
+  const last = replyLines.length - 1;
+  const next = nextStepLineIndexes(replyLines).at(-1) === last ? replyLines[last].trim() : "";
+  const body = (next ? replyLines.slice(0, last) : replyLines).join("\n").trimEnd();
   const lines = [];
   for (const { status, error } of capabilityResults || []) {
     const allow = status === "rejected" ? googleAllowLink(error) : null;
-    if (!allow || String(reply).includes(allow.url)) continue;
+    if (!allow || body.includes(allow.url)) continue;
     const line = googleAllowReply(error, english);
     if (!lines.includes(line)) lines.push(line);
   }
-  return lines.length ? [String(reply).trimEnd(), ...lines].filter(Boolean).join("\n\n") : reply;
+  if (!lines.length) return reply;
+  return [body, ...lines, next].filter(Boolean).join("\n\n");
 }
 
 export function buildCapabilityReplies(capabilityResults, options = {}) {
@@ -1846,13 +1963,11 @@ router.post("/chat", async (req, res) => {
       logSafeError("[Project context] Workspace load failed", error);
     }
   }
-  // Retry and edit send the trimmed history the person now sees; the saved
-  // turns would otherwise bring the replaced answer back into context.
-  const effectiveHistory = sanitizeAssistantHistory(
-    rewrite === true
-      ? cleanRecentHistory
-      : combineConversationHistory(history, cleanRecentHistory),
-  );
+  // Next lines are stripped once, from whole messages: stripping the cut text
+  // again would take the code before a lone closing fence for text.
+  const effectiveHistory = effectiveConversationHistory(history, recentHistory, {
+    rewrite: rewrite === true,
+  });
   const conversationContextSource = cleanRecentHistory.length
     ? "client-recent"
     : history.length

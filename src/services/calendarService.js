@@ -18,10 +18,23 @@ const CALENDAR_ACTION = "calendar.write:create_event";
 const CONFIRM_PREFIX = "Потвърждавам календарно събитие:";
 const REMINDER_CONFIRM_PREFIX = "Потвърждавам календарно напомняне:";
 const TIME_ZONE = "Europe/Sofia";
-const MAX_TITLE_LENGTH = 200;
-const MAX_LOCATION_LENGTH = 500;
-const MAX_DESCRIPTION_LENGTH = 2000;
-const MAX_REMINDER_MINUTES = 28 * 24 * 60;
+// The limits the event checks use (title, location and description in
+// characters); an English page states the same values.
+export const CALENDAR_LIMITS = Object.freeze({
+  title: 200,
+  location: 500,
+  description: 2000,
+  minDurationMinutes: 5,
+  maxDurationMinutes: 1440,
+  maxReminderMinutes: 28 * 24 * 60,
+});
+// Each text field's name in the Bulgarian messages.
+const FIELD_LABELS = Object.freeze({
+  title: "заглавие",
+  location: "мястото",
+  description: "описанието",
+});
+const MAX_REMINDER_MINUTES = CALENDAR_LIMITS.maxReminderMinutes;
 const REMINDER_EVENT_DURATION_MINUTES = 5;
 
 function sessionFingerprint(value) {
@@ -42,15 +55,21 @@ function invalidDraft(message, code = "CALENDAR_EVENT_FORMAT_REQUIRED") {
   return new GoogleDriveError(`${message}\n${formatHelp()}`, 400, code);
 }
 
-function cleanLimitedText(value, limit, label, required = false) {
+function cleanLimitedText(value, field, required = false) {
   const text = typeof value === "string" ? value.trim() : "";
+  const label = FIELD_LABELS[field];
+  const limit = CALENDAR_LIMITS[field];
   if (required && !text) {
     throw invalidDraft(`Липсва ${label}.`, "CALENDAR_EVENT_FIELD_MISSING");
   }
   if (text.length > limit) {
-    throw invalidDraft(
-      `${label} е прекалено дълго. Максимумът е ${limit} знака.`,
-      "CALENDAR_EVENT_FIELD_TOO_LONG",
+    // The field goes with the error, so an English page can name it too.
+    throw Object.assign(
+      invalidDraft(
+        `${label} е прекалено дълго. Максимумът е ${limit} знака.`,
+        "CALENDAR_EVENT_FIELD_TOO_LONG",
+      ),
+      { field },
     );
   }
   return text;
@@ -96,9 +115,10 @@ function parseDuration(value) {
     /^(\d{1,4})(?:\s*(?:мин(?:ути?)?|minutes?))?$/iu,
   );
   const minutes = match ? Number(match[1]) : 0;
-  if (!Number.isInteger(minutes) || minutes < 5 || minutes > 1440) {
+  const { minDurationMinutes: min, maxDurationMinutes: max } = CALENDAR_LIMITS;
+  if (!Number.isInteger(minutes) || minutes < min || minutes > max) {
     throw invalidDraft(
-      "Продължителността трябва да е между 5 и 1440 минути.",
+      `Продължителността трябва да е между ${min} и ${max} минути.`,
       "CALENDAR_EVENT_DURATION_INVALID",
     );
   }
@@ -176,8 +196,7 @@ export function parseCalendarEventDraft(message) {
     }
     const title = cleanLimitedText(
       segments[0].replace(/^(?:моля[,\s]+)?напомни\s+ми\s*:\s*/iu, ""),
-      MAX_TITLE_LENGTH,
-      "заглавие",
+      "title",
       true,
     );
     const start = parseLocalDateTime(segments[1]);
@@ -202,22 +221,13 @@ export function parseCalendarEventDraft(message) {
       /^.*?(?:събитие|среща|ангажимент|event|meeting|appointment)(?:\s+(?:в\s+(?:google\s+)?календара|(?:in|to|on)\s+(?:my\s+|the\s+)?(?:google\s+)?calendar))?\s*:\s*/iu,
       "",
     ),
-    MAX_TITLE_LENGTH,
-    "заглавие",
+    "title",
     true,
   );
   const start = parseLocalDateTime(segments[1]);
   const durationMinutes = parseDuration(segments[2]);
-  const location = cleanLimitedText(
-    segments[3],
-    MAX_LOCATION_LENGTH,
-    "мястото",
-  );
-  const description = cleanLimitedText(
-    segments[4],
-    MAX_DESCRIPTION_LENGTH,
-    "описанието",
-  );
+  const location = cleanLimitedText(segments[3], "location");
+  const description = cleanLimitedText(segments[4], "description");
 
   return Object.freeze({
     title,

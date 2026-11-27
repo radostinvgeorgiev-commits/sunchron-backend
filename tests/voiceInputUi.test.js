@@ -154,6 +154,15 @@ test("the Next card keeps the allow step in the chat, and other steps go to the 
     assert.match(card.textContent, /Натисни линка за разрешение по-горе/u);
     assert.equal(card.querySelectorAll("button").length, 0, `${status}: no journal button`);
   }
+  // The answer's own Next line does not take the step to the journal either.
+  for (const reply of [
+    "I can't see your channel yet.\n\nNext: Allow YouTube, then ask again.",
+    "Нямам достъп до канала ти.\n\nСледва: Разреши YouTube и попитай пак.",
+  ]) {
+    const card = run(reply, { task: { status: "failed", steps: [scope] } });
+    assert.match(card.textContent, /Натисни линка за разрешение по-горе/u);
+    assert.equal(card.querySelectorAll("button").length, 0, "no journal button");
+  }
   assert.deepEqual(saved, [], "the allow step is not saved to the journal");
   const other = run("x", { task: { status: "failed", steps: [{ status: "failed", error: "GOOGLE_API_UNAVAILABLE" }] } });
   assert.equal(other.querySelectorAll("button").length, 1);

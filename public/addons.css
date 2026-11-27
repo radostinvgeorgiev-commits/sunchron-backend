@@ -6,9 +6,9 @@
 }
 .addon-tabs button[aria-selected="true"] { background: #000; border-color: #000; color: #fff; }
 .addon-tabs button[hidden], .addon-dialog section[hidden], .addon-output[hidden] { display: none; }
-.addon-editor { display: grid; gap: 8px; }
-.addon-editor label { display: grid; gap: 4px; font-size: .9rem; font-weight: 700; }
-.addon-editor input, .addon-editor textarea, .addon-input, .addon-note {
+.addon-editor, .claude-work-form { display: grid; gap: 8px; }
+.addon-editor label, .claude-work-form label { display: grid; gap: 4px; font-size: .9rem; font-weight: 700; }
+.addon-editor input, .addon-editor select, .addon-editor textarea, .claude-work-form textarea, .addon-input, .addon-note {
   width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid #c9d0cc; border-radius: 10px; font: inherit; font-weight: 400; color: #000;
 }
 .addon-editor textarea, .addon-code, .addon-output {
@@ -27,3 +27,14 @@
 .addon-pending { background: #fff4d6; }
 .addon-public { background: rgba(20, 108, 82, .12); color: #146c52; }
 .addon-rejected { background: #fde8e6; color: #a3261c; }
+/* "Работа с Claude": the task form, the chosen skills and the files. */
+.claude-work-skills { border: 1px solid #dde3e0; border-radius: 10px; padding: 8px 10px; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.claude-work-skills legend { font-size: .9rem; font-weight: 700; padding: 0 4px; }
+.claude-work-form label.claude-work-check { display: flex; align-items: center; gap: 6px; font-weight: 400; }
+.claude-work-form .claude-work-check input { width: auto; }
+.claude-work-files { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.claude-work-files a { font-weight: 700; overflow-wrap: anywhere; }
+.claude-work-after[hidden], .claude-work-recent[hidden] { display: none; }
+.claude-work-recent { margin-top: 10px; }
+.addon-editor label[hidden], .claude-work-addons[hidden], .addon-test[hidden] { display: none; }
+.addon-kind { background: #e8eefc; color: #23408e; }

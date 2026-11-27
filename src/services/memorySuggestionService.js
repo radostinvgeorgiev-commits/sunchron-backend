@@ -8,7 +8,7 @@ import {
 import { assertMemoryWriteAllowed } from "./memoryWriteConfirmationService.js";
 import { loadWorkspaceState } from "./workspaceStateService.js";
 
-// Memory inbox: AI assistants (Claude, ChatGPT, the AI CORE chat) suggest
+// Memory inbox: AI assistants (Claude, ChatGPT, the Novarium chat) suggest
 // facts; nothing reaches permanent memory until the owner approves it on the
 // site. Suggestions wait up to 30 days.
 
@@ -124,7 +124,7 @@ export async function suggestMemory(
   if (existing) return { ...existing, duplicate: true };
   if (pending.length >= MAX_PENDING_SUGGESTIONS) {
     throw new MemorySuggestionError(
-      "Входящите са пълни. Прегледай чакащите предложения в AI CORE.",
+      "Входящите са пълни. Прегледай чакащите предложения в Novarium.",
       429,
       "MEMORY_SUGGESTIONS_FULL",
     );

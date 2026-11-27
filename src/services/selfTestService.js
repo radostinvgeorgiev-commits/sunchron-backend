@@ -11,6 +11,7 @@ import { transcribeVoice } from "./voiceTranscriptionService.js";
 import { parseMeetingUpload, transcribeMeeting } from "./meetingNotesService.js";
 import { CHAT_MODEL_CHOICES, resolveWorkAgentProvider } from "./workModeService.js";
 import { probeVertexOpenModels } from "./vertexOpenModelsService.js";
+import { createClaudeWorkService } from "./claudeWorkService.js";
 
 // A self-test the owner's connector can run instead of clicking through the
 // site by hand. Every check is a real call (a few cents of AI use in total),
@@ -73,10 +74,10 @@ function withTimeout(promise, ms = CHECK_TIMEOUT_MS) {
   ]).finally(() => clearTimeout(timer));
 }
 
-async function check(name, run) {
+async function check(name, run, ms = CHECK_TIMEOUT_MS) {
   const started = Date.now();
   try {
-    const detail = await withTimeout(run());
+    const detail = await withTimeout(run(), ms);
     return { name, status: "pass", ms: Date.now() - started, ...(detail ? { detail } : {}) };
   } catch (error) {
     if (error?.skip) return { name, status: "skipped", ms: 0, detail: error.message };
@@ -119,6 +120,7 @@ export async function runSelfTest({
   libraryService,
   avatarProfileService,
   probeOpenModels = probeVertexOpenModels,
+  claudeWorkService,
 } = {}) {
   const marker = String(1000 + Math.floor(Math.random() * 9000));
   const chatChecks = CHAT_PROVIDERS.map((provider) =>
@@ -159,7 +161,7 @@ export async function runSelfTest({
     if (!env.ANTHROPIC_API_KEY) throw skip("няма Claude ключ");
     const result = await readDocument({
       image: {
-        dataUrl: `data:application/pdf;base64,${tinyPdf(`AI CORE TEST ${marker}`).toString("base64")}`,
+        dataUrl: `data:application/pdf;base64,${tinyPdf(`Novarium TEST ${marker}`).toString("base64")}`,
         mimeType: "application/pdf",
         name: "self-test.pdf",
       },
@@ -258,7 +260,31 @@ export async function runSelfTest({
     ].join("; ");
   });
 
-  const checks = await Promise.all([...chatChecks, voice, meeting, pdf, share, knowledge, library, avatar, lists, openModels]);
+  // "Работа с Claude": a real task in Anthropic's container that must leave
+  // a small file, which is then downloaded and deleted (about 1 US cent).
+  const claudeWork = check(
+    "Работа с Claude · задача и файл",
+    async () => {
+      if (!env.ANTHROPIC_API_KEY) throw skip("няма Claude ключ");
+      const ownerId = `self-test-${randomUUID()}`;
+      const service = claudeWorkService || createClaudeWorkService({ env });
+      try {
+        const result = await service.run(ownerId, {
+          task: `Запиши файл self-test.txt в $OUTPUT_DIR само с текста ${marker}. Не прави нищо друго.`,
+        });
+        const file = result.files?.[0];
+        if (!file) throw new Error(`няма файл; Claude каза: „${answerExcerpt(result.text)}“`);
+        const body = (await service.download(ownerId, file.id)).body.toString("utf8");
+        if (!body.includes(marker)) throw new Error("файлът няма очаквания текст");
+        return `Claude направи и върна файла ${file.name} (${result.model})`;
+      } finally {
+        await service.clear(ownerId).catch(() => null);
+      }
+    },
+    120_000,
+  );
+
+  const checks = await Promise.all([...chatChecks, voice, meeting, pdf, share, knowledge, library, avatar, lists, openModels, claudeWork]);
   const failed = checks.filter(({ status }) => status === "fail").length;
   return {
     status: failed ? "fail" : "pass",

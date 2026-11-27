@@ -22,7 +22,7 @@
     menu.innerHTML = `
       <button type="button" role="menuitem" data-plus="file">
         <i class="fa-solid fa-paperclip" aria-hidden="true"></i>
-        <span>${text("Снимка или PDF")}<small>${text("AI CORE ще го прочете")}</small></span>
+        <span>${text("Снимка или PDF")}<small>${text("Novarium ще го прочете")}</small></span>
       </button>
       <button type="button" role="menuitem" data-plus="search">
         <i class="fa-solid fa-globe" aria-hidden="true"></i>
@@ -251,7 +251,7 @@
     if (!greeting) return;
     const first = (name?.textContent || "").trim().split(/\s+/u)[0];
     greeting.textContent =
-      first && !/Проверка|AI CORE/u.test(first)
+      first && !/Проверка|Novarium/u.test(first)
         ? `${text("С какво да започнем")}, ${first}?`
         : text("С какво да започнем?");
   };
@@ -295,7 +295,7 @@
       ? chosen.id === "auto"
         ? text("Автоматичен")
         : chosen.label
-      : "AI CORE";
+      : "Novarium";
     menu.replaceChildren(
       ...choices.map((choice) => {
         const item = document.createElement("button");
@@ -325,7 +325,7 @@
     button.dataset.pickerMode = "work";
     const currentWork = work().agentModel();
     const chosen = workChoices.find((choice) => choice.id === currentWork) || workChoices[0];
-    label.textContent = chosen ? (chosen.id === "auto" ? text("Автоматичен") : chosen.label) : "AI CORE";
+    label.textContent = chosen ? (chosen.id === "auto" ? text("Автоматичен") : chosen.label) : "Novarium";
     const title = document.createElement("p");
     title.className = "model-picker-group";
     title.textContent = `${text("Модели за работа")}${work().agentName() ? ` · ${work().agentName()}` : ""}`;

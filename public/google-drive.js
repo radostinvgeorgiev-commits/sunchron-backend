@@ -57,7 +57,7 @@
       if (!status.connected) {
         body.innerHTML = `
           <section class="drawer-section">
-            <div class="permission-default">${text("Свържи своя Google профил. AI CORE ще вижда календара и контактите ти, а събития, контакти и имейли ще създава само след твоето „Потвърди“. Файловете ти в Drive не вижда, освен тези, които сам запазиш от AI CORE.")}</div>
+            <div class="permission-default">${text("Свържи своя Google профил. Novarium ще вижда календара и контактите ти, а събития, контакти и имейли ще създава само след твоето „Потвърди“. Файловете ти в Drive не вижда, освен тези, които сам запазиш от Novarium.")}</div>
             <button type="button" class="new-chat" id="connectGoogleDrive">
               <i class="fa-brands fa-google"></i><span>${text("Свържи Google")}</span>
             </button>
@@ -117,7 +117,7 @@
         body.innerHTML = `
           <section class="drawer-section">
             <div class="permission-default">${text("Google е свързан. В разговора можеш да питаш за календара и контактите си, да добавяш събития и контакти и да пращаш имейли. Нищо не се записва и не се изпраща без твоето „Потвърди“.")}</div>
-            <div class="permission-default">${text("Файловете ти в Drive не се виждат. „Запази в Google“ под отговор прави документ, до който AI CORE има достъп.")}</div>
+            <div class="permission-default">${text("Файловете ти в Drive не се виждат. „Запази в Google“ под отговор прави документ, до който Novarium има достъп.")}</div>
             <div class="drawer-actions">
               <button type="button" id="openMyCalendar">${text("Календарът ми")}</button>
               <button type="button" id="disconnectGoogleDrive">${text("Прекъсни връзката")}</button>
@@ -222,7 +222,7 @@
       outcome === "partial"
         ? text("Google не даде всички разрешения, затова остава старата връзка. Свържи отново и отметни всички.")
         : outcome === "error" && params.get("reason") === "account"
-          ? text("Избери същия Google профил, с който е свързан AI CORE.")
+          ? text("Избери същия Google профил, с който е свързан Novarium.")
           : outcome === "error"
             ? text("Връзката с Google не стана. Опитай отново.")
             : "";

@@ -66,8 +66,8 @@ test("classifies archive candidates conservatively", () => {
 
 test("preview deduplicates candidates and preserves source metadata", () => {
   const preview = buildKnowledgePreview([
-    { id: "a", title: "Първи", text: "Искам AI CORE да следи задачите ми." },
-    { id: "b", title: "Втори", text: "Искам AI CORE да следи задачите ми." },
+    { id: "a", title: "Първи", text: "Искам Novarium да следи задачите ми." },
+    { id: "b", title: "Втори", text: "Искам Novarium да следи задачите ми." },
   ]);
 
   assert.equal(preview.documentCount, 2);

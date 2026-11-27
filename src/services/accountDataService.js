@@ -19,6 +19,7 @@ import { recordAuditEvent } from "./permissionService.js";
 import { getAvatarLinkService } from "./avatarLinkService.js";
 import { getPersonalTodoService } from "./personalTodoService.js";
 import { getAddonService } from "./addonService.js";
+import { getClaudeWorkService } from "./claudeWorkService.js";
 import { getAvatarProfileService } from "./avatarProfileService.js";
 
 // Self-service GDPR rights for member accounts: a full copy of the data AI
@@ -94,7 +95,7 @@ export async function exportAccountData(
   }
   return {
     exportedAt: now().toISOString(),
-    service: "AI CORE · СИНХРОН Х ЕООД",
+    service: "Novarium · СИНХРОН Х ЕООД",
     account: {
       id: identity.id,
       email: identity.email || null,
@@ -143,6 +144,7 @@ export async function deleteAccount(
     forgetAvatarLink = (ownerId) => getAvatarLinkService().forget(ownerId),
     clearTodos = (ownerId) => getPersonalTodoService().clear(ownerId),
     clearAddons = (ownerId) => getAddonService().clear(ownerId),
+    clearClaudeWork = (ownerId) => getClaudeWorkService().clear(ownerId),
     forgetAvatarProfile = (ownerId) => getAvatarProfileService().forget(ownerId),
   } = {},
 ) {
@@ -194,6 +196,7 @@ export async function deleteAccount(
   await forgetAvatarLink(ownerId);
   await clearTodos(ownerId);
   await clearAddons(ownerId);
+  await clearClaudeWork(ownerId);
   await forgetAvatarProfile(ownerId);
 
   const removed = await client.auth.deleteAccount(data.session.access_token);

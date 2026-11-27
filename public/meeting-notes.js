@@ -1,6 +1,6 @@
 (() => {
   // "+" → „Запис от среща“: pick a recording (a phone voice memo, a Zoom or
-  // Meet download); AI CORE returns a summary, decisions and tasks, keeps the
+  // Meet download); Novarium returns a summary, decisions and tasks, keeps the
   // text in „Моите файлове“, and the tasks go to „Моите задачи“ in one press.
   const list = document.getElementById("chatMessages");
   if (!list) return;

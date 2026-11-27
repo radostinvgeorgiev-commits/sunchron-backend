@@ -21,7 +21,7 @@
     .then((data) => {
       if (data.title) {
         title.textContent = data.title;
-        document.title = `${data.title} · AI CORE`;
+        document.title = `${data.title} · Novarium`;
       }
       if (data.createdAt) {
         meta.textContent = `Споделен на ${new Date(data.createdAt).toLocaleDateString("bg-BG", {
@@ -36,7 +36,7 @@
           item.className = `shared-message ${message.role === "user" ? "user" : "agent"}`;
           const who = document.createElement("div");
           who.className = "shared-who";
-          who.textContent = message.role === "user" ? "Човек" : "AI CORE";
+          who.textContent = message.role === "user" ? "Човек" : "Novarium";
           const body = document.createElement("div");
           body.className = "shared-body";
           if (message.role === "user") body.textContent = message.content;

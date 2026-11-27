@@ -308,7 +308,7 @@ test("legacy stored pet fields are ignored and status migrates", async () => {
       agents: [
         {
           id: "synchron-builder",
-          name: "AI CORE",
+          name: "Novarium",
           role: "builder",
           model: "auto",
           engine: "ai-core",

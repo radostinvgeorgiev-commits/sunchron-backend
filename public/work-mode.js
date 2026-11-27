@@ -11,11 +11,14 @@
     coder: "Код разработчик (Claude)",
   });
   const ENGINE_OPTIONS = Object.freeze({
-    "ai-core": "AI CORE",
+    "ai-core": "Novarium",
     codex: "Claude код · анализ и branch/PR",
   });
   const MODEL_OPTIONS = Object.freeze({
     auto: "Автоматичен · препоръчано",
+    "claude-opus-5-5": "Claude Opus 5.5 · най-силният Claude",
+    "claude-sonnet-5-5": "Claude Sonnet 5.5 · силен и по-бърз",
+    "claude-haiku-4-5-20251001": "Claude Haiku 5.5 · бърз и евтин",
     "gpt-5.6-sol": "GPT-5.6 Sol · най-високо качество",
     "gpt-5.6-terra": "GPT-5.6 Terra · балансиран",
     "gpt-5.6-luna": "GPT-5.6 Luna · бърз",
@@ -493,7 +496,7 @@
     elements.workModeToolbarBtn?.setAttribute("aria-pressed", String(isWork));
     elements.chatInput.placeholder = text(isWork
       ? "Какъв резултат да изработим?"
-      : "Пиши на AI CORE");
+      : "Пиши на Novarium");
     const project = activeProject();
     const agent = activeAgent();
     elements.projectLabel.textContent = isWork
@@ -501,7 +504,7 @@
       : text("Разговор");
     // Built-in agent names ("Изпълни") are translated; names people gave
     // their own agents stay as written.
-    elements.agentLabel.textContent = agent?.name ? text(agent.name) : "AI CORE";
+    elements.agentLabel.textContent = agent?.name ? text(agent.name) : "Novarium";
     activateMobileCommand(isWork ? "work" : "chat");
     // The header model picker shows chat models in "Чат" and the work
     // agent's models in "Работа".
@@ -1125,7 +1128,7 @@
     addText(
       elements.drawerBody,
       "p",
-      "Избери проект и ясен работен режим. AI CORE използва контекста, показва напредъка и спира преди рискови действия.",
+      "Избери проект и ясен работен режим. Novarium използва контекста, показва напредъка и спира преди рискови действия.",
       "work-manager-intro",
     );
     addText(
@@ -1191,7 +1194,7 @@
           conversationIds: project?.conversationIds || [],
         },
         agent: {
-          name: agent?.name || "AI CORE",
+          name: agent?.name || "Novarium",
           role: agent?.role || "general",
           model: agent?.model || "auto",
           purpose: agent?.purpose || "",

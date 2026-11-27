@@ -63,6 +63,8 @@ import { createImageGenerationRouter } from "./src/routes/imageGenerationRouter.
 import { getImageGenerationService } from "./src/services/imageGenerationService.js";
 import { createVideoGenerationRouter } from "./src/routes/videoGenerationRouter.js";
 import { getVideoGenerationService } from "./src/services/videoGenerationService.js";
+import { createClaudeWorkRouter } from "./src/routes/claudeWorkRouter.js";
+import { getClaudeWorkService } from "./src/services/claudeWorkService.js";
 import { getDailyPlanService } from "./src/services/dailyPlanService.js";
 import { getCausesService } from "./src/services/causesService.js";
 import { getAvatarProfileService } from "./src/services/avatarProfileService.js";
@@ -313,6 +315,14 @@ app.use(
   requireOwnerSession,
   paidAiRateLimiter,
   createVideoGenerationRouter({ service: getVideoGenerationService() }),
+);
+// "Работа с Claude": a bigger task for Claude with Anthropic's skills
+// (presentation, Word, Excel, PDF) and web search; files come back.
+app.use(
+  "/api/claude-work",
+  requireOwnerSession,
+  paidAiRateLimiter,
+  createClaudeWorkRouter({ service: getClaudeWorkService(), addons: getAddonService() }),
 );
 app.use(
   "/api/daily-plan",

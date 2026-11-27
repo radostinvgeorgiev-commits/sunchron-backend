@@ -7,9 +7,9 @@ import { logSafeError } from "../utils/safeLogging.js";
 
 // The finished clip goes back as the MP4 file itself, not as text, so the
 // page can play and save it without a big base64 copy.
-// Owner's decision 2026-11-27: the owner tries videos first; members get
-// them (for 100 units each) once he has seen the result.
-export const VIDEOS_FOR_MEMBERS = false;
+// Owner's decision 2026-11-27: open to every account, 100 units a video
+// (the owner tried them first).
+export const VIDEOS_FOR_MEMBERS = true;
 
 export function createVideoGenerationRouter({ service, forMembers = VIDEOS_FOR_MEMBERS }) {
   const router = express.Router();
@@ -18,12 +18,17 @@ export function createVideoGenerationRouter({ service, forMembers = VIDEOS_FOR_M
       return res.status(403).json({ error: "Видеата скоро ще са достъпни за всички.", code: "VIDEO_NOT_YET_OPEN" });
     }
     try {
-      const result = await service.generate(req.body?.prompt, { aspectRatio: req.body?.aspectRatio });
+      const result = await service.generate(req.body?.prompt, {
+        aspectRatio: req.body?.aspectRatio,
+        narration: typeof req.body?.narration === "string" ? req.body.narration : undefined,
+        sound: req.body?.sound === false ? false : undefined,
+      });
       res.set({
         "Content-Type": result.mimeType,
         "Content-Length": String(result.video.length),
         "Cache-Control": "no-store",
         "X-Video-Aspect-Ratio": result.aspectRatio,
+        "X-Video-Sound": result.narration ? (result.music ? "voice+music" : "voice") : "none",
       });
       return res.send(result.video);
     } catch (error) {

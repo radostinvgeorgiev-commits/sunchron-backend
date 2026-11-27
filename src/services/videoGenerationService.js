@@ -2,9 +2,10 @@ import { reservePublicAiVideo } from "./publicAiBudget.js";
 import { logSafeError } from "../utils/safeLogging.js";
 import { createGoogleAuthClient } from "./googleAdcAuth.js";
 import { resolveVertexAiProjectId } from "./vertexAiGeminiService.js";
+import { getVideoSoundService } from "./videoSoundService.js";
 
 // "Направи видео": a short clip (ads and other) from a text description.
-// Gemini Omni Flash through the Gemini API key that AI CORE already uses.
+// Gemini Omni Flash through the Gemini API key that Novarium already uses.
 // It makes up to about 10 seconds of 720p video with sound, about
 // 0.10 US dollars a second, so a member pays a fixed 100 units.
 export const DEFAULT_VIDEO_MODEL = "gemini-omni-1.1-flash";
@@ -69,6 +70,8 @@ export function createVideoGenerationService({
   reserve = reservePublicAiVideo,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   now = () => Date.now(),
+  // Voice and music on top of the clip; null leaves the clip as it is.
+  addSound = null,
   vertexAuthorization = async (url) => {
     const client = await createGoogleAuthClient();
     const headers = await client.getRequestHeaders(url);
@@ -224,7 +227,18 @@ export function createVideoGenerationService({
         }
       }
       made ||= await generateWithVertex(prompt, aspectRatio, vertexProject);
-      return { video: made.video, mimeType: "video/mp4", prompt, model: made.model, aspectRatio };
+      const sound = addSound
+        ? await addSound(made.video, prompt, options).catch(() => null)
+        : null;
+      return {
+        video: sound?.video || made.video,
+        mimeType: "video/mp4",
+        prompt,
+        model: made.model,
+        aspectRatio,
+        narration: sound?.narration || "",
+        music: Boolean(sound?.music),
+      };
     } catch (error) {
       if (!(error instanceof VideoGenerationError)) logSafeError("[Video generation]", error);
       await giveBack().catch(() => false);
@@ -238,5 +252,7 @@ export function createVideoGenerationService({
 
 let defaultService;
 export function getVideoGenerationService() {
-  return (defaultService ||= createVideoGenerationService());
+  return (defaultService ||= createVideoGenerationService({
+    addSound: (video, prompt, options) => getVideoSoundService().addSound(video, prompt, options),
+  }));
 }

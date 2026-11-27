@@ -28,7 +28,7 @@ import { logSafeError } from "../utils/safeLogging.js";
 const widgetUri = "ui://synchron-x/workspace-v1.html";
 const widget = {
   uri: widgetUri,
-  name: "SYNCHRON-X workspace",
+  name: "Novarium workspace",
   mimeType: "text/html;profile=mcp-app",
 };
 const conversationIdPattern =
@@ -39,9 +39,9 @@ const securitySchemes = [{ type: "oauth2", scopes: [CHATGPT_MCP_SCOPE] }];
 const tools = [
   {
     name: "open_synchron_x_workspace",
-    title: "Open SYNCHRON-X workspace",
+    title: "Open Novarium workspace",
     description:
-      "Open the interactive SYNCHRON-X workspace in the current ChatGPT conversation.",
+      "Open the interactive Novarium workspace in the current ChatGPT conversation.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -56,9 +56,9 @@ const tools = [
   },
   {
     name: "ask_synchron_x",
-    title: "Ask SYNCHRON-X",
+    title: "Ask Novarium",
     description:
-      "Get a SYNCHRON-X answer to a specific question using the connected account. Costs three AI credits for standard accounts and saves the question and answer to the connected account. Send only the question and context the user chose to share.",
+      "Get a Novarium answer to a specific question using the connected account. Costs three AI credits for standard accounts and saves the question and answer to the connected account. Send only the question and context the user chose to share.",
     inputSchema: {
       type: "object",
       properties: {
@@ -77,9 +77,9 @@ const tools = [
   },
   {
     name: "get_synchron_x_balance",
-    title: "Check SYNCHRON-X balance",
+    title: "Check Novarium balance",
     description:
-      "Read the AI credit balance of the connected SYNCHRON-X account.",
+      "Read the AI credit balance of the connected Novarium account.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -155,7 +155,7 @@ export function createChatGptMcpRouter({
       );
       if (!identity)
         throw new McpOAuthError(
-          "Connect your SYNCHRON-X account.",
+          "Connect your Novarium account.",
           401,
           "invalid_token",
         );
@@ -179,7 +179,7 @@ export function createChatGptMcpRouter({
       return res.status(status).json({
         jsonrpc: "2.0",
         id: req.body.id ?? null,
-        result: result("Connect your SYNCHRON-X account.", {
+        result: result("Connect your Novarium account.", {
           "mcp/www_authenticate": [challenge],
         }),
       });
@@ -231,7 +231,7 @@ export function createChatGptMcpRouter({
         if (params?.name === "open_synchron_x_workspace") {
           if (Object.keys(args).length)
             return failure(-32602, "This tool takes no arguments.");
-          return reply(result("SYNCHRON-X is open."));
+          return reply(result("Novarium is open."));
         }
         if (params?.name === "get_synchron_x_balance") {
           if (Object.keys(args).length)
@@ -288,19 +288,19 @@ export function createChatGptMcpRouter({
             await saveTurn(sessionId, question, answer, ownerId);
           } catch (error) {
             conversationPersisted = false;
-            logSafeError("[SYNCHRON-X plugin] Save conversation", error);
+            logSafeError("[Novarium plugin] Save conversation", error);
           }
           return reply({
             ...result(answer),
             structuredContent: { answer, sessionId, conversationPersisted },
           });
         }
-        return failure(-32602, "Unknown SYNCHRON-X tool.");
+        return failure(-32602, "Unknown Novarium tool.");
       } catch (error) {
         const message =
           error instanceof ProductError
             ? error.message
-            : "SYNCHRON-X is temporarily unavailable. Try again shortly.";
+            : "Novarium is temporarily unavailable. Try again shortly.";
         return reply({ ...result(message), isError: true });
       }
     },

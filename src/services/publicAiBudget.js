@@ -121,3 +121,19 @@ export async function reservePublicAiVideo(provider = "", model = "") {
     return scope.refund(scope.identity, reservationId);
   };
 }
+// A task for "Работа с Claude": several Claude turns in Anthropic's container,
+// with skills and up to five web searches. About 5-8 US cents at most with
+// the economical model, so 10 units. Units come back if nothing was made.
+export const PUBLIC_CLAUDE_WORK_CREDITS = 10;
+export async function reservePublicAiClaudeWork(provider = "", model = "") {
+  const scope = context.getStore();
+  if (!scope) return async () => false;
+  scope.calls++;
+  const reservationId = await scope.reserve(scope.identity, PUBLIC_CLAUDE_WORK_CREDITS, { provider, model });
+  let returned = false;
+  return async () => {
+    if (returned || !reservationId || !scope.refund) return false;
+    returned = true;
+    return scope.refund(scope.identity, reservationId);
+  };
+}

@@ -79,7 +79,7 @@
     targetId,
     icon,
     featured = false,
-    status = "Вградено и работи в AI CORE",
+    status = "Вградено и работи в Novarium",
     statusClass = "internal",
   }) {
     const card = document.createElement("button");
@@ -440,7 +440,7 @@
     addText(
       section,
       "p",
-      "Какво е важно, какво чака решение и какво AI CORE може да продължи.",
+      "Какво е важно, какво чака решение и какво Novarium може да продължи.",
       "action-center-note",
     );
 
@@ -481,7 +481,7 @@
         tone: waitingTasks.length + waitingActivities.length ? "warning" : "ok",
       },
       {
-        label: "AI CORE може да продължи",
+        label: "Novarium може да продължи",
         value: `${actionableTasks.length} незавършени задачи`,
         targetId: "focusBtn",
         icon: "fa-solid fa-forward",
@@ -582,7 +582,7 @@
     addText(
       intro,
       "p",
-      "Свързаният разговор е вътре в AI CORE. Външните услуги не получават автоматично достъп до паметта и не дават нови права на агента.",
+      "Свързаният разговор е вътре в Novarium. Външните услуги не получават автоматично достъп до паметта и не дават нови права на агента.",
     );
     body.appendChild(intro);
     body.appendChild(renderLiveStatusMeta(checkedAt));
@@ -636,7 +636,7 @@
     );
     const chatGptAppStatus = resolveChatGptAppStatus(readiness);
     const chatGptAppCard = createActionCard({
-      title: "ChatGPT приложение — AI CORE",
+      title: "ChatGPT приложение — Novarium",
       description:
         "Свързва ChatGPT с разрешените инструменти чрез защитен OAuth вход.",
       action: "show-chatgpt-app-setup",
@@ -647,7 +647,7 @@
     });
     const cards = [
       createInternalCard({
-        title: "AI CORE — свързан разговор",
+        title: "Novarium — свързан разговор",
         description:
           "Този чат използва AI ядрото и разрешената постоянна памет.",
         targetId: "chat",
@@ -659,7 +659,7 @@
       chatGptAppCard,
       createExternalCard({
         title: "GitHub — хранилище",
-        description: "Кодът и историята на AI CORE.",
+        description: "Кодът и историята на Novarium.",
         url: REPOSITORY_URL,
         icon: "fa-brands fa-github",
         status: githubReadStatus.label,
@@ -727,7 +727,7 @@
         ? [
             createExternalCard({
               title: "Заявки за ранен достъп",
-              description: "Имейли на хората, поискали покана за SYNCHRON-X.",
+              description: "Имейли на хората, поискали покана за Novarium.",
               url: "/admin/early-access",
               icon: "fa-solid fa-inbox",
               status: "Само за собственика",
@@ -790,11 +790,11 @@
     const panel = document.createElement("section");
     panel.className = "work-center-intro chatgpt-app-setup";
     panel.dataset.chatgptAppSetup = "";
-    addText(panel, "strong", "Свържи AI CORE с ChatGPT");
+    addText(panel, "strong", "Свържи Novarium с ChatGPT");
     addText(
       panel,
       "p",
-      "За AI CORE се създава нов ChatGPT plugin. Не избирай готовите Google Drive, Gmail или Google Calendar — те са отделни Google връзки.",
+      "За Novarium се създава нов ChatGPT plugin. Не избирай готовите Google Drive, Gmail или Google Calendar — те са отделни Google връзки.",
     );
 
     const steps = document.createElement("ol");
@@ -802,9 +802,9 @@
     [
       "На компютър отвори ChatGPT → Settings → Security and login и включи Developer mode.",
       "Отвори страницата Plugins и натисни бутона + за нова връзка.",
-      "Въведи име AI CORE и кратко описание. Под Connection избери public endpoint.",
+      "Въведи име Novarium и кратко описание. Под Connection избери public endpoint.",
       "В полето MCP server URL постави целия адрес, показан отдолу, включително https:// и /mcp.",
-      "Създай връзката, прегледай откритите инструменти и завърши OAuth входа в AI CORE.",
+      "Създай връзката, прегледай откритите инструменти и завърши OAuth входа в Novarium.",
     ].forEach((step) => addText(steps, "li", step));
     panel.appendChild(steps);
 

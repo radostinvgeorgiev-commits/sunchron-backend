@@ -178,7 +178,7 @@ export async function requireMcpAuthorization(
   }
   return sendMcpAuthorizationError(req, res, {
     challenge,
-    message: "Нужно е OAuth свързване със AI CORE.",
+    message: "Нужно е OAuth свързване със Novarium.",
     status: 401,
   });
 }

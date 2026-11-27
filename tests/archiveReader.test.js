@@ -122,7 +122,7 @@ test("from ChatGPT and Claude exports only the person's own words are kept", () 
         ],
       },
     ])],
-    ["claude/memories.json", JSON.stringify([{ conversations_memory: "Радко прави AI CORE и пише на български." }])],
+    ["claude/memories.json", JSON.stringify([{ conversations_memory: "Радко прави Novarium и пише на български." }])],
   ]);
   const all = parts.map(({ text }) => text).join("\n");
   assert.deepEqual(parts.map(({ name }) => name), [
@@ -170,8 +170,8 @@ test("from LinkedIn come work, skills and own writing, without address or birth 
   const { extractLinkedIn, parseCsv } = await import("../public/archive-reader.mjs");
   assert.deepEqual(parseCsv('a,"b, ""c""\nd",e\r\n1,2,3'), [["a", 'b, "c"\nd', "e"], ["1", "2", "3"]]);
   const files = [
-    ["Profile.csv", 'First Name,Last Name,Address,Birth Date,Headline,Summary,Industry\nРадко,Георгиев,"ул. Тайна 1",1.1.1980,Основател на AI CORE,"Правя личен AI аватар.",Software\n'],
-    ["Positions.csv", "Company Name,Title,Description,Location,Started On,Finished On\nSYNCHRON-X,Основател,Водя продукта,София,Mar 2024,\n"],
+    ["Profile.csv", 'First Name,Last Name,Address,Birth Date,Headline,Summary,Industry\nРадко,Георгиев,"ул. Тайна 1",1.1.1980,Основател на Novarium,"Правя личен AI аватар.",Software\n'],
+    ["Positions.csv", "Company Name,Title,Description,Location,Started On,Finished On\nNovarium,Основател,Водя продукта,София,Mar 2024,\n"],
     ["Skills.csv", "Name\nПродукт\nПродажби\n"],
     ["Shares.csv", 'Date,ShareLink,ShareCommentary,SharedUrl,MediaUrl,Visibility\n2025-05-01 10:20:30,https://x,"Пуснахме нова версия, вижте я.",,,MEMBER_NETWORK\n'],
     ["Connections.csv", "Notes:\nFirst Name,Last Name\nИван,Иванов\n"],
@@ -179,8 +179,8 @@ test("from LinkedIn come work, skills and own writing, without address or birth 
   const parts = extractLinkedIn(files);
   assert.deepEqual(parts.map(({ name }) => name), ["LinkedIn: кой съм в работата", "LinkedIn: какво съм писал"]);
   const all = parts.map(({ text }) => text).join("\n");
-  assert.match(all, /Основател на AI CORE/u);
-  assert.match(all, /Основател, SYNCHRON-X/u);
+  assert.match(all, /Основател на Novarium/u);
+  assert.match(all, /Основател, Novarium/u);
   assert.match(all, /Умения: Продукт, Продажби/u);
   assert.match(all, /Пуснахме нова версия/u);
   assert.doesNotMatch(all, /Тайна|1980|Иванов/u);

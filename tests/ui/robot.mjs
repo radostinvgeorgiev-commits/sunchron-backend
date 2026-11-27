@@ -237,6 +237,31 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     }, after.slice(0, 3).map((item) => item.id));
     await pickNone();
   });
+  await step(`${label}: кодът в отговора се чете`, async () => {
+    await send("Покажи команда за инсталиране");
+    const pre = last().locator("pre");
+    await pre.waitFor({ timeout: 5000 });
+    const look = await pre.evaluate((element) => {
+      const rgb = (value) => value.match(/\d+(\.\d+)?/gu).slice(0, 3).map(Number);
+      const light = (value) => {
+        const [r, g, b] = rgb(value).map((part) => {
+          const x = part / 255;
+          return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const code = element.querySelector("code") || element;
+      const [text, back] = [light(getComputedStyle(code).color), light(getComputedStyle(element).backgroundColor)];
+      return {
+        contrast: (Math.max(text, back) + 0.05) / (Math.min(text, back) + 0.05),
+        left: parseFloat(getComputedStyle(element).paddingLeft),
+        text: code.textContent,
+      };
+    });
+    expect(look.text.includes("npm install"), `няма кода: ${look.text}`);
+    expect(look.contrast >= 4.5, `кодът не се чете, контраст ${look.contrast.toFixed(1)}`);
+    expect(look.left >= 8, `няма отстъп отляво (${look.left}px), първата буква се реже`);
+  });
   await step(`${label}: „Добавки“: пиша код, пробвам го, одобрявам го и всеки го пуска`, async () => {
     await openMine("addons");
     const box = page.locator(".addon-dialog");

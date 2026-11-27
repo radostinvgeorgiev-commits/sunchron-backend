@@ -33,7 +33,7 @@ test("every visible sentence on the new legal pages is translated", async () => 
       JSON.parse(await readPublic(`locales/${language}.json`)),
     ),
   );
-  for (const file of ["cookies.html", "data-deletion.html"]) {
+  for (const file of ["cookies.html", "data-deletion.html", "privacy.html", "terms.html"]) {
     const html = (await readPublic(file))
       .replace(/<script[\s\S]*?<\/script>/gu, "")
       .replace(/<code>[\s\S]*?<\/code>/gu, "");

@@ -6,10 +6,12 @@ import {
   validateDurableConfirmation,
 } from "./confirmationService.js";
 import {
+  cleanGmailMessage,
   createGoogleContact,
   getGmailDraft,
   getGmailMessage,
   sendGmailDraft,
+  sendGmailMessage,
   trashGmailMessage,
   updateGoogleContact,
 } from "./googleDriveService.js";
@@ -17,6 +19,7 @@ import { executeAuditedWriteAction } from "./permissionService.js";
 
 const ACTIONS = Object.freeze({
   SEND_DRAFT: "mail.send:draft",
+  SEND_MESSAGE: "mail.send:message",
   TRASH_MESSAGE: "mail.delete:message",
   CREATE_CONTACT: "contacts.write:create",
   UPDATE_CONTACT: "contacts.write:update",
@@ -156,6 +159,36 @@ export async function prepareGmailDraftSend(
   });
 }
 
+export async function prepareGmailMessageSend(
+  { ownerId, googleSessionId, sessionId, to, subject, body } = {},
+  { createConfirmation } = {},
+) {
+  let message;
+  try {
+    message = cleanGmailMessage({ to, subject, body });
+  } catch (error) {
+    throw new GoogleActionError(
+      error?.message || "Имейлът не е валиден.",
+      400,
+      error?.code || "GMAIL_MESSAGE_INVALID",
+    );
+  }
+  const confirmation = await createBoundConfirmation({
+    ownerId,
+    googleSessionId,
+    sessionId,
+    action: ACTIONS.SEND_MESSAGE,
+    resource: { to: message.to, subject: message.subject },
+    params: { message },
+    createConfirmation,
+  });
+  return Object.freeze({
+    confirmationId: confirmation.id,
+    expiresAt: confirmation.expiresAt,
+    message,
+  });
+}
+
 export async function prepareGmailMessageTrash(
   { ownerId, googleSessionId, sessionId, messageId } = {},
   { getMessage = getGmailMessage, createConfirmation } = {},
@@ -235,6 +268,7 @@ export async function confirmGoogleAction(
     consumeConfirmation = markDurableConfirmationUsed,
     executeWrite = executeAuditedWriteAction,
     sendDraft = sendGmailDraft,
+    sendMessage = sendGmailMessage,
     trashMessage = trashGmailMessage,
     createContact = createGoogleContact,
     updateContact = updateGoogleContact,
@@ -275,7 +309,7 @@ export async function confirmGoogleAction(
   const action = confirmation.action;
   return executeWrite({
     action:
-      action === ACTIONS.SEND_DRAFT
+      action === ACTIONS.SEND_DRAFT || action === ACTIONS.SEND_MESSAGE
         ? "mail.send"
         : action === ACTIONS.TRASH_MESSAGE
           ? "mail.delete"
@@ -287,11 +321,15 @@ export async function confirmGoogleAction(
     resource:
       confirmation.resource.draftId ||
       confirmation.resource.messageId ||
+      (action === ACTIONS.SEND_MESSAGE ? "gmail-message" : "") ||
       confirmation.resource.resourceName,
     details: action,
     execute: async () => {
       if (action === ACTIONS.SEND_DRAFT) {
         return sendDraft(googleSessionId, confirmation.resource.draftId);
+      }
+      if (action === ACTIONS.SEND_MESSAGE) {
+        return sendMessage(googleSessionId, confirmation.params?.message);
       }
       if (action === ACTIONS.TRASH_MESSAGE) {
         return trashMessage(googleSessionId, confirmation.resource.messageId);

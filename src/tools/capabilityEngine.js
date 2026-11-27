@@ -34,6 +34,7 @@ import {
 import {
   confirmGoogleAction,
   prepareGmailDraftSend,
+  prepareGmailMessageSend,
   prepareGmailMessageTrash,
   prepareGoogleContactChange,
 } from "../services/googleActionService.js";
@@ -749,8 +750,31 @@ const executors = Object.freeze({
           confirmationId: requiredInput(input.confirmationId, "confirmationId"),
         });
         return capability === "mail.send"
-          ? `Gmail черновата е изпратена: ${changed.id}.`
+          ? changed.to
+            ? `Имейлът е изпратен до ${changed.to}.`
+            : `Gmail черновата е изпратена: ${changed.id}.`
           : `Gmail съобщението е преместено в кошчето: ${changed.id}.`;
+      }
+      const mail = input.input || input;
+      if (capability === "mail.send" && !input.draftId && mail.to) {
+        const prepared = await prepareGmailMessageSend({
+          ownerId: input.ownerId,
+          googleSessionId: input.googleSessionId,
+          sessionId: input.sessionId,
+          to: mail.to,
+          subject: mail.subject,
+          body: mail.body,
+        });
+        return {
+          output: confirmationOutput(
+            prepared,
+            `Изпращането на имейл до ${prepared.message.to} (тема: ${prepared.message.subject || "без тема"})`,
+          ),
+          metadata: {
+            confirmationId: prepared.confirmationId,
+            confirmationType: "capability",
+          },
+        };
       }
       const prepared =
         capability === "mail.send"

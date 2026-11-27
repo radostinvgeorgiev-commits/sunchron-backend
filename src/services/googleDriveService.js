@@ -264,6 +264,9 @@ export function googleConnectPath(extra = "") {
   return GOOGLE_EXTRA_SCOPES[extra] ? `/api/google/connect?add=${extra}` : "/api/google/connect";
 }
 
+// A language code such as "en" or "pt-BR"; anything else is left out.
+const GOOGLE_SCREEN_LANGUAGE = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/u;
+
 // Google refuses drive.file and youtube.readonly in one grant (400
 // invalid_request, "cannot be requested together"). include_granted_scopes
 // would add every earlier grant to each new request, so once a person has
@@ -273,7 +276,7 @@ export function googleConnectPath(extra = "") {
 export function buildAuthorizationUrl(
   state,
   extras = [],
-  { owner = false, loginHint = "" } = {},
+  { owner = false, loginHint = "", language = "" } = {},
 ) {
   const { clientId, redirectUri } = configuration();
   const names = (Array.isArray(extras) ? extras : []).filter(
@@ -296,6 +299,8 @@ export function buildAuthorizationUrl(
     // The connected Google account is picked already, so a person with two
     // accounts does not grant a step to the other one by mistake.
     ...(loginHint ? { login_hint: loginHint } : {}),
+    // Google's sign-in and consent screens in the language of the page.
+    ...(GOOGLE_SCREEN_LANGUAGE.test(language) ? { hl: language } : {}),
     state,
   });
   return `${GOOGLE_AUTH_URL}?${params}`;

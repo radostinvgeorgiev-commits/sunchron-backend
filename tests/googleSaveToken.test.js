@@ -414,6 +414,17 @@ test("a connect from a new browser keeps the account's services and Google accou
           ).headers.get("location"),
         );
         assert.equal(save.searchParams.get("login_hint"), "google-7");
+        // The page language (set by locale.js) opens Google's screens in it.
+        const english = new URL(
+          (
+            await fetch(`http://127.0.0.1:${server.address().port}/api/google/connect`, {
+              redirect: "manual",
+              headers: { cookie: "ai_core_language=en" },
+            })
+          ).headers.get("location"),
+        );
+        assert.equal(english.searchParams.get("hl"), "en");
+        assert.equal(location.searchParams.get("hl"), null);
       },
     );
   } finally {

@@ -195,6 +195,13 @@ test("the main Google connection asks only for scopes Google's free check covers
         null,
       );
     }
+    // Google's screens follow the page language; anything else is left out.
+    const hl = (options) =>
+      new URL(buildAuthorizationUrl("state", [], options)).searchParams.get("hl");
+    assert.equal(hl({ language: "en" }), "en");
+    assert.equal(hl({ language: "pt-BR" }), "pt-BR");
+    assert.equal(hl(), null);
+    assert.equal(hl({ language: 'en"><script>' }), null);
     // One more service asks again for the main scopes plus that service.
     const youtube = new URL(buildAuthorizationUrl("state", ["youtube"])).searchParams.get("scope");
     assert.equal(youtube, `${scope} https://www.googleapis.com/auth/youtube.readonly`);

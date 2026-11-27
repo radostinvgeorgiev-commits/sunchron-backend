@@ -93,8 +93,13 @@ router.get("/connect", async (req, res) => {
       "Set-Cookie",
       `synchron_google_state=${state}; Path=/api/google; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
     );
+    // The page's language (set by locale.js), so Google's screens match it.
+    const language = parseCookies(req.headers.cookie).ai_core_language || "";
     res.redirect(
-      buildAuthorizationUrl(state, linked ? [linked] : [...keep, add], { loginHint }),
+      buildAuthorizationUrl(state, linked ? [linked] : [...keep, add], {
+        loginHint,
+        language,
+      }),
     );
   } catch (error) {
     sendError(res, error);

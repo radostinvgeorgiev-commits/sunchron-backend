@@ -94,6 +94,18 @@ test("loads a supported catalog and safely falls back when a catalog is unavaila
   fallback.window.close();
 });
 
+test("Google's sign-in and consent screens follow the page language", async () => {
+  const google = "https://cloudaicore.com/api/google/connect";
+  const english = await render(landing, { path: "/?lang=en", browserLanguage: "bg-BG" });
+  assert.match(english.cookieJar.getCookieStringSync(google), /(?:^|; )ai_core_language=en(?:;|$)/u);
+  // Only the Google routes receive it.
+  assert.doesNotMatch(english.cookieJar.getCookieStringSync("https://cloudaicore.com/chat"), /ai_core_language/u);
+  english.window.close();
+  const bulgarian = await render(landing, { browserLanguage: "bg-BG" });
+  assert.match(bulgarian.cookieJar.getCookieStringSync(google), /(?:^|; )ai_core_language=bg(?:;|$)/u);
+  bulgarian.window.close();
+});
+
 test("keeps the selected language and attribution when navigating to registration", async () => {
   const dom = await render(plans, {
     path: "/plans?lang=en&utm_source=chatgpt&utm_campaign=ai-core-launch&utm_content=variant-2",

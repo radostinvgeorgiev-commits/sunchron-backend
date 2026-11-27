@@ -1,5 +1,8 @@
 # CLAUDE.md — NovariumAI
 
+Каноничната котва е [docs/MANIFESTO.md](docs/MANIFESTO.md): прочети я първа,
+заедно с дневника на решенията [docs/CONTEXT.md](docs/CONTEXT.md). Всяко ново
+решение на собственика добавяй в CONTEXT.md с дата.
 Правилата за работа по това хранилище са в [AGENTS.md](AGENTS.md). Прочети го
 преди всяка промяна; то важи изцяло и за Claude.
 

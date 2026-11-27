@@ -68,6 +68,14 @@
     }
     document.documentElement.lang = language;
     document.documentElement.dir = rtl.has(language) ? "rtl" : "ltr";
+    // "Свържи Google" opens Google's screens in the same language.
+    try {
+      document.cookie = `ai_core_language=${language}; Path=/api/google; Max-Age=31536000; SameSite=Lax${
+        location.protocol === "https:" ? "; Secure" : ""
+      }`;
+    } catch {
+      // Without it, Google shows its screens in the account's language.
+    }
   }
 
   function text(value, values = {}) {

@@ -1195,6 +1195,17 @@ export function buildCapabilityReplies(capabilityResults, options = {}) {
       continue;
     }
     const { request, error } = capabilityResult;
+    // A Google service the person has not allowed yet: the reply is the
+    // button-link to allow it, in the reply language.
+    const connectLink =
+      error?.code === "GOOGLE_SCOPE_REQUIRED"
+        ? String(error.message || "").match(/\]\((https?:\/\/[^)\s]+\?add=([a-z]+))\)/u)
+        : null;
+    if (english && connectLink) {
+      const service = { youtube: "YouTube", save: "Saving to Google", drive: "Google Drive", gmail: "Gmail" }[connectLink[2]] || "This Google service";
+      addUniqueReply(`${service} is not allowed yet. [Allow ${service === "Saving to Google" ? "saving to Google" : service}](${connectLink[1]})`);
+      continue;
+    }
     const message = formatCapabilityFailureMessage(error);
     addUniqueReply(
       english

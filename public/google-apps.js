@@ -10,6 +10,7 @@
   if (!drawer || !body || !gmailButton || !calendarButton || !mapsButton)
     return;
 
+  const text = (value) => globalThis.AiCoreLocale?.text?.(value) ?? value;
   const escapeHtml = (value) => {
     const div = document.createElement("div");
     div.textContent = String(value ?? "");
@@ -27,7 +28,7 @@
     const response = await fetch(path, { cache: "no-store" });
     const data = await response.json().catch(() => ({}));
     if (!response.ok)
-      throw new Error(data.error || "Google услугата временно не е достъпна.");
+      throw new Error(data.error || text("Google услугата временно не е достъпна."));
     return data;
   }
 
@@ -36,13 +37,13 @@
     body.innerHTML = `
       <div class="drawer-state drawer-error">${escapeHtml(error.message)}</div>
       <button type="button" class="new-chat" id="reconnectGoogle">
-        <i class="fa-brands fa-google"></i><span>Свържи Google отново</span>
+        <i class="fa-brands fa-google"></i><span>${text("Свържи Google отново")}</span>
       </button>`;
     if (status.canRestore) body.insertAdjacentHTML(
       "beforeend",
       `
       <button type="button" class="new-chat" id="restoreGoogle">
-        <i class="fa-solid fa-clock-rotate-left"></i><span>Възстанови старата Google връзка</span>
+        <i class="fa-solid fa-clock-rotate-left"></i><span>${text("Възстанови старата Google връзка")}</span>
       </button>`,
     );
     document.getElementById("reconnectGoogle").addEventListener("click", () => {
@@ -61,13 +62,13 @@
   async function showGmail() {
     openDrawer("Gmail");
     body.innerHTML =
-      '<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Зареждане…</div>';
+      `<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> ${text("Зареждане…")}</div>`;
     try {
       const data = await request("/api/google/gmail/messages?limit=15");
       const messages = Array.isArray(data.messages) ? data.messages : [];
       body.innerHTML = `
         <section class="drawer-section">
-          <div class="permission-default">Последни имейли. „Чернова от мое име“ записва отговор в твоя стил като чернова в Gmail; нищо не се изпраща без теб.</div>
+          <div class="permission-default">${text("Последни имейли. „Чернова от мое име“ записва отговор в твоя стил като чернова в Gmail; нищо не се изпраща без теб.")}</div>
           ${
             messages.length
               ? messages
@@ -79,12 +80,12 @@
                 <p>${escapeHtml(message.from)}</p>
                 <p>${escapeHtml(message.snippet)}</p>
               </div>
-              <a href="${escapeHtml(message.url)}" target="_blank" rel="noopener noreferrer">Отвори</a>
-              <button type="button" class="reply-draft" data-message-id="${escapeHtml(message.id)}">Чернова от мое име</button>
+              <a href="${escapeHtml(message.url)}" target="_blank" rel="noopener noreferrer">${text("Отвори")}</a>
+              <button type="button" class="reply-draft" data-message-id="${escapeHtml(message.id)}">${text("Чернова от мое име")}</button>
             </article>`,
                   )
                   .join("")
-              : '<div class="drawer-empty">Няма намерени имейли.</div>'
+              : `<div class="drawer-empty">${text("Няма намерени имейли.")}</div>`
           }
         </section>`;
     } catch (error) {
@@ -97,7 +98,7 @@
     if (!button) return;
     const card = button.closest("article");
     button.disabled = true;
-    button.textContent = "Пиша черновата…";
+    button.textContent = text("Пиша черновата…");
     try {
       const response = await fetch("/api/google/gmail/reply-draft", {
         method: "POST",
@@ -106,7 +107,7 @@
         body: JSON.stringify({ messageId: button.dataset.messageId }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Черновата не беше записана.");
+      if (!response.ok) throw new Error(data.error || text("Черновата не беше записана."));
       const result = document.createElement("div");
       result.className = "reply-draft-result";
       const preview = document.createElement("p");
@@ -115,13 +116,13 @@
       link.href = data.draft.url;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
-      link.textContent = "Отвори черновата в Gmail — прегледай и изпрати сам";
+      link.textContent = text("Отвори черновата в Gmail — прегледай и изпрати сам");
       result.append(preview, link);
       card.append(result);
       button.remove();
     } catch (error) {
       button.disabled = false;
-      button.textContent = "Чернова от мое име";
+      button.textContent = text("Чернова от мое име");
       const note = document.createElement("p");
       note.className = "drawer-error";
       note.textContent = error.message;
@@ -132,7 +133,7 @@
   async function showCalendar() {
     openDrawer("Google Calendar");
     body.innerHTML =
-      '<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Зареждане…</div>';
+      `<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> ${text("Зареждане…")}</div>`;
     try {
       const data = await request(
         "/api/google/calendar/events?days=14&limit=25",
@@ -140,7 +141,7 @@
       const events = Array.isArray(data.events) ? data.events : [];
       body.innerHTML = `
         <section class="drawer-section">
-          <div class="permission-default">Предстоящи събития за 14 дни — само за четене.</div>
+          <div class="permission-default">${text("Предстоящи събития за 14 дни.")}</div>
           ${
             events.length
               ? events
@@ -152,11 +153,11 @@
                 <p>${event.start ? new Date(event.start).toLocaleString("bg-BG") : ""}</p>
                 ${event.location ? `<p>${escapeHtml(event.location)}</p>` : ""}
               </div>
-              ${event.url ? `<a href="${escapeHtml(event.url)}" target="_blank" rel="noopener noreferrer">Отвори</a>` : ""}
+              ${event.url ? `<a href="${escapeHtml(event.url)}" target="_blank" rel="noopener noreferrer">${text("Отвори")}</a>` : ""}
             </article>`,
                   )
                   .join("")
-              : '<div class="drawer-empty">Няма предстоящи събития.</div>'
+              : `<div class="drawer-empty">${text("Няма предстоящи събития.")}</div>`
           }
         </section>`;
     } catch (error) {
@@ -168,10 +169,10 @@
     openDrawer("Google Maps");
     body.innerHTML = `
       <section class="drawer-section">
-        <div class="permission-default">Потърси място, хотел, заведение или маршрут. Резултатът се отваря в Google Maps.</div>
+        <div class="permission-default">${text("Потърси място, хотел, заведение или маршрут. Резултатът се отваря в Google Maps.")}</div>
         <div class="chat-input-area">
-          <input id="mapsQuery" type="search" placeholder="Например: хотел в Търново">
-          <button id="mapsSearch" type="button" aria-label="Търси"><i class="fa-solid fa-magnifying-glass"></i></button>
+          <input id="mapsQuery" type="search" placeholder="${text("Например: хотел в Търново")}">
+          <button id="mapsSearch" type="button" aria-label="${text("Търси")}"><i class="fa-solid fa-magnifying-glass"></i></button>
         </div>
       </section>`;
     const input = document.getElementById("mapsQuery");

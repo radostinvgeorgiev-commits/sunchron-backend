@@ -55,6 +55,7 @@ export function startStubServer(port = 0) {
   let avatarProfile = {};
   let causes = [];
   let googleConnected = false;
+  let googleLight = false;
   let workspace = null;
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://stub");
@@ -86,8 +87,10 @@ export function startStubServer(port = 0) {
       files = files.filter(({ id }) => id !== p.split("/").pop());
       return json(res, { removed: true });
     }
-    if (p === "/__robot/google-connected" || p === "/__robot/google-disconnected") {
-      googleConnected = p.endsWith("/google-connected");
+    if (p === "/__robot/google-connected" || p === "/__robot/google-disconnected" || p === "/__robot/google-light") {
+      googleConnected = !p.endsWith("/google-disconnected");
+      // "Свържи Google" without the whole Drive: listing files is not allowed.
+      googleLight = p.endsWith("/google-light");
       return json(res, { ok: true });
     }
     if (p === "/api/images" && req.method === "POST") {
@@ -209,7 +212,11 @@ export function startStubServer(port = 0) {
         { date: "2026-11-25", active: 2, messages: 11, registrations: 0, landing_variant_1: 0, landing_variant_2: 0, landing_variant_3: 3 },
       ], accounts: { total: 7, signedInLast7Days: 5 } });
     }
-    if (p === "/api/google/files") return json(res, { files: [] });
+    if (p === "/api/google/files") {
+      return googleLight
+        ? json(res, { error: "Google Drive още не е разрешен.", code: "GOOGLE_SCOPE_REQUIRED" }, 403)
+        : json(res, { files: [] });
+    }
     if (p === "/api/google/gmail/messages") {
       return json(res, { messages: [{ id: "m1", subject: "Офертата", from: "Иван <ivan@example.com>", snippet: "Потвърди до петък", url: "https://mail.google.com/x" }] });
     }

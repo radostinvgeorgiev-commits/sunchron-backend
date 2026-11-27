@@ -379,6 +379,18 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     await page.click("#closeDataDrawerBtn");
     await page.waitForTimeout(200);
   });
+  await step(`${label}: „Моят Google“ след свързване казва какво работи, без грешка`, async () => {
+    await page.evaluate(() => fetch("/__robot/google-light"));
+    await openMine("google");
+    await page.waitForTimeout(500);
+    const drawerText = await page.locator("#dataDrawerBody").innerText();
+    expect(drawerText.includes("Google е свързан"), `няма „Google е свързан“: ${drawerText.slice(0, 80)}`);
+    expect((await page.locator('#dataDrawerBody a[href*="add=drive"]').count()) === 0, "предлага целия Drive");
+    expect(await page.locator("#disconnectGoogleDrive").isVisible(), "няма „Прекъсни връзката“");
+    await page.evaluate(() => fetch("/__robot/google-disconnected"));
+    await page.click("#closeDataDrawerBtn");
+    await page.waitForTimeout(200);
+  });
   await step(`${label}: „Чернова от мое име“ записва отговор като чернова`, async () => {
     await page.evaluate(() => fetch("/__robot/google-connected"));
     await openMine("google");

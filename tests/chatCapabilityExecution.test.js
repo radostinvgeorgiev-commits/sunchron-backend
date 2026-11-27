@@ -956,3 +956,14 @@ test("chat prepares a new Google contact from one exact line, in Bulgarian or En
   assert.equal(parseContactCreateRequest("Find contact Ana"), null);
   assert.equal(detectCapabilityRequests("Намери контакт Иван")[0].capability, "contacts.read");
 });
+
+test("in English, a Google service that is not allowed yet answers with its allow link", () => {
+  const error = Object.assign(
+    new Error("YouTube още не е разрешен. [Свържи YouTube](https://cloudaicore.com/api/google/connect?add=youtube)."),
+    { code: "GOOGLE_SCOPE_REQUIRED" },
+  );
+  const results = [{ status: "rejected", request: { capability: "youtube.channel" }, error }];
+  assert.deepEqual(buildCapabilityReplies(results, { language: "en" }), [
+    "YouTube is not allowed yet. [Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)",
+  ]);
+});

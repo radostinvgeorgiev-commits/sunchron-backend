@@ -711,28 +711,19 @@ export async function disconnectSession(id) {
 // "Прекъсни връзката": every stored Google token of the person goes (older
 // connections and step tokens too), so none stays stored and the next
 // "Свържи Google" starts clean instead of finding an older connection.
-// The tokens are found before anything is removed: when the store cannot be
-// read, nothing changes and the person can press the button again.
+// The tokens are found before anything is removed, and this browser's own
+// connection goes last: if the store fails on the way, that connection and
+// its button stay, and pressing it again finishes the job.
 export async function disconnectGoogleAccount(id, owner) {
   const own = new Set();
   if (owner?.memoryOwnerId) {
-    for (const [sessionId, session] of [...(await storedSessionsToScan()), ...sessions.entries()]) {
+    for (const [sessionId, session] of [...(await knownSessions(1000)), ...sessions.entries()]) {
       if (sessionOwnedBy(session, owner)) own.add(sessionId);
     }
   }
-  if (id) await disconnectSession(id);
+  own.delete(id);
   for (const sessionId of own) await deleteStoredSession(sessionId);
-}
-
-// Every stored session (up to 1000). If the store refuses that scan, the
-// newest 100, which every other lookup reads, are still checked.
-async function storedSessionsToScan() {
-  try {
-    return await knownSessions(1000);
-  } catch (error) {
-    logSafeError("[Google session] Full session scan failure", error);
-    return knownSessions();
-  }
+  if (id) await disconnectSession(id);
 }
 
 // Several checks start at once when the tools list opens; they share one

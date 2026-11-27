@@ -575,7 +575,7 @@ test("disconnecting removes every stored Google token of the person, and nobody 
   });
 });
 
-async function postDisconnect(cookie) {
+async function callGoogle(path, cookie, method = "POST") {
   const app = express();
   app.use((req, _res, next) => {
     req.owner = owner;
@@ -584,8 +584,8 @@ async function postDisconnect(cookie) {
   app.use("/api/google", googleDriveRouter);
   const server = app.listen(0);
   try {
-    return await fetch(`http://127.0.0.1:${server.address().port}/api/google/disconnect`, {
-      method: "POST",
+    return await fetch(`http://127.0.0.1:${server.address().port}/api/google${path}`, {
+      method,
       headers: { cookie },
     });
   } finally {
@@ -593,31 +593,36 @@ async function postDisconnect(cookie) {
   }
 }
 
-test("disconnecting still removes every token when the store refuses the full scan", async () => {
+test("a delete that fails on the way keeps this browser's connection, so Disconnect can be pressed again", async () => {
   const store = fakeSessionStore();
   const member = { memoryOwnerId: "member:ana", role: "member" };
-  const listLatest = store.listLatest;
-  const scans = [];
-  store.listLatest = async (limit = 100) => {
-    scans.push(limit);
-    if (limit > 100) throw Object.assign(new Error("refused"), { code: "FIRESTORE_UNAVAILABLE", status: 503 });
-    return listLatest(limit);
-  };
   await withEnvironment(FIRESTORE_ENV, async () => {
     resetGoogleSessionsForTests();
     setFirestoreGoogleSessionStoreForTests(store);
-    await createSession(tokens("older", `${MAIN} ${YOUTUBE}`), owner);
+    const older = await createSession(tokens("older", `${MAIN} ${YOUTUBE}`), owner);
     const main = await createSession(tokens("main", MAIN), owner);
     const save = await createSession(tokens("save", SAVE), owner, { saveOnly: true });
     assert.equal(await linkSaveSession(main, save), true);
     const theirs = await createSession(tokens("theirs", MAIN, "google-9"), member);
-    resetGoogleSessionsForTests();
-    setFirestoreGoogleSessionStoreForTests(store);
+    const remove = store.delete;
+    let failOnce = true;
+    store.delete = async (id) => {
+      if (id === older && failOnce) {
+        failOnce = false;
+        throw Object.assign(new Error("unavailable"), { code: "FIRESTORE_UNAVAILABLE", status: 503 });
+      }
+      return remove(id);
+    };
+    const cookie = `synchron_google_session=${main}`;
 
-    const response = await postDisconnect(`synchron_google_session=${main}`);
-    assert.equal(response.status, 200);
-    assert.match(response.headers.get("set-cookie"), /synchron_google_session=;.*Max-Age=0/u);
-    assert.ok(scans.includes(1000) && scans.includes(100));
+    const failed = await callGoogle("/disconnect", cookie);
+    assert.equal(failed.status, 503);
+    assert.equal(failed.headers.get("set-cookie"), null);
+    assert.equal((await (await callGoogle("/status", cookie, "GET")).json()).connected, true);
+
+    const again = await callGoogle("/disconnect", cookie);
+    assert.equal(again.status, 200);
+    assert.match(again.headers.get("set-cookie"), /synchron_google_session=;.*Max-Age=0/u);
     assert.deepEqual([...store.documents.keys()], [theirs]);
     assert.equal(await latestMainSessionFor(owner), null);
     resetGoogleSessionsForTests();
@@ -635,7 +640,7 @@ test("when the stored tokens cannot be read, disconnecting removes nothing and s
       throw Object.assign(new Error("unavailable"), { code: "FIRESTORE_UNAVAILABLE", status: 503 });
     };
 
-    const response = await postDisconnect(`synchron_google_session=${main}`);
+    const response = await callGoogle("/disconnect", `synchron_google_session=${main}`);
     assert.equal(response.status, 503);
     assert.equal((await response.json()).code, "GOOGLE_DISCONNECT_FAILED");
     // The connection stays, so "Прекъсни връзката" is still there to press again.

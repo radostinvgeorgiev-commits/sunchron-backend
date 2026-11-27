@@ -124,22 +124,16 @@ test("Firestore audit read falls back when the composite index is missing", asyn
   const documentStore = {
     async queryEqual(collection, field, value, limit, options) {
       calls.push({ collection, field, value, limit, options });
-      if (options?.orderBy) {
-        const error = new Error("missing index");
-        error.code = "FIRESTORE_UNAVAILABLE";
-        error.upstreamErrorStatus = "FAILED_PRECONDITION";
-        throw error;
-      }
+      const error = new Error("missing index");
+      error.code = "FIRESTORE_UNAVAILABLE";
+      error.upstreamErrorStatus = "FAILED_PRECONDITION";
+      throw error;
+    },
+    async query(collection, options) {
+      calls.push({ collection, options });
+      // Newest first, as the single-field index on timestamp returns them;
+      // another partition in the same collection is left out.
       return [
-        {
-          id: "older",
-          data: {
-            id: "older",
-            firestorePartition: "synchron-audit",
-            timestamp: "2026-08-23T10:00:00.000Z",
-            outcome: "succeeded",
-          },
-        },
         {
           id: "newer",
           data: {
@@ -147,6 +141,24 @@ test("Firestore audit read falls back when the composite index is missing", asyn
             firestorePartition: "synchron-audit",
             timestamp: "2026-08-23T11:00:00.000Z",
             outcome: "failed",
+          },
+        },
+        {
+          id: "elsewhere",
+          data: {
+            id: "elsewhere",
+            firestorePartition: "other",
+            timestamp: "2026-08-23T10:30:00.000Z",
+            outcome: "succeeded",
+          },
+        },
+        {
+          id: "older",
+          data: {
+            id: "older",
+            firestorePartition: "synchron-audit",
+            timestamp: "2026-08-23T10:00:00.000Z",
+            outcome: "succeeded",
           },
         },
       ];
@@ -161,20 +173,29 @@ test("Firestore audit read falls back when the composite index is missing", asyn
     documentStore,
   });
 
-  const entries = await store.listAuditEntries(1);
-
-  assert.deepEqual(entries, [
+  assert.deepEqual(await store.listAuditEntries(1), [
     {
       id: "newer",
       timestamp: "2026-08-23T11:00:00.000Z",
       outcome: "failed",
     },
   ]);
-  assert.equal(calls.length, 2);
+  assert.deepEqual(
+    (await store.listAuditEntries(5)).map(({ id }) => id),
+    ["newer", "older"],
+  );
+  assert.equal(calls.length, 4);
   assert.deepEqual(calls[0].options.orderBy, {
     field: "timestamp",
     direction: "DESCENDING",
   });
-  assert.equal(calls[1].limit, 1_000);
-  assert.equal(calls[1].options, undefined);
+  // The fallback still reads newest first, with the single-field index.
+  assert.equal(calls[1].options.limit, 1_000);
+  assert.deepEqual(calls[1].options.filters, [
+    { field: "timestamp", op: "GREATER_THAN", value: "" },
+  ]);
+  assert.deepEqual(calls[1].options.orderBy, {
+    field: "timestamp",
+    direction: "DESCENDING",
+  });
 });

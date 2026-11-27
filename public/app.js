@@ -233,6 +233,11 @@ const GOOGLE_SIGN_IN_ERRORS = Object.freeze({
   AUTH_GOOGLE_DISABLED: "Входът с Google още не е включен.",
   AUTH_GOOGLE_PROVIDER_DISABLED: "Входът с Google още не е включен.",
   AUTH_GOOGLE_PASSWORD_ACCOUNT: "Този имейл вече има профил с парола. Влез с паролата си от „Имаш профил с имейл и парола?“.",
+  AUTH_GITHUB_CANCELLED: "Входът с GitHub беше отказан.",
+  AUTH_GITHUB_STATE_INVALID: "Входът с GitHub изтече. Опитай пак.",
+  AUTH_GITHUB_DISABLED: "Входът с GitHub още не е включен.",
+  AUTH_GITHUB_PROVIDER_DISABLED: "Входът с GitHub още не е включен.",
+  AUTH_GITHUB_EXISTING_ACCOUNT: "Имейлът от GitHub вече има профил. Влез с „Продължи с Google“ или с паролата си.",
 });
 
 function showGoogleSignInError() {
@@ -240,7 +245,12 @@ function showGoogleSignInError() {
   const code = params.get("auth_error");
   if (!code) return;
   setAuthMessage(
-    chatText(GOOGLE_SIGN_IN_ERRORS[code] || "Входът с Google не успя. Опитай пак."),
+    chatText(
+      GOOGLE_SIGN_IN_ERRORS[code] ||
+        (code.startsWith("AUTH_GITHUB")
+          ? "Входът с GitHub не успя. Опитай пак."
+          : "Входът с Google не успя. Опитай пак."),
+    ),
   );
   if (code === "AUTH_GOOGLE_PASSWORD_ACCOUNT" && elements.passwordSignIn) {
     elements.passwordSignIn.open = true;
@@ -308,8 +318,14 @@ async function init() {
     const session = await readAuthSession();
     const googleSignInBtn = document.getElementById("googleSignInBtn");
     if (googleSignInBtn) googleSignInBtn.hidden = session.googleSignIn !== true;
+    const githubSignInBtn = document.getElementById("githubSignInBtn");
+    if (githubSignInBtn) githubSignInBtn.hidden = session.githubSignIn !== true;
     // Without Google the password form is the only way in, so keep it open.
-    if (elements.passwordSignIn && session.googleSignIn !== true) {
+    if (
+      elements.passwordSignIn &&
+      session.googleSignIn !== true &&
+      session.githubSignIn !== true
+    ) {
       elements.passwordSignIn.open = true;
     }
     showGoogleSignInError();

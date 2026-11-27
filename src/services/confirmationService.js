@@ -36,6 +36,7 @@ const ALLOWED_ACTIONS = new Set([
   "infrastructure.write:update_cloud_run_service_account",
   "infrastructure.write:use_latest_secret_version",
   "infrastructure.write:enable_google_sign_in",
+  "infrastructure.write:enable_github_sign_in",
   "infrastructure.write:enable_google_api",
   "infrastructure.write:run_cloud_build_trigger",
   // A task-level confirmation groups the exact, already-prepared write

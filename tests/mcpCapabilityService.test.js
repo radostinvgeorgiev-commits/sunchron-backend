@@ -33,6 +33,7 @@ test("granular MCP capabilities have unique names, strict schemas and exact scop
       "run_cloud_build_trigger",
       "use_latest_secret_version",
       "enable_google_sign_in",
+      "enable_github_sign_in",
       "enable_google_api",
     ],
   );

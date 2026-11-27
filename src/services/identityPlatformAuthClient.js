@@ -191,6 +191,37 @@ export function createIdentityPlatformAuthClient({
           return { data: null, error };
         }
       },
+      async signInWithGitHubAccessToken({ accessToken, requestUri }) {
+        try {
+          const payload = await request(
+            IDENTITY_TOOLKIT_ORIGIN,
+            "accounts:signInWithIdp",
+            {
+              body: {
+                postBody: new URLSearchParams({
+                  access_token: accessToken,
+                  providerId: "github.com",
+                }).toString(),
+                requestUri,
+                returnSecureToken: true,
+                returnIdpCredential: true,
+              },
+            },
+          );
+          if (payload.needConfirmation === true && !payload.idToken)
+            throw upstreamError(409, { error: { message: "NEED_CONFIRMATION" } });
+          const session = normalizeSession(payload);
+          if (!session)
+            throw upstreamError(502, { error: { message: "SESSION_INCOMPLETE" } });
+          const user = await lookupUser(session.access_token);
+          return {
+            data: { user, session, isNewUser: payload.isNewUser === true },
+            error: null,
+          };
+        } catch (error) {
+          return { data: null, error };
+        }
+      },
       async signUp({ email, password, options = {} }) {
         try {
           let payload = await request(

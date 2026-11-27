@@ -90,6 +90,21 @@ async function check(name, run) {
 
 const skip = (message) => Object.assign(new Error(message), { skip: true });
 
+// A model may group the thousands ("4 821", "4,821"), as people write
+// numbers; "48.21" is still a different number.
+export function answerHasNumber(text, marker) {
+  return String(text || "")
+    .replace(/(\d)[\s\u00a0\u202f.,'’](?=\d{3}(?!\d))/gu, "$1")
+    .includes(marker);
+}
+
+// What the model said instead, on one short line, so a failure can be read.
+export function answerExcerpt(text) {
+  const line = String(text || "").replace(/\s+/gu, " ").trim();
+  if (!line) return "празен отговор";
+  return line.length > 60 ? `${line.slice(0, 59)}…` : line;
+}
+
 export async function runSelfTest({
   env = process.env,
   askAi = requestAiText,
@@ -112,7 +127,9 @@ export async function runSelfTest({
         reasoningEffort: "low",
         verbosity: "low",
       });
-      if (!String(text || "").includes(marker)) throw new Error("неочакван отговор");
+      if (!answerHasNumber(text, marker)) {
+        throw new Error(`неочакван отговор: „${answerExcerpt(text)}“`);
+      }
       return "отговори вярно";
     }),
   );

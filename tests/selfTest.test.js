@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  answerExcerpt,
+  answerHasNumber,
   formatSelfTest,
   runSelfTest,
   silentWav,
@@ -127,6 +129,46 @@ test("a failing provider is reported as a failure with a short reason", async ()
   assert.equal(report.status, "fail");
   assert.equal(report.checks.find(({ name }) => name === "Чат · gemini").detail, "GEMINI_UPSTREAM_ERROR");
   assert.equal(report.checks.find(({ name }) => name.startsWith("PDF")).status, "fail");
+});
+
+test("a number with grouped thousands is the right answer, another number is not", () => {
+  for (const answer of ["4821", "Числото е 4821.", "4 821", "4,821", "4.821", "4\u00a0821", "4\u202f821", "4’821"]) {
+    assert.equal(answerHasNumber(answer, "4821"), true, answer);
+  }
+  for (const answer of ["48.21", "482 1", "1234", "", null, "четири хиляди"]) {
+    assert.equal(answerHasNumber(answer, "4821"), false, String(answer));
+  }
+  assert.equal(answerHasNumber("1 234 567", "1234567"), true);
+});
+
+test("an unexpected chat answer is shown on one short line", async () => {
+  assert.equal(answerExcerpt("  Sorry,\n\nI can't   do that. "), "Sorry, I can't do that.");
+  assert.equal(answerExcerpt(""), "празен отговор");
+  const long = answerExcerpt("x".repeat(200));
+  assert.equal(long.length, 60);
+  assert.ok(long.endsWith("…"));
+
+  const report = await runSelfTest({
+    env: { ...env, GROK_API_KEY: "k" },
+    askAi: async ({ provider, input }) => {
+      const marker = echoMarker(input[0].content);
+      if (provider === "grok") return "I cannot share numbers.";
+      if (provider === "openai") return `${marker[0]} ${marker.slice(1)}`;
+      return marker;
+    },
+    transcribe: async () => ({ text: "", provider: "openai" }),
+    readMeeting: async () => ({ text: "", provider: "gemini" }),
+    readDocument: async ({ image }) =>
+      echoMarker(Buffer.from(image.dataUrl.split(",")[1], "base64").toString("latin1")),
+    shareService: memoryShare(),
+    knowledgeService: memoryKnowledge(),
+    libraryService: memoryLibrary(),
+    avatarProfileService: memoryAvatar(),
+  });
+  const grok = report.checks.find(({ name }) => name === "Чат · grok");
+  assert.equal(grok.status, "fail");
+  assert.equal(grok.detail, "неочакван отговор: „I cannot share numbers.“");
+  assert.equal(report.checks.find(({ name }) => name === "Чат · openai").status, "pass");
 });
 
 test("the MCP tool runs the self-test for the verified owner", async () => {

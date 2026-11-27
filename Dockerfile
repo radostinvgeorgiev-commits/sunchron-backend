@@ -10,6 +10,11 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
+# ffmpeg mixes the voice and music into AI CORE videos.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
 COPY scripts ./scripts
 RUN node -e 'const [major, minor, patch] = process.versions.node.split(".").map(Number); if (major !== 22 || minor < 22 || (minor === 22 && patch < 2)) process.exit(1)' \

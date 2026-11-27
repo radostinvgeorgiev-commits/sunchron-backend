@@ -14,6 +14,7 @@ const MEMBER_OWN_GOOGLE_CAPABILITIES = new Set([
   "mail.read",
   "mail.search",
   "youtube.channel",
+  "youtube.comments",
 ]);
 // Writing to the person's own Google: an event in their calendar, an email
 // from their Gmail, a new contact. Each one is only prepared; it runs after

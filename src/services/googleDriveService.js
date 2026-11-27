@@ -1161,6 +1161,54 @@ export async function getYoutubeChannelSummary(id, limit = 5, fetchImpl = fetch)
   };
 }
 
+// The latest comments people left on the person's own YouTube videos, newest
+// first, and whether the channel has already answered each one. Read only
+// (youtube.readonly), so the avatar can see them and help write replies.
+export async function getYoutubeRecentComments(id, limit = 15, fetchImpl = fetch) {
+  const channels = await youtubeJson(id, "/channels?part=snippet&mine=true", fetchImpl);
+  const channel = Array.isArray(channels?.items) ? channels.items[0] : null;
+  if (!channel) return { channel: null, comments: [] };
+  const max = Math.min(Math.max(Number(limit) || 15, 1), 50);
+  const threads = await youtubeJson(
+    id,
+    `/commentThreads?part=snippet,replies&order=time&textFormat=plainText&maxResults=${max}&allThreadsRelatedToChannelId=${encodeURIComponent(channel.id)}`,
+    fetchImpl,
+  );
+  const comments = (threads?.items || [])
+    .map((thread) => {
+      const top = thread?.snippet?.topLevelComment;
+      const snippet = top?.snippet || {};
+      const videoId = String(thread?.snippet?.videoId || snippet.videoId || "");
+      if (!top?.id || !/^[A-Za-z0-9_-]{6,20}$/u.test(videoId)) return null;
+      const replies = Array.isArray(thread?.replies?.comments) ? thread.replies.comments : [];
+      const own = String(snippet.authorChannelId?.value || "") === channel.id;
+      return {
+        id: String(top.id),
+        videoId,
+        videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
+        commentUrl: `https://www.youtube.com/watch?v=${videoId}&lc=${encodeURIComponent(top.id)}`,
+        author: String(snippet.authorDisplayName || "").slice(0, 100),
+        text: String(snippet.textOriginal || snippet.textDisplay || "").slice(0, 1000),
+        likes: count(snippet.likeCount) || 0,
+        replies: count(thread?.snippet?.totalReplyCount) || 0,
+        publishedAt: snippet.publishedAt || null,
+        own,
+        answered:
+          own ||
+          replies.some((reply) => String(reply?.snippet?.authorChannelId?.value || "") === channel.id),
+      };
+    })
+    .filter(Boolean);
+  return {
+    channel: {
+      id: channel.id,
+      title: String(channel.snippet?.title || ""),
+      url: `https://www.youtube.com/channel/${channel.id}`,
+    },
+    comments,
+  };
+}
+
 const DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files";
 const SAVE_KINDS = Object.freeze({
   doc: { mimeType: "application/vnd.google-apps.document", source: "text/html" },

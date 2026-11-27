@@ -332,10 +332,11 @@ export function registerCoreTools() {
       name: "Моят YouTube канал",
       version: "1.0.0",
       category: "social",
-      capabilities: ["youtube.channel"],
+      capabilities: ["youtube.channel", "youtube.comments"],
       permissions: ["youtube.read"],
       capabilityPermissions: {
         "youtube.channel": "youtube.read",
+        "youtube.comments": "youtube.read",
       },
       enabled: true,
       requiresConfirmation: false,

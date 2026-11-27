@@ -27,6 +27,7 @@ import {
   searchGmailMessages,
   searchGoogleContacts,
   getYoutubeChannelSummary,
+  getYoutubeRecentComments,
 } from "../services/googleDriveService.js";
 import {
   confirmCalendarEvent,
@@ -518,6 +519,33 @@ function confirmationOutput(prepared, label, exactCommand = null) {
   return lines.join("\n");
 }
 
+// The person's latest YouTube comments as data the avatar answers from. The
+// answer itself (and any suggested replies) is written by the model.
+export function formatYoutubeComments({ channel, comments }, english = false) {
+  if (!channel) return english ? "This Google account has no YouTube channel." : "Към този Google профил няма YouTube канал.";
+  const others = comments.filter((comment) => !comment.own);
+  if (!others.length) {
+    return english
+      ? `No comments yet on the videos of the YouTube channel "${channel.title}".`
+      : `Още няма коментари под видеата в YouTube канала „${channel.title}“.`;
+  }
+  const waiting = others.filter((comment) => !comment.answered).length;
+  const day = (value) => String(value || "").slice(0, 10);
+  return [
+    english
+      ? `Latest comments on the YouTube channel "${channel.title}" (${others.length}, ${waiting} without a reply from the channel):`
+      : `Последни коментари в YouTube канала „${channel.title}“ (${others.length}, без отговор от канала: ${waiting}):`,
+    ...others.map((comment) =>
+      english
+        ? `• ${comment.author} (${day(comment.publishedAt)}${comment.answered ? ", answered" : ", not answered"}): "${comment.text}" — ${comment.commentUrl}`
+        : `• ${comment.author} (${day(comment.publishedAt)}${comment.answered ? ", с отговор" : ", без отговор"}): „${comment.text}“ — ${comment.commentUrl}`,
+    ),
+    english
+      ? "If the person asks for help, suggest a short reply for each comment without a reply. Replies are posted by the person from the comment link; nothing has been posted."
+      : "Ако човекът иска помощ, предложи кратък отговор за всеки коментар без отговор. Отговорът се публикува от човека през линка на коментара; нищо не е публикувано.",
+  ].join("\n");
+}
+
 const executors = Object.freeze({
   "synchron-agent-chat": async ({ capability, input }) => {
     if (capability === "chat.list_threads") {
@@ -865,7 +893,13 @@ const executors = Object.freeze({
       ),
     ].join("\n");
   },
-  "youtube-channel": async ({ input }) => {
+  "youtube-channel": async ({ capability, input }) => {
+    if (capability === "youtube.comments") {
+      return formatYoutubeComments(
+        await getYoutubeRecentComments(input.googleSessionId, input.limit || 15),
+        useEnglishReplyFallback(input.language),
+      );
+    }
     const { channel, videos } = await getYoutubeChannelSummary(input.googleSessionId);
     if (useEnglishReplyFallback(input.language)) {
       if (!channel) return "This Google account has no YouTube channel.";

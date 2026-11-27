@@ -83,3 +83,41 @@ test("chat asks for the channel only when the person means their own", () => {
   assert.equal(filterCapabilityRequestsForIdentity(request, member, { ownGoogle: true }).length, 1);
   assert.equal(filterCapabilityRequestsForIdentity(request, member, { ownGoogle: false }).length, 0);
 });
+
+test("the latest comments on the person's own videos, with who is still waiting", async () => {
+  const { getYoutubeRecentComments } = await import("../src/services/googleDriveService.js");
+  const { formatYoutubeComments } = await import("../src/tools/capabilityEngine.js");
+  const id = await createSession({ access_token: "token", expires_in: 3600 });
+  const urls = [];
+  const result = await getYoutubeRecentComments(id, 5, async (url) => {
+    urls.push(String(url));
+    if (String(url).includes("/channels?")) return json({ items: [{ id: "UC1", snippet: { title: "Радко" } }] });
+    return json({
+      items: [
+        { snippet: { videoId: "abc123XYZ_0", totalReplyCount: 0, topLevelComment: { id: "c1", snippet: { authorDisplayName: "Иван", textOriginal: "Как се ползва?", likeCount: 2, publishedAt: "2026-11-27T10:00:00Z", authorChannelId: { value: "UCx" } } } } },
+        { snippet: { videoId: "abc123XYZ_0", totalReplyCount: 1, topLevelComment: { id: "c2", snippet: { authorDisplayName: "Мария", textOriginal: "Супер!", publishedAt: "2026-11-26T10:00:00Z", authorChannelId: { value: "UCy" } } } }, replies: { comments: [{ snippet: { authorChannelId: { value: "UC1" } } }] } },
+        { snippet: { videoId: "bad id", topLevelComment: { id: "c3", snippet: {} } } },
+      ],
+    });
+  });
+  assert.match(urls[1], /commentThreads\?part=snippet,replies&order=time&textFormat=plainText&maxResults=5&allThreadsRelatedToChannelId=UC1$/u);
+  assert.equal(result.comments.length, 2);
+  assert.deepEqual(result.comments.map((c) => [c.author, c.answered]), [["Иван", false], ["Мария", true]]);
+  assert.equal(result.comments[0].commentUrl, "https://www.youtube.com/watch?v=abc123XYZ_0&lc=c1");
+  const text = formatYoutubeComments(result);
+  assert.match(text, /без отговор от канала: 1/u);
+  assert.match(text, /Иван \(2026-11-27, без отговор\): „Как се ползва\?“/u);
+  assert.match(text, /нищо не е публикувано/u);
+  assert.match(formatYoutubeComments({ channel: { title: "Р" }, comments: [] }), /Още няма коментари/u);
+});
+
+test("chat reads YouTube comments when the person asks about them", async () => {
+  const { isOwnYoutubeCommentsRequest } = await import("../src/routes/chat.js");
+  assert.equal(isOwnYoutubeCommentsRequest("Какво ми пишат в коментарите в YouTube?"), true);
+  assert.equal(isOwnYoutubeCommentsRequest("помогни ми да отговоря на коментарите в ютюб"), true);
+  assert.equal(isOwnYoutubeCommentsRequest("Any new comments on my YouTube videos?"), true);
+  assert.equal(isOwnYoutubeCommentsRequest("обобщи коментарите под https://youtu.be/abc"), false);
+  assert.equal(isOwnYoutubeCommentsRequest("Как върви моят YouTube канал?"), false);
+  const member = { role: "member" };
+  assert.equal(filterCapabilityRequestsForIdentity([{ capability: "youtube.comments" }], member, { ownGoogle: true }).length, 1);
+});

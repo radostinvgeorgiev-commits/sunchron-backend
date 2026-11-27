@@ -825,7 +825,13 @@ export function detectCapabilityRequests(message) {
           : undefined,
       });
     }
-    if (!integrationStatusOnlyRequest && isOwnYoutubeChannelRequest(subtask)) {
+    if (!integrationStatusOnlyRequest && isOwnYoutubeCommentsRequest(subtask)) {
+      requests.push({
+        capability: "youtube.comments",
+        action: "youtube.read",
+        message: subtask,
+      });
+    } else if (!integrationStatusOnlyRequest && isOwnYoutubeChannelRequest(subtask)) {
       requests.push({
         capability: "youtube.channel",
         action: "youtube.read",
@@ -1080,6 +1086,15 @@ export function isOwnYoutubeChannelRequest(message) {
   ) || /\bmy\s+(?:own\s+)?(?:youtube\s+)?(?:channel|videos|subscribers)\b|\bsubscribers\s+do\s+i\s+have\b/iu.test(text);
 }
 
+// "какво ми пишат в коментарите в YouTube", "помогни ми да отговоря на
+// коментарите в ютюб", "new comments on my YouTube videos".
+export function isOwnYoutubeCommentsRequest(message) {
+  const text = String(message || "");
+  if (!/(?:youtube|ютюб|ютуб)/iu.test(text)) return false;
+  if (/https?:\/\/|youtu\.be\//iu.test(text)) return false;
+  return /коментар/iu.test(text) || /\bcomments?\b/iu.test(text);
+}
+
 function capabilityLabel(capability) {
   if (capability === "system.integrations.status")
     return "статус на инструментите";
@@ -1098,6 +1113,7 @@ function capabilityLabel(capability) {
   if (capability === "mail.send") return "изпращане на имейл";
   if (capability === "contacts.read") return "Google контакти";
   if (capability === "youtube.channel") return "YouTube канал";
+  if (capability === "youtube.comments") return "коментари в YouTube";
   if (capability === "memory.read") return "памет";
   if (capability === "memory.verify") return "автоматичен тест на паметта";
   if (capability === "web.search") return "интернет търсене";

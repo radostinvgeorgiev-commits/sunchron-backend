@@ -36,6 +36,13 @@ Novarium ти помага да анализираш информация, да 
 Вход за собственик|Owner sign-in
 Продължи с GitHub|Continue with GitHub
 Продължи с Google|Continue with Google
+Без парола. Новият профил се създава сам при първия вход.|No password. Your account is created on your first sign-in.
+С входа приемаш|By signing in, you accept the
+Имаш профил с имейл и парола?|Have an account with an email and password?
+Най-лесно: натисни „Продължи с Google“ със същия имейл. Ако имейлът ти не е в Google, влез тук както досега.|Easiest: select Continue with Google using the same email. If your email is not a Google account, sign in here as before.
+Имейлът или паролата не съвпадат. Нямаш профил? Натисни „Продължи с Google“ — профилът се създава сам.|The email or password does not match. No account yet? Select Continue with Google; your account is created automatically.
+Този имейл вече има профил с парола. Влез с паролата си от „Имаш профил с имейл и парола?“.|This email already has an account with a password. Sign in with your password under Have an account with an email and password?
+Входът с Google не успя. Опитай пак.|Google sign-in failed. Try again.
 За защитения вход и приложението е нужен JavaScript. Формите никога не изпращат парола чрез адреса на страницата.|JavaScript is required for secure sign-in and the workspace. These forms never send your password in the page address.
 Стабилен разговор|Conversations with context
 Един Novarium запазва контекста на работата ти.|Novarium keeps track of the context for your work.

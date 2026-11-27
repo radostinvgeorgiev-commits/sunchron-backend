@@ -174,6 +174,11 @@ export function createIdentityPlatformAuthClient({
               },
             },
           );
+          // With "one account per email" an existing profile with the same
+          // email can answer needConfirmation instead of a session: the
+          // person has to sign in the old way first.
+          if (payload.needConfirmation === true && !payload.idToken)
+            throw upstreamError(409, { error: { message: "NEED_CONFIRMATION" } });
           const session = normalizeSession(payload);
           if (!session)
             throw upstreamError(502, { error: { message: "SESSION_INCOMPLETE" } });

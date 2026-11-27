@@ -118,110 +118,55 @@
             Продължи към личното си работно пространство.
           </p>
 
-          <form
-            id="loginForm"
-            class="auth-form"
-            method="post"
-            action="/api/auth/login"
-          >
-            <label for="loginEmail">Имейл</label>
-            <input
-              id="loginEmail"
-              name="email"
-              type="email"
-              autocomplete="username"
-              inputmode="email"
-              required
-            />
-            <label for="loginPassword">Парола</label>
-            <input
-              id="loginPassword"
-              name="password"
-              type="password"
-              autocomplete="current-password"
-              minlength="8"
-              maxlength="128"
-              required
-            />
-            <button id="loginBtn" class="auth-primary" type="submit">
-              Влез
-            </button>
-            <button id="forgotPasswordBtn" class="auth-link" type="button">
-              Забравена парола?
-            </button>
-          </form>
-
           <a id="googleSignInBtn" class="auth-google" href="/api/auth/google/start" hidden>
             <i class="fa-brands fa-google" aria-hidden="true"></i>
             Продължи с Google
           </a>
-          <a id="showRegisterBtn" class="auth-link" href="/register">
-            Създай безплатен профил
-          </a>
-          <form
-            id="registerForm"
-            class="auth-form"
-            method="post"
-            action="/api/auth/register"
-            hidden
-          >
-            <label for="registerName">Име</label>
-            <input
-              id="registerName"
-              name="displayName"
-              type="text"
-              autocomplete="name"
-              maxlength="80"
-              required
-            />
-            <label for="registerEmail">Имейл</label>
-            <input
-              id="registerEmail"
-              name="email"
-              type="email"
-              autocomplete="username"
-              inputmode="email"
-              required
-            />
-            <label for="registerPassword">Парола</label>
-            <input
-              id="registerPassword"
-              name="password"
-              type="password"
-              autocomplete="new-password"
-              minlength="8"
-              maxlength="128"
-              required
-            />
-            <div id="inviteFields" hidden>
-              <label for="registerInviteCode">Код за ранен достъп</label>
+          <p class="auth-provider-note" id="authProviderNote">
+            <span>Без парола. Новият профил се създава сам при първия вход.</span>
+            С входа приемаш <a href="/terms">Общите условия</a> и
+            <a href="/privacy">Политиката за поверителност</a>.
+          </p>
+
+          <details class="auth-password" id="passwordSignIn">
+            <summary>Имаш профил с имейл и парола?</summary>
+            <p class="auth-field-help">
+              Най-лесно: натисни „Продължи с Google“ със същия имейл. Ако имейлът
+              ти не е в Google, влез тук както досега.
+            </p>
+            <form
+              id="loginForm"
+              class="auth-form"
+              method="post"
+              action="/api/auth/login"
+            >
+              <label for="loginEmail">Имейл</label>
               <input
-                id="registerInviteCode"
-                disabled
-                name="inviteCode"
-                type="password"
-                autocomplete="off"
-                minlength="8"
-                maxlength="128"
-                aria-describedby="registerInviteHelp"
+                id="loginEmail"
+                name="email"
+                type="email"
+                autocomplete="username"
+                inputmode="email"
                 required
               />
-              <small id="registerInviteHelp" class="auth-field-help">
-                Това поле се използва само при ограничена регистрация.
-              </small>
-            </div>
-            <p>
-              С регистрацията приемаш <a href="/terms">Общите условия</a> и
-              <a href="/privacy">Политиката за поверителност</a>. Няма
-              автоматични плащания.
-            </p>
-            <button id="registerBtn" class="auth-primary" type="submit">
-              Създай профил
-            </button>
-            <button id="backToLoginBtn" class="auth-link" type="button">
-              Назад към входа
-            </button>
-          </form>
+              <label for="loginPassword">Парола</label>
+              <input
+                id="loginPassword"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                minlength="8"
+                maxlength="128"
+                required
+              />
+              <button id="loginBtn" class="auth-primary" type="submit">
+                Влез
+              </button>
+              <button id="forgotPasswordBtn" class="auth-link" type="button">
+                Забравена парола?
+              </button>
+            </form>
+          </details>
 
           <p
             id="authMessage"

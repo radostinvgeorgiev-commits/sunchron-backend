@@ -12,7 +12,6 @@ test("renders a real login gate before the private application", () => {
   assert.match(html, /id="authGate"/u);
   assert.match(html, /Novarium/u);
   assert.match(html, /id="publicTitle"/u);
-  assert.match(html, /id="showRegisterBtn"[^>]*href="\/register"/u);
   assert.match(html, /href="\/plans"/u);
   assert.match(html, /AI предлага, ти одобряваш/u);
   assert.match(html, /rel="canonical" href="https:\/\/cloudaicore\.com\/"/u);
@@ -31,52 +30,32 @@ test("renders a real login gate before the private application", () => {
   assert.match(css, /\.auth-link\[hidden\]/u);
 });
 
-test("offers invite-protected registration with safe POST fallback", () => {
-  assert.match(html, /id="registerName"/u);
-  assert.match(html, /id="registerEmail"/u);
-  assert.match(html, /id="registerPassword"/u);
-  assert.match(html, /id="registerInviteCode"/u);
-  assert.match(html, /Код за ранен достъп/u);
-  assert.match(
-    html,
-    /id="registerForm"[\s\S]{0,160}method="post"[\s\S]{0,80}action="\/api\/auth\/register"/u,
-  );
-  assert.match(html, /id="showRegisterBtn"[^>]*href="\/register"/u);
-  assert.match(app, /registrationEnabled/u);
-  assert.match(app, /\/api\/auth\/register/u);
+test("new profiles are made only with Google; there is no password sign-up", () => {
+  for (const id of ["registerForm", "registerName", "registerEmail", "registerPassword", "registerInviteCode", "showRegisterBtn"]) {
+    assert.doesNotMatch(html, new RegExp(`id="${id}"`, "u"));
+  }
+  assert.doesNotMatch(app, /\/api\/auth\/register/u);
+  assert.doesNotMatch(app, /handleRegistration|showRegisterForm/u);
+  // Google comes first, the old password form is folded away below it.
+  const google = html.indexOf('id="googleSignInBtn"');
+  const password = html.indexOf('id="passwordSignIn"');
+  assert.ok(google > 0 && google < password);
+  assert.match(html, /<details class="auth-password" id="passwordSignIn">/u);
+  assert.match(html, /Имаш профил с имейл и парола\?/u);
+  assert.match(html, /„Продължи с Google“ със същия имейл/u);
+  assert.match(html, /href="\/terms"/u);
+  // Without Google the password form opens so nobody is locked out.
+  assert.match(app, /session\.googleSignIn !== true\) \{\s*elements\.passwordSignIn\.open = true/u);
+  assert.match(app, /AUTH_GOOGLE_PASSWORD_ACCOUNT/u);
   assert.doesNotMatch(
     `${html}\n${app}\n${css}`,
     /KAMCHIA-TEST-2026|SYNCHRON_TEST_INVITE_CODE=/u,
   );
 });
 
-test("registration sends the user-entered invitation code without embedding it", () => {
-  assert.match(app, /displayName: elements\.registerName\.value/u);
-  assert.match(app, /email: elements\.registerEmail\.value/u);
-  assert.match(app, /password: elements\.registerPassword\.value/u);
-  assert.match(app, /inviteCode: elements\.registerInviteCode\.value/u);
-  assert.match(app, /registerInviteCode\.value = ""/u);
-  assert.doesNotMatch(
-    `${html}\n${app}\n${css}`,
-    /KAMCHIA-TEST-2026|SYNCHRON_TEST_INVITE_CODE=/u,
-  );
-});
-
-test("registration errors identify the failed action and HTTP status", () => {
-  assert.match(app, /path\.endsWith\("\/register"\)/u);
-  assert.match(app, /Регистрацията/u);
-  assert.match(app, /HTTP \$\{response\.status\}/u);
+test("sign-in errors name the failed action and HTTP status", () => {
+  assert.match(app, /Входът не беше успешен \(HTTP \$\{response\.status\}\)/u);
   assert.match(app, /Невалиден отговор от услугата/u);
-});
-
-test("direct registration address opens the registration form", () => {
-  assert.match(app, /const REGISTRATION_PATH = "\/register"/u);
-  assert.match(app, /isDirectRegistrationPage\(\)/u);
-  assert.match(
-    app,
-    /state\.registrationEnabled && isDirectRegistrationPage\(\)/u,
-  );
-  assert.match(app, /showRegisterForm\(\)/u);
 });
 
 test("hides owner-only tools for member profiles and exposes logout", () => {

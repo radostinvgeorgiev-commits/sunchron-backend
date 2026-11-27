@@ -139,35 +139,34 @@ export function extractTaskConfirmationId(message) {
 }
 
 // `summaries` say what each prepared step will do ("Send an email to …"),
-// so the person knows exactly what they confirm.
+// so the person knows exactly what they confirm. Blank lines and "- " keep
+// each part on its own line in the chat.
 export function formatTaskConfirmation(confirmation, english = false, summaries = []) {
   const count = Array.isArray(confirmation?.items)
     ? confirmation.items.length
     : 0;
   const steps = (Array.isArray(summaries) ? summaries : [])
     .filter((summary) => typeof summary === "string" && summary.trim())
-    .map((summary) => `• ${summary.trim()}`);
+    .map((summary) => `- ${summary.trim()}`);
+  const expires = new Date(confirmation.expiresAt).toISOString();
   if (english) {
     return [
       steps.length
         ? "Ready, but nothing has been done yet:"
         : `Prepared ${count} write operations. Nothing has been done yet.`,
-      ...steps,
-      `Confirmation: ${confirmation.confirmationId}.`,
-      `Expires: ${new Date(confirmation.expiresAt).toISOString()}.`,
-      `To proceed, send this exact command: Confirm AI CORE task: ${confirmation.confirmationId}`,
-    ].join("\n");
+      ...(steps.length ? [steps.join("\n")] : []),
+      `Confirmation: ${confirmation.confirmationId}. Expires: ${expires}.`,
+      `To proceed, press Confirm or send this exact command: Confirm AI CORE task: ${confirmation.confirmationId}`,
+    ].join("\n\n");
   }
   return [
     steps.length
       ? "Подготвих, но още нищо не е направено:"
-      : `Подготвих ${count} точни записващи операции в една задача.`,
-    ...steps,
-    ...(steps.length ? [] : ["Нищо не е записано още."]),
-    `Потвърждение: ${confirmation.confirmationId}.`,
-    `Валидно до: ${new Date(confirmation.expiresAt).toISOString()}.`,
-    `За изпълнение изпрати точно: Потвърждавам AI CORE задача: ${confirmation.confirmationId}`,
-  ].join("\n");
+      : `Подготвих ${count} точни записващи операции в една задача. Нищо не е записано още.`,
+    ...(steps.length ? [steps.join("\n")] : []),
+    `Потвърждение: ${confirmation.confirmationId}. Валидно до: ${expires}.`,
+    `За изпълнение натисни „Потвърди“ или изпрати точно: Потвърждавам AI CORE задача: ${confirmation.confirmationId}`,
+  ].join("\n\n");
 }
 
 // The reply after a confirmed task: what each step did.
@@ -176,11 +175,11 @@ export function formatConfirmedTask(confirmed, english = false) {
   const done = results
     .map((item) => item?.result?.output)
     .filter((output) => typeof output === "string" && output.trim())
-    .map((output) => `• ${output.trim()}`);
+    .map((output) => `- ${output.trim()}`);
   return [
     english
       ? `Done: the confirmed AI CORE task ran ${results.length} operation${results.length === 1 ? "" : "s"}.`
       : `Потвърдената AI CORE задача е изпълнена: ${results.length} операции.`,
-    ...done,
-  ].join("\n");
+    ...(done.length ? [done.join("\n")] : []),
+  ].join("\n\n");
 }

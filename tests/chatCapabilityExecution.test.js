@@ -923,8 +923,8 @@ test("the task confirmation lists what each prepared step will do, in English to
   ];
   const reply = buildCapabilityReplies(results, { taskConfirmation, language: "en" }).join("\n");
   assert.match(reply, /Ready, but nothing has been done yet:/);
-  assert.match(reply, /• Create the Google Calendar event "Demo"/);
-  assert.match(reply, /• Send an email to ana@example\.com \(subject: Demo\)\./);
+  assert.match(reply, /\n- Create the Google Calendar event "Demo"/);
+  assert.match(reply, /\n- Send an email to ana@example\.com \(subject: Demo\)\./);
   assert.ok(reply.includes(`send this exact command: Confirm AI CORE task: ${confirmationId}`));
 });
 

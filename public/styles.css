@@ -679,6 +679,33 @@ input {
   background: #0842a0;
 }
 
+/* "Потвърди" runs the prepared write; the journal button steps back. */
+.next-step-card .next-step-confirm {
+  margin-right: 8px;
+  padding: 7px 18px;
+  border-color: #146c52;
+  background: #146c52;
+  font-size: 13px;
+}
+
+.next-step-card .next-step-confirm:hover {
+  background: #0f5540;
+}
+
+.next-step-card .next-step-confirm:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.next-step-card .next-step-confirm + button {
+  color: #0b57d0;
+  background: transparent;
+}
+
+.next-step-card .next-step-confirm + button:hover {
+  background: #dbe9fb;
+}
+
 .memory-candidate-card {
   margin-top: 12px;
   padding: 13px 14px;

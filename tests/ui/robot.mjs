@@ -557,6 +557,21 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect(reply.includes("Намерен отговор.") && reply.includes("Източник едно"), "няма отговор с източник");
     expect(!(await page.locator("#chatInput").isDisabled()), "полето остана заключено");
   });
+  await step(`${label}: „Потвърди“ изпълнява подготвеното събитие`, async () => {
+    await send("Създай събитие в календара: Демо | 2026-11-28 10:00 | 30");
+    await page.waitForTimeout(900);
+    const reply = await last().innerText();
+    expect(reply.includes("Подготвих, но още нищо не е направено"), "няма подготвеното действие");
+    const confirm = last().locator(".next-step-confirm");
+    expect(await confirm.isVisible(), "няма бутон „Потвърди“");
+    await confirm.click();
+    await page.waitForTimeout(900);
+    expect(
+      (await page.locator(".user-turn").last().innerText()).includes("Потвърждавам AI CORE задача: 11111111-2222-3333-4444-555555555555"),
+      "бутонът не изпрати точната команда",
+    );
+    expect((await last().innerText()).includes("Календарното събитие е създадено: Демо"), "събитието не е потвърдено");
+  });
   await step(`${label}: „Откъде знам това“ под отговора`, async () => {
     await send("Откъде знаеш рождения ми ден?");
     await page.waitForTimeout(1200);

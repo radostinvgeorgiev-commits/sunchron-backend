@@ -51,9 +51,10 @@ import { extractMemoryCandidates } from "../services/memoryCandidateService.js";
 import { PUBLIC_FILE_CREDITS } from "../services/publicAiBudget.js";
 import {
   buildProjectConversationReference,
-  sanitizeAssistantHistory,
+  codeBlocksOfLines,
+  isNextStepLine,
+  stripReplayedNextSteps,
   loadProjectConversationContext,
-  nextStepLineIndexes,
 } from "../services/projectConversationContextService.js";
 import {
   buildKnowledgeContext,
@@ -495,8 +496,11 @@ export function normalizeRecentConversationHistory(
   return normalized;
 }
 
+// The saved turns and the page's recent ones together.
+const COMBINED_CONVERSATION_LIMITS = { maxMessages: 24, maxLength: 36_000 };
+
 export function combineConversationHistory(persistent, recent) {
-  const limits = { maxMessages: 24, maxLength: 36_000 };
+  const limits = COMBINED_CONVERSATION_LIMITS;
   const saved = normalizeRecentConversationHistory(persistent, limits);
   if (!recent.length) return saved;
   for (
@@ -523,17 +527,105 @@ export function combineConversationHistory(persistent, recent) {
   return recent;
 }
 
+// Only the raw entries the length cut can use are stripped, so a crafted
+// request cannot make the server split megabytes into lines (one 8 MB answer
+// held the request for a third of a second). The cut keeps the newest
+// maxMessages entries; a few more are taken for answers that are only a Next
+// line, which are dropped once stripped. It keeps the last 6,000 characters
+// of each and maxLength in all, so it uses at most maxLength / 6,000 long
+// answers and shorter ones of maxLength in all. A long answer is split from
+// at most its last CLEANED_ANSWER_LENGTH characters, the end the cut keeps,
+// and loses its own Next line there (cleanedKeptEnd); real answers are far
+// shorter and are stripped whole. Either way each answer is split into lines
+// and scanned for code once.
+const CLEANED_HISTORY_MARGIN = 4;
+const CLEANED_ANSWER_LENGTH = 100_000;
+// A line with a Google allow link: besides blank lines, the only line that may
+// follow the answer's own Next line, as the page reads it.
+const GOOGLE_ALLOW_LINE = /\/api\/google\/connect/u;
+
+// The kept end of a long answer may start inside a code block, where the
+// answer's own Next line would read as code and be replayed. That line is the
+// last one but for blank lines and allow lines. It goes when the kept end
+// reads it as text, or as code in a block opened by a bare fence line, which
+// may be the closing fence of a block the cut started in; in a block opened
+// with an info string it is code and stays. The other Next lines outside code
+// go too, as from a whole answer, found in the same scan. The room the cut
+// has left counts the kept end without its own Next line.
+function cleanedKeptEnd(end) {
+  const lines = end.split("\n");
+  let last = lines.length - 1;
+  while (
+    last > 0 &&
+    !isNextStepLine(lines[last]) &&
+    (!lines[last].trim() || GOOGLE_ALLOW_LINE.test(lines[last]))
+  ) {
+    last -= 1;
+  }
+  const blocks = codeBlocksOfLines(lines);
+  const own = isNextStepLine(lines[last]) && (!blocks[last] || blocks[last].bare) ? last : -1;
+  const kept = lines.filter(
+    (line, index) => index !== own && (blocks[index] || !isNextStepLine(line)),
+  );
+  return {
+    content: kept.join("\n").trim(),
+    // Taking out one of several lines also takes out a line break.
+    counted: own < 0 ? end.length : end.length - lines[own].length - (lines.length > 1 ? 1 : 0),
+  };
+}
+
+// The newest entries the cut can use, each answer without its Next lines as
+// stripReplayedNextSteps strips them, and without the entries left empty.
+function newestCleaned(messages, { maxMessages, maxLength }) {
+  if (!Array.isArray(messages)) return [];
+  const newest = [];
+  // Room for the long answers the cut can use and for the shorter ones.
+  let room =
+    (maxLength / MAX_RECENT_CONVERSATION_MESSAGE_LENGTH) * CLEANED_ANSWER_LENGTH + maxLength;
+  for (const message of messages.slice(-(maxMessages + CLEANED_HISTORY_MARGIN)).reverse()) {
+    if (room <= 0) break;
+    // Only answers are split into lines; other entries cost nothing here.
+    let content = message?.role === "assistant" ? message.content : undefined;
+    if (typeof content !== "string") {
+      newest.push(message);
+      continue;
+    }
+    const allowed = Math.min(CLEANED_ANSWER_LENGTH, room);
+    // The cut trims an answer and keeps its end, so a longer one keeps the
+    // end of its text, not trailing blank lines.
+    if (content.length > allowed) content = content.trimEnd();
+    if (content.length > allowed) {
+      const end = cleanedKeptEnd(content.slice(content.length - allowed));
+      room -= end.counted;
+      content = end.content;
+    } else {
+      room -= content.length;
+      content = stripReplayedNextSteps(content);
+    }
+    newest.push({ ...message, content });
+  }
+  return newest
+    .reverse()
+    .filter((message) => typeof message?.content !== "string" || message.content);
+}
+
 // The history the model sees. "Следва:"/"Next:" lines are stripped from whole
 // messages before any length cut: a cut inside a code block leaves a lone
 // closing fence, and the answer's own last Next line would then count as code
 // and be replayed. The saved turns and the client's recent ones are stripped
 // the same way, so the merge still finds where they overlap.
 export function effectiveConversationHistory(persistent, recent, { rewrite = false } = {}) {
-  const stripped = (messages) => (Array.isArray(messages) ? sanitizeAssistantHistory(messages) : []);
-  const cleanRecent = normalizeRecentConversationHistory(stripped(recent));
+  const cleanRecent = normalizeRecentConversationHistory(
+    newestCleaned(recent, {
+      maxMessages: MAX_RECENT_CONVERSATION_MESSAGES,
+      maxLength: MAX_RECENT_CONVERSATION_TOTAL_LENGTH,
+    }),
+  );
   // Retry and edit send the trimmed history the person now sees; the saved
   // turns would otherwise bring the replaced answer back into context.
-  return rewrite ? cleanRecent : combineConversationHistory(stripped(persistent), cleanRecent);
+  return rewrite
+    ? cleanRecent
+    : combineConversationHistory(newestCleaned(persistent, COMBINED_CONVERSATION_LIMITS), cleanRecent);
 }
 
 const SHORT_CONTINUATION_PATTERN =
@@ -1332,17 +1424,21 @@ function googleAllowReply(error, english) {
 // The answer's own "Next:"/"Следва:" line stays last, also when it is the
 // whole answer: the page turns it into the Next card only while it is last.
 // A link only in that line does not count: the page takes the line out of the
-// text, so the allow line is still added above it.
+// text, so the allow line is still added above it. Nor does a link only in
+// code, where the page shows it as text that cannot be clicked.
 export function withGoogleAllowLinks(reply, capabilityResults, language) {
   const english = useEnglishReplyFallback(language);
   const replyLines = String(reply).trimEnd().split("\n");
   const last = replyLines.length - 1;
-  const next = nextStepLineIndexes(replyLines).at(-1) === last ? replyLines[last].trim() : "";
-  const body = (next ? replyLines.slice(0, last) : replyLines).join("\n").trimEnd();
+  const blocks = codeBlocksOfLines(replyLines);
+  const next = !blocks[last] && isNextStepLine(replyLines[last]) ? replyLines[last].trim() : "";
+  const bodyLines = next ? replyLines.slice(0, last) : replyLines;
+  const body = bodyLines.join("\n").trimEnd();
+  const shown = bodyLines.filter((line, index) => !blocks[index]).join("\n");
   const lines = [];
   for (const { status, error } of capabilityResults || []) {
     const allow = status === "rejected" ? googleAllowLink(error) : null;
-    if (!allow || body.includes(allow.url)) continue;
+    if (!allow || shown.includes(allow.url)) continue;
     const line = googleAllowReply(error, english);
     if (!lines.includes(line)) lines.push(line);
   }

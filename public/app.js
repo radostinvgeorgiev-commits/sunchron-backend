@@ -2910,29 +2910,209 @@ function cleanNextStep(value) {
 // case; the English one only as "Next" or "Next step" with a capital N, so
 // code such as "next: () => …" is never taken for one.
 const NEXT_LINE_BULGARIAN = /^(\s*(?:[-*•]\s*)?(?:\*\*)?)(?:Следва|Следваща стъпка)((?:\*\*)?\s*:)/iu;
-const NEXT_LINE_ENGLISH = /^\s*(?:[-*•]\s*)?(?:\*\*)?Next(?: [Ss]tep)?(?:\*\*)?\s*:/u;
+const NEXT_LINE_ENGLISH = /^(\s*(?:[-*•]\s*)?(?:\*\*)?)Next(?: [Ss]tep)?((?:\*\*)?\s*:)/u;
 
 function nextLineMarker(line) {
   return line.match(NEXT_LINE_BULGARIAN) || line.match(NEXT_LINE_ENGLISH);
 }
 
-// A line that opens or closes a ``` code block on its own. An info string
-// cannot contain backticks, so a one-line "```npm test```" is not a fence.
-const NEXT_LINE_CODE_FENCE = /^\s*```[^`]*$/u;
+// Code blocks as marked, which shows the answer, reads them. Three or more
+// backticks or tildes open a block, also after a list marker ("- ```bash"); a
+// backtick fence's info string cannot contain backticks, so a one-line
+// "```npm test```" is not a fence. marked reads a list item's lines from the
+// column where the item's text starts, so a block's fences are measured from
+// there: from the text of the item whose marker the fence follows, or else of
+// the innermost open item whose text starts at or left of the fence (column 0
+// outside lists). A fence line four or more columns past that does not open a
+// block, and only a bare run of the same character, at least as long as the
+// opening one and at most three columns past it, closes the block. So a "```"
+// line inside a "````" block, and an indented "    ```" in a Python string or
+// a README example, are code. A closing fence left of the item's text still
+// closes the block, as the model meant it to (marked would end the item
+// there).
+// A list item ends, with any block in it, at a non-blank line left of its
+// text that follows a blank line, starts a new item, starts with ``` or ~~~,
+// or comes right below a bare fence line (no info string) that opened a
+// block in the item, while the fence is fewer columns past the item's text
+// than that text is past its parent item's text (column 0 at the top
+// level), as marked limits it. Such a bare line is often a closing fence
+// read as an opening one. A line right below a fence with an info string
+// does not end the item by being there, as the model meant it to be code
+// (marked would end the item there). When that line is left of the item's
+// text, the model wrote the block's code unindented: the block then stays
+// open at the endings of its item while a line further down would close it.
+// It ends at the next such line, normally its own closing fence (or a later
+// block's fence line when its own is missing), or with its item when none
+// follows. After such a block the fences pair as the model wrote them, no
+// longer as marked pairs them, so a bare fence that could not be a closing
+// fence outside a list, right after its item's marker ("2. ```") or on its
+// own line four or more columns in, is unindented too when the line below
+// it is left of the item's text: that line ends the item only when no line
+// further down would close the block.
+// marked's other item endings, such as a heading, an HTML block, a quote, a
+// rule, or a line left of the item's text right below one four or more
+// columns past it, are not read.
+// The server (codeBlocksOfLines) uses the same rule.
+const NEXT_LINE_FENCE_OPEN = /^([ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?)(?:(`{3,})[^`]*|(~{3,})[\s\S]*)$/u;
+const NEXT_LINE_FENCE_CLOSE = /^([ \t]*)(`{3,}|~{3,}) *\r?$/u;
+const NEXT_LINE_FENCE_START = /^[ \t]*(?:```|~~~)/u;
+const NEXT_LINE_LIST_ITEM = /^[ \t]*(?:[-*+]|\d{1,9}[.)])(?:[ \t]+|$)/u;
 // A line with a Google allow link: besides blank lines, the only line that may
 // follow the answer's own Next line (older answers have the allow line last).
 const NEXT_LINE_ALLOW_LINK = /\/api\/google\/connect/u;
 
-// The answer's own Next line is its last such line outside ``` code blocks
-// (-1 when there is none); earlier ones are content, and code never counts.
-function answerNextLineIndex(lines) {
-  let code = false;
-  let found = -1;
-  lines.forEach((line, index) => {
-    if (NEXT_LINE_CODE_FENCE.test(line)) code = !code;
-    else if (!code && nextLineMarker(line)) found = index;
+// The column a line's leading spaces and tabs reach; a tab moves to the next
+// multiple of four, as marked counts indentation.
+function nextLineIndentWidth(text) {
+  let column = 0;
+  for (const char of text.match(/^[ \t]*/u)[0]) {
+    column = char === "\t" ? column + 4 - (column % 4) : column + 1;
+  }
+  return column;
+}
+
+// The lines that could close a code block, read from the end of the answer
+// up, only as far as a block needs. Of the lines with one fence character
+// and run length, only those left of every such line below them are kept,
+// the lowest first: the last such line at or left of a column is one of them.
+function nextLineClosingLinesFromEnd(lines) {
+  return { lines, next: lines.length - 1, groups: new Map() };
+}
+
+// The index of the last line that could close the block, when it is below
+// the given line, else -1: one of the block's fence character, with a run at
+// least as long as the opening one, at most three columns past the item's
+// text.
+function nextLineLastClosingLineBelow(closings, block, index) {
+  const limit = block.base + 3;
+  let last = -1;
+  for (const group of closings.groups.values()) {
+    if (group.char !== block.char || group.length < block.length) continue;
+    const line = group.lines.find(({ indent }) => indent <= limit);
+    if (line) last = Math.max(last, line.index);
+  }
+  // Read on up while no line read so far would close the block.
+  while (last < 0 && closings.next > index) {
+    const at = closings.next;
+    closings.next -= 1;
+    const close = closings.lines[at].match(NEXT_LINE_FENCE_CLOSE);
+    if (!close) continue;
+    const [, spaces, run] = close;
+    const indent = nextLineIndentWidth(spaces);
+    if (!closings.groups.has(run)) closings.groups.set(run, { char: run[0], length: run.length, lines: [] });
+    const kept = closings.groups.get(run).lines;
+    if (kept.length && kept.at(-1).indent <= indent) continue;
+    kept.push({ index: at, indent });
+    if (run[0] === block.char && run.length >= block.length && indent <= limit) last = at;
+  }
+  return last > index ? last : -1;
+}
+
+// For each line, the code block it is in (its fence lines too), or null
+// outside code. A block is bare when its opening fence has no info string,
+// on a marker when its fence follows its item's marker on the same line, and
+// unindented when its code starts left of the item's text, as the rule above
+// says. At an ending of its item, an unindented block stays open while the
+// last line that would close it is further down. That line is looked up once
+// for all blocks of one fence character, run length and item column: it is
+// the answer's last such line, and when it is not below the block that asked
+// first (-1), it is below no later block either. Only the first 16 kinds in
+// an answer are looked up, so an answer made of many kinds costs no more than
+// a plain one; a block of a further kind ends with its item. Real answers
+// use at most three.
+function nextLineCodeBlocks(lines) {
+  // Where the text of each open list item starts, the innermost last.
+  const items = [];
+  // The open code block, null outside code.
+  let fence = null;
+  let afterBlank = false;
+  // Whether a block so far was unindented.
+  let hadUnindented = false;
+  // For unindented blocks: the lines that could close a block, read from the
+  // end of the answer up, as far as those blocks need them, and the last line
+  // that would close a block, by fence character, run length and item column.
+  let closings = null;
+  const lastClosings = new Map();
+  return lines.map((line, index) => {
+    const followsBlank = afterBlank;
+    afterBlank = !line.trim();
+    // A blank line stays in the open block, or outside code.
+    if (afterBlank) return fence;
+    const indent = nextLineIndentWidth(line);
+    const item = line.match(NEXT_LINE_LIST_ITEM);
+    // Whether the line ends the list items whose text it is left of.
+    const endsItems =
+      followsBlank ||
+      Boolean(item) ||
+      NEXT_LINE_FENCE_START.test(line) ||
+      Boolean(fence?.endsItemBelow && fence.line === index - 1);
+    if (fence) {
+      const block = fence;
+      const close = line.match(NEXT_LINE_FENCE_CLOSE);
+      if (
+        close &&
+        close[2][0] === block.char &&
+        close[2].length >= block.length &&
+        nextLineIndentWidth(close[1]) <= block.base + 3
+      ) {
+        fence = null;
+        return block;
+      }
+      // Code right below its fence, left of the item's text: below a fence
+      // with an info string or, after an unindented block, below a bare fence
+      // right after its item's marker or four or more columns in.
+      if (
+        block.line === index - 1 &&
+        indent < block.base &&
+        (!block.bare || (hadUnindented && (block.onMarker || block.column >= 4)))
+      ) {
+        block.unindented = true;
+        hadUnindented = true;
+      }
+      // Any other line ends the block only where it ends the block's item,
+      // and an unindented block only when no line further down would close it.
+      if (!endsItems || indent >= block.base) return block;
+      if (block.unindented) {
+        closings ??= nextLineClosingLinesFromEnd(lines);
+        const key = `${block.char}${block.length} ${block.base}`;
+        if (!lastClosings.has(key)) lastClosings.set(key, lastClosings.size < 16 ? nextLineLastClosingLineBelow(closings, block, index) : -1);
+        if (lastClosings.get(key) > index) return block;
+      }
+      fence = null;
+    }
+    if (endsItems) while (items.length && items.at(-1) > indent) items.pop();
+    if (item) items.push(nextLineIndentWidth(item[0].replace(/\S/gu, " ")));
+    const open = line.match(NEXT_LINE_FENCE_OPEN);
+    if (!open) return null;
+    // Where the fence starts, and where the text of its item starts.
+    const column = nextLineIndentWidth(open[1].replace(/\S/gu, " "));
+    const base = items.at(-1) ?? 0;
+    if (column - base >= 4) return null;
+    const run = open[2] || open[3];
+    const bare = !line.slice(open[1].length + run.length).trim();
+    fence = {
+      char: run[0],
+      length: run.length,
+      base,
+      bare,
+      onMarker: Boolean(item),
+      column,
+      unindented: false,
+      line: index,
+      endsItemBelow: bare && column - base < base - (items.at(-2) ?? 0),
+    };
+    return fence;
   });
-  return found;
+}
+
+// The answer's own Next line is its last such line outside code blocks (-1
+// when there is none); earlier ones are content, and code never counts.
+function answerNextLineIndex(lines) {
+  const blocks = nextLineCodeBlocks(lines);
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (!blocks[index] && nextLineMarker(lines[index])) return index;
+  }
+  return -1;
 }
 
 // The answer's own "Следва:" line, when it is not the Next card (not the last
@@ -2948,15 +3128,18 @@ function localizedNextLines(text) {
   if (index < 0) return text;
   const after = lines.slice(index + 1);
   if (!after.every((line) => !line.trim() || NEXT_LINE_ALLOW_LINK.test(line))) return text;
-  lines[index] = lines[index].replace(
-    NEXT_LINE_BULGARIAN,
-    (marker, start, end) => `${start}${label}${end}`,
-  );
+  // The model writes "Next:" on every page but a Bulgarian one, so on a German
+  // or French page that line gets the page's label too, as the Next card does.
+  const marker = NEXT_LINE_BULGARIAN.test(lines[index]) ? NEXT_LINE_BULGARIAN : NEXT_LINE_ENGLISH;
+  if (marker === NEXT_LINE_ENGLISH && label === "Next") return text;
+  lines[index] = lines[index].replace(marker, (match, start, end) => `${start}${label}${end}`);
   return lines.join("\n");
 }
 
 // The answer's own Next line becomes the Next card only while it is the last
-// line; the text above it is then shown without it.
+// line; the text above it is then shown without it. The step is on that line,
+// as the prompt asks: a bare "Следва:" with the step on the line below stays
+// text.
 function nextStepFromReply(text) {
   const value = typeof text === "string" ? text.trimEnd() : "";
   const lines = value.split("\n");

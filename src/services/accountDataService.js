@@ -129,11 +129,82 @@ export async function exportAccountData(
   };
 }
 
+// People who sign in with Google, GitHub or another external profile have no
+// password. They confirm with a sign-in from the last few minutes instead, the
+// same rule Identity Platform applies before it deletes a sign-in account.
+export const RECENT_SIGN_IN_SECONDS = 5 * 60;
+
+async function confirmWithPassword(client, identity, password) {
+  if (!identity.email) {
+    throw new AccountDataError(
+      "Въведи паролата си, за да потвърдиш изтриването.",
+      400,
+      "ACCOUNT_DELETE_PASSWORD_REQUIRED",
+    );
+  }
+  const { data, error } = await client.auth.signInWithPassword({
+    email: identity.email,
+    password,
+  });
+  if (error || data?.user?.id !== identity.id || !data?.session?.access_token) {
+    throw new AccountDataError(
+      "Паролата не е вярна.",
+      403,
+      "ACCOUNT_DELETE_REAUTH_FAILED",
+    );
+  }
+  return data.session.access_token;
+}
+
+function tokenSignInTime(token) {
+  try {
+    const payload = JSON.parse(
+      Buffer.from(String(token).split(".")[1] || "", "base64url").toString("utf8"),
+    );
+    return Number(payload.auth_time) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function confirmWithRecentSignIn(client, identity, session, nowMs) {
+  let token = session.access_token;
+  let user = null;
+  if (token && typeof client.auth.getUser === "function") {
+    const result = await client.auth.getUser(token);
+    if (!result?.error) user = result?.data?.user || null;
+  }
+  if (!user && session.refresh_token && typeof client.auth.refreshSession === "function") {
+    const result = await client.auth.refreshSession({ refresh_token: session.refresh_token });
+    if (!result?.error && result?.data?.session?.access_token) {
+      token = result.data.session.access_token;
+      user = result.data.user || null;
+    }
+  }
+  if (!user || user.id !== identity.id || !token) {
+    throw new AccountDataError(
+      "Влез отново и опитай пак.",
+      403,
+      "ACCOUNT_DELETE_REAUTH_FAILED",
+    );
+  }
+  const signedInAt = tokenSignInTime(token);
+  if (!signedInAt || nowMs / 1000 - signedInAt > RECENT_SIGN_IN_SECONDS) {
+    throw new AccountDataError(
+      "За да изтриеш профила, излез, влез отново и го изтрий до 5 минути.",
+      403,
+      "ACCOUNT_DELETE_SIGN_IN_AGAIN",
+    );
+  }
+  return token;
+}
+
 export async function deleteAccount(
   identity,
-  { password, confirm } = {},
+  { password, confirm, session } = {},
   {
     authClient = () => createAuthClient(),
+    now = () => Date.now(),
     clearMemories = clearProfileMemories,
     deleteConversations = deleteAllConversations,
     deleteWorkspace = deleteWorkspaceState,
@@ -156,7 +227,8 @@ export async function deleteAccount(
       "ACCOUNT_DELETE_NOT_CONFIRMED",
     );
   }
-  if (typeof password !== "string" || !password || !identity.email) {
+  const hasPassword = typeof password === "string" && password.length > 0;
+  if (!hasPassword && !session?.refresh_token && !session?.access_token) {
     throw new AccountDataError(
       "Въведи паролата си, за да потвърдиш изтриването.",
       400,
@@ -171,17 +243,9 @@ export async function deleteAccount(
       "ACCOUNT_DELETE_UNAVAILABLE",
     );
   }
-  const { data, error } = await client.auth.signInWithPassword({
-    email: identity.email,
-    password,
-  });
-  if (error || data?.user?.id !== identity.id || !data?.session?.access_token) {
-    throw new AccountDataError(
-      "Паролата не е вярна.",
-      403,
-      "ACCOUNT_DELETE_REAUTH_FAILED",
-    );
-  }
+  const accessToken = hasPassword
+    ? await confirmWithPassword(client, identity, password)
+    : await confirmWithRecentSignIn(client, identity, session, now());
 
   const ownerId = identity.memoryOwnerId;
   await revokeGrants({ subject: identity.id });
@@ -199,7 +263,7 @@ export async function deleteAccount(
   await clearClaudeWork(ownerId);
   await forgetAvatarProfile(ownerId);
 
-  const removed = await client.auth.deleteAccount(data.session.access_token);
+  const removed = await client.auth.deleteAccount(accessToken);
   if (removed?.error) {
     throw new AccountDataError(
       "Данните са изтрити, но профилът за вход не беше премахнат. Опитай отново.",

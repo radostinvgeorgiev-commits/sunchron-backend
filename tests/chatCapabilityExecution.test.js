@@ -1287,4 +1287,7 @@ test("an English request gets the tool results framed in English", () => {
   assert.match(bulgarian, /Резултатът от кодовия анализ/u);
   assert.match(bulgarian, /Запази всеки линк от резултатите точно както е\./u);
   assert.doesNotMatch(english, /code analysis result/u);
+  // The results never decide the answer's language: the latest request does.
+  assert.match(english, /Write the answer in the language of the latest request/u);
+  assert.match(bulgarian, /Отговори на езика на последната заявка/u);
 });

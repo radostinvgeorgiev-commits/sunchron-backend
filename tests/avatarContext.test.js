@@ -181,3 +181,30 @@ test("avatar receives approved archive knowledge separately from verified memory
   assert.match(messages[0].content, /Първият демонстрационен контур/u);
   assert.match(messages[0].content, /източник: Основата/u);
 });
+
+test("the reply language rule closes the system context, after the Bulgarian rules and notes", () => {
+  const english = buildAvatarMessages(
+    [{ fact: "Живея във Варна", scope: "personal" }],
+    [{ role: "user", content: "Add a contact: Ana Lee | ana@example.com" }],
+    "Find contact Ana Lee",
+    undefined,
+    {
+      mode: "chat",
+      workContext: null,
+      language: "en",
+      avatarProfile: "Кой съм: програмист",
+    },
+  );
+  const system = english[0].content;
+  assert.match(
+    system,
+    /\[REPLY LANGUAGE\] Reply in the language explicitly requested in the latest user message\. Otherwise reply in the language of that message\. If its language is unclear, use English\. The Bulgarian rules, notes and memory above do not by themselves set the reply language\.$/u,
+  );
+  assert.ok(system.indexOf("[REPLY LANGUAGE]") > system.indexOf("Кой съм: програмист"));
+  assert.ok(system.indexOf("[REPLY LANGUAGE]") > system.indexOf("Живея във Варна"));
+  assert.equal(system.match(/Reply in the language explicitly requested/gu).length, 1);
+  assert.equal(english.at(-1).content, "Find contact Ana Lee");
+
+  const bulgarian = buildAvatarMessages([], [], "Намери контакт Ана");
+  assert.match(bulgarian[0].content, /If its language is unclear, use Bulgarian\.[^\n]*$/u);
+});

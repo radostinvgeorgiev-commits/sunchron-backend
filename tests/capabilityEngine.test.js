@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildIntegrationStatusReport,
   CapabilityError,
+  contactSavedReply,
   executeCapability,
   getToolRuntimeAvailability,
   isToolExecutable,
@@ -16,6 +17,7 @@ import {
   resetToolRegistryForTests,
 } from "../src/tools/toolRegistry.js";
 import { isActiveAuthorizedGitHubSession } from "../src/services/githubOAuthService.js";
+import { createSession } from "../src/services/googleDriveService.js";
 
 test.beforeEach(() => resetToolRegistryForTests());
 
@@ -538,4 +540,88 @@ test("a new Google contact from the chat is only prepared, with a summary in the
     bulgarian.metadata.summary,
     "Добавяне на Google контакт „Ana Lee“ (ana@example.com, +1 555 0100).",
   );
+});
+
+test("the reply after a contact is saved names what Google kept, never the request", () => {
+  assert.equal(
+    contactSavedReply({ name: "Reviewer Demo", email: "reviewer.demo@example.com" }, true),
+    "Google contact saved: Reviewer Demo.",
+  );
+  // Google did not keep the requested name: the reply says so and shows the email.
+  assert.equal(
+    contactSavedReply({ name: "", nameSaved: false, email: "reviewer.demo@example.com" }, true),
+    "Google contact saved, but Google did not keep its name: reviewer.demo@example.com.",
+  );
+  assert.equal(
+    contactSavedReply({ name: "", nameSaved: false, phone: "+1 555 0100" }),
+    "Google контактът е записан, но Google не запази името: +1 555 0100.",
+  );
+  assert.equal(
+    contactSavedReply({ name: "Мама", unchanged: true }),
+    "Google контактът вече има тези данни: Мама.",
+  );
+  assert.equal(contactSavedReply({}, true), "Google contact saved: (no name).");
+});
+
+test("a found contact with no name, email or phone still gets a readable line", async () => {
+  const env = {
+    GOOGLE_CLIENT_ID: "client",
+    GOOGLE_CLIENT_SECRET: "secret",
+    GOOGLE_REDIRECT_URI: "https://example.test/api/google/callback",
+  };
+  const googleSessionId = await createSession({ access_token: "token", expires_in: 3600 });
+  const originalFetch = global.fetch;
+  global.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        results: [
+          { person: { resourceName: "people/p1", names: [{ displayName: "Ana Lee" }] } },
+          { person: { resourceName: "people/p2" } },
+        ],
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const search = (language) =>
+      executeCapability(
+        "contacts.read",
+        { ownerId: "member-1", googleSessionId, query: "Acme", ...(language ? { language } : {}) },
+        { env },
+      );
+    assert.equal((await search("en")).output, "Contacts found:\n• Ana Lee\n• (no name)");
+    assert.equal((await search()).output, "Намерени контакти:\n• Ana Lee\n• (без име)");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("a contact change without a name, or with only a name, gets a clean summary", async () => {
+  const env = {
+    GOOGLE_CLIENT_ID: "client",
+    GOOGLE_CLIENT_SECRET: "secret",
+    GOOGLE_REDIRECT_URI: "https://example.test/api/google/callback",
+  };
+  const prepare = (contact, language) =>
+    executeCapability(
+      "contacts.update",
+      {
+        ownerId: "member-1",
+        googleSessionId: "google-1",
+        sessionId: "chat-1",
+        ...(language ? { language } : {}),
+        input: { contact: { resourceName: "people/c1", etag: "etag-1", ...contact } },
+      },
+      { env, prepareConfirmation: true },
+    );
+  const phoneOnly = { name: "", phone: "+359 88 000 0001" };
+  assert.equal(
+    (await prepare(phoneOnly, "en")).metadata.summary,
+    "Update the Google contact (+359 88 000 0001).",
+  );
+  assert.equal(
+    (await prepare(phoneOnly)).metadata.summary,
+    "Промяна на Google контакт (+359 88 000 0001).",
+  );
+  assert.equal((await prepare({ name: "Нов" }, "en")).metadata.summary, 'Update the Google contact "Нов".');
+  assert.equal((await prepare({ name: "Нов" })).metadata.summary, "Промяна на Google контакт „Нов“.");
 });

@@ -822,9 +822,10 @@ async function googleErrorDetails(response) {
     return {
       message: String(data?.error?.message || ""),
       reasons: errors.map((item) => String(item?.reason || "")).filter(Boolean),
+      status: String(data?.error?.status || ""),
     };
   } catch {
-    return { message: "", reasons: [] };
+    return { message: "", reasons: [], status: "" };
   }
 }
 
@@ -878,11 +879,17 @@ async function googleFetch(
     );
   }
 
-  throw new GoogleDriveError(
+  const failure = new GoogleDriveError(
     `${serviceName} временно не е достъпен (Google грешка ${response.status}).`,
     502,
     "GOOGLE_REQUEST_FAILED",
   );
+  // Google's own status (for example FAILED_PRECONDITION) lets a caller tell
+  // a refused write from an outage; it is an enum name, safe to log.
+  if (/^[A-Z][A-Z0-9_]{1,63}$/u.test(details.status)) {
+    failure.upstreamErrorStatus = details.status;
+  }
+  throw failure;
 }
 
 export async function hasSession(id) {
@@ -1812,13 +1819,17 @@ function contactResourceName(value, { optional = false } = {}) {
   return clean;
 }
 
-function normalizeContactDraft({ name, email, phone } = {}) {
-  const displayName = cleanHeader(name, 300, "име", { required: true });
+// A new contact needs a name and an email or a phone. A change needs only
+// what changes: the contact already has the rest.
+function normalizeContactDraft({ name, email, phone } = {}, { update = false } = {}) {
+  const displayName = cleanHeader(name, 300, "име", { required: !update });
   const cleanContactEmail = email ? cleanEmail(email, "имейл на контакт") : "";
   const cleanPhone = cleanHeader(phone, 80, "телефон");
-  if (!cleanContactEmail && !cleanPhone) {
+  if (!cleanContactEmail && !cleanPhone && (!update || !displayName)) {
     throw new GoogleDriveError(
-      "Контактът трябва да има имейл или телефон.",
+      update
+        ? "Промяната на контакта трябва да съдържа име, имейл или телефон."
+        : "Контактът трябва да има имейл или телефон.",
       400,
       "GOOGLE_CONTACT_INVALID",
     );
@@ -1826,15 +1837,97 @@ function normalizeContactDraft({ name, email, phone } = {}) {
   return { name: displayName, email: cleanContactEmail, phone: cleanPhone };
 }
 
+// Contact answers list only the contact's own values, so a linked Google
+// profile's name (in no fixed order next to it) never replaces the one the
+// person saved.
+const CONTACT_READ = Object.freeze({
+  personFields: "names,emailAddresses,phoneNumbers",
+  sources: "READ_SOURCE_TYPE_CONTACT",
+});
+
+// The contact's own values of a field, without a linked profile's.
+function ownItems(items) {
+  const list = Array.isArray(items) ? items.filter(Boolean) : [];
+  const own = list.filter((item) => item.metadata?.source?.type === "CONTACT");
+  return own.length ? own : list;
+}
+
+// The contact's own (and, among several, its main) value of a field. Google
+// keeps no fixed order, so the main one is found by its marker.
+function ownValue(items) {
+  const pool = ownItems(items);
+  return (
+    pool.find((item) => item.metadata?.primary || item.metadata?.sourcePrimary) ||
+    pool[0] ||
+    {}
+  );
+}
+
+// Google fills names[].displayName itself; a contact without any name keeps
+// an empty name here, so callers can show the email or phone instead.
 function normalizeGoogleContact(person = {}) {
+  const name = ownValue(person.names);
   return {
     resourceName: person.resourceName || null,
     etag: person.etag || null,
-    name: person.names?.[0]?.displayName || "Контакт",
-    email: person.emailAddresses?.[0]?.value || "",
-    phone: person.phoneNumbers?.[0]?.value || "",
+    name:
+      name.displayName ||
+      name.unstructuredName ||
+      [name.givenName, name.familyName].filter(Boolean).join(" ") ||
+      "",
+    email: ownValue(person.emailAddresses).value || "",
+    phone: ownValue(person.phoneNumbers).value || "",
   };
 }
+
+// names[].displayName is output only in the People API: a contact written
+// with it alone is saved without a name. unstructuredName is the free-form
+// name Google stores (and splits into given and family name).
+function contactNames(contact) {
+  return [{ unstructuredName: contact.name }];
+}
+
+// Google answers with the contact as it saved it. A requested name missing
+// from that answer means Google did not keep it: that is reported, never
+// filled in from the request, so the reply and the live check both show it.
+function withNameReport(contact, requestedName) {
+  if (!requestedName || contact.name) return contact;
+  logSafeError("[Google Contacts] Saved without the requested name", {
+    code: "GOOGLE_CONTACT_NAME_NOT_SAVED",
+  });
+  return { ...contact, nameSaved: false };
+}
+
+// Google replaces a whole field (every email, every phone) on update. The
+// new value takes the place of the contact's main one and stays the main
+// one; the other values and their labels (work, home, mobile) stay.
+// null: the field stays as it is.
+function withMainValue(items, value, sameValue) {
+  if (!value) return null;
+  const list = ownItems(items).filter(
+    (item) => typeof item.value === "string" && item.value,
+  );
+  if (list.some((item) => sameValue(item.value, value))) return null;
+  if (!list.length) return [{ value }];
+  const main = ownValue(list);
+  // Output-only parts and the source metadata are Google's to set.
+  const writable = ({ metadata, formattedType, canonicalForm, ...kept }) => kept;
+  return [
+    { ...writable(main), value, metadata: { sourcePrimary: true } },
+    ...list.filter((item) => item !== main).map(writable),
+  ];
+}
+
+const sameEmail = (left, right) =>
+  left.trim().toLowerCase() === right.trim().toLowerCase();
+// Phones match by their digits ("+359 88 123 4567" is "+359881234567"); a
+// number written with letters (1-800-FLOWERS) matches only as written.
+const samePhone = (left, right) => {
+  const digits = (value) => value.replace(/\D/gu, "");
+  return digits(left) && !/\p{L}/u.test(left + right)
+    ? digits(left) === digits(right)
+    : left.trim().toLowerCase() === right.trim().toLowerCase();
+};
 
 export async function searchGoogleContacts(
   id,
@@ -1881,12 +1974,12 @@ export async function createGoogleContact(id, draft, fetchImpl = fetch) {
   const contact = normalizeContactDraft(draft);
   const response = await googleFetch(
     id,
-    `${PEOPLE_API_URL}/people:createContact`,
+    `${PEOPLE_API_URL}/people:createContact?${new URLSearchParams(CONTACT_READ)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        names: [{ displayName: contact.name }],
+        names: contactNames(contact),
         ...(contact.email
           ? { emailAddresses: [{ value: contact.email }] }
           : {}),
@@ -1904,38 +1997,80 @@ export async function createGoogleContact(id, draft, fetchImpl = fetch) {
       "GOOGLE_CONTACT_EMPTY_RESULT",
     );
   }
-  return created;
+  return withNameReport(created, contact.name);
 }
 
+// Changes only what the request gives. The contact is read first, because
+// Google replaces a whole field on update: without it one new email would
+// delete every other email (and a missing phone every phone). The etag from
+// when the contact was found still guards the write, so a contact changed
+// since then is refused by Google instead of overwritten.
 export async function updateGoogleContact(
   id,
   { resourceName, etag, ...draft } = {},
   fetchImpl = fetch,
 ) {
-  const contact = normalizeContactDraft(draft);
+  const contact = normalizeContactDraft(draft, { update: true });
   const cleanResourceName = contactResourceName(resourceName);
   const cleanEtag = cleanHeader(etag, 200, "Google contact etag", {
     required: true,
   });
+  const read = new URLSearchParams(CONTACT_READ);
+  const current = await (
+    await googleFetch(
+      id,
+      `${PEOPLE_API_URL}/${cleanResourceName}?${read}`,
+      {},
+      fetchImpl,
+      "Google Contacts",
+    )
+  ).json();
+  const before = normalizeGoogleContact(current);
+  const changes = {};
+  // The name is rewritten only when it really changes: a rewrite drops the
+  // parts Google keeps apart (title, middle and phonetic names).
+  if (contact.name && contact.name !== before.name) {
+    changes.names = contactNames(contact);
+  }
+  const emails = withMainValue(current.emailAddresses, contact.email, sameEmail);
+  if (emails) changes.emailAddresses = emails;
+  const phones = withMainValue(current.phoneNumbers, contact.phone, samePhone);
+  if (phones) changes.phoneNumbers = phones;
+  const fields = Object.keys(changes);
+  if (!fields.length) return { ...before, unchanged: true };
+
   const params = new URLSearchParams({
-    updatePersonFields: "names,emailAddresses,phoneNumbers",
+    updatePersonFields: fields.join(","),
+    ...CONTACT_READ,
   });
-  const response = await googleFetch(
-    id,
-    `${PEOPLE_API_URL}/${cleanResourceName}:updateContact?${params}`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        etag: cleanEtag,
-        names: [{ displayName: contact.name }],
-        emailAddresses: contact.email ? [{ value: contact.email }] : [],
-        phoneNumbers: contact.phone ? [{ value: contact.phone }] : [],
-      }),
-    },
-    fetchImpl,
-    "Google Contacts",
-  );
+  let response;
+  try {
+    response = await googleFetch(
+      id,
+      `${PEOPLE_API_URL}/${cleanResourceName}:updateContact?${params}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ etag: cleanEtag, ...changes }),
+      },
+      fetchImpl,
+      "Google Contacts",
+    );
+  } catch (error) {
+    // Google refuses a write with an older etag: the contact changed after
+    // it was found, and it stays as it is. A new search gives the new etag.
+    if (
+      error?.code === "GOOGLE_REQUEST_FAILED" &&
+      error.upstreamErrorStatus === "FAILED_PRECONDITION"
+    ) {
+      throw new GoogleDriveError(
+        "Контактът е променен след търсенето. Потърси го отново и подготви промяната пак.",
+        409,
+        "GOOGLE_CONTACT_CHANGED",
+      );
+    }
+    throw error;
+  }
   const updated = normalizeGoogleContact(await response.json());
   if (updated.resourceName !== cleanResourceName) {
     throw new GoogleDriveError(
@@ -1944,7 +2079,7 @@ export async function updateGoogleContact(
       "GOOGLE_CONTACT_EMPTY_RESULT",
     );
   }
-  return updated;
+  return withNameReport(updated, changes.names ? contact.name : "");
 }
 
 export async function listGoogleCalendarEvents(

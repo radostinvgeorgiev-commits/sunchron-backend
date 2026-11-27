@@ -305,10 +305,12 @@ test("searches, creates and version-safely updates Google contacts", async () =>
   assert.equal(contacts[0].resourceName, "people/person_1");
 
   let createBody;
+  let createUrl;
   const created = await createGoogleContact(
     sessionId,
     { name: "Нов клиент", phone: "+359 88 123 4567" },
-    async (_url, options) => {
+    async (url, options) => {
+      createUrl = new URL(String(url));
       createBody = JSON.parse(options.body);
       return jsonResponse({
         resourceName: "people/person_2",
@@ -319,9 +321,17 @@ test("searches, creates and version-safely updates Google contacts", async () =>
     },
   );
   assert.equal(createBody.phoneNumbers[0].value, "+359 88 123 4567");
+  // displayName is output only in the People API; the name is written as
+  // unstructuredName, otherwise Google saves the contact without a name.
+  assert.deepEqual(createBody.names, [{ unstructuredName: "Нов клиент" }]);
+  // Google answers with the contact's own values only.
+  assert.equal(createUrl.searchParams.get("personFields"), "names,emailAddresses,phoneNumbers");
+  assert.equal(createUrl.searchParams.get("sources"), "READ_SOURCE_TYPE_CONTACT");
   assert.equal(created.resourceName, "people/person_2");
+  assert.equal(created.name, "Нов клиент");
+  assert.equal(created.nameSaved, undefined);
 
-  let updateRequest;
+  const requests = [];
   const updated = await updateGoogleContact(
     sessionId,
     {
@@ -330,19 +340,253 @@ test("searches, creates and version-safely updates Google contacts", async () =>
       name: "Обновен клиент",
       email: "updated@example.com",
     },
-    async (url, options) => {
-      updateRequest = { url: String(url), body: JSON.parse(options.body) };
+    async (url, options = {}) => {
+      requests.push({
+        url: new URL(String(url)),
+        method: options.method || "GET",
+        body: options.body ? JSON.parse(options.body) : null,
+      });
+      if (!options.method) {
+        return jsonResponse({
+          resourceName: "people/person_2",
+          etag: "etag-2",
+          names: [{ displayName: "Нов клиент" }],
+          phoneNumbers: [{ value: "+359 88 123 4567", type: "mobile" }],
+        });
+      }
       return jsonResponse({
         resourceName: "people/person_2",
         etag: "etag-3",
         names: [{ displayName: "Обновен клиент" }],
         emailAddresses: [{ value: "updated@example.com" }],
+        phoneNumbers: [{ value: "+359 88 123 4567", type: "mobile" }],
       });
     },
   );
-  assert.match(updateRequest.url, /people\/person_2:updateContact/u);
-  assert.equal(updateRequest.body.etag, "etag-2");
+  // The contact is read first, then only the changed fields are written.
+  assert.deepEqual(
+    requests.map(({ method, url }) => `${method} ${url.pathname.split("/").pop()}`),
+    ["GET person_2", "PATCH person_2:updateContact"],
+  );
+  // Google refuses a contact read without personFields.
+  assert.equal(requests[0].url.searchParams.get("personFields"), "names,emailAddresses,phoneNumbers");
+  assert.equal(requests[0].url.searchParams.get("sources"), "READ_SOURCE_TYPE_CONTACT");
+  const update = requests[1];
+  assert.equal(update.url.searchParams.get("updatePersonFields"), "names,emailAddresses");
+  assert.equal(update.body.etag, "etag-2");
+  assert.deepEqual(update.body.names, [{ unstructuredName: "Обновен клиент" }]);
+  assert.deepEqual(update.body.emailAddresses, [{ value: "updated@example.com" }]);
+  // The phone was not part of the change, so it is neither sent nor cleared.
+  assert.equal("phoneNumbers" in update.body, false);
   assert.equal(updated.email, "updated@example.com");
+  assert.equal(updated.phone, "+359 88 123 4567");
+});
+
+test("a contact change keeps the contact's other emails and phones and its unchanged name", async () => {
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
+  const own = (extra = {}) => ({ source: { type: "CONTACT" }, ...extra });
+  const requests = [];
+  await updateGoogleContact(
+    sessionId,
+    {
+      resourceName: "people/person_7",
+      etag: "etag-7",
+      name: "Иван Петров",
+      email: "new@firma.bg",
+      phone: "+359 88 111 1111",
+    },
+    async (url, options = {}) => {
+      requests.push({ method: options.method || "GET", url: new URL(String(url)), body: options.body });
+      if (!options.method) {
+        return jsonResponse({
+          resourceName: "people/person_7",
+          etag: "etag-7",
+          names: [{ displayName: "Иван Петров", honorificPrefix: "Д-р", metadata: own({ primary: true }) }],
+          emailAddresses: [
+            { value: "home@example.com", type: "home", formattedType: "Home", metadata: own() },
+            { value: "old@firma.bg", type: "work", formattedType: "Work", metadata: own({ primary: true }) },
+          ],
+          phoneNumbers: [
+            { value: "+359881111111", canonicalForm: "+359881111111", type: "mobile", metadata: own({ primary: true }) },
+            { value: "+359 2 222 2222", type: "work", metadata: own() },
+          ],
+        });
+      }
+      return jsonResponse({ resourceName: "people/person_7", etag: "etag-8" });
+    },
+  );
+  const update = requests.find(({ method }) => method === "PATCH");
+  const body = JSON.parse(update.body);
+  // Only the email changes: the name is the same and the phone is already
+  // there (written differently), so neither is rewritten.
+  assert.equal(update.url.searchParams.get("updatePersonFields"), "emailAddresses");
+  assert.equal("names" in body, false);
+  assert.equal("phoneNumbers" in body, false);
+  // The main email is replaced with its label and stays the main one (Google
+  // keeps no order, so it is marked); the other one stays as it was.
+  assert.deepEqual(body.emailAddresses, [
+    { value: "new@firma.bg", type: "work", metadata: { sourcePrimary: true } },
+    { value: "home@example.com", type: "home" },
+  ]);
+});
+
+test("a contact change reports a new name Google did not keep, and a contact changed since it was found", async () => {
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
+  const current = {
+    resourceName: "people/person_12",
+    etag: "etag-12",
+    names: [{ displayName: "Старо име" }],
+    phoneNumbers: [{ value: "+359 88 000 0001" }],
+  };
+  const renamed = await updateGoogleContact(
+    sessionId,
+    { resourceName: "people/person_12", etag: "etag-12", name: "Ново име" },
+    async (_url, options = {}) =>
+      jsonResponse(
+        options.method
+          ? { resourceName: "people/person_12", etag: "etag-13", phoneNumbers: current.phoneNumbers }
+          : current,
+      ),
+  );
+  assert.equal(renamed.name, "");
+  assert.equal(renamed.nameSaved, false);
+
+  // Someone changed the contact after the search: Google refuses the old
+  // etag, and the person is told to search again instead of "Google is down".
+  await assert.rejects(
+    () =>
+      updateGoogleContact(
+        sessionId,
+        { resourceName: "people/person_12", etag: "etag-12", phone: "+359 88 000 0002" },
+        async (_url, options = {}) =>
+          options.method
+            ? new Response(
+                JSON.stringify({
+                  error: {
+                    code: 400,
+                    message: "Request person.etag is different than the current person.etag.",
+                    status: "FAILED_PRECONDITION",
+                  },
+                }),
+                { status: 400, headers: { "Content-Type": "application/json" } },
+              )
+            : jsonResponse(current),
+      ),
+    (error) => error.code === "GOOGLE_CONTACT_CHANGED" && error.status === 409,
+  );
+});
+
+test("a contact change with nothing new writes nothing", async () => {
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
+  const methods = [];
+  const result = await updateGoogleContact(
+    sessionId,
+    { resourceName: "people/person_8", etag: "etag-8", email: "SAME@example.com" },
+    async (_url, options = {}) => {
+      methods.push(options.method || "GET");
+      return jsonResponse({
+        resourceName: "people/person_8",
+        etag: "etag-8",
+        emailAddresses: [{ value: "same@example.com" }],
+      });
+    },
+  );
+  assert.deepEqual(methods, ["GET"]);
+  assert.equal(result.unchanged, true);
+  assert.equal(result.email, "same@example.com");
+  // A change must give at least one thing to change.
+  await assert.rejects(
+    () => updateGoogleContact(sessionId, { resourceName: "people/person_8", etag: "etag-8" }),
+    (error) => error.code === "GOOGLE_CONTACT_INVALID",
+  );
+
+  // Numbers written with letters are not the same just because their digits are.
+  let written;
+  await updateGoogleContact(
+    sessionId,
+    { resourceName: "people/person_8", etag: "etag-8", phone: "1-800-GOTJUNK" },
+    async (_url, options = {}) => {
+      if (options.method) written = JSON.parse(options.body);
+      return jsonResponse({
+        resourceName: "people/person_8",
+        etag: "etag-8",
+        phoneNumbers: [{ value: "1-800-FLOWERS" }],
+      });
+    },
+  );
+  assert.deepEqual(written.phoneNumbers, [
+    { value: "1-800-GOTJUNK", metadata: { sourcePrimary: true } },
+  ]);
+});
+
+test("a contact Google saved without its name is reported, never named from the request", async () => {
+  const sessionId = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+  });
+  const created = await createGoogleContact(
+    sessionId,
+    { name: "Reviewer Demo", email: "reviewer.demo@example.com" },
+    async () =>
+      jsonResponse({
+        resourceName: "people/person_9",
+        etag: "etag-9",
+        emailAddresses: [{ value: "reviewer.demo@example.com" }],
+      }),
+  );
+  assert.equal(created.name, "");
+  assert.equal(created.nameSaved, false);
+  assert.equal(created.email, "reviewer.demo@example.com");
+
+  // When the answer also lists a linked Google profile, the contact's own
+  // name (the one the person saved) is the one reported.
+  const linked = await createGoogleContact(
+    sessionId,
+    { name: "Мама", email: "maria.ivanova@gmail.com" },
+    async () =>
+      jsonResponse({
+        resourceName: "people/person_11",
+        names: [
+          { displayName: "Maria Ivanova", metadata: { source: { type: "PROFILE" } } },
+          { displayName: "Мама", metadata: { primary: true, source: { type: "CONTACT" } } },
+        ],
+        emailAddresses: [{ value: "maria.ivanova@gmail.com" }],
+      }),
+  );
+  assert.equal(linked.name, "Мама");
+  assert.equal(linked.nameSaved, undefined);
+
+  const found = await searchGoogleContacts(sessionId, "reviewer", 10, async () =>
+    jsonResponse({
+      results: [
+        {
+          person: {
+            resourceName: "people/person_9",
+            names: [{ givenName: "Reviewer", familyName: "Demo" }],
+          },
+        },
+        {
+          person: {
+            resourceName: "people/person_10",
+            emailAddresses: [{ value: "nameless@example.com" }],
+          },
+        },
+      ],
+    }),
+  );
+  assert.deepEqual(
+    found.map((contact) => contact.name),
+    ["Reviewer Demo", ""],
+  );
 });
 
 test("suggests bounded working-hour slots without overlapping calendar events", () => {

@@ -80,25 +80,34 @@ function confirmationError(error) {
   );
 }
 
-function contactDraft(input = {}) {
+// A new contact needs a name and an email or a phone. A change gives only
+// what changes (a contact found without a name can get just a new phone);
+// the rest of the contact stays as it is.
+function contactDraft(input = {}, { update = false } = {}) {
   const email = typeof input.email === "string" ? input.email.trim() : "";
   const phone = typeof input.phone === "string" ? input.phone.trim() : "";
+  const name =
+    update && !(typeof input.name === "string" && input.name.trim())
+      ? ""
+      : cleanRequired(input.name, 300, "име");
   if (
     email.length > 320 ||
     phone.length > 80 ||
     /[\u0000-\u001f\u007f]/u.test(email) ||
     /[\u0000-\u001f\u007f]/u.test(phone) ||
     (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email)) ||
-    (!email && !phone)
+    (!email && !phone && !(update && name))
   ) {
     throw new GoogleActionError(
-      "Контактът трябва да има валиден имейл или телефон.",
+      update
+        ? "Промяната на контакта трябва да съдържа име, валиден имейл или телефон."
+        : "Контактът трябва да има валиден имейл или телефон.",
       400,
       "GOOGLE_CONTACT_INVALID",
     );
   }
   return Object.freeze({
-    name: cleanRequired(input.name, 300, "име"),
+    name,
     email,
     phone,
     resourceName:
@@ -217,7 +226,6 @@ export async function prepareGoogleContactChange(
   { ownerId, googleSessionId, sessionId, operation = "create", contact } = {},
   { createConfirmation } = {},
 ) {
-  const draft = contactDraft(contact);
   const action =
     operation === "create"
       ? ACTIONS.CREATE_CONTACT
@@ -231,6 +239,7 @@ export async function prepareGoogleContactChange(
       "GOOGLE_CONTACT_OPERATION_INVALID",
     );
   }
+  const draft = contactDraft(contact, { update: operation === "update" });
   if (operation === "update" && (!draft.resourceName || !draft.etag)) {
     throw new GoogleActionError(
       "За промяна са нужни resourceName и etag на контакта.",
@@ -334,7 +343,9 @@ export async function confirmGoogleAction(
       if (action === ACTIONS.TRASH_MESSAGE) {
         return trashMessage(googleSessionId, confirmation.resource.messageId);
       }
-      const draft = contactDraft(confirmation.params?.contact);
+      const draft = contactDraft(confirmation.params?.contact, {
+        update: action === ACTIONS.UPDATE_CONTACT,
+      });
       return action === ACTIONS.CREATE_CONTACT
         ? createContact(googleSessionId, draft)
         : updateContact(googleSessionId, draft);

@@ -70,12 +70,12 @@ jobs:
           echo "Google Cloud production did not stably deploy ${EXPECTED_COMMIT}." >&2
           exit 1
 
-      - name: Check AI CORE public shell
+      - name: Check Novarium public shell
         shell: bash
         run: |
           set -euo pipefail
           page="$(curl --fail --silent --show-error --retry 3 --retry-all-errors --max-time 30 "${PRODUCTION_ORIGIN}/")"
-          grep -q '<title>SYNCHRON-X' <<< "${page}"
+          grep -q '<title>Novarium' <<< "${page}"
           grep -q 'href="/ai-core-mark.png"' <<< "${page}"
           grep -q 'src="/work-mode.js?' <<< "${page}"
 

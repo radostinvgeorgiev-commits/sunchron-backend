@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { performance } from "node:perf_hooks";
 import test from "node:test";
 
 const [app, styles, chatRoute] = await Promise.all([
@@ -267,6 +268,26 @@ const BARE_FENCE_HTML = [
 ].join("\n");
 // A closing fence seven columns in, four past the item's text.
 const OVER_INDENTED_CLOSER = "1. Install:\n   ```bash\n   npm install\n       ```\nСледва: x";
+// Three steps of a list whose text starts four columns in, with code and
+// closing fences at column 0, the second step's fence bare on its own line.
+const FOUR_COLUMN_THREE_STEPS = [
+  "1.  Създай `app.py`:",
+  "    ```python",
+  "import os",
+  "",
+  'print(os.environ["PORT"])',
+  "```",
+  "2.  Създай `.env`:",
+  "    ```",
+  "PORT=8080",
+  "```",
+  "3.  Пусни:",
+  "    ```bash",
+  "python app.py",
+  "```",
+  "",
+  "Следва: Кажи ми какво пише.",
+].join("\n");
 
 // Code fences as CommonMark (and marked) reads them, and the Next lines
 // outside code.
@@ -505,9 +526,9 @@ const FENCE_CASES = [
   ["- ```bash\n  npm test\n# done\nNext: x", []],
   // When that line is left of the item's text, the block stays open at the
   // endings of its item while a line further down would close it. It ends at
-  // the next such line, normally its own closing fence, also after a blank
-  // line and an unindented line, or a later block's fence when its own is
-  // missing; with none further down, it ends with its item.
+  // the next such line, normally its own closing fence (or a later block's
+  // fence line when its own is missing), also after a blank line and an
+  // unindented line, or with its item when none follows.
   [
     [
       "1. Инсталирай Express:",
@@ -551,10 +572,11 @@ const FENCE_CASES = [
     "1. Install:\n   ```bash\nnpm install express\n2. Create `.env`:\n   ```\n   PORT=3000\n   ```\n\nСледва: Пусни `npm start` и ми кажи какво пише.",
     [8],
   ],
-  // After such a block, a bare fence right after its item's marker is read
-  // the same way when the line below it is left of the item's text. With no
-  // such block before it, or on a line of its own, the fence's item ends at
-  // that line.
+  // After such a block, a bare fence that could not be a closing fence
+  // outside a list, right after its item's marker or on a line of its own
+  // four or more columns in, is read the same way when the line below it is
+  // left of the item's text. With no such block before it, or on a line of
+  // its own fewer columns in, the fence's item ends at that line.
   ["1. ```diff\n- old\n+ new\n```\n2. ```\nconst page = {};\n```\n\nСледва: Пусни тестовете.", [8]],
   [
     "1. ```diff\n- old\n+ new\n```\n2. ```\nconst page = {\n  Next: 'kept',\n};\n```\n3. Провери:\n\nNext: Run `npm test` and tell me the result.",
@@ -562,6 +584,161 @@ const FENCE_CASES = [
   ],
   ["- ```\nnpm test\n```\nNext: x", []],
   ["1. ```js\na\n```\n2. Step:\n   ```\nb\n   ```\nNext: x", []],
+  // So in a list whose text starts four columns in ("1.  ", "*   ", or "1. "
+  // with its code four columns in) and whose code and closing fences are at
+  // column 0, a later step's bare fence on its own line keeps its code.
+  [
+    [
+      "1.  Създай `app.py`:",
+      "    ```python",
+      "import os",
+      "",
+      'print(os.environ["PORT"])',
+      "```",
+      "2.  Създай `.env`:",
+      "    ```",
+      "PORT=8080",
+      "```",
+      "",
+      "Следва: Пусни `python app.py` и ми кажи какво пише.",
+    ].join("\n"),
+    [11],
+  ],
+  [
+    [
+      "1.  Обнови `app.js`:",
+      "    ```diff",
+      "- const port = 3000;",
+      "+ const port = process.env.PORT || 3000;",
+      "```",
+      "2.  Създай `.env`:",
+      "    ```",
+      "PORT=8080",
+      "```",
+      "",
+      "Следва: Рестартирай сървъра и ми кажи дали работи.",
+    ].join("\n"),
+    [10],
+  ],
+  [
+    [
+      "*   Create `server.js`:",
+      "    ```js",
+      'const express = require("express");',
+      "",
+      "express().listen(3000);",
+      "```",
+      "*   Run it. You should see:",
+      "    ```",
+      "Listening on 3000",
+      "```",
+      "",
+      "**Next:** Open http://localhost:3000 and tell me what you see.",
+    ].join("\n"),
+    [11],
+  ],
+  [
+    [
+      "1. Добави workflow:",
+      "    ```yaml",
+      "- name: Install",
+      "  run: npm ci",
+      "```",
+      "2. Добави тайната в `.env`:",
+      "    ```",
+      "API_KEY=...",
+      "```",
+      "",
+      "Следва: Пусни workflow-а и ми кажи резултата.",
+    ].join("\n"),
+    [10],
+  ],
+  // The same with a language on that fence, with the code aligned, with no
+  // blank line in the first step, and with the fence right after its marker.
+  [
+    [
+      "1.  Създай `app.py`:",
+      "    ```python",
+      "import os",
+      "",
+      'print(os.environ["PORT"])',
+      "```",
+      "2.  Създай `.env`:",
+      "    ```env",
+      "PORT=8080",
+      "```",
+      "",
+      "Следва: Пусни `python app.py` и ми кажи какво пише.",
+    ].join("\n"),
+    [11],
+  ],
+  [
+    [
+      "1.  Създай `app.py`:",
+      "    ```python",
+      "    import os",
+      "",
+      '    print(os.environ["PORT"])',
+      "    ```",
+      "2.  Създай `.env`:",
+      "    ```",
+      "    PORT=8080",
+      "    ```",
+      "",
+      "Следва: Пусни `python app.py` и ми кажи какво пише.",
+    ].join("\n"),
+    [11],
+  ],
+  [
+    [
+      "1.  Инсталирай:",
+      "    ```bash",
+      "pip install flask",
+      "```",
+      "2.  Създай `.env`:",
+      "    ```",
+      "PORT=8080",
+      "```",
+      "",
+      "Следва: Пусни `python app.py` и ми кажи какво пише.",
+    ].join("\n"),
+    [9],
+  ],
+  [
+    [
+      "1.  ```python",
+      "import os",
+      "",
+      'print(os.environ["PORT"])',
+      "```",
+      "2.  ```",
+      "PORT=8080",
+      "```",
+      "",
+      "Следва: Пусни `python app.py` и ми кажи какво пише.",
+    ].join("\n"),
+    [9],
+  ],
+  // With the list's text three columns in, that fence could close a block
+  // outside a list: its item ends at the code below it, and the closing
+  // fence after the code opens a block, as marked reads it.
+  [
+    [
+      "1. Създай `app.py`:",
+      "   ```python",
+      "import os",
+      "",
+      'print(os.environ["PORT"])',
+      "```",
+      "2. Създай `.env`:",
+      "   ```",
+      "PORT=8080",
+      "```",
+      "",
+      "Следва: Пусни `python app.py` и ми кажи какво пише.",
+    ].join("\n"),
+    [],
+  ],
   // A closing line further down that is too far in, too short, or of the other
   // character does not keep such a block open.
   ["- ```bash\nnpm test\n- b\n      ```\nNext: x", [4]],
@@ -572,13 +749,16 @@ const FENCE_CASES = [
   // line, also after such a step; a fence nested in a block whose code is
   // unindented closes that block, so the block's own closing fence opens one;
   // an HTML block is not read, so the closing fence after it opens a block;
-  // and an item does not end below a line four or more columns past its text.
+  // an item does not end below a line four or more columns past its text;
+  // and after a step whose code is unindented, the later steps' fences pair
+  // as the model wrote them.
   [HEREDOC_AFTER_UNINDENTED_STEP, []],
   [HEREDOC_AFTER_UNINDENTED_BLANK_STEP, []],
   [FENCE_IN_UNINDENTED_PYTHON, []],
   [FENCE_IN_UNINDENTED_PYTHON_AT_ITEM, [9]],
   [BARE_FENCE_HTML, []],
   [OVER_INDENTED_CLOSER, []],
+  [FOUR_COLUMN_THREE_STEPS, [15]],
 ];
 // Where the rule knowingly reads an answer otherwise than marked, with
 // marked's Next lines: the model's closing fence closes its block, and lines
@@ -593,6 +773,7 @@ const KNOWN_DIFFERENCES = new Map([
   // marked ends step 1 at its unindented code and pairs every later fence one off.
   [HEREDOC_AFTER_UNINDENTED_STEP, [13]],
   [HEREDOC_AFTER_UNINDENTED_BLANK_STEP, [16]],
+  [FOUR_COLUMN_THREE_STEPS, []],
   // marked ends the step at its unindented code: the JSON fences pair with each
   // other, and the step's closing fence is text, or, at most three columns in,
   // opens a block that runs to the end of the answer.
@@ -650,6 +831,42 @@ test("the server and the page find the same Next lines outside the same code blo
       assert.deepEqual(pageIndexes(lines), indexes, lines.join("\n"));
       assert.equal(answerNextLineIndex(lines), indexes.at(-1) ?? -1, lines.join("\n"));
       assert.deepEqual(nextLineCodeBlocks(lines), codeBlocksOfLines(lines), lines.join("\n"));
+    }
+  }
+});
+
+test("blocks with unindented code take about as long as plain lines, however many closing lines too far in are below them", async () => {
+  const { codeBlocksOfLines } = await import("../src/services/projectConversationContextService.js");
+  const { nextLineCodeBlocks } = nextStepFunctions();
+  // Closing lines too far in to close any of the blocks above them, each left
+  // of every line of its run below it, so the look-up keeps every one: runs
+  // of 3 to 42 backticks, 8 to 47 columns in. The same answer with plain
+  // lines of the same length in their place is the measure.
+  const closers = [];
+  for (let run = 3; run < 43; run += 1) {
+    for (let column = 8; column < 48; column += 1) closers.push(`${" ".repeat(column)}${"`".repeat(run)}`);
+  }
+  const plain = closers.map((line) => "x".repeat(line.length));
+  // 15,000 blocks whose code is unindented, after a first such block: below
+  // a fence with a language, or a bare fence right after its marker, each
+  // ended by the next item with nothing to close it; or below a bare fence on
+  // its own line four columns in, each closed at column 0.
+  for (const unit of ["- ```x\na\n", "2. ```\nb\n", "1.  b\n    ```\nc\n```\n"]) {
+    const blocks = `- \`\`\`x\na\n${unit.repeat(15_000)}`;
+    const answer = (below) => `${blocks}${below.join("\n")}\n\nNext: Run it.`.split("\n");
+    for (const scan of [codeBlocksOfLines, nextLineCodeBlocks]) {
+      // The fastest of five runs, so a busy machine does not fail the check.
+      const fastest = (lines) => {
+        let best = Infinity;
+        for (let run = 0; run < 5; run += 1) {
+          const start = performance.now();
+          assert.equal(scan(lines).at(-1), null);
+          best = Math.min(best, performance.now() - start);
+        }
+        return best;
+      };
+      const times = fastest(answer(closers)) / fastest(answer(plain));
+      assert.ok(times < 2.5, `${scan.name}, ${JSON.stringify(unit)}: ${times.toFixed(2)} times as long`);
     }
   }
 });

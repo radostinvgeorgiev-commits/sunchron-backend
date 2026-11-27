@@ -312,8 +312,6 @@ AI Council събира мнения от избраните двигатели 
 Данни за търговеца|Merchant information
 Фирма|Company
 ЕИК|Bulgarian company ID
-Управител|Managing director
-Радостин Великов Георгиев|Radostin Velikov Georgiev
 Седалище и адрес на управление|Registered office and address
 гр. Варна, район „Владислав Варненчик“, ж.к. „Вл. Варненчик“, бл. 12, вх. 1, ет. 5, ап. 14|Varna, Vladislav Varnenchik district, Vl. Varnenchik residential area, block 12, entrance 1, floor 5, apartment 14, Bulgaria
 Имейл за контакт|Contact email

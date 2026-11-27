@@ -287,6 +287,8 @@ AI Council, включително обобщаване|AI Council, including sy
 Услугата се предоставя от|The service is provided by
 , ЕИК 208554306.|, Bulgarian company ID 208554306.
 Фирмени данни и контакт|Company details and contact
+Парола (само ако влизаш с имейл и парола)|Password (only if you sign in with email and password)
+Ако влизаш с Google, GitHub или друг профил, не ти трябва парола: излез, влез отново и изтрий профила до 5 минути.|If you sign in with Google, GitHub or another account, you do not need a password: sign out, sign in again and delete your account within 5 minutes.
 Кои бисквитки ползва NovariumAI: само необходимите за вход и настройки, без реклама и проследяване.|Which cookies NovariumAI uses: only those needed for sign-in and settings, with no ads or tracking.
 Бисквитки · NovariumAI|Cookies · NovariumAI
 БИСКВИТКИ|COOKIES

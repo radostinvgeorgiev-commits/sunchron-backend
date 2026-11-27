@@ -196,3 +196,16 @@ test("the YouTube upload step asks only for youtube.upload in its own token", as
   assert.ok(GOOGLE_LINKED_EXTRAS.includes("publish"));
   await assert.rejects(() => uploadVideoToYoutube("s", { bytes: Buffer.alloc(0) }), { code: "YOUTUBE_UPLOAD_INVALID" });
 });
+
+test("a failed video says Google's status word, and the connector shows that message", async () => {
+  const service = createVideoGenerationService({
+    env: { GEMINI_API_KEY: "secret-key" },
+    reserve: async () => async () => true,
+    fetchImpl: async () => ({ ok: false, status: 404, json: async () => ({ error: { status: "NOT_FOUND", message: "model secret-key not found" } }) }),
+  });
+  await assert.rejects(
+    () => service.generate("реклама"),
+    (error) => error.name === "VideoGenerationError" && /Gemini: 404 NOT_FOUND/u.test(error.message) && !/secret/u.test(error.message),
+  );
+  assert.match(readFileSync(new URL("../src/services/mcpReadService.js", import.meta.url), "utf8"), /"VideoGenerationError"/u);
+});

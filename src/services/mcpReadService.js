@@ -61,6 +61,7 @@ const SAFE_MCP_ERROR_NAMES = new Set([
   "MemoryDeleteConfirmationError",
   "MemoryWriteConfirmationError",
   "TaskManagementError",
+  "VideoGenerationError",
   "WorkspaceStateError",
 ]);
 const SAFE_CONFIRMATION_ERROR_CODES = new Set([

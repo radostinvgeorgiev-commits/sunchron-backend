@@ -1,4 +1,5 @@
 import { reservePublicAiVideo } from "./publicAiBudget.js";
+import { logSafeError } from "../utils/safeLogging.js";
 
 // "Направи видео": a short clip (ads and other) from a text description.
 // Gemini Omni Flash through the Gemini API key that AI CORE already uses.
@@ -14,6 +15,7 @@ const MAX_VIDEO_BYTES = 40 * 1024 * 1024;
 export class VideoGenerationError extends Error {
   constructor(message, status = 502, code = "VIDEO_GENERATION_FAILED") {
     super(message);
+    this.name = "VideoGenerationError";
     this.status = status;
     this.code = code;
   }
@@ -34,7 +36,10 @@ export function pickAspectRatio(prompt, requested) {
     : "16:9";
 }
 
-const failed = () => new VideoGenerationError("Видеото не стана. Опитай пак. Единиците са върнати.");
+// The reason is only an HTTP status and Google's status word (for example
+// "404 NOT_FOUND"), never a key or the provider's free text.
+const failed = (reason = "") =>
+  new VideoGenerationError(`Видеото не стана${reason ? ` (Gemini: ${reason})` : ""}. Опитай пак. Единиците са върнати.`);
 const refused = () =>
   new VideoGenerationError("Не мога да направя такова видео. Опитай с друго описание. Единиците са върнати.", 400, "VIDEO_REFUSED");
 
@@ -60,8 +65,14 @@ export function createVideoGenerationService({
     const data = await response.json().catch(() => ({}));
     if (response.ok) return data;
     const text = JSON.stringify(data?.error || data || "");
+    const upstream = String(data?.error?.status || "").match(/^[A-Z][A-Z0-9_]{1,63}$/u)?.[0] || "";
+    const reason = `${response.status}${upstream ? ` ${upstream}` : ""}`;
+    logSafeError(
+      "[Video generation] Gemini refused",
+      Object.assign(new Error("Gemini video request failed"), { status: response.status, upstreamErrorStatus: upstream || undefined }),
+    );
     if (response.status === 400 && /safety|policy|block|prohibit|harm/iu.test(text)) throw refused();
-    throw failed();
+    throw failed(reason);
   }
 
   async function download(part) {
@@ -77,7 +88,7 @@ export function createVideoGenerationService({
       url.searchParams.set("alt", "media");
     }
     const response = await fetchImpl(url.href, { headers: { "x-goog-api-key": env.GEMINI_API_KEY } });
-    if (!response.ok) throw failed();
+    if (!response.ok) throw failed(`download ${response.status}`);
     const bytes = Buffer.from(await response.arrayBuffer());
     if (!bytes.length || bytes.length > MAX_VIDEO_BYTES) throw failed();
     return bytes;
@@ -114,13 +125,18 @@ export function createVideoGenerationService({
       const part = findVideo(interaction);
       if (!part) {
         const text = JSON.stringify(interaction?.error || interaction?.steps || "");
-        throw /safety|policy|block|prohibit|harm/iu.test(text) ? refused() : failed();
+        throw /safety|policy|block|prohibit|harm/iu.test(text)
+          ? refused()
+          : failed(`no video, status ${String(interaction?.status || "none").replace(/[^a-z_]/giu, "").slice(0, 30)}`);
       }
       const video = await download(part);
       return { video, mimeType: "video/mp4", prompt, model, aspectRatio };
     } catch (error) {
+      if (!(error instanceof VideoGenerationError)) logSafeError("[Video generation]", error);
       await giveBack().catch(() => false);
-      throw error instanceof VideoGenerationError ? error : failed();
+      throw error instanceof VideoGenerationError
+        ? error
+        : failed(String(error?.name || "Error").replace(/[^A-Za-z]/gu, "").slice(0, 40));
     }
   }
   return { generate };

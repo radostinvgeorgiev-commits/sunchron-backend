@@ -495,8 +495,11 @@ export function normalizeRecentConversationHistory(
   return normalized;
 }
 
+// The saved turns and the page's recent ones together.
+const COMBINED_CONVERSATION_LIMITS = { maxMessages: 24, maxLength: 36_000 };
+
 export function combineConversationHistory(persistent, recent) {
-  const limits = { maxMessages: 24, maxLength: 36_000 };
+  const limits = COMBINED_CONVERSATION_LIMITS;
   const saved = normalizeRecentConversationHistory(persistent, limits);
   if (!recent.length) return saved;
   for (
@@ -523,17 +526,62 @@ export function combineConversationHistory(persistent, recent) {
   return recent;
 }
 
+// Only the raw entries the length cut can use are stripped, so a crafted
+// request cannot make the server split megabytes into lines (one 8 MB answer
+// held the request for a third of a second). The cut keeps the newest
+// maxMessages entries; a few more are taken for answers that are only a Next
+// line, which are dropped once stripped. It keeps the last 6,000 characters
+// of each and maxLength in all, so it uses at most maxLength / 6,000 long
+// answers and shorter ones of maxLength in all. A long answer is split from
+// at most its last CLEANED_ANSWER_LENGTH characters, the end the cut keeps;
+// real answers are far shorter and are stripped whole.
+const CLEANED_HISTORY_MARGIN = 4;
+const CLEANED_ANSWER_LENGTH = 100_000;
+
+function newestForCleaning(messages, { maxMessages, maxLength }) {
+  if (!Array.isArray(messages)) return [];
+  const newest = [];
+  // Room for the long answers the cut can use and for the shorter ones.
+  let room =
+    (maxLength / MAX_RECENT_CONVERSATION_MESSAGE_LENGTH) * CLEANED_ANSWER_LENGTH + maxLength;
+  for (const message of messages.slice(-(maxMessages + CLEANED_HISTORY_MARGIN)).reverse()) {
+    if (room <= 0) break;
+    // Only answers are split into lines; other entries cost nothing here.
+    let content = message?.role === "assistant" ? message.content : undefined;
+    if (typeof content !== "string") {
+      newest.push(message);
+      continue;
+    }
+    const allowed = Math.min(CLEANED_ANSWER_LENGTH, room);
+    // The cut trims an answer and keeps its end, so a longer one keeps the
+    // end of its text, not trailing blank lines.
+    if (content.length > allowed) content = content.trimEnd();
+    if (content.length > allowed) content = content.slice(content.length - allowed);
+    room -= content.length;
+    newest.push(content === message.content ? message : { ...message, content });
+  }
+  return newest.reverse();
+}
+
 // The history the model sees. "Следва:"/"Next:" lines are stripped from whole
 // messages before any length cut: a cut inside a code block leaves a lone
 // closing fence, and the answer's own last Next line would then count as code
 // and be replayed. The saved turns and the client's recent ones are stripped
 // the same way, so the merge still finds where they overlap.
 export function effectiveConversationHistory(persistent, recent, { rewrite = false } = {}) {
-  const stripped = (messages) => (Array.isArray(messages) ? sanitizeAssistantHistory(messages) : []);
-  const cleanRecent = normalizeRecentConversationHistory(stripped(recent));
+  const stripped = (messages, limits) =>
+    sanitizeAssistantHistory(newestForCleaning(messages, limits));
+  const cleanRecent = normalizeRecentConversationHistory(
+    stripped(recent, {
+      maxMessages: MAX_RECENT_CONVERSATION_MESSAGES,
+      maxLength: MAX_RECENT_CONVERSATION_TOTAL_LENGTH,
+    }),
+  );
   // Retry and edit send the trimmed history the person now sees; the saved
   // turns would otherwise bring the replaced answer back into context.
-  return rewrite ? cleanRecent : combineConversationHistory(stripped(persistent), cleanRecent);
+  return rewrite
+    ? cleanRecent
+    : combineConversationHistory(stripped(persistent, COMBINED_CONVERSATION_LIMITS), cleanRecent);
 }
 
 const SHORT_CONTINUATION_PATTERN =

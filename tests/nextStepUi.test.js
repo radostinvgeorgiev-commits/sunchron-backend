@@ -16,13 +16,27 @@ function nextStepFunctions(catalog = {}) {
   assert.ok(start > 0 && end > start);
   return new Function(
     "chatText",
-    `${app.slice(start, end)}\nreturn { nextStepFromReply, localizedNextLines, resolveNextStep };`,
+    `${app.slice(start, end)}\nreturn { nextStepFromReply, localizedNextLines, resolveNextStep, answerNextLineIndex };`,
   )((value) => catalog[value] ?? value);
 }
 const ENGLISH_PAGE = {
   Следва: "Next",
   "Натисни линка за разрешение по-горе и попитай отново.": "Use the allow link above, then ask again.",
 };
+// A German page: chatText turns the Bulgarian text into its English one
+// (locale-en.js) and that into German (locales/de.json), as locale.js does.
+const GERMAN_PAGE = await Promise.all([
+  readFile(new URL("../public/locale-en.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/locales/de.json", import.meta.url), "utf8"),
+]).then(([english, german]) => {
+  const toEnglish = new Map(
+    english
+      .split("\n")
+      .filter((line) => line.includes("|") && !line.includes("`"))
+      .map((line) => line.split("|")),
+  );
+  return { Следва: JSON.parse(german)[toEnglish.get("Следва")] };
+});
 
 test("всеки завършен AI отговор показва една следваща стъпка", () => {
   assert.match(app, /function showNextStep\(/u);
@@ -156,6 +170,73 @@ test("a one-line ```code``` does not open a code block, so the Next line after i
   assert.equal(english.nextStepFromReply("Run:\n```bash\nnpm test\n```\nNext: Check the result.").step, "Check the result.");
 });
 
+test("a fence in a list item, or closed by a longer run, leaves the Next line after it for the Next card", () => {
+  const bulgarian = nextStepFunctions();
+  assert.deepEqual(
+    bulgarian.nextStepFromReply("Пусни тестовете така:\n- ```bash\n  npm test\n  ```\n\nСледва: Провери задача ЛИПА-742."),
+    { step: "Провери задача ЛИПА-742.", displayText: "Пусни тестовете така:\n- ```bash\n  npm test\n  ```" },
+  );
+  assert.deepEqual(
+    bulgarian.nextStepFromReply("Ето кода:\n```js\nrun();\n````\nСледва: Пусни го и ми кажи ЛИПА-742."),
+    { step: "Пусни го и ми кажи ЛИПА-742.", displayText: "Ето кода:\n```js\nrun();\n````" },
+  );
+  // Inside such blocks, Next-looking lines and a shorter "```" line are code.
+  const english = nextStepFunctions(ENGLISH_PAGE);
+  for (const code of ["Config:\n- ```yaml\n  Next: page-2\n  ```", "Example:\n````md\n```\nNext: x\n```\n````"]) {
+    assert.deepEqual(english.nextStepFromReply(code), { step: "", displayText: code });
+  }
+});
+
+// Code fences as CommonMark (and marked) reads them, and the Next lines
+// outside code.
+const FENCE_CASES = [
+  // A fence after a list marker opens a block; the item's indented closing
+  // fence closes it.
+  ["Пусни тестовете така:\n- ```bash\n  npm test\n  ```\n\nСледва: Провери задача ЛИПА-742.", [5]],
+  ["Config:\n- ```yaml\n  Next: page-2\n  limit: 10\n  ```\nГотово.", []],
+  ["1. ```bash\n   Next: x\n   ```\n2) ```\n   Next: y\n   ```\nNext: z", [6]],
+  ["* ```\n  Следва: a\n  ```\n+ ```js\n  Следва: b\n  ```\nСледва: c", [6]],
+  ["  - ```bash\n    echo\n    ```\nNext: y", [3]],
+  ["-\t```bash\n\tnpm test\n\t```\nNext: y", [3]],
+  // A longer closing run closes a block; a shorter one inside a longer block,
+  // or one with an info string, is code.
+  ["Ето кода:\n```js\nrun();\n````\nСледва: Пусни го и ми кажи ЛИПА-742.", [4]],
+  ["Example:\n````md\n```\nNext: x\n```\n````\nDone.\nNext: Check it.", [7]],
+  ["```\nNext: x\n``` js\nNext: y\n```\nNext: z", [5]],
+  ["```js\r\ncode\r\n```  \r\nNext: done", [3]],
+  // Not fences: code on one line, a marker without a space, ten digits, a quote.
+  ["Пусни:\n```npm test```\nСледва: провери ЛИПА-742.", [2]],
+  ["-```bash\nСледва: x", [1]],
+  ["1234567890. ```\nNext: x", [1]],
+  ["> ```js\n> Next: x\n> ```\nNext: y", [3]],
+  // A block that is not closed runs to the end.
+  ["Run:\n  ```bash\nNext: x", []],
+  // Every Next line outside code counts; the page takes the last one.
+  ["Next: first\nText\n**Следва:** last", [0, 2]],
+];
+
+test("the server and the page find the same Next lines outside the same code blocks", async () => {
+  const { nextStepLineIndexes } = await import("../src/services/projectConversationContextService.js");
+  const { answerNextLineIndex } = nextStepFunctions();
+  // The page gives the last Next line; asked for each line with the lines
+  // above it, it gives every one.
+  const pageIndexes = (lines) =>
+    lines.flatMap((line, index) => (answerNextLineIndex(lines.slice(0, index + 1)) === index ? [index] : []));
+  for (const [text, expected] of FENCE_CASES) {
+    const lines = text.split("\n");
+    assert.deepEqual(nextStepLineIndexes(lines), expected, text);
+    assert.equal(answerNextLineIndex(lines), expected.at(-1) ?? -1, text);
+    assert.deepEqual(pageIndexes(lines), expected, text);
+  }
+  // And every answer of up to four lines made of these agrees too.
+  const vocabulary = ["```js", "```", "````", "- ```bash", "  ```", "``` js", "```npm test```", "Next: x", "**Следва:** y", "text"];
+  let answers = [[]];
+  for (let length = 1; length <= 4; length += 1) {
+    answers = answers.flatMap((lines) => vocabulary.map((line) => [...lines, line]));
+    for (const lines of answers) assert.deepEqual(pageIndexes(lines), nextStepLineIndexes(lines), lines.join("\n"));
+  }
+});
+
 test("a link only in the answer's own Next line stays in the text above the Next card", async () => {
   const { withGoogleAllowLinks } = await import("../src/routes/chat.js");
   const { GoogleDriveError } = await import("../src/services/googleDriveService.js");
@@ -256,13 +337,9 @@ test("only the answer's own Next line is relabelled, never a text the person ask
   assert.equal(english.localizedNextLines("Answer.\nСледва: X\n\n"), "Answer.\nNext: X\n\n");
 });
 
-test("a restored answer shows the page's Next label, and the history sent back keeps the stored text", async () => {
-  // The relabelled text is only shown; the stored text is remembered, so the
-  // server can match it to the saved turns and strip its "Следва:" line.
-  assert.match(
-    app,
-    /localizedNextLines\(item\.content\) : item\.content,\s*null,\s*\{ remember: false \},\s*\);\s*rememberConversationMessage\(item\.role, item\.content\);/u,
-  );
+// Restores the stored turns on a page with the given chatText catalog, and
+// gives what the page shows, logs and remembers.
+async function restoreOnPage(catalog, stored) {
   const { JSDOM } = await import("jsdom");
   const { window } = new JSDOM("<div id='chat'></div>");
   const slice = (from, to) => {
@@ -271,17 +348,6 @@ test("a restored answer shows the page's Next label, and the history sent back k
     assert.ok(start > 0 && end > start, `${from} … ${to}`);
     return app.slice(start, end);
   };
-  // A translation with a "Следва:" line inside it, and no Next line of its own.
-  const translation =
-    "Here is the Bulgarian version:\n\nГотово: докладът.\nСледва: обади се на клиента.\nПо-късно: фактурата.";
-  const stored = [
-    { role: "user", content: "Show my channel" },
-    { role: "assistant", content: "I need YouTube access first.\n\nСледва: Разреши YouTube.\n\n[Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)" },
-    { role: "user", content: "Done" },
-    { role: "assistant", content: "Your channel has 12 videos." },
-    { role: "user", content: "Translate the plan into Bulgarian" },
-    { role: "assistant", content: translation },
-  ];
   const shown = [];
   const logged = [];
   const state = { sessionId: "chat-1", recentConversationMessages: [] };
@@ -306,7 +372,7 @@ test("a restored answer shows the page's Next label, and the history sent back k
     state,
     { chatMessages: window.document.getElementById("chat") },
     async () => ({ ok: true, json: async () => ({ items: stored }) }),
-    (value) => ENGLISH_PAGE[value] ?? value,
+    (value) => catalog[value] ?? value,
     (value) => value,
     (text) => {
       shown.push(text);
@@ -316,16 +382,81 @@ test("a restored answer shows the page's Next label, and the history sent back k
     async () => logged.push("welcome"),
   );
   await restoreConversation();
+  const users = [...window.document.querySelectorAll(".message.user")].map((node) => node.textContent);
+  window.close();
+  return { shown, logged, users, remembered: state.recentConversationMessages };
+}
+
+test("a restored answer shows the page's Next label, and the history sent back keeps the stored text", async () => {
+  // The relabelled text is only shown; the stored text is remembered, so the
+  // server can match it to the saved turns and strip its "Следва:" line.
+  assert.match(
+    app,
+    /localizedNextLines\(item\.content\) : item\.content,\s*null,\s*\{ remember: false \},\s*\);\s*rememberConversationMessage\(item\.role, item\.content\);/u,
+  );
+  // A translation with a "Следва:" line inside it, and no Next line of its own.
+  const translation =
+    "Here is the Bulgarian version:\n\nГотово: докладът.\nСледва: обади се на клиента.\nПо-късно: фактурата.";
+  const stored = [
+    { role: "user", content: "Show my channel" },
+    { role: "assistant", content: "I need YouTube access first.\n\nСледва: Разреши YouTube.\n\n[Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)" },
+    { role: "user", content: "Done" },
+    { role: "assistant", content: "Your channel has 12 videos." },
+    { role: "user", content: "Translate the plan into Bulgarian" },
+    { role: "assistant", content: translation },
+  ];
+  const { shown, logged, users, remembered } = await restoreOnPage(ENGLISH_PAGE, stored);
   assert.deepEqual(logged, ["Възстановена е историята на разговора"]);
   assert.deepEqual(shown, [
     "I need YouTube access first.\n\nNext: Разреши YouTube.\n\n[Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)",
     "Your channel has 12 videos.",
     translation,
   ]);
-  assert.deepEqual(
-    [...window.document.querySelectorAll(".message.user")].map((node) => node.textContent),
-    ["Show my channel", "Done", "Translate the plan into Bulgarian"],
+  assert.deepEqual(users, ["Show my channel", "Done", "Translate the plan into Bulgarian"]);
+  assert.deepEqual(remembered, stored);
+});
+
+test("on a German page the answer's own English Next line gets the page's label, as the Next card does", async () => {
+  assert.equal(GERMAN_PAGE.Следва, "Weiter");
+  const german = nextStepFunctions(GERMAN_PAGE);
+  // The server asks for "Next:" on every page but a Bulgarian one; the live
+  // answer's last line becomes the card, labelled "Weiter".
+  const answer = "Der Termin um 10 Uhr ist frei.\n\nNext: Prüfe den Termin um 10 Uhr.";
+  assert.deepEqual(german.nextStepFromReply(answer), {
+    step: "Prüfe den Termin um 10 Uhr.",
+    displayText: "Der Termin um 10 Uhr ist frei.",
+  });
+  // Restored, the same line shows that label too, and so does an own
+  // "Следва:" line, also above an allow line.
+  const allow = "[Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)";
+  assert.equal(german.localizedNextLines(answer), "Der Termin um 10 Uhr ist frei.\n\nWeiter: Prüfe den Termin um 10 Uhr.");
+  assert.equal(german.localizedNextLines("Antwort.\n\nСледва: Erlaube YouTube."), "Antwort.\n\nWeiter: Erlaube YouTube.");
+  assert.equal(german.localizedNextLines(`Antwort.\n- **Next step:** Y\n\n${allow}`), `Antwort.\n- **Weiter:** Y\n\n${allow}`);
+  // A translation's "Следва:" line in the middle of its text, a Next line
+  // inside code and an earlier Next line stay as they are.
+  const translation = "Hier ist die bulgarische Fassung:\n\nГотово: докладът.\nСледва: обади се на клиента.\nПо-късно: фактурата.";
+  const code = "Beispiel:\n```yaml\nNext: page-2\n```";
+  for (const text of [translation, code, "Next: zuerst das.\nDann der Rest."]) {
+    assert.equal(german.localizedNextLines(text), text);
+  }
+  assert.equal(
+    german.localizedNextLines(`${code}\nNext: Ruf Ana an.`),
+    `${code}\nWeiter: Ruf Ana an.`,
   );
-  assert.deepEqual(state.recentConversationMessages, stored);
-  window.close();
+  // An English page keeps its English lines as they are, and a Bulgarian
+  // page changes nothing.
+  for (const text of [answer, `Antwort.\n- **Next step:** Y\n\n${allow}`]) {
+    assert.equal(nextStepFunctions(ENGLISH_PAGE).localizedNextLines(text), text);
+    assert.equal(nextStepFunctions().localizedNextLines(text), text);
+  }
+  // A restored conversation on a German page.
+  const stored = [
+    { role: "user", content: "Ist um 10 Uhr frei?" },
+    { role: "assistant", content: answer },
+    { role: "user", content: "Übersetze den Plan ins Bulgarische" },
+    { role: "assistant", content: translation },
+  ];
+  const { shown, remembered } = await restoreOnPage(GERMAN_PAGE, stored);
+  assert.deepEqual(shown, ["Der Termin um 10 Uhr ist frei.\n\nWeiter: Prüfe den Termin um 10 Uhr.", translation]);
+  assert.deepEqual(remembered, stored);
 });

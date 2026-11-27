@@ -3026,27 +3026,39 @@ function cleanNextStep(value) {
 // case; the English one only as "Next" or "Next step" with a capital N, so
 // code such as "next: () => …" is never taken for one.
 const NEXT_LINE_BULGARIAN = /^(\s*(?:[-*•]\s*)?(?:\*\*)?)(?:Следва|Следваща стъпка)((?:\*\*)?\s*:)/iu;
-const NEXT_LINE_ENGLISH = /^\s*(?:[-*•]\s*)?(?:\*\*)?Next(?: [Ss]tep)?(?:\*\*)?\s*:/u;
+const NEXT_LINE_ENGLISH = /^(\s*(?:[-*•]\s*)?(?:\*\*)?)Next(?: [Ss]tep)?((?:\*\*)?\s*:)/u;
 
 function nextLineMarker(line) {
   return line.match(NEXT_LINE_BULGARIAN) || line.match(NEXT_LINE_ENGLISH);
 }
 
-// A line that opens or closes a ``` code block on its own. An info string
-// cannot contain backticks, so a one-line "```npm test```" is not a fence.
-const NEXT_LINE_CODE_FENCE = /^\s*```[^`]*$/u;
+// Backtick code fences as CommonMark (and marked, which shows the answer)
+// reads them. Three or more backticks open a block, also after a list marker
+// ("- ```bash"); an info string cannot contain backticks, so a one-line
+// "```npm test```" is not a fence. Only a bare run at least as long as the
+// opening one closes the block, so a "```" line inside a "````" block, or a
+// list item's indented closing fence, is never taken for an opening one.
+// The server (nextStepLineIndexes) uses the same rule.
+const NEXT_LINE_FENCE_OPEN = /^\s*(?:(?:[-*+]|\d{1,9}[.)])\s+)?(`{3,})[^`]*$/u;
+const NEXT_LINE_FENCE_CLOSE = /^\s*(`{3,})\s*$/u;
 // A line with a Google allow link: besides blank lines, the only line that may
 // follow the answer's own Next line (older answers have the allow line last).
 const NEXT_LINE_ALLOW_LINK = /\/api\/google\/connect/u;
 
-// The answer's own Next line is its last such line outside ``` code blocks
-// (-1 when there is none); earlier ones are content, and code never counts.
+// The answer's own Next line is its last such line outside code blocks (-1
+// when there is none); earlier ones are content, and code never counts.
 function answerNextLineIndex(lines) {
-  let code = false;
+  // The opening fence's length while inside a code block, 0 outside.
+  let fence = 0;
   let found = -1;
   lines.forEach((line, index) => {
-    if (NEXT_LINE_CODE_FENCE.test(line)) code = !code;
-    else if (!code && nextLineMarker(line)) found = index;
+    if (fence) {
+      if ((line.match(NEXT_LINE_FENCE_CLOSE)?.[1].length ?? 0) >= fence) fence = 0;
+    } else {
+      const open = line.match(NEXT_LINE_FENCE_OPEN);
+      if (open) fence = open[1].length;
+      else if (nextLineMarker(line)) found = index;
+    }
   });
   return found;
 }
@@ -3064,10 +3076,11 @@ function localizedNextLines(text) {
   if (index < 0) return text;
   const after = lines.slice(index + 1);
   if (!after.every((line) => !line.trim() || NEXT_LINE_ALLOW_LINK.test(line))) return text;
-  lines[index] = lines[index].replace(
-    NEXT_LINE_BULGARIAN,
-    (marker, start, end) => `${start}${label}${end}`,
-  );
+  // The model writes "Next:" on every page but a Bulgarian one, so on a German
+  // or French page that line gets the page's label too, as the Next card does.
+  const marker = NEXT_LINE_BULGARIAN.test(lines[index]) ? NEXT_LINE_BULGARIAN : NEXT_LINE_ENGLISH;
+  if (marker === NEXT_LINE_ENGLISH && label === "Next") return text;
+  lines[index] = lines[index].replace(marker, (match, start, end) => `${start}${label}${end}`);
   return lines.join("\n");
 }
 

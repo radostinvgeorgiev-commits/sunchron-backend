@@ -63,19 +63,29 @@ export async function loadProjectConversationContext({
 // with a capital N, so code such as "next: NextFunction," is never one.
 const BULGARIAN_NEXT_LINE = /^\s*(?:[-*•]\s*)?(?:\*\*)?(?:Следва|Следваща стъпка)(?:\*\*)?\s*:/iu;
 const ENGLISH_NEXT_LINE = /^\s*(?:[-*•]\s*)?(?:\*\*)?Next(?: [Ss]tep)?(?:\*\*)?\s*:/u;
-// A line that opens or closes a ``` code block on its own. An info string
-// cannot contain backticks, so a one-line "```npm test```" is not a fence.
-const CODE_FENCE = /^\s*```[^`]*$/u;
+// Backtick code fences as CommonMark (and the page's renderer) reads them.
+// Three or more backticks open a block, also after a list marker
+// ("- ```bash"); an info string cannot contain backticks, so a one-line
+// "```npm test```" is not a fence. Only a bare run at least as long as the
+// opening one closes the block, so a "```" line inside a "````" block, or a
+// list item's indented closing fence, is never taken for an opening one.
+// The page (answerNextLineIndex in public/app.js) uses the same rule.
+const CODE_FENCE_OPEN = /^\s*(?:(?:[-*+]|\d{1,9}[.)])\s+)?(`{3,})[^`]*$/u;
+const CODE_FENCE_CLOSE = /^\s*(`{3,})\s*$/u;
 
-// The indexes of those lines. A line inside a ``` code block is code and
-// never counts, so code is never moved or removed.
+// The indexes of those lines. A line inside a code block is code and never
+// counts, so code is never moved or removed.
 export function nextStepLineIndexes(lines) {
   const found = [];
-  let code = false;
+  // The opening fence's length while inside a code block, 0 outside.
+  let fence = 0;
   lines.forEach((line, index) => {
-    if (CODE_FENCE.test(line)) code = !code;
-    else if (!code && (BULGARIAN_NEXT_LINE.test(line) || ENGLISH_NEXT_LINE.test(line))) {
-      found.push(index);
+    if (fence) {
+      if ((line.match(CODE_FENCE_CLOSE)?.[1].length ?? 0) >= fence) fence = 0;
+    } else {
+      const open = line.match(CODE_FENCE_OPEN);
+      if (open) fence = open[1].length;
+      else if (BULGARIAN_NEXT_LINE.test(line) || ENGLISH_NEXT_LINE.test(line)) found.push(index);
     }
   });
   return found;

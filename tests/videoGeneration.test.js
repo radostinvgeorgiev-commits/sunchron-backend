@@ -209,3 +209,47 @@ test("a failed video says Google's status word, and the connector shows that mes
   );
   assert.match(readFileSync(new URL("../src/services/mcpReadService.js", import.meta.url), "utf8"), /"VideoGenerationError"/u);
 });
+
+test("when the Gemini key has no video quota, Vertex AI Veo makes the clip", async () => {
+  const calls = [];
+  const service = createVideoGenerationService({
+    env: { GEMINI_API_KEY: "k", VERTEX_AI_PROJECT_ID: "handy-project-123" },
+    reserve: async () => async () => calls.push("refund"),
+    sleep: async () => {},
+    vertexAuthorization: async () => "Bearer adc",
+    fetchImpl: async (url, options = {}) => {
+      const body = options.body ? JSON.parse(options.body) : {};
+      calls.push(url.replace(/^https:\/\/[^/]+/u, ""));
+      if (url.includes("generativelanguage")) return { ok: false, status: 429, json: async () => ({ error: { code: 429 } }) };
+      assert.equal(options.headers.Authorization, "Bearer adc");
+      if (url.includes("veo-3.1-fast-generate-001:predictLongRunning")) return { ok: false, status: 404, json: async () => ({ error: { status: "NOT_FOUND" } }) };
+      if (url.endsWith(":predictLongRunning")) {
+        assert.deepEqual(body.parameters, { aspectRatio: "9:16", durationSeconds: 8, resolution: "720p", generateAudio: true, sampleCount: 1 });
+        return ok({ name: "op1" });
+      }
+      assert.equal(body.operationName, "op1");
+      return calls.filter((c) => c.endsWith(":fetchPredictOperation")).length < 2
+        ? ok({ done: false })
+        : ok({ done: true, response: { videos: [{ bytesBase64Encoded: Buffer.from("VEO").toString("base64") }] } });
+    },
+  });
+  const result = await service.generate("реклама за TikTok");
+  assert.equal(result.video.toString(), "VEO");
+  assert.equal(result.model, "veo-3.1-lite-generate-001");
+  assert.ok(calls.some((c) => c.includes("/projects/handy-project-123/locations/us-central1/publishers/google/models/veo-3.1-lite-generate-001:predictLongRunning")));
+  assert.ok(!calls.includes("refund"));
+});
+
+test("a Vertex safety filter is a refusal and gives the units back", async () => {
+  let refunds = 0;
+  const service = createVideoGenerationService({
+    env: { VERTEX_AI_PROJECT_ID: "handy-project-123" },
+    reserve: async () => async () => refunds++,
+    sleep: async () => {},
+    vertexAuthorization: async () => "Bearer adc",
+    fetchImpl: async (url) =>
+      url.endsWith(":predictLongRunning") ? ok({ name: "op" }) : ok({ done: true, response: { raiMediaFilteredCount: 1, videos: [] } }),
+  });
+  await assert.rejects(() => service.generate("нещо"), { code: "VIDEO_REFUSED" });
+  assert.equal(refunds, 1);
+});

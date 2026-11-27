@@ -381,6 +381,8 @@ export function startStubServer(port = 0) {
         }
         const words = (b.message.includes("списък")
           ? "Ето списък за пазар:\n- Мляко\n- Хляб\n- **Яйца**"
+          : b.message.includes("команда")
+          ? "Инсталирай зависимостите с `npm`:\n\n```bash\nnpm install\n```"
           : `Отговор от ${b.model}${b.assistant ? ` [${b.assistant}]` : ""} на „${b.message}“ думи думи думи думи думи думи`
         ).split(" ");
         let i = 0;

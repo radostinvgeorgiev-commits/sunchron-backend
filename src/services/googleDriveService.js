@@ -602,6 +602,16 @@ export async function saveSessionFor(mainId) {
   return saveId && (await hasSession(saveId)) ? saveId : mainId;
 }
 
+// The token that may write new files to Drive (drive.file or full drive),
+// or null. Checked before paid work such as a video, so nothing is made
+// that cannot be saved.
+export async function fileSaveSessionFor(mainId) {
+  const id = await saveSessionFor(mainId);
+  const session = id ? await loadSession(id) : null;
+  const granted = grantedScopes(session?.scope);
+  return granted.has(GOOGLE_EXTRA_SCOPES.save) || granted.has("https://www.googleapis.com/auth/drive") ? id : null;
+}
+
 // The linked YouTube upload token, or null when it was never turned on.
 export async function publishSessionFor(mainId) {
   const session = await loadSessionWithLink(mainId);

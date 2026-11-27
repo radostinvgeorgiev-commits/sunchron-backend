@@ -34,6 +34,7 @@ import {
   listDriveFiles,
   listGoogleCalendarEvents,
   saveSessionFor,
+  fileSaveSessionFor,
   saveVideoToDrive,
   downloadOwnDriveVideo,
   publishSessionFor,
@@ -1339,12 +1340,22 @@ export function createMcpCapabilityHandler({
           `Намерени са ${messages.length} Gmail съобщения.`,
         );
       } else if (name === "generate_video") {
+        // Check the Drive permission first: a video costs about 1 $ and must
+        // not be made when it cannot be saved.
+        const saveId = await (dependencies.fileSaveSessionFor || fileSaveSessionFor)(googleSessionId);
+        if (!saveId) {
+          throw new GoogleDriveError(
+            "Записът в Google Drive още не е разрешен. Отвори https://cloudaicore.com/api/google/connect?add=save и разреши. Видео не е правено.",
+            403,
+            "GOOGLE_SCOPE_REQUIRED",
+          );
+        }
         const made = await (dependencies.generateVideo || ((prompt, options) => getVideoGenerationService().generate(prompt, options)))(
           args.prompt,
           { aspectRatio: args.aspectRatio },
         );
         const saved = await (dependencies.saveVideoToDrive || saveVideoToDrive)(
-          await (dependencies.saveSessionFor || saveSessionFor)(googleSessionId),
+          saveId,
           { name: args.title || made.prompt.slice(0, 60), bytes: made.video, mimeType: made.mimeType },
         );
         result = textResult(

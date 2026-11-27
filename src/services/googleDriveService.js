@@ -10,6 +10,8 @@ import { createFirestoreOAuthSessionStore } from "./firestoreOAuthSessionStore.j
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
+const GOOGLE_REVOKE_TIMEOUT_MS = 5000;
 const DRIVE_API_URL = "https://www.googleapis.com/drive/v3";
 const GMAIL_API_URL = "https://gmail.googleapis.com/gmail/v1";
 const CALENDAR_API_URL = "https://www.googleapis.com/calendar/v3";
@@ -708,21 +710,58 @@ export async function disconnectSession(id) {
   for (const linkedId of linked) await deleteUnlinkedSession(linkedId, id);
 }
 
+// Google keeps an app's access until it is revoked, even when the app has
+// forgotten every token. Revoking one token removes AI CORE from the
+// person's Google account, with every permission it had, so the next
+// "Свържи Google" shows the full consent screen again. A failed revoke
+// (Google unreachable, a token that is already dead) never keeps the tokens
+// stored: the person still gets disconnected here. The token is never logged.
+async function revokeGoogleToken(token) {
+  try {
+    const response = await globalThis.fetch(GOOGLE_REVOKE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token }).toString(),
+      signal: AbortSignal.timeout(GOOGLE_REVOKE_TIMEOUT_MS),
+    });
+    if (!response.ok && response.status !== 400) {
+      logSafeError(
+        "[Google disconnect] Revoke failure",
+        new Error(`Google revoke HTTP ${response.status}`),
+      );
+    }
+    return response.ok;
+  } catch (error) {
+    logSafeError("[Google disconnect] Revoke failure", new Error(String(error?.name || "error")));
+    return false;
+  }
+}
+
+function sessionToken(session) {
+  return String(session?.refresh_token || session?.access_token || "").trim();
+}
+
 // "Прекъсни връзката": every stored Google token of the person goes (older
 // connections and step tokens too), so none stays stored and the next
 // "Свържи Google" starts clean instead of finding an older connection.
 // The tokens are found before anything is removed, and this browser's own
 // connection goes last: if the store fails on the way, that connection and
-// its button stay, and pressing it again finishes the job.
+// its button stay, and pressing it again finishes the job. Before that,
+// AI CORE's access is revoked at Google too.
 export async function disconnectGoogleAccount(id, owner) {
-  const own = new Set();
+  const own = new Map();
   if (owner?.memoryOwnerId) {
     for (const [sessionId, session] of [...(await knownSessions(1000)), ...sessions.entries()]) {
-      if (sessionOwnedBy(session, owner)) own.add(sessionId);
+      if (sessionOwnedBy(session, owner)) own.set(sessionId, session);
     }
   }
+  const current = id ? await loadSessionWithLink(id) : null;
+  const tokens = new Set(
+    [current, ...own.values()].map(sessionToken).filter(Boolean),
+  );
+  await Promise.all([...tokens].map((token) => revokeGoogleToken(token)));
   own.delete(id);
-  for (const sessionId of own) await deleteStoredSession(sessionId);
+  for (const sessionId of own.keys()) await deleteStoredSession(sessionId);
   if (id) await disconnectSession(id);
 }
 

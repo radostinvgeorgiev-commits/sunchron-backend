@@ -146,3 +146,20 @@ test("units come back when the task fails, and the file is sent as a download", 
   assert.equal(file.headers["content-type"], "application/pdf");
   assert.match(file.headers["content-disposition"], /filename\*=UTF-8''%D0%BE%D1%82%D1%87%D0%B5%D1%82\.pdf/u);
 });
+
+test("the stronger Claude models cost more units and answer with low effort in chat", async () => {
+  const { creditsForChatModel, requestClaudeResponse } = await import("../src/services/aiCoreService.js");
+  assert.equal(creditsForChatModel("claude-haiku-5-5"), 1);
+  assert.equal(creditsForChatModel("claude-sonnet-5-5"), 4);
+  assert.equal(creditsForChatModel("claude-opus-5-5"), 8);
+  const bodies = [];
+  const fetchImpl = async (_url, options) => {
+    bodies.push(JSON.parse(options.body));
+    return json({ model: "m", content: [{ type: "text", text: "ok" }], usage: {} });
+  };
+  const input = [{ role: "user", content: "здравей" }];
+  await requestClaudeResponse({ apiKey: "k", input, model: "claude-opus-5-5", fetchImpl });
+  await requestClaudeResponse({ apiKey: "k", input, model: "claude-haiku-5-5", fetchImpl });
+  assert.deepEqual(bodies[0].output_config, { effort: "low" });
+  assert.equal(bodies[1].output_config, undefined);
+});

@@ -16,6 +16,9 @@
   });
   const MODEL_OPTIONS = Object.freeze({
     auto: "Автоматичен · препоръчано",
+    "claude-opus-5-5": "Claude Opus 5.5 · най-силният Claude",
+    "claude-sonnet-5-5": "Claude Sonnet 5.5 · силен и по-бърз",
+    "claude-haiku-4-5-20251001": "Claude Haiku 5.5 · бърз и евтин",
     "gpt-5.6-sol": "GPT-5.6 Sol · най-високо качество",
     "gpt-5.6-terra": "GPT-5.6 Terra · балансиран",
     "gpt-5.6-luna": "GPT-5.6 Luna · бърз",

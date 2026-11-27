@@ -462,7 +462,7 @@ export async function requestClaudeResponse({
       400,
     );
   }
-  await reservePublicAiCall(input, "claude", model);
+  await reservePublicAiCall(input, "claude", model, creditsForChatModel(model));
   const response = await fetchImpl(apiUrl, {
     method: "POST",
     headers: {
@@ -474,6 +474,7 @@ export async function requestClaudeResponse({
       model,
       max_tokens: publicAiOutputLimit() || maxTokens,
       ...(system ? { system } : {}),
+      ...(CLAUDE_LOW_EFFORT_MODELS.has(model) ? { output_config: { effort: "low" } } : {}),
       messages,
     }),
     signal,
@@ -517,10 +518,16 @@ export async function requestClaudeResponse({
 
 // GLM 5.2 costs several times more per answer than the economical models
 // (about 1.8 US cents for a full context), so it takes two credits.
-const VERTEX_OPEN_CREDITS = { "zai-org/glm-5.2-maas": 2 };
+// Claude Sonnet 5.5 ($2/$10 per million tokens) is about 3 US cents for a
+// full member context and answer, so 4 units; Claude Opus 5.5 ($4/$20) about
+// 6 cents, so 8 units.
+const MODEL_CREDITS = { "zai-org/glm-5.2-maas": 2, "claude-sonnet-5-5": 4, "claude-opus-5-5": 8 };
 export function creditsForChatModel(model) {
-  return VERTEX_OPEN_CREDITS[model] || 1;
+  return MODEL_CREDITS[model] || 1;
 }
+// The stronger Claude models think before answering; in chat they think
+// briefly, so a short member answer is not used up by thinking.
+const CLAUDE_LOW_EFFORT_MODELS = new Set(["claude-sonnet-5-5", "claude-opus-5-5"]);
 export const DEFAULT_VERTEX_OPEN_MODEL = "openai/gpt-oss-120b-maas";
 
 async function requestVertexOpenResponse({

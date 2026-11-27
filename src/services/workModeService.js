@@ -63,6 +63,8 @@ const AGENT_MODELS = Object.freeze({
   "gpt-4.1-mini": { label: "GPT-4.1 mini (икономичен)", provider: "openai", apiModel: "gpt-4.1-mini" },
   // Old id kept so saved agents still resolve; it now calls Claude Haiku 5.5.
   "claude-haiku-4-5-20251001": { label: "Claude Haiku 5.5 (икономичен)", provider: "claude", apiModel: "claude-haiku-5-5" },
+  "claude-sonnet-5-5": { label: "Claude Sonnet 5.5", provider: "claude", apiModel: "claude-sonnet-5-5" },
+  "claude-opus-5-5": { label: "Claude Opus 5.5", provider: "claude", apiModel: "claude-opus-5-5" },
   // Kept under the old id so saved agents still resolve; Google retired
   // gemini-2.5-flash-lite and the API now answers 404.
   "gemini-2.5-flash-lite": { label: "Gemini 3.5 Flash Lite (икономичен)", provider: "gemini", apiModel: "gemini-3.5-flash-lite" },
@@ -329,6 +331,8 @@ export function routeSelectedWorkAgentCapabilities(requests, value, message) {
 export const CHAT_MODEL_CHOICES = Object.freeze([
   { id: "auto", label: "Автоматичен", hint: "Claude Haiku 5.5 — бърз и евтин" },
   { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 5.5", hint: "Точен, добър на български" },
+  { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5", hint: "По-силен Claude, 4 единици" },
+  { id: "claude-opus-5-5", label: "Claude Opus 5.5", hint: "Най-силният Claude, 8 единици" },
   { id: "gemini-2.5-flash-lite", label: "Gemini 3.5 Flash Lite", hint: "Най-бърз" },
   { id: "gemini-2.5-flash", label: "Gemini 3.8 Flash", hint: "По-силен Gemini" },
   { id: "gpt-4.1-mini", label: "GPT-4.1 mini", hint: "OpenAI" },
@@ -343,6 +347,9 @@ export const CHAT_MODEL_CHOICES = Object.freeze([
 // model). Same ids as the agent editor in public/work-mode.js.
 export const WORK_MODEL_CHOICES = Object.freeze([
   { id: "auto", label: "Автоматичен", hint: "Препоръчано" },
+  { id: "claude-opus-5-5", label: "Claude Opus 5.5", hint: "Най-силният Claude" },
+  { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5", hint: "Силен и по-бърз Claude" },
+  { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 5.5", hint: "Бърз и евтин Claude" },
   { id: "gpt-5.6-sol", label: "GPT-5.6 Sol", hint: "Най-високо качество" },
   { id: "gpt-5.6-terra", label: "GPT-5.6 Terra", hint: "Балансиран" },
   { id: "gpt-5.6-luna", label: "GPT-5.6 Luna", hint: "Бърз" },

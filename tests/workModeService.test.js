@@ -97,6 +97,8 @@ test("the available personal-agent models are explicit and server-owned", () => 
       "gpt-5.6-luna",
       "gpt-4.1-mini",
       "claude-haiku-4-5-20251001",
+      "claude-sonnet-5-5",
+      "claude-opus-5-5",
       "gemini-2.5-flash-lite",
       "grok-3-mini",
       "gemini-2.5-flash",
@@ -114,6 +116,8 @@ test("the available personal-agent models are explicit and server-owned", () => 
   // Google retired gemini-2.5-flash; the Vertex agent follows the runtime model.
   assert.equal(resolveWorkAgentModel("vertex-gemini-2.5-flash"), undefined);
   assert.equal(resolveWorkAgentModel("grok-4.5"), "grok-4.5");
+  assert.equal(resolveWorkAgentModel("claude-opus-5-5"), "claude-opus-5-5");
+  assert.equal(resolveWorkAgentProvider("claude-sonnet-5-5"), "claude");
   assert.equal(resolveWorkAgentProvider("gpt-5.6-sol"), "openai");
   assert.equal(resolveWorkAgentProvider("gemini-2.5-flash"), "gemini");
   assert.equal(

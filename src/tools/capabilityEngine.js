@@ -886,6 +886,7 @@ const executors = Object.freeze({
         ),
       ].join("\n");
     }
+    const english = useEnglishReplyFallback(input.language);
     if (confirmed) {
       const contact = await confirmGoogleAction({
         ownerId: input.ownerId,
@@ -893,20 +894,28 @@ const executors = Object.freeze({
         sessionId: input.sessionId,
         confirmationId: requiredInput(input.confirmationId, "confirmationId"),
       });
-      return `Google контактът е записан: ${contact.name}.`;
+      return english
+        ? `Google contact saved: ${contact.name}.`
+        : `Google контактът е записан: ${contact.name}.`;
     }
     const prepared = await prepareGoogleContactChange({
       ownerId: input.ownerId,
       googleSessionId: input.googleSessionId,
       sessionId: input.sessionId,
       operation: capability === "contacts.create" ? "create" : "update",
-      contact: input.contact,
+      // From the chat command the contact comes as the request's input.
+      contact: input.contact || input.input?.contact,
     });
+    const details = [prepared.contact.email, prepared.contact.phone].filter(Boolean).join(", ");
+    const creating = prepared.operation === "create";
     return {
       output: confirmationOutput(prepared, "Промяната на Google контакта"),
       metadata: {
         confirmationId: prepared.confirmationId,
         confirmationType: "capability",
+        summary: english
+          ? `${creating ? "Add" : "Update"} the Google contact "${prepared.contact.name}" (${details}).`
+          : `${creating ? "Добавяне" : "Промяна"} на Google контакт „${prepared.contact.name}“ (${details}).`,
       },
     };
   },

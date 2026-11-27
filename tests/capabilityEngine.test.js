@@ -507,3 +507,35 @@ test("изпълнява интернет търсене през OpenAI инс�
     else process.env.OPENAI_API_KEY = originalKey;
   }
 });
+
+test("a new Google contact from the chat is only prepared, with a summary in the reply language", async () => {
+  const env = {
+    GOOGLE_CLIENT_ID: "client",
+    GOOGLE_CLIENT_SECRET: "secret",
+    GOOGLE_REDIRECT_URI: "https://example.test/api/google/callback",
+  };
+  const prepare = (language) =>
+    executeCapability(
+      "contacts.create",
+      {
+        ownerId: "member-1",
+        googleSessionId: "google-1",
+        sessionId: "chat-1",
+        ...(language ? { language } : {}),
+        input: { contact: { name: "Ana Lee", email: "ana@example.com", phone: "+1 555 0100" } },
+      },
+      { env, prepareConfirmation: true },
+    );
+  const english = await prepare("en");
+  assert.equal(english.requiresConfirmation, true);
+  assert.ok(english.metadata.confirmationId);
+  assert.equal(
+    english.metadata.summary,
+    'Add the Google contact "Ana Lee" (ana@example.com, +1 555 0100).',
+  );
+  const bulgarian = await prepare();
+  assert.equal(
+    bulgarian.metadata.summary,
+    "Добавяне на Google контакт „Ana Lee“ (ana@example.com, +1 555 0100).",
+  );
+});

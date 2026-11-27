@@ -118,3 +118,50 @@ test("the confirmation says what each step will do, in the person's language", (
   );
   assert.match(formatConfirmedTask(confirmed, false), /^Потвърдената AI CORE задача е изпълнена: 1 операции\./u);
 });
+
+test("a member confirms only steps on their own Google; anything else stops the whole task first", async () => {
+  const memberSteps = (capability) => ["calendar.write", "mail.send", "contacts.create"].includes(capability);
+  const run = async (items) => {
+    const calls = [];
+    const group = await createTaskConfirmation({
+      ownerId: "member-1",
+      sessionId: "session-1",
+      taskId: "task-1",
+      items,
+      createConfirmation,
+    });
+    const outcome = await confirmTaskWrite({
+      ownerId: "member-1",
+      sessionId: "session-1",
+      taskConfirmationId: group.confirmationId,
+      taskId: "task-1",
+      allowItem: (item) => memberSteps(item.capability),
+      executeCapability: async (capability) => {
+        calls.push(capability);
+        return { output: "ok" };
+      },
+      confirmCodeTask: async () => {
+        throw new Error("code task is not expected in this fixture");
+      },
+    }).then(
+      (result) => ({ result }),
+      (error) => ({ error }),
+    );
+    return { calls, ...outcome };
+  };
+
+  const mixed = await run([
+    { confirmationId: "mail-1", capability: "mail.send", toolId: "gmail-read" },
+    { confirmationId: "cloud-1", capability: "infrastructure.googlecloud.write", toolId: "google-cloud-write" },
+  ]);
+  assert.equal(mixed.error?.code, "OWNER_ONLY");
+  assert.equal(mixed.error?.status, 403);
+  assert.deepEqual(mixed.calls, []);
+
+  const own = await run([
+    { confirmationId: "event-1", capability: "calendar.write", toolId: "google-calendar-write" },
+    { confirmationId: "contact-1", capability: "contacts.create", toolId: "google-contacts" },
+  ]);
+  assert.equal(own.error, undefined);
+  assert.deepEqual(own.calls, ["calendar.write", "contacts.create"]);
+});

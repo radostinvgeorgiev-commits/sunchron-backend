@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildCapabilityReplies,
   buildContextualTaskMessage,
+  parseContactCreateRequest,
   buildMemoryReply,
   detectCapabilityRequests,
   executeDetectedCapabilities,
@@ -99,13 +100,17 @@ test("member capability filtering is deny-by-default", () => {
   );
 });
 
-test("a member with their own Google connection may read it, never write or send", () => {
+test("a member with their own Google connection may read it and prepare an event, an email or a contact", () => {
   const requests = [
     { capability: "calendar.read" },
     { capability: "files.read" },
     { capability: "mail.read" },
     { capability: "mail.draft" },
     { capability: "calendar.write" },
+    { capability: "mail.send" },
+    { capability: "contacts.create" },
+    { capability: "contacts.update" },
+    { capability: "mail.delete" },
     { capability: "code.read" },
     { capability: "web.search" },
   ];
@@ -113,7 +118,7 @@ test("a member with their own Google connection may read it, never write or send
     filterCapabilityRequestsForIdentity(requests, { role: "member" }, { ownGoogle: true }).map(
       ({ capability }) => capability,
     ),
-    ["calendar.read", "files.read", "mail.read", "web.search"],
+    ["calendar.read", "files.read", "mail.read", "calendar.write", "mail.send", "contacts.create", "web.search"],
   );
   // Without their own connection nothing from Google passes.
   assert.deepEqual(
@@ -921,4 +926,33 @@ test("the task confirmation lists what each prepared step will do, in English to
   assert.match(reply, /• Create the Google Calendar event "Demo"/);
   assert.match(reply, /• Send an email to ana@example\.com \(subject: Demo\)\./);
   assert.ok(reply.includes(`send this exact command: Confirm AI CORE task: ${confirmationId}`));
+});
+
+test("chat prepares a new Google contact from one exact line, in Bulgarian or English", () => {
+  assert.deepEqual(
+    detectCapabilityRequests("Добави контакт: Иван Петров | ivan@example.com | +359 88 123 4567"),
+    [
+      {
+        capability: "contacts.create",
+        action: "contacts.write",
+        message: "Добави контакт: Иван Петров | ivan@example.com | +359 88 123 4567",
+        input: { contact: { name: "Иван Петров", email: "ivan@example.com", phone: "+359 88 123 4567" } },
+      },
+    ],
+  );
+  assert.deepEqual(parseContactCreateRequest("Add a contact: Ana Lee | ana@example.com"), {
+    name: "Ana Lee",
+    email: "ana@example.com",
+    phone: "",
+  });
+  assert.deepEqual(parseContactCreateRequest("add new contact Bob | +1 (555) 010-9999"), {
+    name: "Bob",
+    email: "",
+    phone: "+1 (555) 010-9999",
+  });
+  // Without an email or a phone, or with a field that is neither, it is not a contact.
+  assert.equal(parseContactCreateRequest("Add a contact: Ana Lee"), null);
+  assert.equal(parseContactCreateRequest("Add a contact: Ana | tomorrow"), null);
+  assert.equal(parseContactCreateRequest("Find contact Ana"), null);
+  assert.equal(detectCapabilityRequests("Намери контакт Иван")[0].capability, "contacts.read");
 });

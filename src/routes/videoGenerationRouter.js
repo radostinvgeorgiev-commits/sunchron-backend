@@ -7,9 +7,9 @@ import { logSafeError } from "../utils/safeLogging.js";
 
 // The finished clip goes back as the MP4 file itself, not as text, so the
 // page can play and save it without a big base64 copy.
-// Owner's decision 2026-11-27: the owner tries videos first; members get
-// them (for 100 units each) once he has seen the result.
-export const VIDEOS_FOR_MEMBERS = false;
+// Owner's decision 2026-11-27: open to every account, 100 units a video
+// (the owner tried them first).
+export const VIDEOS_FOR_MEMBERS = true;
 
 export function createVideoGenerationRouter({ service, forMembers = VIDEOS_FOR_MEMBERS }) {
   const router = express.Router();

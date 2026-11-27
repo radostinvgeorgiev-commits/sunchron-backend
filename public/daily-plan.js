@@ -117,6 +117,62 @@
     }
   });
 
+  // "Качи в YouTube": sends the finished clip to the person's own channel.
+  // The first time Google asks for a small permission (a link is shown).
+  const youtubeButton = (blob, prompt) => {
+    const wrap = document.createElement("span");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.action = "video-youtube";
+    button.textContent = text("Качи в YouTube");
+    const note = document.createElement("span");
+    note.className = "video-note";
+    note.setAttribute("role", "status");
+    const say = (message, href, label) => {
+      note.replaceChildren(document.createTextNode(`${message} `));
+      if (href) {
+        const link = document.createElement("a");
+        link.href = href;
+        link.textContent = label;
+        if (/^https:/u.test(href)) {
+          link.target = "_blank";
+          link.rel = "noopener";
+        }
+        note.append(link);
+      }
+    };
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      say(text("Качвам в YouTube…"));
+      try {
+        const title = prompt.replace(/\s+/gu, " ").trim().slice(0, 90);
+        const response = await fetch(`/api/google/youtube?title=${encodeURIComponent(title)}`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "video/mp4" },
+          body: blob,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && data.url) {
+          if (data.privacy === "public") say(text("Качено в YouTube."), data.url, text("Отвори"));
+          else say(text("Качено в YouTube, засега скрито (YouTube още проверява AI CORE). Можеш да го направиш публично от YouTube Studio."), data.studio || data.url, text("Отвори"));
+          return;
+        }
+        if (typeof data.connect === "string" && data.connect.startsWith("/api/google/connect")) {
+          say(text(data.code === "GOOGLE_SCOPE_REQUIRED" ? "Качването в YouTube иска еднократно разрешение. После пак натисни „Качи в YouTube“." : "Google не е свързан."), data.connect, text(data.code === "GOOGLE_SCOPE_REQUIRED" ? "Разреши" : "Свържи Google"));
+          return;
+        }
+        say(data.error || text("YouTube не прие видеото. Опитай пак."));
+      } catch {
+        say(text("Няма връзка. Опитай пак."));
+      } finally {
+        button.disabled = false;
+      }
+    });
+    wrap.append(button, note);
+    return wrap;
+  };
+
   // "Направи видео": the description in the box becomes a short clip with
   // sound (an ad or anything else). The server sends the MP4 file itself.
   document.addEventListener("aicore:make-video", async () => {
@@ -144,7 +200,8 @@
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || text("Видеото не стана. Опитай пак."));
       }
-      const url = URL.createObjectURL(await response.blob());
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
       const figure = document.createElement("figure");
       figure.className = "generated-video";
       const video = document.createElement("video");
@@ -156,7 +213,10 @@
       save.href = url;
       save.download = "aicore-video.mp4";
       save.textContent = text("Изтегли видеото");
-      figure.append(video, save);
+      const actions = document.createElement("div");
+      actions.className = "video-actions";
+      actions.append(save, youtubeButton(blob, prompt));
+      figure.append(video, actions);
       bubble.replaceChildren(figure);
     } catch (error) {
       render(bubble, `❌ ${error.message}`);

@@ -103,33 +103,51 @@ test("videos are open to every account, go through the members' budget, and play
   assert.match(read("../public/daily-plan.js"), /aicore:make-video/u);
 });
 
-test("until the owner opens them, only the owner can make videos", async () => {
+test("videos are open to members (owner's decision 2026-11-27), and the owner switch still works", async () => {
   const { createVideoGenerationRouter, VIDEOS_FOR_MEMBERS } = await import("../src/routes/videoGenerationRouter.js");
-  assert.equal(VIDEOS_FOR_MEMBERS, false);
+  assert.equal(VIDEOS_FOR_MEMBERS, true);
   const express = (await import("express")).default;
   const made = [];
-  const app = express();
-  app.use(express.json());
-  app.use((req, _res, next) => ((req.owner = { role: req.get("x-role"), memoryOwnerId: "x" }), next()));
-  app.use("/v", createVideoGenerationRouter({
-    service: { generate: async (prompt) => (made.push(prompt), { video: Buffer.from("MP4"), mimeType: "video/mp4", aspectRatio: "16:9" }) },
-  }));
-  const server = app.listen(0);
+  const listen = (forMembers) => {
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => ((req.owner = { role: req.get("x-role"), memoryOwnerId: "x" }), next()));
+    app.use("/v", createVideoGenerationRouter({
+      forMembers,
+      service: { generate: async (prompt) => (made.push(prompt), { video: Buffer.from("MP4"), mimeType: "video/mp4", aspectRatio: "16:9" }) },
+    }));
+    return app.listen(0);
+  };
+  const open = listen(VIDEOS_FOR_MEMBERS);
+  const closed = listen(false);
   try {
-    const url = `http://127.0.0.1:${server.address().port}/v`;
-    const ask = (role) => fetch(url, { method: "POST", headers: { "content-type": "application/json", "x-role": role }, body: JSON.stringify({ prompt: "реклама" }) });
-    const member = await ask("member");
-    assert.equal(member.status, 403);
-    assert.equal((await member.json()).code, "VIDEO_NOT_YET_OPEN");
-    const owner = await ask("owner");
-    assert.equal(owner.status, 200);
-    assert.equal(owner.headers.get("content-type"), "video/mp4");
-    assert.equal(Buffer.from(await owner.arrayBuffer()).toString(), "MP4");
-    assert.deepEqual(made, ["реклама"]);
-    assert.match(readFileSync(new URL("../public/ui-refresh.css", import.meta.url), "utf8"), /body:not\(\[data-user-role="owner"\]\) \[data-plus="video"\]/u);
+    const ask = (server, role) => fetch(`http://127.0.0.1:${server.address().port}/v`, { method: "POST", headers: { "content-type": "application/json", "x-role": role }, body: JSON.stringify({ prompt: "реклама" }) });
+    const member = await ask(open, "member");
+    assert.equal(member.status, 200);
+    assert.equal(member.headers.get("content-type"), "video/mp4");
+    assert.equal(Buffer.from(await member.arrayBuffer()).toString(), "MP4");
+    const notYet = await ask(closed, "member");
+    assert.equal(notYet.status, 403);
+    assert.equal((await notYet.json()).code, "VIDEO_NOT_YET_OPEN");
+    assert.equal((await ask(closed, "owner")).status, 200);
+    assert.deepEqual(made, ["реклама", "реклама"]);
+    assert.doesNotMatch(readFileSync(new URL("../public/ui-refresh.css", import.meta.url), "utf8"), /\[data-plus="video"\]\s*\{\s*display:\s*none/u);
   } finally {
-    server.close();
+    open.close();
+    closed.close();
   }
+});
+
+test("a made video has an Upload to YouTube button that sends the MP4 to the person's own channel", () => {
+  const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+  const page = read("../public/daily-plan.js");
+  assert.match(page, /\/api\/google\/youtube\?title=/u);
+  assert.match(page, /"Content-Type": "video\/mp4"/u);
+  assert.match(page, /Качи в YouTube/u);
+  assert.match(read("../public/locale-en.js"), /^Качи в YouTube\|Upload to YouTube$/mu);
+  const router = read("../src/routes/googleDriveRouter.js");
+  assert.match(router, /router\.post\("\/youtube", express\.raw\(\{ type: "video\/mp4", limit: "64mb" \}\)/u);
+  assert.match(router, /googleConnectPath\("publish"\)/u);
 });
 
 test("the connector makes a video and saves it to the owner's Google Drive", async () => {

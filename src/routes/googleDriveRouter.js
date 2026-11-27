@@ -26,6 +26,8 @@ import {
   saveAnswerToGoogle,
   saveSessionFor,
   sessionBelongsTo,
+  publishSessionFor,
+  uploadVideoToYoutube,
 } from "../services/googleDriveService.js";
 import { logSafeError } from "../utils/safeLogging.js";
 import { publicAiBudgetContext } from "../services/publicAiBudget.js";
@@ -343,6 +345,42 @@ router.post("/save", async (req, res) => {
         error: "Запазването в Google още не е разрешено.",
         code: "GOOGLE_SCOPE_REQUIRED",
         connect: googleConnectPath("save"),
+      });
+    }
+    sendError(res, error);
+  }
+});
+
+// "Качи в YouTube" under a video made on the page: the MP4 goes to the
+// person's own channel with its own small permission (youtube.upload).
+// YouTube keeps it private until Google's audit of AI CORE; the answer says
+// what YouTube actually set.
+router.post("/youtube", express.raw({ type: "video/mp4", limit: "64mb" }), async (req, res) => {
+  let mainId = null;
+  let publishId = null;
+  try {
+    mainId = await sessionId(req);
+    if (!mainId) {
+      return res.status(401).json({ error: "Google не е свързан.", code: "GOOGLE_NOT_CONNECTED", connect: googleConnectPath() });
+    }
+    publishId = await publishSessionFor(mainId);
+    if (!publishId) {
+      return res.status(403).json({
+        error: "Качването в YouTube още не е разрешено.",
+        code: "GOOGLE_SCOPE_REQUIRED",
+        connect: googleConnectPath("publish"),
+      });
+    }
+    const title = typeof req.query.title === "string" ? req.query.title : "";
+    res.json(await uploadVideoToYoutube(publishId, { bytes: req.body, title, privacy: "public" }));
+  } catch (error) {
+    const deadToken = publishId && error instanceof GoogleDriveError && RECONNECT_CODES.has(error.code);
+    if (deadToken) await forgetLinkedSession(mainId, publishId, "publish");
+    if (deadToken || isGoogleScopeMissing(error)) {
+      return res.status(403).json({
+        error: "Качването в YouTube още не е разрешено.",
+        code: "GOOGLE_SCOPE_REQUIRED",
+        connect: googleConnectPath("publish"),
       });
     }
     sendError(res, error);

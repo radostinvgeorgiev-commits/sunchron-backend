@@ -733,7 +733,13 @@ async function talkFlow(origin, requests) {
 async function statusPage(origin, live) {
   const { page, errors } = await openPage(origin, { width: 390, height: 844 }, "/status");
   await step(`${live ? "Жив сайт" : "Страница"}: състоянието показва сайта и моделите`, async () => {
-    await page.waitForTimeout(live ? 4000 : 500);
+    // On the live site the check asks every model for a short answer, which
+    // can take longer than a fixed wait (it was 4 s), so wait for the answer.
+    await page
+      .waitForFunction(() => document.getElementById("statusTitle")?.textContent !== "Проверка…", null, {
+        timeout: live ? 45_000 : 3_000,
+      })
+      .catch(() => {});
     expect((await page.locator(".status-list li").count()) >= 2, "няма редове за сайта и моделите");
     expect((await page.textContent("#statusTitle")) !== "Проверка…", "страницата не се обнови");
     expect(!errors.length, errors[0]);

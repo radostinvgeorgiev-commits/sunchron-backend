@@ -724,15 +724,15 @@ async function revokeGoogleToken(token) {
       body: new URLSearchParams({ token }).toString(),
       signal: AbortSignal.timeout(GOOGLE_REVOKE_TIMEOUT_MS),
     });
+    // 400: the token is already dead (or revoked a moment ago through
+    // another token of the same grant); nothing is left to revoke.
     if (!response.ok && response.status !== 400) {
-      logSafeError(
-        "[Google disconnect] Revoke failure",
-        new Error(`Google revoke HTTP ${response.status}`),
-      );
+      logSafeError("[Google disconnect] Revoke failure", { status: response.status });
     }
     return response.ok;
   } catch (error) {
-    logSafeError("[Google disconnect] Revoke failure", new Error(String(error?.name || "error")));
+    // Only the error's kind (TimeoutError, TypeError) is logged, never its text.
+    logSafeError("[Google disconnect] Revoke failure", error);
     return false;
   }
 }
@@ -750,14 +750,28 @@ function sessionToken(session) {
 // AI CORE's access is revoked at Google too.
 export async function disconnectGoogleAccount(id, owner) {
   const own = new Map();
+  // Google keeps one grant per Google account, and revoking any token ends
+  // all of them: the Google accounts other people (or the person's other
+  // AI CORE profile) still connect here are never revoked, only forgotten.
+  const otherAccounts = new Set();
   if (owner?.memoryOwnerId) {
     for (const [sessionId, session] of [...(await knownSessions(1000)), ...sessions.entries()]) {
       if (sessionOwnedBy(session, owner)) own.set(sessionId, session);
+      else if (sessionId !== id) otherAccounts.add(googleSubject(session));
     }
   }
+  otherAccounts.delete("");
   const current = id ? await loadSessionWithLink(id) : null;
+  // A token whose Google account is unknown cannot be checked, so it is
+  // only forgotten as well.
   const tokens = new Set(
-    [current, ...own.values()].map(sessionToken).filter(Boolean),
+    [current, ...own.values()]
+      .filter((session) => {
+        const account = googleSubject(session);
+        return account && !otherAccounts.has(account);
+      })
+      .map(sessionToken)
+      .filter(Boolean),
   );
   await Promise.all([...tokens].map((token) => revokeGoogleToken(token)));
   own.delete(id);

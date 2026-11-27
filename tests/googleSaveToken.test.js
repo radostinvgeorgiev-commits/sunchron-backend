@@ -26,14 +26,25 @@ import googleDriveRouter from "../src/routes/googleDriveRouter.js";
 const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 const passThroughFetch = globalThis.fetch;
 const revokedTokens = [];
+const revokeRequests = [];
 let revokeAnswer = 200;
+let onRevoke = () => {};
 globalThis.fetch = async (url, init) => {
   if (String(url) !== GOOGLE_REVOKE_URL) return passThroughFetch(url, init);
-  assert.equal(init?.method, "POST");
+  revokeRequests.push(init);
   revokedTokens.push(new URLSearchParams(String(init?.body || "")).get("token"));
+  onRevoke();
   if (revokeAnswer === "unreachable") throw new TypeError("fetch failed");
+  if (revokeAnswer === "timeout") throw new DOMException("timed out", "TimeoutError");
   return new Response("{}", { status: revokeAnswer });
 };
+
+function resetRevokes() {
+  revokedTokens.length = 0;
+  revokeRequests.length = 0;
+  revokeAnswer = 200;
+  onRevoke = () => {};
+}
 
 const owner = { memoryOwnerId: "owner:radko", role: "owner" };
 const MAIN =
@@ -60,6 +71,11 @@ const tokens = (name, scope, sub = "google-1") => ({
   expires_in: 3600,
   scope,
   id_token: idToken(sub),
+});
+// A connection as Google gives it on the first consent, with a refresh token.
+const fullTokens = (name, scope, sub = "google-1") => ({
+  ...tokens(name, scope, sub),
+  refresh_token: `${name}-refresh`,
 });
 
 async function withEnvironment(values, callback) {
@@ -554,15 +570,18 @@ test("a grant with only part of the mail permissions does not replace the connec
 test("disconnecting removes every stored Google token of the person, and nobody else's", async () => {
   const store = fakeSessionStore();
   const member = { memoryOwnerId: "member:ana", role: "member" };
-  revokedTokens.length = 0;
+  resetRevokes();
+  // How many tokens were still stored at each revoke.
+  const storedAtRevoke = [];
+  onRevoke = () => storedAtRevoke.push(store.documents.size);
   await withEnvironment(FIRESTORE_ENV, async () => {
     resetGoogleSessionsForTests();
     setFirestoreGoogleSessionStoreForTests(store);
-    const older = await createSession(tokens("older", `${MAIN} ${YOUTUBE}`), owner);
-    const main = await createSession(tokens("main", MAIN), owner);
-    const save = await createSession(tokens("save", SAVE), owner, { saveOnly: true });
+    const older = await createSession(fullTokens("older", `${MAIN} ${YOUTUBE}`), owner);
+    const main = await createSession(fullTokens("main", MAIN), owner);
+    const save = await createSession(fullTokens("save", SAVE), owner, { saveOnly: true });
     assert.equal(await linkSaveSession(main, save), true);
-    const theirs = await createSession(tokens("theirs", MAIN, "google-9"), member);
+    const theirs = await createSession(fullTokens("theirs", MAIN, "google-9"), member);
     assert.ok(older);
 
     const app = express();
@@ -587,17 +606,38 @@ test("disconnecting removes every stored Google token of the person, and nobody 
     assert.equal(await getLatestGoogleSessionId(), null);
     assert.equal(await latestMainSessionFor(member), theirs);
     // AI CORE's access is revoked at Google too, once per token of this
-    // person; the other person's token is not touched.
-    assert.deepEqual(revokedTokens.sort(), ["main", "older", "save"]);
+    // person (the long-lived refresh token, which ends the whole grant);
+    // the other person's token is not touched.
+    assert.deepEqual(revokedTokens.sort(), ["main-refresh", "older-refresh", "save-refresh"]);
+    for (const init of revokeRequests) {
+      assert.equal(init.method, "POST");
+      assert.equal(init.headers["Content-Type"], "application/x-www-form-urlencoded");
+      // A slow Google cannot hold the button forever.
+      assert.ok(init.signal instanceof AbortSignal);
+    }
+    // Every revoke ran while all four tokens were still stored: the tokens
+    // are revoked first and removed after.
+    assert.deepEqual(storedAtRevoke, [4, 4, 4]);
     resetGoogleSessionsForTests();
   });
+  resetRevokes();
 });
 
 test("a revoke that Google refuses or never answers still disconnects", async () => {
-  for (const answer of [503, "unreachable"]) {
+  // What is logged for each answer: only its kind, never a token.
+  const logged = {
+    400: [],
+    503: [{ name: "Error", status: 503 }],
+    unreachable: [{ name: "TypeError" }],
+    timeout: [{ name: "TimeoutError" }],
+  };
+  for (const [answer, expected] of Object.entries(logged)) {
     const store = fakeSessionStore();
-    revokedTokens.length = 0;
-    revokeAnswer = answer;
+    resetRevokes();
+    revokeAnswer = Number(answer) || answer;
+    const errors = [];
+    const consoleError = console.error;
+    console.error = (...args) => errors.push(args);
     try {
       await withEnvironment(FIRESTORE_ENV, async () => {
         resetGoogleSessionsForTests();
@@ -607,19 +647,98 @@ test("a revoke that Google refuses or never answers still disconnects", async ()
         const response = await callGoogle("/disconnect", `synchron_google_session=${main}`);
         assert.equal(response.status, 200, `revoke answer ${answer}`);
         assert.equal(store.documents.size, 0);
+        // Without a refresh token the access token is revoked.
         assert.deepEqual(revokedTokens.sort(), ["main", "older"]);
         resetGoogleSessionsForTests();
       });
     } finally {
-      revokeAnswer = 200;
+      console.error = consoleError;
+      resetRevokes();
     }
+    // A 400 means the token is already dead: nothing to report.
+    const failures = errors.filter(([context]) => context === "[Google disconnect] Revoke failure");
+    assert.deepEqual(failures.map(([, metadata]) => ({ ...metadata })), [...expected, ...expected]);
+    assert.doesNotMatch(JSON.stringify(errors), /"(?:main|older)"/u);
   }
 });
 
-async function callGoogle(path, cookie, method = "POST") {
+test("a Google account that someone else still connects here is only forgotten, never revoked", async () => {
+  const store = fakeSessionStore();
+  const member = { memoryOwnerId: "member:ana", role: "member" };
+  resetRevokes();
+  await withEnvironment(FIRESTORE_ENV, async () => {
+    resetGoogleSessionsForTests();
+    setFirestoreGoogleSessionStoreForTests(store);
+    // The owner connects two Google accounts; the member connects one of
+    // them too. Google keeps one grant per Google account, so revoking it
+    // for one person would cut the other person off as well.
+    const ownerShared = await createSession(fullTokens("owner-shared", MAIN, "google-1"), owner);
+    const ownerOnly = await createSession(fullTokens("owner-only", MAIN, "google-2"), owner);
+    // A connection from before the Google account was kept cannot be checked.
+    const { id_token: _unknown, ...legacyTokens } = fullTokens("owner-legacy", MAIN);
+    await createSession(legacyTokens, owner);
+    const memberMain = await createSession(fullTokens("member-main", MAIN, "google-1"), member);
+
+    const first = await callGoogle("/disconnect", `synchron_google_session=${ownerOnly}`);
+    assert.equal(first.status, 200);
+    // Only the account nobody else uses is revoked; every token of the
+    // owner is gone here, and the member keeps their connection.
+    assert.deepEqual(revokedTokens, ["owner-only-refresh"]);
+    assert.deepEqual([...store.documents.keys()], [memberMain]);
+    assert.equal(await latestMainSessionFor(owner), null);
+    assert.equal(await latestMainSessionFor(member), memberMain);
+    assert.ok(ownerShared);
+
+    // Now nobody else uses the member's Google account: it is revoked.
+    revokedTokens.length = 0;
+    const second = await callGoogle(
+      "/disconnect",
+      `synchron_google_session=${memberMain}`,
+      "POST",
+      member,
+    );
+    assert.equal(second.status, 200);
+    assert.deepEqual(revokedTokens, ["member-main-refresh"]);
+    assert.equal(store.documents.size, 0);
+    resetGoogleSessionsForTests();
+  });
+  resetRevokes();
+});
+
+test("a member who disconnects never revokes the Google account the owner still uses", async () => {
+  const store = fakeSessionStore();
+  const member = { memoryOwnerId: "member:ana", role: "member" };
+  resetRevokes();
+  await withEnvironment(FIRESTORE_ENV, async () => {
+    resetGoogleSessionsForTests();
+    setFirestoreGoogleSessionStoreForTests(store);
+    const ownerMain = await createSession(fullTokens("owner-main", MAIN, "google-1"), owner);
+    const memberMain = await createSession(fullTokens("member-main", MAIN, "google-1"), member);
+    const memberSave = await createSession(fullTokens("member-save", SAVE, "google-1"), member, {
+      saveOnly: true,
+    });
+    assert.equal(await linkSaveSession(memberMain, memberSave), true);
+
+    const response = await callGoogle(
+      "/disconnect",
+      `synchron_google_session=${memberMain}`,
+      "POST",
+      member,
+    );
+    assert.equal(response.status, 200);
+    assert.deepEqual(revokedTokens, []);
+    assert.deepEqual([...store.documents.keys()], [ownerMain]);
+    assert.equal(await latestMainSessionFor(member), null);
+    assert.equal(await latestMainSessionFor(owner), ownerMain);
+    resetGoogleSessionsForTests();
+  });
+  resetRevokes();
+});
+
+async function callGoogle(path, cookie, method = "POST", person = owner) {
   const app = express();
   app.use((req, _res, next) => {
-    req.owner = owner;
+    req.owner = person;
     next();
   });
   app.use("/api/google", googleDriveRouter);
@@ -681,7 +800,7 @@ test("when the stored tokens cannot be read, disconnecting removes nothing and s
       throw Object.assign(new Error("unavailable"), { code: "FIRESTORE_UNAVAILABLE", status: 503 });
     };
 
-    revokedTokens.length = 0;
+    resetRevokes();
     const response = await callGoogle("/disconnect", `synchron_google_session=${main}`);
     assert.equal(response.status, 503);
     assert.equal((await response.json()).code, "GOOGLE_DISCONNECT_FAILED");

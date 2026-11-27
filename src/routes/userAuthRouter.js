@@ -4,10 +4,8 @@ import {
   clearUserSessionCookie,
   getUserAuthConfigurationStatus,
   getUserAuthProvider,
-  isUserRegistrationEnabled,
   isPublicRegistration,
   isUserAuthConfigured,
-  registerUser,
   signInUser,
   signOutUser,
   userSessionCookie,
@@ -29,10 +27,6 @@ import {
 } from "../services/googleSignInService.js";
 import { logSafeError } from "../utils/safeLogging.js";
 import { recordActivity } from "../services/activityService.js";
-import {
-  logCampaignEvent,
-  readCampaignAttribution,
-} from "../services/campaignAttribution.js";
 
 const router = express.Router();
 
@@ -58,8 +52,11 @@ router.get("/session", async (req, res) => {
     return res.json({
       configured: isUserAuthConfigured(),
       configuration: getUserAuthConfigurationStatus(),
-      registrationEnabled: isUserRegistrationEnabled(),
+      // New profiles are made only by signing in with an outside account
+      // (Google today). Existing email/password profiles can still sign in.
+      registrationEnabled: isUserAuthConfigured() && isGoogleSignInEnabled(),
       registrationMode: isPublicRegistration() ? "public" : "invite",
+      passwordRegistration: false,
       googleSignIn: isGoogleSignInEnabled(),
       authProvider: getUserAuthProvider(),
       authenticated: Boolean(identity),
@@ -94,31 +91,15 @@ router.post("/login", async (req, res) => {
   }
 });
 
-router.post("/register", async (req, res) => {
-  try {
-    const { campaign, ...registration } = req.body || {};
-    const result = await registerUser(registration);
-    if (result.created) {
-      recordActivity({ registrations: 1 });
-      logCampaignEvent(
-        "campaign_registration",
-        readCampaignAttribution(campaign),
-      );
-    }
-    if (result.session) {
-      res.setHeader("Set-Cookie", userSessionCookie(result.session));
-    }
-    return res.status(201).json({
-      authenticated: Boolean(result.session),
-      confirmationRequired: result.confirmationRequired,
-      user: {
-        id: result.user.id,
-        email: result.user.email,
-      },
-    });
-  } catch (error) {
-    return sendAuthError(res, error);
-  }
+// Registration with an email and a password is closed: a new profile is made
+// by the first sign-in with Google (or another outside account). Profiles that
+// already have a password keep working through /login and /password-reset.
+router.post("/register", (_req, res) => {
+  return res.status(410).json({
+    error:
+      "Нов профил с имейл и парола вече не се прави. Натисни „Продължи с Google“ — профилът се създава сам при първия вход.",
+    code: "AUTH_PASSWORD_SIGNUP_REMOVED",
+  });
 });
 
 router.get("/google/start", (_req, res) => {

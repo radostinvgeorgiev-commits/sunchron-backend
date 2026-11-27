@@ -54,10 +54,11 @@ test("Council без собствен nextSteps показва конкретн�
   assert.match(app, /натисни „Изпълни препоръката“/u);
 });
 
-test("a failed sign-in offers registration with the same email", () => {
-  assert.match(app, /error\.code === "AUTH_INVALID_CREDENTIALS" && state\.registrationEnabled/u);
-  assert.match(app, /Създай профил с този имейл/u);
-  assert.match(app, /най-вероятно още нямаш профил/u);
+test("a failed password sign-in points new people to Google, not to a password sign-up", () => {
+  assert.match(app, /error\.code === "AUTH_INVALID_CREDENTIALS"/u);
+  assert.match(app, /Нямаш профил\? Натисни „Продължи с Google“/u);
+  assert.match(app, /най-вероятно още нямаш профил — натисни „Продължи с Google“/u);
+  assert.doesNotMatch(app, /Създай профил с този имейл/u);
 });
 
 test("a single-advisor Council answer is shown once", async () => {
@@ -69,11 +70,6 @@ test("a single-advisor Council answer is shown once", async () => {
   });
   assert.equal(reply.match(/Отговор\./gu).length, 1);
   assert.doesNotMatch(reply, /Обща препоръка/u);
-});
-
-test("registration explains a short password instead of silently not submitting", () => {
-  assert.match(app, /registerForm\.noValidate = true/u);
-  assert.match(app, /Паролата трябва да е поне 8 знака/u);
 });
 
 test("each remembered fact shows when it was saved and who confirmed it", () => {

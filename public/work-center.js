@@ -711,7 +711,7 @@
         title: "Потребителски профили",
         description:
           testerAuth?.configured && testerAuth?.registrationEnabled
-            ? "Нормална регистрация с име, имейл и парола."
+            ? "Нов профил се прави с вход през Google. Старите профили с парола още могат да влизат."
             : "Identity Platform се управлява само през Google Cloud Console.",
         url:
           testerAuth?.configured && testerAuth?.registrationEnabled
@@ -720,7 +720,7 @@
         icon: "fa-solid fa-user-plus",
         status:
           testerAuth?.configured && testerAuth?.registrationEnabled
-            ? "Работи · Нормална регистрация"
+            ? "Работи · Вход с Google"
             : "Настройва се в Google Cloud",
       }),
       ...(testerAuth

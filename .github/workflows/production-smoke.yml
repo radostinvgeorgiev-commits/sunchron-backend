@@ -119,13 +119,13 @@ jobs:
             process.stdin.on("data", (chunk) => { input += chunk; });
             process.stdin.on("end", () => {
               const s = JSON.parse(input);
-              console.log(`session: configured=${s.configured} registration=${s.registrationEnabled} provider=${s.authProvider}`);
-              if (s.configured !== true || s.registrationEnabled !== true || s.authProvider !== "identity-platform") process.exit(1);
+              console.log(`session: configured=${s.configured} registration=${s.registrationEnabled} google=${s.googleSignIn} provider=${s.authProvider}`);
+              if (s.configured !== true || s.registrationEnabled !== true || s.googleSignIn !== true || s.authProvider !== "identity-platform") process.exit(1);
             });
           '
           check "wrong sign-in" 401 AUTH_INVALID_CREDENTIALS POST /api/auth/login \
             "{\"email\":\"smoke-${GITHUB_RUN_ID}@example.invalid\",\"password\":\"not-a-real-password\"}"
-          check "short-password registration" 400 AUTH_INVALID_PASSWORD POST /api/auth/register \
+          check "password registration removed" 410 AUTH_PASSWORD_SIGNUP_REMOVED POST /api/auth/register \
             '{"displayName":"Smoke","email":"smoke@example.invalid","password":"short"}'
           check "chat without session" 401 "" POST /chat '{"message":"ping","sessionId":"smoke"}'
 

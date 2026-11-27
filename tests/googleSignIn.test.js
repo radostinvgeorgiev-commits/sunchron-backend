@@ -94,3 +94,29 @@ test("a disabled Google provider in Identity Platform is reported plainly", asyn
     { code: "AUTH_GOOGLE_PROVIDER_DISABLED" },
   );
 });
+
+test("an email that already has a password profile is sent to the password sign-in, not lost", async () => {
+  const { options } = deps({
+    idp: { data: null, error: { upstreamCode: "NEED_CONFIRMATION" } },
+  });
+  await assert.rejects(
+    finishGoogleSignIn({ code: "c", state: "s1", cookieHeader: "synchron_google_signin_state=s1" }, options),
+    { code: "AUTH_GOOGLE_PASSWORD_ACCOUNT", status: 409 },
+  );
+});
+
+test("Identity Platform needConfirmation becomes NEED_CONFIRMATION instead of a broken session", async () => {
+  const { createIdentityPlatformAuthClient } = await import("../src/services/identityPlatformAuthClient.js");
+  const client = createIdentityPlatformAuthClient({
+    env: {
+      AUTH_BACKEND: "identity-platform",
+      IDENTITY_PLATFORM_API_KEY: "test-api-key-1234567890abcd",
+      IDENTITY_PLATFORM_PROJECT_ID: "test-project",
+    },
+    fetchImpl: async () =>
+      new Response(JSON.stringify({ needConfirmation: true, email: "a@b.c", providerId: "google.com" }), { status: 200 }),
+  });
+  const { data, error } = await client.auth.signInWithGoogleIdToken({ idToken: "x", requestUri: "https://cloudaicore.com/api/google/callback" });
+  assert.equal(data, null);
+  assert.equal(error.upstreamCode, "NEED_CONFIRMATION");
+});

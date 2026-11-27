@@ -7,7 +7,8 @@ const englishAuthErrors = {
   AUTH_INVALID_CREDENTIALS: "The email address or password is incorrect.",
   AUTH_INVITE_INVALID: "Enter a valid early access code.",
   AUTH_REGISTRATION_CLOSED: "Registration is currently closed.",
-  AUTH_REGISTRATION_INCOMPLETE: "Account access is not active. If registration was interrupted, register again with the same email address and password.",
+  AUTH_REGISTRATION_INCOMPLETE: "Account access is not active. Continue with Google using the same email address.",
+  AUTH_PASSWORD_SIGNUP_REMOVED: "New accounts are no longer created with an email and password. Select Continue with Google; your account is created on first sign-in.",
   AUTH_EMAIL_NOT_VERIFIED: "Open the link in your verification email and select Complete verification. Then sign in.",
   AUTH_EMAIL_VERIFICATION_RESENT: "We sent a new verification email. Open the latest message, follow its link and select Complete verification. Check your spam folder if needed.",
   AUTH_UNAVAILABLE: "Sign-in is temporarily unavailable. Try again shortly.",
@@ -35,33 +36,21 @@ const state = {
   recognition: null,
   listening: false,
   authenticatedUser: null,
-  registrationEnabled: false,
-  registrationMode: "public",
   applicationStarted: false,
 };
 
-const REGISTRATION_PATH = "/register";
 const MAX_CHAT_INPUT_HEIGHT = 160;
 let statusReturnFocus = null;
 
 const elements = {
   authGate: document.getElementById("authGate"),
   authCard: document.getElementById("authCard"),
-  authTitle: document.getElementById("authTitle"),
-  authIntro: document.getElementById("authIntro"),
   appShell: document.getElementById("appShell"),
   loginForm: document.getElementById("loginForm"),
   loginEmail: document.getElementById("loginEmail"),
   loginPassword: document.getElementById("loginPassword"),
   loginBtn: document.getElementById("loginBtn"),
-  showRegisterBtn: document.getElementById("showRegisterBtn"),
-  registerForm: document.getElementById("registerForm"),
-  registerName: document.getElementById("registerName"),
-  registerEmail: document.getElementById("registerEmail"),
-  registerPassword: document.getElementById("registerPassword"),
-  registerInviteCode: document.getElementById("registerInviteCode"),
-  registerBtn: document.getElementById("registerBtn"),
-  backToLoginBtn: document.getElementById("backToLoginBtn"),
+  passwordSignIn: document.getElementById("passwordSignIn"),
   authMessage: document.getElementById("authMessage"),
   forgotPasswordBtn: document.getElementById("forgotPasswordBtn"),
   chatMessages: document.getElementById("chatMessages"),
@@ -175,51 +164,8 @@ function setCouncilMode(enabled) {
 
 function setAuthBusy(isBusy) {
   elements.loginBtn.disabled = isBusy;
-  elements.registerBtn.disabled = isBusy;
   elements.authCard?.setAttribute("aria-busy", String(isBusy));
   elements.loginBtn.textContent = isBusy ? chatText("Влизане…") : chatText("Влез");
-  elements.registerBtn.textContent = isBusy ? chatText("Създаване…") : chatText("Създай профил");
-}
-
-function replaceAuthPath(path) {
-  if (globalThis.location?.pathname === path) return;
-  const search = globalThis.location?.search || "";
-  globalThis.history?.replaceState?.({}, "", path + search);
-}
-
-function showLoginForm(event) {
-  event?.preventDefault?.();
-  elements.loginForm.hidden = false;
-  elements.registerForm.hidden = true;
-  elements.showRegisterBtn.hidden = !state.registrationEnabled;
-  elements.authTitle.textContent = chatText("Вход в Novarium");
-  elements.authIntro.textContent =
-    chatText("Продължи към личното си работно пространство.");
-  document.title = chatText("Вход · Novarium");
-  replaceAuthPath("/");
-  setAuthMessage();
-  elements.loginEmail.focus();
-}
-
-function showRegisterForm(event) {
-  event?.preventDefault?.();
-  if (!state.registrationEnabled) return;
-  elements.loginForm.hidden = true;
-  elements.registerForm.hidden = false;
-  elements.showRegisterBtn.hidden = true;
-  elements.authTitle.textContent = chatText("Създай профил");
-  elements.authIntro.textContent =
-    chatText("Създай личен профил с отделни разговори, проекти и контролирана памет.");
-  document.title = chatText("Създай профил · Novarium");
-  replaceAuthPath(REGISTRATION_PATH);
-  setAuthMessage();
-  elements.registerName.focus();
-}
-
-function isDirectRegistrationPage() {
-  return (
-    globalThis.location?.pathname?.replace(/\/+$/u, "") === REGISTRATION_PATH
-  );
 }
 
 async function readAuthSession() {
@@ -238,13 +184,12 @@ async function submitAuth(path, body) {
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    const action = path.endsWith("/register") ? "Регистрацията" : "Входът";
     const error = new Error(
       chatLocale && chatLocale.language !== "bg"
         ? (Object.hasOwn(englishAuthErrors, data?.code)
             ? englishAuthErrors[data.code]
-            : `${path.endsWith("/register") ? "Registration" : "Sign-in"} failed (HTTP ${response.status}).`)
-        : data?.error || `${action} не беше успешен (HTTP ${response.status}).`,
+            : `Sign-in failed (HTTP ${response.status}).`)
+        : data?.error || `Входът не беше успешен (HTTP ${response.status}).`,
     );
     error.code = data?.code || "AUTH_REQUEST_FAILED";
     error.status = response.status;
@@ -271,13 +216,12 @@ async function handleLogin(event) {
     await startApplication(session.user);
   } catch (error) {
     // Identity Platform answers the same for "no account" and "wrong
-    // password". New visitors often type a new password into the sign-in
-    // form, so offer registration with the same email right away.
-    if (error.code === "AUTH_INVALID_CREDENTIALS" && state.registrationEnabled) {
-      offerRegistration(elements.loginEmail.value);
-      return;
-    }
-    setAuthMessage(error.message);
+    // password". New profiles are made with Google, so point there.
+    setAuthMessage(
+      error.code === "AUTH_INVALID_CREDENTIALS"
+        ? chatText("Имейлът или паролата не съвпадат. Нямаш профил? Натисни „Продължи с Google“ — профилът се създава сам.")
+        : error.message,
+    );
   } finally {
     setAuthBusy(false);
   }
@@ -288,6 +232,7 @@ const GOOGLE_SIGN_IN_ERRORS = Object.freeze({
   AUTH_GOOGLE_STATE_INVALID: "Входът с Google изтече. Опитай пак.",
   AUTH_GOOGLE_DISABLED: "Входът с Google още не е включен.",
   AUTH_GOOGLE_PROVIDER_DISABLED: "Входът с Google още не е включен.",
+  AUTH_GOOGLE_PASSWORD_ACCOUNT: "Този имейл вече има профил с парола. Влез с паролата си от „Имаш профил с имейл и парола?“.",
 });
 
 function showGoogleSignInError() {
@@ -295,27 +240,14 @@ function showGoogleSignInError() {
   const code = params.get("auth_error");
   if (!code) return;
   setAuthMessage(
-    chatText(GOOGLE_SIGN_IN_ERRORS[code] || "Входът с Google не успя. Опитай пак или влез с имейл."),
+    chatText(GOOGLE_SIGN_IN_ERRORS[code] || "Входът с Google не успя. Опитай пак."),
   );
+  if (code === "AUTH_GOOGLE_PASSWORD_ACCOUNT" && elements.passwordSignIn) {
+    elements.passwordSignIn.open = true;
+  }
   params.delete("auth_error");
   const rest = params.toString();
   globalThis.history?.replaceState?.({}, "", `${globalThis.location.pathname}${rest ? `?${rest}` : ""}`);
-}
-
-function offerRegistration(email) {
-  setAuthMessage(
-    chatText("Имейлът или паролата не съвпадат. Ако още нямаш профил, създай го — имейлът е попълнен."),
-  );
-  const link = document.createElement("button");
-  link.type = "button";
-  link.className = "auth-link auth-offer-register";
-  link.textContent = chatText("Създай профил с този имейл");
-  link.addEventListener("click", () => {
-    showRegisterForm();
-    elements.registerEmail.value = String(email || "").trim();
-    elements.registerName.focus();
-  });
-  elements.authMessage?.append(document.createElement("br"), link);
 }
 
 async function handleForgotPassword() {
@@ -330,72 +262,9 @@ async function handleForgotPassword() {
   try {
     await submitAuth("/api/auth/password-reset", { email });
     setAuthMessage(
-      chatText("Ако има профил с този имейл, изпратихме писмо с линк за нова парола (от noreply, провери и „Спам“/„Промоции“). Ако писмо не дойде до 5 минути, най-вероятно още нямаш профил — натисни „Създай безплатен профил“."),
+      chatText("Ако има профил с този имейл, изпратихме писмо с линк за нова парола (от noreply, провери и „Спам“/„Промоции“). Ако писмо не дойде до 5 минути, най-вероятно още нямаш профил — натисни „Продължи с Google“."),
       true,
     );
-  } catch (error) {
-    setAuthMessage(error.message);
-  } finally {
-    setAuthBusy(false);
-  }
-}
-
-// The browser's own validation bubbles are easy to miss on phones (a short
-// password simply did nothing), so registration is checked here and the
-// reason is written in the visible message area.
-function registrationProblem() {
-  const name = elements.registerName.value.trim();
-  const email = elements.registerEmail.value.trim();
-  const password = elements.registerPassword.value;
-  if (!name) return [elements.registerName, chatText("Напиши име.")];
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email))
-    return [elements.registerEmail, chatText("Имейлът не изглежда правилен. Провери за интервал или липсваща буква.")];
-  if (password.length < 8)
-    return [elements.registerPassword, chatText("Паролата трябва да е поне 8 знака.")];
-  return null;
-}
-
-async function handleRegistration(event) {
-  event.preventDefault();
-  const problem = registrationProblem();
-  if (problem) {
-    setAuthMessage(problem[1]);
-    problem[0].focus();
-    return;
-  }
-  elements.registerEmail.value = elements.registerEmail.value.trim();
-  setAuthBusy(true);
-  setAuthMessage();
-  try {
-    const params = new URLSearchParams(globalThis.location?.search || "");
-    const result = await submitAuth("/api/auth/register", {
-      displayName: elements.registerName.value,
-      email: elements.registerEmail.value,
-      password: elements.registerPassword.value,
-      inviteCode: elements.registerInviteCode.value,
-      campaign: params.has("utm_campaign")
-        ? {
-            utm_source: params.get("utm_source"),
-            utm_medium: params.get("utm_medium"),
-            utm_campaign: params.get("utm_campaign"),
-            utm_content: params.get("utm_content"),
-          }
-        : undefined,
-    });
-    elements.registerPassword.value = "";
-    elements.registerInviteCode.value = "";
-    if (result.confirmationRequired) {
-      showLoginForm();
-      elements.loginEmail.value = result.user?.email || "";
-      setAuthMessage(
-        chatText("Отвори линка от писмото. Ако видиш бутон „Complete verification“, натисни го. После влез."),
-        true,
-      );
-      return;
-    }
-    const session = await readAuthSession();
-    if (!session.authenticated) throw new Error(chatText("Сесията не беше създадена."));
-    await startApplication(session.user);
   } catch (error) {
     setAuthMessage(error.message);
   } finally {
@@ -434,22 +303,15 @@ function applyAuthenticatedUser(user) {
 async function init() {
   elements.loginForm.addEventListener("submit", handleLogin);
   elements.forgotPasswordBtn?.addEventListener("click", handleForgotPassword);
-  elements.registerForm.noValidate = true;
-  elements.registerForm.addEventListener("submit", handleRegistration);
-  elements.showRegisterBtn.addEventListener("click", showRegisterForm);
-  elements.backToLoginBtn.addEventListener("click", showLoginForm);
 
   try {
     const session = await readAuthSession();
-    state.registrationEnabled = Boolean(session.registrationEnabled);
-    state.registrationMode = session.registrationMode || "invite";
-    document.getElementById("inviteFields").hidden =
-      state.registrationMode !== "invite";
-    elements.registerInviteCode.disabled = state.registrationMode !== "invite";
-    elements.registerInviteCode.required = state.registrationMode === "invite";
-    elements.showRegisterBtn.hidden = !state.registrationEnabled;
     const googleSignInBtn = document.getElementById("googleSignInBtn");
     if (googleSignInBtn) googleSignInBtn.hidden = session.googleSignIn !== true;
+    // Without Google the password form is the only way in, so keep it open.
+    if (elements.passwordSignIn && session.googleSignIn !== true) {
+      elements.passwordSignIn.open = true;
+    }
     showGoogleSignInError();
     if (session.authenticated) {
       await startApplication(session.user);
@@ -457,10 +319,6 @@ async function init() {
     }
     elements.authGate.hidden = false;
     elements.appShell.hidden = true;
-    if (state.registrationEnabled && isDirectRegistrationPage()) {
-      showRegisterForm();
-      return;
-    }
     if (!session.configured) {
       setAuthMessage(
         chatText("Входът с потребителски профили още не е активиран. Собственикът може да влезе с GitHub."),

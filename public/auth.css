@@ -462,3 +462,26 @@
     padding: 15px;
   }
 }
+
+.auth-provider-note {
+  margin: 10px 0 0;
+  color: #65736e;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.auth-password {
+  margin-top: 16px;
+}
+
+.auth-password summary {
+  color: #1b6f57;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.auth-password[open] summary {
+  margin-bottom: 8px;
+}

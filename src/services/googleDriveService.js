@@ -10,6 +10,8 @@ import { createFirestoreOAuthSessionStore } from "./firestoreOAuthSessionStore.j
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
+const GOOGLE_REVOKE_TIMEOUT_MS = 5000;
 const DRIVE_API_URL = "https://www.googleapis.com/drive/v3";
 const GMAIL_API_URL = "https://gmail.googleapis.com/gmail/v1";
 const CALENDAR_API_URL = "https://www.googleapis.com/calendar/v3";
@@ -37,11 +39,16 @@ const sessions = new Map();
 let firestoreSessionStore = null;
 let firestoreSessionConfiguration = null;
 let firestoreSessionStoreOverride = null;
+let revokeTimeoutMs = GOOGLE_REVOKE_TIMEOUT_MS;
 
 export function setFirestoreGoogleSessionStoreForTests(store) {
   firestoreSessionStoreOverride = store || null;
   firestoreSessionStore = null;
   firestoreSessionConfiguration = null;
+}
+
+export function setGoogleRevokeTimeoutForTests(milliseconds) {
+  revokeTimeoutMs = milliseconds || GOOGLE_REVOKE_TIMEOUT_MS;
 }
 
 function sessionEncryptionKey() {
@@ -456,16 +463,25 @@ export async function linkSaveSession(mainId, linkedId, kind = "save") {
 // Every stored session (or, without storage, every session of this
 // instance), for finding which connection links a step token.
 async function knownSessions(limit = 100) {
-  if (resolvePersistenceBackend(process.env) !== "firestore") return [...sessions.entries()];
-  const known = [];
-  for (const { id, payload } of await getFirestoreSessionStore().listLatest(limit)) {
+  return (await storedSessions(limit)).list;
+}
+
+// The newest stored sessions, and whether that is all of them: the store
+// answers with at most `limit`, so a full answer may have left some out.
+async function storedSessions(limit) {
+  if (resolvePersistenceBackend(process.env) !== "firestore") {
+    return { list: [...sessions.entries()], complete: true };
+  }
+  const stored = await getFirestoreSessionStore().listLatest(limit);
+  const list = [];
+  for (const { id, payload } of stored) {
     try {
-      known.push([id, decryptGoogleSession(payload)]);
+      list.push([id, decryptGoogleSession(payload)]);
     } catch {
       // Unreadable sessions link nothing.
     }
   }
-  return known;
+  return { list, complete: stored.length < limit };
 }
 
 // A step token is deleted only when no other connection still uses it
@@ -718,21 +734,90 @@ export async function disconnectSession(id) {
   for (const linkedId of linked) await deleteUnlinkedSession(linkedId, id);
 }
 
+// Google keeps an app's access until it is revoked, even when the app has
+// forgotten every token. Revoking one token removes AI CORE from the
+// person's Google account, with every permission it had, so the next
+// "Свържи Google" shows the full consent screen again. A failed revoke
+// (Google unreachable, a token that is already dead) never keeps the tokens
+// stored: the person still gets disconnected here. The token is never logged.
+async function revokeGoogleToken(token) {
+  try {
+    const response = await globalThis.fetch(GOOGLE_REVOKE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token }).toString(),
+      signal: AbortSignal.timeout(revokeTimeoutMs),
+    });
+    // 400: the token is already dead (or revoked a moment ago through
+    // another token of the same grant); nothing is left to revoke.
+    if (!response.ok && response.status !== 400) {
+      logSafeError("[Google disconnect] Revoke failure", { status: response.status });
+    }
+    return response.ok;
+  } catch (error) {
+    // Only the error's kind (TimeoutError, TypeError) is logged, never its text.
+    logSafeError("[Google disconnect] Revoke failure", error);
+    return false;
+  }
+}
+
+function sessionToken(session) {
+  return String(session?.refresh_token || session?.access_token || "").trim();
+}
+
 // "Прекъсни връзката": every stored Google token of the person goes (older
 // connections and step tokens too), so none stays stored and the next
 // "Свържи Google" starts clean instead of finding an older connection.
 // The tokens are found before anything is removed, and this browser's own
 // connection goes last: if the store fails on the way, that connection and
-// its button stay, and pressing it again finishes the job.
+// its button stay, and pressing it again finishes the job. Before that,
+// AI CORE's access is revoked at Google too.
 export async function disconnectGoogleAccount(id, owner) {
-  const own = new Set();
+  const own = new Map();
+  // Google keeps one grant per Google account, and revoking any token ends
+  // all of them: the Google accounts other people (or the person's other
+  // AI CORE profile) still connect here are never revoked, only forgotten.
+  // When that cannot be told for sure, nothing is revoked at all.
+  const otherAccounts = new Set();
+  let canRevoke = false;
   if (owner?.memoryOwnerId) {
-    for (const [sessionId, session] of [...(await knownSessions(1000)), ...sessions.entries()]) {
-      if (sessionOwnedBy(session, owner)) own.add(sessionId);
+    const stored = await storedSessions(1000);
+    // A list cut at its limit may have left out someone else's connection.
+    canRevoke = stored.complete;
+    for (const [sessionId, session] of stored.list) {
+      if (sessionOwnedBy(session, owner)) {
+        own.set(sessionId, session);
+      } else if (sessionId !== id) {
+        const account = googleSubject(session);
+        // Someone else's connection with an unknown Google account could be
+        // on any account.
+        if (!account && sessionToken(session)) canRevoke = false;
+        otherAccounts.add(account);
+      }
+    }
+    // This instance's memory only adds the person's own connections: with
+    // storage, someone else's connection here may be a copy that another
+    // server instance has already removed.
+    for (const [sessionId, session] of sessions.entries()) {
+      if (sessionOwnedBy(session, owner)) own.set(sessionId, session);
     }
   }
+  otherAccounts.delete("");
+  const current = id ? await loadSessionWithLink(id) : null;
+  // A token whose Google account is unknown cannot be checked, so it is
+  // only forgotten as well.
+  const tokens = new Set(
+    [current, ...own.values()]
+      .filter((session) => {
+        const account = googleSubject(session);
+        return canRevoke && account && !otherAccounts.has(account);
+      })
+      .map(sessionToken)
+      .filter(Boolean),
+  );
+  await Promise.all([...tokens].map((token) => revokeGoogleToken(token)));
   own.delete(id);
-  for (const sessionId of own) await deleteStoredSession(sessionId);
+  for (const sessionId of own.keys()) await deleteStoredSession(sessionId);
   if (id) await disconnectSession(id);
 }
 

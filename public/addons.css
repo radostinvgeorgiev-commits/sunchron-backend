@@ -8,7 +8,7 @@
 .addon-tabs button[hidden], .addon-dialog section[hidden], .addon-output[hidden] { display: none; }
 .addon-editor, .claude-work-form { display: grid; gap: 8px; }
 .addon-editor label, .claude-work-form label { display: grid; gap: 4px; font-size: .9rem; font-weight: 700; }
-.addon-editor input, .addon-editor textarea, .claude-work-form textarea, .addon-input, .addon-note {
+.addon-editor input, .addon-editor select, .addon-editor textarea, .claude-work-form textarea, .addon-input, .addon-note {
   width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid #c9d0cc; border-radius: 10px; font: inherit; font-weight: 400; color: #000;
 }
 .addon-editor textarea, .addon-code, .addon-output {
@@ -36,3 +36,5 @@
 .claude-work-files a { font-weight: 700; overflow-wrap: anywhere; }
 .claude-work-after[hidden], .claude-work-recent[hidden] { display: none; }
 .claude-work-recent { margin-top: 10px; }
+.addon-editor label[hidden], .claude-work-addons[hidden], .addon-test[hidden] { display: none; }
+.addon-kind { background: #e8eefc; color: #23408e; }

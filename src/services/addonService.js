@@ -33,6 +33,9 @@ export const ADDON_LIMITS = Object.freeze({
   pending: 50,
   public: 200,
   reviewNote: 300,
+  instructions: 8000,
+  claudeSkills: 5,
+  claudeConnectors: 3,
   dataBytes: 200_000,
   fetchMs: 5000,
   runMs: 500,
@@ -271,23 +274,53 @@ export async function runInSandbox(code, { input = "", data = null, timeMs = ADD
   }
 }
 
+// Three kinds of add-on:
+// - "code": a small program run(input, data) in the closed sandbox;
+// - "skill": written instructions Claude follows in "Работа с Claude";
+// - "connector": a public MCP server address Claude may use there. Anthropic
+//   connects to it from its own servers, never from ours, and with no keys.
+export const ADDON_KINDS = Object.freeze(["code", "skill", "connector"]);
+export const addonKind = (item) => (ADDON_KINDS.includes(item?.kind) ? item.kind : "code");
+
+export function checkConnectorUrl(value) {
+  const text = clean(value, ADDON_LIMITS.url);
+  if (!text) throw new AddonError("Сложи адреса на конектора (MCP), напр. https://…/mcp.");
+  if (text.includes("{input}")) throw new AddonError("Адресът на конектора не приема {input}.");
+  return checkDataUrl(text);
+}
+
+// What the owner reviewed: a later change of any of these is a new version.
+const contentOf = (item) =>
+  JSON.stringify([addonKind(item), item.code || "", item.dataUrl || "", item.instructions || "", item.mcpUrl || ""]);
+
 function normalizeDraft(input = {}) {
   const name = clean(input.name, ADDON_LIMITS.name);
   const description = clean(input.description, ADDON_LIMITS.description);
-  const code = cleanCode(input.code);
+  const kind = addonKind(input);
   if (!name) throw new AddonError("Дай име на добавката.");
+  if (kind === "skill") {
+    const instructions = cleanCode(input.instructions).trim();
+    if (!instructions) throw new AddonError("Напиши какво да прави Claude с това умение.");
+    if (instructions.length > ADDON_LIMITS.instructions) throw new AddonError("Умението е твърде дълго (до 8000 знака).");
+    return { kind, name, description, instructions };
+  }
+  if (kind === "connector") return { kind, name, description, mcpUrl: checkConnectorUrl(input.mcpUrl) };
+  const code = cleanCode(input.code);
   if (!code.trim()) throw new AddonError("Напиши кода на добавката.");
   if (code.length > ADDON_LIMITS.code) throw new AddonError("Кодът е твърде дълъг (до 20 000 знака).");
   if (!/\brun\s*(?:=|\()/u.test(code)) throw new AddonError("Кодът трябва да има функция run(input, data).");
-  return { name, description, code, dataUrl: checkDataUrl(input.dataUrl) };
+  return { kind, name, description, code, dataUrl: checkDataUrl(input.dataUrl) };
 }
 
 const publicView = (item) => ({
   id: item.id,
+  kind: addonKind(item),
   name: item.name,
   description: item.description,
-  code: item.code,
-  dataUrl: item.dataUrl,
+  code: item.code || "",
+  dataUrl: item.dataUrl || "",
+  instructions: item.instructions || "",
+  mcpUrl: item.mcpUrl || "",
   approvedAt: item.approvedAt || null,
   updatedAt: item.updatedAt || null,
 });
@@ -323,6 +356,9 @@ export function createAddonService({
   const mineOp = (key, items) => setOp(ADDON_COLLECTION, key, { items });
 
   async function execute(addon, input) {
+    if (addonKind(addon) !== "code") {
+      return { ok: false, error: "Това е умение или конектор за Claude. Ползвай го в „Работа с Claude“.", logs: [] };
+    }
     const text = String(input ?? "").slice(0, ADDON_LIMITS.input);
     let data = null;
     if (addon.dataUrl) {
@@ -393,10 +429,13 @@ export function createAddonService({
     catalog.pending.push({
       id: item.id,
       authorKey: key,
+      kind: addonKind(item),
       name: item.name,
       description: item.description,
-      code: item.code,
-      dataUrl: item.dataUrl,
+      code: item.code || "",
+      dataUrl: item.dataUrl || "",
+      instructions: item.instructions || "",
+      mcpUrl: item.mcpUrl || "",
       submittedAt: now(),
     });
     const next = items.map((row) => (row.id === id ? { ...row, status: "pending", reviewNote: "" } : row));
@@ -419,7 +458,7 @@ export function createAddonService({
     const items = await readByKey(entry.authorKey);
     // Only the version that was reviewed changes state; a newer draft stays.
     const next = items.map((row) =>
-      row.id === id && row.status === "pending" && row.code === entry.code && row.dataUrl === entry.dataUrl
+      row.id === id && row.status === "pending" && contentOf(row) === contentOf(entry)
         ? { ...row, status: approve ? "public" : "rejected", published: approve ? true : row.published, reviewNote }
         : row,
     );
@@ -475,6 +514,37 @@ export function createAddonService({
       const item = (await readCatalog()).pending.find((row) => row.id === id);
       if (!item) throw new AddonError("Няма такава добавка за преглед.", 404, "ADDON_NOT_PENDING");
       return execute(item, input);
+    },
+    // "Работа с Claude": the skills and connectors a person picked, from their
+    // own add-ons (any state) or from the store. Code add-ons are left out.
+    async forClaude(ownerId, ids = []) {
+      const wanted = [...new Set((Array.isArray(ids) ? ids : []).map(String))].slice(0, 20);
+      if (!wanted.length) return { skills: [], connectors: [] };
+      const mine = await readMine(ownerId);
+      const store = (await readCatalog()).public;
+      const pick = (id) => mine.find((row) => row.id === id) || store.find((row) => row.id === id);
+      const chosen = wanted.map(pick).filter(Boolean);
+      const skills = chosen.filter((row) => addonKind(row) === "skill");
+      const connectors = chosen.filter((row) => addonKind(row) === "connector");
+      if (skills.length > ADDON_LIMITS.claudeSkills) throw new AddonError("Избери до 5 умения наведнъж.");
+      if (connectors.length > ADDON_LIMITS.claudeConnectors) throw new AddonError("Избери до 3 конектора наведнъж.");
+      return {
+        skills: skills.map((row) => ({ name: row.name, instructions: row.instructions })),
+        connectors: connectors.map((row) => ({ name: row.name, url: row.mcpUrl })),
+      };
+    },
+    // What the Claude tab can offer: own and store skills and connectors.
+    async claudeChoices(ownerId) {
+      const mine = await readMine(ownerId);
+      const store = (await readCatalog()).public;
+      const seen = new Set();
+      const rows = [];
+      for (const [row, own] of [...mine.map((row) => [row, true]), ...store.map((row) => [row, false])]) {
+        if (addonKind(row) === "code" || seen.has(row.id)) continue;
+        seen.add(row.id);
+        rows.push({ id: row.id, kind: addonKind(row), name: row.name, description: row.description, own });
+      }
+      return rows;
     },
     // Account deletion: the person's add-ons and their store copies go.
     async clear(ownerId) {

@@ -644,5 +644,16 @@ YouTube не прие видеото. Опитай пак.|YouTube did not accep
 Таблица (Excel)|Spreadsheet (Excel)
 Задачата не е довършена докрай. Опитай с по-малка част.|The task was not fully finished. Try a smaller part.
 Claude работи по задачата. Може да отнеме до 3–4 минути…|Claude is working on the task. It can take up to 3–4 minutes…
+Умения и конектори от „Добавки“|Skills and connectors from “Add-ons”
+Умение за Claude|Skill for Claude
+Конектор за Claude (MCP)|Connector for Claude (MCP)
+Вид|Kind
+Умение: какво да прави Claude (инструкции)|Skill: what Claude should do (instructions)
+Адрес на конектора (MCP сървър, https)|Connector address (MCP server, https)
+Конектор|Connector
+Виж умението|See the skill
+Ползвай в Claude|Use with Claude
+умение|skill
+конектор|connector
 `.trim().split("\n").map((line) => line.split("|")),
 );

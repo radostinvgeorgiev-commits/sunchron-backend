@@ -124,10 +124,14 @@ export function startStubServer(port = 0) {
     if (p === "/api/claude-work") {
       let body = "";
       req.on("data", (chunk) => (body += chunk));
-      req.on("end", () => {
+      req.on("end", async () => {
         const skills = [{ id: "pptx", label: "Презентация (PowerPoint)" }, { id: "pdf", label: "PDF" }];
-        if (req.method === "GET") return json(res, { skills, files: claudeWorkFiles });
+        if (req.method === "GET") return json(res, { skills, addons: await addons.claudeChoices("robot"), files: claudeWorkFiles });
         const data = JSON.parse(body || "{}");
+        const picked = await addons.forClaude("robot", data.addons);
+        if (picked.skills.length) {
+          return json(res, { text: `Умения: ${picked.skills.map((skill) => skill.name).join(", ")}`, files: [], model: "claude-haiku-5-5" });
+        }
         const file = { id: "file_robot", name: "reklama.pptx", mimeType: "application/octet-stream", size: 5 };
         claudeWorkFiles = [file];
         return json(res, { text: `Готово: ${data.task} (${(data.skills || []).join(",")})`, files: [file], model: "claude-haiku-5-5" });

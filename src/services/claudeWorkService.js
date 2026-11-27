@@ -78,10 +78,29 @@ export function answerText(content) {
     .trim();
 }
 
-export function buildClaudeWorkRequest({ model, task, skills = [], webSearch = false, instructions = "", containerId = "" }) {
+// A person's own skills (add-ons of kind "skill") become plain instructions.
+export function skillInstructions(skills = []) {
+  return skills
+    .map((skill) => `## ${clean(skill.name, 60)}\n${clean(skill.instructions, 8000)}`)
+    .join("\n\n")
+    .slice(0, CLAUDE_WORK_LIMITS.instructions);
+}
+
+export function buildClaudeWorkRequest({
+  model,
+  task,
+  skills = [],
+  webSearch = false,
+  instructions = "",
+  connectors = [],
+  containerId = "",
+}) {
   const chosen = skills.filter((id) => Object.hasOwn(CLAUDE_WORK_SKILLS, id));
   const tools = [{ type: "code_execution_20260521", name: "code_execution" }];
   if (webSearch) tools.push({ type: "web_search_20250305", name: "web_search", max_uses: CLAUDE_WORK_LIMITS.webSearches });
+  // Connectors (MCP): Anthropic connects to them from its own servers.
+  const mcpServers = connectors.slice(0, 3).map((connector, index) => ({ type: "url", url: connector.url, name: `connector-${index + 1}` }));
+  for (const server of mcpServers) tools.push({ type: "mcp_toolset", mcp_server_name: server.name });
   const container = {
     ...(containerId ? { id: containerId } : {}),
     ...(chosen.length ? { skills: chosen.map((id) => ({ type: "anthropic", skill_id: id, version: "latest" })) } : {}),
@@ -91,9 +110,13 @@ export function buildClaudeWorkRequest({ model, task, skills = [], webSearch = f
     max_tokens: CLAUDE_WORK_LIMITS.maxTokens,
     system: instructions ? `${SYSTEM}\n\nДопълнителни умения, които човекът е избрал:\n${instructions}` : SYSTEM,
     tools,
+    ...(mcpServers.length ? { mcp_servers: mcpServers } : {}),
     ...(Object.keys(container).length ? { container } : {}),
   };
 }
+
+export const claudeWorkBetas = (body) =>
+  ["code-execution-2025-08-25", ...(body.mcp_servers ? ["mcp-client-2025-11-20"] : [])].join(",");
 
 async function describeError(response) {
   try {
@@ -137,6 +160,9 @@ export function createClaudeWorkService({ store, env = process.env, fetchImpl = 
     if (!apiKey()) throw new ClaudeWorkError("Claude не е конфигуриран.", 503, "CLAUDE_NOT_CONFIGURED");
     const skills = Array.isArray(input.skills) ? input.skills.map(String) : [];
     const instructions = clean(input.instructions, CLAUDE_WORK_LIMITS.instructions);
+    const connectors = (Array.isArray(input.connectors) ? input.connectors : [])
+      .filter((connector) => typeof connector?.url === "string" && connector.url.startsWith("https://"))
+      .slice(0, 3);
     const signal = AbortSignal.timeout(CLAUDE_WORK_LIMITS.timeoutMs);
     const messages = [{ role: "user", content: task }];
     const content = [];
@@ -145,14 +171,14 @@ export function createClaudeWorkService({ store, env = process.env, fetchImpl = 
     let stopReason = "";
     for (let step = 0; step <= CLAUDE_WORK_LIMITS.continuations; step++) {
       const body = {
-        ...buildClaudeWorkRequest({ model: usedModel, task, skills, webSearch: Boolean(input.webSearch), instructions, containerId }),
+        ...buildClaudeWorkRequest({ model: usedModel, task, skills, webSearch: Boolean(input.webSearch), instructions, connectors, containerId }),
         messages,
       };
       let response;
       try {
         response = await fetchImpl(`${API}/messages`, {
           method: "POST",
-          headers: headers({ "Content-Type": "application/json", "anthropic-beta": "code-execution-2025-08-25" }),
+          headers: headers({ "Content-Type": "application/json", "anthropic-beta": claudeWorkBetas(body) }),
           body: JSON.stringify(body),
           signal,
         });

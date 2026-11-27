@@ -322,7 +322,7 @@ app.use(
   "/api/claude-work",
   requireOwnerSession,
   paidAiRateLimiter,
-  createClaudeWorkRouter({ service: getClaudeWorkService() }),
+  createClaudeWorkRouter({ service: getClaudeWorkService(), addons: getAddonService() }),
 );
 app.use(
   "/api/daily-plan",

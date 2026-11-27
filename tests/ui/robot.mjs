@@ -287,6 +287,33 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect((await link.getAttribute("href")) === "/api/claude-work/files/file_robot", "връзката към файла е грешна");
     await box.locator(".share-close").click();
   });
+  await step(`${label}: умение за Claude се прави в „Добавки“ и се ползва в „Работа с Claude“`, async () => {
+    await openMine("addons");
+    const box = page.locator(".addon-dialog");
+    await box.waitFor({ state: "visible", timeout: 5000 });
+    await box.locator('[data-tab="mine"]').click();
+    await box.locator('.addon-editor [name="kind"]').selectOption("skill");
+    expect(await box.locator('.addon-editor [name="code"]').isHidden(), "кодът се вижда при умение");
+    const name = `Реклами ${label}`;
+    await box.locator('.addon-editor [name="name"]').fill(name);
+    await box.locator('.addon-editor [name="instructions"]').fill("Пиши кратки и весели реклами.");
+    await box.locator(".addon-save").click();
+    const row = box.locator(".addon-mine .addon-item", { hasText: name });
+    await row.waitFor({ timeout: 5000 });
+    await row.locator('[data-action="use-claude"]').click();
+    const pane = box.locator('[data-pane="claude"]');
+    await pane.waitFor({ state: "visible", timeout: 5000 });
+    const choice = pane.locator(".claude-work-addons label", { hasText: name }).locator("input");
+    await choice.waitFor({ timeout: 5000 });
+    expect(await choice.isChecked(), "умението не е избрано");
+    await pane.locator('[name="task"]').fill("Реклама");
+    await pane.locator(".claude-work-run").click();
+    await pane.locator(".claude-work-output").waitFor({ state: "visible", timeout: 8000 });
+    await page.waitForFunction(() => document.querySelector(".claude-work-output")?.textContent.startsWith("Умения:"), null, { timeout: 8000 });
+    expect((await pane.locator(".claude-work-output").innerText()).includes(name), "умението не стигна до Claude");
+    await row.locator('[data-action="delete"]').click().catch(() => null);
+    await box.locator(".share-close").click();
+  });
   await step(`${label}: запис от среща става обобщение и задачи`, async () => {
     await page.click("#attachBtn");
     const chooser = page.waitForEvent("filechooser", { timeout: 5000 });

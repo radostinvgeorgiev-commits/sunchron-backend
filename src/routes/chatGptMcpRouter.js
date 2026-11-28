@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import express from "express";
-import { validateMcpTransport } from "./mcpRouter.js";
+import { renameLegacyMcpTools, validateMcpTransport } from "./mcpRouter.js";
 import { MCP_PROTOCOL_VERSION } from "../services/mcpReadService.js";
 import {
   assertMcpGrantActive,
@@ -26,6 +26,14 @@ import {
 import { logSafeError } from "../utils/safeLogging.js";
 
 const widgetUri = "ui://novarium/workspace-v1.html";
+// Names and the widget address from before the rename to NovariumAI (#573),
+// for a ChatGPT app that still keeps the old tool list.
+export const LEGACY_CHATGPT_TOOL_NAMES = Object.freeze({
+  open_synchron_x_workspace: "open_novarium_workspace",
+  ask_synchron_x: "ask_novarium",
+  get_synchron_x_balance: "get_novarium_balance",
+});
+const widgetUris = new Set([widgetUri, "ui://synchron-x/workspace-v1.html"]);
 const widget = {
   uri: widgetUri,
   name: "NovariumAI workspace",
@@ -189,6 +197,7 @@ export function createChatGptMcpRouter({
   router.post(
     "/",
     (req, res, next) => validateMcpTransport(req, res, next, { env }),
+    renameLegacyMcpTools(LEGACY_CHATGPT_TOOL_NAMES),
     authenticate,
     async (req, res) => {
       const { id = null, method, params, jsonrpc } = req.body ?? {};
@@ -207,12 +216,13 @@ export function createChatGptMcpRouter({
       if (method === "tools/list") return reply({ tools });
       if (method === "resources/list") return reply({ resources: [widget] });
       if (method === "resources/read") {
-        if (params?.uri !== widgetUri)
+        if (!widgetUris.has(params?.uri))
           return failure(-32002, "Unknown resource.");
         return reply({
           contents: [
             {
               ...widget,
+              uri: params.uri,
               text: widgetHtml,
               _meta: {
                 ui: { csp: { resourceDomains: ["https://cloudaicore.com"] } },

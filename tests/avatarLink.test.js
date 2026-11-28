@@ -228,13 +228,19 @@ test("a shared line follows its memory through a correction, a replace and a del
     assert.equal(await t.knowledge(), "Работя от 9 до 17 ч.\nОбичам чай.\n• казвам се милена");
     await saveProfileMemory("Казвам се Милена", "test", "personal", "mila");
 
-    // The panel's own correction moves the line to the new words.
+    // A correction that changes the words takes the line out; the new words
+    // reach visitors only when the person shares them (third review). The
+    // same words in other capitals keep it.
     const phone = await saveProfileMemory("Телефонът ми е 0888 111 111", "test", "personal", "mila");
     await t.service.share("mila", { fact: phone.fact });
-    await updateProfileMemoryById(phone.id, "Телефонът ми е 0888 222 222", "personal", "mila");
+    const corrected = await updateProfileMemoryById(phone.id, "Телефонът ми е 0888 222 222", "personal", "mila");
     await t.service.ask(saved.token, { question: "Какъв е телефонът ти?" });
-    assert.match(t.asked(), /• Телефонът ми е 0888 222 222/u);
-    assert.doesNotMatch(t.asked(), /111 111/u);
+    assert.doesNotMatch(t.asked(), /0888/u);
+    assert.equal(await t.knowledge(), "Работя от 9 до 17 ч.\nОбичам чай.\n• Казвам се Милена");
+    await t.service.share("mila", { fact: corrected.fact });
+    await updateProfileMemoryById(corrected.id, "телефонът ми е 0888 222 222", "personal", "mila");
+    await t.service.ask(saved.token, { question: "Какъв е телефонът ти?" });
+    assert.match(t.asked(), /• телефонът ми е 0888 222 222/u);
 
     // „Забрави: …“ names the fact in other case and end mark; the panel deletes by id.
     await deleteProfileMemoryByFact("казвам се милена.", "personal", "mila");
@@ -309,6 +315,64 @@ test("a replace, a new topic or a hand-typed line never publishes a memory the p
     assert.doesNotMatch(await t.knowledge(), /шах/u);
     assert.equal(await t.knowledge(), "За мен:\n• живея в София\n• Обичам чай.");
     void home;
+  } finally {
+    t.done();
+  }
+});
+
+// Third review of #605: a correction through the connector or the panel never
+// publishes the new words, and no public line is left that no card shows.
+test("a correction takes the shared line out, and a split never leaves a hidden public line", async () => {
+  const t = await memoryWithAvatar("nina");
+  const { saveProfileMemory, updateProfileMemoryById, listProfileMemories } = t.memory;
+  const { prepareMemoryWrite, confirmMemoryWrite } = await import("../src/services/memoryWriteConfirmationService.js");
+  const { resetConfirmationsForTests } = await import("../src/services/confirmationService.js");
+  resetConfirmationsForTests();
+  const visitorsHear = async (token) => {
+    await t.service.ask(token, { question: "Разкажи ми за себе си." });
+    return t.asked();
+  };
+  try {
+    const saved = await t.service.save("nina", { name: "Нина", knowledge: "Работя от 9 до 17 ч." });
+    const home = await saveProfileMemory("Живея в София", "test", "personal", "nina");
+    await t.service.share("nina", { fact: home.fact });
+    assert.match(await visitorsHear(saved.token), /• Живея в София/u);
+
+    // The connector's prepare_memory_write with memoryId, then its confirmation
+    // (the panel's edit goes the same way).
+    const prepared = await prepareMemoryWrite({
+      sessionId: "nina-connector",
+      ownerId: "nina",
+      items: [{ fact: "Живея на ул. Шипка 12, ап. 4, София", scope: "personal" }],
+      replaceId: home.id,
+    });
+    const [updated] = await confirmMemoryWrite({
+      confirmationId: prepared.confirmationId,
+      sessionId: "nina-connector",
+      ownerId: "nina",
+    });
+    assert.equal(updated.replaced, true);
+    assert.equal(await t.knowledge(), "Работя от 9 до 17 ч.");
+    assert.doesNotMatch(await visitorsHear(saved.token), /Шипка|София/u);
+
+    // An edit whose words the drawer splits into two cards: nothing stays
+    // public, and both cards show as not shared.
+    const town = await saveProfileMemory("Казвам се Нина", "test", "personal", "nina");
+    await t.service.share("nina", { fact: town.fact });
+    await updateProfileMemoryById(town.id, "Казвам се Нина Петрова и живея във Варна", "personal", "nina");
+    assert.equal(await t.knowledge(), "Работя от 9 до 17 ч.");
+    assert.doesNotMatch(await visitorsHear(saved.token), /Петрова|Варна/u);
+
+    // The same words in other capitals that the drawer now splits: the line
+    // does not move to words no card shows.
+    const joined = await saveProfileMemory("работя като учител - обичам децата", "test", "personal", "nina");
+    await t.service.share("nina", { fact: joined.fact });
+    assert.match(await t.knowledge(), /• работя като учител - обичам децата/u);
+    await updateProfileMemoryById(joined.id, "работя като учител - Обичам децата", "personal", "nina");
+    const cards = (await listProfileMemories({ scope: "personal", ownerId: "nina" })).map((item) => item.fact);
+    assert.ok(!cards.includes("работя като учител - Обичам децата"), cards.join(" | "));
+    assert.equal(await t.knowledge(), "Работя от 9 до 17 ч.");
+    assert.doesNotMatch(await visitorsHear(saved.token), /учител|децата/u);
   } finally {
     t.done();
   }

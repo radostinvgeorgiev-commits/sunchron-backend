@@ -26,9 +26,8 @@ export function setFirestoreMemoryStoreForTests(store) {
 // #605): the avatar link listens here (server.js). Every change to the
 // person's memories is announced, by any path (the panel, „Запомни“,
 // „Забрави“, „Забрави всичко“, the connector), with the texts the memories
-// have now, so a shared line whose memory is gone leaves the visitors' text.
-// `renamed` names the words that moved: the panel's own correction, or the
-// same words in other capitals.
+// have now, so a shared line whose memory is gone or changed leaves the
+// visitors' text. `renamed` names only the same words in other capitals.
 let memoryChangeListener = null;
 
 export function setMemoryChangeListener(listener) {
@@ -43,8 +42,9 @@ function renamedPairs(from, to) {
   ];
 }
 
-// Every text a memory of this person has now: as stored, and as the memory
-// panel shows and shares it (a split or a joined card).
+// Every text a memory of this person has now, as stored and as the memory
+// panel shows and shares it (a split or a joined card), and apart the cards
+// alone: a line moves only to words a card shows (third review of #605).
 async function currentMemoryTexts(ownerId) {
   const hits = await fetchProfileHits(ownerId);
   const texts = new Set();
@@ -58,8 +58,9 @@ async function currentMemoryTexts(ownerId) {
     seenKeys.add(memory.memoryKey);
     memories.push(memory);
   }
-  for (const memory of consolidateMemoryView(memories)) texts.add(memory.fact);
-  return [...texts];
+  const cards = consolidateMemoryView(memories).map((memory) => memory.fact);
+  for (const fact of cards) texts.add(fact);
+  return { texts: [...texts], cards };
 }
 
 async function announceMemoryChange(ownerId, renamed = []) {
@@ -381,6 +382,16 @@ const WAIT_FOR_MEMORY_CONFIRMATION = new RegExp(
     String.raw`chiedimi\s+prima|aspetta\s+(?:la\s+)?(?:mia\s+)?conferma`,
     String.raw`nu\s+(?:o\s+|îl\s+|il\s+|le\s+|i\s+)?(?:salva|memora|[îi]nregistra)`,
     String.raw`[îi]ntreab[ăa]-?m[ăa]\s+(?:mai\s+)?[îi]nt[âa]i|a[șşs]teapt[ăa]\s+confirmarea`,
+    // By meaning, in any form (review of #605): confirming, approving, being
+    // asked or shown first, waiting. A real fact with one of these words only
+    // gets the one-time confirmation.
+    String.raw`потвърд|одобр|(?:^|[^\p{L}])(?:по)?питай(?:те)?(?:[^\p{L}]|$)|(?:^|[^\p{L}])(?:по|из)?чакай(?:те)?(?:[^\p{L}]|$)|покажи(?:\s+ми)?\s+какво`,
+    String.raw`confirm|approv|ask\s+me|until\s+I(?:[^\p{L}]|$)|(?:^|[^\p{L}])wait(?:[^\p{L}]|$)|show\s+me\s+what|let\s+me\s+(?:check|see|look)`,
+    String.raw`best[äa]tig|frag\p{L}*\s+mich|(?:^|[^\p{L}])wart(?:e|et)(?:[^\p{L}]|$)|zeig\p{L}*\s+mir`,
+    String.raw`pregunt|apruebo|aprobaci|aprueba|mu[ée]strame`,
+    String.raw`demande|(?:^|[^\p{L}])attend(?:s|ez)(?:[^\p{L}]|$)|montre[\s-]moi`,
+    String.raw`chied|conferm|aspett|mostrami|approva`,
+    String.raw`[îi]ntreab|a[șşs]teapt|arat[ăa]-?mi|aprob`,
   ].join("|"),
   "iu",
 );
@@ -406,16 +417,26 @@ const ABBREVIATION_END =
 // rest of the message is never stored as part of the fact.
 function hasSecondSentence(fact) {
   const text = String(fact || "");
+  // Where the next word starts; it only moves forward, so the check stays
+  // linear on long text.
+  const word = /[\p{L}\p{N}]/gu;
+  let nextWord = -1;
   for (const match of text.matchAll(/[.!?…]+/gu)) {
     const end = match.index + match[0].length;
-    const after = text.slice(end);
-    const gap = after.match(/^\s*/u)[0];
-    const next = after.slice(gap.length).replace(/^[„“"'’«»(\[]+/u, "")[0];
-    // The end of the fact, or only closing marks or a smiley after it.
-    if (!next || !/[\p{L}\p{N}]/u.test(next)) continue;
+    if (nextWord < end) {
+      word.lastIndex = end;
+      nextWord = word.exec(text)?.index ?? Infinity;
+    }
+    // The end of the fact, or only closing marks after it.
+    if (nextWord === Infinity) break;
+    // Only spaces, quotes and brackets may stand between the mark and the
+    // next word; a dash, a star or a smiley there starts another sentence.
+    const between = text.slice(end, nextWord);
+    if (/[^\s„“”"'‘’«»()[\]]/u.test(between)) return true;
+    const next = String.fromCodePoint(text.codePointAt(nextWord));
     if (match[0] !== ".") return true;
     const before = text.slice(0, end);
-    if (!gap) {
+    if (!/\s/u.test(between)) {
       // „1.5“, „28.11.2026“, „novariumai.com“, „p.m.“ go on; „чай.Провери“ does not.
       if (/\p{Lu}/u.test(next)) return true;
       continue;
@@ -433,19 +454,39 @@ function hasSecondSentence(fact) {
 // A second command inside the fact („… „Сменихме сметката. Запомни: …““).
 const NESTED_MEMORY_COMMAND =
   /(?:^|[^\p{L}])(?:запомни|запази|remember|merken|merk\s+dir|recordar|recuerda|retenir|retiens|ricorda|ricordare|[țţt]ine\s+minte)\s*(?::|,?\s+(?:че|that|dass|que|che|că|ca)\s)/iu;
-// A request joined to the fact („…, и ми кажи какво е времето утре“).
+// A request to the assistant: a verb that asks for something, or a question
+// to it („можеш ли“, „can you“).
+const REQUEST =
+  String.raw`(?:(?:и|а|но|после|само|просто|моля|and|then|but|just|only|please)[\s,]+)?(?:(?:ми|ни|me|us)\s+)?(?:(?:кажи|провери|покажи|изпрати|прати|прочети|направи|напиши|намери|потърси|търси|пусни|отвори|създай|добави|изтрий|tell|show|check|send|read|make|write|find|search|open|create|add|delete)(?=[\s,.!?]|$)|(?:можеш|може|би)\s+ли(?=[\s,]|$)|(?:can|could|would|will)\s+you(?=[\s,]|$))`;
+// A request joined to the fact („…, и ми кажи какво е времето утре“, „… -
+// провери пощата ми“).
 const REQUEST_IN_FACT = new RegExp(
-  String.raw`(?:[,;]\s*|\s+(?:и|а|но|после|след\s+това|and|then|but)\s+)(?:(?:и|а|но|после|and|then|but)\s+)?(?:(?:ми|ни|me|us)\s+)?(?:кажи|провери|покажи|изпрати|прати|прочети|направи|напиши|намери|потърси|търси|пусни|отвори|създай|добави|изтрий|tell|show|check|send|read|make|write|find|search|open|create|add|delete)(?=[\s,.!?]|$)`,
+  String.raw`(?:[,;]\s*|\s+-\s+|\s+(?:и|а|но|после|след\s+това|and|then|but)\s+)${REQUEST}`,
+  "iu",
+);
+// A list item that is itself a request or a question („Запомни следното:
+// обичам чай; провери пощата ми“).
+const REQUEST_AT_START = new RegExp(
+  String.raw`^(?:${REQUEST}|(?:какво|кога|къде|кой|коя|кое|кои|как|защо|колко|дали|what|when|where|who|which|how|why|whether)(?=[\s,]|$))`,
   "iu",
 );
 // A list line: a dash, a bullet or a number („- …“, „• …“, „2. …“).
 const LIST_ITEM = /^(?:[-*•]|\d+[.)])\s+\S/u;
+// The marks a plain fact uses: letters, digits, spaces and the punctuation of
+// an ordinary sentence, a name, an address, a date, a price or an e-mail. A
+// question mark, „¿“ or „¡“, a smiley, a dash other than the hyphen, a star,
+// a zero-width or full-width mark, a tab or a line separator keeps the
+// one-time confirmation (review of #605): what such a mark hides is never
+// written as part of the fact. Only a list of facts on one line uses „;“.
+const PLAIN_FACT_TEXT = /^[\p{L}\p{M}\p{N} ,.:!…'‘’"„“”«»()/@#%&+=№€$£°_-]+$/u;
+const PLAIN_LIST_TEXT = /^[\p{L}\p{M}\p{N} ,.:;!…'‘’"„“”«»()/@#%&+=№€$£°_-]+$/u;
 
 function isPlainMemoryFact(fact) {
   return (
     !hasSecondSentence(fact) &&
     !NESTED_MEMORY_COMMAND.test(fact) &&
-    !REQUEST_IN_FACT.test(fact)
+    !REQUEST_IN_FACT.test(fact) &&
+    !REQUEST_AT_START.test(fact)
   );
 }
 
@@ -476,7 +517,13 @@ export function isOwnMemoryCommand(message) {
       .split(/\n+/u)
       .map((line) => line.trim())
       .filter(Boolean);
-    if (lines.length > 1 && !lines.every((line) => LIST_ITEM.test(line))) {
+    if (lines.length > 1) {
+      if (!lines.every((line) => LIST_ITEM.test(line))) return false;
+      const items = lines.map((line) =>
+        line.replace(/^(?:[-*•]|\d+[.)])\s+/u, ""),
+      );
+      if (!items.every((item) => PLAIN_FACT_TEXT.test(item))) return false;
+    } else if (!PLAIN_LIST_TEXT.test(body)) {
       return false;
     }
     judged = splitMemoryFacts(body).map((fact) => ({ fact, scope: bulk.scope }));
@@ -484,7 +531,7 @@ export function isOwnMemoryCommand(message) {
     const single = extractPersistentMemoryCommand(text);
     if (!single) return false;
     const body = text.replace(/^[^\n]*?(?::|,?\s+че\s)\s*/u, "");
-    if (body.includes("\n")) return false;
+    if (!PLAIN_FACT_TEXT.test(body)) return false;
     judged = [single];
   }
   if (
@@ -860,10 +907,17 @@ export async function updateProfileMemoryById(
     data: body,
     deleteIds: nextId === cleanId ? [] : [cleanId],
   });
-  // The panel's own correction moves a shared line to the new words. A memory
-  // the edit overwrote (another one with the new words' topic) is gone, so its
-  // line leaves the visitors' text.
-  await announceMemoryChange(ownerId, renamedPairs(existing.fact, cleanFact));
+  // A correction that changes the words, in the panel or through the
+  // connector, takes a shared line out: the new words reach visitors only
+  // when the person shares them (third review of #605). The same words in
+  // other capitals keep it. A memory the edit overwrote (another one with the
+  // new words' topic) is gone, so its line leaves too.
+  await announceMemoryChange(
+    ownerId,
+    normalizeFact(existing.fact || "") === normalizedFact
+      ? renamedPairs(existing.fact, cleanFact)
+      : [],
+  );
   return {
     id: nextId,
     fact: cleanFact,

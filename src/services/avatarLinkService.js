@@ -213,27 +213,31 @@ export function createAvatarLinkService({
 
   // A shared memory follows its memory. memoryService announces every change
   // and can list the texts the person's memories have now. A line that
-  // „Сподели“ put in stays only while a memory still has its words. When the
-  // person corrects that memory in the panel, or the same words come back in
-  // other capitals, the line takes the new words. A replace by a new
-  // „Запомни“, a delete or „Забрави всичко“ takes the line out, and a new
-  // fact is shared only when the person shares it. Lines typed by hand are
-  // never touched. Returns whether the text changed.
+  // „Сподели“ put in stays only while a memory still has its words. Only the
+  // same words in other capitals move it, and only to words a card in the
+  // memory panel shows. A correction (in the panel or through the
+  // connector), a replace by a new „Запомни“, a delete or „Забрави всичко“
+  // takes the line out, and the new words reach visitors only when the
+  // person shares them (third review of #605). Lines typed by hand are never
+  // touched. Returns whether the text changed.
   async function followMemory(ownerId, { renamed = [], currentTexts } = {}) {
     const key = ownerKey(ownerId);
     const previous = await db().get(AVATAR_LINK_COLLECTION, key);
     const card = normalizeAvatarCard(previous?.data || {});
     const tracked = trackedLines(previous, card.knowledge);
     if (!tracked.length) return false;
-    const texts = typeof currentTexts === "function" ? await currentTexts() : [];
-    const current = new Set((Array.isArray(texts) ? texts : []).map(sharedFactLine).filter(Boolean));
+    const found = typeof currentTexts === "function" ? await currentTexts() : [];
+    const texts = Array.isArray(found) ? found : Array.isArray(found?.texts) ? found.texts : [];
+    const cards = Array.isArray(found?.cards) ? found.cards : texts;
+    const current = new Set(texts.map(sharedFactLine).filter(Boolean));
+    const shown = new Set(cards.map(sharedFactLine).filter(Boolean));
     const stale = new Set(tracked.filter((line) => !current.has(line)));
     if (!stale.size) return false;
     const moves = new Map();
     for (const pair of Array.isArray(renamed) ? renamed : []) {
       const from = sharedFactLine(pair?.from);
       const to = sharedFactLine(pair?.to);
-      if (stale.has(from) && current.has(to) && !moves.has(from)) moves.set(from, to);
+      if (stale.has(from) && shown.has(to) && !moves.has(from)) moves.set(from, to);
     }
     const lines = card.knowledge.split("\n");
     const next = [];

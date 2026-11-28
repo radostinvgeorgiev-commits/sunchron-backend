@@ -2558,6 +2558,9 @@ async function handleDataDrawerAction(event) {
       state.memoryItems = state.memoryItems.map((candidate) =>
         candidate.id === item.id ? updated.items[0] : candidate,
       );
+      // Drawn again before the avatar refresh: „Сподели“ finds its card by
+      // place in the list, so the buttons must match the list right away.
+      renderMemoryItems();
       await refreshAvatarLink();
       renderMemoryItems();
       logAction("Редактиран е потвърден спомен");
@@ -2619,6 +2622,10 @@ async function handleDataDrawerAction(event) {
     state.memoryItems = state.memoryItems.filter(
       (candidate) => candidate.id !== item.id,
     );
+    // Drawn again before the avatar refresh: „Сподели“ finds its card by
+    // place in the list, so a press on a card below the deleted one never
+    // shares the next card.
+    renderMemoryItems();
     await refreshAvatarLink();
     renderMemoryItems();
     logAction("Изтрит е потвърден спомен");

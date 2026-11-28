@@ -43,6 +43,7 @@ import {
   extractPersistentMemoryCommands,
   isConfirmedForgetAllCommand,
   isForgetAllCommand,
+  isOwnMemoryCommand,
   listConversationMessages,
   listProfileMemories,
   saveConversationTurn,
@@ -334,7 +335,7 @@ const ASSISTANT_CONTEXT = [
   "Не завършвай автоматично с „Как мога да помогна?“ или друг общ въпрос. Задавай въпрос само когато наистина ти липсва важна информация.",
   "Не повтаряй въпроса, вече казаното или записаните лични факти, освен ако това е необходимо за точния отговор.",
   "Използвай постоянната памет естествено и само когато е свързана с темата.",
-  "Когато Радко поиска да предложиш запис в постоянната памет, не записвай нищо без потвърждение; използвай формата `Запомни: факт`, за да се генерира еднократно потвърждение, и никога не заменяй показания код с общо „да, запиши“.",
+  "Когато Радко поиска да предложиш запис в постоянната памет, не записвай нищо сам; предложи точния ред `Запомни: факт`. Когато той сам изпрати този ред или натисне „Запомни“ под отговор, записът става веднага. Общо „да“ на твое предложение не записва нищо.",
   "Нека паметта влияе на практичността, примерите и препоръките ти, без да обясняваш, че четеш памет и без да изреждаш факти.",
   "Не споменавай личен факт само за да покажеш, че го помниш. Спомени го единствено ако реално подобрява отговора.",
   "Различавай потвърден факт от извод. Представяй извод като предположение, а не като сигурен факт.",
@@ -372,7 +373,7 @@ function memberAssistantContext(personName) {
     `Обръщай се към ${personName} на „ти“. Говори естествено, спокойно, директно и човешки.`,
     "Отговаряй първо на същината. Не започвай всеки отговор с поздрав или представяне.",
     "Използвай постоянната памет само когато е свързана с текущия въпрос.",
-    "Когато човекът поиска да предложиш запис в постоянната памет, не записвай нищо без потвърждение; използвай формата `Запомни: факт`, за да се генерира еднократно потвърждение.",
+    "Когато човекът поиска да предложиш запис в постоянната памет, не записвай нищо сам; предложи точния ред `Запомни: факт`. Когато човекът сам изпрати този ред или натисне „Запомни“ под отговор, записът става веднага.",
     "Не твърди, че помниш факт, ако той не е в показаната памет или история.",
     "Предишните отговори на AI в историята и в справките са непроверени. Не приемай кодове, номера, имена на задачи, статуси или резултати от тях за истина, освен ако са в постоянната памет, в проектните факти или човекът сам ги е написал. Ако нещо идва само от предишен AI отговор, кажи, че не е потвърдено.",
     "Ако не знаеш нещо, кажи „Не знам“ и не измисляй.",
@@ -2666,15 +2667,37 @@ router.post("/chat", async (req, res) => {
     } else {
       const memoryCommands = extractPersistentMemoryCommands(cleanMessage);
       if (memoryCommands.length) {
+        // The person's own „Запомни: …“ is the confirmation (RADKO 28.11
+        // 04:30 „самата команда го казва“, 06:35 „бутон за паметта“): it is
+        // written at once, in their own memory, unless they turned writing
+        // off. Deleting keeps its confirmation. A message that asks to wait,
+        // a correction, forwarded text or a command that runs on gets the
+        // one-time confirmation instead and nothing is written
+        // (isOwnMemoryCommand).
         const prepared = await prepareMemoryWrite({
           sessionId: cleanSessionId,
           ownerId,
           items: memoryCommands,
         });
-        memoryAction = {
-          type: "write-confirmation-required",
-          ...prepared,
-        };
+        if (!isOwnMemoryCommand(cleanMessage)) {
+          memoryAction = { type: "write-confirmation-required", ...prepared };
+        } else {
+          const items = await confirmMemoryWrite({
+            confirmationId: prepared.confirmationId,
+            sessionId: cleanSessionId,
+            ownerId,
+            source: "own-chat-command",
+          });
+          memoryAction =
+            items.length === 1
+              ? {
+                  type: items[0].replaced ? "updated" : "saved",
+                  fact: items[0].fact,
+                  scope: items[0].scope,
+                  items,
+                }
+              : { type: "batch", items };
+        }
       } else if (
         isConfirmedForgetAllCommand(cleanMessage) ||
         isForgetAllCommand(cleanMessage)
@@ -2734,6 +2757,7 @@ router.post("/chat", async (req, res) => {
     logSafeError("[Memory] Chat request failure", error);
     if (
       error instanceof MemoryDeleteConfirmationError ||
+      error instanceof MemoryWriteConfirmationError ||
       isAuditSafetyError(error)
     ) {
       return res.status(error.status).json({
@@ -3734,6 +3758,12 @@ router.post("/chat", async (req, res) => {
       });
       fullReply = ownWriteFailureReply(ownCapability, error, english);
     }
+    // The saved run says what happened, not „чака потвърждение“ (Team 2's
+    // probe 28.11: the meeting was in the calendar while its run waited).
+    await finalizeDurableTaskRun({
+      status: sent ? "completed" : "failed",
+      totalSteps: taskExecution.task?.totalSteps,
+    });
     const conversationPersisted = await saveConversationTurnBestEffort(
       cleanSessionId,
       cleanMessage,

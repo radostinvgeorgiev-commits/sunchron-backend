@@ -7,7 +7,7 @@
 - [Home and sign-up](https://novariumai.com/): what NovariumAI does and how to start for free
 - [Plans](https://novariumai.com/plans): free daily chat, AI units for heavier work, no automatic extra charges
 - [Help](https://novariumai.com/help): how to use the avatar, memory, tasks and connections
-- [Developers](https://novariumai.com/developers): MCP server at https://cloudaicore.com/mcp with OAuth, for Claude and other AI clients
+- [Developers](https://novariumai.com/developers): MCP server at https://novariumai.com/mcp with OAuth, for Claude and other AI clients
 - [Status](https://novariumai.com/status): live service status
 
 ## Key facts

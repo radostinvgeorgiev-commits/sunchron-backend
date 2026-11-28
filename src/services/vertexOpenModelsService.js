@@ -1,13 +1,18 @@
 import { createGoogleAuthClient } from "./googleAdcAuth.js";
 import { resolveVertexAiConfig } from "./vertexAiGeminiService.js";
 
+// The self-test's question: one plain order to write the number. „Отговори
+// само с числото …“ was read as a question by Grok, which answered „Не.“
+// (self-test 28.11.2026).
+export const selfTestNumberQuestion = (marker) => `Напиши само числото ${marker} и нищо друго.`;
+
 // Open models (Llama, DeepSeek, Qwen, gpt-oss…) that Google serves in Vertex
 // AI Model Garden and bills to the owner's Google Cloud project. They share
 // one OpenAI-style endpoint; each model lives in its own regions, so every
 // entry lists where to try it, first one first.
+// Llama 4 Maverick and Scout answer NOT_FOUND in this project in every
+// region (self-test 28.11.2026), so they are not tried.
 export const VERTEX_OPEN_MODEL_CANDIDATES = Object.freeze([
-  { model: "meta/llama-4-maverick-17b-128e-instruct-maas", label: "Llama 4 Maverick", locations: ["us-east5", "global"] },
-  { model: "meta/llama-4-scout-17b-16e-instruct-maas", label: "Llama 4 Scout", locations: ["us-east5", "global"] },
   { model: "deepseek-ai/deepseek-v4.1-flash-maas", label: "DeepSeek V4.1 Flash", locations: ["global"] },
   { model: "openai/gpt-oss-120b-maas", label: "gpt-oss 120B", locations: ["global", "us-central1"] },
   { model: "google/gemma-4-26b-a4b-it-maas", label: "Gemma 4 26B", locations: ["global"] },
@@ -149,7 +154,7 @@ export async function probeVertexOpenModels({
             env,
             model,
             location,
-            input: [{ role: "user", content: `Отговори само с числото ${marker}.` }],
+            input: [{ role: "user", content: selfTestNumberQuestion(marker) }],
             maxTokens: 200,
             timeoutMs: Math.min(DEFAULT_TIMEOUT_MS, left - 1_000),
           });

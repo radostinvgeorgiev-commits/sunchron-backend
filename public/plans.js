@@ -28,6 +28,56 @@ void plansLocale.ready.then(() => {
   const usageStatus = document.getElementById("usage-status");
   const paymentStatus = document.getElementById("payment-status");
   let catalog = null;
+  // Example prices only: no button, no checkout (РАДКО 28.11.2026).
+  function renderAppSubscriptions(offer) {
+    const list = document.getElementById("app-subscription-list");
+    if (!list) return;
+    const items = Array.isArray(offer?.items) ? offer.items : [];
+    if (!items.length) {
+      list.textContent = plansText("Примерните цени не се заредиха. Опитай пак.");
+      return;
+    }
+    const money = new Intl.NumberFormat(plansLocale.browserLocale, {
+      style: "currency",
+      currency: offer.currency || "EUR",
+    });
+    const line = (tag, className, text) => {
+      const element = document.createElement(tag);
+      if (className) element.className = className;
+      element.textContent = text;
+      return element;
+    };
+    list.replaceChildren(
+      ...items.map((item) => {
+        const card = document.createElement("article");
+        card.className = "plan app-subscription";
+        card.append(
+          line("h3", "", item.app),
+          line("p", "app-subscription-maker", item.maker),
+          line(
+            "p",
+            "",
+            plansText("Цена на приложението: {price} на месец", {
+              price: money.format(item.baseCents / 100),
+            }),
+          ),
+          line(
+            "p",
+            "plan-price",
+            plansText("При нас: {price} на месец", {
+              price: money.format(item.priceCents / 100),
+            }),
+          ),
+          line(
+            "p",
+            "app-subscription-note",
+            plansText("Примерна цена · още не се продава"),
+          ),
+        );
+        return card;
+      }),
+    );
+  }
   async function refreshUsage() {
     usageStatus.textContent = plansText("Проверка на потреблението…");
     try {
@@ -61,6 +111,7 @@ void plansLocale.ready.then(() => {
       const r = await fetch("/api/product/plans", { cache: "no-store" });
       if (!r.ok) throw new Error();
       catalog = await r.json();
+      renderAppSubscriptions(catalog.appSubscriptions);
       paymentStatus.textContent = catalog.paymentsEnabled
         ? plansText(
             "Плащане с карта чрез Stripe. Пакетът се активира след потвърждение от платежния оператор.",
@@ -78,6 +129,7 @@ void plansLocale.ready.then(() => {
       paymentStatus.textContent = plansText(
         "Не можем да проверим плащанията. Опитай по-късно.",
       );
+      if (!catalog) renderAppSubscriptions(null);
     }
   }
   document

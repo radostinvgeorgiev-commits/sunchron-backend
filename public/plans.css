@@ -300,3 +300,15 @@ button:disabled {
     margin-bottom: 0.65rem;
   }
 }
+.app-subscription-grid {
+  margin-top: 1rem;
+}
+.app-subscription h3,
+.app-subscription p {
+  margin: 0;
+}
+.app-subscription-maker,
+.app-subscription-note {
+  font-size: 0.9rem;
+  color: #5b5875;
+}

@@ -508,7 +508,7 @@ AI Council събира мнения от избраните двигатели 
 Потребителските идентификатори и правата се определят на сървъра. Нов профил е|The server determines user IDs and permissions. New accounts have the role
 . Чужди данни, инфраструктурни операции и инструменти на собственика не са част от публичния достъп.|. Public access excludes other users' data, infrastructure operations, and owner tools.
 Крайна точка:|Endpoint:
-. Поддържа JSON-RPC през HTTP и OAuth за защитените инструменти. Публичното откриване на каталога не дава право за изпълнение на частните инструменти.|. Supports JSON-RPC over HTTP and OAuth for protected tools. Discovering the public catalog does not grant permission to run private tools.
+. Поддържа JSON-RPC през HTTP и OAuth. Адресът иска вход още от първата заявка, така че и списъкът с инструменти е само след вход.|. Supports JSON-RPC over HTTP and OAuth. The address asks for sign-in from the first request, so even the tool list needs sign-in.
 Следвай|See
 и описанието на OAuth ресурса за защитени заявки. Някои инструменти са само за собственика. Потребителският пакет не разширява OAuth правата и не предоставя платен външен MCP API.|and the OAuth resource description for protected requests. Some tools are owner-only. Member packages do not expand OAuth permissions or include a paid external MCP API.
 Достъп и резултат|Access and result
@@ -583,7 +583,7 @@ Google временно не е достъпен.|Google is temporarily unavaila
 Календарът ми|My calendar
 Прекъсни връзката|Disconnect
 Връзката с Google не се прекъсна. Опитай отново.|Google was not disconnected. Try again.
-Google е свързан. В разговора можеш да питаш за календара и контактите си, да добавяш събития и контакти и да пращаш имейли. Нищо не се записва и не се изпраща без твоето „Потвърди“.|Google is connected. In the chat you can ask about your calendar and contacts, add events and contacts, and send emails. Nothing is saved or sent until you press Confirm.
+Google е свързан. В разговора можеш да питаш за пощата, календара и контактите си, да добавяш събития и контакти и да пращаш имейли. Събитие, контакт и имейл до адрес, който сам напишеш, стават веднага с твоите думи. Писмо местиш в кошчето от панела Gmail с второ натискане.|Google is connected. In the chat you can ask about your mail, calendar and contacts, add events and contacts, and send emails. An event, a contact and an email to an address you type yourself happen at once from your words. You move a letter to the bin from the Gmail panel with a second press.
 Файловете ти в Drive не се виждат. „Запази в Google“ под отговор прави документ, до който NovariumAI има достъп.|NovariumAI cannot see your Drive files. “Save to Google” under an answer creates a document that NovariumAI can access.
 Свържи Google отново|Connect Google again
 Анализирам…|Analyzing…
@@ -675,7 +675,7 @@ AI задача|AI task
 Натисни „Add custom connector“, име: NovariumAI.|Click “Add custom connector” and name it NovariumAI.
 Постави адреса отгоре и натисни „Connect“.|Paste the address above and click “Connect”.
 Постави адреса отгоре.|Paste the address above.
-В „Advanced settings“ въведи Client ID: synchron-claude. Client secret остава празно.|In “Advanced settings”, enter Client ID: synchron-claude. Leave Client secret empty.
+В „Advanced settings“ въведи Client ID: novariumai-claude. Client secret остава празно.|In “Advanced settings”, enter Client ID: novariumai-claude. Leave Client secret empty.
 Натисни „Connect“, влез с този профил и натисни „Разреши“.|Click “Connect”, sign in with this account and click “Allow”.
 Влез с този профил и натисни „Разреши“.|Sign in with this account and click “Allow”.
 Отвори ChatGPT → Settings → Apps & Connectors.|Open ChatGPT → Settings → Apps & Connectors.
@@ -965,6 +965,44 @@ NovariumAI — твоят личен AI аватар|NovariumAI — your persona
 Личен AI аватар|Personal AI avatar
 Профил|Account
 Език|Language
+Абонаменти за приложенията ти|Subscriptions for your apps
+Приложенията, които ползваш със свой профил, събрани на едно място. Цените са примерни: цената на самото приложение плюс 10%. Още нищо не се продава и не се таксува.|The apps you use with your own profile, in one place. The prices are examples: the app's own price plus 10%. Nothing is sold or charged yet.
+Зареждам примерните цени…|Loading the example prices…
+Примерните цени не се заредиха. Опитай пак.|The example prices did not load. Try again.
+Цена на приложението: {price} на месец|The app's own price: {price} a month
+При нас: {price} на месец|With us: {price} a month
+Примерна цена · още не се продава|Example price · not on sale yet
+Запомни|Remember
+Запомням…|Remembering…
+Запомних: {fact}|Remembered: {fact}
+Какво да запомня|What to remember
+Отказ|Cancel
+Не можах да го запомня. Опитай пак.|I could not remember it. Try again.
+Сподели и с „Питай моя аватар“|Also share with “Ask my avatar”
+Сподели с аватара|Share with the avatar
+Спри споделянето с аватара|Stop sharing with the avatar
+Сподели с „Питай моя аватар“|Share with “Ask my avatar”
+Споделено с „Питай моя аватар“. Натисни, за да го махнеш.|Shared with “Ask my avatar”. Press to take it back.
+Споделих го с „Питай моя аватар“.|I shared it with “Ask my avatar”.
+Добавих го в текста за „Питай моя аватар“; линкът ти още не е пуснат.|I added it to the “Ask my avatar” text; your link is not on yet.
+Споделянето не стана. Опитай пак.|Sharing did not work. Try again.
+Запомнен е факт от отговор|A fact from an answer was remembered
+Спомен е споделен с „Питай моя аватар“|A memory was shared with “Ask my avatar”
+Спомен е махнат от „Питай моя аватар“|A memory was taken off “Ask my avatar”
+Това е всичко, което NovariumAI помни за теб. Нищо не се записва без твое „да“, а всеки запис можеш да поправиш, изтриеш или споделиш с „Питай моя аватар“.|This is everything NovariumAI remembers about you. Nothing is saved without your “yes”, and you can correct, delete or share any entry with “Ask my avatar”.
+NovariumAI никога не запомня сам. Записва само когато кажеш „Запомни: …“ или натиснеш „Запомни“ под отговор. Можеш и напълно да забраниш записването.|NovariumAI never remembers on its own. It saves only when you say “Remember: …” or press “Remember” under an answer. You can also turn saving off completely.
+Само когато кажа|Only when I say so
+Не записвай|Don't save
+Правило за запомняне|Memory rule
+Споделено с „Питай моя аватар“|Shared with “Ask my avatar”
+„В кошчето“ мести писмото в кошчето на Gmail след второ натискане. Там стои 30 дни.|“Move to bin” moves the letter to the Gmail bin after a second press. It stays there for 30 days.
+В кошчето|Move to bin
+Да, в кошчето|Yes, move to bin
+Местя писмото…|Moving the letter…
+Писмото е в кошчето на Gmail. Там стои 30 дни.|The letter is in the Gmail bin. It stays there for 30 days.
+Писмото не беше преместено.|The letter was not moved.
+Разреши Gmail|Allow Gmail
+Преместването в кошчето иска още едно разрешение за Gmail.|Moving a letter to the bin needs one more Gmail permission.
 Как работи|How it works
 Специалисти|Specialists
 Цени|Pricing

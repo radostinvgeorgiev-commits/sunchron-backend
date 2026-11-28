@@ -45,6 +45,29 @@ function ownerKey(ownerId) {
   return `owner-${createHash("sha256").update(ownerId).digest("hex").slice(0, 40)}`;
 }
 
+// A remembered fact the person shares with their avatar: one line of the
+// visitors' text (RADKO 28.11 06:35 „бутон за паметта и за споделяне, ако
+// иска“). Memory facts are at most 500 characters.
+export const SHARED_FACT_LIMIT = 500;
+export function sharedFactLine(fact) {
+  const text = clean(fact, SHARED_FACT_LIMIT);
+  return text ? `• ${text}` : "";
+}
+
+// The lines that „Сподели“ put in the visitors' text, as they stand now.
+// Only these follow the memory; a line the person typed or changed by hand
+// is theirs and is never touched.
+function trackedLines(row, knowledge) {
+  const present = new Set(
+    String(knowledge || "")
+      .split("\n")
+      .map((entry) => entry.trim())
+      .filter(Boolean),
+  );
+  const list = Array.isArray(row?.data?.sharedLines) ? row.data.sharedLines : [];
+  return [...new Set(list.filter((line) => typeof line === "string" && present.has(line)))];
+}
+
 export function normalizeAvatarCard(value = {}) {
   return {
     name: clean(value.name, AVATAR_LINK_LIMITS.name),
@@ -118,8 +141,9 @@ export function createAvatarLinkService({
     const token = isAvatarLinkToken(previous?.data?.token) ? previous.data.token : newToken();
     const existing = await db().get(AVATAR_LINK_COLLECTION, token);
     const createdAt = previous?.data?.createdAt || new Date(now()).toISOString();
+    const sharedLines = trackedLines(previous, card.knowledge);
     await db().commitOperations([
-      { type: "set", collection: AVATAR_LINK_COLLECTION, id: key, data: { token, ...card, createdAt } },
+      { type: "set", collection: AVATAR_LINK_COLLECTION, id: key, data: { token, ...card, sharedLines, createdAt } },
       {
         type: "set",
         collection: AVATAR_LINK_COLLECTION,
@@ -128,6 +152,115 @@ export function createAvatarLinkService({
       },
     ]);
     return status(ownerId);
+  }
+
+  // Writes the card under the person and, while the link runs, under the link
+  // too, keeping the link's count for the day. Which lines „Сподели“ put in
+  // stays with the person only.
+  async function writeCard(key, previous, card, sharedLines = []) {
+    const createdAt = previous?.data?.createdAt || new Date(now()).toISOString();
+    const token = isAvatarLinkToken(previous?.data?.token) ? previous.data.token : "";
+    const kept = trackedLines({ data: { sharedLines } }, card.knowledge);
+    const operations = [
+      {
+        type: "set",
+        collection: AVATAR_LINK_COLLECTION,
+        id: key,
+        data: { ...(token ? { token } : {}), ...card, sharedLines: kept, createdAt },
+      },
+    ];
+    if (token) {
+      const existing = await db().get(AVATAR_LINK_COLLECTION, token);
+      operations.push({
+        type: "set",
+        collection: AVATAR_LINK_COLLECTION,
+        id: token,
+        data: { ...card, createdAt, day: existing?.data?.day || "", count: existing?.data?.count || 0 },
+      });
+    }
+    await db().commitOperations(operations);
+  }
+
+  // „Сподели с аватара“: the fact becomes one line of what visitors' answers
+  // come from; `shared: false` takes that line out again. Only the person's
+  // own text changes. A link is made only by the person (save): without one
+  // the line waits in the text for it.
+  async function share(ownerId, { fact, shared = true } = {}) {
+    const key = ownerKey(ownerId);
+    const line = sharedFactLine(fact);
+    if (!line) throw new AvatarLinkError("Напиши какво да споделя.", 400, "AVATAR_LINK_FACT_REQUIRED");
+    const previous = await db().get(AVATAR_LINK_COLLECTION, key);
+    const card = normalizeAvatarCard(previous?.data || {});
+    const lines = card.knowledge ? card.knowledge.split("\n") : [];
+    const kept = lines.filter((entry) => entry.trim() !== line);
+    const knowledge = (shared === false ? kept : [...kept, line]).join("\n").trim();
+    if (knowledge.length > AVATAR_LINK_LIMITS.knowledge) {
+      throw new AvatarLinkError(
+        "Текстът за посетителите е пълен. Махни нещо от него в „Питай моя аватар“.",
+        400,
+        "AVATAR_LINK_KNOWLEDGE_FULL",
+      );
+    }
+    const before = trackedLines(previous, card.knowledge);
+    const others = before.filter((entry) => entry !== line);
+    const sharedLines = shared === false ? others : [...others, line];
+    const trackingChanged = shared === false ? before.includes(line) : !before.includes(line);
+    if (knowledge !== card.knowledge || trackingChanged) {
+      await writeCard(key, previous, { ...card, knowledge }, sharedLines);
+    }
+    return status(ownerId);
+  }
+
+  // A shared memory follows its memory. memoryService announces every change
+  // and can list the texts the person's memories have now. A line that
+  // „Сподели“ put in stays only while a memory still has its words. Only the
+  // same words in other capitals move it, and only to words a card in the
+  // memory panel shows. A correction (in the panel or through the
+  // connector), a replace by a new „Запомни“, a delete or „Забрави всичко“
+  // takes the line out, and the new words reach visitors only when the
+  // person shares them (third review of #605). Lines typed by hand are never
+  // touched. Returns whether the text changed.
+  async function followMemory(ownerId, { renamed = [], currentTexts } = {}) {
+    const key = ownerKey(ownerId);
+    const previous = await db().get(AVATAR_LINK_COLLECTION, key);
+    const card = normalizeAvatarCard(previous?.data || {});
+    const tracked = trackedLines(previous, card.knowledge);
+    if (!tracked.length) return false;
+    const found = typeof currentTexts === "function" ? await currentTexts() : [];
+    const texts = Array.isArray(found) ? found : Array.isArray(found?.texts) ? found.texts : [];
+    const cards = Array.isArray(found?.cards) ? found.cards : texts;
+    const current = new Set(texts.map(sharedFactLine).filter(Boolean));
+    const shown = new Set(cards.map(sharedFactLine).filter(Boolean));
+    const stale = new Set(tracked.filter((line) => !current.has(line)));
+    if (!stale.size) return false;
+    const moves = new Map();
+    for (const pair of Array.isArray(renamed) ? renamed : []) {
+      const from = sharedFactLine(pair?.from);
+      const to = sharedFactLine(pair?.to);
+      if (stale.has(from) && shown.has(to) && !moves.has(from)) moves.set(from, to);
+    }
+    const lines = card.knowledge.split("\n");
+    const next = [];
+    const sharedLines = tracked.filter((line) => !stale.has(line));
+    for (const entry of lines) {
+      const line = entry.trim();
+      if (!stale.has(line)) {
+        next.push(entry);
+        continue;
+      }
+      const moved = moves.get(line);
+      if (!moved) continue;
+      if (!lines.some((kept) => kept.trim() === moved) && !next.includes(moved)) next.push(moved);
+      sharedLines.push(moved);
+    }
+    let knowledge = next.join("\n").trim();
+    // A longer correction that no longer fits leaves the line out.
+    if (knowledge.length > AVATAR_LINK_LIMITS.knowledge) {
+      knowledge = next.filter((entry) => lines.includes(entry)).join("\n").trim();
+    }
+    if (knowledge === card.knowledge && sharedLines.length === tracked.length) return false;
+    await writeCard(key, previous, { ...card, knowledge }, sharedLines);
+    return knowledge !== card.knowledge;
   }
 
   async function stop(ownerId) {
@@ -139,11 +272,12 @@ export function createAvatarLinkService({
     }
     // The text stays for next time; only the link stops.
     if (row?.data) {
+      const card = normalizeAvatarCard(row.data);
       operations.push({
         type: "set",
         collection: AVATAR_LINK_COLLECTION,
         id: key,
-        data: { ...normalizeAvatarCard(row.data), createdAt: row.data.createdAt || null },
+        data: { ...card, sharedLines: trackedLines(row, card.knowledge), createdAt: row.data.createdAt || null },
       });
     }
     if (operations.length) await db().commitOperations(operations);
@@ -191,7 +325,7 @@ export function createAvatarLinkService({
     await db().commitOperations(operations);
   }
 
-  return { status, save, stop, card, ask, forget };
+  return { status, save, share, followMemory, stop, card, ask, forget };
 }
 
 let defaultService;

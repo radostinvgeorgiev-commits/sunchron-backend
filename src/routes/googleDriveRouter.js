@@ -36,6 +36,12 @@ import { markStartHost } from "../middleware/returnToConnectStart.js";
 import { publicAiBudgetContext } from "../services/publicAiBudget.js";
 import { ProductError } from "../services/productPlansService.js";
 import { getReplyDraftService } from "../services/replyDraftService.js";
+import {
+  GoogleActionError,
+  confirmGoogleAction,
+  prepareGmailMessageTrash,
+} from "../services/googleActionService.js";
+import { isAuditSafetyError } from "../services/permissionService.js";
 
 const router = express.Router();
 const COOKIE_OPTIONS =
@@ -322,6 +328,67 @@ router.post("/gmail/reply-draft", publicAiBudgetContext, async (req, res) => {
     if (!(error instanceof GoogleDriveError) && !(error instanceof ProductError)) {
       logSafeError("[Gmail reply draft]", error);
     }
+    sendError(res, error);
+  }
+});
+
+// „В кошчето“ on a letter in the Gmail panel: every person moves their own
+// letters to the bin (RADKO 28.11: full rights in each person's own branch;
+// deleting keeps a confirmation). The second press on that one letter is the
+// confirmation, so the exact letter is prepared and moved in one step, only
+// with this account's own Google connection. Gmail keeps it in the bin for
+// 30 days.
+router.post("/gmail/trash", async (req, res) => {
+  try {
+    const googleSessionId = await sessionId(req);
+    if (!googleSessionId) {
+      throw new GoogleDriveError(
+        "Свържи своя Google, за да подредиш пощата си.",
+        401,
+        "GOOGLE_NOT_CONNECTED",
+      );
+    }
+    const ownerId = req.owner?.memoryOwnerId;
+    const panelSession = `gmail-panel:${ownerId}`;
+    const prepared = await prepareGmailMessageTrash({
+      ownerId,
+      googleSessionId,
+      sessionId: panelSession,
+      messageId: String(req.body?.messageId || ""),
+    });
+    await confirmGoogleAction({
+      ownerId,
+      googleSessionId,
+      sessionId: panelSession,
+      confirmationId: prepared.confirmationId,
+    });
+    res.json({
+      trashed: true,
+      message: {
+        id: prepared.message.id,
+        subject: prepared.message.subject,
+        from: prepared.message.from,
+      },
+    });
+  } catch (error) {
+    // Moving needs Gmail's modify permission: one press on „Разреши Gmail“
+    // adds it to the person's own connection.
+    if (isGoogleScopeMissing(error) || error?.code === "GOOGLE_SCOPE_REQUIRED") {
+      return res.status(403).json({
+        error: "Преместването в кошчето иска още едно разрешение за Gmail.",
+        code: "GOOGLE_SCOPE_REQUIRED",
+        connect: googleConnectPath("gmail"),
+      });
+    }
+    if (error instanceof GoogleActionError) {
+      return res.status(error.status).json({ error: error.message, code: error.code });
+    }
+    // The letter may already be in the bin while its record failed: say so
+    // instead of „not moved“ (executeAuditedWriteAction).
+    if (isAuditSafetyError(error)) {
+      return res.status(error.status || 502).json({ error: error.message, code: error.code });
+    }
+    if (!(error instanceof GoogleDriveError)) logSafeError("[Gmail trash]", error);
     sendError(res, error);
   }
 });

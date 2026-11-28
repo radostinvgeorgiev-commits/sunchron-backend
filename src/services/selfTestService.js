@@ -10,7 +10,7 @@ import { buildAvatarProfileContext, createAvatarProfileService } from "./avatarP
 import { transcribeVoice } from "./voiceTranscriptionService.js";
 import { parseMeetingUpload, transcribeMeeting } from "./meetingNotesService.js";
 import { CHAT_MODEL_CHOICES, resolveWorkAgentProvider } from "./workModeService.js";
-import { probeVertexOpenModels } from "./vertexOpenModelsService.js";
+import { probeVertexOpenModels, selfTestNumberQuestion } from "./vertexOpenModelsService.js";
 import { createClaudeWorkService } from "./claudeWorkService.js";
 import { getPersonalTodoService } from "./personalTodoService.js";
 import { latestMainSessionFor } from "./googleDriveService.js";
@@ -133,7 +133,7 @@ export async function runSelfTest({
       if (!isAiProviderConfigured(provider, env)) throw skip("не е конфигуриран");
       const text = await askAi({
         provider,
-        input: [{ role: "user", content: `Отговори само с числото ${marker}.` }],
+        input: [{ role: "user", content: selfTestNumberQuestion(marker) }],
         reasoningEffort: "low",
         verbosity: "low",
       });

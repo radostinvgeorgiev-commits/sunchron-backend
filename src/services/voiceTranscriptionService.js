@@ -4,7 +4,7 @@ import { ProductError } from "./productPlansService.js";
 
 // Speech to text on the server, for phones where the browser's own speech
 // recognition is missing or does not speak Bulgarian (iPhone Safari, the
-// home-screen app). OpenAI first, Gemini as the fallback.
+// home-screen app). Gemini first, OpenAI as the fallback (РАДКО 28.11.2026).
 export const DEFAULT_OPENAI_TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe";
 export const DEFAULT_GEMINI_TRANSCRIBE_MODEL = "gemini-3.5-flash-lite";
 export const MAX_AUDIO_BYTES = 4 * 1024 * 1024;
@@ -103,18 +103,32 @@ async function transcribeWithGemini({ bytes, type, language, env, fetchImpl, sig
     data?.usageMetadata?.promptTokenCount || 0,
     data?.usageMetadata?.candidatesTokenCount || 0,
   );
-  const text = (data?.candidates?.[0]?.content?.parts || [])
+  const candidate = data?.candidates?.[0];
+  const text = (candidate?.content?.parts || [])
     .map((part) => part?.text || "")
     .join("")
     .trim();
+  // A refusal (blocked, recitation, safety) or a cut-off answer comes back as
+  // 200 with no text: the fallback hears it instead. An empty answer that
+  // simply stopped is silence.
+  const stopped =
+    data?.promptFeedback?.blockReason ||
+    (!candidate
+      ? "NO_CANDIDATE"
+      : !text && candidate.finishReason && candidate.finishReason !== "STOP"
+        ? candidate.finishReason
+        : "");
+  if (stopped) {
+    throw new VoiceError(`Gemini не върна текст (${stopped}).`, 502, "VOICE_UPSTREAM");
+  }
   return { text, provider: "gemini", model };
 }
 
 export async function transcribeVoice(payload, { env = process.env, fetchImpl = fetch, timeoutMs = 30_000 } = {}) {
   const audio = parseAudioPayload(payload);
   const providers = [
-    env.OPENAI_API_KEY ? transcribeWithOpenAi : null,
     env.GEMINI_API_KEY ? transcribeWithGemini : null,
+    env.OPENAI_API_KEY ? transcribeWithOpenAi : null,
   ].filter(Boolean);
   if (!providers.length) {
     throw new VoiceError("Гласовото разпознаване на сървъра не е настроено.", 503, "VOICE_NOT_CONFIGURED");

@@ -5,9 +5,11 @@ import test from "node:test";
 const sourceUrl = new URL("../public/work-center.js", import.meta.url);
 const htmlUrl = new URL("../public/index.html", import.meta.url);
 
-test("work center shows the canonical MCP address as visible text", async () => {
+test("work center shows the novariumai.com MCP address as visible text", async () => {
   const source = await readFile(sourceUrl, "utf8");
-  assert.match(source, /https:\/\/cloudaicore\.com\/mcp/u);
+  assert.match(source, /https:\/\/novariumai\.com\/mcp/u);
+  // The old address is not shown anywhere (РАДКО 28.11.2026).
+  assert.doesNotMatch(source, /cloudaicore/u);
   assert.match(source, /Постави точно този адрес/u);
 });
 

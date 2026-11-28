@@ -48,7 +48,7 @@ async function openPage(origin, viewport, path = "/") {
   return { page, errors };
 }
 
-async function signedInFlows(origin, requests, label, viewport, feedback, media) {
+async function signedInFlows(origin, requests, label, viewport, feedback, media, memoryWrites = []) {
   const { page, errors } = await openPage(origin, viewport);
   const last = () => page.locator(".assistant-turn").last();
   // The person's own things are in the "Моят аватар" group of the side menu.
@@ -106,6 +106,23 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media)
     await note.locator("a").waitFor({ timeout: 5000 });
     expect((await note.innerText()).includes("Запазено като Google документ"), "няма потвърждение");
     expect((await note.locator("a").getAttribute("href")).startsWith("https://docs.google.com/document/"), "няма линк към документа");
+  });
+  await step(`${label}: „Запомни“ под отговора записва и споделя с „Питай моя аватар“`, async () => {
+    const before = memoryWrites.length;
+    await last().locator('[data-action="remember"]').click();
+    const form = last().locator(".remember-form");
+    await form.waitFor({ state: "visible", timeout: 5000 });
+    await form.locator("textarea").fill("Обичам чай без захар");
+    await form.locator(".remember-share input").check();
+    await form.locator(".message-edit-buttons .primary").click();
+    await page
+      .waitForFunction(() => /Запомних/u.test(document.querySelector(".remember-note")?.textContent || ""), null, { timeout: 5000 })
+      .catch(() => {});
+    const note = await last().locator(".remember-note").innerText();
+    expect(note.includes("Запомних: Обичам чай без захар"), `бележката е „${note}“`);
+    expect(/Споделих|Добавих/u.test(note), `няма ред за споделянето: „${note}“`);
+    const calls = memoryWrites.slice(before).map(({ kind }) => kind).join(",");
+    expect(calls === "prepare,confirm,share", `извиквания: ${calls}`);
   });
   await step(`${label}: редакция на изпратено съобщение`, async () => {
     await page.locator(".user-turn").first().locator('[data-action="edit"]').click();
@@ -1166,6 +1183,43 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media)
   await page.close();
 }
 
+// On narrow phones the buttons under an answer fit in their row and nothing
+// scrolls sideways (the „Запомни“ button had pushed the row out at 360px).
+async function narrowPhoneRow(origin) {
+  for (const width of [320, 360]) {
+    await step(`Телефон ${width}px: бутоните под отговора се събират`, async () => {
+      const { page, errors } = await openPage(origin, { width, height: 740 });
+      try {
+        await page.fill("#chatInput", "Здравей");
+        await page.click("#sendBtn");
+        const row = page.locator(".assistant-turn").last().locator(".message-actions");
+        await row.waitFor({ state: "visible", timeout: 10000 });
+        await page.waitForTimeout(400);
+        const layout = await row.evaluate((node) => {
+          const box = node.getBoundingClientRect();
+          const chat = document.getElementById("chatMessages");
+          const buttons = [...node.querySelectorAll("button")]
+            .filter((button) => button.offsetParent)
+            .map((button) => button.getBoundingClientRect());
+          return {
+            buttons: buttons.length,
+            rowScroll: node.scrollWidth - node.clientWidth,
+            outside: buttons.filter((rect) => rect.left < box.left - 0.5 || rect.right > box.right + 0.5 || rect.right > window.innerWidth).length,
+            chatScroll: chat.scrollWidth - chat.clientWidth,
+            pageScroll: document.documentElement.scrollWidth - window.innerWidth,
+          };
+        });
+        expect(layout.buttons > 3, `под отговора има ${layout.buttons} бутона`);
+        expect(layout.rowScroll <= 0 && layout.outside === 0, `бутоните излизат от реда: ${JSON.stringify(layout)}`);
+        expect(layout.chatScroll <= 0 && layout.pageScroll <= 0, `страницата се превърта настрани: ${JSON.stringify(layout)}`);
+        expect(!errors.length, errors.join("; "));
+      } finally {
+        await page.close();
+      }
+    });
+  }
+}
+
 async function sharedPage(origin) {
   const { page, errors } = await openPage(origin, { width: 390, height: 844 }, "/s/AbCdEfGhIjKlMnOpQrStUvWxYz012345");
   await step("Споделен разговор: страницата показва съобщенията", async () => {
@@ -1292,6 +1346,25 @@ async function statusPage(origin, live) {
   await page.close();
 }
 
+// „Планове“ on a phone: the example prices for the person's apps are shown,
+// and there is nothing to press that would charge for them.
+async function plansPage(origin) {
+  const { page, errors } = await openPage(origin, { width: 390, height: 844 }, "/plans");
+  await step("Страница: „Планове“ показва примерните цени +10% без плащане", async () => {
+    await page.waitForFunction(() => document.querySelectorAll(".app-subscription").length > 0, null, { timeout: 5000 }).catch(() => {});
+    const cards = page.locator("#app-subscriptions .app-subscription");
+    expect((await cards.count()) >= 4, `картите са ${await cards.count()}`);
+    const first = await cards.first().innerText();
+    expect(/Цена на приложението:/u.test(first) && /При нас:/u.test(first), `картата е „${first}“`);
+    expect(first.includes("Примерна цена · още не се продава"), "няма надпис за примерна цена");
+    expect((await page.locator("#app-subscriptions button, #app-subscriptions a").count()) === 0, "има бутон или линк за плащане");
+    const width = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(width <= 390, `страницата е по-широка от телефона (${width}px)`);
+    expect(!errors.length, errors[0]);
+  });
+  await page.close();
+}
+
 // The contact form on /help, the way a person uses it on a phone: write,
 // send, see the number. If sending fails, the text is still there.
 async function contactForm(origin, contactMessages) {
@@ -1350,6 +1423,10 @@ async function publicChecks(origin) {
     await page.waitForTimeout(400);
     await page.click('[data-demo="1"]');
     expect((await page.textContent("[data-demo-output]")).includes("без захар"), "демото не отговори");
+    // On a phone the open panel covers the dock and „Започни безплатно“, so
+    // close it with ✕ the way a person would before the next step.
+    await page.click("#how .landing-panel-close");
+    await page.waitForFunction(() => !document.querySelector("#how.is-open"), null, { timeout: 5000 });
   });
   await step("Жив сайт: безплатната проверка на глава е видима без вход", async () => {
     await page.click('.landing-dock a[href="#free-check"]');
@@ -1489,14 +1566,17 @@ async function liveSignedIn(origin) {
 if (publicOrigin) {
   await publicChecks(publicOrigin);
   await statusPage(publicOrigin, true);
+  await plansPage(publicOrigin);
   await liveSignedIn(publicOrigin);
 } else {
   const stub = await startStubServer();
-  await signedInFlows(stub.origin, stub.requests, "Телефон", { width: 390, height: 844 }, stub.feedback, stub.media);
-  await signedInFlows(stub.origin, stub.requests, "Компютър", { width: 1280, height: 800 }, stub.feedback, stub.media);
+  await signedInFlows(stub.origin, stub.requests, "Телефон", { width: 390, height: 844 }, stub.feedback, stub.media, stub.memoryWrites);
+  await signedInFlows(stub.origin, stub.requests, "Компютър", { width: 1280, height: 800 }, stub.feedback, stub.media, stub.memoryWrites);
+  await narrowPhoneRow(stub.origin);
   await sharedPage(stub.origin);
   await talkFlow(stub.origin, stub.requests, stub.media);
   await statusPage(stub.origin, false);
+  await plansPage(stub.origin);
   await contactForm(stub.origin, stub.contactMessages);
   stub.server.close();
 }

@@ -8,6 +8,7 @@ import {
   createProductCheckout,
   verifyPaymentEvent,
 } from "../services/productPaymentService.js";
+import { APP_SUBSCRIPTIONS } from "../services/appSubscriptionCatalog.js";
 import { requireOwnerSession } from "../middleware/ownerAuth.js";
 import { createApiRateLimiter } from "../middleware/rateLimits.js";
 function failure(res, error) {
@@ -34,6 +35,8 @@ export function createProductRouter() {
       renewal: "manual",
       ordinaryRequestCredits: 3,
       councilRequestCredits: 18,
+      // Example prices only; nothing is sold or charged (РАДКО 28.11.2026).
+      appSubscriptions: APP_SUBSCRIPTIONS,
     }),
   );
   router.get("/usage", requireOwnerSession, async (req, res) => {

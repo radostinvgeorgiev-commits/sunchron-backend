@@ -138,6 +138,8 @@ function getStore(env = process.env) {
 }
 
 function requireFirestore(env) {
+  // A store set by a test stands in for Firestore whatever the environment.
+  if (firestoreStoreOverride) return firestoreStoreOverride;
   if (resolvePersistenceBackend(env) !== "firestore") {
     throw new TaskRunError(
       "Устойчивите изпълнения временно изискват Firestore.",

@@ -624,3 +624,20 @@ body:has(#appShell:not([hidden]))
   button[aria-selected="true"] {
   border-bottom-color: var(--nv-cyan) !important;
 }
+
+/* The book's chapters and downloads */
+body:has(#appShell:not([hidden])) .share-dialog .share-card .book-chapter {
+  background: rgba(123, 92, 255, 0.12) !important;
+}
+
+body:has(#appShell:not([hidden])) .share-dialog .share-card .book-chapter-open {
+  color: var(--nv-text, #eef0ff) !important;
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+body:has(#appShell:not([hidden])) .share-dialog .share-card .book-export a {
+  border-color: rgba(0, 240, 255, 0.45) !important;
+  color: var(--nv-cyan) !important;
+}

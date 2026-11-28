@@ -138,6 +138,7 @@ export function startStubServer(port = 0) {
     },
     askAi: async ({ input }) => {
       const asked = input[1].content;
+      if (asked.includes("[ПЛАН ЗА ГЛАВА")) return "Сутринта Мила погледна с кафявите си очи към кулата.";
       if (!asked.includes("[ПАМЕТ]")) {
         return '{"facts":[{"kind":"place","name":"Кулата","text":"Кулата е на хълма.","quote":"кулата на хълма"}]}';
       }
@@ -320,6 +321,15 @@ export function startStubServer(port = 0) {
           if (area === "facts" && req.method === "DELETE") return json(res, { book: await books.removeFact(me, bookId, factId) });
           if (area === "suggest") return json(res, { suggestions: await books.suggestFacts(me, bookId, data) });
           if (area === "check") return json(res, { result: await books.checkChapter(me, bookId, data) });
+          if (area === "chapters" && req.method === "POST") return json(res, { book: await books.saveChapters(me, bookId, data.chapters) });
+          if (area === "chapters" && req.method === "GET") return json(res, { chapter: await books.getChapter(me, bookId, factId) });
+          if (area === "chapters" && req.method === "DELETE") return json(res, { book: await books.removeChapter(me, bookId, factId) });
+          if (area === "draft") return json(res, { draft: await books.draftChapter(me, bookId, data) });
+          if (area === "export") {
+            const file = await books.exportBook(me, bookId, url.searchParams.get("format") || "");
+            res.writeHead(200, { "Content-Type": file.type });
+            return res.end(file.body);
+          }
           return json(res, { error: "няма" }, 404);
         } catch (error) {
           return json(res, { error: error.message }, error.status || 500);

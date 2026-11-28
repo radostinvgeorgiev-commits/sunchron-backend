@@ -1101,5 +1101,32 @@ Claude, GPT, Gemini и други. Избираш сам или оставяш �
 Искаш паметта на книгата да се пази и да проверяваш всяка глава?|Want the book’s memory kept and every chapter checked?
 Пробвай безплатно|Try it free
 В книгата|In the book
+Глави|Chapters
+Заглавие (по желание)|Title (optional)
+Текстът на главата.|The chapter’s text.
+Запази главата|Save the chapter
+Напиши чернова по план|Write a draft from a plan
+Какво става в главата: кой, къде, какво. Черновата спазва паметта на книгата и се проверява, преди да я видиш.|What happens in the chapter: who, where, what. The draft follows the book’s memory and is checked before you see it.
+Напиши чернова|Write a draft
+Качи ръкопис|Upload a manuscript
+Файл .docx или .txt. Разделям го на глави по заглавията „Глава 1“, „Глава 2“… Нищо не се пази, докато не натиснеш „Запази главите“.|A .docx or .txt file. I split it into chapters at the headings “Chapter 1”, “Chapter 2”… Nothing is kept until you press “Save the chapters”.
+Запази главите|Save the chapters
+Изтегли книгата:|Download the book:
+думи|words
+Изтрий главата|Delete the chapter
+Още няма глави. Напиши, качи ръкопис или поискай чернова.|No chapters yet. Write one, upload a manuscript or ask for a draft.
+Напиши номера и текста на главата.|Write the chapter’s number and text.
+Главата е запазена|Chapter saved
+Напиши номера на главата и плана.|Write the chapter’s number and the plan.
+Проверка на черновата|Draft check
+Паметта на книгата е празна, затова черновата не е проверена.|The book’s memory is empty, so the draft was not checked.
+Черновата е в полето отгоре. Прочети я и натисни „Запази главата“, ако я искаш.|The draft is in the box above. Read it and press “Save the chapter” if you want it.
+Този браузър не може да отвори .docx. Запази го като .txt или опитай с по-нов браузър.|This browser can’t open .docx. Save it as .txt or try a newer browser.
+Файлът не е документ на Word.|The file is not a Word document.
+Файлът е празен.|The file is empty.
+Намерих глави|Chapters found
+Чета ръкописа…|Reading the manuscript…
+Запазени глави|Chapters saved
+Сега можеш да извадиш факти от тях в „Факти“.|Now you can pull facts from them in “Facts”.
 `.trim().split("\n").map((line) => line.split("|")),
 );

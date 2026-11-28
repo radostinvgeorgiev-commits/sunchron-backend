@@ -31,6 +31,7 @@
         <div class="book-tabs" role="tablist">
           <button type="button" role="tab" data-tab="facts" aria-selected="true"></button>
           <button type="button" role="tab" data-tab="check" aria-selected="false"></button>
+          <button type="button" role="tab" data-tab="chapters" aria-selected="false"></button>
         </div>
         <section class="book-pane" data-pane="facts">
           <ul class="book-facts"></ul>
@@ -63,6 +64,38 @@
           <div class="book-result" hidden>
             <p class="book-score"></p>
             <ul class="book-issues"></ul>
+          </div>
+        </section>
+        <section class="book-pane" data-pane="chapters" hidden>
+          <ul class="book-chapters"></ul>
+          <form class="book-chapter-form">
+            <div class="book-row">
+              <input class="book-chapter-number" type="number" min="1" max="999" inputmode="numeric" required />
+              <input class="book-chapter-title" type="text" maxlength="120" autocomplete="off" />
+            </div>
+            <textarea class="book-chapter-text" rows="8" maxlength="50000"></textarea>
+            <div class="share-actions"><button type="submit" class="primary book-chapter-save"></button></div>
+          </form>
+          <details class="book-draft">
+            <summary></summary>
+            <textarea class="book-draft-plan" rows="4" maxlength="4000"></textarea>
+            <div class="share-actions"><button type="button" class="primary book-draft-run"></button></div>
+            <p class="book-draft-check"></p>
+          </details>
+          <details class="book-upload">
+            <summary></summary>
+            <p class="share-note book-upload-note"></p>
+            <input class="book-upload-file" type="file" accept=".txt,.md,.docx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+            <div class="book-upload-preview" hidden>
+              <p class="book-upload-count"></p>
+              <div class="share-actions"><button type="button" class="primary book-upload-save"></button></div>
+            </div>
+          </details>
+          <div class="book-export">
+            <span class="book-export-title"></span>
+            <a class="book-export-docx" download>Word (DOCX)</a>
+            <a class="book-export-epub" download>EPUB</a>
+            <a class="book-export-pdf" target="_blank" rel="noopener">PDF</a>
           </div>
         </section>
       </div>
@@ -106,6 +139,19 @@
   $(".book-check-chapter").setAttribute("aria-label", text("Номер на главата"));
   $(".book-check-text").placeholder = text("Постави текста на главата.");
   $(".book-check-run").textContent = text("Провери главата");
+  $('[data-tab="chapters"]').textContent = text("Глави");
+  $(".book-chapter-number").placeholder = text("Глава");
+  $(".book-chapter-number").setAttribute("aria-label", text("Номер на главата"));
+  $(".book-chapter-title").placeholder = text("Заглавие (по желание)");
+  $(".book-chapter-text").placeholder = text("Текстът на главата.");
+  $(".book-chapter-save").textContent = text("Запази главата");
+  $(".book-draft summary").textContent = text("Напиши чернова по план");
+  $(".book-draft-plan").placeholder = text("Какво става в главата: кой, къде, какво. Черновата спазва паметта на книгата и се проверява, преди да я видиш.");
+  $(".book-draft-run").textContent = text("Напиши чернова");
+  $(".book-upload summary").textContent = text("Качи ръкопис");
+  $(".book-upload-note").textContent = text("Файл .docx или .txt. Разделям го на глави по заглавията „Глава 1“, „Глава 2“… Нищо не се пази, докато не натиснеш „Запази главите“.");
+  $(".book-upload-save").textContent = text("Запази главите");
+  $(".book-export-title").textContent = text("Изтегли книгата:");
   const status = (message) => ($(".share-status").textContent = message || "");
 
   let books = [];
@@ -184,17 +230,58 @@
     $(".book-select").value = currentId;
     $(".book-pick").hidden = !books.length;
     $(".book-body").hidden = !books.length;
+    $(".book-chapter-number").value = "";
     renderFacts();
+    renderChapters();
+  };
+  const renderChapters = () => {
+    const book = current();
+    const chapters = book?.chapters || [];
+    $(".book-chapters").replaceChildren(
+      ...chapters.map((chapter) => {
+        const row = document.createElement("li");
+        row.className = "book-chapter";
+        const open = document.createElement("button");
+        open.type = "button";
+        open.className = "book-chapter-open";
+        open.dataset.number = String(chapter.number);
+        open.textContent = `${chapter.number}. ${chapter.title || text("Глава")} · ${chapter.words} ${text("думи")}`;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "todo-remove book-chapter-remove";
+        remove.dataset.number = String(chapter.number);
+        remove.textContent = "✕";
+        remove.setAttribute("aria-label", text("Изтрий главата"));
+        row.append(open, remove);
+        return row;
+      }),
+    );
+    if (!chapters.length) {
+      const empty = document.createElement("li");
+      empty.className = "todo-empty";
+      empty.textContent = text("Още няма глави. Напиши, качи ръкопис или поискай чернова.");
+      $(".book-chapters").appendChild(empty);
+    }
+    const base = book ? `/api/books/${encodeURIComponent(book.id)}/export?format=` : "";
+    $(".book-export").hidden = !chapters.length;
+    $(".book-export-docx").href = `${base}docx`;
+    $(".book-export-epub").href = `${base}epub`;
+    $(".book-export-pdf").href = `${base}html`;
+    const next = chapters.length ? chapters.at(-1).number + 1 : 1;
+    if (!$(".book-chapter-number").value) $(".book-chapter-number").value = String(next);
   };
   const replaceBook = (book) => {
     books = books.map((item) => (item.id === book.id ? book : item));
     renderFacts();
+    renderChapters();
   };
 
   $(".book-select").addEventListener("change", () => {
     currentId = $(".book-select").value;
     $(".book-result").hidden = true;
+    $(".book-chapter-number").value = "";
     renderFacts();
+    renderChapters();
   });
   $(".book-new").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -387,6 +474,131 @@
     void run(async () => {
       renderIssues((await call("POST", bookPath("/check"), { text: source, chapter: chapterOf(".book-check-chapter") })).result);
     }, text("Проверявам главата…"));
+  });
+
+  // Chapters: open one into the editor, save, delete.
+  $(".book-chapters").addEventListener("click", (event) => {
+    const open = event.target.closest(".book-chapter-open");
+    const remove = event.target.closest(".book-chapter-remove");
+    if (open)
+      void run(async () => {
+        const { chapter } = await call("GET", bookPath(`/chapters/${open.dataset.number}`));
+        $(".book-chapter-number").value = String(chapter.number);
+        $(".book-chapter-title").value = chapter.title;
+        $(".book-chapter-text").value = chapter.text;
+        $(".book-chapter-text").focus();
+      }, text("Зареждане…"));
+    if (remove)
+      void run(async () => replaceBook((await call("DELETE", bookPath(`/chapters/${remove.dataset.number}`))).book), text("Изтриване…"));
+  });
+  $(".book-chapter-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const chapter = {
+      number: chapterOf(".book-chapter-number"),
+      title: $(".book-chapter-title").value.trim(),
+      text: $(".book-chapter-text").value,
+    };
+    if (!chapter.number || !chapter.text.trim()) {
+      status(text("Напиши номера и текста на главата."));
+      return;
+    }
+    void run(async () => {
+      replaceBook((await call("POST", bookPath("/chapters"), { chapters: [chapter] })).book);
+      status(`${text("Главата е запазена")}: ${chapter.number}`);
+    }, text("Записване…"));
+  });
+  // A draft fills the editor and shows its check; it is saved only with
+  // "Запази главата".
+  $(".book-draft-run").addEventListener("click", () => {
+    const number = chapterOf(".book-chapter-number");
+    const plan = $(".book-draft-plan").value.trim();
+    if (!number || !plan) {
+      status(text("Напиши номера на главата и плана."));
+      return;
+    }
+    void run(async () => {
+      const { draft } = await call("POST", bookPath("/draft"), { number, plan });
+      $(".book-chapter-text").value = draft.text;
+      const check = draft.check;
+      $(".book-draft-check").textContent = check
+        ? `${text("Проверка на черновата")}: ${check.score}/100 · ${
+            check.issues.length
+              ? `${text("противоречия")}: ${check.issues.length} — ${check.issues.map((issue) => `„${issue.quote}“ ↔ ${issue.fact}`).join("; ")}`
+              : text("няма противоречия")
+          }`
+        : text("Паметта на книгата е празна, затова черновата не е проверена.");
+      status(text("Черновата е в полето отгоре. Прочети я и натисни „Запази главата“, ако я искаш."));
+    }, text("Пиша черновата…"));
+  });
+  // A manuscript is read in the browser and split at its chapter headings.
+  const HEADING = /^\s*(?:глава|chapter|kapitel|capítulo|capitulo|chapitre|capitolo|capitolul|розділ|bölüm)(?=[\s\d.:-]|$)[^\n]{0,80}$/iu;
+  const splitManuscript = (source) => {
+    const chapters = [];
+    let currentChapter = null;
+    for (const line of String(source).replace(/\r\n?/gu, "\n").split("\n")) {
+      if (HEADING.test(line)) {
+        if (currentChapter) chapters.push(currentChapter);
+        currentChapter = { title: line.trim().replace(/^\s*\S+\s+(?:\d+|[IVXLCDM]+)\b[.:\s-]*/iu, "").trim().slice(0, 120), lines: [] };
+      } else {
+        currentChapter ||= { title: "", lines: [] };
+        currentChapter.lines.push(line);
+      }
+    }
+    if (currentChapter) chapters.push(currentChapter);
+    return chapters
+      .map((chapter) => ({ title: chapter.title, text: chapter.lines.join("\n").trim().slice(0, 50000) }))
+      .filter((chapter) => chapter.text)
+      .slice(0, 60)
+      .map((chapter, index) => ({ number: index + 1, ...chapter }));
+  };
+  const decodeXml = (value) =>
+    value
+      .replace(/&lt;/gu, "<")
+      .replace(/&gt;/gu, ">")
+      .replace(/&quot;/gu, '"')
+      .replace(/&apos;/gu, "'")
+      .replace(/&#(\d+);/gu, (_, code) => String.fromCodePoint(Number(code)))
+      .replace(/&amp;/gu, "&");
+  const readDocx = async (file) => {
+    const reader = globalThis.NovariumArchive;
+    if (!reader?.listZipEntries || typeof DecompressionStream === "undefined") {
+      throw new Error(text("Този браузър не може да отвори .docx. Запази го като .txt или опитай с по-нов браузър."));
+    }
+    const entry = (await reader.listZipEntries(file)).find(({ name }) => name === "word/document.xml");
+    if (!entry) throw new Error(text("Файлът не е документ на Word."));
+    const xml = await reader.readZipText(file, entry);
+    return decodeXml(
+      xml
+        .replace(/<w:tab\/>/gu, "\t")
+        .replace(/<w:br\/>/gu, "\n")
+        .replace(/<\/w:p>/gu, "\n")
+        .replace(/<[^>]+>/gu, ""),
+    );
+  };
+  let pending = [];
+  $(".book-upload-file").addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    void run(async () => {
+      const source = /\.docx$/iu.test(file.name) ? await readDocx(file) : await file.text();
+      pending = splitManuscript(source);
+      if (!pending.length) throw new Error(text("Файлът е празен."));
+      $(".book-upload-count").textContent = `${text("Намерих глави")}: ${pending.length} · ${pending
+        .slice(0, 5)
+        .map((chapter) => `${chapter.number}. ${chapter.title || text("Глава")}`)
+        .join(", ")}${pending.length > 5 ? "…" : ""}`;
+      $(".book-upload-preview").hidden = false;
+    }, text("Чета ръкописа…"));
+  });
+  $(".book-upload-save").addEventListener("click", () => {
+    if (!pending.length) return;
+    void run(async () => {
+      replaceBook((await call("POST", bookPath("/chapters"), { chapters: pending })).book);
+      status(`${text("Запазени глави")}: ${pending.length}. ${text("Сега можеш да извадиш факти от тях в „Факти“.")}`);
+      pending = [];
+      $(".book-upload-preview").hidden = true;
+    }, text("Записване…"));
   });
 
   const close = () => (dialog.hidden = true);

@@ -377,7 +377,7 @@ app.use(
 );
 // "Писател": the memory of each person's books. Suggesting facts and
 // checking a chapter are AI requests, so they get the paid limit.
-app.use(/^\/api\/books\/[^/]+\/(?:suggest|check)$/u, requireOwnerSession, paidAiRateLimiter);
+app.use(/^\/api\/books\/[^/]+\/(?:suggest|check|draft)$/u, requireOwnerSession, paidAiRateLimiter);
 app.use(
   "/api/books",
   requireOwnerSession,

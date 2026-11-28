@@ -275,6 +275,22 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media)
     await panel.locator(".book-issue-done").waitFor({ timeout: 5000 });
     const facts = await page.evaluate(async () => (await (await fetch("/api/books")).json()).books[0].facts);
     expect(facts.length === 3 && facts[0].untilChapter === 3 && facts[2].fromChapter === 4, "промяната не важи от глава 4");
+    // Chapters: a draft from a plan is checked and shown, saved only on "Запази".
+    await panel.locator('[data-tab="chapters"]').click();
+    await panel.locator(".book-chapter-number").fill("5");
+    await panel.locator(".book-draft summary").click();
+    await panel.locator(".book-draft-plan").fill("Мила влиза в кулата.");
+    await panel.locator(".book-draft-run").click();
+    await page.waitForFunction(() => document.querySelector(".book-dialog .book-chapter-text").value.includes("кулата"), null, { timeout: 5000 });
+    expect((await panel.locator(".book-chapter").count()) === 0, "черновата се запази без „Запази“");
+    await panel.locator(".book-chapter-save").click();
+    await panel.locator(".book-chapter").first().waitFor({ timeout: 5000 });
+    expect(await panel.locator(".book-export").isVisible(), "няма бутони за изтегляне");
+    const exported = await page.evaluate(async (href) => {
+      const reply = await fetch(href);
+      return { type: reply.headers.get("content-type"), size: (await reply.arrayBuffer()).byteLength };
+    }, await panel.locator(".book-export-epub").getAttribute("href"));
+    expect(exported.type === "application/epub+zip" && exported.size > 500, "EPUB не се изтегли");
     await page.evaluate(async () => {
       for (const book of (await (await fetch("/api/books")).json()).books) await fetch(`/api/books/${book.id}`, { method: "DELETE" });
     });

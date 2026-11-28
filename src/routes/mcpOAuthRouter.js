@@ -118,14 +118,18 @@ export function createMcpOAuthRouter({
 } = {}) {
   const router = express.Router();
 
-  router.get("/.well-known/oauth-protected-resource", (_req, res) => {
+  router.get("/.well-known/oauth-protected-resource", (req, res) => {
     noStore(res);
-    res.json(getMcpProtectedResourceMetadata());
+    res.json(
+      getMcpProtectedResourceMetadata(process.env, { host: req.get("host") }),
+    );
   });
 
-  router.get("/.well-known/oauth-protected-resource/mcp", (_req, res) => {
+  router.get("/.well-known/oauth-protected-resource/mcp", (req, res) => {
     noStore(res);
-    res.json(getMcpProtectedResourceMetadata());
+    res.json(
+      getMcpProtectedResourceMetadata(process.env, { host: req.get("host") }),
+    );
   });
 
   router.get("/.well-known/oauth-authorization-server", (_req, res) => {

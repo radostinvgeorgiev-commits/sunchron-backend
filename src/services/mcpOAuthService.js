@@ -16,6 +16,11 @@ import {
 } from "./firestoreMcpOAuthStore.js";
 
 export const DEFAULT_MCP_RESOURCE_URL = "https://cloudaicore.com/mcp";
+// The same MCP server under the new name. Sign-in still happens at the
+// canonical origin, so connectors added with either address keep working.
+export const DEFAULT_MCP_ALTERNATE_RESOURCE_URLS = Object.freeze([
+  "https://novariumai.com/mcp",
+]);
 export const CHATGPT_MCP_SCOPE = "synchron:chatgpt.ask";
 export const CHATGPT_MCP_PATH = "/mcp/chatgpt";
 export const MCP_READ_SCOPE = "synchron:read";
@@ -145,6 +150,33 @@ export function resolveMcpResourceUrl(env = process.env) {
   );
 }
 
+export function resolveMcpAlternateResourceUrls(env = process.env) {
+  const configured = String(env.MCP_ALTERNATE_RESOURCE_URLS || "")
+    .split(",")
+    .map((value) => normalizeHttpsUrl(value))
+    .filter(Boolean);
+  const canonical = resolveMcpResourceUrl(env);
+  return [
+    ...new Set([
+      ...DEFAULT_MCP_ALTERNATE_RESOURCE_URLS.map((value) =>
+        normalizeHttpsUrl(value),
+      ),
+      ...configured,
+    ]),
+  ].filter((value) => value && value !== canonical);
+}
+
+// The MCP address a request reached, if it is one of ours; else the canonical one.
+export function resolveMcpResourceForHost(host, env = process.env) {
+  const wanted = String(host || "").trim().toLowerCase();
+  if (wanted) {
+    for (const resource of resolveMcpAlternateResourceUrls(env)) {
+      if (new URL(resource).host === wanted) return resource;
+    }
+  }
+  return resolveMcpResourceUrl(env);
+}
+
 function resolveOpenAiTunnelResourceUrl(env = process.env) {
   const resource = normalizeHttpsUrl(env.MCP_OPENAI_TUNNEL_RESOURCE_URL);
   if (!resource) return "";
@@ -192,6 +224,7 @@ function isAllowedMcpResourceUrl(resource, env = process.env) {
   const tunnel = resolveOpenAiTunnelResourceUrl(env);
   return (
     requested === canonical ||
+    resolveMcpAlternateResourceUrls(env).includes(requested) ||
     requested === resolveChatGptMcpResource(env) ||
     Boolean(tunnel && requested === tunnel)
   );
@@ -293,8 +326,11 @@ export function isMcpOAuthConfigured(env = process.env) {
   }
 }
 
-export function getMcpProtectedResourceMetadata(env = process.env) {
-  const resource = resolveMcpResourceUrl(env);
+export function getMcpProtectedResourceMetadata(
+  env = process.env,
+  { host } = {},
+) {
+  const resource = resolveMcpResourceForHost(host, env);
   return {
     resource,
     authorization_servers: [resolveMcpIssuerUrl(env)],
@@ -421,11 +457,11 @@ export function mcpToolSecuritySchemes(name) {
 export function buildMcpAuthenticateChallenge(
   scopes = [MCP_READ_SCOPE],
   env = process.env,
-  { error, description } = {},
+  { error, description, host } = {},
 ) {
   const safeHeaderValue = (value) =>
     String(value).replace(/[^\x20-\x7E]|["\\]/gu, "");
-  const origin = resolveMcpIssuerUrl(env);
+  const origin = new URL(resolveMcpResourceForHost(host, env)).origin;
   const values = [
     `resource_metadata="${origin}/.well-known/oauth-protected-resource"`,
     `scope="${scopes.join(" ")}"`,

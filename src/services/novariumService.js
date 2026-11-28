@@ -143,6 +143,15 @@ export function supportsOpenAIReasoning(model) {
   return /^(gpt-5|o\d|codex)/iu.test(String(model || "").trim());
 }
 
+// A call's own output cap (maxOutputTokens), or the member cap inside a
+// member request, whichever is smaller; null when neither applies.
+function outputTokenLimit(callLimit) {
+  const caps = [publicAiOutputLimit(), callLimit].filter(
+    (cap) => Number.isInteger(cap) && cap > 0,
+  );
+  return caps.length ? Math.min(...caps) : null;
+}
+
 export async function requestOpenAIResponse({
   apiKey = process.env.OPENAI_API_KEY,
   responsesUrl = process.env.OPENAI_RESPONSES_URL ||
@@ -155,6 +164,7 @@ export async function requestOpenAIResponse({
   reasoningEffort = "none",
   outputSchema,
   outputSchemaName = "structured_response",
+  maxOutputTokens,
 }) {
   if (!apiKey) {
     throw new NovariumError(
@@ -181,6 +191,7 @@ export async function requestOpenAIResponse({
       : {}),
   };
 
+  const outputLimit = outputTokenLimit(maxOutputTokens);
   await reservePublicAiCall(input, "openai", model);
   const response = await fetchImpl(responsesUrl, {
     method: "POST",
@@ -196,9 +207,7 @@ export async function requestOpenAIResponse({
         : {}),
       ...(Object.keys(textOptions).length ? { text: textOptions } : {}),
       store: false,
-      ...(publicAiOutputLimit()
-        ? { max_output_tokens: publicAiOutputLimit() }
-        : {}),
+      ...(outputLimit ? { max_output_tokens: outputLimit } : {}),
     }),
     signal,
   });
@@ -245,6 +254,7 @@ export async function requestGeminiResponse({
   fetchImpl = fetch,
   signal,
   jsonMode = false,
+  maxOutputTokens,
 }) {
   if (!apiKey) {
     throw new NovariumError(
@@ -265,6 +275,7 @@ export async function requestGeminiResponse({
       parts: [{ text: item.content }],
     }));
   const baseUrl = String(apiUrl).replace(/\/+$/u, "");
+  const outputLimit = outputTokenLimit(maxOutputTokens);
   await reservePublicAiCall(input, "gemini", model);
   const response = await fetchImpl(
     `${baseUrl}/models/${encodeURIComponent(model)}:generateContent`,
@@ -283,13 +294,11 @@ export async function requestGeminiResponse({
             }
           : {}),
         contents,
-        ...(jsonMode || publicAiOutputLimit()
+        ...(jsonMode || outputLimit
           ? {
               generationConfig: {
                 ...(jsonMode ? { responseMimeType: "application/json" } : {}),
-                ...(publicAiOutputLimit()
-                  ? { maxOutputTokens: publicAiOutputLimit() }
-                  : {}),
+                ...(outputLimit ? { maxOutputTokens: outputLimit } : {}),
               },
             }
           : {}),

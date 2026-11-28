@@ -638,11 +638,38 @@ export async function saveSessionFor(mainId) {
 // The token that may write new files to Drive (drive.file or full drive),
 // or null. Checked before paid work such as a video, so nothing is made
 // that cannot be saved.
-export async function fileSaveSessionFor(mainId) {
+function canSaveFiles(session) {
+  const granted = grantedScopes(session?.scope);
+  return granted.has(GOOGLE_EXTRA_SCOPES.save) || granted.has("https://www.googleapis.com/auth/drive");
+}
+
+export async function fileSaveSessionFor(mainId, { findOrphan = findSaveTokenOfSameAccount } = {}) {
   const id = await saveSessionFor(mainId);
   const session = id ? await loadSession(id) : null;
-  const granted = grantedScopes(session?.scope);
-  return granted.has(GOOGLE_EXTRA_SCOPES.save) || granted.has("https://www.googleapis.com/auth/drive") ? id : null;
+  if (canSaveFiles(session)) return id;
+  // The save step can finish in a browser where the connection is not known
+  // (RADKO 28.11: „Разреши“ on novariumai.com while the connection was made
+  // on cloudaicore.com), so the save token is stored but linked to nothing.
+  // A save token of the same Google account (both ids known and equal) is
+  // linked here, so the step is not asked for again.
+  const main = mainId ? await loadSession(mainId) : null;
+  const orphan = main ? await findOrphan(mainId, main) : null;
+  if (!orphan) return null;
+  if (await linkSaveSession(mainId, orphan, "save")) return orphan;
+  return null;
+}
+
+// The newest save-only token of the main connection's own Google account,
+// or null. Only a token whose Google account id is known and equal counts.
+async function findSaveTokenOfSameAccount(mainId, main) {
+  const subject = googleSubject(main);
+  if (!subject) return null;
+  for (const [id, session] of await knownSessions()) {
+    if (id === mainId || linkedKindOf(session) !== "save") continue;
+    if (!session?.access_token && !session?.refresh_token) continue;
+    if (googleSubject(session) === subject && canSaveFiles(session)) return id;
+  }
+  return null;
 }
 
 // The linked YouTube upload token, or null when it was never turned on.

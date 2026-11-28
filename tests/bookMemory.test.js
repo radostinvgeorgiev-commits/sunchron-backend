@@ -304,3 +304,121 @@ test("the chapters, the draft and the downloads are on the book panel and the se
     assert.ok(english.includes(`\n${textLine}|`), textLine);
   }
 });
+
+test("every specialist keeps its own project memory in its own words, from one shared engine", async () => {
+  const { SPECIALIST_PROFILES, specialistProfile, publicSpecialistProfiles } = await import("../src/services/specialistProfiles.js");
+  const { buildCheckPrompt, buildDraftPrompt, buildSuggestPrompt, buildVerifyPrompt, splitManuscript } = await import(
+    "../src/services/bookMemoryService.js"
+  );
+  // One profile for each of the 14 specialists, each naming the four kinds.
+  const presets = listAssistantPresets().map(({ id }) => id);
+  assert.equal(presets.length, 14);
+  for (const id of presets) {
+    const profile = SPECIALIST_PROFILES[id];
+    assert.ok(profile, id);
+    assert.deepEqual(Object.keys(profile.kinds).sort(), ["character", "event", "place", "rule"], id);
+    assert.ok(profile.memory && profile.unit && profile.project && profile.expert && profile.look, id);
+  }
+  assert.equal(specialistProfile("nobody").id, "writer");
+  assert.equal(specialistProfile("__proto__").id, "writer");
+  assert.ok(!("expert" in publicSpecialistProfiles().lawyer), "the page gets only the words, not the prompts");
+
+  // The writer's prompts stay as they were; a lawyer's speak of the case.
+  const lawyer = specialistProfile("lawyer");
+  const writer = specialistProfile("writer");
+  const fact = { id: "f1", kind: "rule", name: "Срок", text: "Срокът за плащане е 30 дни.", fromChapter: 1 };
+  assert.match(buildCheckPrompt("текст", [fact], 2, writer)[0].content, /^Ти проверяваш глава от книга/u);
+  assert.match(buildCheckPrompt("текст", [fact], 2)[0].content, /^Ти проверяваш глава от книга/u);
+  const check = buildCheckPrompt("текст", [fact], 2, lawyer)[0].content;
+  assert.match(check, /юрист/u);
+  assert.match(check, /Паметта на делото/u);
+  assert.match(check, /срокове/u);
+  assert.doesNotMatch(check, /книга/u);
+  assert.match(buildSuggestPrompt("текст", 1, lawyer)[0].content, /rule = Клауза/u);
+  assert.match(buildVerifyPrompt([{ fact, quote: "60 дни" }], lawyer)[0].content, /Паметта на делото/u);
+  const draft = buildDraftPrompt({ title: "Иванов срещу Петров", number: 2, plan: "Отговор", facts: [fact], previous: "", profile: lawyer });
+  assert.match(draft[0].content, /юрист/u);
+  assert.doesNotMatch(draft[0].content, /книгата/u);
+
+  // A file splits at "Част 1", "Раздел 2", "Lesson 3" for the others; a
+  // sentence that starts with "Part" is not a heading.
+  const parts = splitManuscript("Част 1 Увод\nПърво.\nPart of me stays.\nРаздел 2\nВторо.\nLesson 3: Край\nТрето.", "teacher");
+  assert.deepEqual(parts.map(({ number, title }) => [number, title]), [[1, "Увод"], [2, ""], [3, "Край"]]);
+  assert.match(parts[0].text, /Part of me stays\./u);
+  assert.equal(splitManuscript("Глава 1\nЕдно.\nЧаст 2\nДве.").length, 1, "the writer splits only at chapters");
+});
+
+test("a project is saved under its specialist, and each specialist lists only its own", async () => {
+  const store = memoryStore();
+  const prompts = [];
+  const service = createBookMemoryService({
+    store,
+    createId: ids(),
+    askAi: async ({ input }) => {
+      prompts.push(input[0].content);
+      return '{"facts":[]}';
+    },
+  });
+  const book = await service.createBook("maria", "Сивата роба");
+  const lawsuit = await service.createBook("maria", "Иванов срещу Петров", "lawyer");
+  const other = await service.createBook("maria", "Нещо", "no-such-specialist");
+  assert.equal(book.domain, "writer");
+  assert.equal(lawsuit.domain, "lawyer");
+  assert.equal(other.domain, "writer");
+  await service.suggestFacts("maria", lawsuit.id, { text: "Договорът е от 1 март." });
+  assert.match(prompts.at(-1), /юрист/u);
+  await service.suggestFacts("maria", book.id, { text: "Мила има зелени очи." });
+  assert.match(prompts.at(-1), /писател/u);
+
+  // The page asks for one specialist's projects; an older book with no
+  // specialist belongs to the writer.
+  const { createBookMemoryRouter } = await import("../src/routes/bookMemoryRouter.js");
+  const listed = [{ id: "old", title: "Стара книга", facts: [] }, lawsuit];
+  const router = createBookMemoryRouter({ service: { list: async () => listed } });
+  const layer = router.stack.find((item) => item.route?.path === "/" && item.route.methods.get);
+  const answer = async (query) => {
+    let body;
+    await layer.route.stack[0].handle(
+      { owner: { memoryOwnerId: "maria" }, query },
+      { status() { return this; }, json(value) { body = value; } },
+    );
+    return body;
+  };
+  assert.deepEqual((await answer({ domain: "lawyer" })).books.map(({ id }) => id), [lawsuit.id]);
+  assert.equal((await answer({ domain: "lawyer" })).profile.memory, "Паметта на делото");
+  assert.ok(!("expert" in (await answer({ domain: "lawyer" })).profile));
+  assert.deepEqual((await answer({ domain: "writer" })).books.map(({ id }) => id), ["old"]);
+  assert.equal((await answer({})).books.length, 2, "without a specialist the list is the whole list");
+});
+
+test("the panel names things for the chosen specialist, in every language of the site", async () => {
+  const { SPECIALIST_PROFILES } = await import("../src/services/specialistProfiles.js");
+  const book = readFileSync("public/book.js", "utf8");
+  const tools = readFileSync("public/prompt-tools.js", "utf8");
+  assert.match(tools, /new CustomEvent\(TOOL_EVENTS\[id\], \{ detail: \{ assistant: current\?\.id \|\| "" \} \}\)/u);
+  assert.match(book, /call\("GET", `\?domain=\$\{encodeURIComponent\(asked\)\}`\)/u);
+  // Switching specialists starts on a clean panel, and a late answer for the
+  // previous specialist is dropped.
+  assert.match(book, /if \(ticket !== opening\) return;/u);
+  assert.match(book, /resetPanel\(\);/u);
+  assert.match(book, /\.filter\(\(book\) => \(book\.domain \|\| "writer"\) === domain\)/u);
+  assert.match(book, /call\("POST", "", \{ title, domain \}\)/u);
+  assert.match(book, /pick\("Нова книга", "Нов проект"\)/u);
+  const english = new Map(
+    readFileSync("public/locale-en.js", "utf8")
+      .split("\n")
+      .filter((line) => line.includes("|"))
+      .map((line) => line.split("|")),
+  );
+  const catalogs = ["de", "es", "fr", "it", "ro"].map((code) => [code, JSON.parse(readFileSync(`public/locales/${code}.json`, "utf8"))]);
+  const words = new Set(["Паметта на проекта", "Какво може"]);
+  for (const profile of Object.values(SPECIALIST_PROFILES)) {
+    words.add(profile.memory);
+    for (const label of Object.values(profile.kinds)) words.add(label);
+  }
+  for (const match of book.matchAll(/pick\(\s*"[^"]+",\s*"([^"]+)",?\s*\)/gu)) words.add(match[1]);
+  for (const line of words) {
+    assert.ok(english.has(line), `English: ${line}`);
+    for (const [code, catalog] of catalogs) assert.ok(catalog[english.get(line)], `${code}: ${line}`);
+  }
+});

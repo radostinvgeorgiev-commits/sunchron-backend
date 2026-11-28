@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { listAssistantPresets } from "../../src/services/assistantPresets.js";
 import { createAddonService } from "../../src/services/addonService.js";
 import { createBookMemoryService } from "../../src/services/bookMemoryService.js";
+import { specialistProfile } from "../../src/services/specialistProfiles.js";
 // The server's own rules for pictures and video in the chat, so the robot can
 // only pass on what the server does.
 import {
@@ -313,8 +314,15 @@ export function startStubServer(port = 0) {
         const [, , , bookId, area, factId, action] = p.split("/").map((part) => decodeURIComponent(part));
         const me = "robot";
         try {
-          if (!bookId && req.method === "GET") return json(res, { books: await books.list(me) });
-          if (!bookId && req.method === "POST") return json(res, { book: await books.createBook(me, data.title) }, 201);
+          // Same as the server: ?domain= lists one specialist's projects.
+          if (!bookId && req.method === "GET") {
+            const all = await books.list(me);
+            const domain = url.searchParams.get("domain");
+            if (!domain) return json(res, { books: all });
+            const { id, project, unit, memory, kinds } = specialistProfile(domain);
+            return json(res, { books: all.filter((book) => specialistProfile(book.domain).id === id), profile: { id, project, unit, memory, kinds } });
+          }
+          if (!bookId && req.method === "POST") return json(res, { book: await books.createBook(me, data.title, data.domain) }, 201);
           if (!area && req.method === "DELETE") return json(res, { books: await books.removeBook(me, bookId) });
           if (area === "facts" && action === "change") return json(res, { book: await books.changeFact(me, bookId, factId, data) });
           if (area === "facts" && req.method === "POST") return json(res, { book: await books.addFacts(me, bookId, data.facts) });

@@ -9,7 +9,13 @@
     ["rule", "Правило на света"],
     ["event", "Събитие"],
   ];
-  const kindLabel = (kind) => text((KINDS.find(([id]) => id === kind) || KINDS[3])[1]);
+  // Each specialist keeps its own project memory: the writer keeps the
+  // book's words, the others name things in their own field.
+  let domain = "writer";
+  let profile = null;
+  const pick = (writerWords, otherWords) => text(domain === "writer" ? writerWords : otherWords);
+  const kinds = () => (domain === "writer" || !profile?.kinds ? KINDS : KINDS.map(([id]) => [id, profile.kinds[id] || id]));
+  const kindLabel = (kind) => text((kinds().find(([id]) => id === kind) || kinds()[3])[1]);
   const dialog = document.createElement("div");
   dialog.className = "share-dialog book-dialog";
   dialog.hidden = true;
@@ -103,20 +109,22 @@
     </div>`;
   document.body.appendChild(dialog);
   const $ = (selector) => dialog.querySelector(selector);
-  $("h2").textContent = text("Паметта на книгата");
+  const applyWords = () => {
+  $("h2").textContent = text(domain === "writer" ? "Паметта на книгата" : profile?.memory || "Паметта на проекта");
   $(".share-close").textContent = "✕";
   $(".share-close").setAttribute("aria-label", text("Затвори"));
-  $(".book-intro").textContent = text(
+  $(".book-intro").textContent = pick(
     "Тук се пазят героите, местата, правилата и събитията на книгата ти. Аватарът само предлага; факт влиза в паметта, когато го запазиш. Паметта е само твоя.",
+    "Тук се пазят важните факти по проекта ти. Аватарът само предлага; факт влиза в паметта, когато го запазиш. Паметта е само твоя.",
   );
-  $(".book-select").setAttribute("aria-label", text("Книга"));
-  $(".book-delete").textContent = text("Изтрий книгата");
-  $(".book-new-title").placeholder = text("Име на нова книга");
-  $(".book-new button").textContent = text("Нова книга");
+  $(".book-select").setAttribute("aria-label", pick("Книга", "Проект"));
+  $(".book-delete").textContent = pick("Изтрий книгата", "Изтрий проекта");
+  $(".book-new-title").placeholder = pick("Име на нова книга", "Име на нов проект");
+  $(".book-new button").textContent = pick("Нова книга", "Нов проект");
   $('[data-tab="facts"]').textContent = text("Факти");
-  $('[data-tab="check"]').textContent = text("Провери глава");
+  $('[data-tab="check"]').textContent = pick("Провери глава", "Провери текст");
   $(".book-add-kind").replaceChildren(
-    ...KINDS.map(([id, label]) => {
+    ...kinds().map(([id, label]) => {
       const option = document.createElement("option");
       option.value = id;
       option.textContent = text(label);
@@ -124,34 +132,36 @@
     }),
   );
   $(".book-add-kind").setAttribute("aria-label", text("Вид"));
-  $(".book-add-name").placeholder = text("Име (напр. Мила)");
-  $(".book-add-text").placeholder = text("Фактът (напр. Мила има зелени очи)");
-  $(".book-add-chapter").placeholder = text("От глава");
-  $(".book-add-chapter").setAttribute("aria-label", text("От глава"));
+  $(".book-add-name").placeholder = pick("Име (напр. Мила)", "Име");
+  $(".book-add-text").placeholder = pick("Фактът (напр. Мила има зелени очи)", "Фактът в едно изречение");
+  $(".book-add-chapter").placeholder = pick("От глава", "От част");
+  $(".book-add-chapter").setAttribute("aria-label", pick("От глава", "От част"));
   $(".book-add button").textContent = text("Запази факта");
   $(".book-extract summary").textContent = text("Извади факти от текст");
-  $(".book-extract-text").placeholder = text("Постави глава или откъс. Аватарът ще предложи факти, а ти избираш кои да запазиш.");
-  $(".book-extract-chapter").placeholder = text("Глава");
-  $(".book-extract-chapter").setAttribute("aria-label", text("Глава"));
+  $(".book-extract-text").placeholder = pick("Постави глава или откъс. Аватарът ще предложи факти, а ти избираш кои да запазиш.", "Постави текст или откъс. Аватарът ще предложи факти, а ти избираш кои да запазиш.");
+  $(".book-extract-chapter").placeholder = pick("Глава", "Част");
+  $(".book-extract-chapter").setAttribute("aria-label", pick("Глава", "Част"));
   $(".book-extract-run").textContent = text("Предложи факти");
   $(".book-keep").textContent = text("Запази избраните");
-  $(".book-check-chapter").placeholder = text("Номер на главата");
-  $(".book-check-chapter").setAttribute("aria-label", text("Номер на главата"));
-  $(".book-check-text").placeholder = text("Постави текста на главата.");
-  $(".book-check-run").textContent = text("Провери главата");
-  $('[data-tab="chapters"]').textContent = text("Глави");
-  $(".book-chapter-number").placeholder = text("Глава");
-  $(".book-chapter-number").setAttribute("aria-label", text("Номер на главата"));
+  $(".book-check-chapter").placeholder = pick("Номер на главата", "Номер на частта");
+  $(".book-check-chapter").setAttribute("aria-label", pick("Номер на главата", "Номер на частта"));
+  $(".book-check-text").placeholder = pick("Постави текста на главата.", "Постави текста.");
+  $(".book-check-run").textContent = pick("Провери главата", "Провери текста");
+  $('[data-tab="chapters"]').textContent = pick("Глави", "Части");
+  $(".book-chapter-number").placeholder = pick("Глава", "Част");
+  $(".book-chapter-number").setAttribute("aria-label", pick("Номер на главата", "Номер на частта"));
   $(".book-chapter-title").placeholder = text("Заглавие (по желание)");
-  $(".book-chapter-text").placeholder = text("Текстът на главата.");
-  $(".book-chapter-save").textContent = text("Запази главата");
+  $(".book-chapter-text").placeholder = pick("Текстът на главата.", "Текстът на частта.");
+  $(".book-chapter-save").textContent = pick("Запази главата", "Запази частта");
   $(".book-draft summary").textContent = text("Напиши чернова по план");
-  $(".book-draft-plan").placeholder = text("Какво става в главата: кой, къде, какво. Черновата спазва паметта на книгата и се проверява, преди да я видиш.");
+  $(".book-draft-plan").placeholder = pick("Какво става в главата: кой, къде, какво. Черновата спазва паметта на книгата и се проверява, преди да я видиш.", "Какво трябва да има в тази част. Черновата спазва паметта на проекта и се проверява, преди да я видиш.");
   $(".book-draft-run").textContent = text("Напиши чернова");
-  $(".book-upload summary").textContent = text("Качи ръкопис");
-  $(".book-upload-note").textContent = text("Файл .docx или .txt. Разделям го на глави по заглавията „Глава 1“, „Глава 2“… Нищо не се пази, докато не натиснеш „Запази главите“.");
-  $(".book-upload-save").textContent = text("Запази главите");
-  $(".book-export-title").textContent = text("Изтегли книгата:");
+  $(".book-upload summary").textContent = pick("Качи ръкопис", "Качи файл");
+  $(".book-upload-note").textContent = pick("Файл .docx или .txt. Разделям го на глави по заглавията „Глава 1“, „Глава 2“… Нищо не се пази, докато не натиснеш „Запази главите“.", "Файл .docx или .txt. Разделям го на части по заглавията „Част 1“, „Раздел 2“, „Урок 3“… Нищо не се пази, докато не натиснеш „Запази частите“.");
+  $(".book-upload-save").textContent = pick("Запази главите", "Запази частите");
+  $(".book-export-title").textContent = pick("Изтегли книгата:", "Изтегли проекта:");
+  };
+  applyWords();
   const status = (message) => ($(".share-status").textContent = message || "");
 
   let books = [];
@@ -185,8 +195,8 @@
   };
   const range = (fact) =>
     fact.untilChapter
-      ? `${text("гл.")} ${fact.fromChapter || 1}–${fact.untilChapter}`
-      : `${text("от гл.")} ${fact.fromChapter || 1}`;
+      ? `${pick("гл.", "ч.")} ${fact.fromChapter || 1}–${fact.untilChapter}`
+      : `${pick("от гл.", "от ч.")} ${fact.fromChapter || 1}`;
 
   const renderFacts = () => {
     const book = current();
@@ -213,7 +223,7 @@
     if (!facts.length) {
       const empty = document.createElement("li");
       empty.className = "todo-empty";
-      empty.textContent = text("Паметта на тази книга е празна. Добави първия факт или го извади от текст.");
+      empty.textContent = pick("Паметта на тази книга е празна. Добави първия факт или го извади от текст.", "Паметта на този проект е празна. Добави първия факт или го извади от текст.");
       $(".book-facts").appendChild(empty);
     }
   };
@@ -245,13 +255,13 @@
         open.type = "button";
         open.className = "book-chapter-open";
         open.dataset.number = String(chapter.number);
-        open.textContent = `${chapter.number}. ${chapter.title || text("Глава")} · ${chapter.words} ${text("думи")}`;
+        open.textContent = `${chapter.number}. ${chapter.title || pick("Глава", "Част")} · ${chapter.words} ${text("думи")}`;
         const remove = document.createElement("button");
         remove.type = "button";
         remove.className = "todo-remove book-chapter-remove";
         remove.dataset.number = String(chapter.number);
         remove.textContent = "✕";
-        remove.setAttribute("aria-label", text("Изтрий главата"));
+        remove.setAttribute("aria-label", pick("Изтрий главата", "Изтрий частта"));
         row.append(open, remove);
         return row;
       }),
@@ -259,7 +269,7 @@
     if (!chapters.length) {
       const empty = document.createElement("li");
       empty.className = "todo-empty";
-      empty.textContent = text("Още няма глави. Напиши, качи ръкопис или поискай чернова.");
+      empty.textContent = pick("Още няма глави. Напиши, качи ръкопис или поискай чернова.", "Още няма части. Напиши, качи файл или поискай чернова.");
       $(".book-chapters").appendChild(empty);
     }
     const base = book ? `/api/books/${encodeURIComponent(book.id)}/export?format=` : "";
@@ -288,7 +298,7 @@
     const title = $(".book-new-title").value.trim();
     if (!title) return;
     void run(async () => {
-      const { book } = await call("POST", "", { title });
+      const { book } = await call("POST", "", { title, domain });
       books = [book, ...books];
       currentId = book.id;
       $(".book-new-title").value = "";
@@ -304,14 +314,16 @@
       $(".book-delete").textContent = text("Натисни пак, за да изтриеш");
       setTimeout(() => {
         armed = false;
-        $(".book-delete").textContent = text("Изтрий книгата");
+        $(".book-delete").textContent = pick("Изтрий книгата", "Изтрий проекта");
       }, 4000);
       return;
     }
     armed = false;
-    $(".book-delete").textContent = text("Изтрий книгата");
+    $(".book-delete").textContent = pick("Изтрий книгата", "Изтрий проекта");
     void run(async () => {
-      books = (await call("DELETE", bookPath())).books;
+      // The server answers with every project of the person; this panel
+      // shows only the open specialist's (an old book belongs to the writer).
+      books = ((await call("DELETE", bookPath())).books || []).filter((book) => (book.domain || "writer") === domain);
       renderBooks();
     }, text("Изтриване…"));
   });
@@ -349,7 +361,7 @@
   $(".book-extract-run").addEventListener("click", () => {
     const source = $(".book-extract-text").value.trim();
     if (!source) {
-      status(text("Постави текст от книгата."));
+      status(pick("Постави текст от книгата.", "Постави текст."));
       return;
     }
     void run(async () => {
@@ -406,8 +418,8 @@
         const row = document.createElement("li");
         row.className = "book-issue";
         row.append(
-          quoteLine(`${text("Паметта")} (${kindLabel(issue.kind)}, ${text("от гл.")} ${issue.fromChapter}):`, issue.name ? `${issue.name}: ${issue.fact}` : issue.fact, "book-issue-fact"),
-          quoteLine(`${text("Главата")}:`, `„${issue.quote}“`, "book-issue-quote"),
+          quoteLine(`${text("Паметта")} (${kindLabel(issue.kind)}, ${pick("от гл.", "от ч.")} ${issue.fromChapter}):`, issue.name ? `${issue.name}: ${issue.fact}` : issue.fact, "book-issue-fact"),
+          quoteLine(`${pick("Главата", "Текстът")}:`, `„${issue.quote}“`, "book-issue-quote"),
         );
         if (issue.why) {
           const why = document.createElement("p");
@@ -439,12 +451,12 @@
           const save = document.createElement("button");
           save.type = "submit";
           save.className = "primary";
-          save.textContent = chapter > 1 ? `${text("Запази от глава")} ${chapter}` : text("Запази промяната");
+          save.textContent = chapter > 1 ? `${pick("Запази от глава", "Запази от част")} ${chapter}` : text("Запази промяната");
           form.append(input, save);
           form.addEventListener("submit", (event) => {
             event.preventDefault();
             if (!chapter || chapter < 2) {
-              status(text("Напиши номера на главата (2 или повече), за да запазиш промяна."));
+              status(pick("Напиши номера на главата (2 или повече), за да запазиш промяна.", "Напиши номера на частта (2 или повече), за да запазиш промяна."));
               return;
             }
             void run(async () => {
@@ -452,7 +464,7 @@
                 (await call("POST", bookPath(`/facts/${encodeURIComponent(issue.factId)}/change`), { chapter, text: input.value, quote: issue.quote })).book,
               );
               row.classList.add("book-issue-done");
-              actions.replaceChildren(Object.assign(document.createElement("small"), { textContent: `${text("Паметта е обновена от глава")} ${chapter}.` }));
+              actions.replaceChildren(Object.assign(document.createElement("small"), { textContent: `${pick("Паметта е обновена от глава", "Паметта е обновена от част")} ${chapter}.` }));
             }, text("Записване…"));
           });
           actions.replaceChildren(form);
@@ -468,12 +480,12 @@
   $(".book-check-run").addEventListener("click", () => {
     const source = $(".book-check-text").value.trim();
     if (!source) {
-      status(text("Постави текста на главата."));
+      status(pick("Постави текста на главата.", "Постави текста."));
       return;
     }
     void run(async () => {
       renderIssues((await call("POST", bookPath("/check"), { text: source, chapter: chapterOf(".book-check-chapter") })).result);
-    }, text("Проверявам главата…"));
+    }, pick("Проверявам главата…", "Проверявам текста…"));
   });
 
   // Chapters: open one into the editor, save, delete.
@@ -499,12 +511,12 @@
       text: $(".book-chapter-text").value,
     };
     if (!chapter.number || !chapter.text.trim()) {
-      status(text("Напиши номера и текста на главата."));
+      status(pick("Напиши номера и текста на главата.", "Напиши номера и текста на частта."));
       return;
     }
     void run(async () => {
       replaceBook((await call("POST", bookPath("/chapters"), { chapters: [chapter] })).book);
-      status(`${text("Главата е запазена")}: ${chapter.number}`);
+      status(`${pick("Главата е запазена", "Частта е запазена")}: ${chapter.number}`);
     }, text("Записване…"));
   });
   // A draft fills the editor and shows its check; it is saved only with
@@ -513,7 +525,7 @@
     const number = chapterOf(".book-chapter-number");
     const plan = $(".book-draft-plan").value.trim();
     if (!number || !plan) {
-      status(text("Напиши номера на главата и плана."));
+      status(pick("Напиши номера на главата и плана.", "Напиши номера на частта и плана."));
       return;
     }
     void run(async () => {
@@ -526,17 +538,20 @@
               ? `${text("противоречия")}: ${check.issues.length} — ${check.issues.map((issue) => `„${issue.quote}“ ↔ ${issue.fact}`).join("; ")}`
               : text("няма противоречия")
           }`
-        : text("Паметта на книгата е празна, затова черновата не е проверена.");
-      status(text("Черновата е в полето отгоре. Прочети я и натисни „Запази главата“, ако я искаш."));
+        : pick("Паметта на книгата е празна, затова черновата не е проверена.", "Паметта на проекта е празна, затова черновата не е проверена.");
+      status(pick("Черновата е в полето отгоре. Прочети я и натисни „Запази главата“, ако я искаш.", "Черновата е в полето отгоре. Прочети я и натисни „Запази частта“, ако я искаш."));
     }, text("Пиша черновата…"));
   });
   // A manuscript is read in the browser and split at its chapter headings.
   const HEADING = /^\s*(?:глава|chapter|kapitel|capítulo|capitulo|chapitre|capitolo|capitolul|розділ|bölüm)(?=[\s\d.:-]|$)[^\n]{0,80}$/iu;
+  const PART_HEADING =
+    /^\s*(?:глава|част|раздел|урок|документ|chapter|part|section|lesson|teil|abschnitt|parte|sección|seccion|partie|bölüm|kısım|частина|розділ)\s+(?:\d+|[IVXLCDM]+)\b[^\n]{0,80}$/iu;
   const splitManuscript = (source) => {
+    const heading = domain === "writer" ? HEADING : PART_HEADING;
     const chapters = [];
     let currentChapter = null;
     for (const line of String(source).replace(/\r\n?/gu, "\n").split("\n")) {
-      if (HEADING.test(line)) {
+      if (heading.test(line)) {
         if (currentChapter) chapters.push(currentChapter);
         currentChapter = { title: line.trim().replace(/^\s*\S+\s+(?:\d+|[IVXLCDM]+)\b[.:\s-]*/iu, "").trim().slice(0, 120), lines: [] };
       } else {
@@ -584,18 +599,18 @@
       const source = /\.docx$/iu.test(file.name) ? await readDocx(file) : await file.text();
       pending = splitManuscript(source);
       if (!pending.length) throw new Error(text("Файлът е празен."));
-      $(".book-upload-count").textContent = `${text("Намерих глави")}: ${pending.length} · ${pending
+      $(".book-upload-count").textContent = `${pick("Намерих глави", "Намерих части")}: ${pending.length} · ${pending
         .slice(0, 5)
-        .map((chapter) => `${chapter.number}. ${chapter.title || text("Глава")}`)
+        .map((chapter) => `${chapter.number}. ${chapter.title || pick("Глава", "Част")}`)
         .join(", ")}${pending.length > 5 ? "…" : ""}`;
       $(".book-upload-preview").hidden = false;
-    }, text("Чета ръкописа…"));
+    }, pick("Чета ръкописа…", "Чета файла…"));
   });
   $(".book-upload-save").addEventListener("click", () => {
     if (!pending.length) return;
     void run(async () => {
       replaceBook((await call("POST", bookPath("/chapters"), { chapters: pending })).book);
-      status(`${text("Запазени глави")}: ${pending.length}. ${text("Сега можеш да извадиш факти от тях в „Факти“.")}`);
+      status(`${pick("Запазени глави", "Запазени части")}: ${pending.length}. ${text("Сега можеш да извадиш факти от тях в „Факти“.")}`);
       pending = [];
       $(".book-upload-preview").hidden = true;
     }, text("Записване…"));
@@ -609,10 +624,41 @@
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !dialog.hidden) close();
   });
-  document.addEventListener("novarium:book", () => {
+  // Another specialist opens its own memory on a clean panel: nothing of
+  // the previous one stays on screen, and it starts on "Факти".
+  const resetPanel = () => {
+    armed = false;
+    books = [];
+    currentId = "";
+    pending = [];
+    for (const field of [".book-check-text", ".book-check-chapter", ".book-chapter-text", ".book-chapter-title", ".book-chapter-number", ".book-draft-plan", ".book-extract-text", ".book-extract-chapter", ".book-new-title", ".book-upload-file"]) {
+      $(field).value = "";
+    }
+    for (const box of [".book-result", ".book-suggestions", ".book-upload-preview"]) $(box).hidden = true;
+    $(".book-draft-check").textContent = "";
+    dialog.querySelector('[data-tab="facts"]').click();
+    applyWords();
+    renderBooks();
+  };
+  let opening = 0;
+  document.addEventListener("novarium:book", (event) => {
+    const asked = String(event.detail?.assistant || "writer").replace(/[^a-z_-]/gu, "").slice(0, 40) || "writer";
+    if (asked !== domain) {
+      domain = asked;
+      profile = null;
+      resetPanel();
+    }
     dialog.hidden = false;
+    const ticket = (opening += 1);
     void run(async () => {
-      books = (await call("GET")).books || [];
+      const data = await call("GET", `?domain=${encodeURIComponent(asked)}`);
+      // An older answer that arrives after the person switched specialists
+      // is dropped.
+      if (ticket !== opening) return;
+      books = data.books || [];
+      profile = data.profile || null;
+      if (profile?.id && profile.id !== domain) domain = profile.id;
+      applyWords();
       renderBooks();
     }, text("Зареждане…"));
   });

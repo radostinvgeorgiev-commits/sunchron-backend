@@ -1128,5 +1128,94 @@ Claude, GPT, Gemini и други. Избираш сам или оставяш �
 Чета ръкописа…|Reading the manuscript…
 Запазени глави|Chapters saved
 Сега можеш да извадиш факти от тях в „Факти“.|Now you can pull facts from them in “Facts”.
+Тук се пазят важните факти по проекта ти. Аватарът само предлага; факт влиза в паметта, когато го запазиш. Паметта е само твоя.|This is where the key facts of your project are kept. The avatar only suggests; a fact enters the memory when you save it. The memory is yours alone.
+Изтрий проекта|Delete the project
+Име на нов проект|Name of a new project
+Нов проект|New project
+Провери текст|Check a text
+Фактът в едно изречение|The fact in one sentence
+От част|From part
+Постави текст или откъс. Аватарът ще предложи факти, а ти избираш кои да запазиш.|Paste a text or an excerpt. The avatar will suggest facts and you choose which to keep.
+Част|Part
+Номер на частта|Part number
+Постави текста.|Paste the text.
+Провери текста|Check the text
+Части|Parts
+Текстът на частта.|The text of the part.
+Запази частта|Save the part
+Какво трябва да има в тази част. Черновата спазва паметта на проекта и се проверява, преди да я видиш.|What this part should contain. The draft follows the project’s memory and is checked before you see it.
+Качи файл|Upload a file
+Файл .docx или .txt. Разделям го на части по заглавията „Част 1“, „Раздел 2“, „Урок 3“… Нищо не се пази, докато не натиснеш „Запази частите“.|A .docx or .txt file. I split it into parts at headings like “Part 1”, “Section 2”, “Lesson 3”… Nothing is saved until you press “Save the parts”.
+Запази частите|Save the parts
+Изтегли проекта:|Download the project:
+ч.|pt.
+от ч.|from pt.
+Паметта на този проект е празна. Добави първия факт или го извади от текст.|This project’s memory is empty. Add the first fact or pull it from a text.
+Изтрий частта|Delete the part
+Още няма части. Напиши, качи файл или поискай чернова.|No parts yet. Write one, upload a file or ask for a draft.
+Постави текст.|Paste a text.
+Текстът|The text
+Запази от част|Save from part
+Напиши номера на частта (2 или повече), за да запазиш промяна.|Write the part number (2 or more) to save a change.
+Паметта е обновена от част|Memory updated from part
+Проверявам текста…|Checking the text…
+Напиши номера и текста на частта.|Write the part number and its text.
+Частта е запазена|Part saved
+Напиши номера на частта и плана.|Write the part number and the plan.
+Паметта на проекта е празна, затова черновата не е проверена.|The project’s memory is empty, so the draft was not checked.
+Черновата е в полето отгоре. Прочети я и натисни „Запази частта“, ако я искаш.|The draft is in the box above. Read it and press “Save the part” if you want it.
+Намерих части|Parts found
+Запазени части|Parts saved
+Чета файла…|Reading the file…
+Какво може|What it can do
+Паметта на проекта|Project memory
+Паметта на ръкописа|Manuscript memory
+Паметта на делото|Case memory
+Паметта на марката|Brand memory
+Паметта на курса|Course memory
+Речникът на превода|Translation glossary
+Паметта на бизнеса|Business memory
+Паметта на обекта|Building memory
+Паметта на дневника|Health log memory
+Паметта на фирмата|Company memory
+Паметта на плана|Training plan memory
+Паметта на кухнята|Kitchen memory
+Паметта на разговорите|Conversation memory
+Име и термин|Name or term
+Правопис|Spelling
+Стил|Style
+Решение|Decision
+Страна|Party
+Срок|Deadline
+Клауза|Clause
+Аудитория|Audience
+Канал|Channel
+Правило на марката|Brand rule
+Оферта|Offer
+Ученик|Student
+Правило|Rule
+Изучено|Learned
+Термин|Term
+Компонент|Component
+Интерфейс|Interface
+Клиент или партньор|Client or partner
+Пазар|Market
+Помещение|Room
+Размер|Size
+Норма|Building code
+Лекарство|Medicine
+Алергия|Allergy
+Указание на лекар|Doctor’s instruction
+Изследване|Test result
+Контрагент|Counterparty
+Сметка|Account
+Плащане|Payment
+Цел|Goal
+Ограничение|Limitation
+Резултат|Result
+Продукт|Ingredient
+Човек|Person
+Важно за мен|Important to me
+Случка|Happening
 `.trim().split("\n").map((line) => line.split("|")),
 );

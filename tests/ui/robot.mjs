@@ -297,6 +297,44 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media)
     await panel.locator(".share-close").click();
     await pickNone();
   });
+  await step(`${label}: всеки специалист има своя памет по проекта (юрист: „Паметта на делото“)`, async () => {
+    await pickSpecialist("lawyer");
+    await page.locator('.assistant-tools [data-tool="book"]').waitFor({ timeout: 5000 });
+    const toolName = await page.locator('.assistant-tools [data-tool="book"]').innerText();
+    expect(toolName.includes("Паметта на делото"), `инструментът не е на юриста: ${toolName}`);
+    await page.click('.assistant-tools [data-tool="book"]');
+    const panel = page.locator(".book-dialog");
+    await panel.waitFor({ state: "visible", timeout: 5000 });
+    await page.waitForFunction(() => document.querySelector(".book-dialog h2").textContent === "Паметта на делото", null, { timeout: 5000 });
+    // The writer left the panel on "Глави"; another specialist starts clean on "Факти".
+    expect((await panel.locator('[data-tab="facts"]').getAttribute("aria-selected")) === "true", "не започва от „Факти“");
+    expect((await panel.locator(".book-new button").innerText()).includes("Нов проект"), "бутонът не е за проект");
+    await panel.locator(".book-new-title").fill("Иванов срещу Петров");
+    await panel.locator(".book-new button").click();
+    await panel.locator(".book-body").waitFor({ state: "visible", timeout: 5000 });
+    const kinds = await panel.locator(".book-add-kind option").allInnerTexts();
+    expect(kinds.join(",") === "Страна,Срок,Клауза,Събитие", `видовете не са на юриста: ${kinds}`);
+    expect((await panel.locator('[data-tab="chapters"]').innerText()).includes("Части"), "разделът не е „Части“");
+    await panel.locator(".book-add-kind").selectOption("place");
+    await panel.locator(".book-add-name").fill("Плащане");
+    await panel.locator(".book-add-text").fill("Срокът за плащане е 30 дни.");
+    await panel.locator(".book-add button").click();
+    await panel.locator(".book-fact").first().waitFor({ timeout: 5000 });
+    expect((await panel.locator(".book-fact").first().innerText()).includes("Срок"), "фактът не е със срок");
+    // The writer does not see the case, and the case does not see the book.
+    const lists = await page.evaluate(async () => ({
+      writer: (await (await fetch("/api/books?domain=writer")).json()).books.length,
+      lawyer: (await (await fetch("/api/books?domain=lawyer")).json()).books.map((book) => book.domain),
+    }));
+    expect(lists.writer === 0 && lists.lawyer.join() === "lawyer", `паметите се смесиха: ${JSON.stringify(lists)}`);
+    await page.evaluate(async () => {
+      for (const book of (await (await fetch("/api/books")).json()).books) await fetch(`/api/books/${book.id}`, { method: "DELETE" });
+    });
+    await panel.locator(".share-close").click();
+    await pickNone();
+  });
+  // Close the panel even when a check above failed, so the next steps can click.
+  if (await page.locator(".book-dialog").isVisible()) await page.locator(".book-dialog .share-close").click();
   await step(`${label}: странични менюта в ъглите, език и „Изход“ вътре`, async () => {
     const phoneView = await page.locator("#rightRailBtn").isVisible();
     if (phoneView) await page.click("#rightRailBtn");

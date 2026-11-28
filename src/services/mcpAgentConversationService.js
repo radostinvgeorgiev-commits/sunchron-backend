@@ -41,6 +41,7 @@ import {
 import {
   canPlanCapabilities,
   filterCapabilityRequestsForIdentity,
+  isMemberOwnGoogleWrite,
 } from "./memberCapabilityPolicy.js";
 import { orchestrateTask } from "./taskOrchestratorService.js";
 import { executeCapability } from "../tools/capabilityEngine.js";
@@ -52,7 +53,10 @@ import {
   resolveWorkAgentProvider,
   sanitizeWorkContext,
 } from "./workModeService.js";
-import { getLatestGoogleSessionId } from "./googleDriveService.js";
+import { getLatestGoogleSessionId, latestMainSessionFor } from "./googleDriveService.js";
+import { getImageGenerationService, ImageGenerationError } from "./imageGenerationService.js";
+import { publicAiBudgetContext } from "./publicAiBudget.js";
+import { ProductError } from "./productPlansService.js";
 import { getLatestAuthorizedGitHubSession } from "./githubOAuthService.js";
 import { recordAuditEvent } from "./permissionService.js";
 import { createTaskConfirmation } from "./confirmationService.js";
@@ -62,6 +66,7 @@ import {
 } from "./taskConfirmationService.js";
 
 const MAX_MESSAGE_LENGTH = 6_000;
+const GOOGLE_CAPABILITY = /^(?:mail|calendar|files|contacts|youtube)\./u;
 const MAX_SESSION_QUESTIONS = 10;
 const SAFE_ID_PATTERN = /^[a-z0-9:_-]+$/iu;
 const BRIDGE_BOUNDARY = [
@@ -157,6 +162,8 @@ export async function sendMcpAgentMessage(
     plan = planCapabilities,
     shouldPlan = shouldUseAgentPlanner,
     getGoogleSession = getLatestGoogleSessionId,
+    getOwnGoogleSession = latestMainSessionFor,
+    drawImage = (prompt) => getImageGenerationService().generate(prompt),
     getGitHubSession = getLatestAuthorizedGitHubSession,
     readWords = readPlainWordsPlan,
     auditTask = (event) =>
@@ -240,6 +247,60 @@ export async function sendMcpAgentMessage(
       turnsRemaining: MAX_SESSION_QUESTIONS - previousQuestions - 1,
     });
   }
+  // „Нарисувай ми картинка …“ (item 3, Team 2's probes 12 to 14): the picture
+  // is drawn now and comes back with the answer. A member's picture costs
+  // their units, as on the site.
+  const picture =
+    plainWordsPlan.type === "media" ? plainWordsPlan.items.find((item) => item.kind === "image") : null;
+  if (picture) {
+    let response;
+    let image = null;
+    try {
+      const made = await publicAiBudgetContext({ owner: safeIdentity }, null, () => drawImage(picture.prompt));
+      const data = String(made?.image || "").match(/^data:(image\/[a-z+.-]+);base64,([A-Za-z0-9+/=]+)$/u);
+      if (!data) throw new ImageGenerationError("Картинката не стана. Опитай пак.");
+      image = Object.freeze({ mimeType: data[1], data: data[2] });
+      response = `Нарисувах картинката: ${picture.prompt}`;
+    } catch (error) {
+      response =
+        error instanceof ImageGenerationError || error instanceof ProductError
+          ? `Картинката не стана: ${error.message}`
+          : "Картинката не стана. Опитай пак.";
+    }
+    await saveTurn(cleanSessionId, cleanMessage, response, cleanOwnerId);
+    return Object.freeze({
+      sessionId: cleanSessionId,
+      response,
+      ...(image ? { image } : {}),
+      project: Object.freeze({ id: project.id, name: project.name }),
+      agent: Object.freeze({
+        id: agent.id,
+        name: agent.name,
+        role: agent.role,
+      }),
+      conversationPersisted: true,
+      capabilities: Object.freeze(image ? ["image.generate"] : []),
+      task: null,
+      plannerUsed: false,
+      plannerErrorCode: null,
+      externalActionsExecuted: false,
+      codeChanged: false,
+      turnNumber: previousQuestions + 1,
+      turnsRemaining: MAX_SESSION_QUESTIONS - previousQuestions - 1,
+    });
+  }
+  const owner = safeIdentity?.role === "owner";
+  // A member's own Google, here as on the site: only their own newest
+  // connection, never the owner's (the open tree: each person's own branch,
+  // without reach into anyone else's).
+  let memberGoogleSessionId = null;
+  if (!owner && !noToolBoundary && canPlanCapabilities(safeIdentity)) {
+    try {
+      memberGoogleSessionId = await getOwnGoogleSession({ ...safeIdentity, memoryOwnerId: cleanOwnerId });
+    } catch {
+      memberGoogleSessionId = null;
+    }
+  }
   const fallbackRequests = noToolBoundary
     ? []
     : filterCapabilityRequestsForIdentity(
@@ -248,6 +309,7 @@ export async function sendMcpAgentMessage(
           detectCapabilityRequests(cleanMessage),
         ),
         safeIdentity,
+        { ownGoogle: Boolean(memberGoogleSessionId) },
       );
   const planningAllowed =
     !noToolBoundary &&
@@ -255,13 +317,16 @@ export async function sendMcpAgentMessage(
     canPlanCapabilities(safeIdentity) &&
     Boolean(process.env.OPENAI_API_KEY);
 
-  let googleSessionId = null;
+  let googleSessionId = memberGoogleSessionId;
   let githubSession = null;
+  // The person's own Google is opened when a request needs it, also when the
+  // message does not name Google („какво ми е деня днес“ reads the calendar).
   if (
-    plainWordsPlan.type === "requests" ||
-    /(?:google|drive|драйв|gmail|джимейл|календар|calendar|контакт)/iu.test(
-      cleanMessage,
-    )
+    owner &&
+    (fallbackRequests.some((request) => GOOGLE_CAPABILITY.test(request?.capability || "")) ||
+      /(?:google|drive|драйв|gmail|джимейл|календар|calendar|контакт)/iu.test(
+        cleanMessage,
+      ))
   ) {
     try {
       googleSessionId = await getGoogleSession();
@@ -283,20 +348,22 @@ export async function sendMcpAgentMessage(
   }
 
   if (taskConfirmationId) {
-    if (safeIdentity?.role !== "owner") {
+    // A member confirms only their own Google steps, with their own
+    // connection, as in their own chat on the site.
+    if (!owner && !memberGoogleSessionId) {
       throw new McpAgentConversationError(
         "Записващите действия са достъпни само за собственика.",
         -32003,
       );
     }
-    if (!githubSession) {
+    if (owner && !githubSession) {
       try {
         githubSession = await getGitHubSession();
       } catch {
         githubSession = null;
       }
     }
-    if (!googleSessionId) {
+    if (owner && !googleSessionId) {
       try {
         googleSessionId = await getGoogleSession();
       } catch {
@@ -306,11 +373,12 @@ export async function sendMcpAgentMessage(
     const confirmed = await confirmTaskWrite({
       ownerId: cleanOwnerId,
       sessionId: cleanSessionId,
-      // Its steps were prepared under the owner (executionContext below).
+      // Its steps were prepared under the profile (executionContext below).
       itemSessionId: cleanOwnerId,
       taskConfirmationId,
       githubSessionId: githubSession?.id || null,
       googleSessionId,
+      ...(owner ? {} : { allowItem: (item) => isMemberOwnGoogleWrite(item.capability) }),
     });
     const response = `Потвърдената NovariumAI задача е изпълнена: ${confirmed.results.length} операции.`;
     await saveTurn(cleanSessionId, cleanMessage, response, cleanOwnerId);
@@ -349,7 +417,9 @@ export async function sendMcpAgentMessage(
     planFn: plan,
     shouldPlanFn: shouldPlan,
     normalizeRequests: (requests) =>
-      filterCapabilityRequestsForIdentity(requests, safeIdentity),
+      filterCapabilityRequestsForIdentity(requests, safeIdentity, {
+        ownGoogle: Boolean(memberGoogleSessionId),
+      }),
     routeRequests: (requests) =>
       routeSelectedWorkAgentCapabilities(
         requests,

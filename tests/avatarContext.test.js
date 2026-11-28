@@ -208,3 +208,37 @@ test("the reply language rule closes the system context, after the Bulgarian rul
   const bulgarian = buildAvatarMessages([], [], "Намери контакт Ана");
   assert.match(bulgarian[0].content, /If its language is unclear, use Bulgarian\.[^\n]*$/u);
 });
+
+test("the model knows today's date in Sofia, so „какво ми е деня днес“ gets today", () => {
+  // 04:45 UTC on 28.11.2026 is 06:45 on Saturday in Sofia.
+  const now = new Date("2026-11-28T04:45:00Z");
+  const [bulgarian] = buildAvatarMessages([], [], "какво ми е деня днес", undefined, {
+    mode: "chat",
+    workContext: null,
+    now,
+  });
+  assert.match(bulgarian.content, /\[ДНЕС\] Днес е събота, 28 ноември 2026 г\., 06:45 ч\. \(София\)\./u);
+  assert.ok(bulgarian.content.indexOf("[ДНЕС]") < bulgarian.content.indexOf("[REPLY LANGUAGE]"));
+  assert.match(bulgarian.content, /\[REPLY LANGUAGE\][^\n]*$/u);
+
+  const [english] = buildAvatarMessages([], [], "what's my day", undefined, {
+    mode: "chat",
+    workContext: null,
+    language: "en",
+    now,
+  });
+  assert.match(english.content, /\[TODAY\] Today is Saturday, 28 November 2026, 06:45 in Sofia\./u);
+
+  // Late in the evening UTC it is already the next day in Sofia.
+  const [late] = buildAvatarMessages([], [], "какво имам утре", undefined, {
+    mode: "chat",
+    workContext: null,
+    now: new Date("2026-11-28T22:30:00Z"),
+  });
+  assert.match(late.content, /Днес е неделя, 29 ноември 2026 г\., 00:30 ч\./u);
+
+  // Without a given time the real clock is used: the year is never a guess.
+  const [current] = buildAvatarMessages([], [], "коя дата сме", undefined, { mode: "chat", workContext: null });
+  const year = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Sofia" }).slice(0, 4);
+  assert.match(current.content, new RegExp(`\\[ДНЕС\\] Днес е [^\\n]* ${year} г\\.`, "u"));
+});

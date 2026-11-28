@@ -13,7 +13,10 @@ test.beforeEach(() => resetToolRegistryForTests());
 
 test("регистрира съществуващите интеграции с пълни метаданни", () => {
   registerCoreTools();
-  assert.equal(listTools().length, 21);
+  assert.equal(listTools().length, 22);
+  // „Моите задачи“, each person's own list (item 3, fix 4).
+  assert.deepEqual(getTool("personal-todos").capabilities, ["todos.read", "todos.add"]);
+  assert.equal(getTool("personal-todos").requiresConfirmation, false);
   assert.deepEqual(getTool("synchron-integrations-status").capabilities, [
     "system.integrations.status",
     "system.tools.read",

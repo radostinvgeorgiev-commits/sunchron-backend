@@ -720,6 +720,9 @@ export async function createSession(
   { saveOnly = false, linkedKind = "" } = {},
 ) {
   const kind = GOOGLE_LINKED_EXTRAS.includes(linkedKind) ? linkedKind : saveOnly ? "save" : "";
+  // A new connection is found at once by the account's other browsers.
+  if (owner?.memoryOwnerId) withoutConnection.delete(googleAccountKey(owner.memoryOwnerId));
+  else withoutConnection.clear();
   const id = createNonce();
   const session = {
     ...tokens,
@@ -1104,8 +1107,45 @@ export async function latestMainSessionFor(owner) {
   return findLatestMainSession((session) => sessionOwnedBy(session, owner));
 }
 
+// The account's own Google connection for one request: the browser's
+// cookie when it is this account's, else the account's newest main
+// connection. The cookie lives only on the name of the site and in the
+// browser where the person connected (RADKO 28.11: connected, yet
+// novariumai.com had no Google). `restored` says the browser should get the
+// cookie, as „Възстанови“ gives it. An account with none is not looked up
+// again for a few minutes.
+const NO_CONNECTION_MS = 5 * 60_000;
+const withoutConnection = new Map();
+
+export async function accountGoogleSession(cookieId, owner, now = Date.now()) {
+  const own = cookieId && (await googleConnectionFor(cookieId, owner));
+  if (own) return Object.freeze({ id: cookieId, connection: own, restored: false });
+  const key = owner?.memoryOwnerId ? googleAccountKey(owner.memoryOwnerId) : "";
+  if (!key || now - (withoutConnection.get(key) || 0) < NO_CONNECTION_MS) return null;
+  let latest = null;
+  try {
+    latest = await latestMainSessionFor(owner);
+  } catch {
+    latest = null;
+  }
+  const connection = latest ? await googleConnectionFor(latest, owner) : null;
+  if (!connection) {
+    withoutConnection.set(key, now);
+    if (withoutConnection.size > 5000) withoutConnection.delete(withoutConnection.keys().next().value);
+    return null;
+  }
+  withoutConnection.delete(key);
+  return Object.freeze({ id: latest, connection, restored: true });
+}
+
+// The cookie a browser gets for its account's connection.
+export function googleSessionCookie(id) {
+  return `synchron_google_session=${id}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`;
+}
+
 export function resetGoogleSessionsForTests() {
   sessions.clear();
+  withoutConnection.clear();
   setFirestoreGoogleSessionStoreForTests(null);
 }
 
@@ -2242,6 +2282,52 @@ export async function listGoogleCalendarEvents(
   const params = new URLSearchParams({
     timeMin: timeMin.toISOString(),
     timeMax: timeMax.toISOString(),
+    singleEvents: "true",
+    orderBy: "startTime",
+    maxResults: String(Math.min(Math.max(Number(limit) || 20, 1), 50)),
+    timeZone: "Europe/Sofia",
+  });
+  const response = await googleFetch(
+    id,
+    `${CALENDAR_API_URL}/calendars/primary/events?${params}`,
+    {},
+    fetchImpl,
+    "Google Calendar",
+  );
+  const data = await response.json();
+  return (data.items || []).map((event) => ({
+    id: event.id,
+    title: event.summary || "Събитие без заглавие",
+    start: event.start?.dateTime || event.start?.date || null,
+    end: event.end?.dateTime || event.end?.date || null,
+    allDay: Boolean(event.start?.date && !event.start?.dateTime),
+    location: event.location || "",
+    url: event.htmlLink || "",
+  }));
+}
+
+// Sofia's offset from UTC at noon of a day („+02:00“, „+03:00“ in summer).
+function sofiaOffsetAtNoon(day) {
+  const name = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Sofia", timeZoneName: "longOffset" })
+    .formatToParts(new Date(`${day}T12:00:00Z`))
+    .find((part) => part.type === "timeZoneName")?.value;
+  return /GMT([+-]\d{2}:\d{2})/u.exec(name || "")?.[1] || "+02:00";
+}
+
+const shiftDay = (day, days) =>
+  new Date(Date.parse(`${day}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+
+// The events of one day in Sofia, from its midnight to the next („какво ми е
+// деня днес“, item 3). The clock changes at 03:00 or 04:00, so the day's
+// midnight has the day before's offset and the next midnight the day's own.
+export async function listGoogleCalendarDay(id, day, limit = 20, fetchImpl = fetch) {
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(String(day || ""))) {
+    throw new GoogleDriveError("Невалиден ден.", 400, "CALENDAR_DAY_INVALID");
+  }
+  const next = shiftDay(day, 1);
+  const params = new URLSearchParams({
+    timeMin: `${day}T00:00:00${sofiaOffsetAtNoon(shiftDay(day, -1))}`,
+    timeMax: `${next}T00:00:00${sofiaOffsetAtNoon(day)}`,
     singleEvents: "true",
     orderBy: "startTime",
     maxResults: String(Math.min(Math.max(Number(limit) || 20, 1), 50)),

@@ -174,11 +174,41 @@ export function isCalendarWriteRequest(message) {
   );
 }
 
+// The person's day in their own words (item 3, fix 3; Team 2's probe 28.11:
+// „какво ми е деня днес“ got „нямам актуална проверка на календара“):
+// „какво ми е деня днес“, „моят ден“, „как ми е денят утре“, „какво имам
+// днес“, „какво ми предстои утре“, "what's my day", "what do I have today".
+// Not when the words name another of the person's things (mail, files,
+// contacts, tasks): those have their own tools.
+const DAY_WORDS =
+  /(?:(?<!\p{L})(?:деня|денят)\s+(?:ми|ти)(?!\p{L})|(?<!\p{L})(?:ми|ти)\s+е\s+(?:деня|денят|ден)(?!\p{L})|(?<!\p{L})мо(?:я|ят|йт)\s+ден(?!\p{L})|(?<!\p{L})(?:какво|кво|каво|що)\s+(?:имам|ми\s+предстои)\s+(?:днес|утре|вдругиден|тази\s+седмица|този\s+уикенд|в\s+(?:понеделник|вторник|сряда|четвъртък|петък|събота|неделя))(?!\p{L}))/u;
+const ENGLISH_DAY_WORDS =
+  /\b(?:what(?:'s|\s+is)\s+my\s+day|how(?:'s|\s+is)\s+my\s+day|what\s+do\s+i\s+have\s+(?:today|tomorrow|this\s+week|on\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)))\b/u;
+const OTHER_OWN_THINGS =
+  /(?:ме[йи]л|маил|писм|пощ|пошт|gmail|джимейл|драйв|drive|файл|документ|контакт|задач|e-?mail|inbox|files?\b|contacts?\b|tasks?\b|to-?do)/u;
+
+// The day a question about the person's own day asks for, as YYYY-MM-DD, or
+// "" when the message is no such question (`today` is Sofia's date): „какво
+// ми е деня днес“, „моят ден“ and „как ми е денят“ are today, „какво имам
+// утре“ is tomorrow and „вдругиден“ the day after. A week or a weekday is a
+// calendar question, not one day.
+export function myDayAsked(message, today) {
+  const text = typeof message === "string" ? message.toLowerCase() : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(String(today || ""))) return "";
+  if (!(DAY_WORDS.test(text) || ENGLISH_DAY_WORDS.test(text)) || OTHER_OWN_THINGS.test(text)) return "";
+  if (/(?:седмица|уикенд|понеделник|вторник|сряда|четвъртък|петък|събота|неделя|week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/u.test(text)) {
+    return "";
+  }
+  const shift = /(?:вдругиден|day\s+after\s+tomorrow)/u.test(text) ? 2 : /(?:утре|tomorrow)/u.test(text) ? 1 : 0;
+  return new Date(Date.parse(`${today}T12:00:00Z`) + shift * 86_400_000).toISOString().slice(0, 10);
+}
+
 export function isCalendarReadRequest(message) {
   const text = typeof message === "string" ? message.toLowerCase() : "";
   return (
     (/(?:календар|събития|ангажимент|срещи|програмата ми)/u.test(text) ||
-      /\bmy\s+(?:google\s+)?(?:calendar|events|meetings|schedule|agenda)\b/u.test(text)) &&
+      /\bmy\s+(?:google\s+)?(?:calendar|events|meetings|schedule|agenda)\b/u.test(text) ||
+      ((DAY_WORDS.test(text) || ENGLISH_DAY_WORDS.test(text)) && !OTHER_OWN_THINGS.test(text))) &&
     !isCalendarWriteRequest(message)
   );
 }

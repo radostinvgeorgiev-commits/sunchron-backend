@@ -71,3 +71,31 @@ test("MCP initialization describes the confirmation boundary", async () => {
     /DigitalOcean|Cloudflare|Copilot/iu,
   );
 });
+
+test("talk_to_novarium returns a drawn picture as the picture itself, not as text", async () => {
+  const handle = createMcpRequestHandler({
+    audit: async () => {},
+    runAgentConversation: async () => ({
+      sessionId: "s-1",
+      response: "Нарисувах картинката: Рижа котка",
+      image: { mimeType: "image/webp", data: "UklGRg==" },
+      capabilities: ["image.generate"],
+    }),
+  });
+  const response = await handle(
+    {
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: { name: "talk_to_novarium", arguments: { message: "нарисувай ми котка" } },
+    },
+    "owner-1",
+    { role: "owner", memoryOwnerId: "owner-1" },
+  );
+  const { content, structuredContent } = response.result;
+  assert.equal(content[0].text, "Нарисувах картинката: Рижа котка");
+  assert.deepEqual(content.at(-1), { type: "image", data: "UklGRg==", mimeType: "image/webp" });
+  // The picture's bytes are not repeated in the text.
+  assert.equal("image" in structuredContent, false);
+  assert.ok(content.slice(0, -1).every((item) => item.type === "text" && !item.text.includes("UklGRg==")));
+});

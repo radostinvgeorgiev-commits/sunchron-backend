@@ -696,3 +696,54 @@ test("an email „до мен“ is prepared for the address of the person's own
     await assert.rejects(prepare(bare, "en"), /Write the address instead of “me”/u);
   }
 });
+
+// Item 3 („какво ми е деня днес“): the day's events with their hour, and the
+// day's mail said as today's.
+test("one day of the calendar and today's mail are read as that day's", async () => {
+  const env = {
+    GOOGLE_CLIENT_ID: "client",
+    GOOGLE_CLIENT_SECRET: "secret",
+    GOOGLE_REDIRECT_URI: "https://example.test/api/google/callback",
+  };
+  const googleSessionId = await createSession({ access_token: "token", expires_in: 3600 });
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Sofia" });
+  const urls = [];
+  let events = [
+    { id: "e1", summary: "Среща с Иван", start: { dateTime: `${today}T10:00:00+02:00` }, end: { dateTime: `${today}T11:00:00+02:00` } },
+    { id: "e2", summary: "Рожден ден", start: { date: today }, end: { date: today } },
+  ];
+  let mail = [{ id: "m1" }];
+  const originalFetch = global.fetch;
+  global.fetch = async (url) => {
+    urls.push(String(url));
+    const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+    if (String(url).startsWith("https://www.googleapis.com/calendar/v3/calendars/primary/events?")) return json({ items: events });
+    if (String(url).startsWith("https://gmail.googleapis.com/gmail/v1/users/me/messages?")) return json({ messages: mail });
+    if (String(url).startsWith("https://gmail.googleapis.com/gmail/v1/users/me/messages/m1?")) {
+      return json({
+        id: "m1",
+        labelIds: ["INBOX", "UNREAD"],
+        payload: { headers: [{ name: "Subject", value: "Фактура" }, { name: "From", value: "Банка <bank@example.com>" }] },
+      });
+    }
+    return json({});
+  };
+  try {
+    const day = (language) =>
+      executeCapability("calendar.read", { ownerId: "owner", googleSessionId, input: { date: today }, ...(language ? { language } : {}) }, { env });
+    assert.equal((await day()).output, `Google Calendar за днес, ${today.slice(8, 10)}.${today.slice(5, 7)}.${today.slice(0, 4)}:\n• 10:00 — Среща с Иван\n• цял ден — Рожден ден`);
+    const window = new URL(urls[0]).searchParams;
+    assert.match(window.get("timeMin"), new RegExp(`^${today}T00:00:00\\+0[23]:00$`, "u"));
+    assert.equal(window.get("timeZone"), "Europe/Sofia");
+    events = [];
+    assert.match((await day("en")).output, /^No events in Google Calendar for today, /u);
+
+    const todayMail = () =>
+      executeCapability("mail.read", { ownerId: "owner", googleSessionId, input: { query: "newer_than:1d", day: true } }, { env });
+    assert.equal((await todayMail()).output, "Писма днес:\n• Непрочетено — Фактура — Банка <bank@example.com>");
+    mail = [];
+    assert.equal((await todayMail()).output, "Днес няма нови писма.");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

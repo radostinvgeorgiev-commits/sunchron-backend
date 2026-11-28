@@ -386,6 +386,23 @@ export function registerCoreTools() {
       healthStatus: "unavailable",
     },
     {
+      // „Моите задачи“: the person's own to-do list (item 3).
+      id: "personal-todos",
+      provider: "synchron",
+      name: "Моите задачи",
+      version: "1.0.0",
+      category: "tasks",
+      capabilities: ["todos.read", "todos.add"],
+      permissions: ["todos.read", "todos.write"],
+      capabilityPermissions: {
+        "todos.read": "todos.read",
+        "todos.add": "todos.write",
+      },
+      enabled: true,
+      requiresConfirmation: false,
+      healthStatus: "unavailable",
+    },
+    {
       id: "openai-web-search",
       provider: "openai",
       name: "OpenAI Web Search",

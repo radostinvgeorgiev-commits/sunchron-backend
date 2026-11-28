@@ -67,6 +67,7 @@ import {
   mediaToolsRule,
   mediaYesAnswer,
   mediaYesKinds,
+  mediaYesReply,
   previousExchange,
   shortYesTurns,
   withoutDescriptionLines,
@@ -112,7 +113,8 @@ import {
 } from "../services/calendarService.js";
 import {
   GoogleDriveError,
-  googleConnectionFor,
+  accountGoogleSession,
+  googleSessionCookie,
   parseCookies,
 } from "../services/googleDriveService.js";
 import {
@@ -166,6 +168,7 @@ import {
   requestAiResponse,
 } from "../services/novariumService.js";
 import { executeTaskPlan } from "../services/taskExecutionService.js";
+import { readTodoWords } from "../services/todoWords.js";
 import {
   confirmTaskWrite,
   extractTaskConfirmationId,
@@ -175,12 +178,19 @@ import {
 import { createTaskConfirmation } from "../services/confirmationService.js";
 import { orchestrateTask } from "../services/taskOrchestratorService.js";
 import {
-  hasMailWords,
+  hasActionWords,
+  humanDate,
+  isGooglePlainAction,
   isPlainIntentAsk,
+  latinToCyrillic,
+  PLAIN_ACTIONS,
+  PLAIN_CAPABILITIES,
   personTextsOf,
   planPlainIntent,
   readPlainIntent,
+  sofiaNow,
 } from "../services/plainIntentService.js";
+import { myDayAsked } from "../services/calendarService.js";
 import {
   createTaskRun,
   recordTaskRunCheckpoint,
@@ -401,6 +411,31 @@ export function replyLanguageRule(language) {
   return `[REPLY LANGUAGE] ${replyLanguageInstruction(language)} The Bulgarian rules, notes and memory above do not by themselves set the reply language.`;
 }
 
+// Today's date and time in Sofia. Without it the model guessed the day: Team
+// 2's probe 28.11 asked „какво ми е деня днес“ and the answer named 12 June
+// 2025 (item 3, fix 3).
+export function todayContext(language, now = new Date()) {
+  const english = useEnglishReplyFallback(language);
+  const locale = english ? "en-GB" : "bg-BG";
+  const when = now instanceof Date ? now : new Date(now);
+  const day = when.toLocaleDateString(locale, {
+    timeZone: "Europe/Sofia",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const time = when.toLocaleTimeString(locale, {
+    timeZone: "Europe/Sofia",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  return english
+    ? `[TODAY] Today is ${day}, ${time} in Sofia. Use this date whenever the person asks about a day or a date, and count "tomorrow" and the weekdays from it.`
+    : `[ДНЕС] Днес е ${day}, ${time} ч. (София). Ползвай тази дата винаги, когато човекът пита за ден или дата, и смятай „утре“ и дните от седмицата от нея.`;
+}
+
 export function buildAvatarMessages(
   memories,
   history,
@@ -443,6 +478,7 @@ export function buildAvatarMessages(
       member: identity?.role !== "owner",
       english: useEnglishReplyFallback(interaction.language),
     }),
+    todayContext(interaction.language, interaction.now ?? new Date()),
     replyLanguageRule(interaction.language),
   ]
     .filter(Boolean)
@@ -1218,7 +1254,23 @@ export function detectCapabilityRequests(message, { toolInventory = false } = {}
         message: subtask,
       });
     }
-    if (
+    // „Моите задачи“ in the person's own words (item 3, fix 4): „моите
+    // задачи“, „кви задачи имам отворени“ read the list; „добави задача да се
+    // обадя на банката утре“ adds „Да се обадя на банката“ for tomorrow. Work
+    // tasks keep their own words („работна задача“, „в проекта“, GitHub).
+    const todo = githubTaskStatusRequest ? null : readTodoWords(subtask);
+    if (todo?.type === "read") {
+      requests.push({ capability: "todos.read", action: "todos.read", message: subtask });
+    } else if (todo?.type === "add") {
+      if (todo.text) {
+        requests.push({
+          capability: "todos.add",
+          action: "todos.add",
+          message: subtask,
+          input: { text: todo.text, due: todo.due },
+        });
+      }
+    } else if (
       !githubTaskStatusRequest &&
       /(?:покажи|изброй|какви|кои|статус|напредък).{0,40}(?:задач|tasks?)|(?:задач|tasks?).{0,40}(?:покажи|изброй|какви|кои|статус|напредък)/iu.test(
         subtask,
@@ -1371,23 +1423,70 @@ export function parseEmailSendRequest(message) {
   return { to: match[1], subject: match[2], body };
 }
 
-// Item 3, fix 1 (RADKO, 28.11: „И ОТ ДВЕТЕ МЕСТА НЕ РАБОТИ“): an email in the
-// person's own words („прати мейл до мен с текст …“, „ISKAM DA PATI MEIL DO
-// MEN“, „ПРАТИ МЕЛ ДА МИЯ“). Before, only the exact form above ran; any other
-// wording got „нямам инструмент“, or was taken for reading the mail, which
-// Google refused, and the answer said the email could not be sent. The
-// reader (plainIntentService) returns the request as fields. This fix takes
-// its mail actions only; the calendar, contacts, tasks and pictures follow,
-// one fix at a time.
-export const PLAIN_WORDS_ACTIONS = Object.freeze(new Set(["mail.send", "mail.read"]));
-const PLAIN_WORDS_CAPABILITIES = Object.freeze(new Set(["mail.send", "mail.read"]));
+// Item 3 (RADKO, 28.11: „И ОТ ДВЕТЕ МЕСТА НЕ РАБОТИ“; 07:43: „оправи всички
+// инструменти … не един по един“): the person's own words for every tool
+// the reader knows, at once: an email („прати мейл до мен с текст …“,
+// „ISKAM DA PATI MEIL DO MEN“), the mailbox, the calendar and the person's
+// day („какво ми е деня днес“), a meeting („запиши ми среща утре в 10 с
+// иван“), Google Drive, contacts („намери иван в контактите“), „Моите
+// задачи“ („кви задачи имам отворени“, „добави задача да се обадя на банката
+// утре“), a picture or a short video. Before, only exact forms ran, or tool
+// words a detector knew, and the rest got „нямам инструмент“, a machine
+// format to type, or another tool (a contact went to Google Maps). The
+// reader (plainIntentService) returns the request as fields; the code checks
+// each field and runs the tool.
+export const PLAIN_WORDS_ACTIONS = Object.freeze(new Set(PLAIN_ACTIONS.filter((action) => action !== "none")));
+// The detector's requests the reader's stand in for when it found one: its
+// own kinds and „Моите задачи“.
+const PLAIN_WORDS_CAPABILITIES = Object.freeze(new Set([...PLAIN_CAPABILITIES, "todos.read", "todos.add"]));
+// The public searches a contact, a day or a task was taken for („намери
+// телефона на счетоводителя“ went to Google Maps): left out only when the
+// reader found one of these, so „покажи пощата ми и намери ресторант
+// наблизо“ still runs both.
+const PUBLIC_SEARCHES = Object.freeze(new Set(["places.search", "web.search", "video.read"]));
+const TAKEN_FOR_SEARCH = Object.freeze(
+  new Set(["contacts.read", "contacts.create", "calendar.read", "todos.read", "todos.add"]),
+);
 const NO_PLAIN_WORDS = Object.freeze({ type: "none" });
+
+// „Какво ми е деня днес“, „моят ден“: the day's events, the open tasks and,
+// for today, the day's mail, all at once (the coordinator's check 28.11
+// 07:52: the day showed the calendar and the tasks, but not the mail).
+function myDayRequests(message, now = sofiaNow()) {
+  const day =
+    myDayAsked(message, now.date) || (/[a-z]/iu.test(message) ? myDayAsked(latinToCyrillic(message), now.date) : "");
+  if (!day) return null;
+  return [
+    { capability: "calendar.read", action: "calendar.read", message, input: { date: day } },
+    { capability: "todos.read", action: "todos.read", message },
+    ...(day === now.date
+      ? [{ capability: "mail.read", action: "mail.read", message, input: { query: "newer_than:1d", day: true } }]
+      : []),
+  ];
+}
+
+// The reader's plan as tool requests: „Моите задачи“ run as their own tool.
+function plainWordsRequests(plan, intent, message) {
+  const requests = (...list) => Object.freeze({ type: "requests", requests: Object.freeze(list) });
+  if (plan.type === "todos.read") {
+    return requests({ capability: "todos.read", action: "todos.read", message });
+  }
+  if (plan.type === "todos.add") {
+    return requests({ capability: "todos.add", action: "todos.add", message, input: { text: plan.text, due: plan.due } });
+  }
+  if (plan.type === "requests" && intent.action === "calendar.read") {
+    const day = myDayRequests(message);
+    if (day) return requests(...day);
+  }
+  return plan;
+}
 
 // `message` is what the person wrote, `task` what the tools read and `step`
 // the step a short yes answers (shortContinuation); `turns` the conversation
-// before it. The reader is asked only when the message speaks of mail, or
-// answers the reader's own question, or is a short yes to a step that speaks
-// of mail: a yes to an answer with no step of its own still runs nothing.
+// before it. The reader is asked only when the message has words of one of
+// its actions, or answers the reader's own question, or is a short yes to a
+// step with such words: a yes to an answer with no step of its own still
+// runs nothing.
 export async function readPlainWordsPlan({
   message,
   task = message,
@@ -1395,6 +1494,9 @@ export async function readPlainWordsPlan({
   turns = [],
   english = false,
   apiKey,
+  // False for someone whose Google cannot be reached here (a member without
+  // their own connection): a Google request goes on as before.
+  allowGoogle = true,
   read = readPlainIntent,
 } = {}) {
   const text = typeof message === "string" ? message.trim() : "";
@@ -1405,25 +1507,33 @@ export async function readPlainWordsPlan({
   const previousAnswer =
     [...conversation].reverse().find((turn) => turn?.role === "assistant")?.content || "";
   const asked = isShortYes(text)
-    ? hasMailWords(step)
-    : hasMailWords(text) || isPlainIntentAsk(previousAnswer);
+    ? hasActionWords(step)
+    : hasActionWords(text) || isPlainIntentAsk(previousAnswer);
   if (!asked) return NO_PLAIN_WORDS;
   const intent = await read({ message: text, turns: conversation, apiKey });
   if (!intent || !PLAIN_WORDS_ACTIONS.has(intent.action)) return NO_PLAIN_WORDS;
-  return planPlainIntent(intent, {
+  if (!allowGoogle && isGooglePlainAction(intent.action)) return NO_PLAIN_WORDS;
+  const plan = planPlainIntent(intent, {
     personTexts: personTextsOf(conversation),
     english,
     message: text,
   });
+  return plainWordsRequests(plan, intent, text);
 }
 
-// The tool detector's requests, with the reader's in place of its mail ones.
+// The tool detector's requests, with the reader's in place of the ones it
+// stands in for.
 export function withPlainWordsRequests(plan, detected = []) {
   const list = Array.isArray(detected) ? detected : [];
   if (plan?.type !== "requests") return list;
+  const searchesToo = plan.requests.some((request) => TAKEN_FOR_SEARCH.has(request?.capability));
   return [
     ...plan.requests,
-    ...list.filter((request) => !PLAIN_WORDS_CAPABILITIES.has(request?.capability)),
+    ...list.filter(
+      (request) =>
+        !PLAIN_WORDS_CAPABILITIES.has(request?.capability) &&
+        !(searchesToo && PUBLIC_SEARCHES.has(request?.capability)),
+    ),
   ];
 }
 
@@ -1475,6 +1585,73 @@ export function sentEmailFailureReply(error, english = false) {
     : "Имейлът не тръгна. Нищо не е изпратено; опитай пак след минута.";
 }
 
+// RADKO, 28.11 04:30 („самата команда го казва“): an event in the person's
+// own calendar and a new contact in their own Google run at once too, from
+// their words or from a short yes to the step the agent proposed. The step is
+// still prepared and checked the way the „Потвърди“ button does it; only the
+// button is left out. A change or a deletion keeps its button, and so does an
+// email to an address the person did not type (isOwnCommandEmail).
+const OWN_COMMAND_WRITES = Object.freeze(new Set(["calendar.write", "contacts.create"]));
+
+export function ownCommandWriteOf(requests = [], personTexts = []) {
+  return (
+    (Array.isArray(requests) ? requests : []).find(
+      (request) => OWN_COMMAND_WRITES.has(request?.capability) || isOwnCommandEmail(request, personTexts),
+    ) || null
+  );
+}
+
+// „29.11.2026 в 10:00, 60 мин.“: when the event is, from its exact record.
+function ownEventWhen(message, english) {
+  let draft;
+  try {
+    draft = parseCalendarEventDraft(message);
+  } catch {
+    return "";
+  }
+  const [day, time] = String(draft?.start || "").split("T");
+  if (!day || !time) return "";
+  const clock = time.slice(0, 5);
+  const reminder = Number.isInteger(draft.reminderMinutes);
+  const minutes = !reminder && Number.isInteger(draft.durationMinutes) ? draft.durationMinutes : 0;
+  return english
+    ? `When: ${humanDate(day)} at ${clock}${minutes ? `, ${minutes} min` : ""}.`
+    : `Кога: ${humanDate(day)} в ${clock}${minutes ? `, ${minutes} мин` : ""}.`;
+}
+
+// The answer after an own command ran: the tool's own line, then what was
+// written (the email's subject and text, the event's day and time).
+export function formatOwnWriteReply(capability, output, request = {}, english = false) {
+  if (capability === "mail.send") return formatSentEmailReply(output, request?.input, english);
+  const line = clipReplyText(output, 400);
+  if (capability === "calendar.write") {
+    const when = ownEventWhen(request?.message, english);
+    return [line || (english ? "The event was saved." : "Събитието е записано."), ...(when ? [when] : [])].join("\n");
+  }
+  return line || (english ? "The contact was saved." : "Контактът е записан.");
+}
+
+// Why an own command did not run, in the words of the Google step when it
+// has them, never a made-up reason.
+export function ownWriteFailureReply(capability, error, english = false) {
+  if (capability === "mail.send") return sentEmailFailureReply(error, english);
+  const step = Array.isArray(error?.results) ? error.results.find((item) => item?.error)?.error : error;
+  const reason =
+    step &&
+    /^(?:GOOGLE_|CALENDAR_|CAPABILITY_AUTH)/u.test(String(step.code || "")) &&
+    typeof step.message === "string"
+      ? step.message.trim()
+      : "";
+  const event = capability === "calendar.write";
+  const what = english
+    ? event ? "The event was not saved" : "The contact was not saved"
+    : event ? "Събитието не е записано" : "Контактът не е записан";
+  if (reason) return `${what}: ${reason}`;
+  return english
+    ? `${what}. Nothing changed; try again in a minute.`
+    : `${what}. Нищо не е променено; опитай пак след минута.`;
+}
+
 // The agent's own step when it is an exact record with all its fields, as its
 // tool list writes them: an email („Изпрати имейл до мен | Тема | Текст“), a
 // contact or a calendar event. Its quotes are left out. "" for anything else.
@@ -1519,23 +1696,66 @@ export function parseContactCreateRequest(message) {
 
 // "Намери контакт Иван", "Намери в контактите ми Мария": the name after the
 // last word for contact is what gets searched.
+// Item 3, fix 4 (Team 2's live probes 28.11: „намери ми телефона на
+// счетоводителя в контактите“ and „потърси иван в контактите ми“ got „нямам
+// инструмент за контакти“): the name may come before „в контактите“ too.
+const CONTACT_ASK =
+  /(?:намери|намери|търси|потърси|покажи|дай|кажи|провери|имаш\s+ли|find|search|look\s+up|show|give|what(?:'s|\s+is))/iu;
+const CONTACT_WORD = /(?:контакт(?:а|ът|и|ите)?|contacts?)(?=[\s:,.!?-]|$)/iu;
+const CONTACT_QUOTES = /^[\s„“”«»"'‘’]+|[\s„“”«»"'‘’?.!,;:]+$/gu;
+
+// Google finds a contact by the start of a word, so the Bulgarian article
+// is dropped: „счетоводителя“ finds „Счетоводител“, „банката“ finds „Банка“.
+function contactNameStem(word) {
+  if (!/^\p{Script=Cyrillic}+$/u.test(word) || word.length <= 5) return word;
+  return word.replace(/(?:ът|ят|та|то|те|я)$/u, "");
+}
+
+function cleanContactQuery(value) {
+  const query = String(value || "")
+    .replace(CONTACT_QUOTES, "")
+    .replace(/\s+/gu, " ")
+    .trim();
+  if (query.length < 2 || query.length > 100) return "";
+  return query
+    .split(" ")
+    .map(contactNameStem)
+    .join(" ");
+}
+
 export function parseContactSearchQuery(message) {
   const text = String(message || "").trim();
-  if (!/(?:намери|търси|потърси|покажи|find|search|look\s+up)/iu.test(text)) {
-    return "";
-  }
-  const parts = text.split(/(?:контакт(?:а|ът|и|ите)?|contacts?)(?=[\s:,-]|$)/iu);
+  if (!CONTACT_ASK.test(text)) return "";
+  const parts = text.split(CONTACT_WORD);
   if (parts.length < 2) return "";
-  const query = parts[parts.length - 1]
+  // „Намери в контактите Иван“: the name after the word.
+  const after = parts[parts.length - 1]
     .replace(/^\s*(?:ми|my)(?=[\s:,.!?-]|$)/iu, "")
     .replace(/^[\s:,-]+/u, "")
     .replace(/^(?:на|за|named|for)\s+/iu, "")
     // The quotes of a step that gives the example („Намери в контактите
     // Иван“, review r6: Google got „Иван“ with its closing quote and found
     // no one) and the end punctuation, on both ends.
-    .replace(/^[\s„“”«»"'‘’]+|[\s„“”«»"'‘’?.!,;:]+$/gu, "")
+    .replace(CONTACT_QUOTES, "")
     .trim();
-  return query.length >= 2 && query.length <= 100 ? query : "";
+  if (after) return after.length >= 2 && after.length <= 100 ? after : "";
+  // „Намери ми телефона на счетоводителя в контактите“, „потърси иван в
+  // контактите ми“: the name before it.
+  const before = parts
+    .slice(0, -1)
+    .join(" ")
+    .replace(CONTACT_QUOTES, "")
+    .replace(/\s+(?:в|във|от|сред|между|in|from|among)(?:\s+(?:моите|мои|my))?$/iu, "")
+    .replace(
+      /^(?:моля[,\s]+)?(?:намери|търси|потърси|покажи|дай|кажи|провери|имаш\s+ли|find|search(?:\s+for)?|look\s+up|show(?:\s+me)?|give\s+me|what(?:'s|\s+is))(?:\s+(?:ми|ме|me))?(?:\s+|$)/iu,
+      "",
+    )
+    .replace(
+      /^(?:(?:мобилния|мобилният|телефона|телефонът|номера|номерът|имейла|имейлът|мейла|адреса|адресът|данните|контакта)\s+(?:на|за)|(?:the\s+)?(?:phone(?:\s+number)?|number|email|address|details)\s+(?:of|for))\s+/iu,
+      "",
+    )
+    .replace(/^(?:ми|my)(?:\s+|$)/iu, "");
+  return cleanContactQuery(before);
 }
 
 // "моят YouTube канал", "каналът ми в YouTube", "колко гледания имат видеата ми",
@@ -1577,6 +1797,8 @@ function capabilityLabel(capability) {
   if (capability === "tasks.read") return "задачи";
   if (capability === "tasks.progress") return "напредък на задачите";
   if (capability === "tasks.draft") return "нова задача";
+  if (capability === "todos.read") return "Моите задачи";
+  if (capability === "todos.add") return "нова задача в „Моите задачи“";
   return capability;
 }
 
@@ -2258,12 +2480,17 @@ router.post("/chat", async (req, res) => {
     assistant,
     mediaCard,
   } = req.body || {};
-  const cookieGoogleSession =
-    parseCookies(req.headers.cookie).synchron_google_session || "";
-  // Only this account's own Google connection is used. The same one session
-  // read gives the scopes Google granted, for the tool list.
-  const googleConnection = await googleConnectionFor(cookieGoogleSession, req.owner);
-  const googleSessionId = googleConnection ? cookieGoogleSession : "";
+  // Only this account's own Google connection is used: this browser's, or
+  // the account's newest one, which this browser then keeps (the person
+  // connected on the other name of the site or in another browser). The same
+  // one session read gives the scopes Google granted, for the tool list.
+  const ownGoogle = await accountGoogleSession(
+    parseCookies(req.headers.cookie).synchron_google_session || "",
+    req.owner,
+  );
+  if (ownGoogle?.restored) res.append("Set-Cookie", googleSessionCookie(ownGoogle.id));
+  const googleConnection = ownGoogle?.connection || null;
+  const googleSessionId = ownGoogle?.id || "";
   const githubSessionId =
     parseGitHubCookies(req.headers.cookie).synchron_github_session || "";
   const ownerId = req.owner.memoryOwnerId;
@@ -3206,13 +3433,11 @@ router.post("/chat", async (req, res) => {
 
   // A member reads their own Google here only with their own connection.
   const memberToolOptions = { ownGoogle: Boolean(googleSessionId) };
-  // An email in the person's own words (item 3, fix 1). A short yes reads the
-  // whole turns, with the step it answers. Only for someone whose mail can be
-  // reached here: the owner, or a member with their own Google connection.
-  const plainWordsAllowed =
-    capabilityPlanningAllowed &&
-    filterCapabilityRequestsForIdentity([{ capability: "mail.read" }], req.owner, memberToolOptions).length > 0;
-  const plainWordsPlan = !memoryAction && plainWordsAllowed
+  // Every tool in the person's own words (item 3). A short yes reads the
+  // whole turns, with the step it answers. Google is read only for someone
+  // whose Google can be reached here: the owner, or a member with their own
+  // Google connection.
+  const plainWordsPlan = !memoryAction && capabilityPlanningAllowed
     ? await readPlainWordsPlan({
         message: cleanMessage,
         task: taskMessage,
@@ -3220,6 +3445,8 @@ router.post("/chat", async (req, res) => {
         turns: yesTurns.length ? yesTurns : effectiveHistory,
         english: useEnglishReplyFallback(language),
         apiKey: openAiApiKey,
+        allowGoogle:
+          filterCapabilityRequestsForIdentity([{ capability: "mail.read" }], req.owner, memberToolOptions).length > 0,
       })
     : NO_PLAIN_WORDS;
   // One detail is missing (the text, or whom to send it to): one short
@@ -3242,6 +3469,43 @@ router.post("/chat", async (req, res) => {
     res.end();
     return;
   }
+  // „Нарисувай ми картинка …“, „направи ми видео …“ (item 3, Team 2's probes
+  // 12 to 14 got ASCII art, SVG code or only a prompt): the command starts
+  // the picture or the video at once, on a card under this answer, as a
+  // short yes to an offer does. The page makes it through /api/images and
+  // /api/videos, which reserve the units. A kind this account cannot make
+  // here goes on to the model, which says so.
+  const plainMedia =
+    plainWordsPlan.type === "media"
+      ? plainWordsPlan.items.filter((item) => (item.kind === "image" ? chatMedia?.images : chatMedia?.video))
+      : [];
+  if (plainMedia.length) {
+    // The same words and price as a yes to an offer („Правя картинката.
+    // Отнема до половин минута.“, with what it costs a member).
+    const started = mediaYesReply(
+      { items: plainMedia, offered: plainMedia, missing: null, offeredMissing: null },
+      { made: new Set(), member: !ownerToolsAllowed, english: useEnglishReplyFallback(language) },
+    );
+    const video = plainMedia[0].kind === "video";
+    const fullReply = started.text;
+    const conversationPersisted = await saveConversationTurnBestEffort(
+      cleanSessionId,
+      cleanMessage,
+      fullReply,
+      ownerId,
+    );
+    sendEvent("token", { token: fullReply });
+    sendDone({
+      ok: true,
+      mode: "plain-words-media",
+      media: started.media,
+      memoryAvailable,
+      ...getConversationPersistenceMetadata(conversationPersisted),
+    });
+    console.info(`[Chat] Plain words ${video ? "video" : "picture"} started for ${cleanSessionId}`);
+    res.end();
+    return;
+  }
   const fallbackCapabilityRequests = !memoryAction
     ? filterCapabilityRequestsForIdentity(
         withPlainWordsRequests(
@@ -3252,12 +3516,12 @@ router.post("/chat", async (req, res) => {
         memberToolOptions,
       )
     : [];
-  // The email this message commands, sent without „Потвърди“ (see
-  // isOwnCommandEmail); the planner adds nothing to it.
-  const ownCommandEmail =
-    fallbackCapabilityRequests.find((request) =>
-      isOwnCommandEmail(request, [cleanMessage, ...personTextsOf(effectiveHistory)]),
-    ) || null;
+  // The write this message commands, run without „Потвърди“ (see
+  // ownCommandWriteOf); the planner adds nothing to it.
+  const ownCommandWrite = ownCommandWriteOf(fallbackCapabilityRequests, [
+    cleanMessage,
+    ...personTextsOf(effectiveHistory),
+  ]);
   const normalizeCapabilityRequests = (requests) =>
     filterCapabilityRequestsForIdentity(requests, req.owner, memberToolOptions);
   let durableTaskRunId = null;
@@ -3350,7 +3614,7 @@ router.post("/chat", async (req, res) => {
       Boolean(openAiApiKey) &&
       !hasExplicitNoAdditionalToolsBoundary(taskMessage) &&
       plainWordsPlan.type !== "requests" &&
-      !ownCommandEmail,
+      !ownCommandWrite,
     plannerContext: { openAiApiKey },
     planFn: planCapabilities,
     // A short yes to a step with tool words is planned even when the
@@ -3419,15 +3683,16 @@ router.post("/chat", async (req, res) => {
       verified: false,
     });
   }
-  // The person's own email command runs now: its one prepared step is sent
-  // with the same one-time check the „Потвърди“ button uses, and the answer
-  // says what went. Anything else prepared keeps its button.
+  // The person's own command runs now: its one prepared step goes with the
+  // same one-time check the „Потвърди“ button uses, and the answer says what
+  // was done. Anything else prepared keeps its button.
   const preparedWrites = taskExecution.taskConfirmation?.items || [];
+  const ownCapability = ownCommandWrite?.capability || "";
   if (
-    ownCommandEmail &&
+    ownCommandWrite &&
     googleSessionId &&
     preparedWrites.length === 1 &&
-    preparedWrites[0].capability === "mail.send"
+    preparedWrites[0].capability === ownCapability
   ) {
     const english = useEnglishReplyFallback(language);
     let sent = false;
@@ -3440,12 +3705,13 @@ router.post("/chat", async (req, res) => {
         githubSessionId,
         googleSessionId,
         language,
-        allowItem: (item) => item.capability === "mail.send",
+        allowItem: (item) => item.capability === ownCapability,
       });
       sent = true;
-      fullReply = formatSentEmailReply(
+      fullReply = formatOwnWriteReply(
+        ownCapability,
         confirmed.results[0]?.result?.output,
-        ownCommandEmail.input,
+        ownCommandWrite,
         english,
       );
       await auditAction({
@@ -3453,11 +3719,11 @@ router.post("/chat", async (req, res) => {
         decision: "confirmed",
         outcome: "succeeded",
         resource: confirmed.taskId || "task",
-        details: "own-command:mail.send",
+        details: `own-command:${ownCapability}`,
         sessionId: cleanSessionId,
       });
     } catch (error) {
-      logSafeError("[Chat] Own email command failure", error);
+      logSafeError("[Chat] Own command failure", error);
       await auditAction({
         action: "task.write",
         decision: "confirmed",
@@ -3466,7 +3732,7 @@ router.post("/chat", async (req, res) => {
         details: safeErrorCode(error, "TASK_WRITE_FAILED"),
         sessionId: cleanSessionId,
       });
-      fullReply = sentEmailFailureReply(error, english);
+      fullReply = ownWriteFailureReply(ownCapability, error, english);
     }
     const conversationPersisted = await saveConversationTurnBestEffort(
       cleanSessionId,
@@ -3478,14 +3744,14 @@ router.post("/chat", async (req, res) => {
     sendEvent("token", { token: fullReply });
     sendDone({
       ok: sent,
-      capabilities: ["mail.send"],
+      capabilities: [ownCapability],
       task: { ...sentTask, status: sent ? "completed" : "failed", verified: sent },
       ...(taskRunId ? { taskRunId } : {}),
       mode: "own-command-write",
       memoryAvailable,
       ...getConversationPersistenceMetadata(conversationPersisted),
     });
-    console.info(`[Chat] Own email command ${sent ? "sent" : "failed"} for ${cleanSessionId}`);
+    console.info(`[Chat] Own command ${ownCapability} ${sent ? "done" : "failed"} for ${cleanSessionId}`);
     res.end();
     return;
   }

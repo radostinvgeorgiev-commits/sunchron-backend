@@ -355,7 +355,12 @@ export function createMcpRequestHandler({
         agentId: args?.agentId,
         identity,
       });
-      result = textResult(conversation, conversation.response);
+      // A drawn picture comes back as the picture itself, not as text.
+      const { image, ...reply } = conversation;
+      result = textResult(reply, conversation.response);
+      if (image?.data && image?.mimeType) {
+        result.content.push({ type: "image", data: image.data, mimeType: image.mimeType });
+      }
     } else if (name === "get_google_cloud_runtime_status") {
       const status = await getGoogleCloudStatus();
       result = textResult(status, formatGoogleCloudRuntimeStatus(status));

@@ -12,6 +12,9 @@ import { parseMeetingUpload, transcribeMeeting } from "./meetingNotesService.js"
 import { CHAT_MODEL_CHOICES, resolveWorkAgentProvider } from "./workModeService.js";
 import { probeVertexOpenModels } from "./vertexOpenModelsService.js";
 import { createClaudeWorkService } from "./claudeWorkService.js";
+import { getPersonalTodoService } from "./personalTodoService.js";
+import { latestMainSessionFor } from "./googleDriveService.js";
+import { filterCapabilityRequestsForIdentity } from "./memberCapabilityPolicy.js";
 
 // A self-test the owner's connector can run instead of clicking through the
 // site by hand. Every check is a real call (a few cents of AI use in total),
@@ -121,6 +124,8 @@ export async function runSelfTest({
   avatarProfileService,
   probeOpenModels = probeVertexOpenModels,
   claudeWorkService,
+  todoService,
+  findOwnGoogle = latestMainSessionFor,
 } = {}) {
   const marker = String(1000 + Math.floor(Math.random() * 9000));
   const chatChecks = CHAT_PROVIDERS.map((provider) =>
@@ -239,6 +244,34 @@ export async function runSelfTest({
     return "записва се, зарежда се и се изтрива";
   });
 
+  // The open tree (RADKO 28.11): each person has their own branch with all
+  // the tools on their own things. A third person sees nothing of another's
+  // tasks, and never gets another's Google or the owner's GitHub.
+  const branches = check("Отделни клонове · трети човек не вижда чуждото", async () => {
+    const first = `self-test-${randomUUID()}`;
+    const third = `self-test-${randomUUID()}`;
+    const service = todoService || getPersonalTodoService();
+    await service.add(first, [`Самопроверка ${marker}`]);
+    try {
+      if (!(await service.list(first)).some(({ text }) => text.includes(marker))) {
+        throw new Error("своята задача не се вижда");
+      }
+      if ((await service.list(third)).some(({ text }) => text.includes(marker))) {
+        throw new Error("третият човек вижда чужда задача");
+      }
+      const person = { role: "member", memoryOwnerId: third };
+      if (await findOwnGoogle(person)) throw new Error("третият човек получава чужда Google връзка");
+      const reach = filterCapabilityRequestsForIdentity(
+        [{ capability: "mail.read" }, { capability: "todos.read" }, { capability: "code.read" }],
+        person,
+      ).map(({ capability }) => capability);
+      if (reach.join(",") !== "todos.read") throw new Error(`без своя връзка получава: ${reach.join(", ")}`);
+    } finally {
+      await Promise.all([first, third].map((ownerId) => Promise.resolve(service.clear(ownerId)).catch(() => null)));
+    }
+    return "своята задача се вижда, чуждата не; чужд Google и GitHub не стигат до него";
+  });
+
   const lists = check("Избор на модел и асистенти", async () => {
     const missing = CHAT_MODEL_CHOICES.slice(1).filter(({ id }) => !resolveWorkAgentProvider(id));
     if (missing.length || ASSISTANT_PRESETS.length < 5) throw new Error("непълен списък");
@@ -284,7 +317,7 @@ export async function runSelfTest({
     120_000,
   );
 
-  const checks = await Promise.all([...chatChecks, voice, meeting, pdf, share, knowledge, library, avatar, lists, openModels, claudeWork]);
+  const checks = await Promise.all([...chatChecks, voice, meeting, pdf, share, knowledge, library, avatar, branches, lists, openModels, claudeWork]);
   const failed = checks.filter(({ status }) => status === "fail").length;
   return {
     status: failed ? "fail" : "pass",

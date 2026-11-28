@@ -97,6 +97,18 @@ const POLICY = Object.freeze({
     risk: "medium",
     reason: "Промяната на статус на задача изисква точно потвърждение.",
   }),
+  // „Моите задачи“: each person's own list under their own account. Adding
+  // to it is their own command and can be undone in the list (item 3).
+  "todos.read": Object.freeze({
+    decision: "allow",
+    risk: "low",
+    reason: "Четенето е ограничено до „Моите задачи“ на текущия профил.",
+  }),
+  "todos.write": Object.freeze({
+    decision: "allow",
+    risk: "low",
+    reason: "Добавянето в „Моите задачи“ на текущия профил е командата на човека и се връща от списъка.",
+  }),
   "web.read": Object.freeze({
     decision: "allow",
     risk: "low",

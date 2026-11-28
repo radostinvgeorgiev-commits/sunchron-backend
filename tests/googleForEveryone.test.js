@@ -3,9 +3,11 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 
 import {
+  accountGoogleSession,
   createSession,
   getLatestGoogleSessionId,
   googleConnectionFor,
+  googleSessionCookie,
   resetGoogleSessionsForTests,
   sessionBelongsTo,
 } from "../src/services/googleDriveService.js";
@@ -54,8 +56,10 @@ test("every signed-in account can connect Google; restore stays owner-only", () 
   assert.match(router, /finishGoogleConnection\(tokens, req\.owner,/u);
   assert.match(router, /sessionBelongsTo\(id, req\.owner\)/u);
   // The chat reads the same ownership check and the granted scopes in one
-  // session read (tests/chatToolInventory.test.js checks googleConnectionFor).
-  assert.match(read("../src/routes/chat.js"), /googleConnectionFor\(cookieGoogleSession, req\.owner\)/u);
+  // session read, the account's own connection (accountGoogleSession, which
+  // checks googleConnectionFor; tests/chatToolInventory.test.js).
+  assert.match(read("../src/routes/chat.js"), /accountGoogleSession\(\s*parseCookies\(req\.headers\.cookie\)\.synchron_google_session \|\| "",\s*req\.owner,\s*\)/u);
+  assert.match(router, /accountGoogleSession\(cookieSessionId\(req\), req\.owner\)/u);
 });
 
 test("the chat's view of a Google connection belongs only to the account that made it", async () => {
@@ -67,4 +71,43 @@ test("the chat's view of a Google connection belongs only to the account that ma
   const legacy = await createSession({ access_token: "o", expires_in: 3600, scope: "openid" });
   assert.deepEqual(await googleConnectionFor(legacy, owner), { scopes: ["openid"] });
   assert.equal(await googleConnectionFor(legacy, maria), null);
+});
+
+// RADKO, 28.11: Google was connected, yet novariumai.com had none: the
+// cookie lives only on the name of the site where he connected.
+test("the connection follows the account to the other name of the site, never to another account", async () => {
+  resetGoogleSessionsForTests();
+  const mine = await createSession({ access_token: "m", expires_in: 3600 }, maria);
+  // This browser's own cookie: used as it is.
+  const own = await accountGoogleSession(mine, maria);
+  assert.equal(own.id, mine);
+  assert.equal(own.restored, false);
+  assert.ok(own.connection.scopes.length > 0);
+  // No cookie here (the other name of the site): the account's newest
+  // connection, which this browser then keeps.
+  const restored = await accountGoogleSession("", maria);
+  assert.equal(restored.id, mine);
+  assert.equal(restored.restored, true);
+  assert.match(googleSessionCookie(restored.id), new RegExp(`^synchron_google_session=${mine}; Path=/; HttpOnly; Secure; SameSite=Lax;`, "u"));
+  // Another account's cookie or connection is never used.
+  assert.equal(await accountGoogleSession(mine, ivan), null);
+  assert.equal(await accountGoogleSession("", ivan), null);
+  assert.equal(await accountGoogleSession("", owner), null);
+  assert.equal(await accountGoogleSession("", null), null);
+  assert.equal(await accountGoogleSession("", { role: "member" }), null);
+});
+
+test("an account without a connection is not looked up again for five minutes, unless it connects", async () => {
+  resetGoogleSessionsForTests();
+  const now = Date.now();
+  assert.equal(await accountGoogleSession("", ivan, now), null);
+  // Its own new connection is found at once.
+  const made = await createSession({ access_token: "i", expires_in: 3600 }, ivan);
+  assert.equal((await accountGoogleSession("", ivan, now + 1000)).id, made);
+  // Another account's new connection does not open the lookup for this one.
+  resetGoogleSessionsForTests();
+  assert.equal(await accountGoogleSession("", maria, now), null);
+  await createSession({ access_token: "o", expires_in: 3600 }, owner);
+  assert.equal(await accountGoogleSession("", maria, now + 1000), null);
+  assert.equal(await accountGoogleSession("", maria, now + 5 * 60_000 + 1), null);
 });

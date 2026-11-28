@@ -12,7 +12,7 @@ import {
   hasConfiguredAiProvider,
   isNovariumConfigured,
 } from "../services/novariumService.js";
-import { answerGitHubReadRequest } from "../services/githubService.js";
+import { answerGitHubItemStatus, answerGitHubReadRequest } from "../services/githubService.js";
 import { useEnglishReplyFallback } from "../config/replyLanguage.js";
 import { getPersonalTodoService, isTodoDate } from "../services/personalTodoService.js";
 import {
@@ -26,6 +26,7 @@ import {
   hasSession,
   listDriveFiles,
   listGmailMessages,
+  listGoogleCalendarDay,
   listGoogleCalendarEvents,
   searchGmailMessages,
   searchGoogleContacts,
@@ -645,7 +646,7 @@ const executors = Object.freeze({
           "MISSING_ISSUE_NUMBER",
         );
       }
-      return answerGitHubReadRequest(input.message, readOptions);
+      return answerGitHubItemStatus(issueNumber, readOptions);
     }
     if (isMergedBranchCleanupPlanRequest(input.message)) {
       return prepareMergedBranchCleanup({ ownerId: input.ownerId });
@@ -745,8 +746,28 @@ const executors = Object.freeze({
         "NOT_CONNECTED",
       );
     }
-    const events = await listGoogleCalendarEvents(input.googleSessionId);
     const english = useEnglishReplyFallback(input.language);
+    // One day („какво ми е деня днес“, item 3): that day's events, with
+    // their hour.
+    const day = typeof input.input?.date === "string" && /^\d{4}-\d{2}-\d{2}$/u.test(input.input.date)
+      ? input.input.date
+      : "";
+    if (day) {
+      const dayEvents = await listGoogleCalendarDay(input.googleSessionId, day);
+      const label = todoDay(day, english);
+      if (!dayEvents.length) {
+        return english ? `No events in Google Calendar for ${label}.` : `Няма събития в Google Calendar за ${label}.`;
+      }
+      const hour = (event) =>
+        event.allDay || !event.start
+          ? english ? "all day" : "цял ден"
+          : String(event.start).slice(11, 16);
+      return [
+        english ? `Google Calendar, ${label}:` : `Google Calendar за ${label}:`,
+        ...dayEvents.map((event) => `• ${hour(event)} — ${event.title}`),
+      ].join("\n");
+    }
+    const events = await listGoogleCalendarEvents(input.googleSessionId);
     if (!events.length) {
       return english
         ? "No upcoming events in Google Calendar."
@@ -897,6 +918,18 @@ const executors = Object.freeze({
     let messages = query
       ? await searchGmailMessages(input.googleSessionId, query, input.limit || 10)
       : await listGmailMessages(input.googleSessionId, input.limit || 10);
+    // The day's mail in „Моят ден“: only today's, said as such.
+    if (wordsQuery && input.input?.day === true) {
+      const english = useEnglishReplyFallback(input.language);
+      if (!messages.length) return english ? "No new email today." : "Днес няма нови писма.";
+      return [
+        english ? "Email today:" : "Писма днес:",
+        ...messages.map(
+          (message) =>
+            `• ${message.unread ? (english ? "Unread — " : "Непрочетено — ") : ""}${message.subject} — ${message.from}`,
+        ),
+      ].join("\n");
+    }
     // „каво имам в пошата днес покажи ми последните мейли“ with no mail today:
     // the latest ones, said as such, instead of an empty answer.
     let heading = "Последни съобщения в Gmail:";

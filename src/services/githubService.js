@@ -330,6 +330,56 @@ export async function listOpenPullRequests(
   }));
 }
 
+// One pull request by its number: its state, its checks and its files, as
+// GitHub has them now („покажи PR 594“, item 3).
+export async function getPullRequestDetails(
+  number,
+  repository = configuredRepository(),
+  readOptions = {},
+) {
+  assertAllowedRepository(repository);
+  const pull = Number(number);
+  if (!Number.isInteger(pull) || pull < 1 || pull > 999999) {
+    throw new GitHubServiceError("Невалиден номер на Pull Request.", 400, "INVALID_PULL_REQUEST");
+  }
+  const data = await githubRequest(`/repos/${repository}/pulls/${pull}`, {}, readOptions);
+  const headSha = typeof data.head?.sha === "string" ? data.head.sha : "";
+  const [files, checks] = await Promise.all([
+    githubRequest(`/repos/${repository}/pulls/${pull}/files?per_page=100`, {}, readOptions),
+    /^[a-f0-9]{40}$/iu.test(headSha)
+      ? githubRequest(`/repos/${repository}/commits/${headSha}/check-runs?per_page=100`, {}, readOptions).catch(
+          () => null,
+        )
+      : null,
+  ]);
+  const runs = Array.isArray(checks?.check_runs) ? checks.check_runs : [];
+  return {
+    number: data.number,
+    title: data.title || "",
+    state: data.state,
+    merged: Boolean(data.merged || data.merged_at),
+    mergedAt: data.merged_at || null,
+    draft: Boolean(data.draft),
+    head: data.head?.ref || null,
+    base: data.base?.ref || null,
+    headSha: headSha.slice(0, 7),
+    url: data.html_url,
+    additions: data.additions || 0,
+    deletions: data.deletions || 0,
+    changedFiles: data.changed_files || 0,
+    files: (Array.isArray(files) ? files : []).map((file) => ({
+      path: file.filename,
+      status: file.status,
+      additions: file.additions || 0,
+      deletions: file.deletions || 0,
+      previousPath: file.previous_filename || null,
+    })),
+    checks: checks
+      ? runs.map((run) => ({ name: run.name, status: run.status, conclusion: run.conclusion || null }))
+      : null,
+  };
+}
+
 export async function listRecentWorkflowRuns(
   repository = configuredRepository(),
   limit = 20,
@@ -382,12 +432,23 @@ export async function getGitHubReadOverview({
   });
 }
 
+// „PR 594“, „pull request #594“, „пул рекуест 594“: one pull request by its
+// number.
+const PULL_REQUEST_NUMBER =
+  /(?:(?<![\p{L}\d])pr|pull[\s-]*request|пул[\s-]*р[еи]к[ув]?[еи]ст)(?:-?а|-?и|s)?\s*(?:№|#|номер\s*)?(\d{1,6})(?!\d)/iu;
+
+export function pullRequestNumberOf(message) {
+  const match = String(message || "").match(PULL_REQUEST_NUMBER);
+  return match ? Number(match[1]) : 0;
+}
+
 export function isGitHubReadRequest(message) {
   const text = typeof message === "string" ? message.trim().toLowerCase() : "";
   return (
     /(?:\bgithub\b|ги[тд][\s-]*хъб|(?:^|\s)хъб(?:ът|а)?(?=\s|[?!.,:;]|$))/iu.test(
       text,
     ) ||
+    pullRequestNumberOf(text) > 0 ||
     /\b(commit|комит|хранилищ|репозитор)/u.test(text) ||
     /последн(?:ата|ите)\s+промян/u.test(text)
   );
@@ -535,6 +596,72 @@ async function answerRepositoryArchitectureQuestion(text, readOptions = {}) {
   return null;
 }
 
+const FILE_STATUS_LABELS = Object.freeze({
+  added: "добавен",
+  modified: "променен",
+  removed: "изтрит",
+  renamed: "преименуван",
+});
+
+// The pull request as the person reads it: its state, checks, then files.
+export function formatPullRequestDetails(pull) {
+  const state = pull.merged
+    ? `слят${pull.mergedAt ? ` на ${String(pull.mergedAt).slice(0, 10)}` : ""}`
+    : pull.state === "open"
+      ? pull.draft
+        ? "отворен (чернова)"
+        : "отворен"
+      : "затворен без сливане";
+  const checks = Array.isArray(pull.checks) ? pull.checks : null;
+  const failed = checks ? checks.filter((run) => run.status === "completed" && !["success", "neutral", "skipped"].includes(run.conclusion)) : [];
+  const running = checks ? checks.filter((run) => run.status !== "completed") : [];
+  const checksLine = !checks
+    ? "Проверки: не се виждат."
+    : !checks.length
+      ? "Проверки: няма."
+      : failed.length
+        ? `Проверки: ${failed.length} от ${checks.length} не минаха (${failed.map((run) => run.name).join(", ")}).`
+        : running.length
+          ? `Проверки: ${checks.length - running.length} от ${checks.length} минаха, ${running.length} още вървят.`
+          : `Проверки: ${checks.length} от ${checks.length} минаха.`;
+  const shown = pull.files.slice(0, 50);
+  return [
+    `PR #${pull.number} — ${pull.title}`,
+    `Състояние: ${state}; ${pull.head || "?"} → ${pull.base || "?"}${pull.headSha ? ` (${pull.headSha})` : ""}.`,
+    checksLine,
+    `Променени файлове: ${pull.changedFiles || pull.files.length}, +${pull.additions}/-${pull.deletions} реда.`,
+    ...shown.map((file) => {
+      const status = FILE_STATUS_LABELS[file.status] || file.status || "променен";
+      const rename = file.previousPath ? ` от ${file.previousPath}` : "";
+      return `• ${file.path} — ${status}${rename}; +${file.additions}/-${file.deletions} реда.`;
+    }),
+    ...(pull.files.length > shown.length ? [`… и още ${pull.files.length - shown.length} файла.`] : []),
+    ...(pull.url ? [pull.url] : []),
+  ].join("\n");
+}
+
+// „Какво става с PR 594“, „статус на задача #12“ (code.task-status). Until
+// 21.08.2026 (#328) this read the task or pull request itself; since then it
+// answered with the latest commit. A pull request gets its state, checks and
+// files; an issue its state.
+export async function answerGitHubItemStatus(number, readOptions = {}) {
+  const repository = getConfiguredRepository();
+  assertAllowedRepository(repository);
+  const item = Number(number);
+  if (!Number.isInteger(item) || item < 1 || item > 999999) {
+    throw new GitHubServiceError("Невалиден номер на GitHub задача.", 400, "INVALID_ISSUE_NUMBER");
+  }
+  const issue = await githubRequest(`/repos/${repository}/issues/${item}`, {}, readOptions);
+  if (issue.pull_request) {
+    return formatPullRequestDetails(await getPullRequestDetails(item, repository, readOptions));
+  }
+  return [
+    `GitHub задача #${issue.number} — ${issue.title || ""}`,
+    `Състояние: ${issue.state === "open" ? "отворена" : "затворена"}.`,
+    ...(issue.html_url ? [issue.html_url] : []),
+  ].join("\n");
+}
+
 export async function answerGitHubReadRequest(message, readOptions = {}) {
   if (
     !isGitHubReadRequest(message) &&
@@ -544,6 +671,12 @@ export async function answerGitHubReadRequest(message, readOptions = {}) {
   }
 
   const text = message.toLowerCase();
+  const pullNumber = pullRequestNumberOf(text);
+  if (pullNumber) {
+    return formatPullRequestDetails(
+      await getPullRequestDetails(pullNumber, getConfiguredRepository(), readOptions),
+    );
+  }
   const architectureAnswer = await answerRepositoryArchitectureQuestion(
     text,
     readOptions,

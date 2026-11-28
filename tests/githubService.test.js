@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  answerGitHubItemStatus,
   answerGitHubReadRequest,
   getCommitDetails,
   getFileContent,
@@ -9,6 +10,7 @@ import {
   GitHubServiceError,
   listRecentCommits,
   isGitHubReadRequest,
+  pullRequestNumberOf,
 } from "../src/services/githubService.js";
 
 const originalFetch = global.fetch;
@@ -448,4 +450,94 @@ test("answers each repository architecture check from main instead of repeating 
   );
   assert.match(fixes, /capability → permission/u);
   assert.match(fixes, /празен или невалиден резултат/u);
+});
+
+// Item 3 (RADKO, 28.11: „то това си работи от доста време“): „покажи PR
+// 594“ answered with the latest commit since #328 (21.08.2026) removed the
+// pull request reader.
+const REPO = "https://github.test/repos/radostinvgeorgiev-commits/sunchron-backend";
+const HEAD = "a".repeat(40);
+function pullRequestApi({ checks = "ok" } = {}) {
+  const urls = [];
+  global.fetch = async (url) => {
+    urls.push(url);
+    if (url === `${REPO}/issues/594`) return jsonResponse({ number: 594, title: "Манифест", state: "closed", pull_request: {} });
+    if (url === `${REPO}/issues/12`) {
+      return jsonResponse({ number: 12, title: "Бутонът не работи", state: "open", html_url: "https://github.com/x/issues/12" });
+    }
+    if (url === `${REPO}/pulls/594`) {
+      return jsonResponse({
+        number: 594,
+        title: "Манифест",
+        state: "closed",
+        merged: true,
+        merged_at: "2026-11-28T04:40:00Z",
+        head: { ref: "claude/manifest", sha: HEAD },
+        base: { ref: "main" },
+        html_url: "https://github.com/radostinvgeorgiev-commits/sunchron-backend/pull/594",
+        additions: 12,
+        deletions: 3,
+        changed_files: 3,
+      });
+    }
+    if (url === `${REPO}/pulls/594/files?per_page=100`) {
+      return jsonResponse([
+        { filename: "docs/MANIFESTO.md", status: "modified", additions: 10, deletions: 3 },
+        { filename: "docs/NEW.md", status: "added", additions: 2, deletions: 0 },
+        { filename: "docs/OLD2.md", previous_filename: "docs/OLD.md", status: "renamed", additions: 0, deletions: 0 },
+      ]);
+    }
+    if (url === `${REPO}/commits/${HEAD}/check-runs?per_page=100`) {
+      if (checks === "hidden") return jsonResponse({ message: "Forbidden" }, 403);
+      return jsonResponse({
+        check_runs: [
+          { name: "test", status: "completed", conclusion: checks === "failed" ? "failure" : "success" },
+          { name: "smoke", status: "completed", conclusion: "success" },
+        ],
+      });
+    }
+    throw new Error(`unexpected ${url}`);
+  };
+  return urls;
+}
+
+test("„покажи PR 594“ shows that pull request: its state, checks and files", async () => {
+  pullRequestApi();
+  for (const phrase of ["покажи PR 594", "pull request 594", "пул рекуест 594", "какво става с PR-а 594", "PR #594"]) {
+    assert.equal(isGitHubReadRequest(phrase), true, phrase);
+    const answer = await answerGitHubReadRequest(phrase);
+    assert.equal(
+      answer,
+      [
+        "PR #594 — Манифест",
+        "Състояние: слят на 2026-11-28; claude/manifest → main (aaaaaaa).",
+        "Проверки: 2 от 2 минаха.",
+        "Променени файлове: 3, +12/-3 реда.",
+        "• docs/MANIFESTO.md — променен; +10/-3 реда.",
+        "• docs/NEW.md — добавен; +2/-0 реда.",
+        "• docs/OLD2.md — преименуван от docs/OLD.md; +0/-0 реда.",
+        "https://github.com/radostinvgeorgiev-commits/sunchron-backend/pull/594",
+      ].join("\n"),
+      phrase,
+    );
+  }
+  for (const phrase of ["приложение 594", "spr 12", "покажи 594", "PR"]) assert.equal(pullRequestNumberOf(phrase), 0, phrase);
+});
+
+test("a pull request's failed or hidden checks are said as they are", async () => {
+  pullRequestApi({ checks: "failed" });
+  assert.match(await answerGitHubReadRequest("покажи PR 594"), /^Проверки: 1 от 2 не минаха \(test\)\.$/mu);
+  pullRequestApi({ checks: "hidden" });
+  assert.match(await answerGitHubReadRequest("покажи PR 594"), /^Проверки: не се виждат\.$/mu);
+});
+
+test("the status of a task or pull request by its number reads that item, not the latest commit", async () => {
+  const urls = pullRequestApi();
+  assert.equal(
+    await answerGitHubItemStatus(12),
+    ["GitHub задача #12 — Бутонът не работи", "Състояние: отворена.", "https://github.com/x/issues/12"].join("\n"),
+  );
+  assert.match(await answerGitHubItemStatus(594), /^PR #594 — Манифест\nСъстояние: слят на 2026-11-28;/u);
+  assert.ok(!urls.some((url) => url.includes("/commits?")), urls.join("\n"));
+  await assert.rejects(answerGitHubItemStatus(0), GitHubServiceError);
 });

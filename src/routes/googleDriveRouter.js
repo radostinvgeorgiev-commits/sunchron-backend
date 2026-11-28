@@ -1,6 +1,7 @@
 import express from "express";
 import {
   GoogleDriveError,
+  accountGoogleSession,
   analyzeDriveFile,
   buildAuthorizationUrl,
   createNonce,
@@ -19,6 +20,7 @@ import {
   getYoutubeChannelSummary,
   googleConnectPath,
   googleLoginHint,
+  googleSessionCookie,
   grantedExtras,
   isGoogleScopeMissing,
   latestMainSessionFor,
@@ -165,9 +167,13 @@ router.get("/restore", ownerOnly, async (_req, res) => {
 });
 
 router.get("/status", async (req, res) => {
-  const id = await sessionId(req);
+  // The account's connection, also when the person connected on the other
+  // name of the site or in another browser: this browser then keeps it, as
+  // the chat does (accountGoogleSession).
+  const own = await accountGoogleSession(cookieSessionId(req), req.owner);
+  if (own?.restored) res.append("Set-Cookie", googleSessionCookie(own.id));
   res.json({
-    connected: Boolean(id) && (await hasSession(id)),
+    connected: Boolean(own?.id) && (await hasSession(own.id)),
     canRestore: req.owner?.role === "owner",
   });
 });

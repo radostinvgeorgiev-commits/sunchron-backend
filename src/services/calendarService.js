@@ -187,6 +187,22 @@ const ENGLISH_DAY_WORDS =
 const OTHER_OWN_THINGS =
   /(?:ме[йи]л|маил|писм|пощ|пошт|gmail|джимейл|драйв|drive|файл|документ|контакт|задач|e-?mail|inbox|files?\b|contacts?\b|tasks?\b|to-?do)/u;
 
+// The day a question about the person's own day asks for, as YYYY-MM-DD, or
+// "" when the message is no such question (`today` is Sofia's date): „какво
+// ми е деня днес“, „моят ден“ and „как ми е денят“ are today, „какво имам
+// утре“ is tomorrow and „вдругиден“ the day after. A week or a weekday is a
+// calendar question, not one day.
+export function myDayAsked(message, today) {
+  const text = typeof message === "string" ? message.toLowerCase() : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(String(today || ""))) return "";
+  if (!(DAY_WORDS.test(text) || ENGLISH_DAY_WORDS.test(text)) || OTHER_OWN_THINGS.test(text)) return "";
+  if (/(?:седмица|уикенд|понеделник|вторник|сряда|четвъртък|петък|събота|неделя|week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/u.test(text)) {
+    return "";
+  }
+  const shift = /(?:вдругиден|day\s+after\s+tomorrow)/u.test(text) ? 2 : /(?:утре|tomorrow)/u.test(text) ? 1 : 0;
+  return new Date(Date.parse(`${today}T12:00:00Z`) + shift * 86_400_000).toISOString().slice(0, 10);
+}
+
 export function isCalendarReadRequest(message) {
   const text = typeof message === "string" ? message.toLowerCase() : "";
   return (

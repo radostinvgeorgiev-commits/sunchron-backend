@@ -2,14 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  formatOwnWriteReply,
   formatSentEmailReply,
   isOwnCommandEmail,
+  ownCommandWriteOf,
+  ownWriteFailureReply,
   readPlainWordsPlan,
   sentEmailFailureReply,
   withPlainWordsRequests,
 } from "../src/routes/chat.js";
 import { sendMcpAgentMessage } from "../src/services/mcpAgentConversationService.js";
-import { hasMailWords } from "../src/services/plainIntentService.js";
+import { hasMailWords, sofiaNow } from "../src/services/plainIntentService.js";
 
 // Item 3, fix 1 (RADKO 28.11 05:26–05:41): an email and the mailbox in the
 // person's own words. These are his messages from the live site.
@@ -63,7 +66,7 @@ test("his words for mail are mail words; other words are not", () => {
   }
 });
 
-test("the reader is asked for mail words, for an answer to its own question, and for a yes to a mail step only", async () => {
+test("the reader is asked for words of a tool, for an answer to its own question, and for a yes to a tool step only", async () => {
   const { calls, read } = reader(mailIntent({ recipient: "me", body: "Здраве" }));
   const apiKey = "stand-in";
 
@@ -82,20 +85,35 @@ test("the reader is asked for mail words, for an answer to its own question, and
   assert.equal(calls.length, 2);
   assert.deepEqual(calls[1].turns, turns);
 
-  // A yes to a step about mail: asked. A yes to any other step, or with no
-  // step: not asked.
+  // A yes to a step about a tool: asked. A yes to a step with no tool
+  // words, or with no step: not asked.
   await readPlainWordsPlan({ message: "да", step: "кажи „да“ и пращам имейла до теб.", apiKey, read });
   assert.equal(calls.length, 3);
-  for (const step of ["", "кажи дали видеото да е вертикално за телефон."]) {
+  for (const step of ["", "кажи дали текстът да е по-кратък."]) {
     assert.deepEqual(await readPlainWordsPlan({ message: "да", step, apiKey, read }), { type: "none" });
   }
   assert.equal(calls.length, 3);
 
-  // No mail words: not asked.
-  for (const message of ["какво ми е деня днес", "здравей", "нарисувай ми звезда"]) {
+  // No words of any tool, or a project's task: not asked.
+  for (const message of ["здравей", "как си днес", "благодаря ти", "Коя е следващата задача?", "Как работим по техническа задача?"]) {
     assert.deepEqual(await readPlainWordsPlan({ message, apiKey, read }), { type: "none" });
   }
   assert.equal(calls.length, 3);
+
+  // Words of the other tools (item 3, all at once): asked.
+  for (const message of [
+    "какво ми е деня днес",
+    "нарисувай ми звезда",
+    "кви задачи имам отворени",
+    "моите задачи",
+    "добави задача да се обадя на банката утре",
+    "намери иван в контактите",
+    "покажи ми последните файлове в драйва",
+    "запиши ми среща утре в 10 с иван в календара",
+  ]) {
+    await readPlainWordsPlan({ message, apiKey, read });
+  }
+  assert.equal(calls.length, 11);
 
   // The exact command keeps its own path; no key, no reader.
   assert.deepEqual(
@@ -103,7 +121,7 @@ test("the reader is asked for mail words, for an answer to its own question, and
     { type: "none" },
   );
   assert.deepEqual(await readPlainWordsPlan({ message: "прати мейл до мен", read }), { type: "none" });
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 11);
 });
 
 test("the reader's email to the person runs; a missing detail asks one question; an untyped address never runs", async () => {
@@ -160,24 +178,113 @@ test("the reader's email to the person runs; a missing detail asks one question;
     },
   );
 
-  // Any other action is not this fix: nothing changes.
-  for (const action of ["none", "calendar.read", "contacts.read", "image.make"]) {
-    assert.deepEqual(await plan(mailIntent({ action, query: "Иван" }), "покажи ми пощата"), { type: "none" }, action);
-  }
+  // The other tools come back as their own requests (item 3, all at once).
+  assert.deepEqual(await plan(mailIntent({ action: "none" }), "покажи ми пощата"), { type: "none" });
+  assert.deepEqual(await plan(mailIntent({ action: "calendar.read" }), "какво имам в календара тази седмица"), {
+    type: "requests",
+    requests: [{ capability: "calendar.read", action: "calendar.read", message: "какво имам в календара тази седмица" }],
+  });
+  assert.deepEqual(await plan(mailIntent({ action: "contacts.read", query: "Иван" }), "намери иван в контактите"), {
+    type: "requests",
+    requests: [{ capability: "contacts.read", action: "contacts.read", message: "Иван" }],
+  });
+  assert.equal((await plan(mailIntent({ action: "image.make" }), "нарисувай ми нещо")).type, "ask");
+  // Someone whose Google cannot be reached here: a Google step goes on as
+  // before; their own tasks still run.
+  const noGoogle = (intent, message) =>
+    readPlainWordsPlan({ message, apiKey, allowGoogle: false, read: reader(intent).read });
+  assert.deepEqual(await noGoogle(mailIntent({ action: "contacts.read", query: "Иван" }), "намери иван в контактите"), { type: "none" });
+  assert.deepEqual(await noGoogle(mailIntent({ action: "todos.read" }), "моите задачи"), {
+    type: "requests",
+    requests: [{ capability: "todos.read", action: "todos.read", message: "моите задачи" }],
+  });
   // The reader failed: nothing changes.
   assert.deepEqual(await plan(null, "покажи ми пощата"), { type: "none" });
 });
 
-test("the reader's mail requests replace the detector's mail ones and keep the rest", () => {
+test("the reader's requests replace the detector's ones it stands in for and keep the rest", () => {
   const send = { capability: "mail.send", action: "mail.send", message: "m", input: { to: "", toSelf: true, subject: "S", body: "B" } };
   const detected = [
     { capability: "mail.read", action: "mail.read", message: "m" },
-    { capability: "calendar.read", action: "calendar.read", message: "m" },
+    { capability: "code.read", action: "github.read", message: "m" },
   ];
   assert.deepEqual(withPlainWordsRequests({ type: "requests", requests: [send] }, detected), [send, detected[1]]);
   assert.deepEqual(withPlainWordsRequests({ type: "none" }, detected), detected);
   assert.deepEqual(withPlainWordsRequests({ type: "ask", text: "?" }, detected), detected);
   assert.deepEqual(withPlainWordsRequests(undefined, undefined), []);
+});
+
+test("a contact or a day taken for a public search is the reader's request alone; other searches stay", () => {
+  const contact = { capability: "contacts.read", action: "contacts.read", message: "Счетоводител" };
+  const mail = { capability: "mail.read", action: "mail.read", message: "m" };
+  const places = { capability: "places.search", action: "places.search", message: "намери телефона на счетоводителя" };
+  const web = { capability: "web.search", action: "web.search", message: "m" };
+  const code = { capability: "code.read", action: "github.read", message: "m" };
+  assert.deepEqual(withPlainWordsRequests({ type: "requests", requests: [contact] }, [places, web, code]), [contact, code]);
+  // „покажи пощата ми и намери ресторант наблизо“: both run.
+  assert.deepEqual(withPlainWordsRequests({ type: "requests", requests: [mail] }, [mail, places]), [mail, places]);
+});
+
+test("an event, a contact and his own email are his own command; anything else keeps its button", () => {
+  const event = { capability: "calendar.write", message: "Създай събитие: Среща с Иван | 2026-11-30 10:00 | 60" };
+  const contact = { capability: "contacts.create", input: { contact: { name: "Иван", phone: "0888 123 456" } } };
+  const self = { capability: "mail.send", input: { to: "", toSelf: true, subject: "S", body: "B" } };
+  const untyped = { capability: "mail.send", input: { to: "ivan@example.com", subject: "S", body: "B" } };
+  assert.equal(ownCommandWriteOf([{ capability: "mail.read" }, event]), event);
+  assert.equal(ownCommandWriteOf([contact]), contact);
+  assert.equal(ownCommandWriteOf([self]), self);
+  assert.equal(ownCommandWriteOf([untyped], ["прати на иван"]), null);
+  assert.equal(ownCommandWriteOf([{ capability: "calendar.delete" }, { capability: "contacts.update" }]), null);
+  assert.equal(ownCommandWriteOf(null), null);
+});
+
+test("the answer after an event or a contact says what was written; a failure says why, never a made-up reason", () => {
+  assert.equal(
+    formatOwnWriteReply("calendar.write", "Събитието „Среща с Иван“ е записано в Google Calendar.", {
+      message: "Създай събитие: Среща с Иван | 2026-11-30 10:00 | 60",
+    }),
+    "Събитието „Среща с Иван“ е записано в Google Calendar.\nКога: 30.11.2026 в 10:00, 60 мин.",
+  );
+  // A reminder has no length.
+  assert.equal(
+    formatOwnWriteReply("calendar.write", "", { message: "Напомни ми: Банката | 2026-11-30 09:00 | 0 минути преди" }),
+    "Събитието е записано.\nКога: 30.11.2026 в 09:00.",
+  );
+  assert.equal(formatOwnWriteReply("contacts.create", ""), "Контактът е записан.");
+  assert.equal(formatOwnWriteReply("contacts.create", "", {}, true), "The contact was saved.");
+  const refused = Object.assign(new Error("task"), {
+    results: [{ error: { code: "GOOGLE_SCOPE_REQUIRED", message: "Календарът няма дадено разрешение." } }],
+  });
+  assert.equal(ownWriteFailureReply("calendar.write", refused), "Събитието не е записано: Календарът няма дадено разрешение.");
+  assert.equal(
+    ownWriteFailureReply("contacts.create", Object.assign(new Error("secret detail"), { code: "TASK_WRITE_FAILED" })),
+    "Контактът не е записан. Нищо не е променено; опитай пак след минута.",
+  );
+  assert.equal(ownWriteFailureReply("mail.send", null, true), "The email was not sent. Nothing went out; try again in a minute.");
+});
+
+test("„какво ми е деня днес“ reads the day's calendar, the open tasks and today's mail at once", async () => {
+  const { read } = reader(mailIntent({ action: "calendar.read" }));
+  const today = sofiaNow().date;
+  const plan = await readPlainWordsPlan({ message: "какво ми е деня днес", read, apiKey: "k" });
+  assert.deepEqual(
+    plan.requests.map(({ capability, input }) => [capability, input || null]),
+    [
+      ["calendar.read", { date: today }],
+      ["todos.read", null],
+      ["mail.read", { query: "newer_than:1d", day: true }],
+    ],
+  );
+  // Tomorrow: its events and the tasks; today's mail is not tomorrow's.
+  const tomorrow = await readPlainWordsPlan({ message: "какво имам утре", read, apiKey: "k" });
+  assert.deepEqual(
+    tomorrow.requests.map(({ capability }) => capability),
+    ["calendar.read", "todos.read"],
+  );
+  assert.notEqual(tomorrow.requests[0].input.date, today);
+  // A calendar question that is not about one day stays the calendar alone.
+  const week = await readPlainWordsPlan({ message: "какво имам в календара тази седмица", read, apiKey: "k" });
+  assert.deepEqual(week.requests.map(({ capability }) => capability), ["calendar.read"]);
 });
 
 test("an email is the person's own command only to themselves or to an address they typed", () => {

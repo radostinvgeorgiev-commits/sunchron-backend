@@ -73,6 +73,24 @@ function memoryAvatar() {
   };
 }
 
+// „Моите задачи“ in memory, one list per person, as the real store keeps it.
+function memoryTodos({ leak = false } = {}) {
+  const lists = new Map();
+  return {
+    async add(ownerId, texts) {
+      const items = [...(lists.get(ownerId) || []), ...texts.map((text) => ({ text, done: false }))];
+      lists.set(ownerId, items);
+      return items;
+    },
+    async list(ownerId) {
+      return leak ? [...lists.values()].flat() : lists.get(ownerId) || [];
+    },
+    async clear(ownerId) {
+      lists.delete(ownerId);
+    },
+  };
+}
+
 const echoMarker = (content) => /\d{4}/u.exec(content)[0];
 
 test("the built-in samples are accepted by the real validators", () => {
@@ -119,14 +137,19 @@ test("all checks pass, Grok without a key is skipped, nothing secret is returned
     libraryService: memoryLibrary(),
     avatarProfileService: memoryAvatar(),
     claudeWorkService: fakeClaudeWork(),
+    todoService: memoryTodos(),
   });
   assert.equal(report.checks.find(({ name }) => name.startsWith("Запис от среща")).detail, "Gemini прие и прочете записа");
   assert.equal(report.status, "pass");
   assert.equal(report.failed, 0);
   assert.equal(report.checks.find(({ name }) => name === "Чат · grok").status, "skipped");
   assert.equal(report.checks.find(({ name }) => name === "Чат · vertex-gemini").status, "skipped");
-  assert.equal(report.checks.length, 15);
-  assert.match(formatSelfTest(report), /12 минаха, 0 не минаха, 3 пропуснати/u);
+  assert.equal(report.checks.length, 16);
+  assert.match(formatSelfTest(report), /13 минаха, 0 не минаха, 3 пропуснати/u);
+  assert.equal(
+    report.checks.find(({ name }) => name.startsWith("Отделни клонове")).detail,
+    "своята задача се вижда, чуждата не; чужд Google и GitHub не стигат до него",
+  );
   assert.match(report.checks.find(({ name }) => name.startsWith("Работа с Claude")).detail, /self-test\.txt/u);
   assert.doesNotMatch(JSON.stringify(report), /"a"|"o"|"g"/u);
 });
@@ -146,6 +169,7 @@ test("a failing provider is reported as a failure with a short reason", async ()
     libraryService: memoryLibrary(),
     avatarProfileService: memoryAvatar(),
     claudeWorkService: fakeClaudeWork(),
+    todoService: memoryTodos(),
   });
   assert.equal(report.status, "fail");
   assert.equal(report.checks.find(({ name }) => name === "Чат · gemini").detail, "GEMINI_UPSTREAM_ERROR");
@@ -211,6 +235,7 @@ test("an unexpected chat answer is shown on one short line", async () => {
     libraryService: memoryLibrary(),
     avatarProfileService: memoryAvatar(),
     claudeWorkService: fakeClaudeWork(),
+    todoService: memoryTodos(),
   });
   const grok = report.checks.find(({ name }) => name === "Чат · grok");
   assert.equal(grok.status, "fail");
@@ -229,4 +254,28 @@ test("the MCP tool runs the self-test for the verified owner", async () => {
   const { result } = await handler("run_novarium_self_test", {}, { ownerId: "owner" });
   assert.equal(result.structuredContent.status, "pass");
   assert.match(result.content[0].text, /Самопроверка: 1 минаха/u);
+});
+
+test("a third person who sees another's task, or gets another's Google, fails the branch check", async () => {
+  const base = {
+    env,
+    askAi: async ({ input }) => echoMarker(input[0].content),
+    transcribe: async () => ({ text: "", provider: "openai" }),
+    readMeeting: async () => ({ text: "", provider: "gemini" }),
+    readDocument: async () => "",
+    shareService: memoryShare(),
+    knowledgeService: memoryKnowledge(),
+    libraryService: memoryLibrary(),
+    avatarProfileService: memoryAvatar(),
+    claudeWorkService: fakeClaudeWork(),
+  };
+  const branch = (report) => report.checks.find(({ name }) => name.startsWith("Отделни клонове"));
+  const leaked = branch(await runSelfTest({ ...base, todoService: memoryTodos({ leak: true }) }));
+  assert.equal(leaked.status, "fail");
+  assert.match(leaked.detail, /третият човек вижда чужда задача/u);
+  const google = branch(
+    await runSelfTest({ ...base, todoService: memoryTodos(), findOwnGoogle: async () => "owner-session" }),
+  );
+  assert.equal(google.status, "fail");
+  assert.match(google.detail, /чужда Google връзка/u);
 });

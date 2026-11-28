@@ -1597,11 +1597,18 @@ const replyText = (text) => streamEvent(text, "token").token;
 
 // Claude answers with the given texts in turn; every outgoing call is kept;
 // the plans service, the picture and video services and the route's log
-// lines are watched.
+// lines are watched. The plain-words reader (OpenAI), asked when a message
+// speaks of pictures or video, finds no command of its own in these
+// messages; its calls are kept apart.
 function stubClaude(t, replies = []) {
   const calls = [];
+  const readerCalls = [];
   t.mock.method(globalThis, "fetch", async (url, options = {}) => {
     const body = JSON.parse(options.body || "{}");
+    if (String(url) === "https://api.openai.com/v1/responses" && body.text?.format?.name === "novarium_plain_intent") {
+      readerCalls.push(body);
+      return Response.json({ output_text: JSON.stringify({ action: "none" }) });
+    }
     calls.push({ url: String(url), body });
     assert.equal(String(url), "https://api.anthropic.com/v1/messages");
     return Response.json({
@@ -1630,6 +1637,7 @@ function stubClaude(t, replies = []) {
   }
   return {
     calls,
+    readerCalls,
     lines,
     generated: () => image.mock.callCount() + video.mock.callCount(),
     planChecks: () => freeChat.mock.callCount() + usage.mock.callCount(),

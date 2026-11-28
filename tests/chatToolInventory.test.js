@@ -41,6 +41,7 @@ const {
   GOOGLE_MEMBER_SCOPES,
   createSession,
   googleConnectionFor,
+  resetGoogleSessionsForTests,
 } = await import("../src/services/googleDriveService.js");
 const { extractPersistentMemoryCommands } = await import("../src/services/memoryService.js");
 const { createPublicAiBudgetContext } = await import("../src/services/publicAiBudget.js");
@@ -942,9 +943,11 @@ function chatApp(identity) {
 function stubClaude(t, { answer } = {}) {
   const calls = [];
   const others = [];
+  const otherBodies = [];
   t.mock.method(globalThis, "fetch", async (url, options = {}) => {
     if (String(url) !== "https://api.anthropic.com/v1/messages") {
       others.push(String(url));
+      otherBodies.push(typeof options.body === "string" ? options.body : "");
       const answered = answer ? await answer(String(url), options) : undefined;
       return answered || Response.json({ error: "not in this test" }, { status: 500 });
     }
@@ -968,7 +971,7 @@ function stubClaude(t, { answer } = {}) {
       original.apply(console, args);
     });
   }
-  return { calls, others, lines };
+  return { calls, others, otherBodies, lines };
 }
 
 const lastUserText = (body) => {
@@ -978,6 +981,8 @@ const lastUserText = (body) => {
 
 
 test("the 22:21 question reaches the model with the tool list, for the owner and a member, in chat and Work mode", async (t) => {
+  // No Google connection is stored for either account.
+  resetGoogleSessionsForTests();
   const claude = stubClaude(t);
   for (const identity of [owner, member]) {
     for (const mode of ["chat", "work"]) {
@@ -1019,19 +1024,22 @@ test("the 22:21 question reaches the model with the tool list, for the owner and
 });
 
 test("a member's own Google connection shows in the list; another account's does not", async (t) => {
+  resetGoogleSessionsForTests();
   const claude = stubClaude(t);
   const tokens = { access_token: "stand-in", expires_in: 3600, scope: GOOGLE_MEMBER_SCOPES.join(" ") };
-  const own = await createSession(tokens, member);
   const others = await createSession(tokens, { ...member, memoryOwnerId: "identity-platform:someone-else" });
+  // Someone else's cookie, before and after the member's own connection:
+  // only the member's own one is ever used, also without its cookie (it
+  // follows the account to another browser and the other name of the site).
   for (const [cookie, connected] of [
-    [own, true],
     [others, false],
+    [null, true],
+    [others, true],
   ]) {
-    await request(chatApp(member))
-      .post("/chat/chat")
-      .set("Cookie", `synchron_google_session=${cookie}`)
-      .send({ sessionId: `inventory-google-${connected}`, message: "Какво можеш?" })
-      .expect(200);
+    if (cookie === null) await createSession(tokens, member);
+    const call = request(chatApp(member)).post("/chat/chat");
+    if (cookie) call.set("Cookie", `synchron_google_session=${cookie}`);
+    await call.send({ sessionId: `inventory-google-${connected}-${Boolean(cookie)}`, message: "Какво можеш?" }).expect(200);
     const section = sectionOf(claude.calls.at(-1).system);
     if (connected) {
       assert.ok(section.includes("\nКалендар — „Програмата ми за утре“; „Създай събитие: заглавие | ГГГГ-ММ-ДД ЧЧ:ММ | минути“\n"), section);
@@ -1048,6 +1056,7 @@ test("a member's own Google connection shows in the list; another account's does
 });
 
 test("an English page gets the list in English", async (t) => {
+  resetGoogleSessionsForTests();
   const claude = stubClaude(t);
   await request(chatApp(member))
     .post("/chat/chat")
@@ -1180,7 +1189,11 @@ test("a member's yes to a search step after a maps request pays for the search o
 
 test("a yes to a step with tool words that the detector cannot read goes to the planner; a step without any does not", async (t) => {
   const claude = stubClaude(t);
-  const planned = () => claude.others.filter((url) => url.startsWith("https://api.openai.com/")).length;
+  // The planner's calls; the plain-words reader's own call is not one.
+  const planned = () =>
+    claude.others.filter(
+      (url, index) => url.startsWith("https://api.openai.com/") && !claude.otherBodies[index].includes("novarium_plain_intent"),
+    ).length;
   let before = 0;
   for (const [step, planner] of [
     ["кажи „да“ и проверявам пощата ти за писма от застрахователя.", true],
@@ -1475,15 +1488,134 @@ test("a refused mailbox read says reading is not allowed yet and sending works, 
   assert.match(response.text, /Разреши четене на Gmail/u);
 });
 
-test("the reader is not asked for a guest, or for a member without their own Google", async (t) => {
+test("the reader is not asked for a guest; a member without their own Google sends nothing", async (t) => {
+  resetGoogleSessionsForTests();
   const services = mailServices(t, { intents: [plainIntent({ recipient: "me", body: "Здраве" })] });
   const guest = { id: "guest", displayName: "Гост", role: "guest" };
-  for (const [identity, sessionId] of [[guest, "plain-mail-guest"], [member, "plain-mail-no-google"]]) {
-    await request(chatApp(identity))
-      .post("/chat/chat")
-      .send({ sessionId, message: "ПРАТИ МЕЛ ДА МИЯ ТУК ПРИ ПОСТ ЗДРАВЕ" })
-      .expect(200);
-  }
+  await request(chatApp(guest))
+    .post("/chat/chat")
+    .send({ sessionId: "plain-mail-guest", message: "ПРАТИ МЕЛ ДА МИЯ ТУК ПРИ ПОСТ ЗДРАВЕ" })
+    .expect(200);
   assert.equal(services.readerCalls.length, 0);
+  // A member's own branch reads their words too (their tasks, pictures); a
+  // Google step without their own Google goes on as before and sends nothing.
+  const response = await request(chatApp(member))
+    .post("/chat/chat")
+    .send({ sessionId: "plain-mail-no-google", message: "ПРАТИ МЕЛ ДА МИЯ ТУК ПРИ ПОСТ ЗДРАВЕ" })
+    .expect(200);
   assert.equal(services.sends.length, 0);
+  assert.doesNotMatch(response.text, /own-command-write|Имейлът е изпратен/u);
+});
+
+// Item 3 (RADKO, 28.11 04:30: „самата команда го казва“): an event in his own
+// calendar and a new contact in his own Google go at once, for the owner and
+// for a member with their own Google, the way his own email does.
+function googleWriteServices(t, { intents = [] } = {}) {
+  const readerCalls = [];
+  const events = [];
+  const contacts = [];
+  const claude = stubClaude(t, {
+    answer: (url, options) => {
+      if (url === READER_URL) {
+        const body = JSON.parse(options.body || "{}");
+        if (body.text?.format?.name !== "novarium_plain_intent") return undefined;
+        readerCalls.push(body);
+        return Response.json({ output_text: JSON.stringify(intents[readerCalls.length - 1] || plainIntent({ action: "none" })) });
+      }
+      if (url.startsWith("https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=none") && options.method === "POST") {
+        const event = JSON.parse(options.body || "{}");
+        events.push(event);
+        return Response.json({ id: `event-${events.length}`, status: "confirmed", htmlLink: "https://calendar.google.com/event?eid=1", ...event });
+      }
+      if (url.startsWith("https://www.googleapis.com/calendar/v3/calendars/primary/events?")) {
+        return Response.json({ items: [] });
+      }
+      if (url.startsWith("https://people.googleapis.com/v1/people:createContact")) {
+        const contact = JSON.parse(options.body || "{}");
+        contacts.push(contact);
+        return Response.json({ resourceName: `people/c${contacts.length}`, etag: "e1", ...contact });
+      }
+      return undefined;
+    },
+  });
+  return { claude, readerCalls, events, contacts };
+}
+
+const inDays = (days) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+
+test("„запиши ми среща утре в 10 с иван“ puts the event in his own calendar at once, for the owner and a member", async (t) => {
+  const date = inDays(2);
+  for (const [identity, scopes] of [
+    [owner, GOOGLE_BASE_SCOPES],
+    [member, GOOGLE_MEMBER_SCOPES],
+  ]) {
+    const services = googleWriteServices(t, {
+      intents: [plainIntent({ action: "calendar.write", title: "Среща с Иван", date, time: "10:00" })],
+    });
+    const cookie = await googleCookie(identity, scopes, `${identity.id}@example.com`);
+    const response = await request(chatApp(identity))
+      .post("/chat/chat")
+      .set("Cookie", `synchron_google_session=${cookie}`)
+      .send({ sessionId: `plain-event-${identity.role}`, message: "запиши ми среща утре в 10 с иван" })
+      .expect(200);
+    assert.equal(services.readerCalls.length, 1, identity.role);
+    assert.equal(services.events.length, 1, `${identity.role}: ${services.claude.others.join("\n")}`);
+    assert.equal(services.events[0].summary, "Среща с Иван");
+    assert.match(response.text, /"mode":"own-command-write"/u, identity.role);
+    assert.doesNotMatch(response.text, /Потвърждавам NovariumAI задача/u);
+    const [year, month, day] = date.split("-");
+    assert.match(response.text, new RegExp(`Кога: ${day}\\.${month}\\.${year} в 10:00, 60 мин\\.`, "u"), response.text);
+    assert.deepEqual(services.claude.calls, []);
+    t.mock.restoreAll();
+  }
+});
+
+test("„добави контакт Иван Петров 0888 123 456“ saves the contact at once; without his Google nothing is written", async (t) => {
+  const contact = plainIntent({ action: "contacts.create", contactName: "Иван Петров", contactPhone: "0888 123 456" });
+  const services = googleWriteServices(t, { intents: [contact, contact] });
+  const cookie = await googleCookie(member, GOOGLE_MEMBER_SCOPES, "ana@example.com");
+  const response = await request(chatApp(member))
+    .post("/chat/chat")
+    .set("Cookie", `synchron_google_session=${cookie}`)
+    .send({ sessionId: "plain-contact", message: "добави контакт Иван Петров 0888 123 456" })
+    .expect(200);
+  assert.equal(services.contacts.length, 1, services.claude.others.join("\n"));
+  assert.deepEqual(services.contacts[0].phoneNumbers, [{ value: "0888 123 456" }]);
+  assert.match(response.text, /"mode":"own-command-write"/u);
+  assert.doesNotMatch(response.text, /Потвърждавам NovariumAI задача/u);
+  // A member without their own Google: the reader is not asked for Google,
+  // and nothing is written.
+  resetGoogleSessionsForTests();
+  const none = await request(chatApp(member))
+    .post("/chat/chat")
+    .send({ sessionId: "plain-contact-none", message: "добави контакт Иван Петров 0888 123 456" })
+    .expect(200);
+  assert.equal(services.contacts.length, 1);
+  assert.doesNotMatch(none.text, /own-command-write/u);
+});
+
+test("„нарисувай ми котка“ starts the picture at once: free for the owner, priced for a member, with no model answer", async (t) => {
+  for (const [identity, units, price] of [
+    [owner, 0, ""],
+    [member, 2, " Струва 2 единици."],
+  ]) {
+    const services = googleWriteServices(t, {
+      intents: [plainIntent({ action: "image.make", picture: "Рижа котка на прозорец, акварел, топла светлина" })],
+    });
+    const response = await request(chatApp(identity))
+      .post("/chat/chat")
+      .send({ sessionId: `plain-picture-${identity.role}`, message: "нарисувай ми котка" })
+      .expect(200);
+    assert.equal(services.readerCalls.length, 1, identity.role);
+    assert.match(response.text, /"mode":"plain-words-media"/u);
+    assert.ok(response.text.includes(JSON.stringify(`Правя картинката. Отнема до половин минута.${price}`)), response.text);
+    assert.ok(
+      response.text.includes(
+        `"media":{"start":true,"items":[{"kind":"image","prompt":"Рижа котка на прозорец, акварел, топла светлина","units":${units}}]}`,
+      ),
+      response.text,
+    );
+    assert.deepEqual(services.claude.calls, []);
+    t.mock.restoreAll();
+  }
 });

@@ -148,8 +148,6 @@ const ACTION_WORDS = new RegExp(
     "драйв", "драив", "(?<!\\p{L})drive", "файл", "фаил", "(?<!\\p{L})files?(?!\\p{L})", "документ", "папк",
     // Contacts.
     "контакт", "contact", "телефона\\s+на", "номера\\s+на", "телефонния\\s+номер",
-    // „Моите задачи“.
-    "задач", "to-?do", "(?<!\\p{L})tasks?(?!\\p{L})",
     // Pictures and video.
     "картин", "изображени", "снимк", "рисун", "рисува", "(?<!\\p{L})лого", "илюстрац", "постер", "плакат",
     "(?<!\\p{L})image", "picture", "photo", "(?<!\\p{L})draw", "(?<!\\p{L})logo", "видео", "клип", "(?<!\\p{L})video",
@@ -163,7 +161,16 @@ function matchesWords(words, text) {
   return words.test(value) || (/[a-z]/iu.test(value) && words.test(latinToCyrillic(value)));
 }
 
-export const hasActionWords = (text) => matchesWords(ACTION_WORDS, text);
+// „Моите задачи“: a task word with a word of the person's own list („кви
+// задачи имам отворени“, „моите задачи“, „добави задача …“). A project's
+// „следващата задача“ or „как работим по техническа задача“ is work, not
+// the list, and is not read.
+const TODO_WORDS = /задач|(?<!\p{L})to-?dos?(?!\p{L})|(?<!\p{L})tasks?(?!\p{L})/iu;
+const TODO_OWN_WORDS =
+  /(?<!\p{L})(?:мо(?:и|ите|я|ята)|ми|имам|добав\p{L}*|запиш\p{L}*|сложи|отбележ\p{L}*|покаж\p{L}*|отворен\p{L}*|списък\p{L}*|my|add|show|list|open)(?!\p{L})/iu;
+
+export const hasActionWords = (text) =>
+  matchesWords(ACTION_WORDS, text) || (matchesWords(TODO_WORDS, text) && matchesWords(TODO_OWN_WORDS, text));
 
 // Words of an email or of the mailbox only (item 3, fix 1).
 export const hasMailWords = (text) => matchesWords(MAIL_WORDS, text);
@@ -299,6 +306,7 @@ function readerInstructions(now) {
     "- todos.add: add a task to the person's own to-do list.",
     "- image.make: draw or generate a picture, photo or logo now.",
     "- video.make: make a new short video now.",
+    "  An ad, a post, a campaign or a script with pictures or video in it is none: the assistant writes it first and offers its pictures.",
     "- none: anything else. A question about how to do something or whether you can, talk about these things, a request for later or for someone else's account, a request not to do it, work tasks of a project or GitHub, a YouTube video to summarise, the person's added files („Моите файлове“), or anything you are not sure about.",
     "",
     "The person may write Bulgarian in Latin letters, in capitals, with typos or as speech to text: „ISKAM DA PATI MEIL DO MEN“ is „искам да пратя мейл до мен“, „пошата“ is „пощата“, „кви“ is „какви“, „каво“ is „какво“.",

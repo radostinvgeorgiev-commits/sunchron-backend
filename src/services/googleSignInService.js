@@ -75,11 +75,21 @@ export function clearGoogleSignInStateCookie() {
   return stateCookie("", 0);
 }
 
-export function startGoogleSignIn({ env = process.env } = {}) {
+// A sign-in whose start was moved here from the site's other name
+// (src/middleware/startOnCallbackOrigin.js) carries this mark in its state.
+// The state comes back from Google and must match the cookie, so the mark is
+// the one set at the start; forging it can only switch the owner link off.
+const MOVED_STATE_PREFIX = "moved.";
+
+export function isMovedSignInState(state) {
+  return String(state || "").startsWith(MOVED_STATE_PREFIX);
+}
+
+export function startGoogleSignIn({ env = process.env, moved = false } = {}) {
   if (!isGoogleSignInEnabled(env)) {
     throw new UserAuthError("Входът с Google още не е включен.", 503, "AUTH_GOOGLE_DISABLED");
   }
-  const state = randomBytes(24).toString("base64url");
+  const state = `${moved ? MOVED_STATE_PREFIX : ""}${randomBytes(24).toString("base64url")}`;
   const url = new URL(GOOGLE_AUTHORIZE_URL);
   url.search = new URLSearchParams({
     client_id: clientId(env),

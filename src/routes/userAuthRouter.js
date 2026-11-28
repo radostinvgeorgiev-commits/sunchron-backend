@@ -23,6 +23,7 @@ import {
   clearGoogleSignInStateCookie,
   finishGoogleSignIn,
   isGoogleSignInEnabled,
+  isMovedSignInState,
   startGoogleSignIn,
 } from "../services/googleSignInService.js";
 import {
@@ -119,9 +120,11 @@ router.post("/register", (_req, res) => {
   });
 });
 
-router.get("/google/start", (_req, res) => {
+router.get("/google/start", (req, res) => {
   try {
-    const { url, cookie } = startGoogleSignIn();
+    // moved=1: the start came from the site's other name, where nobody was
+    // signed in (src/middleware/startOnCallbackOrigin.js).
+    const { url, cookie } = startGoogleSignIn({ moved: req.query.moved === "1" });
     res.setHeader("Set-Cookie", cookie);
     return res.redirect(302, url);
   } catch (error) {
@@ -202,7 +205,10 @@ for (const name of Object.keys(SIGN_IN_PROVIDERS)) {
 // GitHub session links that Google account to the owner: from then on a
 // Google sign-in alone opens the owner's memory and tools. The sign-in itself
 // is protected by the one-time state cookie, so nobody can push their own
-// Google account into the owner's browser.
+// Google account into the owner's browser. A sign-in moved here from the
+// site's other name never links: it was started on a page where nobody was
+// signed in, so the owner session on this name says nothing about who picked
+// the Google account.
 async function ownerGitHubSessionPresent(cookieHeader, getSession) {
   const cookies = parseGitHubCookies(cookieHeader);
   if (!cookies.synchron_github_session) return false;
@@ -227,7 +233,10 @@ export function createGoogleSignInCallbackHandler({
       if (result.created) recordActivity({ registrations: 1 });
       let ownerLinked = false;
       try {
-        if (await ownerGitHubSessionPresent(req.headers.cookie, getSession)) {
+        if (
+          !isMovedSignInState(req.query.state) &&
+          (await ownerGitHubSessionPresent(req.headers.cookie, getSession))
+        ) {
           await linkOwner(result.user);
           ownerLinked = true;
         }

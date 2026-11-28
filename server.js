@@ -43,6 +43,7 @@ import githubOAuthRouter from "./src/routes/githubOAuthRouter.js";
 import webSearchRouter from "./src/routes/webSearchRouter.js";
 import publicConfigRouter from "./src/routes/publicConfigRouter.js";
 import userAuthRouter, { handleGoogleSignInCallback } from "./src/routes/userAuthRouter.js";
+import { startOnCallbackOrigin } from "./src/middleware/startOnCallbackOrigin.js";
 import { isGoogleSignInCallback } from "./src/services/googleSignInService.js";
 import { getActivityService } from "./src/services/activityService.js";
 import { logSafeError } from "./src/utils/safeLogging.js";
@@ -181,6 +182,9 @@ app.get(
   },
 );
 app.use("/", mcpOAuthRouter);
+// Sign-in and connect start on the name their provider returns to
+// (src/middleware/startOnCallbackOrigin.js).
+app.use(startOnCallbackOrigin());
 
 app.use(
   express.static("public", {

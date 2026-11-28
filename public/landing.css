@@ -726,9 +726,78 @@
 
 .landing-auth .auth-card {
   margin: 0;
-  border: 1px solid rgba(123, 92, 255, 0.45);
+  border: 1px solid rgba(123, 92, 255, 0.45) !important;
   border-radius: 22px;
-  box-shadow: 0 0 60px rgba(123, 92, 255, 0.35);
+  color: #eef0ff !important;
+  background:
+    radial-gradient(ellipse 80% 50% at 100% 0%, rgba(123, 92, 255, 0.28), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 0% 100%, rgba(0, 240, 255, 0.12), transparent 70%),
+    #0d0e30 !important;
+  box-shadow: 0 0 60px rgba(123, 92, 255, 0.35) !important;
+}
+
+/* The sign-in window in the same neon night as the page. */
+.landing-auth .auth-card :is(h2, p, span, label, summary, strong, small, li) {
+  color: #eef0ff !important;
+}
+
+.landing-auth .auth-card :is(.auth-intro, .auth-provider-note, .auth-field-help, .auth-provider-note span) {
+  color: #a9acd6 !important;
+}
+
+.landing-auth .auth-card a:not(.auth-google) {
+  color: #00f0ff !important;
+}
+
+.landing-auth .auth-card .auth-google {
+  border: 1px solid rgba(123, 92, 255, 0.45) !important;
+  color: #eef0ff !important;
+  background: rgba(17, 18, 58, 0.9) !important;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.landing-auth .auth-card .auth-google:hover {
+  border-color: rgba(0, 240, 255, 0.7) !important;
+  box-shadow: 0 0 24px rgba(0, 240, 255, 0.18) !important;
+}
+
+.landing-auth .auth-card .auth-google i {
+  color: #00f0ff !important;
+}
+
+.landing-auth .auth-card :is(details, .auth-password, .auth-owner) {
+  border-color: rgba(123, 92, 255, 0.32) !important;
+  background: transparent !important;
+}
+
+.landing-auth .auth-card input {
+  border: 1px solid rgba(123, 92, 255, 0.4) !important;
+  color: #eef0ff !important;
+  background: #080922 !important;
+  caret-color: #00f0ff;
+}
+
+.landing-auth .auth-card input:focus {
+  border-color: rgba(0, 240, 255, 0.7) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.14) !important;
+}
+
+.landing-auth .auth-card .auth-primary {
+  border: 0 !important;
+  color: #05060f !important;
+  background: linear-gradient(120deg, #00f0ff, #7b5cff 60%, #ff3df2) !important;
+}
+
+.landing-auth .auth-card .auth-link {
+  color: #00f0ff !important;
+  background: transparent !important;
+}
+
+.landing-auth .auth-card .auth-message:not(:empty) {
+  color: #ffd2fb !important;
 }
 
 .landing-auth-close {
@@ -740,14 +809,15 @@
   height: 40px;
   border: 0;
   border-radius: 50%;
-  color: #5a5c7a;
+  color: #a9acd6;
   background: transparent;
   font-size: 1.1rem;
   cursor: pointer;
 }
 
 .landing-auth-close:hover {
-  background: #f0eefc;
+  color: #00f0ff;
+  background: rgba(123, 92, 255, 0.2);
 }
 
 /* Tablet and phone */

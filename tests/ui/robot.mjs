@@ -237,6 +237,50 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media)
     }, after.slice(0, 3).map((item) => item.id));
     await pickNone();
   });
+  await step(`${label}: „Писател“ пази книгата и проверява главата`, async () => {
+    await pickSpecialist("writer");
+    await page.locator('.assistant-tools [data-tool="book"]').waitFor({ timeout: 5000 });
+    await page.click('.assistant-tools [data-tool="book"]');
+    const panel = page.locator(".book-dialog");
+    await panel.waitFor({ state: "visible", timeout: 5000 });
+    await panel.locator(".book-new-title").fill("Робот книга");
+    await panel.locator(".book-new button").click();
+    await panel.locator(".book-body").waitFor({ state: "visible", timeout: 5000 });
+    await panel.locator(".book-add-kind").selectOption("character");
+    await panel.locator(".book-add-name").fill("Мила");
+    await panel.locator(".book-add-text").fill("Мила има зелени очи.");
+    await panel.locator(".book-add button").click();
+    await panel.locator(".book-fact").first().waitFor({ timeout: 5000 });
+    expect((await panel.locator(".book-facts").innerText()).includes("зелени очи"), "фактът не се запази");
+    // Suggested facts are not kept until the person saves them.
+    await panel.locator(".book-extract summary").click();
+    await panel.locator(".book-extract-text").fill("Видя кулата на хълма.");
+    await panel.locator(".book-extract-run").click();
+    await panel.locator(".book-suggestions").waitFor({ state: "visible", timeout: 5000 });
+    expect((await panel.locator(".book-fact").count()) === 1, "предложението се запази без „да“");
+    await panel.locator(".book-keep").click();
+    await page.waitForFunction(() => document.querySelectorAll(".book-dialog .book-fact").length === 2, null, { timeout: 5000 });
+    await panel.locator('[data-tab="check"]').click();
+    await panel.locator(".book-check-chapter").fill("4");
+    await panel.locator(".book-check-text").fill("Сутринта Мила погледна с кафявите си очи към морето.");
+    await panel.locator(".book-check-run").click();
+    await panel.locator(".book-issue").first().waitFor({ timeout: 5000 });
+    const score = await panel.locator(".book-score").innerText();
+    expect(score.includes("88/100"), `оценката не е 88: ${score}`);
+    const issue = await panel.locator(".book-issue").first().innerText();
+    expect(issue.includes("зелени очи") && issue.includes("кафявите си очи"), `няма двата реда: ${issue}`);
+    await panel.locator(".book-issue button.primary").click();
+    await panel.locator(".book-change input").fill("Мила има кафяви очи.");
+    await panel.locator(".book-change button").click();
+    await panel.locator(".book-issue-done").waitFor({ timeout: 5000 });
+    const facts = await page.evaluate(async () => (await (await fetch("/api/books")).json()).books[0].facts);
+    expect(facts.length === 3 && facts[0].untilChapter === 3 && facts[2].fromChapter === 4, "промяната не важи от глава 4");
+    await page.evaluate(async () => {
+      for (const book of (await (await fetch("/api/books")).json()).books) await fetch(`/api/books/${book.id}`, { method: "DELETE" });
+    });
+    await panel.locator(".share-close").click();
+    await pickNone();
+  });
   await step(`${label}: кодът в отговора се чете`, async () => {
     await send("Покажи команда за инсталиране");
     const pre = last().locator("pre");

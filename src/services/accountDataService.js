@@ -18,6 +18,7 @@ import { createAuthClient } from "./userAuthService.js";
 import { recordAuditEvent } from "./permissionService.js";
 import { getAvatarLinkService } from "./avatarLinkService.js";
 import { getPersonalTodoService } from "./personalTodoService.js";
+import { getBookMemoryService } from "./bookMemoryService.js";
 import { getAddonService } from "./addonService.js";
 import { getClaudeWorkService } from "./claudeWorkService.js";
 import { getAvatarProfileService } from "./avatarProfileService.js";
@@ -214,6 +215,7 @@ export async function deleteAccount(
     audit = recordAuditEvent,
     forgetAvatarLink = (ownerId) => getAvatarLinkService().forget(ownerId),
     clearTodos = (ownerId) => getPersonalTodoService().clear(ownerId),
+    clearBooks = (ownerId) => getBookMemoryService().clear(ownerId),
     clearAddons = (ownerId) => getAddonService().clear(ownerId),
     clearClaudeWork = (ownerId) => getClaudeWorkService().clear(ownerId),
     forgetAvatarProfile = (ownerId) => getAvatarProfileService().forget(ownerId),
@@ -259,6 +261,7 @@ export async function deleteAccount(
   // The public "Питай моя аватар" link must stop with the account.
   await forgetAvatarLink(ownerId);
   await clearTodos(ownerId);
+  await clearBooks(ownerId);
   await clearAddons(ownerId);
   await clearClaudeWork(ownerId);
   await forgetAvatarProfile(ownerId);

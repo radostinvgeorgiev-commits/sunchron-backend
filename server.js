@@ -71,10 +71,12 @@ import { getDailyPlanService } from "./src/services/dailyPlanService.js";
 import { getCausesService } from "./src/services/causesService.js";
 import { getAvatarProfileService } from "./src/services/avatarProfileService.js";
 import { createPersonalTodoRouter } from "./src/routes/personalTodoRouter.js";
+import { createBookMemoryRouter } from "./src/routes/bookMemoryRouter.js";
 import { createAddonRouter } from "./src/routes/addonRouter.js";
 import { createAvatarLinkRouter, createAvatarVisitorRouter } from "./src/routes/avatarLinkRouter.js";
 import { getAvatarLinkService } from "./src/services/avatarLinkService.js";
 import { getPersonalTodoService } from "./src/services/personalTodoService.js";
+import { getBookMemoryService } from "./src/services/bookMemoryService.js";
 import { getAddonService } from "./src/services/addonService.js";
 import { createKnowledgeFilesRouter } from "./src/routes/knowledgeFilesRouter.js";
 import { getKnowledgeFilesService } from "./src/services/knowledgeFilesService.js";
@@ -370,6 +372,15 @@ app.use(
   requireOwnerSession,
   privateApiRateLimiter,
   createPersonalTodoRouter({ service: getPersonalTodoService() }),
+);
+// "Писател": the memory of each person's books. Suggesting facts and
+// checking a chapter are AI requests, so they get the paid limit.
+app.use(/^\/api\/books\/[^/]+\/(?:suggest|check)$/u, requireOwnerSession, paidAiRateLimiter);
+app.use(
+  "/api/books",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  createBookMemoryRouter({ service: getBookMemoryService() }),
 );
 // "Добавки": each person's own small programs, run in a closed sandbox; the
 // store shows only what the owner approved. No AI is used, so no AI budget.

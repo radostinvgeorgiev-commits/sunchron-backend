@@ -68,8 +68,9 @@ test("every new start-page text has an English translation", () => {
   }
 });
 
-test("the writer specialist is shown as coming, not as ready", () => {
-  assert.match(html, /<li class="landing-soon">[\s\S]{0,120}Писател<\/strong><em>Скоро<\/em>/u);
+test("the writer specialist is shown as new and exists in the app", async () => {
+  assert.match(html, /<li class="landing-new">[\s\S]{0,120}Писател<\/strong><em>Ново<\/em>/u);
+  assert.match(await readFile("src/services/assistantPresets.js", "utf8"), /id: "writer",\s*label: "Писател"/u);
 });
 
 test("after sign-in the chat area uses the same neon night", async () => {
@@ -79,4 +80,14 @@ test("after sign-in the chat area uses the same neon night", async () => {
   // Open menus inside the top bar keep their light cards and dark text.
   assert.match(neon, /\.chat-toolbar[\s\S]{0,200}:not\(\s*:is\([\s\S]{0,40}\.model-picker-menu/u);
   assert.match(neon, /\.assistant-picker/u);
+});
+
+test("the sign-in window and every window after sign-in use the neon look", async () => {
+  const neon = await read("app-neon.css");
+  const landing = await read("landing.css");
+  assert.match(neon, /\.share-dialog \.share-card,[\s\S]{0,400}background:[\s\S]{0,200}var\(--nv-card\) !important/u);
+  assert.match(neon, /:is\(\s*\.sidebar,\s*\.mobile-menu,\s*\.statusPanel,\s*\.data-drawer,\s*\.doc-panel\)/u);
+  assert.match(neon, /input:not\(\[type="checkbox"\]\)[\s\S]{0,200}background: var\(--nv-field\) !important/u);
+  assert.match(landing, /\.landing-auth \.auth-card \{[\s\S]{0,400}#0d0e30 !important/u);
+  assert.match(landing, /\.landing-auth \.auth-card \.auth-primary \{[\s\S]{0,200}linear-gradient/u);
 });

@@ -1039,5 +1039,57 @@ Claude, GPT, Gemini и други. Избираш сам или оставяш �
 Паметта на аватара|Your avatar’s memory
 Молба към аватара|Request to your avatar
 Правна информация|Legal information
+Пази героите и проверява главите|Keeps your characters and checks your chapters
+Паметта на книгата|Book memory
+Тук се пазят героите, местата, правилата и събитията на книгата ти. Аватарът само предлага; факт влиза в паметта, когато го запазиш. Паметта е само твоя.|This keeps your book’s characters, places, rules and events. The avatar only suggests; a fact enters the memory when you save it. The memory is yours alone.
+Книга|Book
+Изтрий книгата|Delete book
+Натисни пак, за да изтриеш|Press again to delete
+Име на нова книга|New book title
+Нова книга|New book
+Факти|Facts
+Провери глава|Check a chapter
+Герой|Character
+Място|Place
+Правило на света|World rule
+Събитие|Event
+Име (напр. Мила)|Name (e.g. Mila)
+Фактът (напр. Мила има зелени очи)|The fact (e.g. Mila has green eyes)
+От глава|From chapter
+Запази факта|Save fact
+Извади факти от текст|Get facts from text
+Постави глава или откъс. Аватарът ще предложи факти, а ти избираш кои да запазиш.|Paste a chapter or an excerpt. The avatar will suggest facts and you choose which to keep.
+Глава|Chapter
+Предложи факти|Suggest facts
+Номер на главата|Chapter number
+Постави текста на главата.|Paste the chapter text.
+Провери главата|Check the chapter
+гл.|ch.
+от гл.|from ch.
+Изтрий факта|Delete fact
+Паметта на тази книга е празна. Добави първия факт или го извади от текст.|This book’s memory is empty. Add the first fact or get it from a text.
+Напиши факта.|Write the fact.
+Постави текст от книгата.|Paste text from the book.
+Не намерих факти в текста.|I found no facts in the text.
+Чета текста…|Reading the text…
+Избери поне един факт.|Choose at least one fact.
+Съвпадение с паметта|Match with the memory
+противоречия|contradictions
+няма противоречия|no contradictions
+проверено от два модела|checked by two models
+проверено от един модел|checked by one model
+Паметта|Memory
+Главата|Chapter
+Грешка, ще я поправя|A mistake, I’ll fix it
+Отбелязано. Паметта остава същата.|Noted. The memory stays the same.
+Нарочна промяна|Intended change
+Какво е новото|What is new
+Запази от глава|Save from chapter
+Запази промяната|Save the change
+Напиши номера на главата (2 или повече), за да запазиш промяна.|Write the chapter number (2 or more) to save a change.
+Паметта е обновена от глава|Memory updated from chapter
+Проверявам главата…|Checking the chapter…
+Ново|New
+Пази героите, местата и правилата на книгата и показва противоречията в нова глава.|Keeps your book’s characters, places and rules and shows contradictions in a new chapter.
 `.trim().split("\n").map((line) => line.split("|")),
 );

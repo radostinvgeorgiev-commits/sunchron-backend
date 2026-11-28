@@ -38,6 +38,7 @@ import {
   startProviderSignIn,
 } from "../services/providerSignInService.js";
 import { logSafeError } from "../utils/safeLogging.js";
+import { afterSignInPath, clearAfterSignInCookie } from "../middleware/signInFirst.js";
 import { recordActivity } from "../services/activityService.js";
 
 const router = express.Router();
@@ -243,17 +244,22 @@ export function createGoogleSignInCallbackHandler({
       } catch (linkError) {
         logError("[Google sign-in] owner link", linkError);
       }
+      // A connect link opened before the sign-in continues by itself
+      // (src/middleware/signInFirst.js).
+      const next = afterSignInPath(req.headers.cookie);
+      const clearNext = next ? [clearAfterSignInCookie()] : [];
       if (ownerLinked) {
         // Keep the owner GitHub session; the new Google session is not needed
         // in this browser, and the owner should land as the owner.
-        res.setHeader("Set-Cookie", clearGoogleSignInStateCookie());
-        return res.redirect(302, "/?owner_google_linked=1");
+        res.setHeader("Set-Cookie", [clearGoogleSignInStateCookie(), ...clearNext]);
+        return res.redirect(302, next || "/?owner_google_linked=1");
       }
       res.setHeader("Set-Cookie", [
         userSessionCookie(result.session),
         clearGoogleSignInStateCookie(),
+        ...clearNext,
       ]);
-      return res.redirect(302, "/");
+      return res.redirect(302, next || "/");
     } catch (error) {
       logError("[Google sign-in] callback", error);
       res.setHeader("Set-Cookie", clearGoogleSignInStateCookie());

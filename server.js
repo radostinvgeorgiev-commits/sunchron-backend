@@ -44,6 +44,7 @@ import webSearchRouter from "./src/routes/webSearchRouter.js";
 import publicConfigRouter from "./src/routes/publicConfigRouter.js";
 import userAuthRouter, { handleGoogleSignInCallback } from "./src/routes/userAuthRouter.js";
 import { startOnCallbackOrigin } from "./src/middleware/startOnCallbackOrigin.js";
+import { signInFirst } from "./src/middleware/signInFirst.js";
 import { returnToConnectStart } from "./src/middleware/returnToConnectStart.js";
 import { isGoogleSignInCallback } from "./src/services/googleSignInService.js";
 import { getActivityService } from "./src/services/activityService.js";
@@ -573,6 +574,7 @@ app.get(
 // Every account connects its own Google; owner-only parts are guarded inside.
 app.use(
   "/api/google",
+  signInFirst(),
   requireOwnerSession,
   privateApiRateLimiter,
   googleDriveRouter,

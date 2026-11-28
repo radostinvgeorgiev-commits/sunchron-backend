@@ -204,6 +204,7 @@ import {
   isMemberIdentity,
   isMemberOwnGoogleWrite,
 } from "../services/memberCapabilityPolicy.js";
+import { getToolSwitchService } from "../services/toolSwitchService.js";
 import {
   AiCouncilError,
   formatAiCouncilReply,
@@ -2892,6 +2893,9 @@ router.post("/chat", async (req, res) => {
   // The tools this account can use now, by the checks above: its role, the
   // site's settings, its own Google and GitHub connections and this request's
   // memory read. The model is told them, so it names them truthfully.
+  // The tools this person turned off with „Разкачи“ in „Инструменти“: left
+  // out of every step below and named as theirs to turn on again.
+  const capabilitiesOff = await getToolSwitchService().capabilitiesOff(ownerId);
   const toolInventory = buildToolInventory({
     identity: req.owner,
     connections: { google: googleConnection, githubSessionId },
@@ -2899,6 +2903,7 @@ router.post("/chat", async (req, res) => {
     mode: interactionMode,
     memory: memoryAvailable,
     media: chatMedia || { images: false, video: false },
+    capabilitiesOff,
   });
   let messages = buildAvatarMessages(
     memories,
@@ -3515,8 +3520,9 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
-  // A member reads their own Google here only with their own connection.
-  const memberToolOptions = { ownGoogle: Boolean(googleSessionId) };
+  // A member reads their own Google here only with their own connection; the
+  // tools the person turned off are left out for everyone.
+  const memberToolOptions = { ownGoogle: Boolean(googleSessionId), capabilitiesOff };
   // Every tool in the person's own words (item 3). A short yes reads the
   // whole turns, with the step it answers. Google is read only for someone
   // whose Google can be reached here: the owner, or a member with their own
@@ -3530,7 +3536,9 @@ router.post("/chat", async (req, res) => {
         english: useEnglishReplyFallback(language),
         apiKey: openAiApiKey,
         allowGoogle:
-          filterCapabilityRequestsForIdentity([{ capability: "mail.read" }], req.owner, memberToolOptions).length > 0,
+          filterCapabilityRequestsForIdentity([{ capability: "mail.read" }], req.owner, {
+            ownGoogle: memberToolOptions.ownGoogle,
+          }).length > 0,
       })
     : NO_PLAIN_WORDS;
   // One detail is missing (the text, or whom to send it to): one short

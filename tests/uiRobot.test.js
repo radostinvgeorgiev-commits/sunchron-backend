@@ -27,7 +27,7 @@ test("the stub server serves the real page and a streamed chat answer", async ()
 test("the robot runs on pull requests and after the production smoke check", () => {
   const workflow = readFileSync(new URL("../.github/workflows/ui-robot.yml", import.meta.url), "utf8");
   assert.match(workflow, /node tests\/ui\/robot\.mjs\n/u);
-  assert.match(workflow, /robot\.mjs --public https:\/\/cloudaicore\.com/u);
+  assert.match(workflow, /robot\.mjs --public https:\/\/novariumai\.com/u);
   assert.match(workflow, /workflows: \["Production smoke check"\]/u);
   // Pull requests run against the stub with no secrets at all. Only the step
   // after the production smoke check (code from main) gets the test account.

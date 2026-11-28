@@ -44,6 +44,7 @@ import {
   isMemberOwnGoogleWrite,
 } from "./memberCapabilityPolicy.js";
 import { orchestrateTask } from "./taskOrchestratorService.js";
+import { getToolSwitchService } from "./toolSwitchService.js";
 import { executeCapability } from "../tools/capabilityEngine.js";
 import {
   hasExplicitNoAdditionalToolsBoundary,
@@ -168,6 +169,8 @@ export async function sendMcpAgentMessage(
     readWords = readPlainWordsPlan,
     auditTask = (event) =>
       recordAuditEvent({ actor: "novarium-avatar", ...event }),
+    // What the person turned off with „Разкачи“ in „Инструменти“.
+    readCapabilitiesOff = (id) => getToolSwitchService().capabilitiesOff(id),
   } = {},
 ) {
   const cleanOwnerId = cleanRequiredText(ownerId, 200, "проверен профил");
@@ -301,6 +304,7 @@ export async function sendMcpAgentMessage(
       memberGoogleSessionId = null;
     }
   }
+  const capabilitiesOff = noToolBoundary ? null : await readCapabilitiesOff(cleanOwnerId);
   const fallbackRequests = noToolBoundary
     ? []
     : filterCapabilityRequestsForIdentity(
@@ -309,7 +313,7 @@ export async function sendMcpAgentMessage(
           detectCapabilityRequests(cleanMessage),
         ),
         safeIdentity,
-        { ownGoogle: Boolean(memberGoogleSessionId) },
+        { ownGoogle: Boolean(memberGoogleSessionId), capabilitiesOff },
       );
   const planningAllowed =
     !noToolBoundary &&
@@ -419,6 +423,7 @@ export async function sendMcpAgentMessage(
     normalizeRequests: (requests) =>
       filterCapabilityRequestsForIdentity(requests, safeIdentity, {
         ownGoogle: Boolean(memberGoogleSessionId),
+        capabilitiesOff,
       }),
     routeRequests: (requests) =>
       routeSelectedWorkAgentCapabilities(

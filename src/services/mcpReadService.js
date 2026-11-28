@@ -31,6 +31,7 @@ import {
   createMcpCapabilityHandler,
   MCP_CAPABILITY_TOOLS,
 } from "./mcpCapabilityService.js";
+import { getToolSwitchService, toolOfMcpName } from "./toolSwitchService.js";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 
@@ -304,10 +305,22 @@ export function createMcpRequestHandler({
   getSystemConfiguration = getSystemConfigurationReport,
   runAgentConversation = sendMcpAgentMessage,
   executeWrite = executeAuditedWriteAction,
+  // A tool the person turned off with „Разкачи“ in „Инструменти“.
+  isToolOff = (ownerId, toolId) => getToolSwitchService().isOff(ownerId, toolId),
 } = {}) {
   const callCapabilityTool = createMcpCapabilityHandler({ audit });
 
   async function callTool(name, args, ownerId, identity) {
+    const switchedTool = toolOfMcpName(name);
+    if (switchedTool && typeof ownerId === "string" && ownerId.trim() && (await isToolOff(ownerId, switchedTool))) {
+      return {
+        ...textResult(
+          { tool: switchedTool, connected: false },
+          "Този инструмент е разкачен в „Инструменти“ на NovariumAI. Човекът го пуска пак с „Свържи“ там.",
+        ),
+        isError: true,
+      };
+    }
     const capabilityCall = await callCapabilityTool(name, args, {
       ownerId,
       identity,

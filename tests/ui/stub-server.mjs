@@ -8,6 +8,7 @@ import { listAssistantPresets } from "../../src/services/assistantPresets.js";
 import { createAddonService } from "../../src/services/addonService.js";
 import { APP_SUBSCRIPTIONS } from "../../src/services/appSubscriptionCatalog.js";
 import { createBookMemoryService } from "../../src/services/bookMemoryService.js";
+import { createToolSwitchService } from "../../src/services/toolSwitchService.js";
 import { publicSpecialistProfile, specialistProfile } from "../../src/services/specialistProfiles.js";
 // The server's own rules for pictures and video in the chat, so the robot can
 // only pass on what the server does.
@@ -91,6 +92,8 @@ export function startStubServer(port = 0) {
   // Whether the robot plays a member (pays units) and how long a picture or
   // a clip takes, so „Спри“ can be pressed while one is being made.
   let member = false;
+  // The page signed in as a member, not the owner (from the next load).
+  let memberSession = false;
   let mediaDelay = 0;
   // The next chat request fails with HTTP 502, as a proxy's error would.
   let failNextChat = false;
@@ -105,6 +108,21 @@ export function startStubServer(port = 0) {
     conversations.set(sent.sessionId, turns);
   };
   const todos = [];
+  // The real tool switches, with memory instead of Firestore.
+  const switchRows = new Map();
+  const toolSwitches = createToolSwitchService({
+    store: {
+      async get(collection, id) {
+        const data = switchRows.get(`${collection}/${id}`);
+        return data ? { id, data: structuredClone(data) } : null;
+      },
+      async set(collection, id, data) {
+        switchRows.set(`${collection}/${id}`, structuredClone(data));
+      },
+    },
+  });
+  // Every press of „Разкачи“ or „Свържи“ on a tool: { tool, on }.
+  const toolSwitchPresses = [];
   // „Запомни“ under an answer: { kind: "prepare" | "confirm" | "share", fact }.
   const memoryWrites = [];
   let pendingFact = "";
@@ -178,7 +196,7 @@ export function startStubServer(port = 0) {
       return json(res, {
         configured: true, registrationEnabled: true, registrationMode: "public",
         authProvider: "identity-platform", googleSignIn: true, authenticated: true,
-        user: { id: "u", email: "robot@example.test", displayName: "Робот", role: "owner" },
+        user: { id: "u", email: "robot@example.test", displayName: "Робот", role: memberSession ? "member" : "owner" },
       });
     }
     if (p === "/health/status") {
@@ -210,6 +228,29 @@ export function startStubServer(port = 0) {
     if (p === "/__robot/member" || p === "/__robot/owner") {
       member = p.endsWith("/member");
       return json(res, { ok: true });
+    }
+    if (p === "/__robot/member-session") {
+      memberSession = url.searchParams.get("on") !== "0";
+      return json(res, { ok: true });
+    }
+    // „Разкачи“ and „Свържи“ in „Инструменти“: the real switches, kept in
+    // memory, for the account the page is signed in as.
+    if (p === "/api/tools/switches" || p.startsWith("/api/tools/switches/")) {
+      const identity = { role: memberSession ? "member" : "owner", memoryOwnerId: "robot" };
+      if (req.method === "GET") {
+        toolSwitches.list("robot", identity).then((body) => json(res, body), (error) => json(res, { error: error.message }, error.status || 503));
+        return undefined;
+      }
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        const sent = JSON.parse(body || "{}");
+        toolSwitchPresses.push({ tool: decodeURIComponent(p.split("/").pop()), on: sent.on });
+        toolSwitches
+          .set("robot", identity, decodeURIComponent(p.split("/").pop()), sent.on)
+          .then((result) => json(res, result), (error) => json(res, { error: error.message }, error.status || 503));
+      });
+      return undefined;
     }
     if (p === "/__robot/many-chats") {
       manyChats = url.searchParams.get("on") !== "0";
@@ -429,6 +470,7 @@ export function startStubServer(port = 0) {
     if (p === "/api/tools/check") {
       return json(res, { checkedAt: new Date().toISOString(), tools: {
         "openai-web-search": { ok: true },
+        "openai-codex": { ok: true },
         images: { ok: false, reason: "Claude: претоварен." },
       } });
     }
@@ -438,6 +480,8 @@ export function startStubServer(port = 0) {
         { id: "google-contacts", name: "Google Contacts", enabled: true, executable: true, configured: true },
         { id: "youtube-channel", name: "Моят YouTube канал", enabled: true, executable: true, configured: true },
         { id: "openai-web-search", name: "Търсене в интернет", enabled: true, executable: true, configured: true },
+        // The owner's own: a member does not see it.
+        { id: "openai-codex", name: "Claude код", enabled: true, executable: true, configured: true },
       ] });
     }
     if (p === "/api/google/save" && req.method === "POST") {
@@ -729,7 +773,7 @@ export function startStubServer(port = 0) {
   });
   return new Promise((resolve) => {
     server.listen(port, "127.0.0.1", () =>
-      resolve({ server, requests, media, feedback, contactMessages, memoryWrites, origin: `http://127.0.0.1:${server.address().port}` }),
+      resolve({ server, requests, media, feedback, contactMessages, memoryWrites, toolSwitchPresses, origin: `http://127.0.0.1:${server.address().port}` }),
     );
   });
 }

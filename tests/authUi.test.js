@@ -62,7 +62,10 @@ test("sign-in errors name the failed action and HTTP status", () => {
 });
 
 test("hides owner-only tools for member profiles and exposes logout", () => {
-  assert.match(html, /id="toolsBtn"[^>]*data-owner-only/u);
+  // „Инструменти“ is every account's own (RADKO 28.11 14:11: the test
+  // account checks it too); a member's list holds only their own tools.
+  assert.doesNotMatch(html, /id="toolsBtn"[^>]*data-owner-only/u);
+  assert.match(html, /id="activityBtn"[^>]*data-owner-only/u);
   assert.match(html, /id="workCenterBtn"[^>]*data-owner-only/u);
   assert.match(html, /id="logoutBtn"/u);
   assert.match(app, /querySelectorAll\("\[data-owner-only\]"\)/u);

@@ -1163,3 +1163,115 @@ body:has(#appShell:not([hidden])) :is(.nv-rail-language, .profile-language) .lan
 body:has(#appShell:not([hidden])) .model-picker-btn * {
   color: inherit !important;
 }
+
+/* „Инструменти“ (RADKO 28.11 13:48 and 14:11): the ChatGPT, Google and
+   GitHub cards are dark with light text, like the others, and every card
+   says whether it is connected and has its button. The ids outweigh the
+   window rule that makes every button in a window transparent. */
+body:has(#appShell:not([hidden])) #dataDrawer :is(.connection-control-card, .permission-card, .tool-status-card) {
+  border: 1px solid var(--nv-line) !important;
+  color: var(--nv-text) !important;
+  background: rgba(17, 18, 58, 0.85) !important;
+  box-shadow: none !important;
+}
+
+body:has(#appShell:not([hidden])) #dataDrawer #dataDrawerBody .connection-control-card p {
+  color: var(--nv-muted) !important;
+}
+
+body:has(#appShell:not([hidden])) #dataDrawer #dataDrawerBody :is(button, a).tool-connect-btn:not(.primary) {
+  border: 1px solid rgba(0, 240, 255, 0.55) !important;
+  color: var(--nv-cyan) !important;
+  background: rgba(0, 240, 255, 0.08) !important;
+}
+
+body:has(#appShell:not([hidden])) #dataDrawer #dataDrawerBody :is(button, a).tool-connect-btn:not(.primary):hover {
+  background: rgba(0, 240, 255, 0.16) !important;
+}
+
+body:has(#appShell:not([hidden])) #dataDrawer #dataDrawerBody button.tool-connect-btn.tool-unplug-btn:not(.primary) {
+  border-color: rgba(255, 61, 242, 0.5) !important;
+  color: #ffb8f7 !important;
+  background: rgba(255, 61, 242, 0.08) !important;
+}
+
+body:has(#appShell:not([hidden])) #dataDrawer #dataDrawerBody button.tool-connect-btn.tool-unplug-btn:not(.primary):hover {
+  background: rgba(255, 61, 242, 0.16) !important;
+}
+
+body:has(#appShell:not([hidden])) #dataDrawer #dataDrawerBody button.tool-connect-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+body:has(#appShell:not([hidden])) #dataDrawer #dataDrawerBody span.permission-badge.confirm {
+  color: #ffd27a !important;
+  background: rgba(255, 201, 107, 0.12) !important;
+}
+
+body:has(#appShell:not([hidden])) #dataDrawer #dataDrawerBody span.permission-badge.deny {
+  color: #ff9db0 !important;
+  background: rgba(255, 77, 109, 0.12) !important;
+}
+
+/* „Свързан“ with a cyan dot, „Не е свързан“ and „Разкачен“ with a hollow one. */
+.tool-link-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin: 2px 0;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.tool-link-state::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+
+.tool-link-state.on::before {
+  background: currentColor;
+}
+
+body:has(#appShell:not([hidden])) #dataDrawer #dataDrawerBody span.tool-link-state.on {
+  color: var(--nv-cyan) !important;
+}
+
+body:has(#appShell:not([hidden])) #dataDrawer #dataDrawerBody span.tool-link-state.on::before {
+  box-shadow: 0 0 8px var(--nv-cyan);
+}
+
+body:has(#appShell:not([hidden])) #dataDrawer #dataDrawerBody span.tool-link-state.off {
+  color: var(--nv-muted) !important;
+}
+
+.connection-control-card .tool-link-state {
+  display: flex;
+  margin-top: 4px;
+}
+
+/* „Копирай“ is an icon like the others under an answer (RADKO 28.11 13:48:
+   the white pill did not fit in), on a phone too. */
+#appShell #chat-container .message-actions button[data-action="copy"] {
+  width: 34px !important;
+  min-width: 0 !important;
+  height: 34px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  font-size: 15px !important;
+}
+
+:root[data-font-scale="max"] #appShell #chat-container .message-actions button[data-action="copy"] {
+  width: 56px !important;
+  height: 56px !important;
+}
+
+#appShell #chat-container .message-actions button[data-action="copy"] .action-label {
+  display: none !important;
+}

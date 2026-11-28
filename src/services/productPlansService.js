@@ -37,6 +37,11 @@ export const PUBLIC_MONTHLY_CREDIT_CAP = 10_000;
 // shared daily ceiling so the bill stays bounded. Past it, units are used.
 export const FREE_CHAT_DAILY_PER_PERSON = 50;
 export const FREE_CHAT_DAILY_TOTAL = 3000;
+// The site's own short check of a „Запомни: …“ (memoryFactCheck.js) costs a
+// person nothing, so it has a daily count of its own, like free turns: past
+// it the check is skipped and the one-time confirmation stays.
+export const MEMORY_CHECK_DAILY_PER_PERSON = 50;
+export const MEMORY_CHECK_DAILY_TOTAL = 3000;
 export const COUNCIL_REQUEST_CREDITS = 6;
 // The largest single charge: one generated video (see publicAiBudget.js).
 export const MAX_RESERVE_CREDITS = 100;
@@ -265,17 +270,13 @@ export function createProductPlansService({
     }
     return false;
   }
-  // Counts one free conversation turn. Returns false when today's free turns
-  // are used up (for this person or for everybody), so the turn uses units.
-  async function useFreeChat(identity) {
-    if (identity.role === "owner") return true;
+  // Counts one more use of a free daily allowance, for the person and for
+  // everybody together. Returns false when either is used up today.
+  async function countToday(identity, prefix, perPerson, total) {
     const id = productAccountId(identity);
     const day = new Date(now()).toISOString().slice(0, 10);
-    const personId = `free-${day}-${id}`;
-    const totalId = `free-${day}-all`;
-    const perPerson =
-      Number(env.FREE_CHAT_DAILY_PER_PERSON) || FREE_CHAT_DAILY_PER_PERSON;
-    const total = Number(env.FREE_CHAT_DAILY_TOTAL) || FREE_CHAT_DAILY_TOTAL;
+    const personId = `${prefix}-${day}-${id}`;
+    const totalId = `${prefix}-${day}-all`;
     for (let attempt = 0; attempt < 5; attempt++) {
       const database = db();
       const [mine, all] = await Promise.all([
@@ -308,6 +309,28 @@ export function createProductPlansService({
       }
     }
     return false;
+  }
+  // Counts one free conversation turn. Returns false when today's free turns
+  // are used up (for this person or for everybody), so the turn uses units.
+  async function useFreeChat(identity) {
+    if (identity.role === "owner") return true;
+    return countToday(
+      identity,
+      "free",
+      Number(env.FREE_CHAT_DAILY_PER_PERSON) || FREE_CHAT_DAILY_PER_PERSON,
+      Number(env.FREE_CHAT_DAILY_TOTAL) || FREE_CHAT_DAILY_TOTAL,
+    );
+  }
+  // Counts one check of a „Запомни: …“ by the site's small model. Returns
+  // false when today's checks are used up, so the confirmation stays.
+  async function useMemoryCheck(identity) {
+    if (identity.role === "owner") return true;
+    return countToday(
+      identity,
+      "check",
+      Number(env.MEMORY_CHECK_DAILY_PER_PERSON) || MEMORY_CHECK_DAILY_PER_PERSON,
+      Number(env.MEMORY_CHECK_DAILY_TOTAL) || MEMORY_CHECK_DAILY_TOTAL,
+    );
   }
   async function fulfill(session) {
     const plan = PRODUCT_PLANS.find(
@@ -376,7 +399,7 @@ export function createProductPlansService({
     }
     throw new ProductError("Плащането чака обработка.", "PAYMENT_RETRY", 503);
   }
-  return { usage, reserve, refund, useFreeChat, fulfill };
+  return { usage, reserve, refund, useFreeChat, useMemoryCheck, fulfill };
 }
 let runtimeService;
 export function getProductPlansService() {

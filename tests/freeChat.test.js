@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   createProductPlansService,
   FREE_CHAT_DAILY_PER_PERSON,
+  MEMORY_CHECK_DAILY_PER_PERSON,
 } from "../src/services/productPlansService.js";
 import {
   createPublicAiBudgetContext,
@@ -81,4 +82,28 @@ test("a free turn charges no units for text, but still does for a file", async (
     await reservePublicAiCall([{ role: "user", content: "Работа" }], "claude", "claude-haiku-5-5");
   });
   assert.equal(charged, 3, "a turn not marked free pays as before");
+});
+
+// The site's own check of a „Запомни: …“ costs a person nothing, so it has a
+// daily count of its own; past it the one-time confirmation stays.
+test("memory checks have their own daily count, apart from free turns and units", async () => {
+  const service = createProductPlansService({ store: memoryStore(), now });
+  for (let check = 0; check < MEMORY_CHECK_DAILY_PER_PERSON; check++) {
+    assert.equal(await service.useMemoryCheck(member), true);
+  }
+  assert.equal(await service.useMemoryCheck(member), false);
+  assert.equal(await service.useFreeChat(member), true, "free turns are counted apart");
+  assert.equal((await service.usage(member)).remaining, 100, "checks took no units");
+  assert.equal(await service.useMemoryCheck({ role: "member", memoryOwnerId: "identity-platform:check-two" }), true);
+  assert.equal(await service.useMemoryCheck({ role: "owner" }), true);
+  const tomorrow = createProductPlansService({ store: memoryStore(), now: () => now() + 86400000 });
+  assert.equal(await tomorrow.useMemoryCheck(member), true);
+});
+
+test("the shared daily ceiling also ends memory checks", async () => {
+  const service = createProductPlansService({ store: memoryStore(), now, env: { MEMORY_CHECK_DAILY_TOTAL: "2" } });
+  assert.equal(await service.useMemoryCheck(member), true);
+  assert.equal(await service.useMemoryCheck({ role: "member", memoryOwnerId: "x:2" }), true);
+  assert.equal(await service.useMemoryCheck({ role: "member", memoryOwnerId: "x:3" }), false);
+  await assert.rejects(() => service.useMemoryCheck({ role: "member" }), (error) => error.code === "AUTH_REQUIRED");
 });

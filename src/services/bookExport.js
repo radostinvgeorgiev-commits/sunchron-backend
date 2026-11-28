@@ -14,14 +14,16 @@ const paragraphs = (text) =>
     .split(/\n\s*\n|\n/u)
     .map((line) => line.trim())
     .filter(Boolean);
-export const chapterHeading = (chapter) =>
-  chapter.title ? `${chapter.number}. ${chapter.title}` : `Глава ${chapter.number}`;
+// An untitled part is named by its number: „Глава 3“ in a book, „Част 3“
+// in every other specialist's project.
+export const chapterHeading = (chapter, unit = "Глава") =>
+  chapter.title ? `${chapter.number}. ${chapter.title}` : `${unit} ${chapter.number}`;
 
-export function bookDocx(title, chapters) {
+export function bookDocx(title, chapters, { unit } = {}) {
   const body = [
     `<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t xml:space="preserve">${escapeXml(title)}</w:t></w:r></w:p>`,
     ...chapters.flatMap((chapter, index) => [
-      `<w:p><w:pPr><w:pStyle w:val="Heading1"/>${index ? '<w:pageBreakBefore/>' : ""}</w:pPr><w:r><w:t xml:space="preserve">${escapeXml(chapterHeading(chapter))}</w:t></w:r></w:p>`,
+      `<w:p><w:pPr><w:pStyle w:val="Heading1"/>${index ? '<w:pageBreakBefore/>' : ""}</w:pPr><w:r><w:t xml:space="preserve">${escapeXml(chapterHeading(chapter, unit))}</w:t></w:r></w:p>`,
       ...paragraphs(chapter.text).map(
         (line) => `<w:p><w:r><w:t xml:space="preserve">${escapeXml(line)}</w:t></w:r></w:p>`,
       ),
@@ -51,7 +53,7 @@ export function bookDocx(title, chapters) {
   ]);
 }
 
-export function bookEpub(title, chapters, { id, language = "bg", modified = new Date().toISOString() } = {}) {
+export function bookEpub(title, chapters, { id, language = "bg", modified = new Date().toISOString(), unit } = {}) {
   const stamp = modified.replace(/\.\d+Z$/u, "Z");
   const items = chapters.map((chapter, index) => ({ chapter, file: `chapter-${index + 1}.xhtml`, id: `c${index + 1}` }));
   const page = (heading, inner) =>
@@ -73,15 +75,15 @@ export function bookEpub(title, chapters, { id, language = "bg", modified = new 
       page(
         title,
         `<nav epub:type="toc"><h1>${escapeXml(title)}</h1><ol>${items
-          .map(({ chapter, file }) => `<li><a href="${file}">${escapeXml(chapterHeading(chapter))}</a></li>`)
+          .map(({ chapter, file }) => `<li><a href="${file}">${escapeXml(chapterHeading(chapter, unit))}</a></li>`)
           .join("")}</ol></nav>`,
       ),
     ],
     ...items.map(({ chapter, file }) => [
       `OEBPS/${file}`,
       page(
-        chapterHeading(chapter),
-        `<h1>${escapeXml(chapterHeading(chapter))}</h1>${paragraphs(chapter.text)
+        chapterHeading(chapter, unit),
+        `<h1>${escapeXml(chapterHeading(chapter, unit))}</h1>${paragraphs(chapter.text)
           .map((line) => `<p>${escapeXml(line)}</p>`)
           .join("")}`,
       ),
@@ -90,11 +92,11 @@ export function bookEpub(title, chapters, { id, language = "bg", modified = new 
 }
 
 // A plain page that opens the browser's print window: "Save as PDF" there.
-export function bookPrintPage(title, chapters) {
+export function bookPrintPage(title, chapters, { unit } = {}) {
   return `<!doctype html><html lang="bg"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>${escapeXml(title)}</title><script src="/book-print.js" defer></script><style>body{max-width:40rem;margin:2rem auto;padding:0 1rem;font:18px/1.6 Georgia,"Times New Roman",serif;color:#111;background:#fff}h1{text-align:center;margin:3rem 0}h2{margin-top:3rem;page-break-before:always}h2:first-of-type{page-break-before:auto}p{margin:0 0 .8rem;text-align:justify}@page{margin:2cm}</style></head><body><h1>${escapeXml(title)}</h1>${chapters
     .map(
       (chapter) =>
-        `<h2>${escapeXml(chapterHeading(chapter))}</h2>${paragraphs(chapter.text)
+        `<h2>${escapeXml(chapterHeading(chapter, unit))}</h2>${paragraphs(chapter.text)
           .map((line) => `<p>${escapeXml(line)}</p>`)
           .join("")}`,
     )

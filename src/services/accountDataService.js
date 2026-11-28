@@ -68,12 +68,13 @@ export async function exportAccountData(
     listSuggestions = listMemorySuggestions,
     listGrants = listActiveMcpGrants,
     usage = (account) => getProductPlansService().usage(account),
+    listProjects = (ownerId) => getBookMemoryService().exportAll(ownerId),
     now = () => new Date(),
   } = {},
 ) {
   assertMember(identity);
   const ownerId = identity.memoryOwnerId;
-  const [memories, messages, workspace, suggestions, grants, plan] =
+  const [memories, messages, workspace, suggestions, grants, plan, projects] =
     await Promise.all([
       listMemories({ ownerId }),
       listMessages(ownerId),
@@ -81,6 +82,10 @@ export async function exportAccountData(
       optional(() => listSuggestions(ownerId), []),
       optional(() => listGrants({ subject: identity.id }), []),
       optional(() => usage(identity), null),
+      // The project memory of every specialist (books, cases, the health
+      // diary…), with the full text of each part. A failed read fails the
+      // copy, as for memories and messages, so it is never silently empty.
+      listProjects(ownerId),
     ]);
   const conversations = new Map();
   for (const message of messages) {
@@ -119,6 +124,7 @@ export async function exportAccountData(
       ),
     })),
     workspace: workspace?.state || null,
+    projects: Array.isArray(projects) ? projects : [],
     plan: plan
       ? { plan: plan.plan, remaining: plan.remaining, expiresAt: plan.expiresAt }
       : null,

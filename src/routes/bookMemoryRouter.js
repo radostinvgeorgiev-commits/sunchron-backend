@@ -1,6 +1,7 @@
 import express from "express";
 
 import { BookMemoryError } from "../services/bookMemoryService.js";
+import { publicSpecialistProfile, publicSpecialistProfiles, specialistProfile } from "../services/specialistProfiles.js";
 import { ProductError } from "../services/productPlansService.js";
 import { publicAiBudgetContext } from "../services/publicAiBudget.js";
 import { logSafeError } from "../utils/safeLogging.js";
@@ -24,10 +25,21 @@ export function createBookMemoryRouter({ service }) {
     }
   };
 
-  router.get("/", handle("Книгите не могат да се заредят.", async (req) => ({ books: await service.list(owner(req)) })));
+  // ?domain=lawyer lists only that specialist's projects; a book saved
+  // before specialists had their own memory belongs to the writer.
+  router.get(
+    "/",
+    handle("Книгите не могат да се заредят.", async (req) => {
+      const books = await service.list(owner(req));
+      if (!req.query.domain) return { books };
+      const profile = publicSpecialistProfile(String(req.query.domain));
+      return { books: books.filter((book) => specialistProfile(book.domain).id === profile.id), profile };
+    }),
+  );
+  router.get("/profiles", (_req, res) => res.json({ profiles: publicSpecialistProfiles() }));
   router.post(
     "/",
-    handle("Книгата не беше създадена.", async (req) => ({ book: await service.createBook(owner(req), req.body?.title) }), 201),
+    handle("Книгата не беше създадена.", async (req) => ({ book: await service.createBook(owner(req), req.body?.title, req.body?.domain) }), 201),
   );
   router.delete(
     "/:bookId",

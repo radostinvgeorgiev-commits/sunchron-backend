@@ -8,6 +8,7 @@ import { listAssistantPresets } from "../../src/services/assistantPresets.js";
 import { createAddonService } from "../../src/services/addonService.js";
 import { APP_SUBSCRIPTIONS } from "../../src/services/appSubscriptionCatalog.js";
 import { createBookMemoryService } from "../../src/services/bookMemoryService.js";
+import { publicSpecialistProfile, specialistProfile } from "../../src/services/specialistProfiles.js";
 // The server's own rules for pictures and video in the chat, so the robot can
 // only pass on what the server does.
 import {
@@ -350,8 +351,15 @@ export function startStubServer(port = 0) {
         const [, , , bookId, area, factId, action] = p.split("/").map((part) => decodeURIComponent(part));
         const me = "robot";
         try {
-          if (!bookId && req.method === "GET") return json(res, { books: await books.list(me) });
-          if (!bookId && req.method === "POST") return json(res, { book: await books.createBook(me, data.title) }, 201);
+          // Same as the server: ?domain= lists one specialist's projects.
+          if (!bookId && req.method === "GET") {
+            const all = await books.list(me);
+            const domain = url.searchParams.get("domain");
+            if (!domain) return json(res, { books: all });
+            const profile = publicSpecialistProfile(domain);
+            return json(res, { books: all.filter((book) => specialistProfile(book.domain).id === profile.id), profile });
+          }
+          if (!bookId && req.method === "POST") return json(res, { book: await books.createBook(me, data.title, data.domain) }, 201);
           if (!area && req.method === "DELETE") return json(res, { books: await books.removeBook(me, bookId) });
           if (area === "facts" && action === "change") return json(res, { book: await books.changeFact(me, bookId, factId, data) });
           if (area === "facts" && req.method === "POST") return json(res, { book: await books.addFacts(me, bookId, data.facts) });
@@ -702,7 +710,11 @@ export function startStubServer(port = 0) {
       res.writeHead(404);
       return res.end();
     }
-    res.writeHead(200, { "Content-Type": `${TYPES[path.extname(file)] || "application/octet-stream"}; charset=utf-8` });
+    // Pages carry the live site's script rule, so a script the server
+    // would block (inline, or from another site) fails here too.
+    const headers = { "Content-Type": `${TYPES[path.extname(file)] || "application/octet-stream"}; charset=utf-8` };
+    if (path.extname(file) === ".html") headers["Content-Security-Policy"] = "script-src 'self'";
+    res.writeHead(200, headers);
     return fs.createReadStream(file).pipe(res);
   });
   return new Promise((resolve) => {

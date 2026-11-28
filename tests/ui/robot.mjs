@@ -314,6 +314,88 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media,
     await panel.locator(".share-close").click();
     await pickNone();
   });
+  await step(`${label}: всеки специалист има своя памет по проекта (юрист: „Паметта на делото“)`, async () => {
+    await pickSpecialist("lawyer");
+    await page.locator('.assistant-tools [data-tool="book"]').waitFor({ timeout: 5000 });
+    const toolName = await page.locator('.assistant-tools [data-tool="book"]').innerText();
+    expect(toolName.includes("Паметта на делото"), `инструментът не е на юриста: ${toolName}`);
+    // A book the writer keeps must not show up in the case.
+    await page.evaluate(async () => {
+      await fetch("/api/books", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: "Книга на писателя", domain: "writer" }) });
+    });
+    await page.click('.assistant-tools [data-tool="book"]');
+    const panel = page.locator(".book-dialog");
+    await panel.waitFor({ state: "visible", timeout: 5000 });
+    await page.waitForFunction(() => document.querySelector(".book-dialog h2").textContent === "Паметта на делото", null, { timeout: 5000 });
+    // The writer left the panel on "Глави"; another specialist starts clean on "Факти".
+    expect((await panel.locator('[data-tab="facts"]').getAttribute("aria-selected")) === "true", "не започва от „Факти“");
+    expect((await panel.locator(".book-new button").innerText()).includes("Нов проект"), "бутонът не е за проект");
+    await panel.locator(".book-new-title").fill("Иванов срещу Петров");
+    await panel.locator(".book-new button").click();
+    await panel.locator(".book-body").waitFor({ state: "visible", timeout: 5000 });
+    const projects = await panel.locator(".book-select option").allInnerTexts();
+    expect(projects.join("|") === "Иванов срещу Петров", `делото вижда и други проекти: ${projects}`);
+    const kinds = await panel.locator(".book-add-kind option").allInnerTexts();
+    expect(kinds.join(",") === "Страна,Срок,Клауза,Събитие", `видовете не са на юриста: ${kinds}`);
+    expect((await panel.locator('[data-tab="chapters"]').innerText()).includes("Части"), "разделът не е „Части“");
+    await panel.locator(".book-add-kind").selectOption("place");
+    await panel.locator(".book-add-name").fill("Плащане");
+    await panel.locator(".book-add-text").fill("Срокът за плащане е 30 дни.");
+    await panel.locator(".book-add button").click();
+    await panel.locator(".book-fact").first().waitFor({ timeout: 5000 });
+    const kindLabel = await panel.locator(".book-fact .book-kind").first().innerText();
+    expect(kindLabel.startsWith("Срок"), `видът на факта не е „Срок“: ${kindLabel}`);
+    // A file splits at the case's parts with the page's shared splitter; a
+    // sentence that starts with „Част 2“ stays text.
+    await panel.locator('[data-tab="chapters"]').click();
+    await panel.locator(".book-upload summary").click();
+    await panel.locator(".book-upload-file").setInputFiles({
+      name: "delo.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("Част 1 Увод\nИщецът е Иванов.\nРаздел 2\nОтветникът е Петров.\nЧаст 2 от наема се плаща авансово.\nНаемът е 900 лв.\n"),
+    });
+    await panel.locator(".book-upload-preview").waitFor({ state: "visible", timeout: 5000 });
+    const found = await panel.locator(".book-upload-count").innerText();
+    expect(found === "Намерих части: 2 · 1. Увод, 2. Част", `файлът не се раздели на две части: ${found}`);
+    // Saved, the sentence is in the second part, not a third one.
+    await panel.locator(".book-upload-save").click();
+    await panel.locator(".book-chapter").nth(1).waitFor({ timeout: 5000 });
+    const saved = await page.evaluate(async () => {
+      const [lawsuit] = (await (await fetch("/api/books?domain=lawyer")).json()).books;
+      const second = (await (await fetch(`/api/books/${lawsuit.id}/chapters/2`)).json()).chapter;
+      return { parts: lawsuit.chapters.length, second: second.text };
+    });
+    expect(
+      saved.parts === 2 && saved.second === "Ответникът е Петров.\nЧаст 2 от наема се плаща авансово.\nНаемът е 900 лв.",
+      `частите не са като във файла: ${JSON.stringify(saved)}`,
+    );
+    // The writer does not see the case, and the case does not see the book.
+    const lists = await page.evaluate(async () => ({
+      writer: (await (await fetch("/api/books?domain=writer")).json()).books.length,
+      lawyer: (await (await fetch("/api/books?domain=lawyer")).json()).books.map((book) => book.domain),
+    }));
+    expect(lists.writer === 1 && lists.lawyer.join() === "lawyer", `паметите се смесиха: ${JSON.stringify(lists)}`);
+    await page.evaluate(async () => {
+      for (const book of (await (await fetch("/api/books")).json()).books) await fetch(`/api/books/${book.id}`, { method: "DELETE" });
+    });
+    await panel.locator(".share-close").click();
+    await pickNone();
+  });
+  if (await page.locator(".book-dialog").isVisible()) await page.locator(".book-dialog .share-close").click();
+  await step(`${label}: здравният асистент казва за 112 в паметта на дневника`, async () => {
+    await pickSpecialist("doctor");
+    await page.locator('.assistant-tools [data-tool="book"]').waitFor({ timeout: 5000 });
+    await page.click('.assistant-tools [data-tool="book"]');
+    const panel = page.locator(".book-dialog");
+    await panel.waitFor({ state: "visible", timeout: 5000 });
+    await page.waitForFunction(() => document.querySelector(".book-dialog h2").textContent === "Паметта на дневника", null, { timeout: 5000 });
+    const note = await panel.locator(".book-safety").innerText();
+    expect(note.includes("112"), `няма бележката за 112: ${note}`);
+    await panel.locator(".share-close").click();
+    await pickNone();
+  });
+  // Close the panel even when a check above failed, so the next steps can click.
+  if (await page.locator(".book-dialog").isVisible()) await page.locator(".book-dialog .share-close").click();
   await step(`${label}: странични менюта в ъглите, език и „Изход“ вътре`, async () => {
     const phoneView = await page.locator("#rightRailBtn").isVisible();
     if (phoneView) await page.click("#rightRailBtn");

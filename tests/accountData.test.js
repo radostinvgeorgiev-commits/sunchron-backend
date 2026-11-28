@@ -39,15 +39,39 @@ test("export contains the member's own data and no system records", async () => 
       return [{ clientId: "synchron-claude", issuedAt: "2026-11-24", refreshTokenHash: "secret" }];
     },
     usage: async () => ({ plan: "free", remaining: 30, expiresAt: 1 }),
+    listProjects: async (ownerId) => {
+      assert.equal(ownerId, "owner-1");
+      return [{ id: "p1", specialist: "doctor", title: "Дневник", facts: [{ id: "f1", kind: "place", text: "Алергия към пеницилин." }], parts: [{ number: 1, title: "", text: "Днес…" }] }];
+    },
     now: () => new Date("2026-11-25T12:00:00Z"),
   });
   assert.deepEqual(data.memories.map((item) => item.id), ["m1"]);
+  // Every specialist's project memory is in the copy, with the text of its parts.
+  assert.equal(data.projects[0].specialist, "doctor");
+  assert.equal(data.projects[0].parts[0].text, "Днес…");
   assert.deepEqual(data.conversations[0].messages.map((item) => item.role), ["user", "assistant"]);
   assert.equal(data.account.email, "member@example.test");
   assert.doesNotMatch(JSON.stringify(data), /secret/u);
   await assert.rejects(exportAccountData({ ...member, role: "owner" }), {
     code: "OWNER_ACCOUNT_PROTECTED",
   });
+});
+
+test("a copy whose projects could not be read fails, so it is never silently without them", async () => {
+  await assert.rejects(
+    exportAccountData(member, {
+      listMemories: async () => [],
+      listMessages: async () => [],
+      loadWorkspace: async () => null,
+      listSuggestions: async () => [],
+      listGrants: async () => [],
+      usage: async () => null,
+      listProjects: async () => {
+        throw new Error("Firestore timeout on chapter 137");
+      },
+    }),
+    /Firestore timeout/u,
+  );
 });
 
 function deletionDeps(calls, { signIn } = {}) {

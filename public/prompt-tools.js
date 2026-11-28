@@ -138,7 +138,7 @@
   // filled and focused instead of sent.
   const TOOL_PREFILL = { youtube: "Обобщи това видео:", maps: "Намери наблизо:" };
   const useTool = (id) => {
-    if (TOOL_EVENTS[id]) return document.dispatchEvent(new CustomEvent(TOOL_EVENTS[id]));
+    if (TOOL_EVENTS[id]) return document.dispatchEvent(new CustomEvent(TOOL_EVENTS[id], { detail: { assistant: current?.id || "" } }));
     if (TOOL_PREFILL[id]) {
       input.value = `${text(TOOL_PREFILL[id])} `;
       input.dispatchEvent(new Event("input", { bubbles: true }));

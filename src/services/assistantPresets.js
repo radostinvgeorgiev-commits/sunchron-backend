@@ -1,3 +1,5 @@
+import { specialistProfile } from "./specialistProfiles.js";
+
 // Tools a specialist works with. "always" ones need nothing; the rest need
 // the person's own connection, which they add from the specialist itself.
 export const ASSISTANT_TOOLS = Object.freeze({
@@ -9,7 +11,7 @@ export const ASSISTANT_TOOLS = Object.freeze({
   gmail: { label: "Gmail", icon: "fa-envelope", needs: "google" },
   youtube: { label: "YouTube видео", icon: "fa-brands fa-youtube", needs: "" },
   maps: { label: "Карти и места", icon: "fa-map-location-dot", needs: "" },
-  book: { label: "Паметта на книгата", icon: "fa-book-open", needs: "" },
+  book: { label: "Паметта на проекта", icon: "fa-book-open", needs: "" },
 });
 
 const TOOLS_BY_ASSISTANT = Object.freeze({
@@ -148,7 +150,14 @@ export const ASSISTANT_PRESETS = Object.freeze([
 ]);
 
 export function assistantTools(id) {
-  return (TOOLS_BY_ASSISTANT[id] || []).map((key) => ({ id: key, ...ASSISTANT_TOOLS[key] }));
+  // Every specialist keeps its own project memory, named in its own words.
+  const keys = TOOLS_BY_ASSISTANT[id] || [];
+  const withMemory = keys.length && !keys.includes("book") ? ["book", ...keys] : keys;
+  return withMemory.map((key) => ({
+    id: key,
+    ...ASSISTANT_TOOLS[key],
+    ...(key === "book" ? { label: specialistProfile(id).memory } : {}),
+  }));
 }
 
 // The role's instruction plus one line on its tools, so it offers them when

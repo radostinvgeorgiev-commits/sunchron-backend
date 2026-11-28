@@ -1004,6 +1004,54 @@ body:has(#appShell:not([hidden])) .conversation-match {
   outline-color: var(--nv-pink) !important;
 }
 
+/* The history shows the latest few conversations; "Още разговори" opens
+   the rest in a drop-down that scrolls on its own. */
+body:has(#appShell:not([hidden])) .sidebar .conversation-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 9px 12px;
+  border: 1px solid var(--nv-line);
+  border-radius: 9px;
+  background: rgba(17, 18, 58, 0.6);
+  color: var(--nv-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+body:has(#appShell:not([hidden])) .sidebar .conversation-more:is(:hover, :focus-visible) {
+  border-color: rgba(0, 240, 255, 0.4);
+  color: var(--nv-text);
+}
+
+body:has(#appShell:not([hidden])) .sidebar .conversation-more i {
+  transition: transform 0.2s ease;
+}
+
+body:has(#appShell:not([hidden])) .sidebar .conversation-more[aria-expanded="true"] i {
+  transform: rotate(180deg);
+}
+
+body:has(#appShell:not([hidden])) .sidebar .conversation-older {
+  display: grid;
+  gap: 2px;
+  max-height: 40vh;
+  margin-top: 4px;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--nv-line);
+  border-radius: 9px;
+  background: rgba(10, 10, 40, 0.85);
+}
+
+body:has(#appShell:not([hidden])) .sidebar .conversation-older[hidden] {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   body:has(#appShell:not([hidden])) * {
     animation: none !important;

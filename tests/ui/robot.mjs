@@ -77,6 +77,38 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media,
     expect(await page.locator("#sendBtn").isVisible(), "бутонът за изпращане е извън екрана");
     expect(!errors.length, errors[0]);
   });
+  await step(`${label}: историята показва последните 5 разговора, другите са в „Още разговори“`, async () => {
+    await page.evaluate(() => fetch("/__robot/many-chats?on=1"));
+    await page.reload();
+    await page.locator("#conversationList .conversation-more").waitFor({ state: "attached", timeout: 10000 });
+    const shown = await page.locator("#conversationList > .conversation").allTextContents();
+    expect(shown.join("|") === "Разговор 1|Разговор 2|Разговор 3|Разговор 4|Разговор 5", `видими са други: ${shown}`);
+    const more = page.locator("#conversationList .conversation-more");
+    expect((await more.textContent()).includes("Още разговори (7)"), `бутонът е: ${await more.textContent()}`);
+    expect(await page.locator("#olderConversations").isHidden(), "старите разговори не са скрити");
+    const phone = await page.locator("#mobileMenuBtn").isVisible();
+    if (phone) {
+      await page.click("#mobileMenuBtn");
+      await page.waitForTimeout(300);
+    }
+    await more.click();
+    await page.locator("#olderConversations").waitFor({ state: "visible", timeout: 5000 });
+    expect((await page.locator("#olderConversations .conversation").count()) === 7, "падащото меню няма 7 разговора");
+    expect((await more.getAttribute("aria-expanded")) === "true", "бутонът не казва, че е отворен");
+    const height = await page.locator("#olderConversations").evaluate((menu) => menu.getBoundingClientRect().height);
+    expect(height <= (await page.evaluate(() => innerHeight)) * 0.41, `менюто е твърде високо: ${height}`);
+    await more.click();
+    expect(await page.locator("#olderConversations").isHidden(), "менюто не се затвори");
+    // A search finds an older chat too.
+    await page.click("#searchChatsBtn");
+    await page.fill("#conversationSearch", "Разговор 12");
+    expect((await page.locator("#conversationList .conversation").allTextContents()).join("|") === "Разговор 12", "търсенето не намира стар разговор");
+    await page.fill("#conversationSearch", "");
+    if (phone) await page.keyboard.press("Escape");
+    await page.evaluate(() => fetch("/__robot/many-chats?on=0"));
+    await page.reload();
+    await page.waitForTimeout(1200);
+  });
   await step(`${label}: избор на модел`, async () => {
     await page.click("#modelPickerBtn");
     await page.locator("#modelPickerMenu button", { hasText: "Gemini 3.5 Flash Lite" }).click();

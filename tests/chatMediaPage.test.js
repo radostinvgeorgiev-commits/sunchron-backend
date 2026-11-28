@@ -1259,7 +1259,7 @@ test("the chat API, the English lines, the card's look and the new asset version
   assert.match(styles, /\.media-proposals-buttons \{\n  display: flex;\n  flex-wrap: wrap;/u);
   // The changed scripts are loaded under a new version.
   for (const asset of [
-    "/locale-en.js?v=20261128-projects3",
+    "/locale-en.js?v=20261128-chats",
     "/work-mode.js?v=20261127-media-v2",
     "/assets/20261127-media-v4/app.js",
     "/daily-plan.js?v=20261127-media-v3",

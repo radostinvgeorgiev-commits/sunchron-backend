@@ -94,6 +94,8 @@ export function startStubServer(port = 0) {
   let mediaDelay = 0;
   // The next chat request fails with HTTP 502, as a proxy's error would.
   let failNextChat = false;
+  // The robot's history: twelve saved chats, newest first, when it asks.
+  let manyChats = false;
   // The saved turns of each conversation, as the server keeps them: the page
   // restores them after a reload. The page's own picture lines are not saved.
   const conversations = new Map();
@@ -208,6 +210,14 @@ export function startStubServer(port = 0) {
     if (p === "/__robot/member" || p === "/__robot/owner") {
       member = p.endsWith("/member");
       return json(res, { ok: true });
+    }
+    if (p === "/__robot/many-chats") {
+      manyChats = url.searchParams.get("on") !== "0";
+      return json(res, { ok: true });
+    }
+    if (p === "/memory/conversations" && req.method === "GET") {
+      const items = manyChats ? Array.from({ length: 12 }, (_, index) => ({ sessionId: `robot-chat-${index + 1}`, title: `Разговор ${index + 1}` })) : [];
+      return json(res, { items });
     }
     if (p === "/__robot/fail-chat") {
       failNextChat = true;

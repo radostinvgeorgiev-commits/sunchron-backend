@@ -27,6 +27,8 @@ const state = {
   pendingImage: null,
   conversations: [],
   conversationLoadError: "",
+  // The history shows the latest few; the rest wait in a drop-down.
+  olderConversationsOpen: false,
   recentConversationMessages: [],
   memoryItems: [],
   knowledgeItems: [],
@@ -40,6 +42,8 @@ const state = {
 };
 
 const MAX_CHAT_INPUT_HEIGHT = 160;
+// How many of the latest conversations the history shows before "Още разговори".
+const RECENT_CONVERSATIONS = 5;
 let statusReturnFocus = null;
 
 const elements = {
@@ -576,18 +580,53 @@ function renderConversationList() {
     return;
   }
 
-  for (const item of conversations) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "conversation";
-    if (item.sessionId === state.sessionId) button.classList.add("active");
-    button.dataset.sessionId = item.sessionId;
-    button.textContent = item.title;
-    elements.conversationList.appendChild(button);
+  // Only the latest few stay in sight; the others are in "Още разговори".
+  // A search shows every match, and the open conversation is always shown.
+  const recent = query ? conversations : conversations.slice(0, RECENT_CONVERSATIONS);
+  const older = query ? [] : conversations.slice(RECENT_CONVERSATIONS);
+  const openOlder = older.find((item) => item.sessionId === state.sessionId);
+  for (const item of openOlder ? [...recent, openOlder] : recent) {
+    elements.conversationList.appendChild(conversationButton(item));
   }
+  const rest = older.filter((item) => item !== openOlder);
+  if (!rest.length) return;
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "conversation-more";
+  toggle.setAttribute("aria-controls", "olderConversations");
+  toggle.setAttribute("aria-expanded", String(state.olderConversationsOpen));
+  const label = document.createElement("span");
+  label.textContent = `${chatText("Още разговори")} (${rest.length})`;
+  const arrow = document.createElement("i");
+  arrow.className = "fa-solid fa-chevron-down";
+  arrow.setAttribute("aria-hidden", "true");
+  toggle.append(label, arrow);
+  const menu = document.createElement("div");
+  menu.id = "olderConversations";
+  menu.className = "conversation-older";
+  menu.hidden = !state.olderConversationsOpen;
+  menu.append(...rest.map(conversationButton));
+  elements.conversationList.append(toggle, menu);
+}
+
+function conversationButton(item) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "conversation";
+  if (item.sessionId === state.sessionId) button.classList.add("active");
+  button.dataset.sessionId = item.sessionId;
+  button.textContent = item.title;
+  return button;
 }
 
 async function handleConversationClick(event) {
+  const more = event.target.closest(".conversation-more");
+  if (more) {
+    state.olderConversationsOpen = !state.olderConversationsOpen;
+    more.setAttribute("aria-expanded", String(state.olderConversationsOpen));
+    document.getElementById("olderConversations").hidden = !state.olderConversationsOpen;
+    return;
+  }
   const button = event.target.closest("button[data-session-id]");
   if (button) await openConversation(button.dataset.sessionId);
 }

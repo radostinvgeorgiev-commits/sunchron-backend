@@ -426,6 +426,40 @@ test("връща общ статус само след реални провер
   assert.doesNotMatch(report, /конфигуриран;/u);
 });
 
+test("a stale GitHub sign-in fails the status check without stopping the server", async () => {
+  const unhandled = [];
+  const onUnhandled = (reason) => unhandled.push(reason);
+  process.on("unhandledRejection", onUnhandled);
+  const originalFetch = globalThis.fetch;
+  const fetched = [];
+  globalThis.fetch = async (url) => {
+    fetched.push(String(url));
+    throw new Error("no network in this test");
+  };
+  try {
+    const report = await buildIntegrationStatusReport(
+      {
+        ownerId: "primary-user",
+        githubSession: { accessToken: "stale-token", expiresAt: 1 },
+      },
+      {
+        checkMemory: async () => [],
+        checkGoogleCloud: async () => ({ configured: true }),
+        probeProviders: async () => [],
+        env: {},
+      },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.match(report, /GitHub Read — реалната проверка е неуспешна/u);
+    assert.deepEqual(unhandled, []);
+    assert.deepEqual(fetched, []);
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.off("unhandledRejection", onUnhandled);
+  }
+});
+
 test("не обявява Google Cloud за работещ без runtime конфигурация", async () => {
   const report = await buildIntegrationStatusReport(
     { ownerId: "primary-user" },

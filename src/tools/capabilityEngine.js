@@ -317,10 +317,13 @@ async function checkedStatus(check, isWorking = () => true) {
 export async function buildIntegrationStatusReport(
   input = {},
   {
-    checkGitHub = () =>
+    // The read options are awaited here, as in the real GitHub read, so the
+    // person's own sign-in is used and a stale one makes the check fail
+    // instead of leaving a rejected promise that would stop the server.
+    checkGitHub = async () =>
       answerGitHubReadRequest(
         "Покажи последния commit в GitHub.",
-        resolveGitHubReadOptions(input),
+        await resolveGitHubReadOptions(input),
       ),
     checkMemory = () =>
       listProfileMemories({ ownerId: input.ownerId, limit: 1 }),

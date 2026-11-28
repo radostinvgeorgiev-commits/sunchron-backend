@@ -128,7 +128,12 @@
     gmail: "Покажи последните ми писма в Gmail",
     drive: "Покажи последните ми файлове в Google Drive",
   };
-  const TOOL_EVENTS = { web: "novarium:web-search", files: "novarium:knowledge-files", todos: "novarium:todos" };
+  const TOOL_EVENTS = {
+    web: "novarium:web-search",
+    files: "novarium:knowledge-files",
+    todos: "novarium:todos",
+    book: "novarium:book",
+  };
   // These need the person's own words (a link, a place), so the box is
   // filled and focused instead of sent.
   const TOOL_PREFILL = { youtube: "Обобщи това видео:", maps: "Намери наблизо:" };

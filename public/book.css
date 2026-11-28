@@ -1,0 +1,135 @@
+/* "Паметта на книгата" (Писател): a light card like the other panels. */
+.book-card {
+  box-sizing: border-box;
+  width: min(640px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+.book-pick,
+.book-new,
+.book-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.book-card :is(input, select, textarea) {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid rgba(18, 32, 29, 0.18);
+  border-radius: 12px;
+  font: inherit;
+}
+.book-card textarea {
+  width: 100%;
+  margin-top: 8px;
+  resize: vertical;
+}
+.book-select,
+.book-new-title,
+.book-add-text {
+  flex: 1 1 200px;
+}
+.book-add-name {
+  flex: 1 1 140px;
+}
+.book-card input[type="number"] {
+  width: 110px;
+}
+.book-tabs {
+  display: flex;
+  gap: 6px;
+  margin-top: 14px;
+  border-bottom: 1px solid rgba(18, 32, 29, 0.12);
+}
+.book-tabs button {
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+.book-tabs button[aria-selected="true"] {
+  border-bottom-color: #7b5cff;
+  font-weight: 700;
+}
+.book-pane {
+  margin-top: 10px;
+}
+.book-facts,
+.book-issues,
+.book-suggestions ul {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.book-fact {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(123, 92, 255, 0.07);
+}
+.book-fact .book-kind {
+  grid-column: 1;
+  color: #5b3fe0;
+}
+.book-fact span {
+  grid-column: 1;
+  overflow-wrap: anywhere;
+}
+.book-fact .book-fact-remove {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+.book-fact-old {
+  opacity: 0.6;
+}
+.book-extract {
+  margin-top: 14px;
+}
+.book-extract summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.book-suggestions label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.book-score {
+  margin: 12px 0 0;
+  font-weight: 700;
+}
+.book-issue {
+  padding: 10px 12px;
+  border-left: 4px solid #ff3df2;
+  border-radius: 12px;
+  background: rgba(255, 61, 242, 0.06);
+}
+.book-issue p {
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+.book-issue-why {
+  color: #4a4d6a;
+}
+.book-issue-done {
+  border-left-color: #00b8c4;
+  background: rgba(0, 240, 255, 0.07);
+}
+.book-change {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+.book-change input {
+  flex: 1 1 220px;
+}

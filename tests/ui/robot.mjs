@@ -91,6 +91,14 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media,
       await page.click("#mobileMenuBtn");
       await page.waitForTimeout(300);
     }
+    // The latest five and the button are in sight, not in a small box of
+    // their own that scrolls.
+    const box = await page.locator("#conversationList").evaluate((list) => {
+      const section = list.closest(".sidebar-section");
+      return { inner: section.scrollHeight - section.clientHeight, bottom: list.getBoundingClientRect().bottom, height: innerHeight };
+    });
+    expect(box.inner <= 1, `историята е в кутия, която се превърта: ${box.inner}px скрити`);
+    expect(box.bottom <= box.height, `бутонът „Още разговори“ е под екрана: ${Math.round(box.bottom)} > ${box.height}`);
     await more.click();
     await page.locator("#olderConversations").waitFor({ state: "visible", timeout: 5000 });
     expect((await page.locator("#olderConversations .conversation").count()) === 7, "падащото меню няма 7 разговора");

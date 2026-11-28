@@ -146,4 +146,7 @@ test("„Още разговори“ speaks the page's language and looks like 
     assert.match(css, /\.conversation-older\[hidden\] \{\s*display: none;\s*\}/u);
   }
   assert.match(neon, /\.conversation-more\[aria-expanded="true"\] i \{\s*transform: rotate\(180deg\);/u);
+  // On a phone too the history takes its own height: no small box that
+  // scrolls inside the side menu.
+  assert.match(neon, /\.app-shell > \.sidebar > \.sidebar-section \{\s*flex: 0 0 auto;\s*min-height: 0;\s*overflow: visible;\s*\}/u);
 });

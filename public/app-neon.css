@@ -1052,6 +1052,15 @@ body:has(#appShell:not([hidden])) .sidebar .conversation-older[hidden] {
   display: none;
 }
 
+/* Five conversations need no scroll box of their own: on a phone the
+   history takes its own height, as on a computer, and the side menu
+   scrolls as a whole. */
+body:has(#appShell:not([hidden])) .app-shell > .sidebar > .sidebar-section {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
+}
+
 @media (prefers-reduced-motion: reduce) {
   body:has(#appShell:not([hidden])) * {
     animation: none !important;

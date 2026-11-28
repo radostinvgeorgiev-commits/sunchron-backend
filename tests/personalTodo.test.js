@@ -59,3 +59,22 @@ test("the list is for every signed-in person and the AI step has the paid limit"
   const html = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
   assert.match(html, /\/todos\.js\?v=/u);
 });
+
+test("a task can carry the day the person named; a day that does not exist is dropped", async () => {
+  let next = 0;
+  const service = createPersonalTodoService({ store: memoryStore(), createId: () => `d${(next += 1)}` });
+  const items = await service.add("maria", [
+    { text: "Да се обадя на банката", due: "2026-11-29" },
+    { text: "Плати тока", due: "2026-02-31" },
+    "Купи хляб",
+  ]);
+  assert.deepEqual(
+    items.map(({ text, due }) => [text, due]),
+    [
+      ["Да се обадя на банката", "2026-11-29"],
+      ["Плати тока", undefined],
+      ["Купи хляб", undefined],
+    ],
+  );
+  await assert.rejects(service.add("maria", [{ text: "  ", due: "2026-11-29" }]), /поне една/u);
+});

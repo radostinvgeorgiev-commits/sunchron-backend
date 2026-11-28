@@ -166,6 +166,7 @@ import {
   requestAiResponse,
 } from "../services/novariumService.js";
 import { executeTaskPlan } from "../services/taskExecutionService.js";
+import { readTodoWords } from "../services/todoWords.js";
 import {
   confirmTaskWrite,
   extractTaskConfirmationId,
@@ -1244,7 +1245,23 @@ export function detectCapabilityRequests(message, { toolInventory = false } = {}
         message: subtask,
       });
     }
-    if (
+    // „Моите задачи“ in the person's own words (item 3, fix 4): „моите
+    // задачи“, „кви задачи имам отворени“ read the list; „добави задача да се
+    // обадя на банката утре“ adds „Да се обадя на банката“ for tomorrow. Work
+    // tasks keep their own words („работна задача“, „в проекта“, GitHub).
+    const todo = githubTaskStatusRequest ? null : readTodoWords(subtask);
+    if (todo?.type === "read") {
+      requests.push({ capability: "todos.read", action: "todos.read", message: subtask });
+    } else if (todo?.type === "add") {
+      if (todo.text) {
+        requests.push({
+          capability: "todos.add",
+          action: "todos.add",
+          message: subtask,
+          input: { text: todo.text, due: todo.due },
+        });
+      }
+    } else if (
       !githubTaskStatusRequest &&
       /(?:покажи|изброй|какви|кои|статус|напредък).{0,40}(?:задач|tasks?)|(?:задач|tasks?).{0,40}(?:покажи|изброй|какви|кои|статус|напредък)/iu.test(
         subtask,
@@ -1646,6 +1663,8 @@ function capabilityLabel(capability) {
   if (capability === "tasks.read") return "задачи";
   if (capability === "tasks.progress") return "напредък на задачите";
   if (capability === "tasks.draft") return "нова задача";
+  if (capability === "todos.read") return "Моите задачи";
+  if (capability === "todos.add") return "нова задача в „Моите задачи“";
   return capability;
 }
 

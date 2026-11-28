@@ -333,3 +333,45 @@ test("MCP agent conversation opens Google for the person's day in their own word
   assert.equal(taskOptions.executionContext.googleSessionId, "google-session");
   assert.match(result.response, /Среща с Иван/u);
 });
+
+// Item 3, fix 4: „Моите задачи“ through the connector, in the person's words.
+test("MCP agent conversation reads and adds to the person's own list in their words", async () => {
+  const seen = [];
+  let googleOpened = 0;
+  for (const message of ["добави задача да се обадя на банката утре", "кви задачи имам отворени"]) {
+    const result = await sendMcpAgentMessage(
+      { ownerId: "primary-user", message, identity: { role: "owner", displayName: "Радко" } },
+      {
+        loadWorkspace: async () => workspace(),
+        listMemories: async () => [],
+        listMessages: async () => [],
+        readWords: async () => ({ type: "none" }),
+        getGoogleSession: async () => {
+          googleOpened += 1;
+          return "google-session";
+        },
+        runTask: async (options) => {
+          seen.push(options.fallbackRequests.map(({ capability, input }) => [capability, input?.text || ""]));
+          const request = options.fallbackRequests[0];
+          return {
+            requests: options.fallbackRequests,
+            results: [
+              {
+                status: "fulfilled",
+                request,
+                result: { output: "Добавих в „Моите задачи“: Да се обадя на банката (утре).", requiresConfirmation: false },
+              },
+            ],
+            task: { id: "task-todo", status: "completed", verified: true },
+            plannerUsed: false,
+          };
+        },
+        saveTurn: async () => {},
+      },
+    );
+    assert.match(result.response, /Моите задачи/u);
+  }
+  assert.deepEqual(seen, [[["todos.add", "Да се обадя на банката"]], [["todos.read", ""]]]);
+  // The person's own list needs no Google connection.
+  assert.equal(googleOpened, 0);
+});

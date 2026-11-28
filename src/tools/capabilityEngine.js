@@ -5,6 +5,7 @@ import {
 import {
   isMemoryBackendConfigured,
   isPersistenceBackendConfigured,
+  resolvePersistenceBackend,
 } from "../config/memoryBackend.js";
 import {
   getAiProviderStatus,
@@ -13,6 +14,7 @@ import {
 } from "../services/novariumService.js";
 import { answerGitHubReadRequest } from "../services/githubService.js";
 import { useEnglishReplyFallback } from "../config/replyLanguage.js";
+import { getPersonalTodoService, isTodoDate } from "../services/personalTodoService.js";
 import {
   formatAiProviderProbe,
   probeAiProviders,
@@ -239,6 +241,17 @@ export function getToolRuntimeAvailability(
       return configured(
         Boolean(input.googleSessionId),
         "Google инструментът изисква удостоверена Google сесия.",
+        "CAPABILITY_AUTH_REQUIRED",
+      );
+    case "personal-todos":
+      // „Моите задачи“ live in the site's document store (Firestore, or the
+      // in-process one outside production), under the person's own account.
+      if (resolvePersistenceBackend(env) !== "local" && !isPersistenceBackendConfigured(env)) {
+        return configured(false, "„Моите задачи“ не са конфигурирани.");
+      }
+      return configured(
+        Boolean(input.ownerId),
+        "„Моите задачи“ изискват проверен профил.",
         "CAPABILITY_AUTH_REQUIRED",
       );
     case "synchron-tasks":
@@ -471,6 +484,17 @@ export function resolveCapability(capability, options = {}) {
     requiresConfirmation:
       tool.requiresConfirmation || permission.decision === "confirm",
   });
+}
+
+// A to-do's day as the person reads it: „утре, 29.11.2026“ (Sofia time).
+function todoDay(due, english = false, now = new Date()) {
+  const today = now.toLocaleDateString("sv-SE", { timeZone: "Europe/Sofia" });
+  const days = Math.round((Date.parse(`${due}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+  const date = `${due.slice(8, 10)}.${due.slice(5, 7)}.${due.slice(0, 4)}`;
+  const word = english
+    ? { 0: "today", 1: "tomorrow", [-1]: "yesterday" }[days]
+    : { 0: "днес", 1: "утре", 2: "вдругиден", [-1]: "вчера" }[days];
+  return word ? `${word}, ${date}` : date;
 }
 
 function requiredInput(value, label) {
@@ -967,6 +991,37 @@ const executors = Object.freeze({
           : `${creating ? "Добавяне" : "Промяна"} на Google контакт${named}${listed}.`,
       },
     };
+  },
+  // „Моите задачи“, the person's own list (item 3): reading it and adding to
+  // it are their own action on their own list, so the command runs at once.
+  "personal-todos": async ({ capability, input }) => {
+    const english = useEnglishReplyFallback(input.language);
+    const todos = getPersonalTodoService();
+    if (capability === "todos.add") {
+      const entry = input.input && typeof input.input === "object" ? input.input : {};
+      const text = typeof entry.text === "string" ? entry.text : "";
+      const due = isTodoDate(entry.due) ? entry.due : "";
+      const items = await todos.add(input.ownerId, [{ text, due }]);
+      const added = items[0];
+      const when = added?.due ? todoDay(added.due, english) : "";
+      return english
+        ? `Added to “My tasks”: ${added.text}${when ? ` (${when})` : ""}.`
+        : `Добавих в „Моите задачи“: ${added.text}${when ? ` (${when})` : ""}.`;
+    }
+    const items = await todos.list(input.ownerId);
+    const open = items.filter((item) => !item.done);
+    const done = items.length - open.length;
+    const doneLine = done ? (english ? `Done: ${done}.` : `Готови: ${done}.`) : "";
+    if (!open.length) {
+      return [english ? "You have no open tasks in “My tasks”." : "Нямаш отворени задачи в „Моите задачи“.", doneLine]
+        .filter(Boolean)
+        .join(" ");
+    }
+    return [
+      english ? `My tasks (${open.length} open):` : `Моите задачи (${open.length} отворени):`,
+      ...open.slice(0, 30).map((item) => `• ${item.text}${item.due ? ` — ${todoDay(item.due, english)}` : ""}`),
+      ...(doneLine ? [doneLine] : []),
+    ].join("\n");
   },
   "synchron-tasks": async ({ capability, input, confirmed }) => {
     if (capability === "tasks.read" || capability === "tasks.progress") {

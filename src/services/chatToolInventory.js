@@ -89,10 +89,10 @@ const TEXT = {
         images: ["Картинки", "опиши ги; „да“ ги прави"],
         video: ["Видео", "опиши го; „да“ го прави"],
       },
-      // What the owner's chat reads: the work drafts, not „Моите задачи“
-      // (review r6).
-      tasks: ["Работни задачи", "„Покажи задачите ми“"],
-      todos: ["Моите задачи", "в менюто"],
+      // „Моите задачи“ is the person's own list, read and added to in their
+      // words; the owner's work drafts keep their own words (item 3, fix 4).
+      tasks: ["Работни задачи", "„Покажи работните задачи“"],
+      todos: ["Моите задачи", "„Моите задачи“; „Добави задача да се обадя на банката утре“"],
       memory: ["Памет", "„Запомни: …“"],
       memoryWrite: "памет",
       files: ["Моите файлове", "питай за качен файл"],
@@ -158,9 +158,9 @@ const TEXT = {
         images: ["Pictures", "describe; “yes” makes them"],
         video: ["Video", "describe; “yes” makes it"],
       },
-      // The task and memory commands are Bulgarian words only.
-      tasks: ["Work tasks", "“Покажи задачите ми”"],
-      todos: ["My tasks", "in the menu"],
+      // The work-task and memory commands are Bulgarian words only.
+      tasks: ["Work tasks", "“Покажи работните задачи”"],
+      todos: ["My tasks", "“My tasks”; “Add a task: call the bank tomorrow”"],
       memory: ["Memory", "“Запомни: …”"],
       memoryWrite: "memory",
       files: ["My files", "ask about an added file"],
@@ -340,9 +340,9 @@ export function buildToolInventory({
   entries.push(entry("media", kinds ? "ready" : "off", tools.media[kinds || "both"]));
 
   const store = documentStoreReady(env);
-  // The owner's chat reads the work drafts („Работни задачи“); "Моите
-  // задачи" is the list every account keeps on the page, another store, so it
-  // is always named (review r6).
+  // The owner's chat also reads the work drafts („Работни задачи“); "Моите
+  // задачи" is the list every account keeps, read and added to in the chat
+  // too (item 3, fix 4), so both are named for what they are (review r6).
   if (owner) entries.push(entry("tasks", status("tasks.read"), tools.tasks));
   entries.push(entry("todos", store ? "ready" : "off", tools.todos));
   // "Запомни: …" prepares the record; it is written after the confirmation.

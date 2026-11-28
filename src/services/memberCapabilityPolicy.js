@@ -3,6 +3,9 @@ const MEMBER_SAFE_CAPABILITIES = new Set([
   "web.search",
   "video.read",
   "places.search",
+  // „Моите задачи“: every person's own list, kept under their own account.
+  "todos.read",
+  "todos.add",
 ]);
 // Reading the person's own Google, in their own chat, with their own
 // connection. MCP clients do not get these.

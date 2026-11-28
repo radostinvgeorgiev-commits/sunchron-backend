@@ -443,8 +443,8 @@ const OWNER_SECTION = [
   "Карти — „Намери кафене наблизо“",
   "Интернет — „Потърси в интернет …“",
   "Картинки и видео — опиши ги; „да“ ги прави",
-  "Работни задачи — „Покажи задачите ми“",
-  "Моите задачи — в менюто",
+  "Работни задачи — „Покажи работните задачи“",
+  "Моите задачи — „Моите задачи“; „Добави задача да се обадя на банката утре“",
   "Памет — „Запомни: …“",
   "Моите файлове — питай за качен файл",
   "Работа с Claude — в „Добавки“",
@@ -461,7 +461,7 @@ const MEMBER_SECTION = [
   "Карти — „Намери кафене наблизо“",
   "Интернет — „Потърси в интернет …“",
   "Картинки и видео — опиши ги; „да“ ги прави",
-  "Моите задачи — в менюто",
+  "Моите задачи — „Моите задачи“; „Добави задача да се обадя на банката утре“",
   "Памет — „Запомни: …“",
   "Моите файлове — питай за качен файл",
   "Работа с Claude — в „Добавки“",
@@ -483,7 +483,7 @@ const ENGLISH_MEMBER_SECTION = [
   "Maps — “Find a cafe near me”",
   "Web — “Do a web search for …”",
   "Pictures and video — describe; “yes” makes them",
-  "My tasks — in the menu",
+  "My tasks — “My tasks”; “Add a task: call the bank tomorrow”",
   "Memory — “Запомни: …”",
   "My files — ask about an added file",
   "Work with Claude — in “Add-ons”",
@@ -521,16 +521,17 @@ test("Bulgarian on a Bulgarian page, English labels on every other page language
     assert.match(page, /\nWorking:\n/u);
     assert.ok(page.includes("\nNeed connecting:\nCalendar, Contacts, Gmail (sending), Google Drive (saving) — “Connect Google”\nYouTube channel — “Connect Google”, then “Show my YouTube channel” and “Allow YouTube” in the answer\n"), page);
     assert.match(page, /\nGitHub — “Latest commit on GitHub”\n/u);
-    // Only the task and memory commands are Bulgarian words: the chat runs
-    // them only so.
+    // Only the work-task and memory commands are Bulgarian words: the chat
+    // runs them only so.
     const bulgarianWords = page.split("\n").slice(1).join("\n").match(/[А-Яа-я][^“”\n]*/gu) || [];
-    assert.deepEqual(bulgarianWords, ["Покажи задачите ми", "Запомни: …"], page);
+    assert.deepEqual(bulgarianWords, ["Покажи работните задачи", "Запомни: …"], page);
   }
   // The same for each entry's own words.
   const english = buildToolInventory({ identity: owner, env: siteEnv, connections: ownerGoogle, language: "en" });
   assert.equal(byId(english, "calendar").label, "Calendar");
   assert.equal(byId(english, "calendar").confirm, "events");
-  assert.equal(byId(english, "tasks").example, "“Покажи задачите ми”");
+  assert.equal(byId(english, "tasks").example, "“Покажи работните задачи”");
+  assert.equal(byId(english, "todos").example, "“My tasks”; “Add a task: call the bank tomorrow”");
 });
 
 test("each example is a request the chat runs as it is written", () => {
@@ -552,6 +553,7 @@ test("each example is a request the chat runs as it is written", () => {
     places: "places.search",
     web: "web.search",
     tasks: "tasks.read",
+    todos: "todos.read",
     github: "code.read",
     cloud: "infrastructure.googlecloud.read",
   };

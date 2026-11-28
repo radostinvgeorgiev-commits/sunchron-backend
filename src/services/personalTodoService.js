@@ -23,6 +23,13 @@ const clean = (value, max) =>
     ? value.replace(/[\u0000-\u001f\u007f]/gu, " ").replace(/\s+/gu, " ").trim().slice(0, max)
     : "";
 
+// A day as YYYY-MM-DD that exists in the calendar.
+export function isTodoDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 function documentId(ownerId) {
   if (typeof ownerId !== "string" || !ownerId.trim()) {
     throw new PersonalTodoError("Липсва профил.", 401, "TODO_OWNER_REQUIRED");
@@ -80,11 +87,16 @@ export function createPersonalTodoService({
     ]);
     return items;
   }
+  // An entry is its text, or { text, due } when the person named a day
+  // („добави задача да се обадя на банката утре“, item 3).
   async function add(ownerId, texts) {
     const fresh = (Array.isArray(texts) ? texts : [texts])
-      .map((value) => clean(value, TODO_LIMITS.text))
-      .filter(Boolean)
-      .map((text) => ({ id: createId(), text, done: false, createdAt: now() }));
+      .map((value) => ({
+        text: clean(typeof value === "string" ? value : value?.text, TODO_LIMITS.text),
+        due: isTodoDate(value?.due) ? value.due : "",
+      }))
+      .filter(({ text }) => text)
+      .map(({ text, due }) => ({ id: createId(), text, ...(due ? { due } : {}), done: false, createdAt: now() }));
     if (!fresh.length) throw new PersonalTodoError("Напиши поне една задача.");
     const items = await list(ownerId);
     const open = items.filter((item) => !item.done).length;

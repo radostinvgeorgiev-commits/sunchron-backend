@@ -73,6 +73,13 @@
         const words = document.createElement("span");
         words.textContent = item.text;
         label.append(box, words);
+        // The day the person named („утре“), as 29.11.2026.
+        if (/^\d{4}-\d{2}-\d{2}$/u.test(item.due || "")) {
+          const due = document.createElement("small");
+          due.className = "todo-due";
+          due.textContent = ` · ${item.due.slice(8, 10)}.${item.due.slice(5, 7)}.${item.due.slice(0, 4)}`;
+          label.append(due);
+        }
         const remove = document.createElement("button");
         remove.type = "button";
         remove.className = "todo-remove";

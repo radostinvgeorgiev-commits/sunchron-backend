@@ -14,7 +14,7 @@ test("renders a real login gate before the private application", () => {
   assert.match(html, /id="publicTitle"/u);
   assert.match(html, /href="\/plans"/u);
   assert.match(html, /AI предлага, ти одобряваш/u);
-  assert.match(html, /rel="canonical" href="https:\/\/cloudaicore\.com\/"/u);
+  assert.match(html, /rel="canonical" href="https:\/\/novariumai\.com\/"/u);
   assert.match(html, /property="og:title"/u);
   assert.match(
     html,

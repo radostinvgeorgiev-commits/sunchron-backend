@@ -80,8 +80,8 @@ export async function createProductCheckout(
     "line_items[0][quantity]": "1",
     "metadata[account]": productAccountId(identity),
     "metadata[plan]": plan.id,
-    success_url: "https://cloudaicore.com/plans?payment=processing",
-    cancel_url: "https://cloudaicore.com/plans?payment=cancelled",
+    success_url: "https://novariumai.com/plans?payment=processing",
+    cancel_url: "https://novariumai.com/plans?payment=cancelled",
   });
   const response = await fetchImpl(
     "https://api.stripe.com/v1/checkout/sessions",

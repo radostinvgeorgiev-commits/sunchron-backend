@@ -2,7 +2,7 @@
   const REPOSITORY_URL =
     "https://github.com/radostinvgeorgiev-commits/sunchron-backend";
   const MCP_RESOURCE_URL = "https://cloudaicore.com/mcp";
-  const PUBLIC_REGISTRATION_URL = "https://cloudaicore.com/register";
+  const PUBLIC_REGISTRATION_URL = "https://novariumai.com/register";
   const CHATGPT_PLUGINS_URL = "https://chatgpt.com/plugins";
   const CHATGPT_APP_GUIDE_URL =
     "https://developers.openai.com/plugins/deploy/connect-chatgpt";

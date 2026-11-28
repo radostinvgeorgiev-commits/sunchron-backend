@@ -392,6 +392,11 @@ const WAIT_FOR_MEMORY_CONFIRMATION = new RegExp(
     String.raw`demande|(?:^|[^\p{L}])attend(?:s|ez)(?:[^\p{L}]|$)|montre[\s-]moi`,
     String.raw`chied|conferm|aspett|mostrami|approva`,
     String.raw`[îi]ntreab|a[șşs]teapt|arat[ăa]-?mi|aprob`,
+    // „Not yet“ in any of the site's languages, and not-writing in other
+    // words („не го пиши още“, „don't add it yet“, „засега“).
+    String.raw`не\s+(?:го\s+|я\s+|ги\s+)?(?:пиши|добавяй|слагай|пази|вкарвай|помни)|(?:^|[^\p{L}])(?:още\s+не|не\s+още|засега)(?:[^\p{L}]|$)|първо\s+ми\s+кажи`,
+    String.raw`not\s+yet|hold\s+off|for\s+now|don[’']?t\s+(?:add|keep|put|record|remember|note|write|save|store)|first\s+tell\s+me|tell\s+me\s+first|think\s+about\s+it|let\s+me\s+think`,
+    String.raw`noch\s+nicht|todav[ií]a\s+no|a[uú]n\s+no|pas\s+encore|non\s+ancora|[îi]nc[ăa]\s+nu`,
   ].join("|"),
   "iu",
 );
@@ -435,6 +440,9 @@ function hasSecondSentence(fact) {
     if (/[^\s„“”"'‘’«»()[\]]/u.test(between)) return true;
     const next = String.fromCodePoint(text.codePointAt(nextWord));
     if (match[0] !== ".") return true;
+    // What goes on after a period is still the fact only when it is no
+    // request or question („… 10 ч. провери календара ми“).
+    if (requestStartsAt(text, nextWord)) return true;
     const before = text.slice(0, end);
     if (!/\s/u.test(between)) {
       // „1.5“, „28.11.2026“, „novariumai.com“, „p.m.“ go on; „чай.Провери“ does not.
@@ -454,40 +462,85 @@ function hasSecondSentence(fact) {
 // A second command inside the fact („… „Сменихме сметката. Запомни: …““).
 const NESTED_MEMORY_COMMAND =
   /(?:^|[^\p{L}])(?:запомни|запази|remember|merken|merk\s+dir|recordar|recuerda|retenir|retiens|ricorda|ricordare|[țţt]ine\s+minte)\s*(?::|,?\s+(?:че|that|dass|que|che|că|ca)\s)/iu;
-// A request to the assistant: a verb that asks for something, or a question
-// to it („можеш ли“, „can you“).
-const REQUEST =
-  String.raw`(?:(?:и|а|но|после|само|просто|моля|and|then|but|just|only|please)[\s,]+)?(?:(?:ми|ни|me|us)\s+)?(?:(?:кажи|провери|покажи|изпрати|прати|прочети|направи|напиши|намери|потърси|търси|пусни|отвори|създай|добави|изтрий|tell|show|check|send|read|make|write|find|search|open|create|add|delete)(?=[\s,.!?]|$)|(?:можеш|може|би)\s+ли(?=[\s,]|$)|(?:can|could|would|will)\s+you(?=[\s,]|$))`;
-// A request joined to the fact („…, и ми кажи какво е времето утре“, „… -
-// провери пощата ми“).
-const REQUEST_IN_FACT = new RegExp(
-  String.raw`(?:[,;]\s*|\s+-\s+|\s+(?:и|а|но|после|след\s+това|and|then|but)\s+)${REQUEST}`,
-  "iu",
+
+// A request to the assistant or a question to it, at the start of a fact, a
+// list item or a clause (third and fourth review of #605). It fails closed:
+// a real fact that happens to look like one only gets the one-time
+// confirmation. Up to two leading words may come first („и също провери“,
+// „а ти провери“, „and also check“, „please send“), then „ми/me“.
+const REQUEST_LEAD = String.raw`(?:(?:и|а|но|после|само|просто|моля|също|още|сега|ти|вие|and|then|but|just|only|please|also|now|you)[\s,]+){0,2}(?:(?:ми|ни|me|us)\s+)?`;
+// A request verb by its stem, in any form („провери“, „проверете“, „напомни
+// ми“), or in English as a whole word; a question word by its stem („какво“,
+// „каква“, „кога“, „what“) or a question with a helping verb („is it“, „do
+// I“).
+const REQUEST_WORD = String.raw`(?:(?:кажи|кажете|провер|покаж|изпрат|прат|прочет|направ|напиш|намер|потърс|търс|пусн|отвор|създа|добав|изтри|изтрий|напомн|разкаж|дай|дайте|обясн|превед|сравн|отговор|запиш|резервир|поръча|купи|плати|звънн|обад|уведом|подготв|изчисл|пресметн|помогн|погледн|предлож|обобщ|сложи|върни|спри|махни|включ|изключ|питай|попитай)\p{L}*|(?:tell|show|check|send|read|make|write|find|search|open|create|add|delete|remove|remind|email|e-mail|text|call|book|buy|order|schedule|set|give|get|list|summari[sz]e|translate|explain|draft|reply|answer|forward|play|start|stop|cancel|update|change|fix|help|compare|calculate|plan|prepare|look|let|let['’]s|ask|bring|put|keep|note|save|turn|go|try|see|watch|wake)(?![\p{L}'’-])|(?:как|кой|коя|кое|кои|чий|чия|чие|чии|защо|колко|кога|къде|накъде|откъде|докога|дали)(?!\p{L})|как\p{L}+|(?:what|when|where|who|whom|whose|which|how|why|whether)(?![\p{L}'’])|(?:is|are|was|were|do|does|did|will|would|can|could|should|shall|may|might)\s+(?:you|it|there|i|we|they|he|she|this|that)(?!\p{L}))`;
+const REQUEST_AT = new RegExp(String.raw`${REQUEST_LEAD}${REQUEST_WORD}`, "iuy");
+// After a joiner, a Bulgarian command also by its shape: a small-letter word
+// ending in „-и“, „-й“, „-ете“ or „-йте“ with more words after it („…,
+// разпечатай ми …“), but not a list of things („…, ябълки и круши“).
+const IMPERATIVE_AT = new RegExp(
+  String.raw`(?:(?:и|а|но|после|само|просто|моля|също|още|сега|ти|вие)[\s,]+){0,2}(?=\p{Ll})\p{L}{2,}(?:и|й|ете|йте)(?=\s+(?!(?:и|или)(?:\s|$))[\p{L}\p{N}])`,
+  "uy",
 );
-// A list item that is itself a request or a question („Запомни следното:
-// обичам чай; провери пощата ми“).
-const REQUEST_AT_START = new RegExp(
-  String.raw`^(?:${REQUEST}|(?:какво|кога|къде|кой|коя|кое|кои|как|защо|колко|дали|what|when|where|who|which|how|why|whether)(?=[\s,]|$))`,
-  "iu",
-);
+// Where a new clause can start: after a comma, „;“, „:“, a bracket, a slash,
+// a period, a dash or a joining word.
+const CLAUSE_JOINER =
+  /(?:[,;:(/.]|\s-{1,2}|-{2,})\s*|\s(?:и|а|но|ама|обаче|или|после|след\s+това|and|then|but|or|plus|also)\s+/giu;
+// „… ли …“ asks a question („ще вали ли утре“, „можеш ли“).
+const QUESTION_PARTICLE = /(?:^|[^\p{L}])ли(?=[^\p{L}]|$)/iu;
+
+function requestStartsAt(text, index, { shape = false } = {}) {
+  REQUEST_AT.lastIndex = index;
+  if (REQUEST_AT.test(text)) return true;
+  if (!shape) return false;
+  IMPERATIVE_AT.lastIndex = index;
+  return IMPERATIVE_AT.test(text);
+}
+
 // A list line: a dash, a bullet or a number („- …“, „• …“, „2. …“).
 const LIST_ITEM = /^(?:[-*•]|\d+[.)])\s+\S/u;
-// The marks a plain fact uses: letters, digits, spaces and the punctuation of
-// an ordinary sentence, a name, an address, a date, a price or an e-mail. A
-// question mark, „¿“ or „¡“, a smiley, a dash other than the hyphen, a star,
-// a zero-width or full-width mark, a tab or a line separator keeps the
-// one-time confirmation (review of #605): what such a mark hides is never
-// written as part of the fact. Only a list of facts on one line uses „;“.
-const PLAIN_FACT_TEXT = /^[\p{L}\p{M}\p{N} ,.:!…'‘’"„“”«»()/@#%&+=№€$£°_-]+$/u;
-const PLAIN_LIST_TEXT = /^[\p{L}\p{M}\p{N} ,.:;!…'‘’"„“”«»()/@#%&+=№€$£°_-]+$/u;
+// The marks a plain fact uses: Latin or Cyrillic letters, digits 0–9, spaces
+// and the punctuation of an ordinary sentence, a name, an address, a date, a
+// price or an e-mail. A question mark, „¿“ or „¡“, a smiley, a dash other
+// than the hyphen, a star, a zero-width, full-width or look-alike mark, a
+// letter of another script, a tab or a line separator keeps the one-time
+// confirmation (review of #605): what such a mark hides is never written as
+// part of the fact. Only a list of facts on one line uses „;“.
+const PLAIN_FACT_TEXT =
+  /^(?:(?=[\p{Lu}\p{Ll}\p{Lt}])[\p{sc=Latin}\p{sc=Cyrillic}]|[0-9 ,.:!…'‘’"„“”«»()/@#%&+=№€$£°_-])+$/u;
+const PLAIN_LIST_TEXT =
+  /^(?:(?=[\p{Lu}\p{Ll}\p{Lt}])[\p{sc=Latin}\p{sc=Cyrillic}]|[0-9 ,.:;!…'‘’"„“”«»()/@#%&+=№€$£°_-])+$/u;
+function isPlainText(text, pattern) {
+  return pattern.test(String(text || "").normalize("NFC"));
+}
+
+// A „but“ clause carries a condition or a request to wait („…, но не още“,
+// „…, but not yet“): the person gets the one-time confirmation.
+const CONTRAST_CLAUSE =
+  /(?:^|[^\p{L}])(?:но|ама|обаче|ала|but|however|although|though|aber|jedoch|pero|sino|mais|cependant|ma|però|tuttavia|dar|însă|insa)(?=[^\p{L}]|$)/iu;
+// The command in German, Spanish, French, Italian or Romanian is written at
+// once only as one plain clause: no comma, colon, bracket, slash, dash,
+// joining word or second sentence („Recuerda: me gusta el té, y dime …“).
+const OTHER_LANGUAGE_COMMAND =
+  /^(?:merken|merk\s+dir|recordar|recuerda|retenir|retiens|ricorda|ricordare|[țţt]ine\s+minte)(?=[\s:,])/iu;
+const OTHER_LANGUAGE_JOINER =
+  /[,;:(/]|\s-|-{2}|\.\s+\p{L}|(?:^|\s)(?:y|e|et|und|și|si|and|o|oder|ou|sau|ma|mais|pero|aber|dar|sondern|sino|luego|dann|puis|poi|apoi|también|auch|aussi|anche|und)(?=\s|$)/iu;
 
 function isPlainMemoryFact(fact) {
-  return (
-    !hasSecondSentence(fact) &&
-    !NESTED_MEMORY_COMMAND.test(fact) &&
-    !REQUEST_IN_FACT.test(fact) &&
-    !REQUEST_AT_START.test(fact)
-  );
+  if (
+    hasSecondSentence(fact) ||
+    NESTED_MEMORY_COMMAND.test(fact) ||
+    QUESTION_PARTICLE.test(fact) ||
+    requestStartsAt(fact, 0)
+  ) {
+    return false;
+  }
+  for (const match of fact.matchAll(CLAUSE_JOINER)) {
+    if (requestStartsAt(fact, match.index + match[0].length, { shape: true })) {
+      return false;
+    }
+  }
+  return true;
 }
 
 // The person's own command is their „да“ and is written at once (РАДКО
@@ -495,15 +548,16 @@ function isPlainMemoryFact(fact) {
 // holds one plain fact, or a list of plain facts. Everything else keeps the
 // one-time confirmation and writes nothing: a message that asks to wait or to
 // be asked first, a bare „Поправка: …“, a „Запомни:“ inside forwarded or
-// pasted text (a Drive summary, a letter), a second command, and a command
-// that runs on into another line, sentence or request, so the rest of the
-// message is never stored as the fact. What is judged here is exactly what
-// the chat writes (extractPersistentMemoryCommands).
+// pasted text (a Drive summary, a letter), a second command, a question, and
+// a command that runs on into another line, sentence or request, so the rest
+// of the message is never stored as the fact. What is judged here is exactly
+// what the chat writes (extractPersistentMemoryCommands).
 export function isOwnMemoryCommand(message) {
   const text =
     typeof message === "string" ? message.replace(/\r\n?/gu, "\n").trim() : "";
   if (!text) return false;
   if (WAIT_FOR_MEMORY_CONFIRMATION.test(text)) return false;
+  if (CONTRAST_CLAUSE.test(text)) return false;
   if (BARE_MEMORY_CORRECTION.test(text)) return false;
   const written = extractPersistentMemoryCommands(text);
   if (!written.length) return false;
@@ -522,8 +576,8 @@ export function isOwnMemoryCommand(message) {
       const items = lines.map((line) =>
         line.replace(/^(?:[-*•]|\d+[.)])\s+/u, ""),
       );
-      if (!items.every((item) => PLAIN_FACT_TEXT.test(item))) return false;
-    } else if (!PLAIN_LIST_TEXT.test(body)) {
+      if (!items.every((item) => isPlainText(item, PLAIN_FACT_TEXT))) return false;
+    } else if (!isPlainText(body, PLAIN_LIST_TEXT)) {
       return false;
     }
     judged = splitMemoryFacts(body).map((fact) => ({ fact, scope: bulk.scope }));
@@ -531,7 +585,10 @@ export function isOwnMemoryCommand(message) {
     const single = extractPersistentMemoryCommand(text);
     if (!single) return false;
     const body = text.replace(/^[^\n]*?(?::|,?\s+че\s)\s*/u, "");
-    if (!PLAIN_FACT_TEXT.test(body)) return false;
+    if (!isPlainText(body, PLAIN_FACT_TEXT)) return false;
+    if (OTHER_LANGUAGE_COMMAND.test(text) && OTHER_LANGUAGE_JOINER.test(body)) {
+      return false;
+    }
     judged = [single];
   }
   if (

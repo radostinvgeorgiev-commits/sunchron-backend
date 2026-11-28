@@ -965,5 +965,79 @@ NovariumAI — твоят личен AI аватар|NovariumAI — your persona
 Личен AI аватар|Personal AI avatar
 Профил|Account
 Език|Language
+Как работи|How it works
+Специалисти|Specialists
+Цени|Pricing
+Започни безплатно|Start free
+Много AI.|Many AIs.
+Една памет.|One memory.
+Твоята.|Yours.
+NovariumAI е твоят личен аватар. Помни хората, проектите и решенията ти, пита най-добрите AI модели вместо теб и не прави нищо без твоето „да“.|NovariumAI is your personal avatar. It remembers your people, projects and decisions, asks the best AI models for you, and does nothing without your “yes”.
+Виж как помни|See how it remembers
+Безплатно за начало. Без банкова карта.|Free to start. No bank card.
+Как помни|How it remembers
+Ти казваш веднъж. Аватарът помни.|You say it once. Your avatar remembers.
+Избери молба и виж какво прави аватарът с това, което вече знае за теб.|Pick a request and see what your avatar does with what it already knows about you.
+Паметта, одобрена от теб|Memory you approved
+Срещи|Meetings
+Не преди 10:00|Not before 10:00
+Кафе|Coffee
+Без захар|No sugar
+Проект „Ремонт“|“Renovation” project
+Таван 4 000 €|Cap €4,000
+„Запиши ми среща с Иван утре в 8.“|“Book a meeting with Ivan tomorrow at 8.”
+„Поръчай кафе за срещата.“|“Order coffee for the meeting.”
+„Колко можем да дадем за плочките?“|“How much can we spend on the tiles?”
+Спрях.|Paused.
+Помниш, че не искаш срещи преди 10:00. Да я сложа утре в 10:00? Нищо не записвам без твоето „да“.|You said no meetings before 10:00. Shall I put it at 10:00 tomorrow? I book nothing without your “yes”.
+Готово за одобрение.|Ready for your approval.
+Кафе без захар за теб, както винаги. Изпращам поръчката чак след твоето „да“.|Coffee with no sugar for you, as always. I send the order only after your “yes”.
+От паметта на проекта.|From the project memory.
+Таванът за ремонта е 4 000 €. Ще ти покажа колко остава след плочките, преди да решиш.|The renovation cap is €4,000. I’ll show you what’s left after the tiles before you decide.
+Помни като човек|Remembers like a person
+Хора, проекти, решения и навици. Ти виждаш и поправяш всичко, което помни.|People, projects, decisions and habits. You see and correct everything it remembers.
+Много модели, един отговор|Many models, one answer
+Пита няколко AI модела наведнъж и ти показва най-добрия отговор.|It asks several AI models at once and shows you the best answer.
+Един аватар. Много умения.|One avatar. Many skills.
+Избери специалист за разговора. Паметта остава една и е твоя.|Pick a specialist for the conversation. The memory stays one, and it’s yours.
+Писател|Writer
+Скоро|Soon
+Ще пази героите и правилата на книгата и ще хваща противоречията.|Will keep your book’s characters and rules and catch contradictions.
+Юрист|Lawyer
+Обяснява закони и договори ясно.|Explains laws and contracts clearly.
+Счетоводител|Accountant
+Сметки, данъци и бюджети стъпка по стъпка.|Bills, taxes and budgets step by step.
+Маркетинг|Marketing
+Идеи, текстове и планове за реклама.|Ideas, copy and ad plans.
+Учител|Teacher
+Обяснява всичко с прости думи.|Explains anything in plain words.
+Програмист|Programmer
+Пише и проверява код с теб.|Writes and checks code with you.
+Твоят свят остава твой.|Your world stays yours.
+Паметта е само твоя. Нищо не се споделя без бутона „Сподели“.|Your memory is yours alone. Nothing is shared without the “Share” button.
+Виждаш, поправяш и триеш всичко, което аватарът помни.|You see, correct and delete everything your avatar remembers.
+Изтегляш копие на данните си или изтриваш профила с всичко в него, когато поискаш.|Download a copy of your data or delete your account with everything in it, whenever you want.
+80% от печалбата отива за каузи. Всяко евро се вижда в|80% of the profit goes to causes. Every euro is shown in
+Започваш безплатно. Плащаш само за повече.|Start free. Pay only for more.
+Чат всеки ден и 100 AI единици на месец. Без карта.|Chat every day and 100 AI credits a month. No card.
+300 AI единици, проекти и памет.|300 AI credits, projects and memory.
+1100 AI единици за работа с няколко модела.|1,100 AI credits for work with several models.
+Без абонамент и без автоматично доплащане.|No subscription and no automatic charges.
+Всички планове|All plans
+Въпроси|Questions
+Какво е NovariumAI?|What is NovariumAI?
+Личен AI аватар: разговаря, помни, планира и работи с твоите Google, GitHub и файлове, но само с твоето одобрение.|A personal AI avatar: it talks, remembers, plans and works with your Google, GitHub and files, but only with your approval.
+Наистина ли е безплатно?|Is it really free?
+Да. Обикновеният чат е безплатен всеки ден и получаваш 100 AI единици на месец. Не искаме банкова карта.|Yes. Regular chat is free every day and you get 100 AI credits a month. We don’t ask for a bank card.
+Кой вижда моята памет?|Who sees my memory?
+Само ти. Можеш да видиш, поправиш или изтриеш всичко, което аватарът помни.|Only you. You can see, correct or delete everything your avatar remembers.
+Кои AI модели ползва?|Which AI models does it use?
+Claude, GPT, Gemini и други. Избираш сам или оставяш аватара да сравни няколко.|Claude, GPT, Gemini and others. Choose one yourself or let your avatar compare several.
+Къде отиват парите?|Where does the money go?
+След разходите и данъците 80% от печалбата отива за каузи, избрани с хората. Всичко се вижда публично.|After costs and taxes, 80% of the profit goes to causes chosen with people. Everything is public.
+Твоят AI те чака.|Your AI is waiting.
+Паметта на аватара|Your avatar’s memory
+Молба към аватара|Request to your avatar
+Правна информация|Legal information
 `.trim().split("\n").map((line) => line.split("|")),
 );

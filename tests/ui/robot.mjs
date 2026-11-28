@@ -1213,11 +1213,28 @@ async function contactForm(origin, contactMessages) {
   await page.close();
 }
 
+// The start page shows the sign-in card in a window after "Започни безплатно".
+async function openSignIn(page) {
+  if (await page.locator("#authCard").isVisible()) return;
+  await page.locator("[data-open-auth]").filter({ visible: true }).first().click();
+  await page.locator("#authCard").waitFor({ state: "visible", timeout: 5000 });
+}
+
 async function publicChecks(origin) {
   const { page, errors } = await openPage(origin, { width: 390, height: 844 });
-  await step("Жив сайт: екранът за вход зарежда без грешки", async () => {
+  await step("Жив сайт: началото е новото, с „Твоят AI. Твоят свят.“", async () => {
     await page.waitForTimeout(1500);
-    expect(await page.locator("#authCard, #authScreen, .auth-screen").first().isVisible(), "няма екран за вход");
+    expect(await page.locator("#publicTitle").isVisible(), "няма заглавие");
+    expect((await page.textContent(".landing-kicker")).includes("Твоят AI. Твоят свят."), "няма слогана");
+    expect(!errors.length, errors[0]);
+  });
+  await step("Жив сайт: демото „Как помни“ отговаря без вход", async () => {
+    await page.click('[data-demo="1"]');
+    expect((await page.textContent("[data-demo-output]")).includes("без захар"), "демото не отговори");
+  });
+  await step("Жив сайт: „Започни безплатно“ отваря входа в прозорче", async () => {
+    await openSignIn(page);
+    expect(await page.locator("#authCard").isVisible(), "няма прозорец за вход");
     expect(!errors.length, errors[0]);
   });
   await step("Жив сайт: има бутон „Вход с Google“", async () => {
@@ -1261,6 +1278,7 @@ async function liveSignedIn(origin) {
     await page.click(`.mine-group [data-plus="${key}"]`);
   };
   await step("Жив сайт: вход с тестовия профил", async () => {
+    await openSignIn(page);
     // New profiles use Google; the old email/password sign-in is folded away.
     expect(await page.locator("#googleSignInBtn").isVisible(), "няма бутон „Продължи с Google“");
     expect((await page.locator("#registerForm").count()) === 0, "още има регистрация с имейл и парола");

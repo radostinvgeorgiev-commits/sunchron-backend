@@ -69,6 +69,32 @@ export function validateMcpTransport(
   return next();
 }
 
+// Tool names from before the rename to NovariumAI (#573). A connector that
+// still keeps the old tool list goes on working until it refreshes it;
+// tools/list shows only the new names.
+export const LEGACY_MCP_TOOL_NAMES = Object.freeze({
+  run_ai_core_self_test: "run_novarium_self_test",
+  talk_to_ai_core: "talk_to_novarium",
+});
+
+// Runs before authorization, so an old name asks for the same scope as the
+// new one and the rest of the server only ever sees the new name.
+export function renameLegacyMcpTools(legacyNames) {
+  return (req, _res, next) => {
+    const params = req.body?.params;
+    const name = params?.name;
+    if (
+      req.body?.method === "tools/call" &&
+      typeof name === "string" &&
+      Object.hasOwn(legacyNames, name)
+    ) {
+      params.name = legacyNames[name];
+      console.log(`[MCP] old tool name ${name} → ${params.name}.`);
+    }
+    return next();
+  };
+}
+
 export function mcpJsonParseErrorHandler(error, req, res, next) {
   if (error?.type !== "entity.parse.failed") return next(error);
   return res.status(400).json({
@@ -186,6 +212,7 @@ export async function requireMcpAuthorization(
 router.post(
   "/",
   validateMcpTransport,
+  renameLegacyMcpTools(LEGACY_MCP_TOOL_NAMES),
   requireMcpAuthorization,
   async (req, res) => {
     const response = await handleMcpRequest(

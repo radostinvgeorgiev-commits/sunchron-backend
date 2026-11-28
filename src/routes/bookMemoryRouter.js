@@ -1,7 +1,7 @@
 import express from "express";
 
 import { BookMemoryError } from "../services/bookMemoryService.js";
-import { publicSpecialistProfiles, specialistProfile } from "../services/specialistProfiles.js";
+import { publicSpecialistProfile, publicSpecialistProfiles, specialistProfile } from "../services/specialistProfiles.js";
 import { ProductError } from "../services/productPlansService.js";
 import { publicAiBudgetContext } from "../services/publicAiBudget.js";
 import { logSafeError } from "../utils/safeLogging.js";
@@ -32,9 +32,8 @@ export function createBookMemoryRouter({ service }) {
     handle("Книгите не могат да се заредят.", async (req) => {
       const books = await service.list(owner(req));
       if (!req.query.domain) return { books };
-      const profile = specialistProfile(String(req.query.domain));
-      const { id, project, unit, memory, kinds } = profile;
-      return { books: books.filter((book) => specialistProfile(book.domain).id === id), profile: { id, project, unit, memory, kinds } };
+      const profile = publicSpecialistProfile(String(req.query.domain));
+      return { books: books.filter((book) => specialistProfile(book.domain).id === profile.id), profile };
     }),
   );
   router.get("/profiles", (_req, res) => res.json({ profiles: publicSpecialistProfiles() }));

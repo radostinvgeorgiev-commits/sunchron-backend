@@ -82,6 +82,13 @@ export const SPECIALIST_PROFILES = Object.freeze({
     kinds: { character: "Лекарство", place: "Алергия", rule: "Указание на лекар", event: "Изследване" },
     expert: "здравен асистент (не лекар)",
     look: "лекарства и дози, алергии, указания на лекуващия лекар, стойности от изследвания",
+    // Only for the model: the rules of the doctor preset, and what a draft
+    // starts with in an emergency. The note is what the person sees.
+    safety:
+      "Ти не си лекар: не поставяй диагноза, не назначавай лечение и не добавяй лекарства или дози, които ги няма в паметта или в плана.",
+    urgent:
+      "Ако планът описва болка в гърдите, затруднено дишане, силно кървене, загуба на съзнание или мисли за самонараняване, започни текста с „Обади се веднага на 112.“",
+    note: "Това не е лекарски съвет: лечението решава твоят лекар. При болка в гърдите, задух, силно кървене, припадък или мисли за самонараняване се обади веднага на 112.",
   },
   accountant: {
     project: "Фирма",
@@ -98,6 +105,9 @@ export const SPECIALIST_PROFILES = Object.freeze({
     kinds: { character: "Цел", place: "Ограничение", rule: "Правило", event: "Резултат" },
     expert: "личен треньор",
     look: "цели, травми и ограничения, тежести, повторения, режим и постигнати резултати",
+    safety: "Не давай медицински съвети и не увеличавай натоварването при болка, травма, болест или бременност.",
+    urgent: "Ако планът описва болка, травма, болест или бременност, започни текста с „Първо говори с лекар.“",
+    note: "При болка, болест или бременност първо говори с лекар.",
   },
   chef: {
     project: "Кухня",
@@ -106,6 +116,8 @@ export const SPECIALIST_PROFILES = Object.freeze({
     kinds: { character: "Продукт", place: "Алергия", rule: "Правило", event: "Меню" },
     expert: "готвач",
     look: "алергии и непоносимости, продукти, количества, порции и правила на дома",
+    safety: "Никога не предлагай продукт, към който паметта казва, че има алергия или непоносимост, дори като заместител.",
+    note: "Проверката помага, но при алергия винаги чети етикета на всеки продукт.",
   },
   listener: {
     project: "Моят свят",
@@ -114,19 +126,33 @@ export const SPECIALIST_PROFILES = Object.freeze({
     kinds: { character: "Човек", place: "Място", rule: "Важно за мен", event: "Случка" },
     expert: "внимателен събеседник",
     look: "хора, случки и неща, които човекът е казал, че са важни за него",
+    safety: "Не си психолог и не поставяш диагнози.",
+    urgent: "Ако планът говори за самонараняване или опасност, започни текста с „Обади се веднага на 112 или на близък човек.“",
+    note: "Не съм психолог. Ако мислиш да си навредиш или си в опасност, обади се веднага на 112 или на близък човек.",
   },
 });
 
 export const DEFAULT_SPECIALIST = "writer";
 
+// Anything that is not one of the 14 names (an array, an object, a typo)
+// is the writer, so a saved project always has a plain name.
 export function specialistProfile(id) {
-  const key = Object.hasOwn(SPECIALIST_PROFILES, id) ? id : DEFAULT_SPECIALIST;
+  const key = typeof id === "string" && Object.hasOwn(SPECIALIST_PROFILES, id) ? id : DEFAULT_SPECIALIST;
   return { id: key, ...SPECIALIST_PROFILES[key] };
 }
 
-// What the page needs to name things: no prompts, only the words.
+// What the page needs: the words and the note for the person, no prompts.
+export function publicSpecialistProfile(id) {
+  const { id: key, project, unit, memory, kinds, note } = specialistProfile(id);
+  return { id: key, project, unit, memory, kinds, ...(note ? { note } : {}) };
+}
+
 export function publicSpecialistProfiles() {
   return Object.fromEntries(
-    Object.entries(SPECIALIST_PROFILES).map(([id, { project, unit, memory, kinds }]) => [id, { project, unit, memory, kinds }]),
+    Object.keys(SPECIALIST_PROFILES).map((id) => {
+      const words = publicSpecialistProfile(id);
+      delete words.id;
+      return [id, words];
+    }),
   );
 }

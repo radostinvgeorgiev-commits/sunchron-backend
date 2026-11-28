@@ -8,7 +8,7 @@ import { listAssistantPresets } from "../../src/services/assistantPresets.js";
 import { createAddonService } from "../../src/services/addonService.js";
 import { APP_SUBSCRIPTIONS } from "../../src/services/appSubscriptionCatalog.js";
 import { createBookMemoryService } from "../../src/services/bookMemoryService.js";
-import { specialistProfile } from "../../src/services/specialistProfiles.js";
+import { publicSpecialistProfile, specialistProfile } from "../../src/services/specialistProfiles.js";
 // The server's own rules for pictures and video in the chat, so the robot can
 // only pass on what the server does.
 import {
@@ -356,8 +356,8 @@ export function startStubServer(port = 0) {
             const all = await books.list(me);
             const domain = url.searchParams.get("domain");
             if (!domain) return json(res, { books: all });
-            const { id, project, unit, memory, kinds } = specialistProfile(domain);
-            return json(res, { books: all.filter((book) => specialistProfile(book.domain).id === id), profile: { id, project, unit, memory, kinds } });
+            const profile = publicSpecialistProfile(domain);
+            return json(res, { books: all.filter((book) => specialistProfile(book.domain).id === profile.id), profile });
           }
           if (!bookId && req.method === "POST") return json(res, { book: await books.createBook(me, data.title, data.domain) }, 201);
           if (!area && req.method === "DELETE") return json(res, { books: await books.removeBook(me, bookId) });
@@ -710,7 +710,11 @@ export function startStubServer(port = 0) {
       res.writeHead(404);
       return res.end();
     }
-    res.writeHead(200, { "Content-Type": `${TYPES[path.extname(file)] || "application/octet-stream"}; charset=utf-8` });
+    // Pages carry the live site's script rule, so a script the server
+    // would block (inline, or from another site) fails here too.
+    const headers = { "Content-Type": `${TYPES[path.extname(file)] || "application/octet-stream"}; charset=utf-8` };
+    if (path.extname(file) === ".html") headers["Content-Security-Policy"] = "script-src 'self'";
+    res.writeHead(200, headers);
     return fs.createReadStream(file).pipe(res);
   });
   return new Promise((resolve) => {

@@ -1246,7 +1246,7 @@ Claude, GPT, Gemini и други. Избираш сам или оставяш �
 Указание на лекар|Doctor’s instruction
 Изследване|Test result
 Контрагент|Counterparty
-Сметка|Account
+Сметка|Ledger account
 Плащане|Payment
 Цел|Goal
 Ограничение|Limitation
@@ -1255,5 +1255,54 @@ Claude, GPT, Gemini и други. Избираш сам или оставяш �
 Човек|Person
 Важно за мен|Important to me
 Случка|Happening
+Книгата не е намерена.|Book not found.
+Проектът не е намерен.|Project not found.
+Паметта на книгата е пълна.|The book memory is full.
+Паметта на проекта е пълна.|The project memory is full.
+Кажи от коя глава важи промяната (2 или повече).|Say from which chapter the change applies (2 or more).
+Кажи от коя част важи промяната (2 или повече).|Say from which part the change applies (2 or more).
+Книгата има най-много глави.|The book already has the maximum number of chapters.
+Проектът има най-много части.|The project already has the maximum number of parts.
+Главата не е намерена.|Chapter not found.
+Частта не е намерена.|Part not found.
+Напиши номера на главата.|Write the chapter number.
+Напиши номера на частта.|Write the part number.
+Напиши плана на главата.|Write the chapter plan.
+Напиши плана на частта.|Write the plan for the part.
+Книгите не могат да се заредят.|The books could not be loaded.
+Проектите не могат да се заредят.|The projects could not be loaded.
+Книгата не беше създадена.|The book was not created.
+Проектът не беше създаден.|The project was not created.
+Книгата не беше изтрита.|The book was not deleted.
+Проектът не беше изтрит.|The project was not deleted.
+Главите не бяха записани.|The chapters were not saved.
+Частите не бяха записани.|The parts were not saved.
+Главата не може да се зареди.|The chapter could not be loaded.
+Частта не може да се зареди.|The part could not be loaded.
+Главата не беше изтрита.|The chapter was not deleted.
+Частта не беше изтрита.|The part was not deleted.
+Главата не можа да се провери. Опитай пак.|The chapter could not be checked. Try again.
+Текстът не можа да се провери. Опитай пак.|The text could not be checked. Try again.
+Това не е лекарски съвет: лечението решава твоят лекар. При болка в гърдите, задух, силно кървене, припадък или мисли за самонараняване се обади веднага на 112.|This is not medical advice: your doctor decides on treatment. For chest pain, shortness of breath, heavy bleeding, fainting or thoughts of self-harm, call 112 right away.
+При болка, болест или бременност първо говори с лекар.|If you have pain, an illness or are pregnant, talk to a doctor first.
+Проверката помага, но при алергия винаги чети етикета на всеки продукт.|The check helps, but with an allergy always read the label of every product.
+Не съм психолог. Ако мислиш да си навредиш или си в опасност, обади се веднага на 112 или на близък човек.|I am not a psychologist. If you are thinking of hurting yourself or you are in danger, call 112 right away or someone close to you.
+Файлът не можа да се прочете. Опитай пак.|The file could not be read. Try again.
+Имаш най-много книги. Изтрий една, за да добавиш нова.|You have the maximum number of books. Delete one to add a new one.
+Имаш най-много проекти при този специалист. Изтрий един, за да добавиш нов.|You have the maximum number of projects with this specialist. Delete one to add a new one.
+Стигна общия брой проекти за всички специалисти. Изтрий някой, който вече не ти трябва.|You have reached the total number of projects for all specialists. Delete one you no longer need.
+Напиши името на книгата.|Write the name of the book.
+Напиши името на проекта.|Write the name of the project.
+Напиши поне един факт.|Write at least one fact.
+Фактът не е намерен.|Fact not found.
+Напиши какво е новото.|Write what is new.
+Черновата не стана. Опитай пак.|The draft did not work out. Try again.
+Паметта на книгата е празна. Първо добави факти.|The book memory is empty. Add facts first.
+Паметта на проекта е празна. Първо добави факти.|The project memory is empty. Add facts first.
+Липсва профил.|Sign in first.
+Фактите не бяха записани.|The facts were not saved.
+Фактът не беше изтрит.|The fact was not deleted.
+Промяната не беше записана.|The change was not saved.
+Фактите не можаха да се извадят. Опитай пак.|The facts could not be extracted. Try again.
 `.trim().split("\n").map((line) => line.split("|")),
 );

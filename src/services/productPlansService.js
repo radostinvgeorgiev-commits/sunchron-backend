@@ -309,7 +309,7 @@ export function createProductPlansService({
     }
     return false;
   }
-  async function fulfill(session) {
+  async function fulfill(session, { livemode = true } = {}) {
     const plan = PRODUCT_PLANS.find(
       (p) => p.id === session?.metadata?.plan && p.amountCents > 0,
     );
@@ -365,6 +365,8 @@ export function createProductPlansService({
               plan: plan.id,
               amountCents: plan.amountCents,
               credits: plan.credits,
+              // Test-money purchases stay apart from real income.
+              livemode: livemode === true,
               createdAt: now(),
             },
           },
@@ -376,7 +378,15 @@ export function createProductPlansService({
     }
     throw new ProductError("Плащането чака обработка.", "PAYMENT_RETRY", 503);
   }
-  return { usage, reserve, refund, useFreeChat, fulfill };
+  // Lets the plans page show by itself that the units arrived. A person can
+  // only ask about their own purchase.
+  async function paymentStatus(identity, sessionId) {
+    const id = productAccountId(identity);
+    const entry = await db().get(LEDGER_COLLECTION, sessionId);
+    if (!entry || entry.data?.account !== id) return { status: "pending" };
+    return { status: "applied", credits: entry.data.credits };
+  }
+  return { usage, reserve, refund, useFreeChat, fulfill, paymentStatus };
 }
 let runtimeService;
 export function getProductPlansService() {

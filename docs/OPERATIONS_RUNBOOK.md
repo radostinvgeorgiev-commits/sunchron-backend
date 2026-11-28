@@ -116,3 +116,54 @@ jsonPayload.utm_content!="smoke-test"
 на един израз да не размества останалите преводи. Допълнителните каталози
 са подготвени предварително с M2M100. Липсващи преводи използват английския
 текст. Разговори, профили и лична памет не се изпращат към преводача.
+
+## Плащания: Google Pay, Apple Pay и карта (Stripe)
+
+Човекът плаща на страницата на Stripe (`checkout.stripe.com`). Stripe сам
+показва Google Pay (Chrome, Android), Apple Pay (Safari, iPhone, Mac) и карта
+според устройството. Номерът на картата никога не минава през сайта.
+Единиците се добавят само от подписаното потвърждение на Stripe към
+`/api/product/webhook`, веднъж за всяко плащане. След връщане страницата
+`/plans` сама пита `/api/product/payment-status` и казва „Готово“, щом
+единиците са добавени. Човекът се връща на същия адрес, от който е тръгнал
+(novariumai.com или cloudaicore.com), за да остане влязъл.
+
+Режими (`paymentMode`):
+
+- `off`: никой не плаща. Така е по подразбиране.
+- `test`: ключ `sk_test_…`, `PRODUCT_PAYMENTS_ENABLED=true`, тестова тайна за
+  потвържденията и `PRODUCT_PAYMENTS_TEST_ACCOUNTS` с номерата на позволените
+  профили (полето `account` от `/api/product/usage`). Само те виждат плащане и
+  то е с тестови пари. Записите в базата са с `livemode: false`.
+- `live`: ключ `sk_live_…`, live тайна и трите превключвателя
+  `PRODUCT_PAYMENTS_ENABLED`, `PRODUCT_MERCHANT_READY`,
+  `PRODUCT_UNIT_ECONOMICS_APPROVED`. Тестови събития се отказват.
+
+Проба с тестови пари (преди истинските плащания):
+
+1. Stripe (Sandbox) → Settings → Payment methods: включени Cards, Apple Pay и
+   Google Pay. По избор отделна настройка само с тях; нейният `pmc_…` отива в
+   `PRODUCT_STRIPE_PAYMENT_METHOD_CONFIG`.
+2. Stripe (Sandbox) → Webhooks: адрес
+   `https://novariumai.com/api/product/webhook` със събития
+   `checkout.session.completed`, `checkout.session.async_payment_succeeded` и
+   `checkout.session.async_payment_failed`. Тайната му я въвежда собственикът в
+   Secret Manager.
+3. Cloud Run, след „да“ от собственика: тестовият ключ и тайната от Secret
+   Manager, `PRODUCT_PAYMENTS_ENABLED=true` и
+   `PRODUCT_PAYMENTS_TEST_ACCOUNTS` с номера на тестовия профил.
+4. Проверка: тестовият профил вижда „Тестов режим“ и „Избери пакет“, а всеки
+   друг профил вижда „Плащанията предстоят“. Страницата на Stripe показва
+   Google Pay в Chrome с карта в Google Pay и Apple Pay в Safari на iPhone.
+   След тестово плащане `/plans` сама казва „Готово: 300 AI единици…“, а
+   логовете в Cloud Run са без грешки. Тестова карта от документацията на
+   Stripe въвежда само собственикът или скриптът на робота, никога истинска
+   карта.
+
+Истински плащания (по-късно): собственикът одобрява фирмата СИНХРОН Х ЕООД в
+Stripe (данни, документ, сметка), въвежда live ключа и live тайната в Secret
+Manager, после трите превключвателя стават `true` след неговото „да“. В
+Stripe: Branding (логото и неоновите цветове на NovariumAI), публично име
+„NovariumAI“, текст в извлечението „NOVARIUMAI“ и Customer emails → разписки
+за успешни плащания. Преди това: условията за продажба и правото на отказ от
+14 дни се проверяват с юрист (вж. `/plans`, „Преди плащане“).

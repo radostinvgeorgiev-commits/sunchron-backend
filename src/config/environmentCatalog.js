@@ -465,15 +465,25 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       "Планове",
       "Потвърждава, че цените на пакетите са одобрени.",
     ),
+    general(
+      "PRODUCT_PAYMENTS_TEST_ACCOUNTS",
+      "Планове",
+      "Номера на профили (от /api/product/usage, полето account), разделени със запетая, които могат да платят с тестови пари, докато Stripe ключът е sk_test_…. Другите не виждат плащане.",
+    ),
+    general(
+      "PRODUCT_STRIPE_PAYMENT_METHOD_CONFIG",
+      "Планове",
+      "По избор: настройка на начините на плащане в Stripe (pmc_…), напр. само карта, Google Pay и Apple Pay. Без нея Stripe показва включените по подразбиране.",
+    ),
     secret(
       "STRIPE_SECRET_KEY",
       "Планове",
-      "Live ключ на Stripe (sk_live_…) за плащане на пакетите.",
+      "Ключ на Stripe: sk_live_… за истински плащания или sk_test_… за проба с тестови пари само за профилите от PRODUCT_PAYMENTS_TEST_ACCOUNTS.",
     ),
     secret(
       "STRIPE_WEBHOOK_SECRET",
       "Планове",
-      "Тайна за проверка на потвържденията за плащане от Stripe.",
+      "Тайна за проверка на потвържденията за плащане от Stripe (от същия режим като ключа: live или test).",
     ),
     general(
       "PUBLIC_AI_MONTHLY_CREDIT_CAP",

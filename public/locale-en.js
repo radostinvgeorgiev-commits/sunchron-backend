@@ -616,7 +616,11 @@ AI задача|AI task
 Влез в профила си, за да видиш останалите AI единици.|Sign in to see your remaining AI credits.
 Профил на собственик — потребителските пакети не се прилагат.|Owner account. Member packages do not apply.
 Не успяхме да заредим потреблението. Опитай отново.|Could not load usage. Try again.
-Плащане с карта чрез Stripe. Пакетът се активира след потвърждение от платежния оператор.|Pay by card through Stripe. Your package activates after the payment provider confirms payment.
+Плащане с Google Pay, Apple Pay или карта чрез Stripe. Единиците се добавят сами веднага след потвърждението.|Pay with Google Pay, Apple Pay or a card through Stripe. Your credits are added automatically as soon as the payment is confirmed.
+Тестов режим: плащане с тестови пари на Stripe, без истинско таксуване.|Test mode: you pay with Stripe test money and nothing is really charged.
+Тестово плащане, без истински пари.|Test payment, no real money.
+Готово: {credits} AI единици са добавени към профила ти.|Done: {credits} AI credits were added to your account.
+Плащането още се потвърждава. Единиците ще се появят сами, щом Stripe го потвърди.|The payment is still being confirmed. Your credits will appear by themselves once Stripe confirms it.
 Платените покупки още не са активирани. Няма да бъде начислена сума.|Purchases are not enabled yet. You will not be charged.
 Избери пакет|Select package
 Плащанията предстоят|Payments coming later
@@ -629,7 +633,7 @@ AI задача|AI task
 Плащането се обработва. Връщането на тази страница не доказва плащане. Обнови потреблението след потвърждение.|Payment is processing. Returning to this page does not confirm payment. Refresh usage after confirmation.
 Плащането е прекратено. Можеш да опиташ отново.|Checkout was canceled. You can try again.
 {remaining} AI единици остават · валидни до {expires}|{remaining} AI credits remaining · valid until {expires}
-{name}: {price}, {credits} AI единици за 30 дни. Еднократно плащане, без автоматично подновяване. Да продължим ли към Stripe?|{name}: {price}, {credits} AI credits for 30 days. One-time payment with no automatic renewal. Continue to Stripe?
+{name}: {price}, {credits} AI единици за 30 дни. Еднократно плащане, без автоматично подновяване. Плащаш на страницата на Stripe с Google Pay, Apple Pay или карта. Да продължим ли?|{name}: {price}, {credits} AI credits for 30 days. One-time payment with no automatic renewal. You pay on Stripe's page with Google Pay, Apple Pay or a card. Continue?
 Приемам задачата…|Starting…
 Изпълни препоръката|Run recommendation
 Копирай|Copy

@@ -10,6 +10,11 @@ import {
   verifyPaymentEvent,
   createProductCheckout,
   paymentsEnabled,
+  paymentMode,
+  paymentsAvailableFor,
+  checkoutReturnOrigin,
+  handlePaymentEvent,
+  isCheckoutSessionId,
 } from "../src/services/productPaymentService.js";
 import {
   registerUser,
@@ -191,6 +196,8 @@ test("checkout is disabled until merchant, economics and payment configuration a
   assert.equal(params.get("line_items[0][price_data][unit_amount]"), "299");
   assert.equal(params.get("mode"), "payment");
   assert.equal(params.get("metadata[account]"), productAccountId(member));
+  // No fixed card-only list, so Stripe can offer Google Pay and Apple Pay.
+  assert.equal(params.has("payment_method_types[0]"), false);
   assert.equal(result.url, "https://checkout.stripe.com/c/pay/test");
   await assert.rejects(
     () => createProductCheckout(member, "invented", { env }),
@@ -414,4 +421,202 @@ test("a refund gives one reservation back once, only to its own account", async 
   assert.equal(await service.refund(member, id), false);
   assert.equal((await service.usage(member)).remaining, 100);
   await assert.rejects(() => service.reserve(member, 101), { code: "PRODUCT_UNAVAILABLE" });
+});
+const liveEnv = Object.freeze({
+  PRODUCT_PAYMENTS_ENABLED: "true",
+  STRIPE_SECRET_KEY: "sk_live_test",
+  STRIPE_WEBHOOK_SECRET: "whsec_test",
+  PRODUCT_MERCHANT_READY: "true",
+  PRODUCT_UNIT_ECONOMICS_APPROVED: "true",
+});
+const testEnv = Object.freeze({
+  PRODUCT_PAYMENTS_ENABLED: "true",
+  STRIPE_SECRET_KEY: "sk_test_sandbox",
+  STRIPE_WEBHOOK_SECRET: "whsec_sandbox",
+  PRODUCT_PAYMENTS_TEST_ACCOUNTS: ` ${productAccountId(member).toUpperCase()} , not-an-id`,
+});
+async function checkoutParams(identity, options) {
+  let body;
+  await createProductCheckout(identity, "personal", {
+    ...options,
+    fetchImpl: async (_url, request) => {
+      body = request.body;
+      return {
+        ok: true,
+        json: async () => ({ url: "https://checkout.stripe.com/c/pay/cs" }),
+      };
+    },
+  });
+  return new URLSearchParams(body);
+}
+test("Stripe's page offers Google Pay and Apple Pay and brings people back to the site they started on", async () => {
+  const params = await checkoutParams(member, {
+    env: liveEnv,
+    host: "novariumai.com",
+    language: "bg",
+  });
+  assert.equal(params.has("payment_method_types[0]"), false);
+  assert.equal(params.has("payment_method_configuration"), false);
+  assert.equal(params.get("locale"), "bg");
+  assert.equal(
+    params.get("success_url"),
+    "https://novariumai.com/plans?payment=processing&session_id={CHECKOUT_SESSION_ID}",
+  );
+  assert.equal(
+    params.get("cancel_url"),
+    "https://novariumai.com/plans?payment=cancelled",
+  );
+  assert.equal(
+    params.get("line_items[0][price_data][product_data][name]"),
+    "NovariumAI · Личен · 300 AI единици / 30 дни",
+  );
+  const english = await checkoutParams(member, {
+    env: { ...liveEnv, PRODUCT_STRIPE_PAYMENT_METHOD_CONFIG: "pmc_1AbC" },
+    host: "www.cloudaicore.com:443",
+    language: "en",
+  });
+  assert.equal(english.get("locale"), "en");
+  assert.equal(english.get("payment_method_configuration"), "pmc_1AbC");
+  assert.match(english.get("success_url"), /^https:\/\/www\.cloudaicore\.com\/plans\?/u);
+  assert.equal(
+    english.get("line_items[0][price_data][product_data][name]"),
+    "NovariumAI · Personal · 300 AI credits / 30 days",
+  );
+  const unknown = await checkoutParams(member, {
+    env: { ...liveEnv, PRODUCT_STRIPE_PAYMENT_METHOD_CONFIG: "pmc_1&mode=x" },
+    host: "evil.example",
+    language: "xx",
+  });
+  assert.equal(unknown.get("locale"), "auto");
+  assert.equal(unknown.has("payment_method_configuration"), false);
+  assert.match(unknown.get("success_url"), /^https:\/\/novariumai\.com\/plans\?/u);
+  assert.equal(checkoutReturnOrigin(undefined), "https://novariumai.com");
+  assert.equal(checkoutReturnOrigin("CloudAICore.com"), "https://cloudaicore.com");
+});
+test("test money works only for the listed test accounts and never mixes with real payments", async () => {
+  assert.equal(paymentMode(testEnv), "test");
+  assert.equal(paymentsEnabled(testEnv), false);
+  assert.equal(paymentsAvailableFor(member, testEnv), true);
+  assert.equal(paymentsAvailableFor(other, testEnv), false);
+  assert.equal(paymentsAvailableFor({ role: "member" }, testEnv), false);
+  await assert.rejects(
+    () => createProductCheckout(other, "personal", { env: testEnv }),
+    (e) => e.code === "PAYMENTS_NOT_CONFIGURED",
+  );
+  const params = await checkoutParams(member, { env: testEnv });
+  assert.equal(params.get("metadata[account]"), productAccountId(member));
+  assert.equal(
+    paymentMode({ ...testEnv, PRODUCT_PAYMENTS_TEST_ACCOUNTS: "" }),
+    "off",
+  );
+  assert.equal(
+    paymentMode({ ...testEnv, PRODUCT_PAYMENTS_ENABLED: "false" }),
+    "off",
+  );
+  assert.equal(paymentMode({ ...testEnv, STRIPE_WEBHOOK_SECRET: "" }), "off");
+  assert.equal(
+    paymentMode({ ...liveEnv, PRODUCT_PAYMENTS_TEST_ACCOUNTS: testEnv.PRODUCT_PAYMENTS_TEST_ACCOUNTS }),
+    "live",
+  );
+  assert.equal(paymentMode({ ...liveEnv, PRODUCT_MERCHANT_READY: "false" }), "off");
+  assert.equal(paymentsAvailableFor(other, liveEnv), true);
+});
+function sessionEvent(type, session, livemode) {
+  return { type, livemode, data: { object: session } };
+}
+test("only Stripe's signed confirmation adds units, once, also for payments confirmed later", async () => {
+  const store = memoryStore();
+  const service = createProductPlansService({ store, now });
+  const fulfill = (session, options) => service.fulfill(session, options);
+  const paid = paidSession();
+  await assert.rejects(
+    () => handlePaymentEvent(sessionEvent("checkout.session.completed", paid, true), { env: {}, fulfill }),
+    (e) => e.code === "PAYMENTS_NOT_CONFIGURED" && e.status === 503,
+  );
+  assert.deepEqual(
+    await handlePaymentEvent(
+      sessionEvent("checkout.session.completed", { ...paid, payment_status: "unpaid" }, true),
+      { env: liveEnv, fulfill },
+    ),
+    { pending: true },
+  );
+  assert.equal((await service.usage(member)).remaining, 100);
+  assert.deepEqual(
+    await handlePaymentEvent(
+      sessionEvent("checkout.session.async_payment_succeeded", paid, true),
+      { env: liveEnv, fulfill },
+    ),
+    { applied: true },
+  );
+  assert.deepEqual(
+    await handlePaymentEvent(sessionEvent("checkout.session.completed", paid, true), {
+      env: liveEnv,
+      fulfill,
+    }),
+    { duplicate: true },
+  );
+  assert.equal((await service.usage(member)).remaining, 400);
+  assert.equal(store.rows.get("synchron-product-events-v1/cs_live_purchase").data.livemode, true);
+  assert.deepEqual(
+    await handlePaymentEvent(sessionEvent("checkout.session.expired", paid, true), {
+      env: liveEnv,
+      fulfill,
+    }),
+    { ignored: true },
+  );
+  await assert.rejects(
+    () => handlePaymentEvent(sessionEvent("checkout.session.completed", paid, false), { env: liveEnv, fulfill }),
+    (e) => e.code === "PAYMENT_MODE_MISMATCH",
+  );
+});
+test("test-money confirmations count only for listed accounts and are marked as tests", async () => {
+  const store = memoryStore();
+  const service = createProductPlansService({ store, now });
+  const fulfill = (session, options) => service.fulfill(session, options);
+  const testPaid = { ...paidSession(), id: "cs_test_purchase" };
+  await assert.rejects(
+    () => handlePaymentEvent(sessionEvent("checkout.session.completed", testPaid, true), { env: testEnv, fulfill }),
+    (e) => e.code === "PAYMENT_MODE_MISMATCH",
+  );
+  await assert.rejects(
+    () =>
+      handlePaymentEvent(
+        sessionEvent(
+          "checkout.session.completed",
+          { ...testPaid, metadata: { account: productAccountId(other), plan: "personal" } },
+          false,
+        ),
+        { env: testEnv, fulfill },
+      ),
+    (e) => e.code === "PAYMENT_TEST_ACCOUNT",
+  );
+  assert.equal((await service.usage(other)).remaining, 100);
+  assert.deepEqual(
+    await handlePaymentEvent(sessionEvent("checkout.session.completed", testPaid, false), {
+      env: testEnv,
+      fulfill,
+    }),
+    { applied: true },
+  );
+  assert.equal((await service.usage(member)).remaining, 400);
+  assert.equal(store.rows.get("synchron-product-events-v1/cs_test_purchase").data.livemode, false);
+});
+test("a person sees only the status of their own purchase", async () => {
+  const store = memoryStore();
+  const service = createProductPlansService({ store, now });
+  assert.deepEqual(await service.paymentStatus(member, "cs_live_purchase"), {
+    status: "pending",
+  });
+  await service.fulfill(paidSession());
+  assert.deepEqual(await service.paymentStatus(member, "cs_live_purchase"), {
+    status: "applied",
+    credits: 300,
+  });
+  assert.deepEqual(await service.paymentStatus(other, "cs_live_purchase"), {
+    status: "pending",
+  });
+  assert.equal(isCheckoutSessionId("cs_test_a1B2"), true);
+  assert.equal(isCheckoutSessionId("cs_live_a1B2"), true);
+  for (const bad of ["cs_a1", "cs_test_", "cs_test_a b", "../cs_test_a", "public-2026-11", undefined])
+    assert.equal(isCheckoutSessionId(bad), false);
 });

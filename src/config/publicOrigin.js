@@ -21,31 +21,3 @@ export function publicOrigin(env = process.env) {
 export function googleConnectUrl(env = process.env) {
   return String(env.GOOGLE_CONNECT_URL || `${publicOrigin(env)}/api/google/connect`);
 }
-
-// The site's two names. A sign-in or a Google or GitHub connection that starts
-// on one name and comes back to the other loses its state cookie (it belongs
-// to one address), so these start addresses first move to the public one. A
-// sign-in begun on novariumai.com while Google still returns to the old name,
-// or on the old name after the move, works either way.
-const SITE_HOSTS = new Set([
-  "cloudaicore.com",
-  "www.cloudaicore.com",
-  "novariumai.com",
-  "www.novariumai.com",
-]);
-const START_PATH = /^\/api\/(?:auth\/[a-z]+\/start|google\/connect|github\/connect)$/u;
-
-export function startOnPublicOrigin(env = process.env) {
-  return (req, res, next) => {
-    if (req.method !== "GET" || !START_PATH.test(req.path)) return next();
-    const host = String(req.get("host") || "").trim().toLowerCase();
-    let target;
-    try {
-      target = new URL(publicOrigin(env));
-    } catch {
-      return next();
-    }
-    if (!SITE_HOSTS.has(host) || host === target.host) return next();
-    return res.redirect(302, `${target.origin}${req.originalUrl}`);
-  };
-}

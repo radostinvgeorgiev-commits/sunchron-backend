@@ -15,3 +15,18 @@ updates:
         applies-to: "version-updates"
         patterns:
           - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Europe/Sofia"
+    open-pull-requests-limit: 1
+    groups:
+      all-github-actions:
+        applies-to: "version-updates"
+        patterns:
+          - "*"

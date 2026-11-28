@@ -22,6 +22,7 @@ import { getBookMemoryService } from "./bookMemoryService.js";
 import { getAddonService } from "./addonService.js";
 import { getClaudeWorkService } from "./claudeWorkService.js";
 import { getAvatarProfileService } from "./avatarProfileService.js";
+import { getToolSwitchService } from "./toolSwitchService.js";
 
 // Self-service GDPR rights for member accounts: a full copy of the data AI
 // CORE holds about the account (Art. 15/20) and erasure (Art. 17). Payment
@@ -225,6 +226,8 @@ export async function deleteAccount(
     clearAddons = (ownerId) => getAddonService().clear(ownerId),
     clearClaudeWork = (ownerId) => getClaudeWorkService().clear(ownerId),
     forgetAvatarProfile = (ownerId) => getAvatarProfileService().forget(ownerId),
+    // „Разкачи“ and „Свържи“ in „Инструменти“ (toolSwitchService.js).
+    forgetToolSwitches = (ownerId) => getToolSwitchService().forget(ownerId),
   } = {},
 ) {
   assertMember(identity);
@@ -271,6 +274,7 @@ export async function deleteAccount(
   await clearAddons(ownerId);
   await clearClaudeWork(ownerId);
   await forgetAvatarProfile(ownerId);
+  await forgetToolSwitches(ownerId);
 
   const removed = await client.auth.deleteAccount(accessToken);
   if (removed?.error) {

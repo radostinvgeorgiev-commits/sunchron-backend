@@ -46,6 +46,7 @@ import publicConfigRouter from "./src/routes/publicConfigRouter.js";
 import userAuthRouter, { handleGoogleSignInCallback } from "./src/routes/userAuthRouter.js";
 import { startOnCallbackOrigin } from "./src/middleware/startOnCallbackOrigin.js";
 import { signInFirst } from "./src/middleware/signInFirst.js";
+import { redirectOldSiteName } from "./src/middleware/redirectOldSiteName.js";
 import { returnToConnectStart } from "./src/middleware/returnToConnectStart.js";
 import { isGoogleSignInCallback } from "./src/services/googleSignInService.js";
 import { getActivityService } from "./src/services/activityService.js";
@@ -73,6 +74,8 @@ import { getDailyPlanService } from "./src/services/dailyPlanService.js";
 import { getCausesService } from "./src/services/causesService.js";
 import { getAvatarProfileService } from "./src/services/avatarProfileService.js";
 import { createPersonalTodoRouter } from "./src/routes/personalTodoRouter.js";
+import { createToolSwitchRouter } from "./src/routes/toolSwitchRouter.js";
+import { getToolSwitchService } from "./src/services/toolSwitchService.js";
 import { createBookMemoryRouter } from "./src/routes/bookMemoryRouter.js";
 import { createFreeChapterCheckRouter } from "./src/routes/freeChapterCheckRouter.js";
 import { createAddonRouter } from "./src/routes/addonRouter.js";
@@ -152,6 +155,9 @@ app.use((_req, res, next) => {
   res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
   next();
 });
+// A page opened on the old name, cloudaicore.com, moves for good to
+// novariumai.com (src/middleware/redirectOldSiteName.js).
+app.use(redirectOldSiteName());
 app.post(
   "/api/product/webhook",
   express.raw({ type: "application/json", limit: "128kb" }),
@@ -307,6 +313,14 @@ app.get(
       res.status(503).json({ error: "Проверката временно не е достъпна." });
     }
   },
+);
+// „Разкачи“ and „Свържи“ on every card in „Инструменти“: each person's own
+// switches for the tools their account can use.
+app.use(
+  "/api/tools/switches",
+  requireOwnerSession,
+  privateApiRateLimiter,
+  createToolSwitchRouter({ service: getToolSwitchService() }),
 );
 app.use(
   "/api/github",

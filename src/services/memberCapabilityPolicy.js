@@ -54,12 +54,17 @@ export function canPlanCapabilities(identity) {
   return roleOf(identity) === "owner" || isMemberIdentity(identity);
 }
 
+// `capabilitiesOff` holds what the person turned off with „Разкачи“ in
+// „Инструменти“ (toolSwitchService.js); it is left out for every account,
+// the owner's too.
 export function filterCapabilityRequestsForIdentity(
   requests = [],
   identity = null,
-  { ownGoogle = false } = {},
+  { ownGoogle = false, capabilitiesOff = null } = {},
 ) {
-  const safeRequests = Array.isArray(requests) ? requests : [];
+  const safeRequests = (Array.isArray(requests) ? requests : []).filter(
+    (request) => !capabilitiesOff?.has?.(request?.capability),
+  );
   if (roleOf(identity) === "owner") return safeRequests;
   if (!isMemberIdentity(identity)) return [];
   return safeRequests.filter(

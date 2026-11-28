@@ -23,3 +23,11 @@
 .ai-spend-limit button { padding: 8px 14px; border-radius: 8px; border: 0; background: #5b3fe0; color: #fff; font-weight: 800; }
 .ai-ratings-title { display: block; margin-top: 10px; }
 .ai-ratings { margin: 4px 0 10px; padding-left: 18px; font-size: .9rem; }
+
+/* At the bottom, next to send (RADKO 28.11 13:48): the panel opens upwards
+   over the box where you type, like the "+" menu. */
+.chat-input-area > .ai-spend { position: static; margin: 0; flex: 0 0 auto; }
+.chat-input-area > .ai-spend .ai-spend-panel {
+  position: absolute; top: auto; right: 12px; bottom: calc(100% + 8px);
+  max-height: min(70vh, 520px); overflow-y: auto;
+}

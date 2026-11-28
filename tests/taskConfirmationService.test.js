@@ -166,6 +166,64 @@ test("a member confirms only steps on their own Google; anything else stops the 
   assert.deepEqual(own.calls, ["calendar.write", "contacts.create"]);
 });
 
+test("a step on a tool turned off in „Инструменти“ stops the whole task, and the confirmation stays", async () => {
+  const calls = [];
+  const group = await createTaskConfirmation({
+    ownerId: "owner-1",
+    sessionId: "session-1",
+    taskId: "task-1",
+    items: [
+      { confirmationId: "event-1", capability: "calendar.write", toolId: "google-calendar-write" },
+      { confirmationId: "mail-1", capability: "mail.send", toolId: "gmail-read" },
+    ],
+    createConfirmation,
+  });
+  const confirm = (capabilitiesOff, language) =>
+    confirmTaskWrite({
+      ownerId: "owner-1",
+      sessionId: "session-1",
+      taskConfirmationId: group.confirmationId,
+      taskId: "task-1",
+      language,
+      capabilitiesOff,
+      executeCapability: async (capability) => {
+        calls.push(capability);
+        return { output: "ok" };
+      },
+      confirmCodeTask: async () => {
+        throw new Error("code task is not expected in this fixture");
+      },
+    });
+
+  // Gmail is off: nothing runs, not even the calendar step before it.
+  await assert.rejects(
+    () => confirm(new Set(["mail.send", "mail.read"])),
+    (error) =>
+      error.code === "TOOL_SWITCHED_OFF" &&
+      error.status === 409 &&
+      /разкачен в „Инструменти“/u.test(error.message),
+  );
+  await assert.rejects(
+    () => confirm(new Set(["mail.send"]), "en"),
+    (error) => error.code === "TOOL_SWITCHED_OFF" && /turned off in “Tools”/u.test(error.message),
+  );
+  // The switches could not be read: nothing runs, and it is not called the
+  // person's choice.
+  const unreadable = new Set(["mail.send", "calendar.write"]);
+  unreadable.unavailable = true;
+  await assert.rejects(
+    () => confirm(unreadable),
+    (error) => error.code === "TOOL_SWITCHED_OFF" && /не се прочетоха/u.test(error.message),
+  );
+  assert.deepEqual(calls, []);
+
+  // Gmail is on again: the same confirmation runs, once.
+  const done = await confirm(new Set());
+  assert.equal(done.results.length, 2);
+  assert.deepEqual(calls, ["calendar.write", "mail.send"]);
+  await assert.rejects(() => confirm(new Set()), (error) => error.code === "CONFIRMATION_NOT_FOUND");
+});
+
 test("each step runs under the session it was prepared in, the task under its own", async () => {
   // The connector (item 3, fix 1b): the steps under the owner, the task
   // under the conversation.

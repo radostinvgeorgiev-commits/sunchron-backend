@@ -1307,5 +1307,54 @@ Claude, GPT, Gemini и други. Избираш сам или оставяш �
 Промяната не беше записана.|The change was not saved.
 Фактите не можаха да се извадят. Опитай пак.|The facts could not be extracted. Try again.
 Паметта е пълна. Изтрий проект или факти, които вече не ти трябват.|The memory is full. Delete a project or facts you no longer need.
+Още разговори|More conversations
+Свързан|Connected
+Разкачен|Disconnected
+Разкачи|Disconnect
+Управление на връзките|Manage connections
+Състоянието на инструментите не е достъпно.|The tools' status is not available.
+Инструментите не могат да се заредят.|The tools could not be loaded.
+Показано е реалното състояние. „Свързан“ значи, че аватарът ти го ползва. „Разкачи“ го спира само за теб, „Свържи“ го пуска пак.|This is the real state. “Connected” means your avatar uses it. “Disconnect” turns it off for you only, and “Connect” turns it back on.
+Drive, Gmail, Calendar и Contacts|Drive, Gmail, Calendar and Contacts
+Чете разрешени файлове от Google Drive.|Reads allowed files from Google Drive.
+Показва събития от Google Calendar.|Shows events from Google Calendar.
+Търси и чете имейли и създава чернови. Изпращане и кошче се изпълняват само след точно потвърждение.|Searches and reads emails and creates drafts. Sending and moving to the bin happen only after an exact confirmation.
+Търси контакти; добавяне и промяна стават само след потвърждение.|Searches contacts; adding and changing them happen only after confirmation.
+Търси актуална информация в интернет.|Searches the internet for current information.
+Създава събития в Google Calendar от твоите точни думи.|Creates events in Google Calendar from your exact words.
+Показва твоя YouTube канал и видеата в него.|Shows your YouTube channel and its videos.
+Прави резюме на YouTube видео по линк.|Summarizes a YouTube video from a link.
+Намира места наблизо с Google Карти.|Finds places nearby with Google Maps.
+Твоите задачи: добавяш ги с думи в чата.|Your tasks: you add them with words in the chat.
+Инструмент на NovariumAI.|A NovariumAI tool.
+Не е конфигуриран|Not set up
+Иска свързване|Needs connecting
+Проверявам…|Checking…
+Настроен · без жива проверка|Set up · no live check
+Връзката изтече|Connection expired
+Още не е разрешен|Not allowed yet
+Свържи отново|Connect again
+Работи · проверено {time}|Works · checked {time}
+Не отговаря|Not responding
+Истинско четене току-що мина успешно.|A real read just succeeded.
+Проверката не мина.|The check did not pass.
+Не отговори навреме.|Did not answer in time.
+Не отговори.|Did not answer.
+Още не е разрешен.|Not allowed yet.
+Връзката с Google изтече.|The Google connection expired.
+Промяната не беше записана. Опитай пак.|The change was not saved. Try again.
+Свързан е {name}|{name} is connected
+Разкачен е {name}|{name} is disconnected
+Да спра ли достъпа на NovariumAI до {name}?|Stop NovariumAI's access to {name}?
+Връзката не можа да бъде прекъсната.|The connection could not be cut.
+Прекъсната е връзката с {name}|The connection to {name} is cut
+Кажи дали инструментът да е свързан.|Say whether the tool should be connected.
+Няма такъв инструмент.|There is no such tool.
+Превключвателите на инструментите не можаха да се прочетат.|The tool switches could not be read.
+Моят YouTube канал|My YouTube channel
+Google Карти|Google Maps
+Модел|Model
+Claude чете и обяснява код в отделна среда, без запис.|Claude reads and explains code in a separate environment, without writing anything.
+Отвори ChatGPT|Open ChatGPT
 `.trim().split("\n").map((line) => line.split("|")),
 );

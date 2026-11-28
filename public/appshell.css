@@ -90,6 +90,22 @@
 .conversation.active {
   background: #e9e9eb;
 }
+.conversation-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 12px;
+}
+.conversation-older {
+  display: grid;
+  gap: 2px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.conversation-older[hidden] {
+  display: none;
+}
 .profile-button {
   min-height: 54px;
   padding: 7px 9px;

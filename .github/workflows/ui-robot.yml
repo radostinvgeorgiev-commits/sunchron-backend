@@ -49,4 +49,4 @@ jobs:
         env:
           ROBOT_TEST_EMAIL: ${{ secrets.ROBOT_TEST_EMAIL }}
           ROBOT_TEST_PASSWORD: ${{ secrets.ROBOT_TEST_PASSWORD }}
-        run: node tests/ui/robot.mjs --public https://cloudaicore.com
+        run: node tests/ui/robot.mjs --public https://novariumai.com

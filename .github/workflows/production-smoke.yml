@@ -16,7 +16,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PRODUCTION_ORIGIN: https://cloudaicore.com
+  PRODUCTION_ORIGIN: https://novariumai.com
+  # The old name: its pages move to novariumai.com, while the AI connectors
+  # added with it keep their open handshake there.
+  OLD_ORIGIN: https://cloudaicore.com
 
 jobs:
   smoke:
@@ -78,6 +81,21 @@ jobs:
           grep -q '<title>NovariumAI' <<< "${page}"
           grep -q 'href="/novariumai-mark.png"' <<< "${page}"
           grep -q 'src="/work-mode.js?' <<< "${page}"
+
+      - name: Check the old name moves to novariumai.com
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Asked for like a browser opens a page. The health check is asked
+          # for the same way, so it shows that /health itself stays.
+          moved="$(curl --silent --show-error --max-time 30 -o /dev/null -w '%{http_code} %{redirect_url}' \
+            -H 'Accept: text/html' "${OLD_ORIGIN}/plans?smoke=${GITHUB_RUN_ID}")"
+          echo "old name page: ${moved}"
+          test "${moved}" = "301 ${PRODUCTION_ORIGIN}/plans?smoke=${GITHUB_RUN_ID}"
+          kept="$(curl --silent --show-error --max-time 30 -o /dev/null -w '%{http_code}' \
+            -H 'Accept: text/html' "${OLD_ORIGIN}/health")"
+          echo "old name health: ${kept}"
+          test "${kept}" = "200"
 
       - name: Check application health and readiness
         shell: bash
@@ -183,7 +201,7 @@ jobs:
               --header 'Content-Type: application/json' \
               --header 'Accept: application/json, text/event-stream' \
               --data '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
-              "${PRODUCTION_ORIGIN}/mcp?catalog-check=${attempt}" 2>/dev/null || true)"
+              "${OLD_ORIGIN}/mcp?catalog-check=${attempt}" 2>/dev/null || true)"
             if printf '%s' "${response}" | node -e '
               let input = "";
               process.stdin.on("data", (chunk) => { input += chunk; });
@@ -231,7 +249,7 @@ jobs:
             --header 'Content-Type: application/json' \
             --header 'Accept: application/json, text/event-stream' \
             --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_personal_context","arguments":{}}}' \
-            "${PRODUCTION_ORIGIN}/mcp")"
+            "${OLD_ORIGIN}/mcp")"
           test "${challenge_status}" = "401"
           grep -Eiq '^www-authenticate:.*Bearer.*synchron:read.*error="invalid_token".*error_description="' "${challenge_headers}"
           node -e '

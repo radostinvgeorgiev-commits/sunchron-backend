@@ -163,3 +163,69 @@ test("a send Google refuses says so on the connector, not that the service is do
   // Google's own reason, as the site says it.
   assert.match(shown.message, /Gmail няма дадено разрешение/u);
 });
+
+test("an email prepared before Gmail was turned off in „Инструменти“ is not sent, and it can be confirmed once Gmail is on", async (t) => {
+  const sends = gmail(t);
+  const { capabilitiesOfTools } = await import("../src/services/toolSwitchService.js");
+  let off = new Set();
+  const read = [];
+  const deps = {
+    ...dependencies(await ownGoogle(), "mcp-confirm-switched-off"),
+    readCapabilitiesOff: async (ownerId) => {
+      read.push(ownerId);
+      return off;
+    },
+  };
+  const prepared = await sendMcpAgentMessage({ ownerId: "primary-user", message: HIS_WORDS, identity }, deps);
+  const id = confirmationIn(prepared.response);
+  assert.ok(id, prepared.response);
+
+  off = capabilitiesOfTools(["gmail-read"]);
+  let failure;
+  try {
+    await sendMcpAgentMessage(
+      { ownerId: "primary-user", sessionId: prepared.sessionId, message: `Потвърждавам NovariumAI задача: ${id}`, identity },
+      deps,
+    );
+  } catch (error) {
+    failure = error;
+  }
+  assert.equal(failure?.code, "TOOL_SWITCHED_OFF");
+  assert.equal(sends.length, 0);
+  const shown = safeMcpError(failure);
+  assert.equal(shown.data?.code, "TOOL_SWITCHED_OFF");
+  assert.match(shown.message, /разкачен в „Инструменти“/u);
+  assert.ok(read.every((ownerId) => ownerId === "primary-user"));
+
+  off = new Set();
+  const confirmed = await sendMcpAgentMessage(
+    { ownerId: "primary-user", sessionId: prepared.sessionId, message: `Потвърждавам NovariumAI задача: ${id}`, identity },
+    deps,
+  );
+  assert.equal(sends.length, 1);
+  assert.match(confirmed.response, /изпълнена: 1 операции/u);
+});
+
+test("the connector's reader gets the person's switches, so it asks nothing about a tool that is off", async () => {
+  const seen = [];
+  const off = new Set(["mail.send"]);
+  await sendMcpAgentMessage(
+    { ownerId: "primary-user", message: "прати имейл на иван", identity },
+    {
+      ...dependencies(null, "mcp-reader-switches"),
+      readCapabilitiesOff: async () => off,
+      readWords: async (options) => {
+        seen.push(options.capabilitiesOff);
+        return { type: "none" };
+      },
+      runTask: async (options) => ({
+        requests: options.fallbackRequests,
+        results: [],
+        task: null,
+        plannerUsed: false,
+      }),
+      askAi: async () => "Gmail е разкачен в „Инструменти“.",
+    },
+  );
+  assert.deepEqual(seen, [off]);
+});

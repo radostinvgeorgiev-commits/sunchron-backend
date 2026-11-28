@@ -27,6 +27,8 @@ const state = {
   pendingImage: null,
   conversations: [],
   conversationLoadError: "",
+  // The history shows the latest few; the rest wait in a drop-down.
+  olderConversationsOpen: false,
   recentConversationMessages: [],
   memoryItems: [],
   knowledgeItems: [],
@@ -40,6 +42,8 @@ const state = {
 };
 
 const MAX_CHAT_INPUT_HEIGHT = 160;
+// How many of the latest conversations the history shows before "Още разговори".
+const RECENT_CONVERSATIONS = 5;
 let statusReturnFocus = null;
 
 const elements = {
@@ -583,18 +587,53 @@ function renderConversationList() {
     return;
   }
 
-  for (const item of conversations) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "conversation";
-    if (item.sessionId === state.sessionId) button.classList.add("active");
-    button.dataset.sessionId = item.sessionId;
-    button.textContent = item.title;
-    elements.conversationList.appendChild(button);
+  // Only the latest few stay in sight; the others are in "Още разговори".
+  // A search shows every match, and the open conversation is always shown.
+  const recent = query ? conversations : conversations.slice(0, RECENT_CONVERSATIONS);
+  const older = query ? [] : conversations.slice(RECENT_CONVERSATIONS);
+  const openOlder = older.find((item) => item.sessionId === state.sessionId);
+  for (const item of openOlder ? [...recent, openOlder] : recent) {
+    elements.conversationList.appendChild(conversationButton(item));
   }
+  const rest = older.filter((item) => item !== openOlder);
+  if (!rest.length) return;
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "conversation-more";
+  toggle.setAttribute("aria-controls", "olderConversations");
+  toggle.setAttribute("aria-expanded", String(state.olderConversationsOpen));
+  const label = document.createElement("span");
+  label.textContent = `${chatText("Още разговори")} (${rest.length})`;
+  const arrow = document.createElement("i");
+  arrow.className = "fa-solid fa-chevron-down";
+  arrow.setAttribute("aria-hidden", "true");
+  toggle.append(label, arrow);
+  const menu = document.createElement("div");
+  menu.id = "olderConversations";
+  menu.className = "conversation-older";
+  menu.hidden = !state.olderConversationsOpen;
+  menu.append(...rest.map(conversationButton));
+  elements.conversationList.append(toggle, menu);
+}
+
+function conversationButton(item) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "conversation";
+  if (item.sessionId === state.sessionId) button.classList.add("active");
+  button.dataset.sessionId = item.sessionId;
+  button.textContent = item.title;
+  return button;
 }
 
 async function handleConversationClick(event) {
+  const more = event.target.closest(".conversation-more");
+  if (more) {
+    state.olderConversationsOpen = !state.olderConversationsOpen;
+    more.setAttribute("aria-expanded", String(state.olderConversationsOpen));
+    document.getElementById("olderConversations").hidden = !state.olderConversationsOpen;
+    return;
+  }
   const button = event.target.closest("button[data-session-id]");
   if (button) await openConversation(button.dataset.sessionId);
 }
@@ -1174,6 +1213,16 @@ function requiresGoogleOAuth(tool) {
   return GOOGLE_OAUTH_TOOL_IDS.has(tool?.id);
 }
 
+const GITHUB_TOOL_IDS = new Set(["github-read", "github-write", "github-confirmed-write"]);
+
+// The live check for a tool's card. A member's list checks their own Google
+// only: the site's own checks (/api/tools/check) are the owner's.
+function liveCheckOf(tool) {
+  const check = LIVE_TOOL_CHECKS[tool?.id];
+  if (!check) return "";
+  return check.startsWith("core:") && document.body.dataset.userRole !== "owner" ? "" : check;
+}
+
 function toolState(tool, googleConnected, githubConnected) {
   if (!tool.enabled || !tool.executable) {
     return { label: "Не е свързан", className: "deny" };
@@ -1195,7 +1244,7 @@ function toolState(tool, googleConnected, githubConnected) {
   }
   // "Работи" only after a real call answers (see checkToolsLive). Until then
   // the badge says what is known: it is set up, and whether it is checked.
-  if (LIVE_TOOL_CHECKS[tool.id]) {
+  if (liveCheckOf(tool)) {
     return { label: "Проверявам…", className: "confirm" };
   }
   if (
@@ -1270,7 +1319,7 @@ async function checkToolsLive(container) {
           .catch(() => null)
       : null,
   ]);
-  const time = new Date().toLocaleTimeString("bg-BG", { hour: "2-digit", minute: "2-digit" });
+  const time = new Date().toLocaleTimeString(chatLocale?.browserLocale || "bg-BG", { hour: "2-digit", minute: "2-digit" });
   for (const badge of badges) {
     const [kind, service] = badge.dataset.liveCheck.split(":");
     let result = { ok: false, reason: "Проверката не мина." };
@@ -1282,37 +1331,55 @@ async function checkToolsLive(container) {
       result = github?.ok ? { ok: true } : { ok: false, reason: github?.data?.error || "GitHub не отговори." };
     }
     if (!result.ok && typeof result.connect === "string" && result.connect.startsWith("/api/google/connect")) {
+      // Google has not allowed this service yet: not „Свързан“, and its one
+      // button is the one that allows it.
+      const actions = badge.closest(".tool-status-actions");
+      const linkState = actions?.querySelector(".tool-link-state");
+      if (linkState) {
+        linkState.className = "tool-link-state off";
+        linkState.textContent = chatText("Не е свързан");
+      }
+      actions?.querySelector(".tool-unplug-btn")?.remove();
       badge.className = "permission-badge confirm";
-      badge.textContent = result.reconnect ? "Връзката изтече" : "Още не е разрешен";
+      badge.textContent = chatText(result.reconnect ? "Връзката изтече" : "Още не е разрешен");
       const link = document.createElement("a");
       link.className = "tool-connect-btn";
       link.href = result.connect;
-      link.textContent = result.reconnect ? "Свържи отново" : "Разреши";
+      link.textContent = chatText(result.reconnect ? "Свържи отново" : "Разреши");
       badge.after(link);
       continue;
     }
     badge.className = `permission-badge ${result.ok ? "allow" : "deny"}`;
-    badge.textContent = result.ok ? `Работи · проверено ${time}` : "Не отговаря";
-    badge.title = result.ok ? "Истинско четене току-що мина успешно." : result.reason || "";
+    badge.textContent = result.ok ? chatText("Работи · проверено {time}", { time }) : chatText("Не отговаря");
+    badge.title = result.ok ? chatText("Истинско четене току-що мина успешно.") : chatText(result.reason || "");
     if (!result.ok && result.reason) {
       const note = document.createElement("small");
       note.className = "tool-live-reason";
-      note.textContent = result.reason;
+      note.textContent = chatText(result.reason);
       badge.after(note);
     }
   }
 }
 
-function toolStatusActions(tool, status, googleConnected, githubConnected) {
+// What a tool's card shows (RADKO 28.11 13:50, 14:11): whether it is
+// connected, its live check, and the one button that changes it. A connected
+// tool says „Свързан“ and has „Разкачи“; a tool the person turned off says
+// „Разкачен“ and has „Свържи“; one that waits for Google or GitHub has that
+// connect button. `switchOn` is the person's own switch for the tool
+// (/api/tools/switches); a tool without one (the memory) has no „Разкачи“.
+function toolStatusActions(tool, status, googleConnected, githubConnected, switchOn) {
+  const id = escapeHtml(tool.id);
+  if (switchOn === false) {
+    return `
+    <div class="tool-status-actions">
+      <span class="tool-link-state off">${escapeHtml(chatText("Разкачен"))}</span>
+      <button type="button" class="tool-connect-btn" data-tool-switch="${id}" data-tool-on="true">${escapeHtml(chatText("Свържи"))}</button>
+    </div>`;
+  }
   let action = "";
   if (requiresGoogleOAuth(tool) && !googleConnected && tool.configured) {
-    action =
-      '<button type="button" class="tool-connect-btn" data-connect-service="google">Свържи Google</button>';
-  } else if (
-    ["github-write", "github-confirmed-write"].includes(tool.id) &&
-    tool.configured &&
-    !githubConnected
-  ) {
+    action = `<button type="button" class="tool-connect-btn" data-connect-service="google">${escapeHtml(chatText("Свържи Google"))}</button>`;
+  } else if (GITHUB_TOOL_IDS.has(tool.id) && tool.configured && !githubConnected) {
     action =
       '<button type="button" class="tool-connect-btn" data-connect-service="github">Свържи GitHub</button>';
   } else if (
@@ -1323,12 +1390,15 @@ function toolStatusActions(tool, status, googleConnected, githubConnected) {
       '<button type="button" class="tool-connect-btn" data-github-setup>Настрой GitHub</button>';
   }
 
-  const ready = !action && LIVE_TOOL_CHECKS[tool.id];
-  const live = ready ? ` data-live-check="${LIVE_TOOL_CHECKS[tool.id]}"` : "";
+  const check = action ? "" : liveCheckOf(tool);
+  const live = check ? ` data-live-check="${check}"` : "";
+  const connected = !action && status.className !== "deny";
   return `
     <div class="tool-status-actions">
-      <span class="permission-badge ${status.className}"${live}>${status.label}</span>
+      ${connected ? `<span class="tool-link-state on">${escapeHtml(chatText("Свързан"))}</span>` : ""}
+      <span class="permission-badge ${status.className}"${live}>${escapeHtml(chatText(status.label))}</span>
       ${action}
+      ${connected && switchOn === true ? `<button type="button" class="tool-connect-btn tool-unplug-btn" data-tool-switch="${id}" data-tool-on="false">${escapeHtml(chatText("Разкачи"))}</button>` : ""}
     </div>`;
 }
 
@@ -1371,10 +1441,26 @@ function permissionAction(item, toolMap, googleConnected, githubConnected) {
   return "";
 }
 
+// One top card: the service, whether it is connected, and „Разкачи“ or
+// „Свържи“ (RADKO 28.11 13:50).
+function connectionCard(name, description, connected, button, extra = "") {
+  return `
+      <article class="connection-control-card">
+        <div>
+          <strong>${escapeHtml(name)}</strong>
+          <span class="tool-link-state ${connected ? "on" : "off"}">${escapeHtml(chatText(connected ? "Свързан" : "Не е свързан"))}</span>
+          <p>${escapeHtml(chatText(description))}</p>
+          ${extra}
+        </div>
+        ${button}
+      </article>`;
+}
+
 function connectionControls(
   googleConnected,
   githubConnected,
   chatgptConnection = {},
+  { owner = true } = {},
 ) {
   const chatgptConnected = Boolean(chatgptConnection.connected);
   const chatgptConfigured = chatgptConnection.configured !== false;
@@ -1392,48 +1478,57 @@ function connectionControls(
       : chatgptConfigured
         ? "Няма активна MCP връзка"
         : "OAuth връзката не е конфигурирана";
+  const serviceButton = (service, connected) =>
+    `<button type="button" class="tool-connect-btn${connected ? " tool-unplug-btn" : ""}" data-${connected ? "disconnect" : "connect"}-service="${service}">${escapeHtml(chatText(connected ? "Разкачи" : "Свържи"))}</button>`;
+  // ChatGPT and GitHub are the owner's; every account has its own Google.
+  const chatgpt = connectionCard(
+    "ChatGPT",
+    chatgptDescription,
+    chatgptConnected,
+    `<button type="button" class="tool-connect-btn${chatgptConnected ? " tool-unplug-btn" : ""}" data-${chatgptConnected ? "disconnect" : "connect"}-service="chatgpt" ${chatgptConfigured ? "" : "disabled"}>${escapeHtml(chatText(chatgptConnected ? "Разкачи" : "Отвори ChatGPT"))}</button>`,
+    chatgptScopes.length ? `<small>${escapeHtml(chatgptScopes.join(" · "))}</small>` : "",
+  );
+  const google = connectionCard(
+    "Google",
+    "Drive, Gmail, Calendar и Contacts",
+    googleConnected,
+    serviceButton("google", googleConnected),
+  );
+  const github = connectionCard(
+    "GitHub",
+    "Код, issues, Pull Request-и и Actions",
+    githubConnected,
+    serviceButton("github", githubConnected),
+  );
   return `
-    <section class="connection-control-grid" aria-label="Управление на връзките">
-      <article class="connection-control-card">
-        <div>
-          <strong>ChatGPT</strong>
-          <p>${escapeHtml(chatgptDescription)}</p>
-          ${chatgptScopes.length ? `<small>${escapeHtml(chatgptScopes.join(" · "))}</small>` : ""}
-        </div>
-        <button type="button" class="tool-connect-btn" data-${chatgptConnected ? "disconnect" : "connect"}-service="chatgpt" ${chatgptConfigured ? "" : "disabled"}>
-          ${chatgptConnected ? "Спри достъпа" : "Отвори ChatGPT"}
-        </button>
-      </article>
-      <article class="connection-control-card">
-        <div><strong>Google</strong><p>Drive, Gmail, Calendar и Contacts</p></div>
-        <button type="button" class="tool-connect-btn" data-${googleConnected ? "disconnect" : "connect"}-service="google">
-          ${googleConnected ? "Спри достъпа" : "Свържи Google"}
-        </button>
-      </article>
-      <article class="connection-control-card">
-        <div><strong>GitHub</strong><p>Код, issues, Pull Request-и и Actions</p></div>
-        <button type="button" class="tool-connect-btn" data-${githubConnected ? "disconnect" : "connect"}-service="github">
-          ${githubConnected ? "Спри достъпа" : "Свържи GitHub"}
-        </button>
-      </article>
+    <section class="connection-control-grid" aria-label="${escapeHtml(chatText("Управление на връзките"))}">
+      ${owner ? chatgpt : ""}
+      ${google}
+      ${owner ? github : ""}
     </section>`;
 }
 
+// „Инструменти“ for every account (RADKO 28.11 14:11: the test account
+// checks it too): the owner sees every tool and the site's own checks; a
+// member sees the tools their account can use, with their own Google.
 async function openToolsDrawer() {
-  openDataDrawer("Инструменти");
+  openDataDrawer(chatText("Инструменти"));
+  toolsDrawerOpen = true;
   renderDrawerLoading();
+  const owner = document.body.dataset.userRole === "owner";
   try {
-    const [healthResponse, googleResponse, githubResponse, chatgptResponse] =
+    const [healthResponse, googleResponse, githubResponse, chatgptResponse, switchesResponse] =
       await Promise.all([
         fetch("/health/integrations", { cache: "no-store" }),
         fetch("/api/google/status", { cache: "no-store" }).catch(() => null),
-        fetch("/api/github/status", { cache: "no-store" }).catch(() => null),
-        fetch("/permissions/oauth/chatgpt", { cache: "no-store" }).catch(
-          () => null,
-        ),
+        owner ? fetch("/api/github/status", { cache: "no-store" }).catch(() => null) : null,
+        owner
+          ? fetch("/permissions/oauth/chatgpt", { cache: "no-store" }).catch(() => null)
+          : null,
+        fetch("/api/tools/switches", { cache: "no-store" }).catch(() => null),
       ]);
     if (!healthResponse.ok) {
-      throw new Error("Състоянието на инструментите не е достъпно.");
+      throw new Error(chatText("Състоянието на инструментите не е достъпно."));
     }
     const data = await healthResponse.json();
     const googleData = googleResponse?.ok
@@ -1449,7 +1544,20 @@ async function openToolsDrawer() {
           unavailable: true,
         }))
       : { configured: false, connected: false, unavailable: true };
-    const tools = Array.isArray(data.tools) ? data.tools : [];
+    // The person's own switches: tool id → on. Without them no card offers
+    // „Разкачи“ or „Свържи“, and a member's list cannot be told apart.
+    const switchesData = switchesResponse?.ok
+      ? await switchesResponse.json().catch(() => null)
+      : null;
+    if (!owner && !switchesData) {
+      throw new Error(chatText("Инструментите не могат да се заредят."));
+    }
+    const switches = new Map(
+      (Array.isArray(switchesData?.tools) ? switchesData.tools : []).map((item) => [item.id, item.on !== false]),
+    );
+    const tools = (Array.isArray(data.tools) ? data.tools : []).filter(
+      (tool) => owner || switches.has(tool.id),
+    );
     const descriptions = {
       "github-read": "Проверява commit-и и файлове. Само за четене.",
       "github-write":
@@ -1473,18 +1581,25 @@ async function openToolsDrawer() {
         "Проверява текущия Cloud Run runtime, Firestore режима и активната revision без стойности на secrets.",
       "google-firestore-memory":
         "Google Cloud Memory: постоянната памет на NovariumAI в Firestore.",
+      "openai-codex": "Claude чете и обяснява код в отделна среда, без запис.",
+      "google-calendar-write": "Създава събития в Google Calendar от твоите точни думи.",
+      "youtube-channel": "Показва твоя YouTube канал и видеата в него.",
+      "gemini-youtube": "Прави резюме на YouTube видео по линк.",
+      "gemini-maps": "Намира места наблизо с Google Карти.",
+      "personal-todos": "Твоите задачи: добавяш ги с думи в чата.",
     };
     elements.dataDrawerBody.innerHTML = `
       <div class="permission-default">
-        Показано е реалното състояние. „Регистриран“ не означава автоматично „работи“.
+        ${escapeHtml(chatText("Показано е реалното състояние. „Свързан“ значи, че аватарът ти го ползва. „Разкачи“ го спира само за теб, „Свържи“ го пуска пак."))}
       </div>
       ${connectionControls(
         Boolean(googleData.connected),
         Boolean(githubData.connected),
         chatgptData,
+        { owner },
       )}
       <section class="drawer-section permission-list">
-        <button type="button" class="permission-card tool-status-card system-control-link" data-system-configuration>
+        ${owner ? `<button type="button" class="permission-card tool-status-card system-control-link" data-system-configuration>
           <div>
             <strong>Системен контрол</strong>
             <p>Ядро, инструменти и всички променливи без показване на тайните им стойности.</p>
@@ -1494,7 +1609,7 @@ async function openToolsDrawer() {
         <article class="permission-card tool-status-card">
           <div><strong>Снимки</strong><p>JPEG, PNG и WebP до 5 MB. Чете ги Claude.</p></div>
           <span class="permission-badge confirm" data-live-check="core:images">Проверявам…</span>
-        </article>
+        </article>` : ""}
         ${tools
           .map((tool) => {
             const status = toolState(
@@ -1502,12 +1617,13 @@ async function openToolsDrawer() {
               Boolean(googleData.connected),
               Boolean(githubData.connected),
             );
-            const description =
-              descriptions[tool.id] || "Инструмент на NovariumAI.";
+            const description = chatText(
+              descriptions[tool.id] || "Инструмент на NovariumAI.",
+            );
             return `
-              <article class="permission-card tool-status-card">
+              <article class="permission-card tool-status-card" data-tool-card="${escapeHtml(tool.id)}">
                 <div>
-                  <strong>${escapeHtml(tool.name)}</strong>
+                  <strong>${escapeHtml(chatText(tool.name))}</strong>
                   <p>${escapeHtml(description)}</p>
                 </div>
                 ${toolStatusActions(
@@ -1515,6 +1631,7 @@ async function openToolsDrawer() {
                   status,
                   Boolean(googleData.connected),
                   Boolean(githubData.connected),
+                  switches.get(tool.id),
                 )}
               </article>`;
           })
@@ -1615,7 +1732,11 @@ async function openSystemConfigurationDrawer() {
   }
 }
 
+// Whether „Инструменти“ is the open drawer: a „Разкачи“ there opens it again.
+let toolsDrawerOpen = false;
+
 function openDataDrawer(title) {
+  toolsDrawerOpen = false;
   elements.dataDrawerTitle.textContent = title;
   elements.dataDrawer.hidden = false;
   elements.drawerBackdrop.hidden = false;
@@ -1623,6 +1744,7 @@ function openDataDrawer(title) {
 }
 
 function closeDataDrawer() {
+  toolsDrawerOpen = false;
   const wasOpen = !elements.dataDrawer.hidden;
   elements.dataDrawer.hidden = true;
   elements.drawerBackdrop.hidden = true;
@@ -1633,7 +1755,7 @@ function closeDataDrawer() {
 
 function renderDrawerLoading() {
   elements.dataDrawerBody.innerHTML =
-    '<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Зареждане…</div>';
+    `<div class="drawer-state"><i class="fa-solid fa-circle-notch fa-spin"></i> ${escapeHtml(chatText("Зареждане…"))}</div>`;
 }
 
 function renderDrawerError(message) {
@@ -2429,6 +2551,43 @@ async function handleDataDrawerAction(event) {
     return;
   }
 
+  // „Разкачи“ and „Свържи“ on a tool's card: the person's own switch, with no
+  // second question (the press is the command, and „Свържи“ undoes it).
+  const toolSwitch = event.target.closest("[data-tool-switch]");
+  if (toolSwitch) {
+    const on = toolSwitch.dataset.toolOn === "true";
+    // One press at a time: every switch waits until this one is saved and
+    // „Инструменти“ shows the new state.
+    const switches = [...document.querySelectorAll("[data-tool-switch]")];
+    const setBusy = (busy) => switches.forEach((button) => (button.disabled = busy));
+    setBusy(true);
+    try {
+      const response = await fetch(
+        `/api/tools/switches/${encodeURIComponent(toolSwitch.dataset.toolSwitch)}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ on }),
+        },
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(chatText(result.error || "Промяната не беше записана. Опитай пак."));
+      }
+      const name = toolSwitch.closest("[data-tool-card]")?.querySelector("strong")?.textContent || "";
+      await openToolsDrawer();
+      logAction(chatText(on ? "Свързан е {name}" : "Разкачен е {name}", { name }));
+    } catch (error) {
+      setBusy(false);
+      const note = document.createElement("small");
+      note.className = "tool-live-reason";
+      note.setAttribute("role", "alert");
+      note.textContent = error.message;
+      toolSwitch.after(note);
+    }
+    return;
+  }
+
   const disconnectButton = event.target.closest("[data-disconnect-service]");
   if (disconnectButton) {
     const service = disconnectButton.dataset.disconnectService;
@@ -2445,7 +2604,7 @@ async function handleDataDrawerAction(event) {
           : service === "google"
             ? // Google keeps one permission per account: it stops on every device.
               chatText("Да спра ли достъпа на NovariumAI до Google? Това спира Google на всички твои устройства. После пощата и Drive се разрешават отново.")
-            : `Да спра ли достъпа на NovariumAI до ${serviceName}?`,
+            : chatText("Да спра ли достъпа на NovariumAI до {name}?", { name: serviceName }),
       )
     ) {
       return;
@@ -2466,9 +2625,10 @@ async function handleDataDrawerAction(event) {
             }
           : { method: "POST" },
       );
-      if (!response.ok) throw new Error("Връзката не можа да бъде прекъсната.");
-      await openPermissionsDrawer();
-      logAction(`Прекъсната е връзката с ${serviceName}`);
+      if (!response.ok) throw new Error(chatText("Връзката не можа да бъде прекъсната."));
+      if (toolsDrawerOpen) await openToolsDrawer();
+      else await openPermissionsDrawer();
+      logAction(chatText("Прекъсната е връзката с {name}", { name: serviceName }));
     } catch (error) {
       renderDrawerError(error.message);
     }

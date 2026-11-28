@@ -44,6 +44,7 @@ import {
   isMemberOwnGoogleWrite,
 } from "./memberCapabilityPolicy.js";
 import { orchestrateTask } from "./taskOrchestratorService.js";
+import { getToolSwitchService } from "./toolSwitchService.js";
 import { executeCapability } from "../tools/capabilityEngine.js";
 import {
   hasExplicitNoAdditionalToolsBoundary,
@@ -168,6 +169,8 @@ export async function sendMcpAgentMessage(
     readWords = readPlainWordsPlan,
     auditTask = (event) =>
       recordAuditEvent({ actor: "novarium-avatar", ...event }),
+    // What the person turned off with „Разкачи“ in „Инструменти“.
+    readCapabilitiesOff = (id) => getToolSwitchService().capabilitiesOff(id),
   } = {},
 ) {
   const cleanOwnerId = cleanRequiredText(ownerId, 200, "проверен профил");
@@ -213,6 +216,10 @@ export async function sendMcpAgentMessage(
     hasExplicitNoToolBoundary(cleanMessage) ||
     hasExplicitNoAdditionalToolsBoundary(cleanMessage);
   const taskConfirmationId = extractTaskConfirmationId(cleanMessage);
+  // What the person turned off with „Разкачи“ in „Инструменти“: read first,
+  // so the words below never ask about such a tool, nothing plans it, and a
+  // confirmed task with a step on it does not run.
+  const capabilitiesOff = noToolBoundary ? null : await readCapabilitiesOff(cleanOwnerId);
   // Mail in the person's own words („каво имам в пошата“, „прати мейл до мен
   // …“), read the same way as in the site chat (item 3). Here a write is
   // still only prepared: it runs after the owner's exact confirmation.
@@ -223,6 +230,7 @@ export async function sendMcpAgentMessage(
           message: cleanMessage,
           turns: history,
           apiKey: process.env.OPENAI_API_KEY,
+          capabilitiesOff,
         });
   if (plainWordsPlan.type === "ask") {
     const response = plainWordsPlan.text;
@@ -309,7 +317,7 @@ export async function sendMcpAgentMessage(
           detectCapabilityRequests(cleanMessage),
         ),
         safeIdentity,
-        { ownGoogle: Boolean(memberGoogleSessionId) },
+        { ownGoogle: Boolean(memberGoogleSessionId), capabilitiesOff },
       );
   const planningAllowed =
     !noToolBoundary &&
@@ -378,6 +386,9 @@ export async function sendMcpAgentMessage(
       taskConfirmationId,
       githubSessionId: githubSession?.id || null,
       googleSessionId,
+      // A confirmation carries no „no tools“ words, so the switches are
+      // always read for it.
+      capabilitiesOff: capabilitiesOff ?? (await readCapabilitiesOff(cleanOwnerId)),
       ...(owner ? {} : { allowItem: (item) => isMemberOwnGoogleWrite(item.capability) }),
     });
     const response = `Потвърдената NovariumAI задача е изпълнена: ${confirmed.results.length} операции.`;
@@ -419,6 +430,7 @@ export async function sendMcpAgentMessage(
     normalizeRequests: (requests) =>
       filterCapabilityRequestsForIdentity(requests, safeIdentity, {
         ownGoogle: Boolean(memberGoogleSessionId),
+        capabilitiesOff,
       }),
     routeRequests: (requests) =>
       routeSelectedWorkAgentCapabilities(

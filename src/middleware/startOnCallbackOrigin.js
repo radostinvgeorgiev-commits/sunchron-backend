@@ -21,8 +21,9 @@ import {
 //
 // Connecting Google or GitHub (/api/google/connect, /api/github/connect) does
 // not move: it runs for the account signed in where the person pressed the
-// button, and on the other name that can be someone else's account.
-const SITE_HOSTS = new Set([
+// button, and on the other name that can be someone else's account. Its
+// return comes back to where it was pressed instead (returnToConnectStart.js).
+export const SITE_HOSTS = new Set([
   "cloudaicore.com",
   "www.cloudaicore.com",
   "novariumai.com",

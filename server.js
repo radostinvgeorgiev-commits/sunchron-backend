@@ -72,11 +72,13 @@ import { getCausesService } from "./src/services/causesService.js";
 import { getAvatarProfileService } from "./src/services/avatarProfileService.js";
 import { createPersonalTodoRouter } from "./src/routes/personalTodoRouter.js";
 import { createBookMemoryRouter } from "./src/routes/bookMemoryRouter.js";
+import { createFreeChapterCheckRouter } from "./src/routes/freeChapterCheckRouter.js";
 import { createAddonRouter } from "./src/routes/addonRouter.js";
 import { createAvatarLinkRouter, createAvatarVisitorRouter } from "./src/routes/avatarLinkRouter.js";
 import { getAvatarLinkService } from "./src/services/avatarLinkService.js";
 import { getPersonalTodoService } from "./src/services/personalTodoService.js";
 import { getBookMemoryService } from "./src/services/bookMemoryService.js";
+import { getFreeChapterCheck } from "./src/services/freeChapterCheckService.js";
 import { getAddonService } from "./src/services/addonService.js";
 import { createKnowledgeFilesRouter } from "./src/routes/knowledgeFilesRouter.js";
 import { getKnowledgeFilesService } from "./src/services/knowledgeFilesService.js";
@@ -375,12 +377,24 @@ app.use(
 );
 // "Писател": the memory of each person's books. Suggesting facts and
 // checking a chapter are AI requests, so they get the paid limit.
-app.use(/^\/api\/books\/[^/]+\/(?:suggest|check)$/u, requireOwnerSession, paidAiRateLimiter);
+app.use(/^\/api\/books\/[^/]+\/(?:suggest|check|draft)$/u, requireOwnerSession, paidAiRateLimiter);
 app.use(
   "/api/books",
   requireOwnerSession,
   privateApiRateLimiter,
   createBookMemoryRouter({ service: getBookMemoryService() }),
+);
+// The free chapter check on the start page: no sign-in, three a day for
+// each address and a daily total for the whole site.
+app.use(
+  "/api/free-check",
+  createApiRateLimiter({
+    limit: 3,
+    windowMs: 24 * 60 * 60 * 1000,
+    code: "FREE_CHECK_LIMIT",
+    message: "Безплатната проверка е до 3 пъти на ден. Влез безплатно, за да проверяваш още.",
+  }),
+  createFreeChapterCheckRouter({ service: getFreeChapterCheck() }),
 );
 // "Добавки": each person's own small programs, run in a closed sandbox; the
 // store shows only what the owner approved. No AI is used, so no AI budget.

@@ -438,6 +438,6 @@ export async function readPersonalArchive(blob, onProgress = () => {}) {
 }
 
 if (typeof globalThis.window !== "undefined") {
-  globalThis.NovariumArchive = { readPersonalArchive };
+  globalThis.NovariumArchive = { readPersonalArchive, listZipEntries, readZipText };
   document.dispatchEvent(new CustomEvent("novarium:archive-ready"));
 }

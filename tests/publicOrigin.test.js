@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { googleConnectUrl, publicOrigin } from "../src/config/publicOrigin.js";
+import { googleConnectUrl, publicOrigin, startOnPublicOrigin } from "../src/config/publicOrigin.js";
 
 test("sign-in and connect links stay on the address Google returns to", () => {
   const old = { GOOGLE_REDIRECT_URI: "https://cloudaicore.com/api/google/callback" };
@@ -56,4 +56,45 @@ test("the connector's Allow links follow the Google return address too", async (
       else process.env[key] = value;
     }
   }
+});
+
+test("a sign-in or connection starts on the address Google and GitHub return to", () => {
+  const run = (env, { method = "GET", host, url }) => {
+    const path = url.replace(/\?.*$/u, "");
+    let redirect = null;
+    let passed = false;
+    startOnPublicOrigin(env)(
+      { method, path, originalUrl: url, get: (name) => (name.toLowerCase() === "host" ? host : undefined) },
+      { redirect: (status, to) => (redirect = [status, to]) },
+      () => (passed = true),
+    );
+    return redirect || (passed ? "next" : "nothing");
+  };
+  const old = { GOOGLE_REDIRECT_URI: "https://cloudaicore.com/api/google/callback" };
+  const moved = { GOOGLE_REDIRECT_URI: "https://novariumai.com/api/google/callback" };
+  // Today Google returns to the old name: a sign-in begun on novariumai.com
+  // first moves there, so its state cookie is where Google comes back.
+  assert.deepEqual(run(old, { host: "novariumai.com", url: "/api/auth/google/start" }), [
+    302,
+    "https://cloudaicore.com/api/auth/google/start",
+  ]);
+  assert.equal(run(old, { host: "cloudaicore.com", url: "/api/auth/google/start" }), "next");
+  // After the move, the old name sends every start to novariumai.com.
+  for (const url of [
+    "/api/auth/google/start",
+    "/api/auth/github/start",
+    "/api/auth/facebook/start",
+    "/api/google/connect?add=gmail",
+    "/api/github/connect",
+  ]) {
+    assert.deepEqual(run(moved, { host: "cloudaicore.com", url }), [302, `https://novariumai.com${url}`], url);
+    assert.deepEqual(run(moved, { host: "www.cloudaicore.com", url }), [302, `https://novariumai.com${url}`], url);
+    assert.equal(run(moved, { host: "novariumai.com", url }), "next", url);
+  }
+  // Only the start addresses, only GET, only the site's own names.
+  assert.equal(run(moved, { host: "cloudaicore.com", url: "/api/google/callback?code=x" }), "next");
+  assert.equal(run(moved, { host: "cloudaicore.com", url: "/mcp" }), "next");
+  assert.equal(run(moved, { method: "POST", host: "cloudaicore.com", url: "/api/auth/google/start" }), "next");
+  assert.equal(run(moved, { host: "127.0.0.1:8080", url: "/api/google/connect" }), "next");
+  assert.equal(run({}, { host: "localhost:3000", url: "/api/auth/google/start" }), "next");
 });

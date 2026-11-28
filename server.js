@@ -44,6 +44,7 @@ import webSearchRouter from "./src/routes/webSearchRouter.js";
 import publicConfigRouter from "./src/routes/publicConfigRouter.js";
 import userAuthRouter, { handleGoogleSignInCallback } from "./src/routes/userAuthRouter.js";
 import { startOnCallbackOrigin } from "./src/middleware/startOnCallbackOrigin.js";
+import { returnToConnectStart } from "./src/middleware/returnToConnectStart.js";
 import { isGoogleSignInCallback } from "./src/services/googleSignInService.js";
 import { getActivityService } from "./src/services/activityService.js";
 import { logSafeError } from "./src/utils/safeLogging.js";
@@ -182,8 +183,9 @@ app.get(
   },
 );
 app.use("/", mcpOAuthRouter);
-// Sign-in and connect start on the name their provider returns to
-// (src/middleware/startOnCallbackOrigin.js).
+// A sign-in starts on the name its provider returns to
+// (src/middleware/startOnCallbackOrigin.js); a connect finishes on the name
+// where it was pressed (src/middleware/returnToConnectStart.js).
 app.use(startOnCallbackOrigin());
 
 app.use(
@@ -524,10 +526,16 @@ app.use(
 );
 // Sign-in with Google shares the Drive redirect address; a callback whose
 // state matches the sign-in cookie is a sign-in and needs no session yet.
-app.get("/api/google/callback", oauthRateLimiter, (req, res, next) =>
-  isGoogleSignInCallback({ state: req.query.state, cookieHeader: req.headers.cookie })
-    ? handleGoogleSignInCallback(req, res)
-    : next(),
+app.get(
+  "/api/google/callback",
+  oauthRateLimiter,
+  (req, res, next) =>
+    isGoogleSignInCallback({ state: req.query.state, cookieHeader: req.headers.cookie })
+      ? handleGoogleSignInCallback(req, res)
+      : next(),
+  // A connect pressed on the site's other name finishes there, before this
+  // name asks for its own session (src/middleware/returnToConnectStart.js).
+  returnToConnectStart({ path: "/api/google/callback", cookie: "synchron_google_state" }),
 );
 // Every account connects its own Google; owner-only parts are guarded inside.
 app.use(

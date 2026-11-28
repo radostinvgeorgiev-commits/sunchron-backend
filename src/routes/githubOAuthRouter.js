@@ -19,6 +19,7 @@ import {
 import { userSessionCookie } from "../services/userAuthService.js";
 import { recordActivity } from "../services/activityService.js";
 import { logSafeError } from "../utils/safeLogging.js";
+import { markStartHost, returnToConnectStart } from "../middleware/returnToConnectStart.js";
 
 const router = express.Router();
 const COOKIE_OPTIONS =
@@ -39,9 +40,11 @@ function sendError(res, error) {
   });
 }
 
-router.get("/connect", (_req, res) => {
+router.get("/connect", (req, res) => {
   try {
-    const state = createGitHubNonce();
+    // The state says on which of the site's names the connect started, so a
+    // return to the other name finishes here (returnToConnectStart.js).
+    const state = markStartHost(createGitHubNonce(), req.get("host"));
     res.setHeader(
       "Set-Cookie",
       `synchron_github_state=${state}; Path=/api/github; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
@@ -91,6 +94,11 @@ export function createGitHubCallbackHandler({
 
 // A person's "Вход с GitHub" comes back here too; it is handled first.
 router.get("/callback", createGitHubCallbackHandler());
+// A connect pressed on the site's other name finishes there.
+router.get(
+  "/callback",
+  returnToConnectStart({ path: "/api/github/callback", cookie: "synchron_github_state" }),
+);
 
 router.get("/callback", async (req, res) => {
   try {

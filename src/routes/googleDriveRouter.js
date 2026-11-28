@@ -30,6 +30,7 @@ import {
   uploadVideoToYoutube,
 } from "../services/googleDriveService.js";
 import { logSafeError } from "../utils/safeLogging.js";
+import { markStartHost } from "../middleware/returnToConnectStart.js";
 import { publicAiBudgetContext } from "../services/publicAiBudget.js";
 import { ProductError } from "../services/productPlansService.js";
 import { getReplyDraftService } from "../services/replyDraftService.js";
@@ -83,8 +84,10 @@ router.get("/connect", async (req, res) => {
     // token, linked from the main connection.
     const linked = GOOGLE_LINKED_EXTRAS.includes(add) ? add : "";
     // The step travels in the state, which Google sends back unchanged and
-    // the callback checks against this browser's cookie.
-    const state = `${linked ? `${linked}.` : ""}${createNonce()}`;
+    // the callback checks against this browser's cookie. The state also says
+    // on which of the site's names the connect started, so a return to the
+    // other name finishes here (returnToConnectStart.js).
+    const state = markStartHost(`${linked ? `${linked}.` : ""}${createNonce()}`, req.get("host"));
     // Everyone, the owner too, starts with the scopes Google's free check
     // covers. A renewed connection, or one more service (add=youtube / gmail /
     // drive), asks again for every service this connection already has.

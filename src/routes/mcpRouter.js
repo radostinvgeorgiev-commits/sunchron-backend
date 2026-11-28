@@ -10,6 +10,8 @@ import {
   buildMcpAuthenticateChallenge,
   McpOAuthError,
   requiredScopesForMcpTool,
+  resolveMcpResourceForHost,
+  resolveMcpResourceUrl,
   verifyMcpAccessToken,
 } from "../services/mcpOAuthService.js";
 
@@ -136,9 +138,16 @@ export async function requireMcpAuthorization(
   next,
   { env = process.env } = {},
 ) {
-  if (req.body?.method !== "tools/call") return next();
+  // The novariumai.com address asks for sign-in from the first request, so
+  // Claude starts the sign-in when the connector is added. The old address
+  // keeps its open handshake for existing connectors and the smoke check.
+  const signInFirst =
+    resolveMcpResourceForHost(req.get("host"), env) !==
+    resolveMcpResourceUrl(env);
+  if (req.body?.method !== "tools/call" && !signInFirst) return next();
 
-  const toolName = req.body?.params?.name;
+  const toolName =
+    req.body?.method === "tools/call" ? req.body?.params?.name : undefined;
   const requiredScopes = requiredScopesForMcpTool(toolName);
   const authorization = req.get("authorization");
   if (isValidMcpToken(authorization, env.MCP_ACCESS_TOKEN)) {
@@ -152,7 +161,7 @@ export async function requireMcpAuthorization(
     return next();
   }
 
-  if (!authorization && allowsAnonymousMcpTool(toolName)) {
+  if (!signInFirst && !authorization && allowsAnonymousMcpTool(toolName)) {
     req.mcpOwnerId = null;
     req.mcpAuthentication = {
       mode: "noauth",

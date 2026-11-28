@@ -113,6 +113,28 @@ test("only the redacted production status can pass without credentials", async (
   assert.equal(publicStatus.body.authentication.role, "anonymous");
 });
 
+test("at novariumai.com the first request asks for sign-in, so Claude starts it", async () => {
+  const app = express();
+  app.use(express.json());
+  app.post("/mcp", requireMcpAuthorization, (_req, res) => res.json({ ok: true }));
+  const handshake = await request(app)
+    .post("/mcp")
+    .set("Host", "novariumai.com")
+    .send({ jsonrpc: "2.0", id: 1, method: "initialize" })
+    .expect(401);
+  assert.match(
+    handshake.headers["www-authenticate"],
+    /resource_metadata="https:\/\/novariumai\.com\/\.well-known\/oauth-protected-resource"/u,
+  );
+  await request(app)
+    .post("/mcp")
+    .set("Host", "novariumai.com")
+    .send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "get_google_cloud_runtime_status", arguments: {} } })
+    .expect(401);
+  // The old address keeps the open handshake.
+  await request(app).post("/mcp").send({ jsonrpc: "2.0", id: 3, method: "initialize" }).expect(200);
+});
+
 test("MCP rejects an untrusted Origin", async () => {
   const app = express();
   app.use(express.json());

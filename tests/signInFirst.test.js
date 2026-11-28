@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import express from "express";
+import request from "supertest";
 
 import {
   afterSignInCookie,
@@ -89,4 +91,32 @@ test("after the Google sign-in the stored connect link continues", async () => {
       else process.env[key] = saved[key];
     }
   }
+});
+
+test("a sign-in that cannot be renewed just now says so on a page with the same link", async () => {
+  const passingFault = () =>
+    Object.assign(new Error("Входът временно не е достъпен. Опитай отново след малко."), {
+      status: 503,
+      code: "AUTH_UNAVAILABLE",
+    });
+  const app = express();
+  app.get("/api/google/connect", signInFirst({ env, identify: async () => { throw passingFault(); } }), (_req, res) =>
+    res.json({ connect: true }),
+  );
+  const shown = await request(app).get("/api/google/connect?add=save").expect(503);
+  assert.match(shown.headers["content-type"], /^text\/html/u);
+  assert.equal(shown.headers["cache-control"], "no-store");
+  assert.equal(shown.headers["retry-after"], "5");
+  assert.equal(shown.headers["set-cookie"], undefined, "no return cookie, the sign-in is kept");
+  assert.match(shown.text, /Входът временно не е достъпен/u);
+  assert.match(shown.text, /Входът ти е запазен/u);
+  assert.match(shown.text, /<a href="\/api\/google\/connect\?add=save">Опитай пак<\/a>/u);
+  assert.doesNotMatch(shown.text, /AUTH_UNAVAILABLE|"error"/u);
+
+  // Any other fault goes on to the route as before.
+  const other = express();
+  other.get("/api/google/connect", signInFirst({ env, identify: async () => { throw new Error("boom"); } }), (_req, res) =>
+    res.json({ connect: true }),
+  );
+  assert.deepEqual((await request(other).get("/api/google/connect").expect(200)).body, { connect: true });
 });

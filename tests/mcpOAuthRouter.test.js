@@ -648,3 +648,44 @@ test("authorization consent names the NovariumAI conversation permission", async
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
   else process.env.MCP_ACCESS_TOKEN = previous;
 });
+
+test("a sign-in that cannot be renewed just now shows a page to try again, not an OAuth error", async () => {
+  resetMcpOAuthStateForTests();
+  const oauthRequest = {
+    clientId: "https://chatgpt.com/oauth/synchron/client.json",
+    clientName: "ChatGPT",
+    redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
+    state: "state-busy",
+    codeChallenge: createHash("sha256").update("b".repeat(64)).digest("base64url"),
+    resource: "https://cloudaicore.com/mcp",
+    scopes: ["synchron:read"],
+  };
+  const app = express();
+  app.use(
+    createMcpOAuthRouter({
+      resolveIdentity: async () => {
+        throw Object.assign(new Error("Входът временно не е достъпен. Опитай отново след малко."), {
+          status: 503,
+          code: "AUTH_UNAVAILABLE",
+        });
+      },
+      validateRequest: async () => oauthRequest,
+    }),
+  );
+  const shown = await request(app).get("/oauth/authorize").expect(503);
+  assert.match(shown.headers["content-type"], /^text\/html/u);
+  assert.match(String(shown.headers["cache-control"]), /no-store/u);
+  assert.equal(shown.headers["retry-after"], "5");
+  assert.match(shown.text, /Входът временно не е достъпен/u);
+  assert.match(shown.text, /Обнови тази страница след малко/u);
+
+  const pressed = await request(app)
+    .post("/oauth/authorize")
+    .type("form")
+    .send({ consent_token: "any", decision: "allow" })
+    .expect(503);
+  assert.match(pressed.headers["content-type"], /^text\/html/u);
+  assert.match(pressed.text, /Върни се назад и натисни бутона отново/u);
+  assert.equal(pressed.headers.location, undefined, "nothing goes back to the client");
+  assert.equal(getMcpOAuthRuntimeStatus().authorizationErrorCode, "temporarily_unavailable");
+});

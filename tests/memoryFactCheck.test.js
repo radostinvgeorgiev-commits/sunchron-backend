@@ -23,9 +23,15 @@ const FACTS = ["пия чай без захар"];
 const BOTH_KEYS = Object.freeze({ GEMINI_API_KEY: "test-gemini", OPENAI_API_KEY: "test-openai" });
 
 const answer = (text) => async () => ({ text });
-const mustNotAsk = async () => {
-  throw new Error("this model must not be asked");
-};
+// A model that would answer yes and writes down that it was asked. A model
+// that throws would be caught as a failure and could hide a wrong call, so
+// the tests check the record of who was asked, in order.
+function yesModel(name, asked) {
+  return async () => {
+    asked.push(name);
+    return { text: '{"onlyFacts": true}' };
+  };
+}
 
 test("the check reads the whole message and the words that would be saved", () => {
   const input = buildMemoryFactCheckInput({ message: MESSAGE, facts: ["пия чай без захар", "обичам джаз"] });
@@ -106,6 +112,7 @@ test("with no model to ask, nothing is written at once", async () => {
 });
 
 test("an empty message or no words to save is never sent to a model", async () => {
+  const asked = [];
   for (const [message, facts] of [
     ["", FACTS],
     ["   ", FACTS],
@@ -115,22 +122,33 @@ test("an empty message or no words to save is never sent to a model", async () =
     [undefined, FACTS],
   ]) {
     assert.equal(
-      await confirmPlainMemoryFacts({ message, facts, env: BOTH_KEYS, gemini: mustNotAsk, openai: mustNotAsk }),
+      await confirmPlainMemoryFacts({
+        message,
+        facts,
+        env: BOTH_KEYS,
+        gemini: yesModel("gemini", asked),
+        openai: yesModel("openai", asked),
+      }),
       false,
     );
   }
+  assert.deepEqual(asked, []);
 });
 
 test("Gemini is asked first, in JSON, with the check's own model", async () => {
   const seen = [];
+  const asked = [];
   const gemini = async (options) => {
+    asked.push("gemini");
     seen.push(options);
     return { text: '{"onlyFacts": true}' };
   };
+  const openai = yesModel("openai", asked);
   assert.equal(
-    await confirmPlainMemoryFacts({ message: MESSAGE, facts: FACTS, env: BOTH_KEYS, gemini, openai: mustNotAsk }),
+    await confirmPlainMemoryFacts({ message: MESSAGE, facts: FACTS, env: BOTH_KEYS, gemini, openai }),
     true,
   );
+  assert.deepEqual(asked, ["gemini"]);
   assert.equal(seen.length, 1);
   assert.equal(seen[0].apiKey, "test-gemini");
   assert.equal(seen[0].model, DEFAULT_GEMINI_CHAT_MODEL);
@@ -140,27 +158,35 @@ test("Gemini is asked first, in JSON, with the check's own model", async () => {
   assert.deepEqual(seen[0].input, buildMemoryFactCheckInput({ message: MESSAGE, facts: FACTS }));
 
   seen.length = 0;
+  asked.length = 0;
   await confirmPlainMemoryFacts({
     message: MESSAGE,
     facts: FACTS,
     env: { ...BOTH_KEYS, GEMINI_MEMORY_CHECK_MODEL: "gemini-check-model" },
     gemini,
-    openai: mustNotAsk,
+    openai,
   });
+  assert.deepEqual(asked, ["gemini"]);
   assert.equal(seen[0].model, "gemini-check-model");
 });
 
 test("a clear „no“ from the first model is final", async () => {
+  const asked = [];
   assert.equal(
     await confirmPlainMemoryFacts({
       message: "Запомни: искам такси за летището",
       facts: ["искам такси за летището"],
       env: BOTH_KEYS,
-      gemini: answer('{"onlyFacts": false}'),
-      openai: mustNotAsk,
+      gemini: async () => {
+        asked.push("gemini");
+        return { text: '{"onlyFacts": false}' };
+      },
+      // OpenAI would say yes: it is not asked after Gemini's clear no.
+      openai: yesModel("openai", asked),
     }),
     false,
   );
+  assert.deepEqual(asked, ["gemini"]);
 });
 
 test("OpenAI answers when Gemini fails, is unclear or has no key", async () => {
@@ -168,15 +194,26 @@ test("OpenAI answers when Gemini fails, is unclear or has no key", async () => {
     { env: BOTH_KEYS, gemini: async () => { throw new Error("Gemini върна грешка 503."); } },
     { env: BOTH_KEYS, gemini: answer("Only facts.") },
     { env: BOTH_KEYS, gemini: answer('{"onlyFacts": "yes"}') },
-    { env: { OPENAI_API_KEY: "test-openai" }, gemini: mustNotAsk },
+    // Without its key Gemini is not asked, even one that would say yes.
+    { env: { OPENAI_API_KEY: "test-openai" }, gemini: answer('{"onlyFacts": true}'), order: ["openai"] },
   ];
-  for (const { env, gemini } of cases) {
+  for (const { env, gemini, order = ["gemini", "openai"] } of cases) {
     const seen = [];
+    const asked = [];
     const openai = async (options) => {
+      asked.push("openai");
       seen.push(options);
       return { text: '{"onlyFacts": true}' };
     };
-    assert.equal(await confirmPlainMemoryFacts({ message: MESSAGE, facts: FACTS, env, gemini, openai }), true);
+    const geminiAsked = async (options) => {
+      asked.push("gemini");
+      return gemini(options);
+    };
+    assert.equal(
+      await confirmPlainMemoryFacts({ message: MESSAGE, facts: FACTS, env, gemini: geminiAsked, openai }),
+      true,
+    );
+    assert.deepEqual(asked, order);
     assert.equal(seen.length, 1);
     assert.equal(seen[0].apiKey, "test-openai");
     assert.equal(seen[0].model, DEFAULT_OPENAI_PLANNER_MODEL);
@@ -313,20 +350,28 @@ test("the daily count is asked once, before any model, and only when one would b
   );
   assert.equal(counted, 1);
   // No key, an empty message or no words: nothing to ask, nothing counted.
+  const asked = [];
   for (const options of [
     { message: MESSAGE, facts: FACTS, env: {} },
     { message: " ", facts: FACTS, env: BOTH_KEYS },
     { message: MESSAGE, facts: [], env: BOTH_KEYS },
   ]) {
     assert.equal(
-      await confirmPlainMemoryFacts({ ...options, gemini: mustNotAsk, openai: mustNotAsk, allowCheck }),
+      await confirmPlainMemoryFacts({
+        ...options,
+        gemini: yesModel("gemini", asked),
+        openai: yesModel("openai", asked),
+        allowCheck,
+      }),
       false,
     );
   }
   assert.equal(counted, 1);
+  assert.deepEqual(asked, []);
 });
 
 test("a used-up or failed daily count keeps the confirmation and asks no model", async () => {
+  const asked = [];
   for (const allowCheck of [
     async () => false,
     async () => "yes",
@@ -340,13 +385,14 @@ test("a used-up or failed daily count keeps the confirmation and asks no model",
         message: MESSAGE,
         facts: FACTS,
         env: BOTH_KEYS,
-        gemini: mustNotAsk,
-        openai: mustNotAsk,
+        gemini: yesModel("gemini", asked),
+        openai: yesModel("openai", asked),
         allowCheck,
       }),
       false,
     );
   }
+  assert.deepEqual(asked, []);
 });
 
 test("both models get a small output cap, also outside a member's budget", async () => {
@@ -413,6 +459,7 @@ test("both models share one time limit, and the first leaves time for the second
 // yes that comes after it does not count.
 test("the person's stop ends the check, and a yes after it does not count", async () => {
   const stop = new AbortController();
+  const asked = [];
   let aborted = false;
   const gemini = ({ signal }) =>
     new Promise((resolve) => {
@@ -428,12 +475,13 @@ test("the person's stop ends the check, and a yes after it does not count", asyn
       facts: FACTS,
       env: BOTH_KEYS,
       gemini,
-      openai: mustNotAsk,
+      openai: yesModel("openai", asked),
       signal: stop.signal,
     }),
     false,
   );
   assert.equal(aborted, true);
+  assert.deepEqual(asked, [], "OpenAI is not asked after the stop");
 
   // Already stopped: no model is asked and nothing is counted.
   let counted = 0;
@@ -442,8 +490,8 @@ test("the person's stop ends the check, and a yes after it does not count", asyn
       message: MESSAGE,
       facts: FACTS,
       env: BOTH_KEYS,
-      gemini: mustNotAsk,
-      openai: mustNotAsk,
+      gemini: yesModel("gemini", asked),
+      openai: yesModel("openai", asked),
       signal: AbortSignal.abort(),
       allowCheck: async () => {
         counted += 1;
@@ -453,4 +501,5 @@ test("the person's stop ends the check, and a yes after it does not count", asyn
     false,
   );
   assert.equal(counted, 0);
+  assert.deepEqual(asked, []);
 });

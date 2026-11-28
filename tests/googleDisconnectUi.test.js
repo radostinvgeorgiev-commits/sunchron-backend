@@ -6,8 +6,8 @@ import { JSDOM } from "jsdom";
 const drawerScript = await readFile(new URL("../public/google-drive.js", import.meta.url), "utf8");
 
 // The "Моят Google" drawer with a connected account; `disconnect` answers the
-// button press.
-async function openDrawer(disconnect) {
+// button press, `answer` is the person's answer to the question before it.
+async function openDrawer(disconnect, { answer = true, asked = [], sent = [] } = {}) {
   const dom = new JSDOM(
     `<aside id="sidebar"></aside>
      <button id="googleDriveBtn"></button>
@@ -21,11 +21,16 @@ async function openDrawer(disconnect) {
     if (path === "/api/google/status") return Response.json({ connected, canRestore: false });
     if (path === "/api/google/files") return Response.json({ files: [] });
     if (path === "/api/google/disconnect") {
+      sent.push(path);
       const { status, body } = disconnect();
       if (status === 200) connected = false;
       return Response.json(body, { status });
     }
     return Response.json({}, { status: 404 });
+  };
+  window.confirm = (question) => {
+    asked.push(question);
+    return answer;
   };
   window.eval(drawerScript);
   const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
@@ -55,5 +60,22 @@ test("a disconnect that worked shows Connect Google and no error", async () => {
   assert.equal(body.querySelector(".drawer-error"), null);
   assert.ok(dom.window.document.getElementById("connectGoogleDrive"));
   assert.equal(dom.window.document.getElementById("disconnectGoogleDrive"), null);
+  dom.window.close();
+});
+
+test("„Прекъсни връзката“ asks first and says it stops Google on every device", async () => {
+  const asked = [];
+  const sent = [];
+  const dom = await openDrawer(() => ({ status: 200, body: { connected: false } }), {
+    answer: false,
+    asked,
+    sent,
+  });
+  assert.equal(asked.length, 1);
+  assert.match(asked[0], /на всички твои устройства/u);
+  assert.deepEqual(sent, [], "nothing is disconnected without a yes");
+  const button = dom.window.document.getElementById("disconnectGoogleDrive");
+  assert.ok(button, "the connection stays");
+  assert.equal(button.disabled, false);
   dom.window.close();
 });

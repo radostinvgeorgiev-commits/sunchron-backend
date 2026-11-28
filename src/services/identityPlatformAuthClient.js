@@ -15,6 +15,8 @@ function configurationError() {
   return error;
 }
 
+const SAFE_NAME = /^[A-Z][A-Z0-9_]{1,63}$/u;
+
 function upstreamError(status, payload) {
   const error = new Error("Identity Platform request failed.");
   error.status = Number(status) || 503;
@@ -22,6 +24,14 @@ function upstreamError(status, payload) {
   error.upstreamCode = String(payload?.error?.message || "")
     .split(" : ")[0]
     .trim();
+  // Google's own names for a refusal (PERMISSION_DENIED, and in the details
+  // a reason such as API_KEY_SERVICE_BLOCKED), so a log can say why without
+  // Google's free text.
+  const upstreamStatus = String(payload?.error?.status || "");
+  if (SAFE_NAME.test(upstreamStatus)) error.upstreamErrorStatus = upstreamStatus;
+  const details = Array.isArray(payload?.error?.details) ? payload.error.details : [];
+  const reason = details.map((item) => String(item?.reason || "")).find((item) => SAFE_NAME.test(item));
+  if (reason) error.upstreamReason = reason;
   return error;
 }
 
@@ -77,35 +87,51 @@ export function createIdentityPlatformAuthClient({
   const apiKey = resolveIdentityPlatformApiKey(env);
   const requestTimeoutMs = timeoutMs(env);
 
+  function unavailable(cause) {
+    const error = new Error("Identity Platform временно не отговаря.");
+    error.status = 503;
+    error.code = "IDENTITY_PLATFORM_UNAVAILABLE";
+    if (cause) error.cause = cause;
+    return error;
+  }
+
   async function request(origin, path, { body, form = false } = {}) {
     const url = new URL(`/v1/${path}`, origin);
     url.searchParams.set("key", apiKey);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
-    let response;
     try {
-      response = await fetchImpl(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": form
-            ? "application/x-www-form-urlencoded"
-            : "application/json",
-        },
-        body: form ? new URLSearchParams(body) : JSON.stringify(body),
-        signal: controller.signal,
-      });
-    } catch (cause) {
-      const error = new Error("Identity Platform временно не отговаря.");
-      error.status = 503;
-      error.code = "IDENTITY_PLATFORM_UNAVAILABLE";
-      error.cause = cause;
-      throw error;
+      let response;
+      try {
+        response = await fetchImpl(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": form
+              ? "application/x-www-form-urlencoded"
+              : "application/json",
+          },
+          body: form ? new URLSearchParams(body) : JSON.stringify(body),
+          signal: controller.signal,
+        });
+      } catch (cause) {
+        throw unavailable(cause);
+      }
+      // The answer is read within the same time limit. A good answer whose
+      // body breaks off is a passing fault: read as an empty answer it would
+      // look like a missing account and end the person's sign-in.
+      let payload;
+      try {
+        payload = await response.json();
+      } catch (cause) {
+        if (response.ok) throw unavailable(cause);
+        payload = {};
+      }
+      if (!response.ok) throw upstreamError(response.status, payload);
+      if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw unavailable();
+      return payload;
     } finally {
       clearTimeout(timer);
     }
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw upstreamError(response.status, payload);
-    return payload;
   }
 
   async function lookupUser(idToken) {
@@ -351,6 +377,23 @@ export function createIdentityPlatformAuthClient({
           return { data: { user, session }, error: null };
         } catch (error) {
           return { data: null, error };
+        }
+      },
+      // The self-test's renewal with a token that cannot exist. Google judges
+      // the token (INVALID_REFRESH_TOKEN) only when this key may renew
+      // sessions at all; a key or API that is not allowed is refused before.
+      async probeSessionRenewal() {
+        try {
+          await request(SECURE_TOKEN_ORIGIN, "token", {
+            form: true,
+            body: {
+              grant_type: "refresh_token",
+              refresh_token: "novarium-self-test-not-a-token",
+            },
+          });
+          return { error: null };
+        } catch (error) {
+          return { error };
         }
       },
       async sendVerificationEmail(accessToken) {

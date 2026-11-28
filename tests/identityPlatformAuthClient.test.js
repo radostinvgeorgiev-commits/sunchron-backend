@@ -242,3 +242,131 @@ test("lookup rejection after valid credentials is classified as a backend failur
   assert.equal(result.error.status, 502);
   assert.equal(result.error.upstreamCode, "PROFILE_LOOKUP_FAILED");
 });
+
+test("a refused renewal keeps Google's names for why, never its free text", async () => {
+  const client = createIdentityPlatformAuthClient({
+    env: ENV,
+    fetchImpl: async () =>
+      response(
+        {
+          error: {
+            code: 403,
+            message:
+              "Requests to this API securetoken.googleapis.com method google.identity.securetoken.v1.SecureToken.GrantToken are blocked.",
+            status: "PERMISSION_DENIED",
+            details: [
+              {
+                "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                reason: "API_KEY_SERVICE_BLOCKED",
+                domain: "googleapis.com",
+                metadata: { service: "securetoken.googleapis.com" },
+              },
+            ],
+          },
+        },
+        403,
+      ),
+  });
+  const result = await client.auth.refreshSession({ refresh_token: "old-refresh" });
+  assert.equal(result.data, null);
+  assert.equal(result.error.status, 403);
+  assert.equal(result.error.upstreamErrorStatus, "PERMISSION_DENIED");
+  assert.equal(result.error.upstreamReason, "API_KEY_SERVICE_BLOCKED");
+});
+
+test("Google's names that are not plain names are left out", async () => {
+  const client = createIdentityPlatformAuthClient({
+    env: ENV,
+    fetchImpl: async () =>
+      response(
+        {
+          error: {
+            message: "INVALID_REFRESH_TOKEN",
+            status: "permission denied for old-refresh",
+            details: [{ reason: "see https://example.com" }, { reason: "SERVICE_DISABLED" }],
+          },
+        },
+        400,
+      ),
+  });
+  const { error } = await client.auth.refreshSession({ refresh_token: "old-refresh" });
+  assert.equal(error.upstreamCode, "INVALID_REFRESH_TOKEN");
+  assert.equal(error.upstreamErrorStatus, undefined);
+  assert.equal(error.upstreamReason, "SERVICE_DISABLED");
+});
+
+test("the self-test renewal sends a token that cannot exist, once", async () => {
+  const calls = [];
+  const client = createIdentityPlatformAuthClient({
+    env: ENV,
+    fetchImpl: async (url, options) => {
+      calls.push({ url: String(url), body: String(options.body) });
+      return response(
+        { error: { code: 400, message: "INVALID_REFRESH_TOKEN", status: "INVALID_ARGUMENT" } },
+        400,
+      );
+    },
+  });
+  const { error } = await client.auth.probeSessionRenewal();
+  assert.equal(error.upstreamCode, "INVALID_REFRESH_TOKEN");
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /^https:\/\/securetoken\.googleapis\.com\/v1\/token\?key=/u);
+  assert.equal(
+    calls[0].body,
+    "grant_type=refresh_token&refresh_token=novarium-self-test-not-a-token",
+  );
+});
+
+function brokenBody(status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    async json() {
+      throw new SyntaxError("Unexpected end of JSON input");
+    },
+  };
+}
+
+test("a good answer whose body breaks off is a passing fault, not a missing account", async () => {
+  const renewal = createIdentityPlatformAuthClient({ env: ENV, fetchImpl: async () => brokenBody() });
+  const refreshed = await renewal.auth.refreshSession({ refresh_token: "old-refresh" });
+  assert.equal(refreshed.data, null);
+  assert.equal(refreshed.error.status, 503);
+  assert.equal(refreshed.error.code, "IDENTITY_PLATFORM_UNAVAILABLE");
+
+  const lookup = createIdentityPlatformAuthClient({
+    env: ENV,
+    fetchImpl: async (url) =>
+      String(url).startsWith("https://securetoken.googleapis.com")
+        ? response({ id_token: "refreshed-access", refresh_token: "refreshed-refresh", expires_in: "3600" })
+        : brokenBody(),
+  });
+  const { error } = await lookup.auth.refreshSession({ refresh_token: "old-refresh" });
+  assert.equal(error.status, 503);
+  assert.equal(error.code, "IDENTITY_PLATFORM_UNAVAILABLE");
+  assert.notEqual(error.upstreamCode, "USER_NOT_FOUND");
+});
+
+test("a good answer that is not an object is a passing fault too", async () => {
+  const client = createIdentityPlatformAuthClient({ env: ENV, fetchImpl: async () => response(null) });
+  const { error } = await client.auth.refreshSession({ refresh_token: "old-refresh" });
+  assert.equal(error.status, 503);
+  assert.equal(error.code, "IDENTITY_PLATFORM_UNAVAILABLE");
+});
+
+test("the time limit also covers reading the answer", { timeout: 5000 }, async () => {
+  const client = createIdentityPlatformAuthClient({
+    env: { ...ENV, IDENTITY_PLATFORM_TIMEOUT_MS: "30" },
+    fetchImpl: async (_url, { signal }) => ({
+      ok: true,
+      status: 200,
+      json: () =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+        }),
+    }),
+  });
+  const { error } = await client.auth.refreshSession({ refresh_token: "old-refresh" });
+  assert.equal(error.status, 503);
+  assert.equal(error.code, "IDENTITY_PLATFORM_UNAVAILABLE");
+});

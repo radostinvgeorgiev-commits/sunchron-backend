@@ -439,6 +439,12 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
       hasDefault: true,
     }),
     general(
+      "SESSION_READ_RATE_LIMIT",
+      "Сигурност",
+      "Проверки дали човек е влязъл (при всяко отваряне на страницата) за 15 минути.",
+      { hasDefault: true },
+    ),
+    general(
       "PRIVATE_API_RATE_LIMIT",
       "Сигурност",
       "Частни API заявки за 15 минути.",

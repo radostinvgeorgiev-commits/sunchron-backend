@@ -9,6 +9,7 @@ import {
   userSessionCookie,
 } from "../services/userAuthService.js";
 import { logSafeError } from "../utils/safeLogging.js";
+import { isPassingSignInFault, sendSignInBusy } from "./signInBusy.js";
 
 export function resolveMemoryOwnerId(login, env = process.env) {
   const normalizedLogin =
@@ -94,12 +95,24 @@ export function createRequireOwnerSession({
       return next();
     } catch (error) {
       logSafeError("[Owner auth]", error);
+      // A page the browser opened itself (the return from Google or GitHub
+      // after a connect) gets a page to reload, not bare JSON; the site's own
+      // requests keep the JSON answer.
+      if (isPassingSignInFault(error) && opensAsPage(req)) return sendSignInBusy(res);
       return res.status(503).json({
         error: "Проверката на собственика временно не е достъпна.",
         code: "OWNER_AUTH_UNAVAILABLE",
       });
     }
   };
+}
+
+function opensAsPage(req) {
+  return (
+    req.method === "GET" &&
+    typeof req.accepts === "function" &&
+    req.accepts(["json", "html"]) === "html"
+  );
 }
 
 export function requirePrimaryOwner(req, res, next) {

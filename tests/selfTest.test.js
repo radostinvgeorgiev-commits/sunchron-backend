@@ -5,6 +5,7 @@ import {
   answerExcerpt,
   answerHasNumber,
   formatSelfTest,
+  renewalProbeVerdict,
   runSelfTest,
   silentWav,
   tinyPdf,
@@ -144,8 +145,9 @@ test("all checks pass, Grok without a key is skipped, nothing secret is returned
   assert.equal(report.failed, 0);
   assert.equal(report.checks.find(({ name }) => name === "Чат · grok").status, "skipped");
   assert.equal(report.checks.find(({ name }) => name === "Чат · vertex-gemini").status, "skipped");
-  assert.equal(report.checks.length, 16);
-  assert.match(formatSelfTest(report), /13 минаха, 0 не минаха, 3 пропуснати/u);
+  assert.equal(report.checks.find(({ name }) => name === "Вход · подновяване след час").status, "skipped");
+  assert.equal(report.checks.length, 17);
+  assert.match(formatSelfTest(report), /13 минаха, 0 не минаха, 4 пропуснати/u);
   assert.equal(
     report.checks.find(({ name }) => name.startsWith("Отделни клонове")).detail,
     "своята задача се вижда, чуждата не; чужд Google и GitHub не стигат до него",
@@ -278,4 +280,104 @@ test("a third person who sees another's task, or gets another's Google, fails th
   );
   assert.equal(google.status, "fail");
   assert.match(google.detail, /чужда Google връзка/u);
+});
+
+const identityEnv = {
+  ...env,
+  IDENTITY_PLATFORM_PROJECT_ID: "test-identity-project",
+  IDENTITY_PLATFORM_API_KEY: "test-identity-platform-api-key-123",
+};
+
+async function renewalCheck(probeRenewal) {
+  const report = await runSelfTest({
+    env: identityEnv,
+    askAi: async ({ input }) => echoMarker(input[0].content),
+    transcribe: async () => ({ text: "", provider: "openai" }),
+    readMeeting: async () => ({ text: "", provider: "gemini" }),
+    readDocument: async () => "",
+    shareService: memoryShare(),
+    knowledgeService: memoryKnowledge(),
+    libraryService: memoryLibrary(),
+    avatarProfileService: memoryAvatar(),
+    claudeWorkService: fakeClaudeWork(),
+    todoService: memoryTodos(),
+    probeRenewal,
+  });
+  return report.checks.find(({ name }) => name === "Вход · подновяване след час");
+}
+
+test("sign-in renewal passes when Google judges the made-up token", async () => {
+  const calls = [];
+  const result = await renewalCheck(async ({ env: given }) => {
+    calls.push(given);
+    return {
+      error: Object.assign(new Error("Identity Platform request failed."), {
+        status: 400,
+        upstreamCode: "INVALID_REFRESH_TOKEN",
+        upstreamErrorStatus: "INVALID_ARGUMENT",
+      }),
+    };
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].IDENTITY_PLATFORM_PROJECT_ID, "test-identity-project");
+  assert.equal(result.status, "pass");
+  assert.match(result.detail, /Google подновява входа/u);
+});
+
+test("sign-in renewal fails with the reason when the key may not renew", async () => {
+  const result = await renewalCheck(async () => ({
+    error: Object.assign(new Error("Identity Platform request failed."), {
+      status: 403,
+      upstreamCode: "Requests to this API securetoken.googleapis.com are blocked.",
+      upstreamErrorStatus: "PERMISSION_DENIED",
+      upstreamReason: "API_KEY_SERVICE_BLOCKED",
+    }),
+  }));
+  assert.equal(result.status, "fail");
+  assert.match(result.detail, /ключът за вход не позволява подновяване: всеки вход изтича след час/u);
+  assert.match(result.detail, /403 PERMISSION_DENIED API_KEY_SERVICE_BLOCKED/u);
+  assert.doesNotMatch(result.detail, /securetoken|test-identity-platform-api-key/u);
+});
+
+test("sign-in renewal names the other ways Google can answer", () => {
+  assert.match(renewalProbeVerdict(null), /Google подновява входа/u);
+  assert.throws(
+    () => renewalProbeVerdict({ status: 403, upstreamErrorStatus: "PERMISSION_DENIED", upstreamReason: "SERVICE_DISABLED" }),
+    /Token Service API е изключен/u,
+  );
+  assert.throws(
+    () => renewalProbeVerdict({ status: 503, code: "IDENTITY_PLATFORM_UNAVAILABLE" }),
+    /временно не отговаря, пусни проверката пак \(503\)/u,
+  );
+  assert.throws(
+    () => renewalProbeVerdict({ status: 403, upstreamErrorStatus: "PERMISSION_DENIED", upstreamReason: "API_KEY_SERVICE_BLOCKED" }),
+    /ключът за вход не позволява подновяване: всеки вход изтича след час/u,
+  );
+  // A wrong, restricted or expired key, or a suspended project, stops the
+  // sign-in itself, so the check must not say that sign-in works for an hour.
+  for (const [status, upstreamErrorStatus, upstreamReason] of [
+    [400, "INVALID_ARGUMENT", "API_KEY_INVALID"],
+    [403, "PERMISSION_DENIED", "API_KEY_IP_ADDRESS_BLOCKED"],
+    [403, "PERMISSION_DENIED", "API_KEY_HTTP_REFERRER_BLOCKED"],
+    [403, "PERMISSION_DENIED", "CONSUMER_SUSPENDED"],
+  ]) {
+    assert.throws(
+      () => renewalProbeVerdict({ status, upstreamErrorStatus, upstreamReason }),
+      (error) =>
+        /Google отказва самия ключ за вход, не само подновяването/u.test(error.message) &&
+        !/изтича след час/u.test(error.message) &&
+        error.message.includes(upstreamReason),
+      upstreamReason,
+    );
+  }
+  assert.throws(
+    () => renewalProbeVerdict({ status: 403, upstreamErrorStatus: "PERMISSION_DENIED", upstreamReason: "IAM_PERMISSION_DENIED" }),
+    (error) =>
+      /Google отказа подновяването \(403 PERMISSION_DENIED IAM_PERMISSION_DENIED\)/u.test(error.message) &&
+      !/изтича след час/u.test(error.message),
+  );
+  assert.throws(
+    () => renewalProbeVerdict({ status: 400, upstreamCode: "INVALID_GRANT_TYPE" }),
+    /Google отказа подновяването \(400 INVALID_GRANT_TYPE\)/u,
+  );
 });

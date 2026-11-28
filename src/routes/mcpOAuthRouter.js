@@ -1,5 +1,6 @@
 import express from "express";
 import { resolveRequestIdentity } from "../middleware/ownerAuth.js";
+import { isPassingSignInFault, sendSignInBusy } from "../middleware/signInBusy.js";
 import {
   createMcpAuthorizationCode,
   createMcpConsentToken,
@@ -151,6 +152,7 @@ export function createMcpOAuthRouter({
         .type("html")
         .send(consentPage(request, identity, consentToken));
     } catch (error) {
+      if (isPassingSignInFault(error)) return sendSignInBusy(res);
       return oauthError(res, error);
     }
   });
@@ -196,12 +198,18 @@ export function createMcpOAuthRouter({
         noStore(res);
         return res.redirect(callback.href);
       } catch (error) {
+        const passing = isPassingSignInFault(error);
         recordMcpAuthorizationRuntimeStatus({
           authorization: "failed",
           decision: req.body?.decision === "allow" ? "allow" : "deny",
           errorCode:
-            error instanceof McpOAuthError ? error.code : "server_error",
+            error instanceof McpOAuthError
+              ? error.code
+              : passing
+                ? "temporarily_unavailable"
+                : "server_error",
         });
+        if (passing) return sendSignInBusy(res, "", { formSent: true });
         return oauthError(res, error);
       }
     },

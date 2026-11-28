@@ -2634,9 +2634,10 @@ router.post("/chat", async (req, res) => {
   let memoryAction = null;
   const autoMemoryCount = 0;
   let memoryAvailable = true;
-  // Which memory command this message prepares, for the reply to a fact or
-  // text over 500 characters (INVALID_MEMORY below).
+  // Which memory command this message prepares, and for which memory, for
+  // the reply to a fact or text over 500 characters (INVALID_MEMORY below).
   let memoryCommandKind = null;
+  let memoryCommandScope = null;
   const memoryWriteConfirmationId =
     extractMemoryWriteConfirmationId(cleanMessage);
   const memoryDeleteConfirmationId =
@@ -2685,6 +2686,7 @@ router.post("/chat", async (req, res) => {
         // the council the answer is about them, so the command keeps the
         // confirmation, shown under that answer.
         memoryCommandKind = "write";
+        memoryCommandScope = memoryCommands[0]?.scope || null;
         const prepared = await prepareMemoryWrite({
           sessionId: cleanSessionId,
           ownerId,
@@ -2809,14 +2811,19 @@ router.post("/chat", async (req, res) => {
       });
     }
     // A fact over 500 characters (a pasted paragraph after „Запомни:“) is
-    // not an outage: say what to do instead of „памет не е достъпна“. A
-    // forget command that long deletes nothing and says so.
+    // not an outage: say what to do instead of „памет не е достъпна“, in the
+    // words the chat reads as a list for the same memory („Запомни за
+    // проекта:“ for the project, „Запомни следното:“ for the person), a dash
+    // per line or „;“ on one line, which a phone can type. A forget command
+    // that long deletes nothing and says so.
     if (error?.code === "INVALID_MEMORY") {
+      const listCommand =
+        memoryCommandScope === "project" ? "„Запомни за проекта:“" : "„Запомни следното:“";
       return res.status(400).json({
         error:
           memoryCommandKind === "delete"
             ? "Текстът за забравяне трябва да бъде между 1 и 500 знака. Нищо не беше изтрито."
-            : "Фактът за паметта трябва да бъде между 1 и 500 знака. Нищо не беше записано. Раздели дългия текст на по-кратки точки, например списък с тирета.",
+            : `Фактът за паметта трябва да бъде между 1 и 500 знака. Нищо не беше записано. Напиши ${listCommand} и по-кратки точки, всяка на нов ред с тире или на един ред с „;“ между тях.`,
         code: "INVALID_MEMORY",
       });
     }

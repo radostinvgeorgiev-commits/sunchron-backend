@@ -9,6 +9,8 @@
 
   if (!button || !drawer || !body) return;
   const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
+  const GOOGLE_DISCONNECT_QUESTION =
+    "Да спра ли достъпа на NovariumAI до Google? Това спира Google на всички твои устройства. После пощата и Drive се разрешават отново.";
 
   // The stored Google sign-in no longer works: "Свържи Google отново".
   const RECONNECT_CODES = new Set([
@@ -196,6 +198,11 @@
 
     const disconnect = event.target.closest("#disconnectGoogleDrive");
     if (disconnect) {
+      // Google keeps one permission per account, so this stops Google for
+      // NovariumAI on every device of the person; it is asked first (28.11:
+      // presses on a phone at 13:59 and 14:20 UTC took Gmail and Drive away
+      // from the computer too).
+      if (!window.confirm(text(GOOGLE_DISCONNECT_QUESTION))) return;
       disconnect.disabled = true;
       let failed = false;
       try {

@@ -347,7 +347,88 @@ test("a fact over 500 characters is answered with what to do, and nothing is wri
   assert.equal(response.body.code, "INVALID_MEMORY");
   assert.match(response.body.error, /между 1 и 500 знака/u);
   assert.match(response.body.error, /Нищо не беше записано/u);
+  assert.match(
+    response.body.error,
+    /Напиши „Запомни следното:“ и по-кратки точки, всяка на нов ред с тире или на един ред с „;“ между тях/u,
+  );
   assert.deepEqual(await profileFor("primary-user"), []);
+});
+
+// The advice names the list form of the same memory (review of the sign-in
+// fixes): a project fact is told „Запомни за проекта:“, and following either
+// piece of advice word for word writes to the memory the person meant.
+test("the long-fact advice keeps the memory: project facts stay in the project", async () => {
+  resetConfirmationsForTests();
+  resetLocalDocumentStoreForTests();
+  const ownerSession = await createGitHubSession(
+    { access_token: "test-owner-token-long-project" },
+    async () =>
+      new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
+        status: 200,
+      }),
+  );
+  const ownerCookie = `synchron_github_session=${ownerSession.id}`;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_url, init) =>
+    modelAnswer(isFactCheck(init) ? JSON.stringify({ onlyFacts: true }) : "Разбрах.");
+  const projectFacts = async () =>
+    (await listProfileMemories({ scope: "project", ownerId: "primary-user" }))
+      .filter(({ source }) => source === "own-chat-command")
+      .map(({ fact }) => fact)
+      .sort();
+  try {
+    const long = `Проектът е магазин за книги ${"и продава стари издания по пощата ".repeat(16)}`.trim();
+    assert.ok(long.length > 500);
+    const refused = await request(app)
+      .post("/chat/chat")
+      .set("Cookie", ownerCookie)
+      .send({ sessionId: "memory-write-long-project", message: `Запомни за проекта: ${long}.` })
+      .expect(400);
+    assert.equal(refused.body.code, "INVALID_MEMORY");
+    assert.match(refused.body.error, /Напиши „Запомни за проекта:“ и по-кратки точки/u);
+    assert.doesNotMatch(refused.body.error, /Запомни следното/u);
+    assert.deepEqual(await projectFacts(), []);
+    assert.deepEqual(await profileFor("primary-user"), []);
+
+    // A dash per line, as the advice says.
+    await request(app)
+      .post("/chat/chat")
+      .set("Cookie", ownerCookie)
+      .send({
+        sessionId: "memory-write-long-project",
+        message: "Запомни за проекта:\n- Проектът е магазин за книги\n- Продава стари издания по пощата",
+      })
+      .expect(200);
+    // „;“ on one line, which a phone can type.
+    await request(app)
+      .post("/chat/chat")
+      .set("Cookie", ownerCookie)
+      .send({
+        sessionId: "memory-write-long-project",
+        message: "Запомни за проекта: срокът е 1 март; бюджетът е 5000 лв",
+      })
+      .expect(200);
+    assert.deepEqual(await projectFacts(), [
+      "Продава стари издания по пощата",
+      "Проектът е магазин за книги",
+      "бюджетът е 5000 лв",
+      "срокът е 1 март",
+    ]);
+    assert.deepEqual(await profileFor("primary-user"), []);
+
+    // The person's own list on one line goes to their own memory.
+    await request(app)
+      .post("/chat/chat")
+      .set("Cookie", ownerCookie)
+      .send({ sessionId: "memory-write-long-project", message: "Запомни следното: пия чай без захар; обичам джаз" })
+      .expect(200);
+    assert.deepEqual((await profileFor("primary-user")).map(({ fact }) => fact).sort(), [
+      "обичам джаз",
+      "пия чай без захар",
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 // What the words pass is read once more by a small model. Its „no“, an

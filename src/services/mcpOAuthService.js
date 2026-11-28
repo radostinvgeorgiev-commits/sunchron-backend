@@ -556,7 +556,16 @@ export const GOOGLE_AGENT_CLIENT_IDS = Object.freeze([
   "synchron-antigravity",
 ]);
 
-export const CLAUDE_CLIENT_ID = "synchron-claude";
+export const CLAUDE_CLIENT_ID = "novariumai-claude";
+// The old name stays valid for connectors that were added with it.
+export const LEGACY_CLAUDE_CLIENT_ID = "synchron-claude";
+export const CLAUDE_CLIENT_IDS = Object.freeze([
+  CLAUDE_CLIENT_ID,
+  LEGACY_CLAUDE_CLIENT_ID,
+]);
+export function isClaudeClientId(clientId) {
+  return CLAUDE_CLIENT_IDS.includes(String(clientId || ""));
+}
 export const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
 // Claude asks for the scope of whichever tool it called first and, on a 403,
 // for the missing scope alone. One sign-in therefore always grants the whole
@@ -579,7 +588,7 @@ export const CLAUDE_SCOPES = Object.freeze([
 // Claude is the owner's personal connector; member accounts are refused at
 // consent, code, refresh and on every tool call, so an old grant stops too.
 function assertClientAllowedForRole(clientId, role, code = "access_denied") {
-  if (clientId === CLAUDE_CLIENT_ID && role !== "owner") {
+  if (isClaudeClientId(clientId) && role !== "owner") {
     throw new McpOAuthError(
       "Claude е достъпен само за собственика на NovariumAI.",
       403,
@@ -589,10 +598,10 @@ function assertClientAllowedForRole(clientId, role, code = "access_denied") {
 }
 
 function registeredClaudeClient(clientId, env) {
-  if (clientId !== CLAUDE_CLIENT_ID || env.MCP_CLAUDE_OAUTH_ENABLED !== "true")
+  if (!isClaudeClientId(clientId) || env.MCP_CLAUDE_OAUTH_ENABLED !== "true")
     return null;
   return {
-    client_id: CLAUDE_CLIENT_ID,
+    client_id: clientId,
     client_name: "Claude",
     redirect_uris: [CLAUDE_CALLBACK],
     allowedScopes: CLAUDE_SCOPES,
@@ -720,7 +729,9 @@ export async function validateMcpAuthorizationRequest(
   }
   if (
     !isAllowedMcpResourceUrl(resource, env) ||
-    (googleClient && resource !== resolveMcpResourceUrl(env))
+    (googleClient &&
+      resource !== resolveMcpResourceUrl(env) &&
+      !resolveMcpAlternateResourceUrls(env).includes(resource))
   ) {
     throw new McpOAuthError("Невалиден MCP resource.", 400, "invalid_target");
   }

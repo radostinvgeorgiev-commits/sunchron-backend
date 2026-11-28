@@ -7,7 +7,7 @@ import {
   getMcpAuthorizationServerMetadata,
   getMcpProtectedResourceMetadata,
   GOOGLE_AGENT_CLIENT_IDS,
-  CLAUDE_CLIENT_ID,
+  isClaudeClientId,
   McpOAuthError,
   recordMcpAuthorizationRuntimeStatus,
   resolveMcpConsentRequest,
@@ -52,7 +52,7 @@ function preserveOAuthPopupHandoff(res, request) {
   const callbackOrigin =
     request &&
     (GOOGLE_AGENT_CLIENT_IDS.includes(request.clientId) ||
-      request.clientId === CLAUDE_CLIENT_ID)
+      isClaudeClientId(request.clientId))
       ? new URL(request.redirectUri).origin
       : null;
   res.set(

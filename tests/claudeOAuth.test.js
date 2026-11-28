@@ -212,3 +212,25 @@ test("Claude may prepare Google Cloud actions but no other writes", () => {
     assert.ok(!CLAUDE_SCOPES.includes(scope), scope);
   }
 });
+
+test("the NovariumAI client name and the old one both sign in to Claude", async () => {
+  const { LEGACY_CLAUDE_CLIENT_ID } = await import("../src/services/mcpOAuthService.js");
+  assert.equal(CLAUDE_CLIENT_ID, "novariumai-claude");
+  for (const clientId of [CLAUDE_CLIENT_ID, LEGACY_CLAUDE_CLIENT_ID]) {
+    const request = await validateMcpAuthorizationRequest(
+      { ...input, client_id: clientId, resource: "https://novariumai.com/mcp" },
+      { env, fetchImpl: noFetch },
+    );
+    assert.equal(request.clientId, clientId);
+    const code = createMcpAuthorizationCode(request, { id: "o", memoryOwnerId: "o", role: "owner" }, env);
+    const token = await exchangeMcpAuthorizationCode(
+      { grant_type: "authorization_code", code, client_id: clientId, redirect_uri: CLAUDE_CALLBACK, code_verifier: verifier, resource: "https://novariumai.com/mcp" },
+      env,
+    );
+    assert.equal(verifyMcpAccessToken(`Bearer ${token.access_token}`, ["synchron:read"], env).clientId, clientId);
+    assert.throws(
+      () => createMcpAuthorizationCode(request, { id: "m", memoryOwnerId: "m", role: "member" }, env),
+      /само за собственика/u,
+    );
+  }
+});

@@ -153,6 +153,8 @@ export function normalizeProfileMemoryDraft(fact, requestedScope = "personal") {
   return Object.freeze({ fact: cleanFact, scope: requestedScope });
 }
 
+const MAX_LIST_FACTS = 30;
+
 function splitMemoryFacts(value) {
   const normalized = value.replace(/\r\n/g, "\n").trim();
   const lines = normalized
@@ -164,7 +166,7 @@ function splitMemoryFacts(value) {
 
   return [...new Set(candidates.map(cleanMemoryFact).filter(Boolean))].slice(
     0,
-    30,
+    MAX_LIST_FACTS,
   );
 }
 
@@ -397,6 +399,18 @@ const WAIT_FOR_MEMORY_CONFIRMATION = new RegExp(
     String.raw`не\s+(?:го\s+|я\s+|ги\s+)?(?:пиши|добавяй|слагай|пази|вкарвай|помни)|(?:^|[^\p{L}])(?:още\s+не|не\s+още|засега)(?:[^\p{L}]|$)|първо\s+ми\s+кажи`,
     String.raw`not\s+yet|hold\s+off|for\s+now|don[’']?t\s+(?:add|keep|put|record|remember|note|write|save|store)|first\s+tell\s+me|tell\s+me\s+first|think\s+about\s+it|let\s+me\s+think`,
     String.raw`noch\s+nicht|todav[ií]a\s+no|a[uú]n\s+no|pas\s+encore|non\s+ancora|[îi]nc[ăa]\s+nu`,
+    // Fifth review: no hurry, not sure, a moment, later, I will tell you or
+    // check, in any of the site's languages. A fact the person is not sure of
+    // („май е в 14 ч“, „maybe“, „I think“) also waits for the confirmation.
+    String.raw`не\s+(?:се\s+)?бързай|без\s+бързане|няма\s+(?:за\s+)?бързане|не\s+е\s+спешно|не\s+бързаме|задръж`,
+    String.raw`не\s+(?:съм|сме|е|са)\s+(?:\p{L}+\s+)?сигур|несигур|(?<![\p{L}])сигурно(?![\p{L}])|не\s+знам\s+(?:дали|кога|къде|точно|още)|(?<![\p{L}])май(?<!\d\s*май)\s+(?:е|ще|беше|съм|са|сме)(?![\p{L}])|може\s+би|вероятно|предполагам|мисля,?\s+че|ако\s+не\s+(?:греша|се\s+лъжа)|не\s+съм\s+100`,
+    String.raw`(?<![\p{L}])(?:момент|моментче|секунд\p{L}*|сек)(?![\p{L}])|уточн|ще\s+(?:ти\s+|ви\s+)?(?:кажа|пиша|пратя|проверя|потвърдя|уточня|видя|реша|помисля|звънна|обадя|кажем|пишем|проверим|видим|решим)(?![\p{L}])|по[-\s]късно|по[-\s]нататък|по-натам|после\s+ще|ей\s+сега|след\s+малко`,
+    String.raw`not\s+(?:\p{L}+\s+)?sure|unsure|not\s+100|not\s+certain|(?<![\p{L}])(?:maybe|perhaps|probably|possibly)(?![\p{L}])|(?<![\p{L}])i\s+(?:think|guess|believe)(?![\p{L}])|(?<![\p{L}])later(?![\p{L}])|double[-\s]?check|hang\s+on|hold\s+on|(?<![\p{L}])(?:one|a)\s+(?:sec|second|moment|min|minute)(?![\p{L}])|no\s+(?:rush|hurry)|don[’']?t\s+(?:rush|hurry)|(?:will|i[’']ll|i\s+will)\s+(?:tell|check|confirm|let|get\s+back|update)|let\s+you\s+know|get\s+back\s+to\s+you|(?<![\p{L}])(?:tbd|tbc)(?![\p{L}])|to\s+be\s+(?:confirmed|decided|determined)|need\s+to\s+(?:check|confirm|verify)`,
+    String.raw`sp[äa]ter|vielleicht|wahrscheinlich|nicht\s+(?:ganz\s+)?sicher|(?<![\p{L}])moment(?![\p{L}])|sekunde|sag\s+(?:ich\s+)?dir\s+(?:sp[äa]ter|noch|bescheid)|melde\s+mich|ich\s+(?:pr[üu]fe|[üu]berlege|schaue)|[üu]berleg`,
+    String.raw`m[áa]s\s+tarde|luego\s+te|quiz[áa]s?|tal\s+vez|a\s+lo\s+mejor|no\s+estoy\s+segur|un\s+(?:momento|segundo)|(?<![\p{L}])espera(?![\p{L}])|ya\s+te\s+(?:dir[ée]|digo|aviso|cuento)|te\s+aviso|lo\s+(?:confirmo|pienso|reviso)`,
+    String.raw`plus\s+tard|peut[-\s][eê]tre|pas\s+(?:tout\s+[àa]\s+fait\s+)?s[uû]r|un\s+(?:moment|instant)|une\s+seconde|je\s+te\s+(?:dirai|dis|confirme)|je\s+(?:v[ée]rifie|confirme|r[ée]fl[ée]chis)|probablement`,
+    String.raw`pi[uù]\s+tardi|(?<![\p{L}])(?:forse|magari)(?![\p{L}])|probabilmente|non\s+sono\s+sicur|un\s+(?:attimo|secondo)|ti\s+(?:dir[oò]|dico|faccio\s+sapere|confermo)|ci\s+penso`,
+    String.raw`mai\s+t[âa]rziu|(?<![\p{L}])(?:poate|stai)(?![\p{L}])|probabil|nu\s+sunt\s+sigur|o\s+(?:clip[ăa]|secund[ăa])|[îi][țţt]i\s+spun|te\s+anun[țţt]|m[ăa]\s+g[âa]ndesc`,
   ].join("|"),
   "iu",
 );
@@ -464,28 +478,37 @@ const NESTED_MEMORY_COMMAND =
   /(?:^|[^\p{L}])(?:запомни|запази|remember|merken|merk\s+dir|recordar|recuerda|retenir|retiens|ricorda|ricordare|[țţt]ine\s+minte)\s*(?::|,?\s+(?:че|that|dass|que|che|că|ca)\s)/iu;
 
 // A request to the assistant or a question to it, at the start of a fact, a
-// list item or a clause (third and fourth review of #605). It fails closed:
-// a real fact that happens to look like one only gets the one-time
-// confirmation. Up to two leading words may come first („и също провери“,
-// „а ти провери“, „and also check“, „please send“), then „ми/me“.
-const REQUEST_LEAD = String.raw`(?:(?:и|а|но|после|само|просто|моля|също|още|сега|ти|вие|and|then|but|just|only|please|also|now|you)[\s,]+){0,2}(?:(?:ми|ни|me|us)\s+)?`;
+// list item or a clause (third, fourth and fifth review of #605). It fails
+// closed: a real fact that happens to look like one only gets the one-time
+// confirmation. Up to three leading words may come first („и също провери“,
+// „а ти провери“, „моля те напомни“, „and also check“, „pls send“), then up
+// to two short pronouns („и я прати“, „и му кажи“, „me“).
+const LEAD_WORDS = String.raw`и|а|но|после|само|просто|моля\s+те|моля\s+ви|моля|също|още|сега|пак|ти|вие|нека|хайде|айде|ако\s+може|ако\s+обичаш|ако\s+обичате|плс|затова|освен\s+това|след\s+това|след\s+което|and|then|but|just|only|please|pls|plz|kindly|also|now|you|so|btw|oh|wanna|wanna\s+you`;
+const SHORT_PRONOUNS = String.raw`ми|ти|му|ѝ|й|ни|ви|им|го|я|ги|се|си|ме|те`;
+const REQUEST_LEAD = String.raw`(?:(?:${LEAD_WORDS})[\s,]+){0,3}(?:(?:${SHORT_PRONOUNS}|me|us)\s+){0,2}`;
 // A request verb by its stem, in any form („провери“, „проверете“, „напомни
 // ми“), or in English as a whole word; a question word by its stem („какво“,
-// „каква“, „кога“, „what“) or a question with a helping verb („is it“, „do
-// I“).
-const REQUEST_WORD = String.raw`(?:(?:кажи|кажете|провер|покаж|изпрат|прат|прочет|направ|напиш|намер|потърс|търс|пусн|отвор|създа|добав|изтри|изтрий|напомн|разкаж|дай|дайте|обясн|превед|сравн|отговор|запиш|резервир|поръча|купи|плати|звънн|обад|уведом|подготв|изчисл|пресметн|помогн|погледн|предлож|обобщ|сложи|върни|спри|махни|включ|изключ|питай|попитай)\p{L}*|(?:tell|show|check|send|read|make|write|find|search|open|create|add|delete|remove|remind|email|e-mail|text|call|book|buy|order|schedule|set|give|get|list|summari[sz]e|translate|explain|draft|reply|answer|forward|play|start|stop|cancel|update|change|fix|help|compare|calculate|plan|prepare|look|let|let['’]s|ask|bring|put|keep|note|save|turn|go|try|see|watch|wake)(?![\p{L}'’-])|(?:как|кой|коя|кое|кои|чий|чия|чие|чии|защо|колко|кога|къде|накъде|откъде|докога|дали)(?!\p{L})|как\p{L}+|(?:what|when|where|who|whom|whose|which|how|why|whether)(?![\p{L}'’])|(?:is|are|was|were|do|does|did|will|would|can|could|should|shall|may|might)\s+(?:you|it|there|i|we|they|he|she|this|that)(?!\p{L}))`;
+// „каква“, „кога“, „what“, „what's“) or a question with a helping verb („is
+// it“, „do I“).
+const REQUEST_WORD = String.raw`(?:(?:кажи|кажете|провер|покаж|изпрат|прат|прочет|направ|напиш|намер|потърс|търс|пусн|отвор|създа|добав|изтри|изтрий|напомн|разкаж|дай|дайте|обясн|превед|сравн|отговор|запиш|резервир|поръча|купи|плати|звънн|обад|уведом|подготв|изчисл|пресметн|сметн|помогн|погледн|предлож|препоръч|обобщ|сложи|върни|спри|махни|включ|изключ|питай|попитай|подсет|измисл|виж|вижте|ела|елате)\p{L}*|(?:tell|show|check|send|read|make|write|find|search|open|create|add|delete|remove|remind|email|e-mail|text|call|book|buy|order|schedule|set|give|get|list|summari[sz]e|translate|explain|draft|reply|answer|forward|play|start|stop|cancel|update|change|fix|help|compare|calculate|plan|prepare|look|let|let['’]s|ask|bring|put|keep|note|save|turn|go|try|see|watch|wake|suggest|recommend|share|print|ping|message|notify|review|research|pick|grab|organi[sz]e|sort|draw|generate|convert|recap|outline)(?![\p{L}'’-])|(?:как|кой|коя|кое|кои|чий|чия|чие|чии|защо|колко|кога|къде|накъде|откъде|докога|дали|кво|що|нима|нали)(?!\p{L})|как\p{L}+|(?:what|when|where|who|whom|whose|which|how|why|whether)(?:['’]?s)?(?![\p{L}'’])|(?:is|are|was|were|do|does|did|will|would|can|could|should|shall|may|might)\s+(?:you|u|ya|it|there|i|we|they|he|she|this|that)(?!\p{L}))`;
 const REQUEST_AT = new RegExp(String.raw`${REQUEST_LEAD}${REQUEST_WORD}`, "iuy");
 // After a joiner, a Bulgarian command also by its shape: a small-letter word
 // ending in „-и“, „-й“, „-ете“ or „-йте“ with more words after it („…,
-// разпечатай ми …“), but not a list of things („…, ябълки и круши“).
+// разпечатай ми …“, „… и ми препоръчай вино“), but not a list of things („…,
+// ябълки и круши“).
 const IMPERATIVE_AT = new RegExp(
-  String.raw`(?:(?:и|а|но|после|само|просто|моля|също|още|сега|ти|вие)[\s,]+){0,2}(?=\p{Ll})\p{L}{2,}(?:и|й|ете|йте)(?=\s+(?!(?:и|или)(?:\s|$))[\p{L}\p{N}])`,
+  String.raw`(?:(?:${LEAD_WORDS})[\s,]+){0,3}(?:(?:${SHORT_PRONOUNS})\s+){0,2}(?=\p{Ll})\p{L}{2,}(?:и|й|ете|йте)(?=\s+(?!(?:и|или)(?:\s|$))[\p{L}\p{N}])`,
   "uy",
 );
+// After a comma, „;“ or „:“ a helping verb asks a question whatever follows
+// it („…, is amoxicillin ok“, „…, are eggs ok“, „…, does butter have …“).
+const QUESTION_AFTER_COMMA =
+  /(?:is|are|was|were|do|does|did|will|would|can|could|should|shall|may|might)\s+\p{L}/iuy;
 // Where a new clause can start: after a comma, „;“, „:“, a bracket, a slash,
-// a period, a dash or a joining word.
+// a period, a dash or a joining word. Two joiners in a row both count („… и
+// след това провери …“, „…, след това …“).
 const CLAUSE_JOINER =
-  /(?:[,;:(/.]|\s-{1,2}|-{2,})\s*|\s(?:и|а|но|ама|обаче|или|после|след\s+това|and|then|but|or|plus|also)\s+/giu;
+  /(?:[,;:(/.]|(?<=\s)-{1,2}|-{2,})\s*|(?<=\s)(?:и|а|но|ама|обаче|или|после|след\s+това|след\s+което|затова|пък|освен\s+това|също|плс|моля|and|then|but|or|plus|also|so|btw|pls|plz|please|by\s+the\s+way|anyway)\s+/giu;
 // „… ли …“ asks a question („ще вали ли утре“, „можеш ли“).
 const QUESTION_PARTICLE = /(?:^|[^\p{L}])ли(?=[^\p{L}]|$)/iu;
 
@@ -496,6 +519,77 @@ function requestStartsAt(text, index, { shape = false } = {}) {
   IMPERATIVE_AT.lastIndex = index;
   return IMPERATIVE_AT.test(text);
 }
+
+// The same at any word, not only at the start of a clause (fifth review of
+// #605): a request glued to the fact with no comma („… в 10 напомни ми
+// довечера“, „… 18 ч pls напомни ми“, „… и я прати на Иван“) still keeps the
+// one-time confirmation. Bulgarian commands count in their exact forms, so
+// „проверката“, „купих“ or „кратки отговори“ in a fact do not. A one-off
+// command counts anywhere; a standing one („пиши ми на ти“, „казвай ми
+// всичко“, „отговаряй ми кратко“) opening the fact is a preference to keep,
+// and counts only further on.
+const BG_ONE_OFF_STEMS = String.raw`каж|провер|покаж|изпрат|прат|препрат|прочет|направ|напиш|намер|потърс|пусн|отвор|създа|добав|изтри|напомн|подсет|разкаж|да|обясн|превед|сравн|запиш|запаз|резервира|поръча|куп|плат|звънн|обад|уведом|подготв|изчисл|пресметн|сметн|помогн|погледн|предлож|препоръча|обобщ|слож|върн|спр|махн|включ|изключ|попита|измисл|помисл|събуд|донес|взем|сготв|избер|сподел|продълж|отмен|премест|повтор|избро|отбележ|насроч|подпиш|увелич|намал|настро|свърж|извика|прегледа|информира|организира|планира|разпечата|генерира|нарисува|състав|опиш|анализира|обработ|коригира|редактира|съкрат|разшир|допиш|маркира|архивира|кач|свал|изтегл|прехвърл|оправ|почист|изчист|подред|изпе|изслуша`;
+const BG_STANDING_STEMS = String.raw`пиш|чет|пита|казва|праща|обажда|напомня|събужда|подсеща|пи`;
+const BG_ONE_OFF_COMMAND = new RegExp(
+  String.raw`(?<![\p{L}])(?:(?:${BG_ONE_OFF_STEMS})(?:и|й|ете|йте)|виж|вижте|ела|елате|чуй|чуйте)(?![\p{L}])`,
+  "iu",
+);
+const BG_STANDING_COMMAND = new RegExp(
+  String.raw`(?<![\p{L}])(?:${BG_STANDING_STEMS})(?:и|й|ете|йте)(?![\p{L}])`,
+  "giu",
+);
+const SECOND_PERSON_SKIP = String.raw`(?<!недей(?:те)?\s+да\s+(?:(?:${SHORT_PRONOUNS})\s+){0,2})`;
+const REQUEST_ANYWHERE = new RegExp(
+  [
+    // A Bulgarian question word, also after a preposition („от къде“, „по
+    // колко“, „с какво“), and „има ли“ typed as one word.
+    String.raw`(?<![\p{L}])(?:как|кой|коя|кое|кои|чий|чия|чие|чии|защо|колко|кога|къде|накъде|откъде|докога|дали|какво|какъв|каква|какви|кво|що|нима|нали)(?![\p{L}])`,
+    String.raw`(?<![\p{L}])имали(?![\p{L}])(?!\s+(?:сме|са|сте|бяхме|бяха)(?![\p{L}]))`,
+    // A verb in the second person speaks to the assistant („можеш да ми
+    // напомниш“, „ще ми помогнеш“, „имаш ли“). „Недей да ми звъниш“ is a
+    // preference.
+    String.raw`(?<![\p{L}])${SECOND_PERSON_SKIP}\p{L}{2,}(?:еш|иш|аш|яш)(?![\p{L}])`,
+    // Polite words and asking for ideas or help.
+    String.raw`(?<![\p{L}])(?:моля|нека|хайде|айде|плс|можете|бихте|ако\s+може|ако\s+обичаш|ако\s+обичате|не\s+забравяй(?:те)?|да\s+(?:видим|помислим|измислим|проверим|решим|планираме|уточним|направим)|искам\s+да\s+(?:ми|ни)|искам(?:е)?\s+(?:идеи|идея|съвет|съвети|помощ|предложени\p{L}*|препоръ\p{L}*)|трябва(?:т)?\s+(?:ми|ни)\s+(?:идеи|идея|съвет|съвети|помощ|предложени\p{L}*|препоръ\p{L}*)|идеи|предложения|препоръки|съвети)(?![\p{L}])`,
+    // English: a question word with „'s“ („what's“, „whats“, „how's“), a
+    // question word before a helping verb or „time/much/long“, „can you/u“,
+    // „is there any“, „is it ok“, polite words and asking for ideas.
+    String.raw`(?<![\p{L}'’])(?:what|how|where|who|when|why)(?:['’]s|s)(?![\p{L}'’])`,
+    String.raw`(?<![\p{L}'’])(?:what|how|where|when|who|which|why)\s+(?:is|are|was|were|do|does|did|can|could|should|would|will|time|day|kind|about|much|many|long|far|often|old|come|if|else)(?![\p{L}'’])`,
+    String.raw`(?<![\p{L}'’])(?:can|could|would|will|do|did|does|are|were|have|should|shall)\s+(?:you|u|ya)(?![\p{L}'’])`,
+    String.raw`(?<![\p{L}'’])(?:is|are)\s+there\s+(?:any|a|an)(?![\p{L}'’])|(?<![\p{L}'’])is\s+it\s+(?:ok|okay|safe|fine|possible|true|bad|good|normal|better|worth|too|really|legal|healthy|smart|necessary|likely|going)(?![\p{L}'’])`,
+    String.raw`(?<![\p{L}'’])(?:please|pls|plz|kindly|lmk|let\s+me\s+know|let['’]s|let\s+us|i\s+need\s+you|i\s+want\s+you|i['’]d\s+like|i\s+would\s+like|need\s+you\s+to|want\s+you\s+to|any\s+(?:\p{L}+\s+)?(?:idea|ideas|tips|suggestions|recommendations|thoughts|advice)|ideas|suggestions|recommendations|don['’]?t\s+forget|do\s+not\s+forget|make\s+sure|you\s+(?:should|could|can|need\s+to|have\s+to|must|might\s+want)|feel\s+free|btw|by\s+the\s+way|gimme|lemme|wanna|gonna\s+you|i\s+wonder|wondering|thoughts\s+on|tips\s+for|how\s+about|what\s+about)(?![\p{L}'’])`,
+  ].join("|"),
+  "iu",
+);
+// Before a small-letter word ending like a Bulgarian command, „ме/ми/ни“
+// shows the command („… подсети ме довечера“): further on in the fact, a
+// word that ends like a command and has „me“ right after it is not a fact.
+// Adverbs, numbers and plural nouns after a possessive word are not commands
+// („винаги ми е студено“, „моите приятели ме наричат Радо“).
+const IMPERATIVE_BEFORE_ME =
+  /(?<![\p{L}])(?<!(?:моите|твоите|нашите|вашите|техните|неговите|нейните|тези|онези|някои|много|няколко|всички|двама|трима|двете|трите|\d+)\s+)(?!(?:винаги|вкъщи|почти|дори|преди|може|ами|двете|всички|или)(?![\p{L}]))(?=\p{Ll})\p{L}{2,}(?:и|й|ете|йте)\s+(?:ме|ми|ни)(?![\p{L}])/gu;
+// Whether a regular expression with the „g“ flag matches past the first word.
+function matchesAfter(pattern, text, index) {
+  pattern.lastIndex = index;
+  return pattern.test(text);
+}
+// An English request verb counts at any word when an object follows it
+// („… tomorrow check my calendar“, „… at 8 remind me at 7“, „… vegan suggest
+// a menu“), unless a subject, a helping verb or „to“ comes right before it
+// („I check my mail at 9“, „my parents call me on Sundays“, „I want to book
+// a trip“). „Call me Rado“ names the person.
+const ENGLISH_STATEMENT_BEFORE = String.raw`[Ii]|we|you|they|u|to|not|never|always|usually|often|sometimes|rarely|seldom|also|just|only|really|still|both|all|can|cannot|could|will|would|should|must|might|may|do|does|did|who|that|which|can['’]t|couldn['’]t|won['’]t|wouldn['’]t|shouldn['’]t|don['’]t|doesn['’]t|didn['’]t|dont|doesnt|didnt|cant|wont|[Ii]['’]ll|we['’]ll|you['’]ll|they['’]ll|[Ii]['’]d|we['’]d|you['’]d|they['’]d|people|everyone|everybody|parents|kids|children|friends|colleagues|neighbo(?:u)?rs|twins|grandparents|students|guys|[Ww]e|[Tt]hey|[Yy]ou`;
+const ENGLISH_REQUEST_VERBS = String.raw`tell|show|check|send|read|make|write|find|search|look|open|create|add|delete|remove|remind|email|e-mail|text|call|book|buy|order|schedule|set|give|get|list|summari[sz]e|translate|explain|draft|reply|answer|forward|play|start|stop|cancel|update|change|fix|help|compare|calculate|plan|prepare|ask|bring|put|keep|note|save|turn|go|try|see|watch|wake|suggest|recommend|share|print|ping|message|notify|review|research|pick|grab|organi[sz]e|sort|draw|generate|convert|recap|outline|figure|google`;
+const ENGLISH_OBJECT = String.raw`me|us|him|her|them|it|my|our|your|his|their|the|a|an|this|that|these|those|some|all|out|up|back|down|off|over|if|whether|what|when|where|how|who|which|whats|what['’]s|everything|something|anything|someone|somebody|\p{Lu}\p{L}*`;
+const ENGLISH_REQUEST_ANYWHERE = new RegExp(
+  String.raw`(?<![\p{L}\p{N}'’-])(?<!(?:^|[^\p{L}'’])(?:${ENGLISH_STATEMENT_BEFORE})\s+)(?!call\s+me\s+\p{Lu})(?:${ENGLISH_REQUEST_VERBS})\s+(?:${ENGLISH_OBJECT})(?![\p{L}'’])`,
+  "u",
+);
+// Bulgarian typed in Latin letters after a Cyrillic „Запомни:“ („…, kaji mi
+// kakvo da sgotvq“, „mojesh li …“).
+const LATIN_BULGARIAN_REQUEST =
+  /(?<![\p{L}])(?:kaji|kazhi|kazi|kajete|kazhete|napomni|napomnete|pokaji|pokazhi|pokazi|proveri|provei|prati|izprati|napishi|napisi|pishi|nameri|potarsi|potursi|pusni|otvori|dobavi|iztrii|obiasni|obqsni|obyasni|prevedi|sravni|otgovori|zapishi|zapisi|kupi|plati|zvanni|zvunni|obadi|uvedomi|podgotvi|izchisli|presmetni|smetni|pomogni|pogledni|predloji|predlozhi|preporachai|preporuchai|slozhi|sloji|varni|vurni|spri|mahni|vkluchi|vklyuchi|izkluchi|izklyuchi|pitai|popitai|vij|vizh|vijte|vizhte|ela|elate|izmisli|pomisli|sabudi|subudi|donesi|vzemi|sgotvi|podseti|kak|kakvo|kakuv|kakav|kakva|kakvi|koga|kade|kude|kyde|kolko|zashto|zasto|dali|koi|koq|koia|koe|kvo|li|nali|imali|moje|mozhe|mojete|mozhete|molq|molia|mola|hajde|haide|aide|neka|iskam\s+da\s+mi|trqbvat\s+mi|trqbva\s+mi|imash|pls|plz)(?![\p{L}])|(?<![\p{L}])\p{L}{2,}(?:esh|ish|ash|qsh|iash|ysh)(?![\p{L}])/iu;
 
 // A list line: a dash, a bullet or a number („- …“, „• …“, „2. …“).
 const LIST_ITEM = /^(?:[-*•]|\d+[.)])\s+\S/u;
@@ -525,22 +619,79 @@ const OTHER_LANGUAGE_COMMAND =
   /^(?:merken|merk\s+dir|recordar|recuerda|retenir|retiens|ricorda|ricordare|[țţt]ine\s+minte)(?=[\s:,])/iu;
 const OTHER_LANGUAGE_JOINER =
   /[,;:(/]|\s-|-{2}|\.\s+\p{L}|(?:^|\s)(?:y|e|et|und|și|si|and|o|oder|ou|sau|ma|mais|pero|aber|dar|sondern|sino|luego|dann|puis|poi|apoi|también|auch|aussi|anche|und)(?=\s|$)/iu;
+// In those languages a request or a question with no comma before it also
+// keeps the confirmation (fifth review): a request word or a question word,
+// a verb joined to „me/you“ by a hyphen („rappelle-moi“, „amintește-mi“,
+// „peux-tu“), a Spanish command with „me“ on it („recuérdamelo“), and more
+// than eight words.
+const OTHER_LANGUAGE_REQUEST = new RegExp(
+  [
+    String.raw`kannst|k[öo]nntest|w[üu]rdest|w[üu]rden\s+sie|k[öo]nnen\s+sie|schick\p{L}*|schreib\p{L}*|sag|zeig\p{L}*|erinner\p{L}*|ruf|such|hilf|gib|mach|pr[üu]f\p{L}*|bitte|danke|was|wie|wann|wo|wohin|woher|warum|wieso|weshalb|wer|wen|wem|welche\p{L}*|ob|wieviel|gibt\s+es|empfiehl\p{L}*|empfehlen|vorschlag\p{L}*|schlag\p{L}*|lass\s+uns|lass\s+mich|ideen|tipps`,
+    String.raw`puedes|podr[íi]as|podr[íi]a|pod[ée]is|dime|d[íi]melo|dame|d[áa]melo|hazme|m[áa]ndame|env[íi]ame|escr[íi]beme|b[úu]scame|ay[úu]dame|ll[áa]mame|av[íi]same|recu[ée]rdame|recu[ée]rdamelo|recomi[ée]ndame|recomiendas|sugi[ée]reme|sugieres|mu[ée]strame|expl[íi]came|tr[áa]eme|p[íi]deme|por\s+favor|porfa|porfavor|gracias|qué|cómo|cuándo|dónde|adónde|cuál(?:es)?|cuánt[oa]s?|quién(?:es)?|por\s+qué|porqué|necesito\s+que|quiero\s+que|alguna\s+idea|ideas|consejos`,
+    String.raw`tu\s+peux|tu\s+pourrais|vous\s+pouvez|vous\s+pourriez|s['’]il\s+te\s+pla[îi]t|s['’]il\s+vous\s+pla[îi]t|stp|svp|merci|quoi|comment|quand|où|pourquoi|quel(?:le)?s?|combien|est-ce\s+que|qu['’]est-ce|j['’]ai\s+besoin\s+que|je\s+veux\s+que|une\s+id[ée]e|des\s+id[ée]es|conseils`,
+    String.raw`puoi|potresti|dimmi|dammi|fammi|mandami|scrivimi|ricordami|ricordamelo|ricordatelo|chiamami|aiutami|cercami|trovami|mostrami|consigliami|spiegami|suggeriscimi|dicci|mandaci|aiutaci|portami|prenotami|svegliami|avvisami|consigli|per\s+favore|perfavore|per\s+piacere|grazie|che\s+cosa|cosa|quando|dove|perch[ée]|quale|quali|quant[oaie]|chi|ho\s+bisogno\s+che|voglio\s+che|qualche\s+idea|idee`,
+    String.raw`po[țţt]i|pute[țţt]i|ai\s+putea|a[țţt]i\s+putea|recomanzi|te\s+rog|v[ăa]\s+rog|mersi|mul[țţt]umesc|ce|cum|c[âa]nd|unde|de\s+ce|care|c[âa]t|c[âa]t[ăa]|c[âa][țţt]i|c[âa]te|cine|am\s+nevoie\s+s[ăa]|vreau\s+s[ăa]\s+(?:[îi]mi|mi)|vreo\s+idee|idei|sfaturi`,
+  ]
+    .map((words) => String.raw`(?<![\p{L}])(?:${words})(?![\p{L}])`)
+    .concat([
+      String.raw`\p{L}-(?:moi|toi|nous|vous|le|la|les|lui|leur|tu|il|elle|on|ils|elles|mi|ne|[țţt]i|m[ăa]|v[ăa])(?![\p{L}])`,
+      String.raw`(?<![\p{L}])(?=\p{L}*[áéíóú])\p{L}{2,}(?:me|nos)(?:lo|la|los|las)?(?![\p{L}])`,
+    ])
+    .join("|"),
+  "iu",
+);
+const OTHER_LANGUAGE_MAX_WORDS = 8;
+// A fact longer than this is no plain fact; it gets the confirmation.
+const MAX_PLAIN_FACT_WORDS = 25;
 
-function isPlainMemoryFact(fact) {
+// Where a fact starts once list marks and opening quotes are passed („- …“,
+// „1) …“, „«…“, „‘…“).
+const FACT_START = /^(?:(?:[-*•]|\d+[.)])\s+|[„“”"'‘’«»(\s])*/u;
+
+function isPlainMemoryFact(fact, language = "bg") {
+  const words = fact.split(/\s+/u).filter(Boolean).length;
+  if (words > MAX_PLAIN_FACT_WORDS) return false;
+  const factStart = fact.match(FACT_START)[0].length;
+  const secondWord = fact.slice(factStart).search(/(?<=\S)\s/u);
+  // No second word: nothing further on to check.
+  const afterFirstWord = secondWord < 0 ? fact.length : factStart + secondWord;
   if (
     hasSecondSentence(fact) ||
     NESTED_MEMORY_COMMAND.test(fact) ||
     QUESTION_PARTICLE.test(fact) ||
-    requestStartsAt(fact, 0)
+    requestStartsAt(fact, factStart) ||
+    BG_ONE_OFF_COMMAND.test(fact) ||
+    REQUEST_ANYWHERE.test(fact) ||
+    ENGLISH_REQUEST_ANYWHERE.test(fact) ||
+    matchesAfter(BG_STANDING_COMMAND, fact, afterFirstWord) ||
+    matchesAfter(IMPERATIVE_BEFORE_ME, fact, afterFirstWord)
+  ) {
+    return false;
+  }
+  if (language === "bg" && LATIN_BULGARIAN_REQUEST.test(fact)) return false;
+  if (
+    language === "other" &&
+    (words > OTHER_LANGUAGE_MAX_WORDS || OTHER_LANGUAGE_REQUEST.test(fact))
   ) {
     return false;
   }
   for (const match of fact.matchAll(CLAUSE_JOINER)) {
-    if (requestStartsAt(fact, match.index + match[0].length, { shape: true })) {
-      return false;
+    const start = match.index + match[0].length;
+    if (requestStartsAt(fact, start, { shape: true })) return false;
+    if (/^[,;:]/u.test(match[0])) {
+      QUESTION_AFTER_COMMA.lastIndex = start;
+      if (QUESTION_AFTER_COMMA.test(fact)) return false;
     }
   }
   return true;
+}
+
+// Which language the command is in: Bulgarian („Запомни“, „Запази“,
+// „Поправка“), English („Remember“) or another of the site's languages.
+function memoryCommandLanguage(text) {
+  if (OTHER_LANGUAGE_COMMAND.test(text)) return "other";
+  if (/^remember(?![\p{L}])/iu.test(text)) return "en";
+  return "bg";
 }
 
 // The person's own command is their „да“ and is written at once (РАДКО
@@ -571,6 +722,10 @@ export function isOwnMemoryCommand(message) {
       .split(/\n+/u)
       .map((line) => line.trim())
       .filter(Boolean);
+    // A list longer than what is written (30 facts) keeps the confirmation:
+    // what would be left out is never dropped silently.
+    const parts = lines.length > 1 ? lines : body.split(/;/u).filter((part) => part.trim());
+    if (parts.length > MAX_LIST_FACTS) return false;
     if (lines.length > 1) {
       if (!lines.every((line) => LIST_ITEM.test(line))) return false;
       const items = lines.map((line) =>
@@ -600,7 +755,8 @@ export function isOwnMemoryCommand(message) {
   ) {
     return false;
   }
-  return judged.every(({ fact }) => isPlainMemoryFact(fact));
+  const language = memoryCommandLanguage(text);
+  return judged.every(({ fact }) => isPlainMemoryFact(fact, language));
 }
 
 export function extractPersistentMemoryCommands(message) {

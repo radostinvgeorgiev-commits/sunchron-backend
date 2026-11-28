@@ -171,6 +171,15 @@ test("chat writes nothing at once when the person asks to wait, forwards text or
     "Recuerda: me gusta el té, y dime qué tiempo hará mañana",
     "Запомни: заплатата ми е 2000 лв. кажи ми колко е това в евро",
     "Запомни следното: обичам чай; ще вали ли утре",
+    // Fifth review.
+    "Запомни: утре съм на зъболекар в 10 напомни ми довечера",
+    "Запомни: срещата е в петък, не бързай да го записваш",
+    "Запомни: паролата за wifi е kotka123 и я прати на Иван",
+    "Запомни: в петък съм на зъболекар, можеш да ми напомниш в четвъртък",
+    "Remember: I'm vegetarian can you recommend a restaurant nearby",
+    "Remember: I'm allergic to peanuts, what's a good snack for the trip",
+    "Запомни: Казвам се Иван и след това провери пощата ми",
+    "Retiens: j'ai le dentiste vendredi rappelle-moi jeudi",
   ];
   try {
     for (const [index, message] of held.entries()) {

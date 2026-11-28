@@ -822,5 +822,10 @@ Claude работи по задачата. Може да отнеме до 3–4
 Ползвай в Claude|Use with Claude
 умение|skill
 конектор|connector
+AI единици този месец|AI units this month
+Остават {remaining} от {total} AI единици|{remaining} of {total} AI units left
+Подновяват се на {date}|Renews on {date}
+Обикновеният чат е безплатен. Единиците се харчат за по-тежка работа.|Regular chat is free. Units are spent on heavier work.
+Още единици|More units
 `.trim().split("\n").map((line) => line.split("|")),
 );

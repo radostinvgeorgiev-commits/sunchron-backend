@@ -77,6 +77,18 @@ async function signedInFlows(origin, requests, label, viewport, feedback) {
     expect(await page.locator("#sendBtn").isVisible(), "бутонът за изпращане е извън екрана");
     expect(!errors.length, errors[0]);
   });
+  await step(`${label}: кръгчето с AI единиците`, async () => {
+    const ring = page.locator("#unitsRing");
+    expect(await ring.isVisible(), "кръгчето с единиците липсва");
+    expect((await ring.locator(".ai-spend-percent").innerText()).trim() === "73", "грешен брой единици");
+    await ring.locator("summary").click();
+    expect((await ring.locator(".ai-spend-total").innerText()).includes("73 от 100"), "панелът не показва остатъка");
+    expect((await ring.locator(".units-ring-more").getAttribute("href")) === "/plans", "няма връзка към плановете");
+    const box = await ring.locator(".ai-spend-panel").boundingBox();
+    expect(box && box.x >= 0 && box.x + box.width <= viewport.width + 1, "панелът излиза извън екрана");
+    await ring.locator("summary").click();
+    expect(await page.locator("#sendBtn").isVisible(), "бутонът за изпращане изчезна");
+  });
   await step(`${label}: избор на модел`, async () => {
     await page.click("#modelPickerBtn");
     await page.locator("#modelPickerMenu button", { hasText: "Gemini 3.5 Flash Lite" }).click();

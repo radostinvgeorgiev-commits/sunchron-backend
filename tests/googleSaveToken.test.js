@@ -7,6 +7,7 @@ import {
   createSession,
   disconnectGoogleAccount,
   disconnectSession,
+  fileSaveSessionFor,
   finishGoogleConnection,
   getLatestGoogleSessionId,
   grantedExtras,
@@ -1131,4 +1132,29 @@ test("the YouTube upload step gets its own linked token, like saving", async () 
   await disconnectGoogleAccount(renewed, owner);
   assert.equal(await hasSession(upload), false);
   assert.equal(await hasSession(main), false);
+});
+
+test("a save step finished where the connection was not known is linked by the same Google account", async () => {
+  resetGoogleSessionsForTests();
+  const main = await createSession(tokens("main", MAIN), owner);
+  // „Разреши“ on the other name of the site: no cookie, so nothing to link to.
+  const visitor = { memoryOwnerId: "visitor:x", role: "visitor" };
+  const { id: orphan } = await finishGoogleConnection(tokens("save", SAVE), visitor, { previousId: null, linked: "save" });
+  assert.notEqual(orphan, main);
+  assert.equal(await fileSaveSessionFor(main), orphan);
+  // Now linked, so the next call finds it directly.
+  assert.equal(await saveSessionFor(main), orphan);
+  assert.equal(await getLatestGoogleSessionId(), main);
+
+  // Another Google account's save token is never used.
+  resetGoogleSessionsForTests();
+  const mine = await createSession(tokens("main", MAIN), owner);
+  await finishGoogleConnection(tokens("save", SAVE, "google-2"), owner, { previousId: null, linked: "save" });
+  assert.equal(await fileSaveSessionFor(mine), null);
+
+  // Without a known Google account on the connection nothing is guessed.
+  resetGoogleSessionsForTests();
+  const unknown = await createSession({ access_token: "main", expires_in: 3600, scope: MAIN }, owner);
+  await finishGoogleConnection(tokens("save", SAVE), owner, { previousId: null, linked: "save" });
+  assert.equal(await fileSaveSessionFor(unknown), null);
 });

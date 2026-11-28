@@ -601,13 +601,11 @@ test("a question about the tools starts no status check in the site chat", () =>
   const questions = [
     // 27.11, 22:19–22:21.
     "С КОИ ИНСТРУМЕНТИ МОЖЕШ СЕГА ДА РАБОТИШ",
-    "ПОЛЗВАЙ ИНСТРУМЕНТИТЕ ЗА ПИСАНЕ МОЖЕШ ЛИ",
     "С кои инструменти можеш да работиш?",
     "Какви инструменти можеш да ползваш?",
     "Кои инструменти можеш да използваш?",
     "До кои инструменти имаш достъп?",
     "Какви възможности имаш?",
-    "Използвай инструментите си",
     "какво можеш",
     "Какво можеш да правиш?",
     "Какво още можеш да правиш за мен?",
@@ -621,6 +619,20 @@ test("a question about the tools starts no status check in the site chat", () =>
     assert.equal(isToolInventoryQuestion(question), true, question);
     assert.equal(isToolInventoryMessage(question), true, question);
     assert.deepEqual(detectCapabilityRequests(question, { toolInventory: true }), [], question);
+  }
+  // A request to use "the tools" without naming one also starts no status
+  // check, also as the owner types it (И for Й), but it is not a question
+  // about the tools, so a change it asks for is still prepared (next test).
+  for (const request of [
+    // 27.11, 22:20.
+    "ПОЛЗВАЙ ИНСТРУМЕНТИТЕ ЗА ПИСАНЕ МОЖЕШ ЛИ",
+    "ПОЛЗВАИ ИНСТРУМЕНТИТЕ ЗА ПИСАНЕ МОЖЕШ ЛИ",
+    "Използвай инструментите си",
+    "ИЗПОЛЗВАИ ИНСТРУМЕНТИТЕ СИ",
+  ]) {
+    assert.equal(isToolInventoryQuestion(request), true, request);
+    assert.equal(isToolInventoryMessage(request), false, request);
+    assert.deepEqual(detectCapabilityRequests(request, { toolInventory: true }), [], request);
   }
   // Elsewhere (the MCP conversation) the detector is unchanged.
   assert.deepEqual(
@@ -644,6 +656,17 @@ test("a tool the same message asks for still runs, and a check of the tools stay
   assert.deepEqual(site("Използвай инструмента за карти: намери кафене наблизо"), ["places.search"]);
   assert.deepEqual(site("Какво можеш? Покажи календара ми за утре."), ["calendar.read"]);
   assert.deepEqual(site("Кои инструменти можеш да ползваш? Промени README в GitHub"), ["code.write"]);
+  // A change or merge asked for together with "use the tools" is prepared.
+  assert.deepEqual(site("Използвай инструментите и слей PR #12 в GitHub"), ["github.pull-request.merge"]);
+  for (const change of [
+    "Използвай инструментите и промени README в GitHub",
+    "Ползвай инструментите си: промени README в GitHub",
+    "Използвай инструмента за GitHub и обнови README",
+    "Използвай всички инструменти и създай pull request с поправката в GitHub",
+    "ПОЛЗВАИ ИНСТРУМЕНТИТЕ И ПРОМЕНИ README В GITHUB",
+  ]) {
+    assert.deepEqual(site(change), ["code.write"], change);
+  }
   assert.equal(isToolInventoryMessage("Какво можеш? Покажи календара ми за утре."), false);
   // A question about one tool still reads it, as before.
   assert.deepEqual(site("What can you do with my Gmail?"), ["mail.read"]);

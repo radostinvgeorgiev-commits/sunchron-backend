@@ -341,23 +341,36 @@ export function toolInventorySection(entries, { language } = {}) {
 // A question about which tools the chat has or what it can do: „С кои
 // инструменти можеш да работиш?“, „Какво можеш?“, "What tools can you use?",
 // or a request to use "the tools" without naming one („Ползвай инструментите
-// за писане“). The chat answers it from its tool list, so it starts no status
-// check; a tool the same words ask for still runs. A check of the tools
-// („Работят ли инструментите?“, „Провери кои инструменти работят“) stays a real
-// check.
+// за писане“, also as the owner types it, „ПОЛЗВАИ“). The chat answers it from
+// its tool list, so it starts no status check; a tool the same words ask for
+// still runs. A check of the tools („Работят ли инструментите?“, „Провери кои
+// инструменти работят“) stays a real check.
 const TOOL_STATUS_CHECK =
   /(?:провер|тест|статус|работ(?:ят|и)\s+ли|активн|достъпн|\bcheck|\btest|\bstatus\b|\bworking\b)/iu;
 const TOOL_INVENTORY_QUESTIONS = [
   /(?:^|[^\p{L}])(?:кои|какви)\s+(?:(?:са|точно)\s+)?(?:(?:твоите|ти)\s+)?(?:инструмент(?:и|ите)|възможност(?:и|ите))(?:\s+(?:ти|си|сега|тук|още))*\s+(?:можеш|имаш|ползваш|използваш|работиш|разполагаш)(?!\p{L})/iu,
   /(?:^|[^\p{L}])какво\s+(?:(?:още|точно|друго)\s+)?(?:можеш|умееш)(?:\s+да\s+(?:правиш|направиш|вършиш))?(?:\s+(?:сега|тук|за\s+мен|в\s+момента|(?:с|със|в)\s+[^?.!\n]{1,40}))?[\s?.!]*$/iu,
-  /(?:^|[^\p{L}])(?:ползвай|използвай)\s+(?:(?:твоите|своите|наличните|всички(?:те)?)\s+)?(?:си\s+)?инструмент(?:а|ите|и)?(?!\p{L})/iu,
   /\b(?:what|which)\s+(?:tools|integrations|capabilities)\s+(?:can|could|do)\s+you\b/iu,
   /\bwhat\s+(?:else\s+)?can\s+you\s+do(?:\s+(?:for\s+me|here|now|(?:with|in)\s+[^?.!\n]{1,40}))?[\s?.!]*$/iu,
   /\bwhat\s+are\s+your\s+(?:tools|capabilities)\b/iu,
 ];
+const USE_THE_TOOLS =
+  /(?:^|[^\p{L}])(?:ползва[йи]|използва[йи])\s+(?:(?:твоите|своите|наличните|всички(?:те)?)\s+)?(?:си\s+)?инструмент(?:а|ите|и)?(?!\p{L})/iu;
+
+function inventoryText(message) {
+  const text = typeof message === "string" ? message.trim() : "";
+  return !text || text.length > 300 || TOOL_STATUS_CHECK.test(text) ? "" : text;
+}
 
 export function isToolInventoryQuestion(message) {
-  const text = typeof message === "string" ? message.trim() : "";
-  if (!text || text.length > 300 || TOOL_STATUS_CHECK.test(text)) return false;
-  return TOOL_INVENTORY_QUESTIONS.some((pattern) => pattern.test(text));
+  const text = inventoryText(message);
+  return Boolean(text) && (USE_THE_TOOLS.test(text) || TOOL_INVENTORY_QUESTIONS.some((pattern) => pattern.test(text)));
+}
+
+// Only a question about the tools, not a request to use them: „Използвай
+// инструментите и слей PR #12 в GitHub“ asks for the merge, while „С кои
+// инструменти можеш да промениш кода в GitHub?“ asks about the tools.
+export function isToolListQuestion(message) {
+  const text = inventoryText(message);
+  return Boolean(text) && TOOL_INVENTORY_QUESTIONS.some((pattern) => pattern.test(text));
 }

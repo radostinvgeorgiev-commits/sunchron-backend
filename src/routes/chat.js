@@ -76,6 +76,7 @@ import { isShortYes, yesWithAddition } from "../services/shortYes.js";
 import {
   buildToolInventory,
   isToolInventoryQuestion,
+  isToolListQuestion,
   toolInventorySection,
 } from "../services/chatToolInventory.js";
 import {
@@ -809,11 +810,12 @@ function normalizeSubtaskText(text) {
 
 // Every part of the message (its subtasks, or the message itself) asks which
 // tools the chat has or what it can do: the tool list in the system context
-// answers it, so the site chat's detector starts no status check and no
-// GitHub change for it.
+// answers it, so the site chat's detector prepares no GitHub change for it. A
+// request to use the tools is not such a question („Използвай инструментите и
+// слей PR #12 в GitHub“ asks for the merge).
 export function isToolInventoryMessage(message) {
   const subtasks = Array.isArray(message) ? message : splitCapabilitySubtasks(message);
-  return subtasks.length > 0 && subtasks.every(isToolInventoryQuestion);
+  return subtasks.length > 0 && subtasks.every(isToolListQuestion);
 }
 
 export function splitCapabilitySubtasks(message) {

@@ -28,7 +28,7 @@ test("ChatGPT plugin exposes only its own tools and reserves credits for the ver
         assert.deepEqual(scopes, [CHATGPT_MCP_SCOPE]);
         assert.equal(
           options.expectedResource,
-          "https://cloudaicore.com/mcp/chatgpt",
+          "https://novariumai.com/mcp/chatgpt",
         );
         return member;
       },

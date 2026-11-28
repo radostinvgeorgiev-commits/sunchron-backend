@@ -28,7 +28,7 @@ FAILURE, докато предишният още се публикуваше). 
 
 ## MCP
 
-Изпрати JSON-RPC `tools/list` към `https://cloudaicore.com/mcp`. Каталогът
+Изпрати JSON-RPC `tools/list` към `https://novariumai.com/mcp`. Каталогът
 трябва да съдържа `get_google_cloud_runtime_status`, task capabilities и GitHub
 write инструментите. За private tool очаквай 401 OAuth challenge със scope.
 

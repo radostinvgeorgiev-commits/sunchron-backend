@@ -1,8 +1,9 @@
 import { reservePublicAiImage } from "./publicAiBudget.js";
 
-// "Нарисувай": a picture from a text description. GPT Image 1 Mini at medium
-// quality costs about $0.011 for 1024x1024; WebP keeps the picture small.
-export const DEFAULT_IMAGE_MODEL = "gpt-image-1-mini";
+// "Нарисувай": first with Google's image model, then OpenAI as fallback when
+// only a personal OpenAI key is connected.
+export const DEFAULT_GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image-preview";
+export const DEFAULT_OPENAI_IMAGE_MODEL = "gpt-image-1-mini";
 
 export class ImageGenerationError extends Error {
   constructor(message, status = 502, code = "IMAGE_GENERATION_FAILED") {
@@ -21,8 +22,38 @@ export function cleanImagePrompt(value) {
 export function createImageGenerationService({ env = process.env, fetchImpl = fetch, reserve = reservePublicAiImage } = {}) {
   async function generate(value) {
     const prompt = cleanImagePrompt(value);
-    if (!env.OPENAI_API_KEY) throw new ImageGenerationError("Рисуването не е настроено.", 503, "IMAGE_NOT_CONFIGURED");
-    const model = env.OPENAI_IMAGE_MODEL || DEFAULT_IMAGE_MODEL;
+    if (!env.GEMINI_API_KEY && !env.OPENAI_API_KEY) {
+      throw new ImageGenerationError("Рисуването не е настроено.", 503, "IMAGE_NOT_CONFIGURED");
+    }
+    if (env.GEMINI_API_KEY) {
+      const model = env.GEMINI_IMAGE_MODEL || DEFAULT_GEMINI_IMAGE_MODEL;
+      await reserve("gemini", model);
+      const response = await fetchImpl(
+        `${String(env.GEMINI_API_URL || "https://generativelanguage.googleapis.com/v1beta").replace(/\/+$/u, "")}/models/${encodeURIComponent(model)}:generateContent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: `Създай изображение по това описание:\n${prompt}` }],
+              },
+            ],
+            generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+          }),
+        },
+      );
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        const base64 = (data?.candidates?.[0]?.content?.parts || []).find((part) => part?.inlineData?.data)?.inlineData?.data;
+        if (base64) return { image: `data:image/png;base64,${base64}`, prompt, model };
+      }
+      if (!env.OPENAI_API_KEY) {
+        throw new ImageGenerationError("Картинката не стана. Опитай пак.");
+      }
+    }
+    const model = env.OPENAI_IMAGE_MODEL || DEFAULT_OPENAI_IMAGE_MODEL;
     await reserve("openai", model);
     const response = await fetchImpl("https://api.openai.com/v1/images/generations", {
       method: "POST",

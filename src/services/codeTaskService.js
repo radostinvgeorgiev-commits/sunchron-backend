@@ -58,8 +58,8 @@ const CODE_PROVIDERS = {
     request: requestClaudeResponse,
   },
 };
-// Claude leads code tasks; the other engines are advisors and fallbacks.
-const CODE_EXECUTOR_ORDER = Object.freeze(["claude", "openai", "gemini", "grok"]);
+// Gemini leads code tasks; the other engines remain advisors and fallbacks.
+const CODE_EXECUTOR_ORDER = Object.freeze(["gemini", "claude", "openai", "grok"]);
 const DEFAULT_ADVISOR_REQUESTERS = Object.fromEntries(
   Object.entries(CODE_PROVIDERS).map(([provider, { request }]) => [
     provider,

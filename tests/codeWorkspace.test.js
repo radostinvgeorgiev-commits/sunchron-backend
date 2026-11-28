@@ -210,7 +210,7 @@ test("an owner can review a pinned diff, approve the exact change once and see C
     draft.council.map(({ provider }) => provider),
     ["openai", "gemini", "grok", "claude"],
   );
-  assert.equal(draft.executor.provider, "claude");
+  assert.equal(draft.executor.provider, "gemini");
   assert.equal(draft.review[0].check.status, "passed");
   assert.match(
     draft.review[0].diff,
@@ -280,16 +280,16 @@ test("Code uses a single responsive engine when the other three fail", async (t)
   assert.deepEqual(writes, []);
 });
 
-test("Code tries another responsive engine if Claude fails to produce a plan", async (t) => {
+test("Code falls back to Claude when Gemini cannot produce a plan", async (t) => {
   const { cookie, calls } = await setup(t, changed, {
     unavailable: ["openai", "grok"],
-    badPlanners: ["claude"],
+    badPlanners: ["gemini"],
   });
   const { body: draft } = await prepare(cookie).expect(200);
-  assert.equal(draft.executor.provider, "gemini");
+  assert.equal(draft.executor.provider, "claude");
   assert.deepEqual(
     calls.filter(({ planning }) => planning).map(({ provider }) => provider),
-    ["claude", "gemini"],
+    ["gemini", "claude"],
   );
   assert.ok(draft.confirmationId);
 });

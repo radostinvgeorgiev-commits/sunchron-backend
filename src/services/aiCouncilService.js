@@ -259,6 +259,7 @@ export async function runAiCouncil({
     grok: requestGrokResponse,
     claude: requestClaudeResponse,
   },
+  geminiArbiterRequester = requestGeminiResponse,
   arbiterRequester = requestOpenAIResponse,
   claudeArbiterRequester = requestClaudeResponse,
   openAiModel = process.env.AI_CORE_COUNCIL_MODEL || DEFAULT_OPENAI_CHAT_MODEL,
@@ -282,10 +283,17 @@ export async function runAiCouncil({
       DEFAULT_COUNCIL_ADVISOR_TIMEOUT_MS,
     ),
   ),
-  arbiterTimeoutMs = getAiProviderTimeoutMs(
-    "openai",
-    process.env,
-    DEFAULT_COUNCIL_ARBITER_TIMEOUT_MS,
+  arbiterTimeoutMs = Math.min(
+    getAiProviderTimeoutMs(
+      "gemini",
+      process.env,
+      DEFAULT_COUNCIL_ARBITER_TIMEOUT_MS,
+    ),
+    getAiProviderTimeoutMs(
+      "openai",
+      process.env,
+      DEFAULT_COUNCIL_ARBITER_TIMEOUT_MS,
+    ),
   ),
 } = {}) {
   const task = cleanText(message, MAX_REQUEST_LENGTH, "заявка", {
@@ -397,10 +405,22 @@ export async function runAiCouncil({
         : "Отговор от един избран AI двигател; няма независима проверка.",
       confidence: "low",
     });
-  // OpenAI with a strict JSON schema is the first arbiter; Claude, asked for
-  // the same JSON in plain text, takes over when OpenAI is missing or fails.
+  // Gemini is the first arbiter; OpenAI and Claude remain as fallbacks.
   const prompt = arbiterPrompt(task, normalizedResponses, language);
   const arbiters = [
+    geminiApiKey && (() =>
+      requestWithTimeout(
+        geminiArbiterRequester,
+        {
+          apiKey: geminiApiKey,
+          model: geminiModel,
+          input: [{ role: "user", content: prompt }],
+          jsonMode: true,
+          maxOutputTokens: 4096,
+        },
+        arbiterTimeoutMs,
+        "AI_COUNCIL_ARBITER_TIMEOUT",
+      )),
     openAiApiKey && (() =>
       requestWithTimeout(
         arbiterRequester,

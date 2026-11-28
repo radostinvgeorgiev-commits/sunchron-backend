@@ -1,5 +1,7 @@
 import {
+  DEFAULT_GEMINI_CHAT_MODEL,
   DEFAULT_OPENAI_PLANNER_MODEL,
+  requestGeminiResponse,
   requestOpenAIText,
 } from "./novariumService.js";
 
@@ -255,14 +257,32 @@ export function shouldUseAgentPlanner(message, fallbackRequests = []) {
 }
 
 export async function planCapabilities({
+  geminiApiKey = process.env.GEMINI_API_KEY,
   openAiApiKey = process.env.OPENAI_API_KEY,
+  geminiModel = process.env.GEMINI_PLANNER_MODEL ||
+    process.env.GEMINI_MODEL ||
+    DEFAULT_GEMINI_CHAT_MODEL,
   openAiModel = process.env.OPENAI_PLANNER_MODEL ||
     DEFAULT_OPENAI_PLANNER_MODEL,
   message,
   fetchImpl = fetch,
-  timeoutMs = process.env.OPENAI_PLANNER_TIMEOUT_MS,
+  timeoutMs = process.env.GEMINI_PLANNER_TIMEOUT_MS ||
+    process.env.OPENAI_PLANNER_TIMEOUT_MS,
 }) {
-  if (!openAiApiKey) {
+  const providers = [
+    geminiApiKey && {
+      apiKey: geminiApiKey,
+      model: geminiModel,
+      request: requestGeminiResponse,
+    },
+    openAiApiKey && {
+      apiKey: openAiApiKey,
+      model: openAiModel,
+      request: requestOpenAIText,
+    },
+  ].filter(Boolean);
+
+  if (!providers.length) {
     throw new AgentPlannerError(
       "AI планировчикът не е конфигуриран.",
       "AGENT_PLANNER_NOT_CONFIGURED",
@@ -277,16 +297,40 @@ export async function planCapabilities({
 
   try {
     const plannerInput = `${PLANNER_INSTRUCTIONS}\n\n[ЗАЯВКА]\n${message}`;
-    const content = await requestOpenAIText({
-      apiKey: openAiApiKey,
-      input: [{ role: "user", content: plannerInput }],
-      model: openAiModel,
-      fetchImpl,
-      signal: controller.signal,
-      verbosity: "low",
-    });
-    const plan = extractJsonObject(content);
-    return sanitizeCapabilityPlan(plan, message);
+    let timedOut = false;
+    for (const provider of providers) {
+      try {
+        const response = await provider.request({
+          apiKey: provider.apiKey,
+          input: [{ role: "user", content: plannerInput }],
+          model: provider.model,
+          fetchImpl,
+          signal: controller.signal,
+          verbosity: "low",
+          jsonMode: true,
+          maxOutputTokens: 4096,
+        });
+        const content =
+          typeof response === "string" ? response : response?.text || "";
+        const plan = extractJsonObject(content);
+        if (plan) return sanitizeCapabilityPlan(plan, message);
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          timedOut = true;
+          break;
+        }
+      }
+    }
+    if (timedOut) {
+      throw new AgentPlannerError(
+        "AI планировчикът не отговори навреме.",
+        "AGENT_PLANNER_TIMEOUT",
+      );
+    }
+    throw new AgentPlannerError(
+      "AI планировчикът временно не е достъпен.",
+      "AGENT_PLANNER_UNAVAILABLE",
+    );
   } catch (error) {
     if (error instanceof AgentPlannerError) throw error;
     if (error?.name === "AbortError") {

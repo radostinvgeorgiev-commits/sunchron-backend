@@ -9,12 +9,12 @@ test("when the agent's provider fails, the site default answers", async () => {
   const calls = [];
   const askAi = async (request) => {
     calls.push([request.provider, request.model]);
-    if (request.provider === "gemini") throw new Error("503");
+    if (request.provider === "claude") throw new Error("503");
     return "отговор";
   };
-  const text = await askWithFallback(askAi, { provider: "gemini", model: "gemini-3.5-flash-lite", input: [] }, env);
+  const text = await askWithFallback(askAi, { provider: "claude", model: "claude-haiku-5-5", input: [] }, env);
   assert.equal(text, "отговор");
-  assert.deepEqual(calls, [["gemini", "gemini-3.5-flash-lite"], ["claude", undefined]]);
+  assert.deepEqual(calls, [["claude", "claude-haiku-5-5"], ["gemini", undefined]]);
 });
 
 test("no second try when the default itself failed or is not configured", async () => {

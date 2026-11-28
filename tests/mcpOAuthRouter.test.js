@@ -38,13 +38,13 @@ test("OAuth discovery is public and describes the exact MCP resource", async () 
   const resource = await request(app)
     .get("/.well-known/oauth-protected-resource")
     .expect(200);
-  assert.equal(resource.body.resource, "https://cloudaicore.com/mcp");
+  assert.equal(resource.body.resource, "https://novariumai.com/mcp");
   const authorization = await request(app)
     .get("/.well-known/oauth-authorization-server")
     .expect(200);
   assert.equal(
     authorization.body.token_endpoint,
-    "https://cloudaicore.com/oauth/token",
+    "https://novariumai.com/oauth/token",
   );
   assert.ok(authorization.body.scopes_supported.includes("offline_access"));
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
@@ -113,7 +113,7 @@ test("only the redacted production status can pass without credentials", async (
   assert.equal(publicStatus.body.authentication.role, "anonymous");
 });
 
-test("at novariumai.com the first request asks for sign-in, so Claude starts it", async () => {
+test("at novariumai.com initialize stays public but tool calls ask for sign-in", async () => {
   const app = express();
   app.use(express.json());
   app.post("/mcp", requireMcpAuthorization, (_req, res) => res.json({ ok: true }));
@@ -121,16 +121,13 @@ test("at novariumai.com the first request asks for sign-in, so Claude starts it"
     .post("/mcp")
     .set("Host", "novariumai.com")
     .send({ jsonrpc: "2.0", id: 1, method: "initialize" })
-    .expect(401);
-  assert.match(
-    handshake.headers["www-authenticate"],
-    /resource_metadata="https:\/\/novariumai\.com\/\.well-known\/oauth-protected-resource"/u,
-  );
+    .expect(200);
   await request(app)
     .post("/mcp")
     .set("Host", "novariumai.com")
-    .send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "get_google_cloud_runtime_status", arguments: {} } })
+    .send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "send_message", arguments: { message: "ping" } } })
     .expect(401);
+  assert.equal(handshake.body.ok, true);
   // The old address keeps the open handshake.
   await request(app).post("/mcp").send({ jsonrpc: "2.0", id: 3, method: "initialize" }).expect(200);
 });
@@ -270,7 +267,7 @@ test("authorization consent issues a code bound to the browser profile", async (
     redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
     state: "state-123",
     codeChallenge: createHash("sha256").update(verifier).digest("base64url"),
-    resource: "https://cloudaicore.com/mcp",
+    resource: "https://novariumai.com/mcp",
     scopes: ["synchron:read"],
   };
   const app = express();
@@ -408,7 +405,7 @@ test("authorization flow permits only the ChatGPT callback through global browse
       redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
       state: "state-popup-handoff",
       codeChallenge: "c".repeat(43),
-      resource: "https://cloudaicore.com/mcp",
+      resource: "https://novariumai.com/mcp",
       scopes: ["synchron:read"],
     };
     const app = express();
@@ -484,7 +481,7 @@ test("authorization denial returns a no-store error to the exact ChatGPT callbac
       redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
       state: "state-denied",
       codeChallenge: "c".repeat(43),
-      resource: "https://cloudaicore.com/mcp",
+      resource: "https://novariumai.com/mcp",
       scopes: ["synchron:read"],
     };
     const app = express();
@@ -534,7 +531,7 @@ test("authorization consent rejects a modified browser-independent token", async
       redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
       state: "state-tampered-consent",
       codeChallenge: "c".repeat(43),
-      resource: "https://cloudaicore.com/mcp",
+      resource: "https://novariumai.com/mcp",
       scopes: ["synchron:read"],
     };
     const app = express();
@@ -579,7 +576,7 @@ test("authorization consent ignores altered repeated OAuth form fields", async (
       redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
       state: "state-browser-round-trip",
       codeChallenge: "c".repeat(43),
-      resource: "https://cloudaicore.com/mcp",
+      resource: "https://novariumai.com/mcp",
       scopes: ["synchron:read"],
     };
     const app = express();
@@ -638,7 +635,7 @@ test("authorization consent names the NovariumAI conversation permission", async
         redirectUri: "https://chatgpt.com/connector/oauth/test-callback",
         state: "state-agent-chat",
         codeChallenge: "challenge",
-        resource: "https://cloudaicore.com/mcp",
+        resource: "https://novariumai.com/mcp",
         scopes: ["synchron:agent.chat"],
       }),
     }),

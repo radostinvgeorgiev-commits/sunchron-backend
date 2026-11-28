@@ -33,7 +33,7 @@ NovariumAI е лична AI операционна система с посто�
   дават предложения и са резерва, когато са конфигурирани. Codex вече не се
   използва. Потребителят потвърждава точния diff, след което се
   създават отделен branch, commit и Pull Request;
-- MCP: `https://cloudaicore.com/mcp` с OAuth и owner-only write scopes.
+- MCP: `https://novariumai.com/mcp` с OAuth и owner-only write scopes.
 
 Не фиксирай SHA или брой тестове в този файл. Преди промяна проверявай
 актуалния `main`, работното дърво, `/health`, `/health/ready` и

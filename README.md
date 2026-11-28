@@ -16,7 +16,7 @@
   вече не се използва);
 - GitHub OAuth за read и защитени branch/commit/PR операции;
 - Google OAuth за Drive, Gmail и Calendar;
-- OAuth-защитен MCP адрес: `https://cloudaicore.com/mcp`.
+- OAuth-защитен MCP адрес: `https://novariumai.com/mcp`.
 
 Task Orchestrator разделя заявката на стъпки, избира capability и изпълнява
 реалния адаптер. При кодова задача трите AI двигателя първо предлагат решения.

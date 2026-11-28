@@ -20,7 +20,7 @@ test("detects explicit requests to consult the three AI engines", () => {
   assert.equal(isMultiEngineCouncilRequest("Какво е времето днес?"), false);
 });
 
-test("council asks OpenAI, Gemini and Grok before a bounded synthesis", async () => {
+test("council asks OpenAI, Gemini and Grok before Gemini synthesis", async () => {
   const calls = [];
   const advisorRequesters = {
     openai: async (input) => {
@@ -46,11 +46,11 @@ test("council asks OpenAI, Gemini and Grok before a bounded synthesis", async ()
     geminiApiKey: "gemini-key",
     grokApiKey: "grok-key",
     advisorRequesters,
-    arbiterRequester: async (input) => {
-      calls.push(["arbiter", input]);
+    geminiArbiterRequester: async (input) => {
+      calls.push(["gemini-arbiter", input]);
       return {
-        provider: "openai",
-        model: "gpt-test",
+        provider: "gemini",
+        model: "gemini-test",
         text: JSON.stringify({
           recommendation: "Избери минималната проверима промяна.",
           rationale: "Тя запазва съществуващите граници.",
@@ -64,10 +64,11 @@ test("council asks OpenAI, Gemini and Grok before a bounded synthesis", async ()
 
   assert.deepEqual(
     calls.map(([provider]) => provider),
-    ["openai", "gemini", "grok", "arbiter"],
+    ["openai", "gemini", "grok", "gemini-arbiter"],
   );
   assert.equal(council.responses.length, 3);
   assert.equal(council.recommendation, "Избери минималната проверима промяна.");
+  assert.equal(council.arbiter.provider, "gemini");
   assert.match(formatAiCouncilReply(council), /избраните AI двигатели/u);
 });
 
@@ -78,6 +79,9 @@ const options = {
   geminiApiKey: "b",
   grokApiKey: "c",
   advisorRequesters: { openai: answer, gemini: answer, grok: answer },
+  geminiArbiterRequester: async () => {
+    throw new Error("Gemini synthesis unavailable");
+  },
   arbiterRequester: async () => {
     throw new Error("private provider detail");
   },
@@ -128,6 +132,25 @@ test("retains answers on malformed or hanging synthesis", async () => {
   }
 });
 
+test("falls back to OpenAI synthesis when Gemini cannot arbitrate", async () => {
+  const result = await runAiCouncil({
+    ...options,
+    arbiterRequester: async () => ({
+      provider: "openai",
+      model: "openai-test",
+      text: JSON.stringify({
+        recommendation: "Избери проверимия вариант.",
+        rationale: "OpenAI е резервният арбитър.",
+        risks: [],
+        nextSteps: [],
+        confidence: "medium",
+      }),
+    }),
+  });
+  assert.equal(result.arbiter.provider, "openai");
+  assert.equal(result.recommendation, "Избери проверимия вариант.");
+});
+
 test("reports failure only when all advisors fail", async () => {
   await assert.rejects(
     () =>
@@ -155,6 +178,17 @@ test("council bounds a verbose advisor", async () => {
       gemini: async () => ({ model: "gemini-test", text: "Gemini." }),
       grok: async () => ({ model: "grok-test", text: "Grok." }),
     },
+    geminiArbiterRequester: async () => ({
+      model: "gemini-test",
+      provider: "gemini",
+      text: JSON.stringify({
+        recommendation: "Тест",
+        rationale: "Тест",
+        risks: [],
+        nextSteps: [],
+        confidence: "low",
+      }),
+    }),
     arbiterRequester: async () => ({
       model: "openai-test",
       text: JSON.stringify({

@@ -18,6 +18,7 @@ test("a PDF is sent to Claude as a document block", async () => {
     image: pdf,
     prompt: "Обобщи",
     context: "rules",
+    geminiAccessKey: "",
     claudeAccessKey: "k",
     claudeModel: "claude-haiku-5-5",
     fetchImpl: async (url, init) => {
@@ -40,7 +41,14 @@ test("a PDF is sent to Claude as a document block", async () => {
 
 test("without a Claude key a PDF is refused clearly instead of sent to OpenAI vision", async () => {
   await assert.rejects(
-    analyzeImage({ image: pdf, prompt: "x", claudeAccessKey: "", modelAccessKey: "o", fetchImpl: async () => assert.fail("no call") }),
+    analyzeImage({
+      image: pdf,
+      prompt: "x",
+      geminiAccessKey: "",
+      claudeAccessKey: "",
+      modelAccessKey: "o",
+      fetchImpl: async () => assert.fail("no call"),
+    }),
     { code: "DOCUMENT_READER_NOT_CONFIGURED" },
   );
 });

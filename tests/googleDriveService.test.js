@@ -95,23 +95,61 @@ test("exports Google Sheets as CSV before analysis", async () => {
   assert.match(urls[1], /\/export\?mimeType=text%2Fcsv/);
 });
 
-test("sends images to OpenAI as vision input", async () => {
-  process.env.OPENAI_API_KEY = "test-key";
+test("sends supported images to Gemini as vision input first", async () => {
   let requestBody;
   const analysis = await analyzeDriveFile({
     name: "photo.jpg",
     mimeType: "image/jpeg",
     buffer: Buffer.from("image"),
     prompt: "",
-    fetchImpl: async (_url, options) => {
+    geminiApiKey: "gemini-test-key",
+    openAiApiKey: "openai-test-key",
+    fetchImpl: async (url, options) => {
+      assert.match(String(url), /generativelanguage\.googleapis\.com/u);
+      assert.equal(options.headers["x-goog-api-key"], "gemini-test-key");
       requestBody = JSON.parse(options.body);
+      return jsonResponse({
+        candidates: [
+          { content: { parts: [{ text: "Виждам снимка." }] } },
+        ],
+      });
+    },
+  });
+  assert.equal(analysis, "Виждам снимка.");
+  assert.deepEqual(requestBody.contents[0].parts[0].inlineData, {
+    mimeType: "image/jpeg",
+    data: Buffer.from("image").toString("base64"),
+  });
+});
+
+test("falls back to OpenAI when Gemini cannot analyze a supported Drive file", async () => {
+  process.env.OPENAI_API_KEY = "test-key";
+  const calledUrls = [];
+  let openAiRequestBody;
+  const analysis = await analyzeDriveFile({
+    name: "photo.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from("image"),
+    prompt: "",
+    geminiApiKey: "gemini-test-key",
+    openAiApiKey: "openai-test-key",
+    fetchImpl: async (_url, options) => {
+      calledUrls.push(String(_url));
+      if (String(_url).includes("generativelanguage.googleapis.com")) {
+        return new Response(JSON.stringify({ error: "temporary failure" }), {
+          status: 503,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      openAiRequestBody = JSON.parse(options.body);
       return jsonResponse({ output_text: "Виждам снимка." });
     },
   });
   assert.equal(analysis, "Виждам снимка.");
-  assert.equal(requestBody.input[0].content[0].type, "input_image");
+  assert.equal(calledUrls.length, 2);
+  assert.equal(openAiRequestBody.input[0].content[0].type, "input_image");
   assert.match(
-    requestBody.input[0].content[0].image_url,
+    openAiRequestBody.input[0].content[0].image_url,
     /^data:image\/jpeg;base64,/,
   );
 });

@@ -8,6 +8,10 @@ import { logSafeError } from "../utils/safeLogging.js";
 import { reservePublicAiFile } from "./publicAiBudget.js";
 import { createFirestoreOAuthSessionStore } from "./firestoreOAuthSessionStore.js";
 import { googleConnectUrl as siteGoogleConnectUrl } from "../config/publicOrigin.js";
+import {
+  DEFAULT_GEMINI_CHAT_MODEL,
+  DEFAULT_GEMINI_API_URL,
+} from "./novariumService.js";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -21,6 +25,15 @@ const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_CALENDAR_REMINDER_MINUTES = 28 * 24 * 60;
 const GOOGLE_DOC = "application/vnd.google-apps.document";
 const GOOGLE_SHEET = "application/vnd.google-apps.spreadsheet";
+const GEMINI_DRIVE_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "text/plain",
+  "text/csv",
+  "text/markdown",
+]);
 const SUPPORTED_MIME_TYPES = new Set([
   "application/pdf",
   GOOGLE_DOC,
@@ -1592,20 +1605,88 @@ export async function analyzeDriveFile({
   buffer,
   prompt,
   fetchImpl = fetch,
+  geminiApiKey = process.env.GEMINI_API_KEY,
+  openAiApiKey = process.env.OPENAI_API_KEY,
+  geminiModel = process.env.GEMINI_DRIVE_MODEL ||
+    process.env.GEMINI_MODEL ||
+    DEFAULT_GEMINI_CHAT_MODEL,
 }) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey)
-    throw new GoogleDriveError(
-      "Анализът на документи не е конфигуриран.",
-      503,
-      "OPENAI_NOT_CONFIGURED",
-    );
   const instruction =
     prompt || "Обобщи този файл на български и посочи най-важното.";
   // An empty file has nothing to read; say so instead of asking a model,
   // which would only answer that it "cannot open" it.
   if (!buffer?.length || (mimeType.startsWith("text/") && !buffer.toString("utf8").trim())) {
     return `Файлът „${name}“ е празен, няма какво да се обобщи.`;
+  }
+  let geminiFailure;
+  if (geminiApiKey && GEMINI_DRIVE_MIME_TYPES.has(mimeType)) {
+    const parts = mimeType.startsWith("text/")
+      ? [
+          {
+            text: `Ето цялото съдържание на файла „${name}“:\n\n${buffer.toString("utf8")}`,
+          },
+        ]
+      : [
+          {
+            inlineData: {
+              mimeType,
+              data: buffer.toString("base64"),
+            },
+          },
+        ];
+    parts.push({ text: instruction });
+    await reservePublicAiFile("gemini", geminiModel);
+    try {
+      const baseUrl = String(
+        process.env.GEMINI_API_URL || DEFAULT_GEMINI_API_URL,
+      ).replace(/\/+$/u, "");
+      const response = await fetchImpl(
+        `${baseUrl}/models/${encodeURIComponent(geminiModel)}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": geminiApiKey,
+          },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts }],
+          }),
+        },
+      );
+      if (!response.ok) {
+        logSafeError("[Google Drive file] Gemini analysis failed", {
+          status: response.status,
+        });
+        geminiFailure = new Error("Gemini file analysis failed");
+      } else {
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts
+          ?.filter((part) => typeof part.text === "string")
+          .map((part) => part.text)
+          .join("")
+          .trim();
+        if (text) return text;
+        geminiFailure = new Error("Gemini returned an empty file analysis");
+      }
+    } catch (error) {
+      logSafeError("[Google Drive file] Gemini analysis failed", error);
+      geminiFailure = error;
+    }
+  }
+
+  if (!openAiApiKey) {
+    if (geminiFailure) {
+      throw new GoogleDriveError(
+        "Анализът на файла не успя.",
+        502,
+        "FILE_ANALYSIS_FAILED",
+      );
+    }
+    throw new GoogleDriveError(
+      "Анализът на документи не е конфигуриран.",
+      503,
+      "AI_PROVIDER_NOT_CONFIGURED",
+    );
   }
   let fileContent;
   if (mimeType.startsWith("image/")) {
@@ -1632,7 +1713,7 @@ export async function analyzeDriveFile({
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${openAiApiKey}`,
     },
     body: JSON.stringify({
       model: documentModel,

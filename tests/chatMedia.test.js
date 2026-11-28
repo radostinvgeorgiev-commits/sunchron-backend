@@ -1605,9 +1605,25 @@ function stubClaude(t, replies = []) {
   const readerCalls = [];
   t.mock.method(globalThis, "fetch", async (url, options = {}) => {
     const body = JSON.parse(options.body || "{}");
-    if (String(url) === "https://api.openai.com/v1/responses" && body.text?.format?.name === "novarium_plain_intent") {
+    if (
+      String(url) === "https://api.openai.com/v1/responses" &&
+      body.text?.format?.name === "novarium_plain_intent"
+    ) {
       readerCalls.push(body);
       return Response.json({ output_text: JSON.stringify({ action: "none" }) });
+    }
+    if (
+      String(url).includes("generativelanguage.googleapis.com") &&
+      body.generationConfig?.responseMimeType
+    ) {
+      readerCalls.push(body);
+      const prompt = body.contents?.[0]?.parts?.map((part) => part.text || "").join("\n");
+      const text = prompt.includes("You read one message a person wrote")
+        ? JSON.stringify({ action: "none" })
+        : '{"calls":[]}';
+      return Response.json({
+        candidates: [{ content: { parts: [{ text }] } }],
+      });
     }
     calls.push({ url: String(url), body });
     assert.equal(String(url), "https://api.anthropic.com/v1/messages");

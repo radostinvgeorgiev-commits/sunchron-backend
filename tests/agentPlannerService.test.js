@@ -92,11 +92,49 @@ test("planner creates a single GitHub read and write plan for one implementation
   );
 });
 
-test("planner uses OpenAI Responses as the primary provider", async () => {
+test("planner uses Gemini as the primary provider when it is configured", async () => {
   const requests = await planCapabilities({
+    geminiApiKey: "gemini-key",
     openAiApiKey: "openai-key",
     message: "Провери Google Cloud runtime.",
     fetchImpl: async (url, options) => {
+      assert.match(String(url), /generativelanguage\.googleapis\.com/u);
+      assert.equal(options.headers["x-goog-api-key"], "gemini-key");
+      const body = JSON.parse(options.body);
+      assert.equal(body.generationConfig.responseMimeType, "application/json");
+      return new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: '{"calls":[{"capability":"infrastructure.googlecloud.read","request":"Провери Google Cloud runtime."}]}',
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    },
+  });
+
+  assert.equal(requests[0].capability, "infrastructure.googlecloud.read");
+});
+
+test("planner falls back to OpenAI Responses when Gemini is unavailable", async () => {
+  const calledUrls = [];
+  const requests = await planCapabilities({
+    geminiApiKey: "gemini-key",
+    openAiApiKey: "openai-key",
+    message: "Провери Google Cloud runtime.",
+    fetchImpl: async (url, options) => {
+      calledUrls.push(String(url));
+      if (String(url).includes("generativelanguage.googleapis.com")) {
+        return new Response("temporary failure", { status: 503 });
+      }
       assert.equal(url, "https://api.openai.com/v1/responses");
       const body = JSON.parse(options.body);
       assert.equal(body.model, "gpt-4.1-mini");
@@ -120,6 +158,7 @@ test("planner uses OpenAI Responses as the primary provider", async () => {
   });
 
   assert.equal(requests[0].capability, "infrastructure.googlecloud.read");
+  assert.equal(calledUrls.length, 2);
 });
 
 test("planner does not call the removed DigitalOcean agent when OpenAI is unavailable", async () => {

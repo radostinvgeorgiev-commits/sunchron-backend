@@ -15,7 +15,7 @@ import {
   isFirestoreAlreadyExists,
 } from "./firestoreMcpOAuthStore.js";
 
-export const DEFAULT_MCP_RESOURCE_URL = "https://cloudaicore.com/mcp";
+export const DEFAULT_MCP_RESOURCE_URL = "https://novariumai.com/mcp";
 // The same MCP server under the new name. Sign-in still happens at the
 // canonical origin, so connectors added with either address keep working.
 export const DEFAULT_MCP_ALTERNATE_RESOURCE_URLS = Object.freeze([

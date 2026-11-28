@@ -36,6 +36,7 @@ function advisor(provider) {
 
 test("three engines are consulted before a bounded code confirmation is created", async () => {
   let storedConfirmation;
+  const executorCalls = [];
   const prepared = await prepareCodeTask({
     ownerId: "owner-1",
     sessionId: "session-1",
@@ -51,10 +52,17 @@ test("three engines are consulted before a bounded code confirmation is created"
     createSnapshot: async () => ({ text: "public/app.js\n// source" }),
     advisorRequesters: {
       openai: advisor("openai"),
-      gemini: advisor("gemini"),
+      gemini: async (options) => {
+        if (options.outputSchema) {
+          executorCalls.push("gemini");
+          return { model: "gemini-code-model", text: JSON.stringify(plan) };
+        }
+        return advisor("gemini")(options);
+      },
       grok: advisor("grok"),
     },
     responseRequester: async ({ input }) => {
+      executorCalls.push("openai");
       assert.match(input[0].content, /openai \/ openai-test-model/u);
       assert.match(input[0].content, /gemini \/ gemini-test-model/u);
       assert.match(input[0].content, /grok \/ grok-test-model/u);
@@ -77,9 +85,10 @@ test("three engines are consulted before a bounded code confirmation is created"
   );
   assert.equal(prepared.files[0].path, "public/avatar-proof.js");
   assert.equal(storedConfirmation.action, "github.write:code_task");
+  assert.deepEqual(executorCalls, ["gemini"]);
   assert.match(prepared.output, /Още не е записано нищо/u);
-  // Without a Claude key the OpenAI engine leads; Codex is gone.
-  assert.match(prepared.output, /Водещ кодов изпълнител: OpenAI/u);
+  // Gemini leads when configured; Codex is gone.
+  assert.match(prepared.output, /Водещ кодов изпълнител: Gemini \(gemini-code-model\)/u);
   assert.doesNotMatch(prepared.output, /Codex/u);
   assert.equal(
     extractCodeTaskConfirmationId(
@@ -89,7 +98,7 @@ test("three engines are consulted before a bounded code confirmation is created"
   );
 });
 
-test("Claude leads the code plan when it is configured", async () => {
+test("Claude remains a code-plan fallback when Gemini is unavailable", async () => {
   const planCalls = [];
   const prepared = await prepareCodeTask({
     ownerId: "owner-1",

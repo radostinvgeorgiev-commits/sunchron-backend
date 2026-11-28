@@ -31,7 +31,7 @@ test("Council reply shows agree / differ / only-one sections", () => {
   assert.ok(reply.indexOf("✅ Съгласни") < reply.indexOf("Обща препоръка"));
 });
 
-test("Claude takes over as arbiter when OpenAI is not configured", async () => {
+test("Gemini synthesizes the council when configured", async () => {
   let claudeArbiterCalls = 0;
   const result = await runAiCouncil({
     message: "А или Б?",
@@ -43,6 +43,37 @@ test("Claude takes over as arbiter when OpenAI is not configured", async () => {
       claude: async () => ({ text: "Б", provider: "claude", model: "c" }),
       gemini: async () => ({ text: "А", provider: "gemini", model: "g" }),
     },
+    geminiArbiterRequester: async () => ({
+      text: synthesisJson,
+      provider: "gemini",
+      model: "g",
+    }),
+    claudeArbiterRequester: async () => {
+      claudeArbiterCalls += 1;
+      return { text: synthesisJson, provider: "claude", model: "c" };
+    },
+  });
+  assert.equal(claudeArbiterCalls, 0);
+  assert.equal(result.arbiter.provider, "gemini");
+  assert.deepEqual([...result.agreements], ["А е по-евтино"]);
+  assert.equal(result.recommendation, "Направи А.");
+});
+
+test("Claude remains an arbiter fallback when Gemini synthesis fails", async () => {
+  let claudeArbiterCalls = 0;
+  const result = await runAiCouncil({
+    message: "А или Б?",
+    selectedProviders: ["claude", "gemini"],
+    openAiApiKey: "",
+    claudeApiKey: "k",
+    geminiApiKey: "k",
+    advisorRequesters: {
+      claude: async () => ({ text: "Б", provider: "claude", model: "c" }),
+      gemini: async () => ({ text: "А", provider: "gemini", model: "g" }),
+    },
+    geminiArbiterRequester: async () => {
+      throw new Error("Gemini unavailable");
+    },
     claudeArbiterRequester: async () => {
       claudeArbiterCalls += 1;
       return { text: synthesisJson, provider: "claude", model: "c" };
@@ -50,6 +81,4 @@ test("Claude takes over as arbiter when OpenAI is not configured", async () => {
   });
   assert.equal(claudeArbiterCalls, 1);
   assert.equal(result.arbiter.provider, "claude");
-  assert.deepEqual([...result.agreements], ["А е по-евтино"]);
-  assert.equal(result.recommendation, "Направи А.");
 });

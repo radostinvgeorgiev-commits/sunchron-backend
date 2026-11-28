@@ -17,7 +17,7 @@ import {
 const env = {
   MCP_ACCESS_TOKEN:
     "isolated-claude-oauth-test-secret-longer-than-32-characters",
-  MCP_RESOURCE_URL: "https://cloudaicore.com/mcp",
+  MCP_RESOURCE_URL: "https://novariumai.com/mcp",
   MCP_CLAUDE_OAUTH_ENABLED: "true",
 };
 const verifier = "c".repeat(64);

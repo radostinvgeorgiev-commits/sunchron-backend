@@ -3,11 +3,9 @@ import { readFile, rm } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 
 import {
-  requestClaudeResponse,
-  requestGeminiResponse,
-  requestGrokResponse,
-  requestOpenAIResponse,
+  requestAiResponse,
 } from "./novariumService.js";
+import { isVertexAiConfigured } from "./vertexAiGeminiService.js";
 import {
   createDurableConfirmation,
   markDurableConfirmationUsed,
@@ -41,36 +39,26 @@ const SAFE_PATH =
 const SECRET_PATTERN =
   /(?:-----BEGIN [A-Z ]*PRIVATE KEY-----|\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}|\bgh[pousr]_[A-Za-z0-9_]{20,})/u;
 const CODE_PROVIDERS = {
-  openai: {
-    label: "OpenAI",
-    key: "OPENAI_API_KEY",
-    request: requestOpenAIResponse,
-  },
-  gemini: {
-    label: "Gemini",
-    key: "GEMINI_API_KEY",
-    request: requestGeminiResponse,
-  },
-  grok: { label: "Grok", key: "GROK_API_KEY", request: requestGrokResponse },
-  claude: {
-    label: "Claude",
-    key: "ANTHROPIC_API_KEY",
-    request: requestClaudeResponse,
-  },
+  gemini: { label: "Vertex Gemini" },
 };
-// Gemini leads code tasks; the other engines remain advisors and fallbacks.
-const CODE_EXECUTOR_ORDER = Object.freeze(["gemini", "claude", "openai", "grok"]);
-const DEFAULT_ADVISOR_REQUESTERS = Object.fromEntries(
-  Object.entries(CODE_PROVIDERS).map(([provider, { request }]) => [
-    provider,
-    request,
-  ]),
-);
+const CODE_EXECUTOR_ORDER = Object.freeze(["gemini"]);
+const requestGoogleResponse = ({ apiKey: _apiKey, ...options }) =>
+  requestAiResponse({ ...options, provider: "vertex-gemini" });
+let vertexCodeTaskRequester = requestGoogleResponse;
+
+export function setVertexCodeTaskRequesterForTests(requester) {
+  vertexCodeTaskRequester =
+    typeof requester === "function" ? requester : requestGoogleResponse;
+}
+
+function defaultAdvisorRequesters() {
+  return { gemini: vertexCodeTaskRequester };
+}
 
 export function getCodeTaskProviderStatus(env = process.env) {
-  return Object.entries(CODE_PROVIDERS).map(([id, { key }]) => ({
+  return Object.entries(CODE_PROVIDERS).map(([id]) => ({
     id,
-    configured: Boolean(env[key]?.trim()),
+    configured: isVertexAiConfigured(env),
   }));
 }
 
@@ -339,15 +327,9 @@ export async function prepareCodeTask({
   githubSession,
   message,
   reviewRepository,
-  apiKey = process.env.OPENAI_API_KEY,
-  geminiApiKey = process.env.GEMINI_API_KEY,
-  grokApiKey = process.env.GROK_API_KEY,
-  claudeApiKey = process.env.ANTHROPIC_API_KEY,
-  claudeModel = process.env.CLAUDE_CODE_MODEL || undefined,
-  model = process.env.OPENAI_CODEX_MODEL,
+  env = process.env,
   sourceDirectory = process.cwd(),
-  responseRequester = requestOpenAIResponse,
-  advisorRequesters = DEFAULT_ADVISOR_REQUESTERS,
+  advisorRequesters = defaultAdvisorRequesters(),
   createWorkspace = createIsolatedSourceWorkspace,
   createSnapshot = createBoundedSourceSnapshot,
   createConfirmation = createDurableConfirmation,
@@ -357,16 +339,10 @@ export async function prepareCodeTask({
   const authorizedGitHubSession = assertGitHubSession(
     githubSession || (await resolveGitHubSession(githubSessionId)),
   );
-  const keys = {
-    openai: apiKey,
-    gemini: geminiApiKey,
-    grok: grokApiKey,
-    claude: claudeApiKey,
-  };
   const providers = Object.keys(CODE_PROVIDERS);
   const configured = providers.filter(
     (provider) =>
-      keys[provider]?.trim() &&
+      isVertexAiConfigured(env) &&
       typeof advisorRequesters[provider] === "function",
   );
   if (!configured.length) {
@@ -405,7 +381,6 @@ export async function prepareCodeTask({
     const advisorResults = await Promise.allSettled(
       configured.map(async (provider) => {
         const result = await advisorRequesters[provider]({
-          apiKey: keys[provider],
           input: advisorInput,
           signal: advisorSignal,
           verbosity: "low",
@@ -456,18 +431,9 @@ export async function prepareCodeTask({
     let planError;
     for (const provider of CODE_EXECUTOR_ORDER) {
       if (!answered.has(provider) || planDeadline.aborted) continue;
-      const requester =
-        provider === "openai" ? responseRequester : advisorRequesters[provider];
-      const codingModel =
-        provider === "claude"
-          ? claudeModel
-          : provider === "openai"
-            ? model
-            : undefined;
+      const requester = advisorRequesters[provider];
       try {
         const response = await requester({
-          apiKey: keys[provider],
-          ...(codingModel ? { model: codingModel } : {}),
           signal: AbortSignal.any([planDeadline, AbortSignal.timeout(45_000)]),
           input: planInput,
           verbosity: "low",
@@ -483,7 +449,6 @@ export async function prepareCodeTask({
           provider,
           model:
             (typeof response.model === "string" && response.model.trim()) ||
-            codingModel ||
             participants.find((entry) => entry.provider === provider)?.model ||
             CODE_PROVIDERS[provider].label,
         };

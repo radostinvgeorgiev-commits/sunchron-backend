@@ -31,14 +31,27 @@ const VALID_RUN_STATUSES = new Set([
 ]);
 const VALID_MODELS = new Set([
   "auto",
-  "gpt-5.6-sol",
-  "gpt-5.6-terra",
-  "gpt-5.6-luna",
-  "gemini-2.5-flash",
   "vertex-gemini-2.5-flash",
-  "grok-4.5",
+  "vertex-gemma-4-26b",
 ]);
-const LEGACY_MODEL_MIGRATIONS = new Map([["grok-3-mini", "grok-4.5"]]);
+const LEGACY_MODEL_MIGRATIONS = new Map([
+  ...[
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "gpt-4.1-mini",
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5-5",
+    "claude-opus-5-5",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
+    "grok-3-mini",
+    "grok-4.5",
+    "vertex-gpt-oss-120b",
+    "vertex-deepseek-v4.1-flash",
+    "vertex-glm-5.2",
+  ].map((model) => [model, "vertex-gemini-2.5-flash"]),
+]);
 const VALID_MEMORY_MODES = new Set(["confirm", "disabled"]);
 
 const DEFAULT_AGENTS = Object.freeze([
@@ -229,11 +242,7 @@ export function normalizeWorkspaceState(value, { now } = {}) {
         id: cleanId(agent?.id, `agent-${index + 1}`),
         name: cleanText(agent?.name, 50) || "Личен агент",
         role: VALID_ROLES.has(agent?.role) ? agent.role : "general",
-        // The code agent runs on Claude now; an older GPT choice becomes auto.
-        model:
-          agent?.engine === "codex"
-            ? "auto"
-            : normalizeAgentModel(agent?.model),
+        model: normalizeAgentModel(agent?.model),
         purpose: cleanText(agent?.purpose, 400),
         engine: VALID_ENGINES.has(agent?.engine) ? agent.engine : "novarium",
       }))

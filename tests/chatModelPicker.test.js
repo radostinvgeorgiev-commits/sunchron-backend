@@ -8,19 +8,28 @@ import {
   resolveWorkAgentProvider,
 } from "../src/services/workModeService.js";
 
-test("chat model picker offers auto plus economical models that map to real providers", () => {
+test("chat model picker offers only Google Cloud models", () => {
   assert.equal(CHAT_MODEL_CHOICES[0].id, "auto");
   for (const choice of CHAT_MODEL_CHOICES.slice(1)) {
     assert.ok(resolveWorkAgentProvider(choice.id), choice.id);
-    assert.ok(resolveWorkAgentModel(choice.id), choice.id);
+    assert.ok(
+      ["vertex-gemini", "vertex-open"].includes(
+        resolveWorkAgentProvider(choice.id),
+      ),
+      choice.id,
+    );
   }
 });
 
 test("only known, non-auto model ids are accepted from the chat body", () => {
-  assert.equal(resolveChatModelChoice("gemini-2.5-flash-lite"), "gemini-2.5-flash-lite");
+  assert.equal(
+    resolveChatModelChoice("vertex-gemini-2.5-flash"),
+    "vertex-gemini-2.5-flash",
+  );
   assert.equal(resolveChatModelChoice("auto"), undefined);
   assert.equal(resolveChatModelChoice("grok-4.5"), undefined);
   assert.equal(resolveChatModelChoice("gpt-5.6-sol"), undefined);
+  assert.equal(resolveChatModelChoice("gemini-2.5-flash"), undefined);
   assert.equal(resolveChatModelChoice({}), undefined);
   assert.equal(resolveChatModelChoice(undefined), undefined);
 });

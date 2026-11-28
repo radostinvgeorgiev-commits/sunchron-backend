@@ -44,7 +44,12 @@ test("OpenAI chat failure logs status without the upstream response body", async
 test("web search failure logs status without the upstream response body", async () => {
   await captureUpstreamFailure(() =>
     searchWeb("test", {
-      geminiApiKey: "test-key",
+      env: {
+        VERTEX_AI_ENABLED: "true",
+        VERTEX_AI_PROJECT_ID: "project-123",
+        VERTEX_AI_LOCATION: "global",
+      },
+      authClient: { getRequestHeaders: async () => ({ Authorization: "Bearer test" }) },
       fetchImpl: async () => failedResponse(),
     }),
   );

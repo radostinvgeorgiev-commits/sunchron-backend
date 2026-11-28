@@ -157,7 +157,11 @@ export function createClaudeWorkService({ store, env = process.env, fetchImpl = 
     const key = ownerKey(ownerId);
     const task = clean(input.task, CLAUDE_WORK_LIMITS.task);
     if (!task) throw new ClaudeWorkError("Напиши задачата за Claude.");
-    if (!apiKey()) throw new ClaudeWorkError("Claude не е конфигуриран.", 503, "CLAUDE_NOT_CONFIGURED");
+    throw new ClaudeWorkError(
+      "Claude Work не е наличен в backend-only Google режима. Използвай Gemini или режим „Код“.",
+      503,
+      "CLAUDE_WORK_GOOGLE_ONLY",
+    );
     const skills = Array.isArray(input.skills) ? input.skills.map(String) : [];
     const instructions = clean(input.instructions, CLAUDE_WORK_LIMITS.instructions);
     const connectors = (Array.isArray(input.connectors) ? input.connectors : [])

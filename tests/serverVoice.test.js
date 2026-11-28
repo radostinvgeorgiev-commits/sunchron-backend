@@ -20,89 +20,33 @@ test("only known audio formats and sizes are accepted", () => {
   );
 });
 
-test("OpenAI transcribes in the chosen language", async () => {
-  let seen;
-  const fetchImpl = async (url, init) => {
-    seen = { url, form: init.body };
-    return new Response(JSON.stringify({ text: " Здравей, как си? " }), { status: 200 });
-  };
-  const result = await transcribeVoice(
-    { audio, mimeType: "audio/mp4", language: "bg" },
-    { env: { OPENAI_API_KEY: "k" }, fetchImpl },
-  );
-  assert.equal(result.text, "Здравей, как си?");
-  assert.equal(result.provider, "openai");
-  assert.match(seen.url, /audio\/transcriptions$/u);
-  assert.equal(seen.form.get("language"), "bg");
-  assert.equal(seen.form.get("model"), "gpt-4o-mini-transcribe");
+const VERTEX_ENV = Object.freeze({
+  VERTEX_AI_ENABLED: "true",
+  VERTEX_AI_PROJECT_ID: "project-123",
+  VERTEX_AI_LOCATION: "global",
+  VERTEX_AI_MODEL: "gemini-2.5-flash",
 });
+const authClient = { getRequestHeaders: async () => ({ Authorization: "Bearer test" }) };
 
-test("Gemini goes first when both keys are set", async () => {
+test("Vertex Gemini transcribes with the chosen language", async () => {
   const urls = [];
-  const fetchImpl = async (url) => {
+  const fetchImpl = async (url, init) => {
     urls.push(url);
+    const body = JSON.parse(init.body);
+    assert.match(body.contents[0].parts[0].text, /език: bg/u);
+    assert.equal(body.contents[0].parts[1].inlineData.mimeType, "audio/mp4");
     return new Response(
       JSON.stringify({ candidates: [{ content: { parts: [{ text: "Добро утро" }] } }] }),
       { status: 200 },
     );
   };
   const result = await transcribeVoice(
-    { audio, mimeType: "audio/webm" },
-    { env: { OPENAI_API_KEY: "k", GEMINI_API_KEY: "g" }, fetchImpl },
+    { audio, mimeType: "audio/mp4", language: "bg" },
+    { env: VERTEX_ENV, fetchImpl, authClient },
   );
-  assert.deepEqual([result.provider, result.text], ["gemini", "Добро утро"]);
+  assert.deepEqual([result.provider, result.text], ["vertex-gemini", "Добро утро"]);
   assert.equal(urls.length, 1);
-  assert.match(urls[0], /generativelanguage\.googleapis\.com/u);
-});
-
-test("OpenAI answers when Gemini fails", async () => {
-  const urls = [];
-  const fetchImpl = async (url) => {
-    urls.push(url);
-    return url.includes("generativelanguage")
-      ? new Response("{}", { status: 429 })
-      : new Response(JSON.stringify({ text: "Добро утро" }), { status: 200 });
-  };
-  const result = await transcribeVoice(
-    { audio, mimeType: "audio/webm" },
-    { env: { OPENAI_API_KEY: "k", GEMINI_API_KEY: "g" }, fetchImpl },
-  );
-  assert.deepEqual([result.provider, result.text], ["openai", "Добро утро"]);
-  assert.equal(urls.length, 2);
-  assert.match(urls[1], /api\.openai\.com/u);
-});
-
-// A refusal or a cut-off answer comes back from Gemini as 200 with no text;
-// the fallback must still hear the recording (review of #605). Silence that
-// simply stopped stays an empty answer from Gemini.
-test("OpenAI answers when Gemini returns no text", async () => {
-  for (const body of [
-    { candidates: [{ finishReason: "RECITATION" }] },
-    { candidates: [{ finishReason: "MAX_TOKENS", content: { parts: [] } }] },
-    { promptFeedback: { blockReason: "OTHER" } },
-  ]) {
-    const urls = [];
-    const fetchImpl = async (url) => {
-      urls.push(url);
-      return url.includes("generativelanguage")
-        ? new Response(JSON.stringify(body), { status: 200 })
-        : new Response(JSON.stringify({ text: "Добро утро" }), { status: 200 });
-    };
-    const result = await transcribeVoice(
-      { audio, mimeType: "audio/webm" },
-      { env: { OPENAI_API_KEY: "k", GEMINI_API_KEY: "g" }, fetchImpl },
-    );
-    assert.deepEqual([result.provider, result.text, urls.length], ["openai", "Добро утро", 2], JSON.stringify(body));
-  }
-  const silence = await transcribeVoice(
-    { audio, mimeType: "audio/webm" },
-    {
-      env: { OPENAI_API_KEY: "k", GEMINI_API_KEY: "g" },
-      fetchImpl: async () =>
-        new Response(JSON.stringify({ candidates: [{ finishReason: "STOP", content: { parts: [] } }] }), { status: 200 }),
-    },
-  );
-  assert.deepEqual([silence.provider, silence.text], ["gemini", ""]);
+  assert.match(urls[0], /aiplatform\.googleapis\.com/u);
 });
 
 test("no provider means a clear 503", async () => {

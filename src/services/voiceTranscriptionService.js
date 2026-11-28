@@ -1,11 +1,11 @@
-import { reportAiUsage } from "./novariumService.js";
+import { requestAiResponse } from "./novariumService.js";
+import { isVertexAiConfigured, resolveVertexAiModel } from "./vertexAiGeminiService.js";
 import { reservePublicAiVoice } from "./publicAiBudget.js";
 import { ProductError } from "./productPlansService.js";
 
 // Speech to text on the server, for phones where the browser's own speech
 // recognition is missing or does not speak Bulgarian (iPhone Safari, the
-// home-screen app). Gemini first, OpenAI as the fallback (РАДКО 28.11.2026).
-export const DEFAULT_OPENAI_TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe";
+// home-screen app). Server transcription uses only Vertex Gemini.
 export const DEFAULT_GEMINI_TRANSCRIBE_MODEL = "gemini-3.5-flash-lite";
 export const MAX_AUDIO_BYTES = 4 * 1024 * 1024;
 const AUDIO_TYPES = new Map([
@@ -48,109 +48,45 @@ function languageCode(language) {
   return /^[a-z]{2}$/u.test(value) ? value : "bg";
 }
 
-async function transcribeWithOpenAi({ bytes, type, extension, language, env, fetchImpl, signal }) {
-  const model = env.OPENAI_TRANSCRIBE_MODEL || DEFAULT_OPENAI_TRANSCRIBE_MODEL;
-  await reservePublicAiVoice("openai", model);
-  const form = new FormData();
-  form.append("file", new Blob([bytes], { type }), `voice.${extension}`);
-  form.append("model", model);
-  form.append("language", languageCode(language));
-  form.append("response_format", "json");
-  const response = await fetchImpl("https://api.openai.com/v1/audio/transcriptions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}` },
-    body: form,
-    signal,
-  });
-  if (!response.ok) {
-    throw new VoiceError(`OpenAI върна грешка ${response.status}.`, 502, "VOICE_UPSTREAM");
-  }
-  const data = await response.json();
-  reportAiUsage("openai", model, data?.usage?.input_tokens || 0, data?.usage?.output_tokens || 0);
-  return { text: String(data?.text || "").trim(), provider: "openai", model };
-}
-
-async function transcribeWithGemini({ bytes, type, language, env, fetchImpl, signal }) {
-  const model = env.GEMINI_TRANSCRIBE_MODEL || DEFAULT_GEMINI_TRANSCRIBE_MODEL;
-  await reservePublicAiVoice("gemini", model);
-  const base = String(env.GEMINI_API_URL || "https://generativelanguage.googleapis.com/v1beta").replace(/\/+$/u, "");
-  const response = await fetchImpl(`${base}/models/${encodeURIComponent(model)}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { inline_data: { mime_type: type, data: bytes.toString("base64") } },
-            {
-              text: `Запиши точно казаното в аудиото като текст (език: ${languageCode(language)}). Върни само текста, без обяснения. Ако няма реч, върни празен отговор.`,
-            },
-          ],
-        },
-      ],
-      generationConfig: { temperature: 0, maxOutputTokens: 1024 },
-    }),
-    signal,
-  });
-  if (!response.ok) {
-    throw new VoiceError(`Gemini върна грешка ${response.status}.`, 502, "VOICE_UPSTREAM");
-  }
-  const data = await response.json();
-  reportAiUsage(
-    "gemini",
+async function transcribeWithVertex({ bytes, type, language, env, fetchImpl, signal, authClient }) {
+  const model = env.GEMINI_TRANSCRIBE_MODEL || resolveVertexAiModel(env);
+  await reservePublicAiVoice("vertex-gemini", model);
+  const response = await requestAiResponse({
+    provider: "vertex-gemini",
+    env,
     model,
-    data?.usageMetadata?.promptTokenCount || 0,
-    data?.usageMetadata?.candidatesTokenCount || 0,
-  );
-  const candidate = data?.candidates?.[0];
-  const text = (candidate?.content?.parts || [])
-    .map((part) => part?.text || "")
-    .join("")
-    .trim();
-  // A refusal (blocked, recitation, safety) or a cut-off answer comes back as
-  // 200 with no text: the fallback hears it instead. An empty answer that
-  // simply stopped is silence.
-  const stopped =
-    data?.promptFeedback?.blockReason ||
-    (!candidate
-      ? "NO_CANDIDATE"
-      : !text && candidate.finishReason && candidate.finishReason !== "STOP"
-        ? candidate.finishReason
-        : "");
-  if (stopped) {
-    throw new VoiceError(`Gemini не върна текст (${stopped}).`, 502, "VOICE_UPSTREAM");
-  }
-  return { text, provider: "gemini", model };
+    input: [{
+      role: "user",
+      content: `Запиши точно казаното в аудиото като текст (език: ${languageCode(language)}). Върни само текста, без обяснения. Ако няма реч, върни празен отговор.`,
+    }],
+    fetchImpl,
+    signal,
+    authClient,
+    mediaParts: [{ inlineData: { mimeType: type, data: bytes.toString("base64") } }],
+    maxOutputTokens: 1024,
+  });
+  return { text: String(response?.text || "").trim(), provider: "vertex-gemini", model: response?.model || model };
 }
 
-export async function transcribeVoice(payload, { env = process.env, fetchImpl = fetch, timeoutMs = 30_000 } = {}) {
+export async function transcribeVoice(payload, { env = process.env, fetchImpl = fetch, timeoutMs = 30_000, authClient } = {}) {
   const audio = parseAudioPayload(payload);
-  const providers = [
-    env.GEMINI_API_KEY ? transcribeWithGemini : null,
-    env.OPENAI_API_KEY ? transcribeWithOpenAi : null,
-  ].filter(Boolean);
-  if (!providers.length) {
+  if (!isVertexAiConfigured(env)) {
     throw new VoiceError("Гласовото разпознаване на сървъра не е настроено.", 503, "VOICE_NOT_CONFIGURED");
   }
-  let lastError;
-  for (const provider of providers) {
-    try {
-      return await provider({
-        ...audio,
-        language: payload?.language,
-        env,
-        fetchImpl,
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-    } catch (error) {
-      // Out of credits is an answer, not a provider failure.
-      if (error instanceof ProductError) throw error;
-      lastError = error;
-      console.error(`[Voice] ${provider.name} failed: ${error?.code || error?.name || "error"}`);
-    }
+  try {
+    return await transcribeWithVertex({
+      ...audio,
+      language: payload?.language,
+      env,
+      fetchImpl,
+      authClient,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (error) {
+    if (error instanceof ProductError) throw error;
+    console.error(`[Voice] Vertex failed: ${error?.code || error?.name || "error"}`);
+    throw error instanceof VoiceError
+      ? error
+      : new VoiceError("Записът не можа да се разпознае. Опитай пак.", 502, "VOICE_FAILED");
   }
-  throw lastError instanceof VoiceError
-    ? lastError
-    : new VoiceError("Записът не можа да се разпознае. Опитай пак.", 502, "VOICE_FAILED");
 }

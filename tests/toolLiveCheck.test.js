@@ -8,6 +8,7 @@ const deps = (overrides = {}) => ({
     { id: "claude", working: true },
     { id: "openai", working: false, reason: "лимит или няма кредит" },
     { id: "gemini", working: true },
+    { id: "vertex-gemini", working: true },
   ],
   readiness: async () => ({ checks: { memory: { ready: true } } }),
   systemReport: async () => ({ summary: { missingRequired: 0 } }),
@@ -24,8 +25,7 @@ test("each tool is green only when its own real check answered", async () => {
   assert.deepEqual(tools["google-firestore-memory"], { ok: true });
   assert.deepEqual(tools["synchron-tasks"], { ok: true });
   assert.deepEqual(tools["google-cloud-read"], { ok: true });
-  assert.equal(tools["openai-web-search"].ok, false);
-  assert.match(tools["openai-web-search"].reason, /лимит/u);
+  assert.deepEqual(tools["openai-web-search"], { ok: true });
 });
 
 test("a failing or hanging check never turns green", async () => {

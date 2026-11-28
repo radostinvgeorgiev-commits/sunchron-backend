@@ -12,6 +12,7 @@ import {
   hasConfiguredAiProvider,
   isNovariumConfigured,
 } from "../services/novariumService.js";
+import { isVertexAiConfigured } from "../services/vertexAiGeminiService.js";
 import { answerGitHubItemStatus, answerGitHubReadRequest } from "../services/githubService.js";
 import { useEnglishReplyFallback } from "../config/replyLanguage.js";
 import { getPersonalTodoService, isTodoDate } from "../services/personalTodoService.js";
@@ -272,13 +273,13 @@ export function getToolRuntimeAvailability(
       );
     case "openai-web-search":
       return configured(
-        hasEnvironment(env, "OPENAI_API_KEY"),
-        "OpenAI Web Search не е конфигуриран.",
+        isVertexAiConfigured(env),
+        "Vertex Gemini Web Search не е конфигуриран.",
       );
     case "openai-codex":
       return configured(
         isCodexAgentConfigured(env),
-        "Кодовият агент (Claude) не е конфигуриран.",
+        "Кодовият агент (Vertex Gemini) не е конфигуриран.",
         "CODEX_AGENT_NOT_CONFIGURED",
       );
     case "google-firestore-memory":
@@ -366,13 +367,6 @@ export async function buildIntegrationStatusReport(
       : false,
     probeProviders({ env }).catch(() => []),
   ]);
-  const openAiWorks = providerProbe.some(
-    ({ id, working }) => id === "openai" && working,
-  );
-  const claudeWorks = providerProbe.some(
-    ({ id, working }) => id === "claude" && working,
-  );
-
   const working = [
     ["GitHub Read", githubRead],
     ["Google Cloud Memory", memory],
@@ -385,8 +379,7 @@ export async function buildIntegrationStatusReport(
             id === getAiProviderStatus(env).primaryProvider && working,
         ),
     ],
-    ["OpenAI Web Search", Boolean(env.OPENAI_API_KEY) && openAiWorks],
-    ["Claude код", isCodexAgentConfigured(env) && claudeWorks],
+    ["Vertex Gemini код", isCodexAgentConfigured(env)],
   ];
   const sessionTools = [
     [

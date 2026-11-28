@@ -10,7 +10,13 @@ import {
 import { meetingCredits } from "../src/services/publicAiBudget.js";
 import { createMeetingNotesHandler } from "../src/routes/chat.js";
 
-const env = { GEMINI_API_KEY: "g", GEMINI_API_URL: "https://gemini.test/v1beta", MEETING_POLL_MS: "1" };
+const env = {
+  VERTEX_AI_ENABLED: "true",
+  VERTEX_AI_PROJECT_ID: "project-123",
+  VERTEX_AI_LOCATION: "global",
+  VERTEX_AI_MODEL: "gemini-2.5-flash",
+};
+const authClient = { getRequestHeaders: async () => ({ Authorization: "Bearer test" }) };
 const audio = Buffer.alloc(4096, 7);
 
 test("a phone voice memo is accepted, other files are not", () => {
@@ -31,40 +37,30 @@ test("a meeting costs 2 units per started 10 MB", () => {
   assert.equal(meetingCredits(29 * 1024 * 1024), 6);
 });
 
-test("Gemini reads the recording through its Files API and the file is deleted after", async () => {
+test("Vertex Gemini reads the recording inline", async () => {
   const calls = [];
   const fetchImpl = async (url, options = {}) => {
     calls.push({ url, method: options.method || "GET", headers: options.headers || {} });
-    if (url.endsWith("/upload/v1beta/files")) {
-      return { ok: true, status: 200, headers: new Headers({ "x-goog-upload-url": "https://gemini.test/upload-target" }) };
-    }
-    if (url === "https://gemini.test/upload-target") {
-      return { ok: true, json: async () => ({ file: { name: "files/abc", uri: "https://gemini.test/files/abc", mimeType: "audio/mp4", state: "PROCESSING" } }) };
-    }
-    if (url === "https://gemini.test/v1beta/files/abc" && (options.method || "GET") === "GET") {
-      return { ok: true, json: async () => ({ name: "files/abc", uri: "https://gemini.test/files/abc", mimeType: "audio/mp4", state: "ACTIVE" }) };
-    }
     if (url.includes(":generateContent")) {
+      const body = JSON.parse(options.body);
+      assert.equal(body.contents[0].parts[1].inlineData.mimeType, "audio/mp4");
       return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: "Говорител 1: Здравейте." }] } }] }) };
     }
     return { ok: true, json: async () => ({}) };
   };
   const upload = parseMeetingUpload({ bytes: audio, mimeType: "audio/mp4", name: "a.m4a" });
-  const result = await transcribeMeeting(upload, { env, fetchImpl });
+  const result = await transcribeMeeting(upload, { env, fetchImpl, authClient });
   assert.equal(result.text, "Говорител 1: Здравейте.");
-  assert.equal(calls[0].headers["X-Goog-Upload-Header-Content-Type"], "audio/mp4");
-  assert.ok(calls.some((call) => call.method === "DELETE" && call.url.endsWith("/files/abc")));
+  assert.equal(result.provider, "vertex-gemini");
+  assert.match(calls[0].url, /aiplatform\.googleapis\.com/u);
 });
 
-test("when Gemini fails, OpenAI speech-to-text reads the recording", async () => {
-  const fetchImpl = async (url) => {
-    if (url.includes("api.openai.com")) return { ok: true, json: async () => ({ text: "Текст от OpenAI." }) };
-    return { ok: false, status: 500, headers: new Headers() };
-  };
+test("external keys do not enable meeting transcription", async () => {
   const upload = parseMeetingUpload({ bytes: audio, mimeType: "audio/mpeg", name: "a.mp3" });
-  const result = await transcribeMeeting(upload, { env: { ...env, OPENAI_API_KEY: "o" }, fetchImpl });
-  assert.equal(result.provider, "openai");
-  assert.equal(result.text, "Текст от OpenAI.");
+  await assert.rejects(
+    () => transcribeMeeting(upload, { env: { OPENAI_API_KEY: "o", ANTHROPIC_API_KEY: "a" } }),
+    { code: "MEETING_NOT_CONFIGURED", status: 503 },
+  );
 });
 
 test("the summary keeps only clean lists and falls back to text", () => {

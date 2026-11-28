@@ -1,5 +1,7 @@
+import { requestAiResponse } from "./novariumService.js";
+import { isVertexAiConfigured, resolveVertexAiModel } from "./vertexAiGeminiService.js";
+
 const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
-const DEFAULT_OPENAI_MODEL = "gpt-4.1-mini";
 const MAX_QUERY_LENGTH = 1500;
 
 export class WebSearchError extends Error {
@@ -98,13 +100,10 @@ export async function searchWeb(
   query,
   {
     fetchImpl = fetch,
-    geminiApiKey = process.env.GEMINI_API_KEY,
-    openAiApiKey = process.env.OPENAI_API_KEY,
-    model = process.env.WEB_SEARCH_MODEL || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
-    geminiBaseUrl = process.env.GEMINI_API_URL ||
-      "https://generativelanguage.googleapis.com/v1beta",
-    openAiModel = process.env.OPENAI_WEB_SEARCH_MODEL || DEFAULT_OPENAI_MODEL,
+    env = process.env,
+    model = env.WEB_SEARCH_MODEL || resolveVertexAiModel(env) || DEFAULT_GEMINI_MODEL,
     signal = AbortSignal.timeout(60000),
+    authClient,
   } = {},
 ) {
   const cleanQuery = typeof query === "string" ? query.trim() : "";
@@ -122,107 +121,46 @@ export async function searchWeb(
       "SEARCH_QUERY_TOO_LONG",
     );
   }
-  if (!geminiApiKey && !openAiApiKey) {
+  if (!isVertexAiConfigured(env)) {
     throw new WebSearchError(
       "Интернет търсенето не е конфигурирано.",
       503,
       "WEB_SEARCH_NOT_CONFIGURED",
     );
   }
-
-  const requests = [
-    geminiApiKey
-      ? () =>
-          fetchImpl(
-            `${String(geminiBaseUrl).replace(/\/+$/u, "")}/models/${encodeURIComponent(model)}:generateContent`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "x-goog-api-key": geminiApiKey,
-              },
-              body: JSON.stringify({
-                contents: [
-                  {
-                    role: "user",
-                    parts: [
-                      {
-                        text: [
-                          "Отговори на български език.",
-                          "Направи актуално интернет търсене и дай ясен, практичен отговор.",
-                          "Не измисляй факти. Използвай видими и проверими източници.",
-                          "",
-                          cleanQuery,
-                        ].join("\n"),
-                      },
-                    ],
-                  },
-                ],
-                tools: [{ googleSearch: {} }],
-                generationConfig: { temperature: 0.2, maxOutputTokens: 4096 },
-              }),
-              signal,
-            },
-          )
-      : null,
-    openAiApiKey
-      ? () =>
-          fetchImpl("https://api.openai.com/v1/responses", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${openAiApiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: openAiModel,
-              tools: [{ type: "web_search", search_context_size: "medium" }],
-              tool_choice: "required",
-              input: [
-                "Отговори на български език.",
-                "Направи актуално интернет търсене и дай ясен, практичен отговор.",
-                "Не измисляй факти. Използвай видими и проверими източници.",
-                "",
-                cleanQuery,
-              ].join("\n"),
-            }),
-            signal,
-          })
-      : null,
-  ].filter(Boolean);
-
-  let lastError;
-  for (const request of requests) {
-    let response;
-    try {
-      response = await request();
-    } catch (error) {
-      lastError = error;
-      continue;
-    }
-    if (!response.ok) {
-      console.error(`[Web search] Upstream request failed: ${response.status}`);
-      lastError = new WebSearchError(
-        "Интернет търсенето временно не е достъпно.",
-        502,
-        "WEB_SEARCH_UPSTREAM_ERROR",
-      );
-      continue;
-    }
-    const result = extractSearchResult(await response.json());
-    if (!result.text) {
-      lastError = new WebSearchError(
-        "Търсенето не върна отговор.",
-        502,
-        "EMPTY_WEB_SEARCH_RESPONSE",
-      );
-      continue;
-    }
-    return result;
+  try {
+    const response = await requestAiResponse({
+      provider: "vertex-gemini",
+      env,
+      model,
+      input: [{
+        role: "user",
+        content: [
+          "Отговори на български език.",
+          "Направи актуално интернет търсене и дай ясен, практичен отговор.",
+          "Не измисляй факти. Използвай видими и проверими източници.",
+          "",
+          cleanQuery,
+        ].join("\n"),
+      }],
+      fetchImpl,
+      signal,
+      authClient,
+      tools: [{ googleSearch: {} }],
+      maxOutputTokens: 4096,
+    });
+    return {
+      text: String(response?.text || "").trim(),
+      sources: [],
+    };
+  } catch (error) {
+    console.error(
+      `[Web search] Vertex failed: ${error?.code || error?.name || "error"} ${error?.status ?? ""}`.trim(),
+    );
+    throw new WebSearchError(
+      "Интернет търсенето временно не е достъпно.",
+      502,
+      "WEB_SEARCH_UPSTREAM_ERROR",
+    );
   }
-  if (lastError instanceof WebSearchError) throw lastError;
-  throw new WebSearchError(
-    "Интернет търсенето беше прекъснато. Опитай пак.",
-    502,
-    "WEB_SEARCH_INTERRUPTED",
-  );
 }

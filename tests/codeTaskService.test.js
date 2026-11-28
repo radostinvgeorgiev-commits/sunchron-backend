@@ -12,6 +12,12 @@ import {
 
 const ownerLogin = "radostinvgeorgiev-commits";
 const githubSession = { login: ownerLogin, accessToken: "github-access" };
+const vertexEnv = {
+  VERTEX_AI_ENABLED: "true",
+  VERTEX_AI_PROJECT_ID: "novarium-test-12345",
+  VERTEX_AI_LOCATION: "us-central1",
+  VERTEX_AI_MODEL: "gemini-2.5-flash",
+};
 const plan = {
   title: "Подобри интерфейса за аватари",
   summary: "Добавя по-ясен избор и визуално състояние за аватарите.",
@@ -34,7 +40,7 @@ function advisor(provider) {
   });
 }
 
-test("three engines are consulted before a bounded code confirmation is created", async () => {
+test("Vertex Gemini prepares a bounded code confirmation", async () => {
   let storedConfirmation;
   const executorCalls = [];
   const prepared = await prepareCodeTask({
@@ -42,16 +48,13 @@ test("three engines are consulted before a bounded code confirmation is created"
     sessionId: "session-1",
     githubSessionId: "github-session",
     message: "Подобри интерфейса за аватарите.",
-    apiKey: "openai-key",
-    geminiApiKey: "gemini-key",
-    grokApiKey: "grok-key",
+    env: vertexEnv,
     createWorkspace: async () => ({
       root: "C:/nonexistent-novarium-code-task-test",
       workspace: "C:/nonexistent-novarium-code-task-test/source",
     }),
     createSnapshot: async () => ({ text: "public/app.js\n// source" }),
     advisorRequesters: {
-      openai: advisor("openai"),
       gemini: async (options) => {
         if (options.outputSchema) {
           executorCalls.push("gemini");
@@ -59,15 +62,6 @@ test("three engines are consulted before a bounded code confirmation is created"
         }
         return advisor("gemini")(options);
       },
-      grok: advisor("grok"),
-    },
-    responseRequester: async ({ input }) => {
-      executorCalls.push("openai");
-      assert.match(input[0].content, /openai \/ openai-test-model/u);
-      assert.match(input[0].content, /gemini \/ gemini-test-model/u);
-      assert.match(input[0].content, /grok \/ grok-test-model/u);
-      assert.match(input[0].content, /public\/app\.js/u);
-      return { text: JSON.stringify(plan) };
     },
     resolveGitHubSession: async () => githubSession,
     createConfirmation: async (confirmation) => {
@@ -81,14 +75,13 @@ test("three engines are consulted before a bounded code confirmation is created"
 
   assert.deepEqual(
     prepared.council.map(({ provider }) => provider),
-    ["openai", "gemini", "grok"],
+    ["gemini"],
   );
   assert.equal(prepared.files[0].path, "public/avatar-proof.js");
   assert.equal(storedConfirmation.action, "github.write:code_task");
   assert.deepEqual(executorCalls, ["gemini"]);
   assert.match(prepared.output, /Още не е записано нищо/u);
-  // Gemini leads when configured; Codex is gone.
-  assert.match(prepared.output, /Водещ кодов изпълнител: Gemini \(gemini-code-model\)/u);
+  assert.match(prepared.output, /Водещ кодов изпълнител: Vertex Gemini \(gemini-code-model\)/u);
   assert.doesNotMatch(prepared.output, /Codex/u);
   assert.equal(
     extractCodeTaskConfirmationId(
@@ -98,33 +91,27 @@ test("three engines are consulted before a bounded code confirmation is created"
   );
 });
 
-test("Claude remains a code-plan fallback when Gemini is unavailable", async () => {
+test("Vertex Gemini is used for both code advice and execution", async () => {
   const planCalls = [];
   const prepared = await prepareCodeTask({
     ownerId: "owner-1",
     sessionId: "session-1",
     githubSessionId: "github-session",
     message: "Добави проверим UI модул.",
-    apiKey: "openai-key",
-    claudeApiKey: "claude-key",
+    env: vertexEnv,
     createWorkspace: async () => ({
       root: "C:/nonexistent-novarium-code-task-test",
       workspace: "C:/nonexistent-novarium-code-task-test/source",
     }),
     createSnapshot: async () => ({ text: "source" }),
     advisorRequesters: {
-      openai: advisor("openai"),
-      claude: async ({ input, outputSchema }) => {
+      gemini: async ({ input, outputSchema }) => {
         if (outputSchema) {
-          planCalls.push("claude");
-          return { model: "claude-haiku-5-5", text: JSON.stringify(plan) };
+          planCalls.push("gemini");
+          return { model: "gemini-code-model", text: JSON.stringify(plan) };
         }
-        return advisor("claude")({ input });
+        return advisor("gemini")({ input });
       },
-    },
-    responseRequester: async () => {
-      planCalls.push("openai");
-      return { text: JSON.stringify(plan) };
     },
     resolveGitHubSession: async () => githubSession,
     createConfirmation: async () => ({
@@ -132,8 +119,8 @@ test("Claude remains a code-plan fallback when Gemini is unavailable", async () 
       expiresAt: Date.now() + 60_000,
     }),
   });
-  assert.deepEqual(planCalls, ["claude"]);
-  assert.match(prepared.output, /Водещ кодов изпълнител: Claude \(claude-haiku-5-5\)/u);
+  assert.deepEqual(planCalls, ["gemini"]);
+  assert.match(prepared.output, /Водещ кодов изпълнител: Vertex Gemini \(gemini-code-model\)/u);
 });
 
 test("confirmation creates exactly one branch commit and pull request operation", async () => {
@@ -143,20 +130,18 @@ test("confirmation creates exactly one branch commit and pull request operation"
     sessionId: "session-1",
     githubSessionId: "github-session",
     message: "Добави проверим UI модул.",
-    apiKey: "openai-key",
-    geminiApiKey: "gemini-key",
-    grokApiKey: "grok-key",
+    env: vertexEnv,
     createWorkspace: async () => ({
       root: "C:/nonexistent-novarium-code-task-test",
       workspace: "C:/nonexistent-novarium-code-task-test/source",
     }),
     createSnapshot: async () => ({ text: "source" }),
     advisorRequesters: {
-      openai: advisor("openai"),
-      gemini: advisor("gemini"),
-      grok: advisor("grok"),
+      gemini: async ({ outputSchema }) =>
+        outputSchema
+          ? { model: "gemini-code-model", text: JSON.stringify(plan) }
+          : advisor("gemini")(),
     },
-    responseRequester: async () => ({ text: JSON.stringify(plan) }),
     resolveGitHubSession: async () => githubSession,
     createConfirmation: async (confirmation) => {
       storedConfirmation = {
@@ -213,9 +198,7 @@ test("code task stops when no engine is configured", async () => {
         githubSessionId: "github-session",
         message: "Промени интерфейса.",
         apiKey: "",
-        geminiApiKey: "",
-        grokApiKey: "",
-        claudeApiKey: "",
+        env: {},
         resolveGitHubSession: async () => githubSession,
       }),
     (error) => error.code === "CODE_TASK_COUNCIL_NOT_CONFIGURED",
@@ -229,25 +212,29 @@ test("normalizes safe repository-relative paths returned by the coding model", a
     sessionId: "session-1",
     githubSessionId: "github-session",
     message: "Подобри интерфейса за аватарите.",
-    apiKey: "openai-key",
-    geminiApiKey: "gemini-key",
-    grokApiKey: "grok-key",
+    env: vertexEnv,
     createWorkspace: async () => ({
       root: "C:/nonexistent-novarium-code-task-test",
       workspace: "C:/nonexistent-novarium-code-task-test/source",
     }),
     createSnapshot: async () => ({ text: "public/app.js\n// source" }),
     advisorRequesters: {
-      openai: advisor("openai"),
-      gemini: advisor("gemini"),
-      grok: advisor("grok"),
+      gemini: async ({ outputSchema }) =>
+        outputSchema
+          ? {
+              model: "gemini-code-model",
+              text: JSON.stringify({
+                ...plan,
+                changes: [
+                  {
+                    ...plan.changes[0],
+                    path: ".\\public\\avatar-proof.js",
+                  },
+                ],
+              }),
+            }
+          : advisor("gemini")(),
     },
-    responseRequester: async () => ({
-      text: JSON.stringify({
-        ...plan,
-        changes: [{ ...plan.changes[0], path: ".\\public\\avatar-proof.js" }],
-      }),
-    }),
     resolveGitHubSession: async () => githubSession,
     createConfirmation: async (confirmation) => {
       storedConfirmation = confirmation;
@@ -284,28 +271,27 @@ test("blocks a coding plan that collapses a large existing file", async () => {
         sessionId: "session-1",
         githubSessionId: "github-session",
         message: "Подобри избрания аватар.",
-        apiKey: "openai-key",
-        geminiApiKey: "gemini-key",
-        grokApiKey: "grok-key",
+        env: vertexEnv,
         createWorkspace: async () => ({ root, workspace }),
         createSnapshot: async () => ({ text: "public/work-mode.css" }),
         advisorRequesters: {
-          openai: advisor("openai"),
-          gemini: advisor("gemini"),
-          grok: advisor("grok"),
+          gemini: async ({ outputSchema }) =>
+            outputSchema
+              ? {
+                  model: "gemini-code-model",
+                  text: JSON.stringify({
+                    ...plan,
+                    changes: [
+                      {
+                        path: "public/work-mode.css",
+                        content: ".work-choice-card.active{background:#f0faf4}",
+                        reason: "Минимална визуална промяна.",
+                      },
+                    ],
+                  }),
+                }
+              : advisor("gemini")(),
         },
-        responseRequester: async () => ({
-          text: JSON.stringify({
-            ...plan,
-            changes: [
-              {
-                path: "public/work-mode.css",
-                content: ".work-choice-card.active{background:#f0faf4}",
-                reason: "Минимална визуална промяна.",
-              },
-            ],
-          }),
-        }),
         resolveGitHubSession: async () => githubSession,
       }),
     (error) => error.code === "CODE_TASK_EXCESSIVE_REWRITE",

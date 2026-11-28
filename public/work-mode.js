@@ -8,23 +8,16 @@
     organizer: "Организатор",
     documents: "Документи и поща",
     builder: "Създател на проекти",
-    coder: "Код разработчик (Claude)",
+    coder: "Код разработчик (Google)",
   });
   const ENGINE_OPTIONS = Object.freeze({
     "novarium": "NovariumAI",
-    codex: "Claude код · анализ и branch/PR",
+    codex: "Google код · анализ и branch/PR",
   });
   const MODEL_OPTIONS = Object.freeze({
     auto: "Автоматичен · препоръчано",
-    "claude-opus-5-5": "Claude Opus 5.5 · най-силният Claude",
-    "claude-sonnet-5-5": "Claude Sonnet 5.5 · силен и по-бърз",
-    "claude-haiku-4-5-20251001": "Claude Haiku 5.5 · бърз и евтин",
-    "gpt-5.6-sol": "GPT-5.6 Sol · най-високо качество",
-    "gpt-5.6-terra": "GPT-5.6 Terra · балансиран",
-    "gpt-5.6-luna": "GPT-5.6 Luna · бърз",
-    "gemini-2.5-flash": "Gemini 2.5 Flash",
     "vertex-gemini-2.5-flash": "Vertex Gemini · Google Cloud",
-    "grok-4.5": "Grok 4.5 · xAI",
+    "vertex-gemma-4-26b": "Vertex Gemma · Google Cloud",
   });
   const PROJECT_TOOL_OPTIONS = Object.freeze([
     Object.freeze({ id: "synchron-agent-chat", label: "AI разговор" }),
@@ -75,7 +68,7 @@
       name: "Код",
       role: "coder",
       model: "auto",
-      purpose: "Claude подготвя code diff в branch/PR поток след owner потвърждение.",
+      purpose: "Google подготвя code diff в branch/PR поток след owner потвърждение.",
       engine: "codex",
     }),
   ]);

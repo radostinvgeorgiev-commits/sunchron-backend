@@ -67,6 +67,8 @@ const siteEnv = Object.freeze({
   OPENAI_API_KEY: "stand-in",
   GEMINI_API_KEY: "stand-in",
   ANTHROPIC_API_KEY: "stand-in",
+  VERTEX_AI_ENABLED: "true",
+  VERTEX_AI_PROJECT_ID: "project-123",
   GOOGLE_CLIENT_ID: "stand-in",
   GOOGLE_CLIENT_SECRET: "stand-in",
   GOOGLE_REDIRECT_URI: "https://novarium.test/api/google/callback",
@@ -108,7 +110,7 @@ test("the owner on the live site, with Google and GitHub connected, has every to
       ["todos", "ready"],
       ["memory", "ready"],
       ["files", "ready"],
-      ["claude", "ready"],
+      ["claude", "off"],
       ["github", "ready"],
       ["cloud", "ready"],
     ],
@@ -156,7 +158,7 @@ test("a member after the first „Свържи Google“: calendar, contacts, se
       ["todos", "ready", ""],
       ["memory", "ready", ""],
       ["files", "ready", ""],
-      ["claude", "ready", ""],
+      ["claude", "off", ""],
     ],
   );
   // Sending works, so Gmail's example is a send; "Запази в Google" works with
@@ -188,7 +190,7 @@ test("without a Google connection „Свържи Google“ names what its first
     assert.equal(byId(entries, "gmail").label, "Gmail (изпращане)");
     assert.equal(byId(entries, "drive").label, "Google Drive (запазване)");
     // The tools that need no Google still work.
-    for (const id of ["youtube-video", "places", "web", "media", "memory", "files", "claude"]) {
+    for (const id of ["youtube-video", "places", "web", "media", "memory", "files"]) {
       assert.equal(byId(entries, id).status, "ready", `${identity.role} ${id}`);
     }
     const section = toolInventorySection(entries);
@@ -242,14 +244,10 @@ test("a site key that is missing turns its tools off; it never asks the person t
     // The Google app's keys: every Google tool, even with a stored connection.
     [["GOOGLE_CLIENT_SECRET"], member, memberGoogle, ["calendar", "contacts", "gmail", "gmail-read", "drive", "drive-read", "youtube"]],
     [["GOOGLE_CLIENT_ID"], owner, ownerGoogle, ["calendar", "contacts", "gmail", "drive", "youtube"]],
-    // Gemini: YouTube videos and maps.
+    // Google/Vertex: YouTube videos, maps and web search.
     [["GEMINI_API_KEY"], owner, ownerGoogle, ["youtube-video", "places"]],
-    // OpenAI: the web search.
-    [["OPENAI_API_KEY"], member, memberGoogle, ["web"]],
-    // Anthropic: "Работа с Claude".
-    [["ANTHROPIC_API_KEY"], member, memberGoogle, ["claude"]],
     // No Firestore and not on Cloud Run: what is stored, and Google Cloud.
-    [["GOOGLE_CLOUD_PROJECT", "K_SERVICE"], owner, ownerGoogle, ["tasks", "todos", "memory", "files", "claude", "cloud"]],
+    [["GOOGLE_CLOUD_PROJECT", "K_SERVICE"], owner, ownerGoogle, ["tasks", "todos", "memory", "files", "cloud"]],
   ];
   for (const [missing, identity, connections, off] of cases) {
     const now = statuses(buildToolInventory({ identity, env: without(...missing), connections }));
@@ -449,7 +447,6 @@ const OWNER_SECTION = [
   "Моите задачи — „Моите задачи“; „Добави задача да се обадя на банката утре“",
   "Памет — „Запомни: …“",
   "Моите файлове — питай за качен файл",
-  "Работа с Claude — в „Добавки“",
   "GitHub — „Последният commit в GitHub“",
   "Google Cloud — „Провери Google Cloud“",
   "Питат ли какво можеш, изброй работещите с пример, после чакащите свързване.",
@@ -466,7 +463,6 @@ const MEMBER_SECTION = [
   "Моите задачи — „Моите задачи“; „Добави задача да се обадя на банката утре“",
   "Памет — „Запомни: …“",
   "Моите файлове — питай за качен файл",
-  "Работа с Claude — в „Добавки“",
   "Искат свързване:",
   "Календар, Контакти, Gmail (изпращане), Google Drive (запазване) — „Свържи Google“",
   "YouTube канал — „Свържи Google“, после „Покажи моя YouTube канал“ и „Свържи YouTube“ в отговора",
@@ -488,7 +484,6 @@ const ENGLISH_MEMBER_SECTION = [
   "My tasks — “My tasks”; “Add a task: call the bank tomorrow”",
   "Memory — “Запомни: …”",
   "My files — ask about an added file",
-  "Work with Claude — in “Add-ons”",
   "Need connecting:",
   "Reading Gmail — “Show my Gmail”, then “Allow Gmail” in the answer",
   "Reading Drive — “Show my Google Drive files”, then “Allow Google Drive” in the answer",

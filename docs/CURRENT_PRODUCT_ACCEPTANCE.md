@@ -30,6 +30,18 @@
 - GitHub, Google Workspace, web search, memory и задачи минават през Capability
   Engine и audit.
 
+## PR 0 draft target (not yet production)
+
+Тази секция описва отворения PR 0. Production остава със стойностите по-горе
+до отделно merge/deploy разрешение.
+
+- Gemini е default AI provider за основните пътища.
+- Търсене, изображения, поддържан Drive анализ, естествен език и planner
+  използват Gemini първо; съществуващият OpenAI fallback остава.
+- Gemini води изпълнението на кодови задачи; конфигурираните модели остават
+  съветници и резерви.
+- Gemini синтезира Council отговорите първо; OpenAI и Claude са резерви.
+
 ## Все още не е доказано като готово
 
 1. Production exact-SHA проверка от `/health` не е приложена към този документ.

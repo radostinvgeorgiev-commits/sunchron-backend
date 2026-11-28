@@ -1,4 +1,5 @@
 import { requestAiResponse } from "./novariumService.js";
+import { isVertexAiConfigured } from "./vertexAiGeminiService.js";
 
 // A key being present says nothing about whether the provider answers: the
 // model may be retired (404), overloaded (503) or the account out of credit
@@ -6,10 +7,7 @@ import { requestAiResponse } from "./novariumService.js";
 // the outcome, so status reports describe what actually works.
 
 const PROBE_PROVIDERS = Object.freeze([
-  { id: "openai", label: "OpenAI", keys: ["OPENAI_API_KEY"] },
-  { id: "gemini", label: "Gemini", keys: ["GEMINI_API_KEY"] },
-  { id: "grok", label: "Grok", keys: ["GROK_API_KEY"] },
-  { id: "claude", label: "Claude", keys: ["ANTHROPIC_API_KEY"] },
+  { id: "vertex-gemini", label: "Vertex Gemini" },
 ]);
 const PROBE_TTL_MS = 10 * 60 * 1000;
 const PROBE_INPUT = Object.freeze([
@@ -17,10 +15,6 @@ const PROBE_INPUT = Object.freeze([
 ]);
 
 const cache = new Map();
-
-function hasKey(env, keys) {
-  return keys.every((key) => typeof env[key] === "string" && env[key].trim());
-}
 
 function describeFailure(error) {
   const status = Number(error?.status) || null;
@@ -46,9 +40,9 @@ export async function probeAiProviders({
   force = false,
 } = {}) {
   return Promise.all(
-    PROBE_PROVIDERS.map(async ({ id, label, keys }) => {
-      if (!hasKey(env, keys)) {
-        return { id, label, configured: false, working: false, reason: "няма ключ" };
+    PROBE_PROVIDERS.map(async ({ id, label }) => {
+      if (!isVertexAiConfigured(env)) {
+        return { id, label, configured: false, working: false, reason: "не е конфигуриран" };
       }
       const cached = cache.get(id);
       if (!force && cached && now() - cached.checkedAt < PROBE_TTL_MS) {

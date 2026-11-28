@@ -350,7 +350,7 @@ export function buildToolInventory({
   // contact or an email (RADKO 28.11 04:30, 06:35).
   entries.push(entry("memory", memory ? "ready" : "off", tools.memory, { confirm: tools.memoryWrite }));
   entries.push(entry("files", store && mode !== "work" ? "ready" : "off", tools.files));
-  entries.push(entry("claude", store && Boolean(env?.ANTHROPIC_API_KEY) ? "ready" : "off", tools.claude));
+  entries.push(entry("claude", "off", tools.claude));
 
   if (owner) {
     const github = status("code.read");

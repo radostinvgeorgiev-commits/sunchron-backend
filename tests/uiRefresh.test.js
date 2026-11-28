@@ -20,10 +20,10 @@ test("composer: microphone icon, '+' menu with file and Council", () => {
   assert.match(js, /\$\("imageInput"\)\?\.click\(\)/u);
 });
 
-test("Council defaults to Claude and Gemini", () => {
+test("Council defaults to Vertex Gemini", () => {
   const picker = html.slice(html.indexOf('id="councilProviderPicker"'), html.indexOf("</fieldset>", html.indexOf('id="councilProviderPicker"')));
-  const checked = [...picker.matchAll(/value="(\w+)"\s*(checked)?/gu)].filter((m) => m[2]).map((m) => m[1]);
-  assert.deepEqual(checked.sort(), ["claude", "gemini"]);
+  const checked = [...picker.matchAll(/value="([\w-]+)"\s*(checked)?/gu)].filter((m) => m[2]).map((m) => m[1]);
+  assert.deepEqual(checked, ["vertex-gemini"]);
 });
 
 test("ui-refresh loads after every other stylesheet", () => {

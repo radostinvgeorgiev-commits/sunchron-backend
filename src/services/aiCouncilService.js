@@ -1,23 +1,18 @@
 import {
-  DEFAULT_CLAUDE_CHAT_MODEL,
-  DEFAULT_GEMINI_CHAT_MODEL,
-  DEFAULT_GROK_CHAT_MODEL,
-  DEFAULT_OPENAI_CHAT_MODEL,
+  requestAiResponse,
   getAiProviderTimeoutMs,
-  requestGeminiResponse,
-  requestGrokResponse,
-  requestClaudeResponse,
-  requestOpenAIResponse,
 } from "./novariumService.js";
+import {
+  isVertexAiConfigured,
+  resolveVertexAiModel,
+} from "./vertexAiGeminiService.js";
 import { replyLanguageInstruction } from "../config/replyLanguage.js";
 
 const MAX_REQUEST_LENGTH = 6_000;
 const MAX_CONTEXT_LENGTH = 8_000;
 const MAX_ANSWER_LENGTH = 8_000;
-const MAX_RECOMMENDATION_LENGTH = 2_000;
 const MAX_LIST_ITEMS = 8;
 const DEFAULT_COUNCIL_ADVISOR_TIMEOUT_MS = 20_000;
-const DEFAULT_COUNCIL_ARBITER_TIMEOUT_MS = 20_000;
 
 const COUNCIL_SCHEMA = Object.freeze({
   type: "object",
@@ -65,11 +60,10 @@ const COUNCIL_SCHEMA = Object.freeze({
 });
 
 const PROVIDER_LABELS = Object.freeze({
-  openai: "OpenAI",
-  gemini: "Gemini",
-  grok: "Grok",
-  claude: "Claude",
+  gemini: "Vertex Gemini",
 });
+const requestVertexResponse = (options) =>
+  requestAiResponse({ ...options, provider: "vertex-gemini" });
 
 export class AiCouncilError extends Error {
   constructor(message, status = 502, code = "AI_COUNCIL_ERROR", failures = []) {
@@ -248,52 +242,16 @@ export async function runAiCouncil({
   message,
   context = "",
   language,
-  openAiApiKey = process.env.OPENAI_API_KEY,
-  geminiApiKey = process.env.GEMINI_API_KEY,
-  grokApiKey = process.env.GROK_API_KEY,
-  claudeApiKey = process.env.ANTHROPIC_API_KEY,
-  selectedProviders = ["openai", "gemini", "grok"],
+  env = process.env,
+  selectedProviders = ["gemini"],
   advisorRequesters = {
-    openai: requestOpenAIResponse,
-    gemini: requestGeminiResponse,
-    grok: requestGrokResponse,
-    claude: requestClaudeResponse,
+    gemini: requestVertexResponse,
   },
-  geminiArbiterRequester = requestGeminiResponse,
-  arbiterRequester = requestOpenAIResponse,
-  claudeArbiterRequester = requestClaudeResponse,
-  openAiModel = process.env.AI_CORE_COUNCIL_MODEL || DEFAULT_OPENAI_CHAT_MODEL,
-  geminiModel = process.env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
-  grokModel = process.env.GROK_MODEL || DEFAULT_GROK_CHAT_MODEL,
-  claudeModel = process.env.ANTHROPIC_MODEL || DEFAULT_CLAUDE_CHAT_MODEL,
-  advisorTimeoutMs = Math.min(
-    getAiProviderTimeoutMs(
-      "openai",
-      process.env,
-      DEFAULT_COUNCIL_ADVISOR_TIMEOUT_MS,
-    ),
-    getAiProviderTimeoutMs(
-      "gemini",
-      process.env,
-      DEFAULT_COUNCIL_ADVISOR_TIMEOUT_MS,
-    ),
-    getAiProviderTimeoutMs(
-      "grok",
-      process.env,
-      DEFAULT_COUNCIL_ADVISOR_TIMEOUT_MS,
-    ),
-  ),
-  arbiterTimeoutMs = Math.min(
-    getAiProviderTimeoutMs(
-      "gemini",
-      process.env,
-      DEFAULT_COUNCIL_ARBITER_TIMEOUT_MS,
-    ),
-    getAiProviderTimeoutMs(
-      "openai",
-      process.env,
-      DEFAULT_COUNCIL_ARBITER_TIMEOUT_MS,
-    ),
+  geminiModel = resolveVertexAiModel(env),
+  advisorTimeoutMs = getAiProviderTimeoutMs(
+    "vertex-gemini",
+    env,
+    DEFAULT_COUNCIL_ADVISOR_TIMEOUT_MS,
   ),
 } = {}) {
   const task = cleanText(message, MAX_REQUEST_LENGTH, "заявка", {
@@ -304,18 +262,18 @@ export async function runAiCouncil({
   const input = [
     { role: "user", content: advisorPrompt(task, boundedContext, language) },
   ];
+  const providerIds = Array.isArray(selectedProviders)
+    ? selectedProviders.map((id) => (id === "vertex-gemini" ? "gemini" : id))
+    : [];
   const available = {
-    openai: { provider: "openai", apiKey: openAiApiKey, model: openAiModel },
-    gemini: { provider: "gemini", apiKey: geminiApiKey, model: geminiModel },
-    grok: { provider: "grok", apiKey: grokApiKey, model: grokModel },
-    claude: { provider: "claude", apiKey: claudeApiKey, model: claudeModel },
+    gemini: {
+      provider: "gemini",
+      model: geminiModel,
+    },
   };
   if (
-    !Array.isArray(selectedProviders) ||
-    !selectedProviders.length ||
-    selectedProviders.length > Object.keys(available).length ||
-    new Set(selectedProviders).size !== selectedProviders.length ||
-    selectedProviders.some((id) => !Object.hasOwn(available, id))
+    providerIds.length !== 1 ||
+    providerIds[0] !== "gemini"
   ) {
     throw new AiCouncilError(
       "Невалиден избор на AI двигатели.",
@@ -323,14 +281,19 @@ export async function runAiCouncil({
       "AI_COUNCIL_INVALID_PROVIDERS",
     );
   }
-  const providers = selectedProviders.map((id) => available[id]);
+  const providers = providerIds.map((id) => available[id]);
+  if (!isVertexAiConfigured(env)) {
+    throw new AiCouncilError(
+      "Vertex AI Gemini не е конфигуриран.",
+      503,
+      "AI_COUNCIL_ADVISORS_FAILED",
+    );
+  }
   const settled = await Promise.allSettled(
-    providers.map(async ({ provider, apiKey, model }) => {
-      if (!apiKey) throw new Error("not_configured");
+    providers.map(async ({ provider, model }) => {
       const response = await requestWithTimeout(
         advisorRequesters[provider],
         {
-          apiKey,
           model,
           input,
           verbosity: "low",
@@ -339,10 +302,18 @@ export async function runAiCouncil({
         advisorTimeoutMs,
         "AI_COUNCIL_ADVISOR_TIMEOUT",
       );
+      const text = boundedAdvisorText(response?.text);
+      if (!text) {
+        throw new AiCouncilError(
+          "Vertex Gemini не върна текстов отговор.",
+          502,
+          "AI_COUNCIL_ADVISOR_EMPTY",
+        );
+      }
       return Object.freeze({
         provider,
         model: cleanText(response?.model, 160, "модел") || "неизвестен модел",
-        text: boundedAdvisorText(response?.text),
+        text,
       });
     }),
   );
@@ -378,132 +349,22 @@ export async function runAiCouncil({
       failures,
     );
   }
-  const fallback = () =>
-    Object.freeze({
-      question: task,
-      responses: normalizedResponses,
-      unavailableProviders,
-      partial: true,
-      recommendation: language && language !== "bg"
-        ? "Review the available answers above. No combined recommendation was generated."
-        : "Прегледай наличните отговори по-горе. Обща препоръка не е изготвена.",
-      rationale: language && language !== "bg"
-        ? "The synthesis model did not return a valid result. Available answers are shown above."
-        : "Арбитърът не върна валиден отговор; получените предложения са запазени.",
-      risks: Object.freeze([]),
-      nextSteps: Object.freeze([]),
-      confidence: "low",
-      arbiter: null,
-    });
-  if (normalizedResponses.length === 1)
-    return Object.freeze({
-      ...fallback(),
-      partial: unavailableProviders.length > 0,
-      recommendation: normalizedResponses[0].text,
-      rationale: language && language !== "bg"
-        ? "Only one selected AI model answered. Independent verification is unavailable."
-        : "Отговор от един избран AI двигател; няма независима проверка.",
-      confidence: "low",
-    });
-  // Gemini is the first arbiter; OpenAI and Claude remain as fallbacks.
-  const prompt = arbiterPrompt(task, normalizedResponses, language);
-  const arbiters = [
-    geminiApiKey && (() =>
-      requestWithTimeout(
-        geminiArbiterRequester,
-        {
-          apiKey: geminiApiKey,
-          model: geminiModel,
-          input: [{ role: "user", content: prompt }],
-          jsonMode: true,
-          maxOutputTokens: 4096,
-        },
-        arbiterTimeoutMs,
-        "AI_COUNCIL_ARBITER_TIMEOUT",
-      )),
-    openAiApiKey && (() =>
-      requestWithTimeout(
-        arbiterRequester,
-        {
-          apiKey: openAiApiKey,
-          model: openAiModel,
-          input: [{ role: "user", content: prompt }],
-          verbosity: "low",
-          reasoningEffort: "medium",
-          outputSchema: COUNCIL_SCHEMA,
-          outputSchemaName: "novarium_council_synthesis",
-        },
-        arbiterTimeoutMs,
-        "AI_COUNCIL_ARBITER_TIMEOUT",
-      )),
-    claudeApiKey && (() =>
-      requestWithTimeout(
-        claudeArbiterRequester,
-        {
-          apiKey: claudeApiKey,
-          model: claudeModel,
-          input: [
-            {
-              role: "user",
-              content: `${prompt}\n\nВърни САМО JSON обект с ключове: ${COUNCIL_SCHEMA.required.join(", ")}. confidence е low, medium или high; списъците са масиви от низове.`,
-            },
-          ],
-        },
-        arbiterTimeoutMs,
-        "AI_COUNCIL_ARBITER_TIMEOUT",
-      )),
-  ].filter(Boolean);
-  if (!arbiters.length) return fallback();
-
-  let synthesis;
-  for (const runArbiter of arbiters) {
-    try {
-      const candidate = await runArbiter();
-      parseArbiterResponse(candidate?.text);
-      synthesis = candidate;
-      break;
-    } catch {
-      // try the next arbiter
-    }
-  }
-  if (!synthesis) return fallback();
-
-  try {
-    const parsed = parseArbiterResponse(synthesis?.text);
-    const recommendation = cleanText(
-      parsed?.recommendation,
-      MAX_RECOMMENDATION_LENGTH,
-      "препоръка",
-      { required: true },
-    );
-    const rationale = cleanText(parsed?.rationale, 4_000, "обосновка", {
-      required: true,
-    });
-    const confidence = ["low", "medium", "high"].includes(parsed?.confidence)
-      ? parsed.confidence
-      : "medium";
-
-    return Object.freeze({
-      question: task,
-      responses: normalizedResponses,
-      unavailableProviders,
-      partial: unavailableProviders.length > 0,
-      recommendation,
-      rationale,
-      risks: boundedList(parsed?.risks),
-      nextSteps: boundedList(parsed?.nextSteps),
-      agreements: boundedList(parsed?.agreements),
-      disagreements: boundedList(parsed?.disagreements),
-      unique: boundedList(parsed?.unique),
-      confidence,
-      arbiter: Object.freeze({
-        provider: synthesis?.provider || "openai",
-        model: synthesis?.model || openAiModel,
-      }),
-    });
-  } catch {
-    return fallback();
-  }
+  const response = normalizedResponses[0];
+  return Object.freeze({
+    question: task,
+    responses: normalizedResponses,
+    unavailableProviders,
+    partial: unavailableProviders.length > 0,
+    recommendation: response.text,
+    rationale:
+      language && language !== "bg"
+        ? "One Google model answered; independent verification is unavailable."
+        : "Отговори един модел на Google; няма независима проверка.",
+    risks: Object.freeze([]),
+    nextSteps: Object.freeze([]),
+    confidence: "low",
+    arbiter: null,
+  });
 }
 
 export function formatAiCouncilReply(council, language) {

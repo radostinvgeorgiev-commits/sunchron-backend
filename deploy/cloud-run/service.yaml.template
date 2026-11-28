@@ -36,7 +36,7 @@ spec:
             - name: APP_COMMIT_SHA
               value: "__COMMIT_SHA__"
             - name: AI_CORE_PROVIDER
-              value: gemini
+              value: vertex-gemini
             - name: OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:

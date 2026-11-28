@@ -108,7 +108,7 @@ test("workspace ignores obsolete pet fields", () => {
   assert.ok(!Object.hasOwn(state, "petState"));
 });
 
-test("workspace preserves direct Gemini, Vertex Gemini and Grok model choices", () => {
+test("workspace migrates non-Google model choices to Vertex Gemini", () => {
   const state = normalizeWorkspaceState({
     agents: [
       {
@@ -126,9 +126,9 @@ test("workspace preserves direct Gemini, Vertex Gemini and Grok model choices", 
       { id: "grok", name: "Grok", role: "researcher", model: "grok-3-mini" },
     ],
   });
-  assert.equal(state.agents[0].model, "gemini-2.5-flash");
+  assert.equal(state.agents[0].model, "vertex-gemini-2.5-flash");
   assert.equal(state.agents[1].model, "vertex-gemini-2.5-flash");
-  assert.equal(state.agents[2].model, "grok-4.5");
+  assert.equal(state.agents[2].model, "vertex-gemini-2.5-flash");
 });
 
 test("legacy workspaces receive specialized agents without pet settings", () => {
@@ -203,7 +203,7 @@ test("workspace state is saved in an isolated hashed document", async () => {
   assert.equal(indexed.body.schemaVersion, 2);
   assert.doesNotMatch(JSON.stringify(indexed.body), /primary-user/u);
   assert.equal(result.state.mode, "work");
-  assert.equal(result.state.agents[0].model, "gpt-5.6-terra");
+  assert.equal(result.state.agents[0].model, "vertex-gemini-2.5-flash");
   assert.ok(result.state.agents.some((agent) => agent.engine === "codex"));
   assert.equal(result.state.projects[0].run.nextStep, "Продължи");
   assert.equal(result.persisted, true);
@@ -226,13 +226,20 @@ test("missing workspace returns a safe starter state", async () => {
   );
 });
 
-test("the code agent runs on Claude: an older GPT choice becomes auto", () => {
+test("legacy GPT and Claude model choices migrate to Vertex Gemini", () => {
   const state = normalizeWorkspaceState({
+    version: 6,
     agents: [
       { id: "codex-agent", name: "Код", role: "coder", model: "gpt-5.6-terra", engine: "codex" },
       { id: "writer", name: "Пиши", role: "documents", model: "gpt-5.6-terra", engine: "novarium" },
     ],
   });
-  assert.equal(state.agents.find(({ id }) => id === "codex-agent").model, "auto");
-  assert.equal(state.agents.find(({ id }) => id === "writer").model, "gpt-5.6-terra");
+  assert.equal(
+    state.agents.find(({ id }) => id === "codex-agent").model,
+    "vertex-gemini-2.5-flash",
+  );
+  assert.equal(
+    state.agents.find(({ id }) => id === "writer").model,
+    "vertex-gemini-2.5-flash",
+  );
 });

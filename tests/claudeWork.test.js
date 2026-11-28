@@ -85,41 +85,23 @@ test("file ids are found anywhere in the answer", () => {
   assert.deepEqual(collectFileIds([{ a: [{ file_id: "f1" }, { b: { file_id: "f2" } }] }, { file_id: "f1" }]), ["f1", "f2"]);
 });
 
-test("a task goes on after a pause, keeps the container, and only its owner can download the file", async () => {
-  const calls = [];
+test("Claude Work is clearly unavailable in Google-only backend mode", async () => {
   const service = createClaudeWorkService({
     store: memoryStore(),
     env: { ANTHROPIC_API_KEY: "test-key" },
-    fetchImpl: fakeApi(calls),
+    fetchImpl: async () => json({}),
     now: () => 1000,
   });
-  const result = await service.run("owner-1", { task: "Направи презентация за NovariumAI", skills: ["pptx"] });
-  assert.equal(result.text, "Започвам. Готово: презентацията е в reklama.pptx.");
-  assert.deepEqual(result.files, [
-    { id: "file_abc", name: "reklama.pptx", mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", size: 5 },
-  ]);
-  const turns = calls.filter((call) => call.url.endsWith("/messages"));
-  assert.equal(turns.length, 2);
-  assert.equal(turns[0].headers["anthropic-beta"], "code-execution-2025-08-25");
-  assert.equal(turns[0].body.model, "claude-haiku-5-5");
-  assert.equal(turns[1].body.container.id, "container-1");
-  assert.equal(turns[1].body.messages.at(-1).role, "assistant");
-
-  const file = await service.download("owner-1", "file_abc");
-  assert.equal(file.body.toString(), "PPTX!");
-  assert.equal(file.name, "reklama.pptx");
-  await assert.rejects(service.download("someone-else", "file_abc"), { code: "CLAUDE_WORK_FILE_NOT_FOUND" });
-  assert.deepEqual((await service.listFiles("owner-1")).map((row) => row.id), ["file_abc"]);
-
-  await service.clear("owner-1");
-  assert.ok(calls.some((call) => call.method === "DELETE" && call.url.endsWith("/files/file_abc")));
-  assert.deepEqual(await service.listFiles("owner-1"), []);
+  await assert.rejects(
+    service.run("owner-1", { task: "Направи презентация за NovariumAI", skills: ["pptx"] }),
+    { code: "CLAUDE_WORK_GOOGLE_ONLY", status: 503 },
+  );
 });
 
-test("an empty task and a missing key are clear errors", async () => {
+test("an empty task and disabled Claude Work are clear errors", async () => {
   const service = createClaudeWorkService({ store: memoryStore(), env: {}, fetchImpl: async () => json({}) });
   await assert.rejects(service.run("o", { task: "  " }), { code: "CLAUDE_WORK_INVALID" });
-  await assert.rejects(service.run("o", { task: "x" }), { code: "CLAUDE_NOT_CONFIGURED" });
+  await assert.rejects(service.run("o", { task: "x" }), { code: "CLAUDE_WORK_GOOGLE_ONLY" });
 });
 
 test("units come back when the task fails, and the file is sent as a download", async () => {

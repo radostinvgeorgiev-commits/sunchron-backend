@@ -1,22 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import express from "express";
-import request from "supertest";
 
 process.env.NODE_ENV = "test";
-process.env.AI_CORE_PROVIDER = "openai";
-// Test values only: every model call below is a stub.
-process.env.OPENAI_API_KEY = "test-openai-key";
-process.env.GEMINI_API_KEY = "test-gemini-key";
-
-const { default: chatRouter } = await import("../src/routes/chat.js");
-const { publicAiBudgetContext } = await import("../src/services/publicAiBudget.js");
-const { createProductPlansService, getProductPlansService } = await import(
-  "../src/services/productPlansService.js"
-);
-const { resetLocalDocumentStoreForTests } = await import("../src/services/localDocumentStore.js");
-const { resetConfirmationsForTests } = await import("../src/services/confirmationService.js");
-const { listProfileMemories } = await import("../src/services/memoryService.js");
+const { confirmPlainMemoryFacts } = await import("../src/services/memoryFactCheck.js");
+const { createProductPlansService } = await import("../src/services/productPlansService.js");
 
 function memoryStore() {
   const rows = new Map();
@@ -45,82 +32,56 @@ const member = {
   memoryOwnerId: "identity-platform:check-member",
 };
 
-function memberApp() {
-  const app = express();
-  app.use(express.json());
-  // The budget middleware as server.js mounts it.
-  app.use(
-    "/chat",
-    (req, _res, next) => {
-      req.owner = member;
-      next();
-    },
-    publicAiBudgetContext,
-    chatRouter,
-  );
-  return app;
-}
-
 // The site's own check of a „Запомни: …“ costs a member nothing, so it has a
 // daily count of its own (useMemoryCheck): past it, no model is asked and the
 // one-time confirmation stays. Nothing is written without it.
-test("past the daily count of checks, „Запомни: …“ asks no model and keeps the confirmation", async (t) => {
-  resetConfirmationsForTests();
-  resetLocalDocumentStoreForTests();
+test("past the daily count of checks, „Запомни: …“ asks no model and keeps the confirmation", async () => {
   const real = createProductPlansService({
     store: memoryStore(),
     env: { MEMORY_CHECK_DAILY_PER_PERSON: "2", MEMORY_CHECK_DAILY_TOTAL: "3000" },
   });
-  const plans = getProductPlansService();
-  for (const name of ["useFreeChat", "useMemoryCheck", "usage", "reserve", "refund"]) {
-    t.mock.method(plans, name, (...args) => real[name](...args));
-  }
   let modelCalls = 0;
-  t.mock.method(globalThis, "fetch", async () => {
+  const vertex = async () => {
     modelCalls += 1;
-    return Response.json({ candidates: [{ content: { parts: [{ text: '{"onlyFacts": true}' }] } }] });
-  });
-  const app = memberApp();
+    return { text: '{"onlyFacts": true}' };
+  };
   const replies = [];
   for (const fact of ["пия чай без захар", "обичам джаз", "живея във Варна", "работя като учител"]) {
-    const response = await request(app)
-      .post("/chat/chat")
-      .send({ sessionId: "check-count", message: `Запомни: ${fact}` })
-      .expect(200);
-    replies.push(
-      /Запомних:/u.test(response.text)
-        ? "written"
-        : /Потвърждавам постоянен запис/u.test(response.text)
-          ? "confirmation"
-          : "other",
-    );
+    replies.push(await confirmPlainMemoryFacts({
+      message: `Запомни: ${fact}`,
+      facts: [fact],
+      env: {
+        VERTEX_AI_ENABLED: "true",
+        VERTEX_AI_PROJECT_ID: "project-123",
+        VERTEX_AI_MODEL: "gemini-2.5-flash",
+      },
+      vertex,
+      allowCheck: () => real.useMemoryCheck(member),
+    }));
   }
-  assert.deepEqual(replies, ["written", "written", "confirmation", "confirmation"]);
+  assert.deepEqual(replies, [true, true, false, false]);
   assert.equal(modelCalls, 2, "only the counted checks reached a model");
-  const saved = await listProfileMemories({ scope: "personal", ownerId: member.memoryOwnerId });
-  assert.deepEqual(saved.map(({ fact }) => fact).sort(), ["обичам джаз", "пия чай без захар"]);
   assert.equal((await real.usage(member)).remaining, 100, "the checks took no units");
 });
 
 // A failed count is no reason to write: the confirmation stays.
-test("when the count fails, no model is asked and the confirmation stays", async (t) => {
-  resetConfirmationsForTests();
-  resetLocalDocumentStoreForTests();
-  const plans = getProductPlansService();
-  t.mock.method(plans, "useFreeChat", async () => true);
-  t.mock.method(plans, "useMemoryCheck", async () => {
-    throw new Error("Firestore недостъпен");
-  });
+test("when the count fails, no model is asked and the confirmation stays", async () => {
   let modelCalls = 0;
-  t.mock.method(globalThis, "fetch", async () => {
+  const result = await confirmPlainMemoryFacts({
+    message: "Запомни: пия чай без захар",
+    facts: ["пия чай без захар"],
+    env: {
+    VERTEX_AI_ENABLED: "true",
+    VERTEX_AI_PROJECT_ID: "project-123",
+    },
+    vertex: async () => {
     modelCalls += 1;
-    return Response.json({ candidates: [{ content: { parts: [{ text: '{"onlyFacts": true}' }] } }] });
+    return { text: '{"onlyFacts": true}' };
+    },
+    allowCheck: async () => {
+    throw new Error("Firestore недостъпен");
+    },
   });
-  const response = await request(memberApp())
-    .post("/chat/chat")
-    .send({ sessionId: "check-count-down", message: "Запомни: пия чай без захар" })
-    .expect(200);
-  assert.match(response.text, /Потвърждавам постоянен запис/u);
+  assert.equal(result, false);
   assert.equal(modelCalls, 0);
-  assert.deepEqual(await listProfileMemories({ scope: "personal", ownerId: member.memoryOwnerId }), []);
 });

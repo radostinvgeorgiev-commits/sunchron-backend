@@ -151,15 +151,19 @@ test("runtime availability blocks configured-looking tools without credentials",
     ).code,
     "CODEX_AGENT_NOT_CONFIGURED",
   );
-  // The code agent runs on Claude: an OpenAI key alone is not enough.
+  // The code agent requires Vertex configuration, not external provider keys.
   assert.equal(
     getToolRuntimeAvailability("openai-codex", {}, { OPENAI_API_KEY: "key" })
       .available,
     false,
   );
   assert.equal(
-    getToolRuntimeAvailability("openai-codex", {}, { ANTHROPIC_API_KEY: "key" })
-      .available,
+    getToolRuntimeAvailability("openai-codex", {}, {
+      VERTEX_AI_ENABLED: "true",
+      VERTEX_AI_PROJECT_ID: "novarium-test-12345",
+      VERTEX_AI_LOCATION: "us-central1",
+      VERTEX_AI_MODEL: "gemini-2.5-flash",
+    }).available,
     true,
   );
   assert.equal(
@@ -178,9 +182,10 @@ test("runtime availability blocks configured-looking tools without credentials",
       "github-write",
       { githubSessionId: "owner-session" },
       {
-        OPENAI_API_KEY: "openai",
-        GEMINI_API_KEY: "gemini",
-        GROK_API_KEY: "grok",
+        VERTEX_AI_ENABLED: "true",
+        VERTEX_AI_PROJECT_ID: "novarium-test-12345",
+        VERTEX_AI_LOCATION: "us-central1",
+        VERTEX_AI_MODEL: "gemini-2.5-flash",
         GITHUB_CLIENT_ID: "client",
         GITHUB_CLIENT_SECRET: "secret",
       },
@@ -396,16 +401,14 @@ test("връща общ статус само след реални провер
       checkMemory: async () => [],
       checkGoogleCloud: async () => ({ configured: true }),
       probeProviders: async () => [
-        { id: "openai", label: "OpenAI", configured: true, working: true, model: "gpt-x" },
-        { id: "gemini", label: "Gemini", configured: true, working: false, reason: "моделът не съществува" },
-        { id: "grok", label: "Grok", configured: true, working: true, model: "grok-x" },
-        { id: "claude", label: "Claude", configured: false, working: false, reason: "няма ключ" },
+        { id: "vertex-gemini", label: "Vertex Gemini", configured: true, working: true, model: "gemini-test" },
       ],
       env: {
-        AI_CORE_PROVIDER: "grok",
-        OPENAI_API_KEY: "configured",
-        GEMINI_API_KEY: "configured",
-        GROK_API_KEY: "configured",
+        AI_CORE_PROVIDER: "vertex-gemini",
+        VERTEX_AI_ENABLED: "true",
+        VERTEX_AI_PROJECT_ID: "novarium-test-12345",
+        VERTEX_AI_LOCATION: "us-central1",
+        VERTEX_AI_MODEL: "gemini-2.5-flash",
         GITHUB_CLIENT_ID: "client",
         GITHUB_CLIENT_SECRET: "secret",
       },
@@ -419,10 +422,8 @@ test("връща общ статус само след реални провер
   assert.match(report, /Google Cloud Read/u);
   assert.match(report, /Google Drive — изисква Google вход/u);
   assert.match(report, /GitHub Write — свързан; изисква потвърждение/u);
-  assert.match(report, /✅ OpenAI — работи \(gpt-x\)/u);
-  assert.match(report, /❌ Gemini — моделът не съществува/u);
-  assert.match(report, /✅ Grok — работи \(grok-x\); основен за разговора/u);
-  assert.match(report, /— Claude — няма ключ/u);
+  assert.match(report, /✅ Vertex Gemini — работи \(gemini-test\); основен за разговора/u);
+  assert.doesNotMatch(report, /OpenAI|Claude|Grok/u);
   assert.doesNotMatch(report, /конфигуриран;/u);
 });
 
@@ -508,40 +509,16 @@ test("всеки регистриран основен инструмент им
   }
 });
 
-test("изпълнява интернет търсене през OpenAI инструмента", async () => {
-  const originalFetch = global.fetch;
-  const originalKey = process.env.OPENAI_API_KEY;
+test("external keys do not enable the web-search tool", async () => {
   process.env.OPENAI_API_KEY = "test-openai-key";
-  global.fetch = async () =>
-    new Response(
-      JSON.stringify({
-        output: [
-          {
-            type: "message",
-            content: [
-              {
-                type: "output_text",
-                text: "Във Варна е слънчево.",
-                annotations: [],
-              },
-            ],
-          },
-        ],
-      }),
-      { status: 200 },
-    );
-
-  try {
-    const result = await executeCapability("web.search", {
+  process.env.VERTEX_AI_ENABLED = "false";
+  await assert.rejects(
+    executeCapability("web.search", {
       message: "Провери актуалното време във Варна.",
-    });
-    assert.equal(result.tool.id, "openai-web-search");
-    assert.match(result.output, /Във Варна е слънчево/u);
-  } finally {
-    global.fetch = originalFetch;
-    if (originalKey === undefined) delete process.env.OPENAI_API_KEY;
-    else process.env.OPENAI_API_KEY = originalKey;
-  }
+    }),
+    { code: "CAPABILITY_NOT_CONFIGURED" },
+  );
+  delete process.env.OPENAI_API_KEY;
 });
 
 test("a new Google contact from the chat is only prepared, with a summary in the reply language", async () => {

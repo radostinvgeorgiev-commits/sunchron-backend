@@ -26,7 +26,7 @@ const AGENT_ROLES = Object.freeze({
       "Изготвяй използваеми резултати, планове и файлово съдържание, но не твърди, че код или файл е записан без реален изпълним инструмент.",
   },
   coder: {
-    label: "Код разработчик (Claude)",
+    label: "Код разработчик (Google)",
     guidance:
       "Анализирай реалния код в изолирана област. Не твърди, че промяна е записана, преди да има потвърден write процес.",
   },
@@ -34,7 +34,7 @@ const AGENT_ROLES = Object.freeze({
 
 const AGENT_ENGINES = Object.freeze({
   "novarium": { label: "NovariumAI" },
-  codex: { label: "Claude код" },
+  codex: { label: "Google код" },
 });
 
 const PROJECT_RUN_STATUSES = new Set([
@@ -45,56 +45,39 @@ const PROJECT_RUN_STATUSES = new Set([
 
 const AGENT_MODELS = Object.freeze({
   auto: { label: "Автоматичен", apiModel: null },
-  "gpt-5.6-sol": {
-    label: "GPT-5.6 Sol",
-    provider: "openai",
-    apiModel: "gpt-5.6-sol",
-  },
-  "gpt-5.6-terra": {
-    label: "GPT-5.6 Terra",
-    provider: "openai",
-    apiModel: "gpt-5.6-terra",
-  },
-  "gpt-5.6-luna": {
-    label: "GPT-5.6 Luna",
-    provider: "openai",
-    apiModel: "gpt-5.6-luna",
-  },
-  "gpt-4.1-mini": { label: "GPT-4.1 mini (икономичен)", provider: "openai", apiModel: "gpt-4.1-mini" },
-  // Old id kept so saved agents still resolve; it now calls Claude Haiku 5.5.
-  "claude-haiku-4-5-20251001": { label: "Claude Haiku 5.5 (икономичен)", provider: "claude", apiModel: "claude-haiku-5-5" },
-  "claude-sonnet-5-5": { label: "Claude Sonnet 5.5", provider: "claude", apiModel: "claude-sonnet-5-5" },
-  "claude-opus-5-5": { label: "Claude Opus 5.5", provider: "claude", apiModel: "claude-opus-5-5" },
-  // Kept under the old id so saved agents still resolve; Google retired
-  // gemini-2.5-flash-lite and the API now answers 404.
-  "gemini-2.5-flash-lite": { label: "Gemini 3.5 Flash Lite (икономичен)", provider: "gemini", apiModel: "gemini-3.5-flash-lite" },
-  "grok-3-mini": { label: "Grok 3 Mini (икономичен)", provider: "grok", apiModel: "grok-3-mini" },
-  // Old id kept so saved agents still resolve; Google retired
-  // gemini-2.5-flash and the API now answers 404.
-  "gemini-2.5-flash": {
-    label: "Gemini 3.8 Flash",
-    provider: "gemini",
-    apiModel: "gemini-3.8-flash",
-  },
-  // Old id kept so saved agents still resolve; Google retired
-  // gemini-2.5-flash, so this agent uses the Vertex model the runtime is
-  // set to (checked by the self-test), not a fixed one.
-  // Open models served by Vertex AI Model Garden through the owner's Google
-  // Cloud; all answer on the global endpoint (checked by the self-test).
-  "vertex-gpt-oss-120b": { label: "gpt-oss 120B (икономичен)", provider: "vertex-open", apiModel: "openai/gpt-oss-120b-maas" },
-  "vertex-gemma-4-26b": { label: "Gemma 4 26B (икономичен)", provider: "vertex-open", apiModel: "google/gemma-4-26b-a4b-it-maas" },
-  "vertex-deepseek-v4.1-flash": { label: "DeepSeek V4.1 Flash", provider: "vertex-open", apiModel: "deepseek-ai/deepseek-v4.1-flash-maas" },
-  "vertex-glm-5.2": { label: "GLM 5.2", provider: "vertex-open", apiModel: "zai-org/glm-5.2-maas" },
   "vertex-gemini-2.5-flash": {
     label: "Vertex Gemini (Google Cloud)",
     provider: "vertex-gemini",
   },
-  "grok-4.5": {
-    label: "Grok 4.5",
-    provider: "grok",
-    apiModel: "grok-4.5",
+  "vertex-gemma-4-26b": {
+    label: "Vertex Gemma (Google Cloud)",
+    provider: "vertex-open",
+    apiModel: "google/gemma-4-26b-a4b-it-maas",
   },
 });
+
+const LEGACY_AGENT_MODELS = new Set([
+  "gpt-5.6-sol",
+  "gpt-5.6-terra",
+  "gpt-5.6-luna",
+  "gpt-4.1-mini",
+  "claude-haiku-4-5-20251001",
+  "claude-sonnet-5-5",
+  "claude-opus-5-5",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
+  "grok-3-mini",
+  "vertex-gpt-oss-120b",
+  "vertex-deepseek-v4.1-flash",
+  "vertex-glm-5.2",
+  "grok-4.5",
+]);
+
+function normalizeWorkAgentModel(value) {
+  const id = cleanText(value, 40);
+  if (Object.hasOwn(AGENT_MODELS, id)) return id;
+  return LEGACY_AGENT_MODELS.has(id) ? "vertex-gemini-2.5-flash" : "auto";
+}
 
 function cleanText(value, maxLength) {
   if (typeof value !== "string") return "";
@@ -152,9 +135,7 @@ export function sanitizeWorkContext(value) {
     ? requestedRole
     : "general";
   const requestedModel = cleanText(value.agent?.model, 40);
-  const model = Object.hasOwn(AGENT_MODELS, requestedModel)
-    ? requestedModel
-    : "auto";
+  const model = normalizeWorkAgentModel(requestedModel);
   const agent = {
     name: cleanText(value.agent?.name, 50) || "NovariumAI",
     role,
@@ -334,33 +315,17 @@ export function routeSelectedWorkAgentCapabilities(requests, value, message, { t
 // Models offered in the chat header picker: the economical ones, so a reply
 // keeps the same credit price for everyone. "auto" uses the site default.
 export const CHAT_MODEL_CHOICES = Object.freeze([
-  { id: "auto", label: "Автоматичен", hint: "Claude Haiku 5.5 — бърз и евтин" },
-  { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 5.5", hint: "Точен, добър на български" },
-  { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5", hint: "По-силен Claude, 4 единици" },
-  { id: "claude-opus-5-5", label: "Claude Opus 5.5", hint: "Най-силният Claude, 8 единици" },
-  { id: "gemini-2.5-flash-lite", label: "Gemini 3.5 Flash Lite", hint: "Най-бърз" },
-  { id: "gemini-2.5-flash", label: "Gemini 3.8 Flash", hint: "По-силен Gemini" },
-  { id: "gpt-4.1-mini", label: "GPT-4.1 mini", hint: "OpenAI" },
-  { id: "grok-3-mini", label: "Grok 3 Mini", hint: "xAI" },
-  { id: "vertex-gpt-oss-120b", label: "gpt-oss 120B", hint: "Отворен модел на OpenAI, през Google" },
-  { id: "vertex-gemma-4-26b", label: "Gemma 4 26B", hint: "Отворен модел на Google" },
-  { id: "vertex-deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", hint: "DeepSeek, през Google" },
-  { id: "vertex-glm-5.2", label: "GLM 5.2", hint: "Силен отворен модел, 2 единици" },
+  { id: "auto", label: "Автоматичен", hint: "Gemini през Google Cloud" },
+  { id: "vertex-gemini-2.5-flash", label: "Vertex Gemini", hint: "Google Cloud" },
+  { id: "vertex-gemma-4-26b", label: "Vertex Gemma", hint: "Google Cloud" },
 ]);
 
 // Models offered in the header picker while in "Работа" (the work agent's
 // model). Same ids as the agent editor in public/work-mode.js.
 export const WORK_MODEL_CHOICES = Object.freeze([
   { id: "auto", label: "Автоматичен", hint: "Препоръчано" },
-  { id: "claude-opus-5-5", label: "Claude Opus 5.5", hint: "Най-силният Claude" },
-  { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5", hint: "Силен и по-бърз Claude" },
-  { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 5.5", hint: "Бърз и евтин Claude" },
-  { id: "gpt-5.6-sol", label: "GPT-5.6 Sol", hint: "Най-високо качество" },
-  { id: "gpt-5.6-terra", label: "GPT-5.6 Terra", hint: "Балансиран" },
-  { id: "gpt-5.6-luna", label: "GPT-5.6 Luna", hint: "Бърз" },
-  { id: "gemini-2.5-flash", label: "Gemini 3.8 Flash", hint: "Google" },
   { id: "vertex-gemini-2.5-flash", label: "Vertex Gemini", hint: "Google Cloud" },
-  { id: "grok-4.5", label: "Grok 4.5", hint: "xAI" },
+  { id: "vertex-gemma-4-26b", label: "Vertex Gemma", hint: "Google Cloud" },
 ]);
 
 export function resolveChatModelChoice(value) {
@@ -371,14 +336,14 @@ export function resolveChatModelChoice(value) {
 }
 
 export function resolveWorkAgentModel(value) {
-  const id = cleanText(value, 40);
+  const id = normalizeWorkAgentModel(value);
   return Object.hasOwn(AGENT_MODELS, id)
     ? AGENT_MODELS[id].apiModel || undefined
     : undefined;
 }
 
 export function resolveWorkAgentProvider(value) {
-  const id = cleanText(value, 40);
+  const id = normalizeWorkAgentModel(value);
   return Object.hasOwn(AGENT_MODELS, id)
     ? AGENT_MODELS[id].provider || undefined
     : undefined;

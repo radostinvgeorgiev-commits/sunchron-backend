@@ -666,13 +666,6 @@ export async function requestAiResponse({ provider, ...options } = {}) {
     );
   }
 
-  if (publicAiOutputLimit() && selectedProvider === "vertex-gemini")
-    throw new NovariumError(
-      "Този двигател не е включен в потребителските планове.",
-      "PUBLIC_PROVIDER_UNAVAILABLE",
-      403,
-    );
-
   if (publicAiOutputLimit()) options.input = fitPublicAiInput(options.input);
 
   switch (selectedProvider) {
@@ -684,8 +677,17 @@ export async function requestAiResponse({ provider, ...options } = {}) {
       return requestGrokResponse(options);
     case "claude":
       return requestClaudeResponse(options);
-    case "vertex-gemini":
-      return requestVertexAiGeminiResponse(options);
+    case "vertex-gemini": {
+      const { usage, ...response } =
+        await requestVertexAiGeminiResponse(options);
+      reportAiUsage(
+        response.provider,
+        response.model,
+        usage?.inputTokens,
+        usage?.outputTokens,
+      );
+      return response;
+    }
     case "vertex-open":
       return requestVertexOpenResponse(options);
     default:

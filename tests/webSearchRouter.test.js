@@ -115,7 +115,7 @@ test("recognizes explicit and time-sensitive web searches", () => {
 
 test("web search fails clearly when no provider key is configured", async () => {
   await assert.rejects(
-    () => searchWeb("актуално време", { geminiApiKey: "", openAiApiKey: "" }),
+    () => searchWeb("актуално време", { env: {} }),
     (error) =>
       error instanceof WebSearchError &&
       error.code === "WEB_SEARCH_NOT_CONFIGURED" &&

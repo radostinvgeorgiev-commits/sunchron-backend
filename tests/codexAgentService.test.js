@@ -20,12 +20,19 @@ import {
   runCodexReadAnalysis,
 } from "../src/services/codexAgentService.js";
 
-test("the code agent runs on the Claude key and has an explicit kill switch", () => {
-  assert.equal(isCodexAgentConfigured({ ANTHROPIC_API_KEY: "key" }), true);
-  assert.equal(isCodexAgentConfigured({ OPENAI_API_KEY: "key" }), false);
+const vertexEnv = {
+  VERTEX_AI_ENABLED: "true",
+  VERTEX_AI_PROJECT_ID: "novarium-test-12345",
+  VERTEX_AI_LOCATION: "us-central1",
+  VERTEX_AI_MODEL: "gemini-2.5-flash",
+};
+
+test("the code agent requires Vertex and has an explicit kill switch", () => {
+  assert.equal(isCodexAgentConfigured(vertexEnv), true);
+  assert.equal(isCodexAgentConfigured({ ANTHROPIC_API_KEY: "key" }), false);
   assert.equal(
     isCodexAgentConfigured({
-      ANTHROPIC_API_KEY: "key",
+      ...vertexEnv,
       CODEX_AGENT_ENABLED: "false",
     }),
     false,
@@ -33,41 +40,29 @@ test("the code agent runs on the Claude key and has an explicit kill switch", ()
   assert.equal(isCodexAgentConfigured({}), false);
 });
 
-test("the code agent asks Claude for JSON and keeps only the JSON object", async () => {
-  const { requestClaudeStructured, resolveCodeAgentModel } = await import(
+test("the code agent asks Vertex Gemini for JSON and keeps only the JSON object", async () => {
+  const { requestGoogleStructured, resolveCodeAgentModel } = await import(
     "../src/services/codexAgentService.js"
   );
-  assert.equal(resolveCodeAgentModel("gpt-5.6-terra", {}), "claude-haiku-5-5");
-  assert.equal(resolveCodeAgentModel("claude-haiku-4-5-20251001", {}), "claude-haiku-5-5");
-  assert.equal(resolveCodeAgentModel("claude-sonnet-5-5", {}), "claude-sonnet-5-5");
   assert.equal(
-    resolveCodeAgentModel(undefined, { CLAUDE_CODE_MODEL: "claude-sonnet-5-5" }),
-    "claude-sonnet-5-5",
+    resolveCodeAgentModel("gpt-5.6-terra", vertexEnv),
+    "gemini-2.5-flash",
   );
   let sent;
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url, init) => {
-    sent = JSON.parse(init.body);
-    return new Response(
-      JSON.stringify({
-        model: "claude-haiku-5-5",
-        content: [{ type: "text", text: 'Ето:\n```json\n{"status":"complete"}\n```' }],
-      }),
-      { status: 200 },
-    );
-  };
-  try {
-    const result = await requestClaudeStructured({
-      apiKey: "k",
-      model: "claude-haiku-5-5",
-      input: [{ role: "user", content: "Провери." }],
-      outputSchema: { type: "object" },
-    });
-    assert.equal(result.text, '{"status":"complete"}');
-    assert.match(sent.messages.at(-1).content, /Върни САМО един JSON обект/u);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+  const result = await requestGoogleStructured({
+    env: vertexEnv,
+    model: "gemini-2.5-flash",
+    input: [{ role: "user", content: "Провери." }],
+    outputSchema: { type: "object" },
+    requester: async (options) => {
+      sent = options;
+      return { text: 'Ето:\n```json\n{"status":"complete"}\n```' };
+    },
+  });
+  assert.equal(result.text, '{"status":"complete"}');
+  assert.equal(sent.provider, "vertex-gemini");
+  assert.equal(sent.outputSchema.type, "object");
+  assert.match(sent.input.at(-1).content, /Върни САМО един JSON обект/u);
 });
 
 test("isolated Codex workspace copies source but excludes secrets and dependencies", async () => {
@@ -119,8 +114,8 @@ test("Codex analysis uses a bounded source request without local command executi
       summary: "Преди това беше проверен work mode.",
       nextStep: "Провери маршрута.",
     },
-    apiKey: "test-openai-key",
     env: {
+      ...vertexEnv,
       PATH: "/usr/bin:/bin",
       OTHER_SECRET: "must-never-reach-child",
     },
@@ -145,11 +140,12 @@ test("Codex analysis uses a bounded source request without local command executi
   assert.equal(result.projectRun.projectId, "project-1");
   assert.equal(result.projectRun.sequence, 3);
   assert.equal(result.projectRun.codeChanged, false);
-  assert.equal(requestOptions.apiKey, "test-openai-key");
+  assert.equal(requestOptions.model, "gemini-2.5-flash");
+  assert.equal(Object.hasOwn(requestOptions, "apiKey"), false);
   assert.equal(requestOptions.signal instanceof AbortSignal, true);
   assert.equal(requestOptions.reasoningEffort, "medium");
   assert.equal(requestOptions.outputSchema.additionalProperties, false);
-  assert.doesNotMatch(prompt, /must-never-reach-child|test-openai-key/u);
+  assert.doesNotMatch(prompt, /must-never-reach-child/u);
   assert.match(prompt, /src\/routes\/chat\.js/u);
   assert.match(prompt, /return 'safe'/u);
   assert.match(prompt, /Нямаш shell/u);
@@ -170,8 +166,7 @@ test("Codex blocks a final response containing a configured secret", async () =>
     () =>
       runCodexReadAnalysis({
         message: "Провери.",
-        apiKey: "test-openai-key",
-        env: { SERVICE_TOKEN: secret },
+        env: { ...vertexEnv, SERVICE_TOKEN: secret },
         responseRequester: async () => ({
           text: JSON.stringify({
             status: "blocked",
@@ -190,7 +185,7 @@ test("Codex blocks a final response containing a configured secret", async () =>
   await assert.rejects(access(root));
 });
 
-test("Codex fails closed when no API key is configured", async () => {
+test("Codex fails closed when Vertex is not configured", async () => {
   await assert.rejects(
     () => runCodexReadAnalysis({ message: "Провери.", apiKey: "" }),
     (error) =>
@@ -208,7 +203,7 @@ test("Codex read compatibility returns the formatted project result", async () =
 
   const output = await runCodexReadAnalysis({
     message: "Провери.",
-    apiKey: "test-openai-key",
+    env: vertexEnv,
     responseRequester: async () => ({
       text: JSON.stringify({
         status: "complete",

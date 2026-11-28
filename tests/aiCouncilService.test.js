@@ -8,7 +8,14 @@ import {
   runAiCouncil,
 } from "../src/services/aiCouncilService.js";
 
-test("detects explicit requests to consult the three AI engines", () => {
+const vertexEnv = {
+  VERTEX_AI_ENABLED: "true",
+  VERTEX_AI_PROJECT_ID: "novarium-test-12345",
+  VERTEX_AI_LOCATION: "us-central1",
+  VERTEX_AI_MODEL: "gemini-2.5-flash",
+};
+
+test("detects explicit requests for a model comparison", () => {
   assert.equal(
     isMultiEngineCouncilRequest("Питай трите AI модела и сравни."),
     true,
@@ -20,145 +27,72 @@ test("detects explicit requests to consult the three AI engines", () => {
   assert.equal(isMultiEngineCouncilRequest("Какво е времето днес?"), false);
 });
 
-test("council asks OpenAI, Gemini and Grok before Gemini synthesis", async () => {
-  const calls = [];
-  const advisorRequesters = {
-    openai: async (input) => {
-      calls.push(["openai", input]);
-      return { provider: "openai", model: "gpt-test", text: "OpenAI вариант." };
-    },
-    gemini: async (input) => {
-      calls.push(["gemini", input]);
-      return {
-        provider: "gemini",
-        model: "gemini-test",
-        text: "Gemini вариант.",
-      };
-    },
-    grok: async (input) => {
-      calls.push(["grok", input]);
-      return { provider: "grok", model: "grok-test", text: "Grok вариант." };
-    },
-  };
+test("Council uses only Vertex Gemini and makes its single-model limit clear", async () => {
+  let request;
   const council = await runAiCouncil({
     message: "Избери безопасния следващ ход.",
-    openAiApiKey: "openai-key",
-    geminiApiKey: "gemini-key",
-    grokApiKey: "grok-key",
-    advisorRequesters,
-    geminiArbiterRequester: async (input) => {
-      calls.push(["gemini-arbiter", input]);
-      return {
-        provider: "gemini",
-        model: "gemini-test",
-        text: JSON.stringify({
-          recommendation: "Избери минималната проверима промяна.",
-          rationale: "Тя запазва съществуващите граници.",
-          risks: ["Нужен е тест."],
-          nextSteps: ["Пусни тестовете."],
-          confidence: "high",
-        }),
-      };
+    context: "Проект: сайт.",
+    env: vertexEnv,
+    selectedProviders: ["vertex-gemini"],
+    advisorRequesters: {
+      gemini: async (options) => {
+        request = options;
+        return {
+          provider: "vertex-gemini",
+          model: "gemini-test",
+          text: "Избери минималната проверима промяна.",
+        };
+      },
     },
   });
 
-  assert.deepEqual(
-    calls.map(([provider]) => provider),
-    ["openai", "gemini", "grok", "gemini-arbiter"],
+  assert.equal(request.model, "gemini-2.5-flash");
+  assert.equal(request.apiKey, undefined);
+  assert.match(request.input[0].content, /Избери безопасния следващ ход/u);
+  assert.equal(council.responses.length, 1);
+  assert.equal(council.responses[0].provider, "gemini");
+  assert.equal(
+    council.recommendation,
+    "Избери минималната проверима промяна.",
   );
-  assert.equal(council.responses.length, 3);
-  assert.equal(council.recommendation, "Избери минималната проверима промяна.");
-  assert.equal(council.arbiter.provider, "gemini");
-  assert.match(formatAiCouncilReply(council), /избраните AI двигатели/u);
+  assert.equal(council.confidence, "low");
+  assert.equal(council.arbiter, null);
+  assert.match(formatAiCouncilReply(council), /Vertex Gemini/u);
+  assert.match(formatAiCouncilReply(council), /няма сравнение/u);
 });
 
-const answer = async () => ({ model: "test", text: "Наличен отговор." });
-const options = {
-  message: "Кратък тест.",
-  openAiApiKey: "a",
-  geminiApiKey: "b",
-  grokApiKey: "c",
-  advisorRequesters: { openai: answer, gemini: answer, grok: answer },
-  geminiArbiterRequester: async () => {
-    throw new Error("Gemini synthesis unavailable");
-  },
-  arbiterRequester: async () => {
-    throw new Error("private provider detail");
-  },
-};
-
-test("returns completed answers when an advisor hangs and arbiter fails", async () => {
-  const result = await runAiCouncil({
-    ...options,
-    advisorTimeoutMs: 10,
-    advisorRequesters: {
-      ...options.advisorRequesters,
-      gemini: () => new Promise(() => {}),
-    },
-  });
-  assert.equal(result.responses.length, 2);
-  assert.deepEqual(result.unavailableProviders, ["gemini"]);
-  assert.equal(result.arbiter, null);
-  assert.match(formatAiCouncilReply(result), /Не отговориха: Gemini/);
-  assert.doesNotMatch(JSON.stringify(result), /private provider detail/);
-});
-
-test("works with one configured advisor, rejecting empty and invalid answers", async () => {
-  const result = await runAiCouncil({
-    ...options,
-    openAiApiKey: "",
-    advisorRequesters: {
-      ...options.advisorRequesters,
-      grok: async () => ({ text: "" }),
-    },
-  });
-  assert.equal(result.responses.length, 1);
-  assert.equal(result.responses[0].provider, "gemini");
-  assert.equal(result.confidence, "low");
-});
-
-test("retains answers on malformed or hanging synthesis", async () => {
-  for (const arbiterRequester of [
-    async () => ({ text: "bad json" }),
-    () => new Promise(() => {}),
+test("rejects external or multiple model selections", async () => {
+  for (const selectedProviders of [
+    [],
+    ["openai"],
+    ["claude", "gemini"],
+    ["gemini", "vertex-gemini"],
+    ["unknown"],
   ]) {
-    const result = await runAiCouncil({
-      ...options,
-      arbiterRequester,
-      arbiterTimeoutMs: 10,
-    });
-    assert.equal(result.responses.length, 3);
-    assert.equal(result.arbiter, null);
+    await assert.rejects(
+      () =>
+        runAiCouncil({
+          message: "Тест",
+          selectedProviders,
+          env: vertexEnv,
+        }),
+      (error) =>
+        error instanceof AiCouncilError &&
+        error.code === "AI_COUNCIL_INVALID_PROVIDERS",
+    );
   }
 });
 
-test("falls back to OpenAI synthesis when Gemini cannot arbitrate", async () => {
-  const result = await runAiCouncil({
-    ...options,
-    arbiterRequester: async () => ({
-      provider: "openai",
-      model: "openai-test",
-      text: JSON.stringify({
-        recommendation: "Избери проверимия вариант.",
-        rationale: "OpenAI е резервният арбитър.",
-        risks: [],
-        nextSteps: [],
-        confidence: "medium",
-      }),
-    }),
-  });
-  assert.equal(result.arbiter.provider, "openai");
-  assert.equal(result.recommendation, "Избери проверимия вариант.");
-});
-
-test("reports failure only when all advisors fail", async () => {
+test("does not use a model key as a fallback when Vertex is not configured", async () => {
   await assert.rejects(
     () =>
       runAiCouncil({
-        ...options,
-        openAiApiKey: "",
-        geminiApiKey: "",
-        grokApiKey: "",
+        message: "Тест",
+        env: {
+          GEMINI_API_KEY: "not-used",
+          OPENAI_API_KEY: "not-used",
+          ANTHROPIC_API_KEY: "not-used",
+        },
       }),
     (error) =>
       error instanceof AiCouncilError &&
@@ -166,86 +100,38 @@ test("reports failure only when all advisors fail", async () => {
   );
 });
 
-test("council bounds a verbose advisor", async () => {
-  const verbose = "x".repeat(20_000);
-  const bounded = await runAiCouncil({
+test("returns a bounded error when Vertex Gemini fails", async () => {
+  await assert.rejects(
+    () =>
+      runAiCouncil({
+        message: "Тест",
+        env: vertexEnv,
+        advisorRequesters: {
+          gemini: async () => {
+            throw Object.assign(new Error("private provider detail"), {
+              code: "VERTEX_TIMEOUT",
+              status: 504,
+            });
+          },
+        },
+      }),
+    (error) =>
+      error instanceof AiCouncilError &&
+      error.code === "AI_COUNCIL_ADVISORS_FAILED" &&
+      !JSON.stringify(error.failures).includes("private provider detail"),
+  );
+});
+
+test("bounds a verbose Vertex Gemini answer", async () => {
+  const result = await runAiCouncil({
     message: "Кратък тест.",
-    openAiApiKey: "openai-key",
-    geminiApiKey: "gemini-key",
-    grokApiKey: "grok-key",
+    env: vertexEnv,
     advisorRequesters: {
-      openai: async () => ({ model: "openai-test", text: verbose }),
-      gemini: async () => ({ model: "gemini-test", text: "Gemini." }),
-      grok: async () => ({ model: "grok-test", text: "Grok." }),
-    },
-    geminiArbiterRequester: async () => ({
-      model: "gemini-test",
-      provider: "gemini",
-      text: JSON.stringify({
-        recommendation: "Тест",
-        rationale: "Тест",
-        risks: [],
-        nextSteps: [],
-        confidence: "low",
-      }),
-    }),
-    arbiterRequester: async () => ({
-      model: "openai-test",
-      text: JSON.stringify({
-        recommendation: "Тест",
-        rationale: "Тест",
-        risks: [],
-        nextSteps: [],
-        confidence: "low",
-      }),
-    }),
-  });
-  assert.equal(bounded.responses[0].text.length, 8_000);
-});
-
-test("selects Claude only and returns its response without synthesis", async () => {
-  const result = await runAiCouncil({
-    message: "Тест на Claude.",
-    selectedProviders: ["claude"],
-    claudeApiKey: "test",
-    openAiApiKey: "",
-    advisorRequesters: {
-      claude: async () => ({
-        model: "claude-test",
-        text: "Отговор от Claude.",
+      gemini: async () => ({
+        model: "gemini-test",
+        text: "x".repeat(20_000),
       }),
     },
   });
-  assert.equal(result.responses.length, 1);
-  assert.equal(result.responses[0].provider, "claude");
-  assert.match(result.recommendation, /Отговор от Claude/);
-});
-
-test("selected providers exclude others and preserve partial answers", async () => {
-  const result = await runAiCouncil({
-    message: "Тест на частичен отговор.",
-    selectedProviders: ["claude", "gemini"],
-    claudeApiKey: "test",
-    geminiApiKey: "test",
-    openAiApiKey: "",
-    advisorRequesters: {
-      claude: async () => ({ model: "claude-test", text: "Claude работи." }),
-      gemini: async () => {
-        throw new Error("unavailable");
-      },
-    },
-  });
-  assert.deepEqual(result.unavailableProviders, ["gemini"]);
-  assert.equal(result.responses[0].provider, "claude");
-});
-
-test("rejects unsupported and duplicate Council provider selection", async () => {
-  for (const selectedProviders of [[], ["claude", "claude"], ["unknown"]]) {
-    await assert.rejects(
-      () => runAiCouncil({ message: "Тест", selectedProviders }),
-      (error) =>
-        error instanceof AiCouncilError &&
-        error.code === "AI_COUNCIL_INVALID_PROVIDERS",
-    );
-  }
+  assert.equal(result.responses[0].text.length, 8_000);
 });

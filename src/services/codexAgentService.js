@@ -10,19 +10,17 @@ import {
 import { tmpdir } from "node:os";
 import { extname, join, relative, resolve, sep } from "node:path";
 
-import {
-  DEFAULT_CLAUDE_CHAT_MODEL,
-  requestClaudeResponse,
-} from "./novariumService.js";
+import { requestAiResponse } from "./novariumService.js";
+import { isVertexAiConfigured, resolveVertexAiModel } from "./vertexAiGeminiService.js";
 
-// The code agent (internal id "codex", kept for saved workspaces) now runs on
-// Claude. Claude has no schema-enforced output here, so the schema is spelled
-// out in the request and the JSON is taken out of the reply.
-export async function requestClaudeStructured({
+export async function requestGoogleStructured({
   outputSchema,
   input,
+  model,
   maxTokens = 4096,
-  ...options
+  signal,
+  env = process.env,
+  requester = requestAiResponse,
 }) {
   const instruction = outputSchema
     ? `\n\nВърни САМО един JSON обект без обяснения и без markdown, по тази схема:\n${JSON.stringify(outputSchema)}`
@@ -34,12 +32,14 @@ export async function requestClaudeStructured({
           : item,
       )
     : input;
-  const result = await requestClaudeResponse({
-    apiKey: options.apiKey,
-    model: options.model,
-    signal: options.signal,
+  const result = await requester({
+    provider: "vertex-gemini",
+    env,
+    model,
+    signal,
     input: messages,
-    maxTokens,
+    maxOutputTokens: maxTokens,
+    outputSchema,
   });
   const text = String(result?.text || "").trim();
   const start = text.indexOf("{");
@@ -50,13 +50,8 @@ export async function requestClaudeStructured({
   };
 }
 
-export function resolveCodeAgentModel(model, env = process.env) {
-  const value = typeof model === "string" ? model.trim() : "";
-  if (/^claude-/iu.test(value)) {
-    // Saved workspaces may hold the older Haiku id; it maps to Haiku 5.5.
-    return /^claude-haiku-4/iu.test(value) ? DEFAULT_CLAUDE_CHAT_MODEL : value;
-  }
-  return String(env.CLAUDE_CODE_MODEL || "").trim() || DEFAULT_CLAUDE_CHAT_MODEL;
+export function resolveCodeAgentModel(_model, env = process.env) {
+  return resolveVertexAiModel(env);
 }
 
 const DEFAULT_TIMEOUT_MS = 180000;
@@ -232,7 +227,7 @@ function parsePositiveInteger(value, fallback) {
 
 export function isCodexAgentConfigured(env = process.env) {
   return Boolean(
-    cleanText(env.ANTHROPIC_API_KEY, 10000) &&
+    isVertexAiConfigured(env) &&
     cleanText(env.CODEX_AGENT_ENABLED, 20).toLowerCase() !== "false",
   );
 }
@@ -625,12 +620,11 @@ export async function runCodexProjectAnalysis({
   projectName,
   projectObjective,
   previousRun,
-  apiKey = process.env.ANTHROPIC_API_KEY,
   model,
   sourceDirectory = process.cwd(),
   timeoutMs = process.env.CODEX_AGENT_TIMEOUT_MS,
   env = process.env,
-  responseRequester = requestClaudeStructured,
+  responseRequester = requestGoogleStructured,
   createWorkspace = createIsolatedSourceWorkspace,
   createSnapshot = createBoundedSourceSnapshot,
 }) {
@@ -642,9 +636,9 @@ export async function runCodexProjectAnalysis({
       400,
     );
   }
-  if (!cleanText(apiKey, 10000)) {
+  if (!isCodexAgentConfigured(env)) {
     throw new CodexAgentError(
-      "Кодовият агент (Claude) не е конфигуриран.",
+      "Кодовият агент (Vertex Gemini) не е конфигуриран.",
       "CODEX_AGENT_NOT_CONFIGURED",
       503,
     );
@@ -664,7 +658,6 @@ export async function runCodexProjectAnalysis({
       projectObjective: cleanText(projectObjective, 600),
     });
     const result = await responseRequester({
-      apiKey,
       input: [
         {
           role: "user",
@@ -691,7 +684,7 @@ export async function runCodexProjectAnalysis({
         "CODEX_AGENT_EMPTY_RESULT",
       );
     }
-    if (containsSecret(output, env, [apiKey])) {
+    if (containsSecret(output, env)) {
       throw new CodexAgentError(
         "Резултатът от кодовия агент беше блокиран от защитата за тайни.",
         "CODEX_AGENT_SECRET_BLOCKED",

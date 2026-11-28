@@ -3,6 +3,11 @@ import {
   GOOGLE_CLOUD_PLATFORM_SCOPE,
   GoogleAdcAuthError,
 } from "./googleAdcAuth.js";
+import {
+  fitPublicAiInput,
+  publicAiOutputLimit,
+  reservePublicAiCall,
+} from "./publicAiBudget.js";
 
 const DEFAULT_VERTEX_AI_LOCATION = "us-central1";
 const DEFAULT_VERTEX_AI_MODEL = "gemini-3.5-flash-lite";
@@ -655,6 +660,10 @@ export async function requestVertexAiGeminiResponse({
   fetchImpl = globalThis.fetch,
   signal,
   outputSchema,
+  maxOutputTokens,
+  mediaParts,
+  tools,
+  responseModalities,
   authClient,
   googleAuthFactory,
   clientFactory,
@@ -692,7 +701,9 @@ export async function requestVertexAiGeminiResponse({
   if (signal?.aborted) throw clientAbortError();
 
   const endpoint = buildVertexAiGenerateContentEndpoint(config);
-  const messages = normalizeVertexAiMessages(input);
+  const fittedInput = fitPublicAiInput(input);
+  await reservePublicAiCall(fittedInput, "vertex-gemini", config.model);
+  const messages = normalizeVertexAiMessages(fittedInput);
   const systemMessages = messages
     .filter((item) => item.role === "system")
     .map((item) => item.content);
@@ -706,15 +717,38 @@ export async function requestVertexAiGeminiResponse({
       : {}),
     contents: messages
       .filter((item) => item.role !== "system")
-      .map((item) => ({
+      .map((item, index) => ({
         role: item.role === "assistant" ? "model" : "user",
-        parts: [{ text: item.content }],
+        parts: [
+          { text: item.content },
+          ...(index === messages.filter((entry) => entry.role !== "system").length - 1 &&
+            Array.isArray(mediaParts)
+            ? mediaParts
+            : []),
+        ],
       })),
   };
+  if (Array.isArray(tools) && tools.length) body.tools = tools;
   if (outputSchema !== undefined) {
     body.generationConfig = {
       responseMimeType: "application/json",
       responseSchema: validateVertexResponseSchema(outputSchema),
+    };
+  }
+  const outputLimit = [
+    publicAiOutputLimit(),
+    maxOutputTokens,
+  ].filter((value) => Number.isInteger(value) && value > 0);
+  if (outputLimit.length) {
+    body.generationConfig = {
+      ...body.generationConfig,
+      maxOutputTokens: Math.min(...outputLimit),
+    };
+  }
+  if (Array.isArray(responseModalities) && responseModalities.length) {
+    body.generationConfig = {
+      ...body.generationConfig,
+      responseModalities,
     };
   }
 
@@ -791,8 +825,15 @@ export async function requestVertexAiGeminiResponse({
     }
     if (blockedResponse(data)) throw blockedResponseError();
     const text = extractVertexAiOutputText(data);
-    if (!text.trim()) throw emptyResponseError();
+    const imageBase64 = (Array.isArray(data?.candidates)
+      ? data.candidates.flatMap((candidate) =>
+          Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [],
+        )
+      : []
+    ).find((part) => part?.inlineData?.data)?.inlineData?.data || "";
+    if (!text.trim() && !imageBase64) throw emptyResponseError();
 
+    const usageMetadata = data?.usageMetadata;
     return {
       text,
       provider: "vertex-gemini",
@@ -802,6 +843,15 @@ export async function requestVertexAiGeminiResponse({
           : typeof data?.model === "string" && data.model.trim()
             ? data.model.trim()
             : config.model,
+      ...(usageMetadata
+        ? {
+            usage: {
+              inputTokens: Number(usageMetadata.promptTokenCount) || 0,
+              outputTokens: Number(usageMetadata.candidatesTokenCount) || 0,
+            },
+          }
+        : {}),
+      ...(imageBase64 ? { imageBase64 } : {}),
     };
   })();
 

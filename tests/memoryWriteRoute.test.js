@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
-import { once } from "node:events";
 import test from "node:test";
 import request from "supertest";
 
 process.env.NODE_ENV = "test";
 process.env.OPENAI_API_KEY = "test-openai-key";
 process.env.AI_CORE_PROVIDER = "openai";
-// The stubs below answer in the OpenAI shape only, so the check before a
-// write at once must not try Gemini first, even on a machine that has a key.
+// Chat remains OpenAI-backed in these tests, but memory confirmation requires
+// Vertex and must not fall back to external providers.
 delete process.env.GEMINI_API_KEY;
+process.env.VERTEX_AI_ENABLED = "false";
 process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 process.env.GITHUB_SESSION_ENCRYPTION_KEY =
   "memory-write-route-test-encryption-key";
@@ -42,16 +42,9 @@ function modelAnswer(text) {
   );
 }
 
-// The small model call that reads a command before a write at once
-// (memoryFactCheck.js) is told apart by its answer format's name.
-function isFactCheck(init) {
-  return String(init?.body || "").includes("novarium_memory_fact_check");
-}
-
-// The person's own „Запомни: …“ is the confirmation (RADKO 28.11 04:30
-// „самата команда го казва“, 06:35 „бутон за паметта“): it is written at
-// once. An ordinary sentence is never written.
-test("chat never persists an ordinary fact and writes the person's own „Запомни: …“ at once", async () => {
+// With Vertex disabled, the person's own „Запомни: …“ still needs the
+// durable one-time confirmation before it is saved.
+test("chat requires confirmation when Vertex is unavailable, even with an external key", async () => {
   resetConfirmationsForTests();
   resetLocalDocumentStoreForTests();
   const ownerSession = await createGitHubSession(
@@ -63,8 +56,7 @@ test("chat never persists an ordinary fact and writes the person's own „Зап
   );
   const ownerCookie = `synchron_github_session=${ownerSession.id}`;
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (_url, init) =>
-    modelAnswer(isFactCheck(init) ? JSON.stringify({ onlyFacts: true }) : "Разбрах.");
+  globalThis.fetch = async () => modelAnswer("Разбрах.");
 
   try {
     const ordinaryResponse = await request(app)
@@ -79,7 +71,7 @@ test("chat never persists an ordinary fact and writes the person's own „Зап
     assert.doesNotMatch(ordinaryResponse.text, /CONVERSATION_NOT_SAVED/u);
     assert.deepEqual(await profileFor("primary-user"), []);
 
-    const saved = await request(app)
+    const pending = await request(app)
       .post("/chat/chat")
       .set("Cookie", ownerCookie)
       .send({
@@ -87,14 +79,27 @@ test("chat never persists an ordinary fact and writes the person's own „Зап
         message: "Запомни: Казвам се Иван.",
       })
       .expect(200);
+    assert.match(pending.text, /Потвърждавам постоянен запис/u);
+    assert.doesNotMatch(pending.text, /Запомних:/u);
+    assert.deepEqual(await profileFor("primary-user"), []);
+
+    const confirmationId = pending.text.match(/Потвърждавам постоянен запис: ([\da-f-]{36})/u)?.[1];
+    assert.ok(confirmationId);
+    const saved = await request(app)
+      .post("/chat/chat")
+      .set("Cookie", ownerCookie)
+      .send({
+        sessionId: "memory-write-route",
+        message: `Потвърждавам постоянен запис: ${confirmationId}`,
+      })
+      .expect(200);
     assert.match(saved.text, /Запомних: Казвам се Иван/u);
-    assert.doesNotMatch(saved.text, /Потвърждавам постоянен запис/u);
     assert.deepEqual(
       (await profileFor("primary-user")).map(({ fact, source }) => ({
         fact,
         source,
       })),
-      [{ fact: "Казвам се Иван", source: "own-chat-command" }],
+      [{ fact: "Казвам се Иван", source: "confirmed-chat-command" }],
     );
 
     // A record prepared earlier (the API, the connector) still saves with
@@ -122,11 +127,9 @@ test("chat never persists an ordinary fact and writes the person's own „Зап
   }
 });
 
-// Only the person's own plain command writes at once (review of #605). Asking
-// to wait, a bare correction, a „Запомни:“ inside forwarded or pasted text and
-// a command that runs on into the next sentence or line keep the one-time
-// confirmation and write nothing.
-test("chat writes nothing at once when the person asks to wait, forwards text or runs on", async () => {
+// Without a configured Vertex model, every own-memory command keeps its
+// confirmation; external API keys do not enable the automatic write.
+test("chat never writes memory automatically without Vertex", async () => {
   resetConfirmationsForTests();
   resetLocalDocumentStoreForTests();
   const ownerSession = await createGitHubSession(
@@ -139,12 +142,7 @@ test("chat writes nothing at once when the person asks to wait, forwards text or
   const ownerCookie = `synchron_github_session=${ownerSession.id}`;
   const originalFetch = globalThis.fetch;
   let modelCalls = 0;
-  let factChecks = 0;
   globalThis.fetch = async (_url, init) => {
-    if (isFactCheck(init)) {
-      factChecks += 1;
-      return modelAnswer(JSON.stringify({ onlyFacts: true }));
-    }
     modelCalls += 1;
     return modelAnswer("Разбрах.");
   };
@@ -197,9 +195,6 @@ test("chat writes nothing at once when the person asks to wait, forwards text or
       assert.doesNotMatch(response.text, /Запомних:/u, message);
       assert.deepEqual(await profileFor("primary-user"), [], message);
     }
-    // The words hold every one of these before any model is asked.
-    assert.equal(factChecks, 0);
-
     const foreign = await request(app)
       .post("/chat/chat")
       .set("Cookie", ownerCookie)
@@ -208,13 +203,8 @@ test("chat writes nothing at once when the person asks to wait, forwards text or
         message: "Remember: I drink tea without sugar",
       })
       .expect(200);
-    assert.doesNotMatch(foreign.text, /Потвърждавам постоянен запис/u);
-    assert.deepEqual(
-      (await profileFor("primary-user")).map(({ fact }) => fact),
-      ["I drink tea without sugar"],
-    );
-    // One small check before the write at once, and no chat answer.
-    assert.equal(factChecks, 1);
+    assert.match(foreign.text, /Потвърждавам постоянен запис/u);
+    assert.deepEqual(await profileFor("primary-user"), []);
     assert.equal(modelCalls, 0);
   } finally {
     globalThis.fetch = originalFetch;
@@ -350,10 +340,9 @@ test("a fact over 500 characters is answered with what to do, and nothing is wri
   assert.deepEqual(await profileFor("primary-user"), []);
 });
 
-// What the words pass is read once more by a small model. Its „no“, an
-// unclear answer or a failed call keep the one-time confirmation: in doubt
-// the chat asks, it never writes.
-test("a command the model does not call only facts keeps the one-time confirmation", async () => {
+// A healthy OpenAI chat response is not a fallback for the Vertex-only memory
+// check, so the automatic write remains blocked.
+test("a healthy external chat provider cannot bypass missing Vertex", async () => {
   resetConfirmationsForTests();
   resetLocalDocumentStoreForTests();
   const ownerSession = await createGitHubSession(
@@ -365,37 +354,24 @@ test("a command the model does not call only facts keeps the one-time confirmati
   );
   const ownerCookie = `synchron_github_session=${ownerSession.id}`;
   const originalFetch = globalThis.fetch;
-  const answers = [
-    () => modelAnswer(JSON.stringify({ onlyFacts: false })),
-    () => modelAnswer("Да, това са факти."),
-    () => new Response("upstream down", { status: 500 }),
-    () => {
-      throw new Error("network");
-    },
-  ];
-  let answer = answers[0];
-  globalThis.fetch = async (_url, init) => (isFactCheck(init) ? answer() : modelAnswer("Разбрах."));
+  globalThis.fetch = async () => modelAnswer("Разбрах.");
   try {
-    for (const [index, next] of answers.entries()) {
-      answer = next;
-      const response = await request(app)
-        .post("/chat/chat")
-        .set("Cookie", ownerCookie)
-        .send({ sessionId: `memory-check-${index}`, message: "Запомни: искам такси за летището" })
-        .expect(200);
-      assert.match(response.text, /Потвърждавам постоянен запис/u, String(index));
-      assert.doesNotMatch(response.text, /Запомних:/u, String(index));
-      assert.deepEqual(await profileFor("primary-user"), [], String(index));
-    }
+    const response = await request(app)
+      .post("/chat/chat")
+      .set("Cookie", ownerCookie)
+      .send({ sessionId: "memory-check", message: "Запомни: искам такси за летището" })
+      .expect(200);
+    assert.match(response.text, /Потвърждавам постоянен запис/u);
+    assert.doesNotMatch(response.text, /Запомних:/u);
+    assert.deepEqual(await profileFor("primary-user"), []);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-// With a picture or the council the answer is about them, so a „Запомни: …“
-// sent with them is not checked or written at once: its one-time
-// confirmation is shown under that answer, and nothing is written.
-test("a „Запомни: …“ with a picture or the council keeps its confirmation, under that answer", async () => {
+// A picture keeps the memory confirmation; the Council is unavailable when
+// Vertex is disabled and must not fall back to an external provider.
+test("picture memory confirmation is preserved and Council reports missing Vertex", async () => {
   resetConfirmationsForTests();
   resetLocalDocumentStoreForTests();
   const ownerSession = await createGitHubSession(
@@ -409,12 +385,7 @@ test("a „Запомни: …“ with a picture or the council keeps its confir
   const originalFetch = globalThis.fetch;
   const originalClaudeKey = process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
-  let factChecks = 0;
-  globalThis.fetch = async (url, init) => {
-    if (isFactCheck(init)) {
-      factChecks += 1;
-      return modelAnswer(JSON.stringify({ onlyFacts: true }));
-    }
+  globalThis.fetch = async (url) => {
     if (String(url).includes("/chat/completions")) {
       return Response.json({ choices: [{ message: { content: "На снимката има котка." } }] });
     }
@@ -440,11 +411,9 @@ test("a „Запомни: …“ with a picture or the council keeps its confir
       .set("Cookie", ownerCookie)
       .send({ sessionId: "memory-council", message: "Запомни: пия чай без захар", council: true })
       .expect(200);
-    assert.match(council.text, /Съветът препоръчва чай\./u);
-    assert.match(council.text, /Потвърждавам постоянен запис/u);
+    assert.match(council.text, /Vertex AI Gemini не е конфигуриран/u);
     assert.doesNotMatch(council.text, /Запомних:/u);
 
-    assert.equal(factChecks, 0, "no check is made for a picture or the council");
     assert.deepEqual(await profileFor("primary-user"), []);
   } finally {
     globalThis.fetch = originalFetch;
@@ -479,9 +448,8 @@ test("a forget text over 500 characters says nothing was deleted", async () => {
   assert.equal((await profileFor("primary-user")).length, 1);
 });
 
-// „Спри“ or a closed page while the small model reads: its call stops and
-// nothing is written at once.
-test("a person who presses „Спри“ while the model reads gets nothing written", async () => {
+// With Vertex unavailable, automatic writes are blocked before any model call.
+test("a missing Vertex model keeps the one-time confirmation", async () => {
   resetConfirmationsForTests();
   resetLocalDocumentStoreForTests();
   const ownerSession = await createGitHubSession(
@@ -492,40 +460,15 @@ test("a person who presses „Спри“ while the model reads gets nothing wri
       }),
   );
   const originalFetch = globalThis.fetch;
-  let checkAborted = false;
-  globalThis.fetch = async (url, init) => {
-    if (!isFactCheck(init)) return originalFetch(url, init);
-    return new Promise((resolve, reject) => {
-      init.signal?.addEventListener("abort", () => {
-        checkAborted = true;
-        reject(new DOMException("aborted", "AbortError"));
-      });
-      setTimeout(() => resolve(modelAnswer(JSON.stringify({ onlyFacts: true }))), 400);
-    });
-  };
-  const server = app.listen(0, "127.0.0.1");
-  await once(server, "listening");
   try {
-    const stop = new AbortController();
-    setTimeout(() => stop.abort(), 80);
-    await assert.rejects(
-      originalFetch(`http://127.0.0.1:${server.address().port}/chat/chat`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          cookie: `synchron_github_session=${ownerSession.id}`,
-        },
-        body: JSON.stringify({ sessionId: "memory-stop", message: "Запомни: пия чай без захар" }),
-        signal: stop.signal,
-      }),
-      { name: "AbortError" },
-    );
-    await new Promise((resolve) => setTimeout(resolve, 700));
-    assert.equal(checkAborted, true, "the model call went on after „Спри“");
+    const response = await request(app)
+      .post("/chat/chat")
+      .set("Cookie", `synchron_github_session=${ownerSession.id}`)
+      .send({ sessionId: "memory-stop", message: "Запомни: пия чай без захар" })
+      .expect(200);
+    assert.match(response.text, /Потвърждавам постоянен запис/u);
     assert.deepEqual(await profileFor("primary-user"), []);
   } finally {
     globalThis.fetch = originalFetch;
-    server.closeAllConnections();
-    server.close();
   }
 });

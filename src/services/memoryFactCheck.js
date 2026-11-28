@@ -1,9 +1,10 @@
 import {
-  DEFAULT_GEMINI_CHAT_MODEL,
-  DEFAULT_OPENAI_PLANNER_MODEL,
-  requestGeminiResponse,
-  requestOpenAIResponse,
+  requestAiResponse,
 } from "./novariumService.js";
+import {
+  isVertexAiConfigured,
+  resolveVertexAiModel,
+} from "./vertexAiGeminiService.js";
 import { outsidePublicAiBudget } from "./publicAiBudget.js";
 
 // The person's own „Запомни: …“ is their „да“ and is written at once (РАДКО
@@ -13,17 +14,13 @@ import { outsidePublicAiBudget } from "./publicAiBudget.js";
 // after the word rule (isOwnMemoryCommand) one small model call reads the
 // message too, and only its clear „only facts“ writes at once. A „no“, an
 // unclear answer, an error, a slow answer or no model keeps the one-time
-// confirmation: in doubt it asks, never writes. Gemini first, OpenAI when
-// Gemini is missing or fails, the same order as the voice. The check is the
+// confirmation: in doubt it asks, never writes. The check is the
 // site's own, so it never costs the person units; a daily count of its own
 // (allowCheck, productPlansService.useMemoryCheck) keeps the bill bounded,
 // and past it the confirmation stays.
 
-// The whole check, both models together: the person waits at most this
-// long. The first model gets at most 60 % of it when another one follows, so
-// OpenAI still has time when Gemini hangs.
+// The person waits at most this long.
 export const MEMORY_FACT_CHECK_TIMEOUT_MS = 5000;
-const FIRST_MODEL_SHARE = 0.6;
 // The answer is a few words of JSON; the cap only bounds a runaway answer.
 export const MEMORY_FACT_CHECK_OUTPUT_TOKENS = 512;
 
@@ -96,8 +93,7 @@ export async function confirmPlainMemoryFacts({
   env = process.env,
   fetchImpl = fetch,
   timeoutMs = MEMORY_FACT_CHECK_TIMEOUT_MS,
-  gemini = requestGeminiResponse,
-  openai = requestOpenAIResponse,
+  vertex = requestAiResponse,
   allowCheck = async () => true,
   // The person's request: when it ends, the check ends with false.
   signal,
@@ -106,33 +102,21 @@ export async function confirmPlainMemoryFacts({
   const items = Array.isArray(facts) ? facts.filter((fact) => typeof fact === "string" && fact.trim()) : [];
   if (!text || !items.length) return false;
   const input = buildMemoryFactCheckInput({ message: text, facts: items });
-  const readers = [
-    env.GEMINI_API_KEY
-      ? (signal) =>
-          gemini({
-            apiKey: env.GEMINI_API_KEY,
-            model: env.GEMINI_MEMORY_CHECK_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
-            input,
-            fetchImpl,
-            signal,
-            jsonMode: true,
-            maxOutputTokens: MEMORY_FACT_CHECK_OUTPUT_TOKENS,
-          })
-      : null,
-    env.OPENAI_API_KEY
-      ? (signal) =>
-          openai({
-            apiKey: env.OPENAI_API_KEY,
-            model: env.OPENAI_PLANNER_MODEL || DEFAULT_OPENAI_PLANNER_MODEL,
+  const readers = isVertexAiConfigured(env)
+    ? [
+        (signal) =>
+          vertex({
+            provider: "vertex-gemini",
+            env,
+            model: env.GEMINI_MEMORY_CHECK_MODEL || resolveVertexAiModel(env),
             input,
             fetchImpl,
             signal,
             outputSchema: MEMORY_FACT_CHECK_SCHEMA,
-            outputSchemaName: "novarium_memory_fact_check",
             maxOutputTokens: MEMORY_FACT_CHECK_OUTPUT_TOKENS,
-          })
-      : null,
-  ].filter(Boolean);
+          }),
+      ]
+    : [];
   if (!readers.length || signal?.aborted) return false;
   // Counted only when a model would really be asked. Used up, or the count
   // failed: no call, the confirmation stays.
@@ -142,13 +126,13 @@ export async function confirmPlainMemoryFacts({
     return false;
   }
   const deadline = Date.now() + timeoutMs;
-  for (const [index, read] of readers.entries()) {
+  for (const read of readers) {
     const left = deadline - Date.now();
     if (left <= 0 || signal?.aborted) return false;
-    const limit =
-      index < readers.length - 1 ? Math.min(left, Math.ceil(timeoutMs * FIRST_MODEL_SHARE)) : left;
     try {
-      const response = await outsidePublicAiBudget(() => askWithTimeout(read, limit, signal));
+      const response = await outsidePublicAiBudget(() =>
+        askWithTimeout(read, left, signal),
+      );
       const verdict = parseMemoryFactCheck(response?.text);
       // A clear answer from the first model is final; only a failed or
       // unclear one goes on to the next.

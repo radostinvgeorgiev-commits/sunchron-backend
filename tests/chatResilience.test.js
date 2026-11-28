@@ -670,11 +670,9 @@ test("Work uses stored project conversations and ignores client-provided links",
   assert.equal(input.at(-1).content, "Обобщи контекста.");
 });
 
-test("Work keeps trying available models when a selected model fails and another times out", async (t) => {
+test("Work retries only Google providers when a selected model is unavailable", async (t) => {
   const config = {
     AI_CORE_PROVIDER: "grok",
-    OPENAI_CHAT_MODEL: "gpt-5.6-terra",
-    OPENAI_TIMEOUT_MS: "15",
     GEMINI_API_KEY: "test-gemini",
     GROK_API_KEY: "test-grok",
   };
@@ -692,25 +690,16 @@ test("Work keeps trying available models when a selected model fails and another
   const calls = [];
   t.mock.method(globalThis, "fetch", async (url, options) => {
     const host = new URL(url).hostname;
-    calls.push(
-      host === "api.openai.com" ? JSON.parse(options.body).model : host,
-    );
-    if (host === "api.openai.com") {
-      if (calls.length === 1) return new Response(null, { status: 404 });
-      await new Promise((resolve, reject) => {
-        options.signal.addEventListener(
-          "abort",
-          () => reject(options.signal.reason),
-          { once: true },
-        );
-      });
-    }
-    if (host === "generativelanguage.googleapis.com")
-      return new Response(null, { status: 503 });
-    assert.equal(host, "api.x.ai");
+    calls.push(host);
+    assert.equal(host, "generativelanguage.googleapis.com");
     return Response.json({
-      model: "grok-test",
-      choices: [{ message: { content: "Работният чат отговаря." } }],
+      candidates: [
+        {
+          content: {
+            parts: [{ text: "Работният чат отговаря." }],
+          },
+        },
+      ],
     });
   });
 
@@ -728,14 +717,9 @@ test("Work keeps trying available models when a selected model fails and another
     })
     .expect(200);
 
-  assert.deepEqual(calls, [
-    "gpt-5.6-sol",
-    "gpt-5.6-terra",
-    "generativelanguage.googleapis.com",
-    "api.x.ai",
-  ]);
+  assert.deepEqual(calls, ["generativelanguage.googleapis.com"]);
   assert.match(response.text, /Работният чат отговаря\./u);
-  assert.match(response.text, /"provider":"grok","model":"grok-test"/u);
+  assert.match(response.text, /"provider":"gemini"/u);
   assert.doesNotMatch(response.text, /event: error/u);
 });
 

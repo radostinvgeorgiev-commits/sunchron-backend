@@ -3944,7 +3944,7 @@ router.post("/chat", async (req, res) => {
       attempts.push({ provider: aiProvider });
     }
     if (!capabilityResults.length) {
-      for (const provider of ["gemini", "openai", "grok", "vertex-gemini"]) {
+      for (const provider of ["gemini", "vertex-gemini", "vertex-open"]) {
         if (provider !== aiProvider && isAiProviderConfigured(provider)) {
           attempts.push({ provider });
         }

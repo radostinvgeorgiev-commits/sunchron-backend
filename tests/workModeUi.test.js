@@ -69,7 +69,7 @@ test("Chat and Work are available with projects and agents, without pets", async
   assert.match(workMode, /name: "Организирай"/u);
   assert.match(workMode, /name: "Напиши"/u);
   assert.match(workMode, /documents: "Документи и поща"/u);
-  assert.match(workMode, /codex: "Claude код · анализ и branch\/PR"/u);
+  assert.match(workMode, /codex: "Google код · анализ и branch\/PR"/u);
   assert.match(workMode, /\/api\/workspaces/u);
   assert.match(workMode, /защитения ти профил/u);
   assert.match(workMode, /function recordActivity/u);
@@ -218,7 +218,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
     .closest("form");
   agentForm.querySelector("input").value = "Тестов ръководител";
   agentForm.querySelector("#newWorkAgentRole").value = "organizer";
-  agentForm.querySelector("#newWorkAgentModel").value = "gpt-5.6-sol";
+  agentForm.querySelector("#newWorkAgentModel").value = "vertex-gemini-2.5-flash";
   agentForm.querySelector("#newWorkAgentEngine").value = "codex";
   agentForm.querySelector("textarea").value = "Води проверимите етапи";
   agentForm.dispatchEvent(
@@ -227,7 +227,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
 
   const agentPayload = dom.window.SynchronWorkMode.getRequestPayload();
   assert.equal(agentPayload.workContext.agent.name, "Тестов ръководител");
-  assert.equal(agentPayload.workContext.agent.model, "gpt-5.6-sol");
+  assert.equal(agentPayload.workContext.agent.model, "vertex-gemini-2.5-flash");
   assert.equal(agentPayload.workContext.agent.engine, "codex");
   assert.equal(agentPayload.workContext.agent.petId, undefined);
 
@@ -240,7 +240,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   const editForm = dom.window.document.querySelector(".work-agent-edit-form");
   editForm.querySelector("#editWorkAgentName").value = "Обновен ръководител";
   editForm.querySelector("#editWorkAgentRole").value = "builder";
-  editForm.querySelector("#editWorkAgentModel").value = "gpt-5.6-terra";
+  editForm.querySelector("#editWorkAgentModel").value = "vertex-gemini-2.5-flash";
   editForm.querySelector("#editWorkAgentEngine").value = "novarium";
   assert.equal(editForm.querySelector("#editWorkAgentPet"), null);
   editForm.querySelector("#editWorkAgentPurpose").value =
@@ -252,7 +252,7 @@ test("work mode runs in the browser and creates an isolated project payload", as
   const editedPayload = dom.window.SynchronWorkMode.getRequestPayload();
   assert.equal(editedPayload.workContext.agent.name, "Обновен ръководител");
   assert.equal(editedPayload.workContext.agent.role, "builder");
-  assert.equal(editedPayload.workContext.agent.model, "gpt-5.6-terra");
+  assert.equal(editedPayload.workContext.agent.model, "vertex-gemini-2.5-flash");
   assert.equal(editedPayload.workContext.agent.engine, "novarium");
   assert.equal(
     editedPayload.workContext.agent.purpose,

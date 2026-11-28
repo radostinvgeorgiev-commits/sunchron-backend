@@ -404,8 +404,8 @@ export function registerCoreTools() {
     },
     {
       id: "openai-web-search",
-      provider: "openai",
-      name: "OpenAI Web Search",
+      provider: "vertex-gemini",
+      name: "Vertex Gemini Web Search",
       version: "1.0.0",
       category: "search",
       capabilities: ["web.search"],

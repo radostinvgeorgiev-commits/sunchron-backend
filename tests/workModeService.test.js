@@ -82,7 +82,7 @@ test("work prompt keeps user context below permissions and real execution", () =
   assert.match(prompt, /не отменя разрешенията, потвържденията/u);
   assert.match(prompt, /без реално изпълнение/u);
   assert.match(prompt, /Активен проект: Сайт/u);
-  assert.match(prompt, /Модел: GPT-5\.6 Sol/u);
+  assert.match(prompt, /Модел: Vertex Gemini \(Google Cloud\)/u);
   assert.match(prompt, /Последен проверен резултат: Проверена е структурата/u);
   assert.match(prompt, /Предложена следваща стъпка: Добави един тест/u);
 });
@@ -92,39 +92,22 @@ test("the available personal-agent models are explicit and server-owned", () => 
     listWorkAgentModels().map(({ id }) => id),
     [
       "auto",
-      "gpt-5.6-sol",
-      "gpt-5.6-terra",
-      "gpt-5.6-luna",
-      "gpt-4.1-mini",
-      "claude-haiku-4-5-20251001",
-      "claude-sonnet-5-5",
-      "claude-opus-5-5",
-      "gemini-2.5-flash-lite",
-      "grok-3-mini",
-      "gemini-2.5-flash",
-      "vertex-gpt-oss-120b",
-      "vertex-gemma-4-26b",
-      "vertex-deepseek-v4.1-flash",
-      "vertex-glm-5.2",
       "vertex-gemini-2.5-flash",
-      "grok-4.5",
+      "vertex-gemma-4-26b",
     ],
   );
-  assert.equal(resolveWorkAgentModel("gpt-5.6-sol"), "gpt-5.6-sol");
-  assert.equal(resolveWorkAgentModel("gpt-5.6-terra"), "gpt-5.6-terra");
-  assert.equal(resolveWorkAgentModel("gemini-2.5-flash"), "gemini-3.8-flash");
-  // Google retired gemini-2.5-flash; the Vertex agent follows the runtime model.
+  assert.equal(resolveWorkAgentModel("gpt-5.6-sol"), undefined);
+  assert.equal(resolveWorkAgentModel("claude-opus-5-5"), undefined);
+  assert.equal(resolveWorkAgentModel("vertex-gemma-4-26b"), "google/gemma-4-26b-a4b-it-maas");
   assert.equal(resolveWorkAgentModel("vertex-gemini-2.5-flash"), undefined);
-  assert.equal(resolveWorkAgentModel("grok-4.5"), "grok-4.5");
-  assert.equal(resolveWorkAgentModel("claude-opus-5-5"), "claude-opus-5-5");
-  assert.equal(resolveWorkAgentProvider("claude-sonnet-5-5"), "claude");
-  assert.equal(resolveWorkAgentProvider("gpt-5.6-sol"), "openai");
-  assert.equal(resolveWorkAgentProvider("gemini-2.5-flash"), "gemini");
+  assert.equal(resolveWorkAgentProvider("claude-sonnet-5-5"), "vertex-gemini");
+  assert.equal(resolveWorkAgentProvider("gpt-5.6-sol"), "vertex-gemini");
+  assert.equal(resolveWorkAgentProvider("gemini-2.5-flash"), "vertex-gemini");
   assert.equal(
     resolveWorkAgentProvider("vertex-gemini-2.5-flash"),
     "vertex-gemini",
   );
-  assert.equal(resolveWorkAgentProvider("grok-4.5"), "grok");
+  assert.equal(resolveWorkAgentProvider("grok-4.5"), "vertex-gemini");
   assert.equal(resolveWorkAgentProvider("auto"), undefined);
   assert.equal(resolveWorkAgentModel("unknown"), undefined);
   assert.equal(resolveWorkAgentModel("auto"), undefined);
@@ -279,7 +262,7 @@ test("active work context questions use verified state instead of chat history",
     reply,
     [
       "Агент: NovariumAI Ръководител SOL",
-      "Модел: GPT-5.6 Sol",
+      "Модел: Vertex Gemini (Google Cloud)",
       "Роля: Организатор",
       "Изпълнител: NovariumAI",
       "Проект: NovariumAI развитие",

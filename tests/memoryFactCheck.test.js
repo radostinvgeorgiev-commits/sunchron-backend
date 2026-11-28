@@ -11,16 +11,15 @@ const {
   parseMemoryFactCheck,
 } = await import("../src/services/memoryFactCheck.js");
 const { createPublicAiBudgetContext } = await import("../src/services/publicAiBudget.js");
-const {
-  DEFAULT_GEMINI_CHAT_MODEL,
-  DEFAULT_OPENAI_PLANNER_MODEL,
-  requestGeminiResponse,
-} = await import("../src/services/novariumService.js");
+const { reservePublicAiCall } = await import("../src/services/publicAiBudget.js");
 
 const MESSAGE = "Запомни: пия чай без захар";
 const FACTS = ["пия чай без захар"];
-// Test values only: the check never sees a real key here.
-const BOTH_KEYS = Object.freeze({ GEMINI_API_KEY: "test-gemini", OPENAI_API_KEY: "test-openai" });
+const VERTEX_ENV = Object.freeze({
+  VERTEX_AI_ENABLED: "true",
+  VERTEX_AI_PROJECT_ID: "project-123",
+  VERTEX_AI_MODEL: "gemini-2.5-flash",
+});
 
 const answer = (text) => async () => ({ text });
 const mustNotAsk = async () => {
@@ -99,7 +98,7 @@ test("with no model to ask, nothing is written at once", async () => {
     return { text: '{"onlyFacts": true}' };
   };
   assert.equal(
-    await confirmPlainMemoryFacts({ message: MESSAGE, facts: FACTS, env: {}, gemini: ask, openai: ask }),
+    await confirmPlainMemoryFacts({ message: MESSAGE, facts: FACTS, env: {}, vertex: ask }),
     false,
   );
   assert.equal(calls, 0);
@@ -115,26 +114,26 @@ test("an empty message or no words to save is never sent to a model", async () =
     [undefined, FACTS],
   ]) {
     assert.equal(
-      await confirmPlainMemoryFacts({ message, facts, env: BOTH_KEYS, gemini: mustNotAsk, openai: mustNotAsk }),
+      await confirmPlainMemoryFacts({ message, facts, env: VERTEX_ENV, vertex: mustNotAsk }),
       false,
     );
   }
 });
 
-test("Gemini is asked first, in JSON, with the check's own model", async () => {
+test("Vertex Gemini is asked with a strict JSON schema and the configured model", async () => {
   const seen = [];
-  const gemini = async (options) => {
+  const vertex = async (options) => {
     seen.push(options);
     return { text: '{"onlyFacts": true}' };
   };
   assert.equal(
-    await confirmPlainMemoryFacts({ message: MESSAGE, facts: FACTS, env: BOTH_KEYS, gemini, openai: mustNotAsk }),
+    await confirmPlainMemoryFacts({ message: MESSAGE, facts: FACTS, env: VERTEX_ENV, vertex }),
     true,
   );
   assert.equal(seen.length, 1);
-  assert.equal(seen[0].apiKey, "test-gemini");
-  assert.equal(seen[0].model, DEFAULT_GEMINI_CHAT_MODEL);
-  assert.equal(seen[0].jsonMode, true);
+  assert.equal(seen[0].provider, "vertex-gemini");
+  assert.equal(seen[0].model, "gemini-2.5-flash");
+  assert.deepEqual(seen[0].outputSchema, MEMORY_FACT_CHECK_SCHEMA);
   assert.equal(seen[0].maxOutputTokens, MEMORY_FACT_CHECK_OUTPUT_TOKENS);
   assert.ok(seen[0].signal instanceof AbortSignal);
   assert.deepEqual(seen[0].input, buildMemoryFactCheckInput({ message: MESSAGE, facts: FACTS }));
@@ -143,9 +142,8 @@ test("Gemini is asked first, in JSON, with the check's own model", async () => {
   await confirmPlainMemoryFacts({
     message: MESSAGE,
     facts: FACTS,
-    env: { ...BOTH_KEYS, GEMINI_MEMORY_CHECK_MODEL: "gemini-check-model" },
-    gemini,
-    openai: mustNotAsk,
+    env: { ...VERTEX_ENV, GEMINI_MEMORY_CHECK_MODEL: "gemini-check-model" },
+    vertex,
   });
   assert.equal(seen[0].model, "gemini-check-model");
 });
@@ -155,50 +153,52 @@ test("a clear „no“ from the first model is final", async () => {
     await confirmPlainMemoryFacts({
       message: "Запомни: искам такси за летището",
       facts: ["искам такси за летището"],
-      env: BOTH_KEYS,
-      gemini: answer('{"onlyFacts": false}'),
-      openai: mustNotAsk,
+      env: VERTEX_ENV,
+      vertex: answer('{"onlyFacts": false}'),
     }),
     false,
   );
 });
 
-test("OpenAI answers when Gemini fails, is unclear or has no key", async () => {
-  const cases = [
-    { env: BOTH_KEYS, gemini: async () => { throw new Error("Gemini върна грешка 503."); } },
-    { env: BOTH_KEYS, gemini: answer("Only facts.") },
-    { env: BOTH_KEYS, gemini: answer('{"onlyFacts": "yes"}') },
-    { env: { OPENAI_API_KEY: "test-openai" }, gemini: mustNotAsk },
-  ];
-  for (const { env, gemini } of cases) {
-    const seen = [];
-    const openai = async (options) => {
-      seen.push(options);
-      return { text: '{"onlyFacts": true}' };
-    };
-    assert.equal(await confirmPlainMemoryFacts({ message: MESSAGE, facts: FACTS, env, gemini, openai }), true);
-    assert.equal(seen.length, 1);
-    assert.equal(seen[0].apiKey, "test-openai");
-    assert.equal(seen[0].model, DEFAULT_OPENAI_PLANNER_MODEL);
-    assert.equal(seen[0].outputSchemaName, "novarium_memory_fact_check");
-    assert.deepEqual(seen[0].outputSchema, MEMORY_FACT_CHECK_SCHEMA);
-    assert.equal(seen[0].maxOutputTokens, MEMORY_FACT_CHECK_OUTPUT_TOKENS);
-    assert.ok(seen[0].signal instanceof AbortSignal);
-  }
+test("a missing or invalid Vertex configuration never falls back to external keys", async () => {
+  let calls = 0;
+  const vertex = async () => {
+    calls += 1;
+    return { text: '{"onlyFacts": true}' };
+  };
+  assert.equal(
+    await confirmPlainMemoryFacts({
+      message: MESSAGE,
+      facts: FACTS,
+      env: { OPENAI_API_KEY: "test-openai", ANTHROPIC_API_KEY: "test-claude" },
+      vertex,
+    }),
+    false,
+  );
+  assert.equal(
+    await confirmPlainMemoryFacts({
+      message: MESSAGE,
+      facts: FACTS,
+      env: { ...VERTEX_ENV, VERTEX_AI_PROJECT_ID: "bad project" },
+      vertex,
+    }),
+    false,
+  );
+  assert.equal(calls, 0);
 });
 
 test("when every model fails or is unclear, the confirmation stays", async () => {
   const fail = async () => {
     throw new Error("network down");
   };
-  for (const [gemini, openai] of [
-    [fail, fail],
-    [fail, answer("I think so")],
-    [answer(""), fail],
-    [answer("yes"), answer("no")],
+  for (const vertex of [
+    fail,
+    answer("I think so"),
+    answer(""),
+    answer("yes"),
   ]) {
     assert.equal(
-      await confirmPlainMemoryFacts({ message: MESSAGE, facts: FACTS, env: BOTH_KEYS, gemini, openai }),
+      await confirmPlainMemoryFacts({ message: MESSAGE, facts: FACTS, env: VERTEX_ENV, vertex }),
       false,
     );
   }
@@ -207,38 +207,21 @@ test("when every model fails or is unclear, the confirmation stays", async () =>
 test("a slow model is given up after the time limit", async () => {
   let aborted = 0;
   const hang = ({ signal }) =>
-    new Promise(() => {
-      signal.addEventListener("abort", () => {
-        aborted += 1;
-      });
-    });
+    new Promise(() => signal.addEventListener("abort", () => { aborted += 1; }));
   const started = Date.now();
   assert.equal(
     await confirmPlainMemoryFacts({
       message: MESSAGE,
       facts: FACTS,
-      env: BOTH_KEYS,
+      env: VERTEX_ENV,
       timeoutMs: 30,
-      gemini: hang,
-      openai: hang,
+      vertex: hang,
     }),
     false,
   );
-  assert.equal(aborted, 2);
+  assert.equal(aborted, 1);
   assert.ok(Date.now() - started < 2000, "the check waited too long");
 
-  // A slow Gemini does not stop OpenAI's clear answer.
-  assert.equal(
-    await confirmPlainMemoryFacts({
-      message: MESSAGE,
-      facts: FACTS,
-      env: BOTH_KEYS,
-      timeoutMs: 30,
-      gemini: hang,
-      openai: answer('{"onlyFacts": true}'),
-    }),
-    true,
-  );
 });
 
 test("the check costs a member no units and none of their attempts", async () => {
@@ -256,11 +239,10 @@ test("the check costs a member no units and none of their attempts", async () =>
         Promise.resolve().then(work).then(resolve, reject);
       });
     });
-  const geminiFetch = async () =>
-    new Response(
-      JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"onlyFacts": true}' }] } }] }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
+  const vertex = async ({ input }) => {
+    await reservePublicAiCall(input, "vertex-gemini", "gemini-2.5-flash");
+    return { text: '{"onlyFacts": true}' };
+  };
 
   const verdicts = await asMember(async () => {
     const results = [];
@@ -270,17 +252,17 @@ test("the check costs a member no units and none of their attempts", async () =>
         await confirmPlainMemoryFacts({
           message: MESSAGE,
           facts: FACTS,
-          env: { GEMINI_API_KEY: "test-gemini" },
-          fetchImpl: geminiFetch,
+          env: VERTEX_ENV,
+          vertex,
         }),
       );
     }
     // The member's own call after them still has its attempt and is paid.
-    await requestGeminiResponse({
-      apiKey: "test-gemini",
-      input: [{ role: "user", content: "здравей" }],
-      fetchImpl: geminiFetch,
-    });
+    await reservePublicAiCall(
+      [{ role: "user", content: "здравей" }],
+      "vertex-gemini",
+      "gemini-2.5-flash",
+    );
     return results;
   });
   assert.deepEqual(verdicts, Array(7).fill(true));
@@ -299,27 +281,26 @@ test("the daily count is asked once, before any model, and only when one would b
   const fail = async () => {
     throw new Error("Gemini върна грешка 503.");
   };
-  // Gemini fails and OpenAI answers: still one count for the one check.
+  // A failed Vertex check is counted once and keeps the confirmation.
   assert.equal(
     await confirmPlainMemoryFacts({
       message: MESSAGE,
       facts: FACTS,
-      env: BOTH_KEYS,
-      gemini: fail,
-      openai: answer('{"onlyFacts": true}'),
+      env: VERTEX_ENV,
+      vertex: fail,
       allowCheck,
     }),
-    true,
+    false,
   );
   assert.equal(counted, 1);
   // No key, an empty message or no words: nothing to ask, nothing counted.
   for (const options of [
     { message: MESSAGE, facts: FACTS, env: {} },
-    { message: " ", facts: FACTS, env: BOTH_KEYS },
-    { message: MESSAGE, facts: [], env: BOTH_KEYS },
+    { message: " ", facts: FACTS, env: VERTEX_ENV },
+    { message: MESSAGE, facts: [], env: VERTEX_ENV },
   ]) {
     assert.equal(
-      await confirmPlainMemoryFacts({ ...options, gemini: mustNotAsk, openai: mustNotAsk, allowCheck }),
+      await confirmPlainMemoryFacts({ ...options, vertex: mustNotAsk, allowCheck }),
       false,
     );
   }
@@ -339,9 +320,8 @@ test("a used-up or failed daily count keeps the confirmation and asks no model",
       await confirmPlainMemoryFacts({
         message: MESSAGE,
         facts: FACTS,
-        env: BOTH_KEYS,
-        gemini: mustNotAsk,
-        openai: mustNotAsk,
+        env: VERTEX_ENV,
+        vertex: mustNotAsk,
         allowCheck,
       }),
       false,
@@ -349,64 +329,42 @@ test("a used-up or failed daily count keeps the confirmation and asks no model",
   }
 });
 
-test("both models get a small output cap, also outside a member's budget", async () => {
-  const bodies = [];
-  const fetchImpl = async (url, init) => {
-    bodies.push({ url: String(url), body: JSON.parse(init.body) });
-    return String(url).includes("generativelanguage")
-      ? Response.json({ candidates: [{ content: { parts: [{ text: "not json" }] } }] })
-      : Response.json({ output_text: '{"onlyFacts": true}' });
-  };
+test("the Vertex request has a small output cap and structured output schema", async () => {
+  let request;
   assert.equal(
-    await confirmPlainMemoryFacts({ message: MESSAGE, facts: FACTS, env: BOTH_KEYS, fetchImpl }),
+    await confirmPlainMemoryFacts({
+      message: MESSAGE,
+      facts: FACTS,
+      env: VERTEX_ENV,
+      vertex: async (options) => {
+        request = options;
+        return { text: '{"onlyFacts": true}' };
+      },
+    }),
     true,
   );
-  assert.equal(bodies.length, 2);
-  assert.equal(bodies[0].body.generationConfig.maxOutputTokens, MEMORY_FACT_CHECK_OUTPUT_TOKENS);
-  assert.equal(bodies[0].body.generationConfig.responseMimeType, "application/json");
-  assert.equal(bodies[1].body.max_output_tokens, MEMORY_FACT_CHECK_OUTPUT_TOKENS);
+  assert.equal(request.provider, "vertex-gemini");
+  assert.equal(request.maxOutputTokens, MEMORY_FACT_CHECK_OUTPUT_TOKENS);
+  assert.deepEqual(request.outputSchema, MEMORY_FACT_CHECK_SCHEMA);
 });
 
 const hangUntilAborted = ({ signal }) =>
   new Promise((_, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true }));
 
-// The person waits at most the time limit for the whole check, both models
-// together; the first one gets at most 60 % of it, so OpenAI still has time.
-test("both models share one time limit, and the first leaves time for the second", async () => {
+test("the Vertex check ends within its time limit", async () => {
   const started = Date.now();
   assert.equal(
     await confirmPlainMemoryFacts({
       message: MESSAGE,
       facts: FACTS,
-      env: BOTH_KEYS,
+      env: VERTEX_ENV,
       timeoutMs: 300,
-      gemini: hangUntilAborted,
-      openai: hangUntilAborted,
+      vertex: hangUntilAborted,
     }),
     false,
   );
   const took = Date.now() - started;
   assert.ok(took < 450, `the check waited ${took} ms`);
-
-  let geminiGaveUpAt = 0;
-  const begin = Date.now();
-  assert.equal(
-    await confirmPlainMemoryFacts({
-      message: MESSAGE,
-      facts: FACTS,
-      env: BOTH_KEYS,
-      timeoutMs: 300,
-      gemini: async (options) => {
-        await hangUntilAborted(options).catch(() => {
-          geminiGaveUpAt = Date.now() - begin;
-        });
-        throw new Error("timeout");
-      },
-      openai: answer('{"onlyFacts": true}'),
-    }),
-    true,
-  );
-  assert.ok(geminiGaveUpAt >= 150 && geminiGaveUpAt < 260, `Gemini was given ${geminiGaveUpAt} ms`);
 });
 
 // „Спри“ or a closed page ends the person's request: the call stops, and a
@@ -414,7 +372,7 @@ test("both models share one time limit, and the first leaves time for the second
 test("the person's stop ends the check, and a yes after it does not count", async () => {
   const stop = new AbortController();
   let aborted = false;
-  const gemini = ({ signal }) =>
+  const vertex = ({ signal }) =>
     new Promise((resolve) => {
       signal.addEventListener("abort", () => {
         aborted = true;
@@ -426,9 +384,8 @@ test("the person's stop ends the check, and a yes after it does not count", asyn
     await confirmPlainMemoryFacts({
       message: MESSAGE,
       facts: FACTS,
-      env: BOTH_KEYS,
-      gemini,
-      openai: mustNotAsk,
+      env: VERTEX_ENV,
+      vertex,
       signal: stop.signal,
     }),
     false,
@@ -441,9 +398,8 @@ test("the person's stop ends the check, and a yes after it does not count", asyn
     await confirmPlainMemoryFacts({
       message: MESSAGE,
       facts: FACTS,
-      env: BOTH_KEYS,
-      gemini: mustNotAsk,
-      openai: mustNotAsk,
+      env: VERTEX_ENV,
+      vertex: mustNotAsk,
       signal: AbortSignal.abort(),
       allowCheck: async () => {
         counted += 1;

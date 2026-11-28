@@ -14,9 +14,13 @@ const KEYS = [
   "GOOGLE_CLOUD_PROJECT",
   "GITHUB_CLIENT_ID",
   "GITHUB_CLIENT_SECRET",
+  "VERTEX_AI_ENABLED",
+  "VERTEX_AI_PROJECT_ID",
+  "VERTEX_AI_LOCATION",
+  "VERTEX_AI_MODEL",
 ];
 
-test("integration status exposes Google Cloud and the three-engine code council without secrets", () => {
+test("integration status exposes Google Cloud and Vertex code readiness without secrets", () => {
   const original = Object.fromEntries(
     KEYS.map((key) => [key, process.env[key]]),
   );
@@ -34,9 +38,9 @@ test("integration status exposes Google Cloud and the three-engine code council 
     assert.equal(status.core.memory.backend, "firestore");
     assert.equal(status.tools.length, 22);
     const codeWrite = status.tools.find(({ id }) => id === "github-write");
-    assert.equal(codeWrite.configured, true);
+    assert.equal(codeWrite.configured, false);
     assert.equal(codeWrite.authenticated, true);
-    assert.equal(codeWrite.healthStatus, "healthy");
+    assert.equal(codeWrite.healthStatus, "unavailable");
     const cloud = status.tools.find(({ id }) => id === "google-cloud-read");
     assert.equal(cloud.configured, true);
     const cloudWrite = status.tools.find(
@@ -54,13 +58,14 @@ test("integration status exposes Google Cloud and the three-engine code council 
   }
 });
 
-test("NovariumAI Code Write is configured when one engine is available", () => {
+test("NovariumAI Code Write requires Vertex Gemini configuration", () => {
   const original = Object.fromEntries(
     KEYS.map((key) => [key, process.env[key]]),
   );
-  process.env.OPENAI_API_KEY = "openai";
-  delete process.env.GEMINI_API_KEY;
-  delete process.env.GROK_API_KEY;
+  process.env.VERTEX_AI_ENABLED = "true";
+  process.env.VERTEX_AI_PROJECT_ID = "novarium-test-12345";
+  process.env.VERTEX_AI_LOCATION = "us-central1";
+  process.env.VERTEX_AI_MODEL = "gemini-2.5-flash";
   process.env.GITHUB_CLIENT_ID = "client";
   process.env.GITHUB_CLIENT_SECRET = "secret";
   resetToolRegistryForTests();

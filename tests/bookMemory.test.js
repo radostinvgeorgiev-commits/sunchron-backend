@@ -425,12 +425,14 @@ test("the panel names things for the chosen specialist, in every language of the
 
 test("every other specialist's check sends all facts that hold, so an allergy is checked without its name", async () => {
   const sent = [];
+  const checks = [];
   const service = createBookMemoryService({
     store: memoryStore(),
     createId: ids(),
     askAi: async ({ input }) => {
       sent.push(input[1].content);
-      return '{"issues":[]}';
+      if (/"issues"/u.test(input[0].content)) checks.push(input[1].content);
+      return /"issues"/u.test(input[0].content) ? '{"issues":[]}' : "Баклава с орехи за неделя.";
     },
   });
   // The chef keeps an allergy as kind "place" (Алергия); the recipe never
@@ -441,10 +443,15 @@ test("every other specialist's check sends all facts that hold, so an allergy is
   assert.equal(sent.length, 1, "the allergy reached the check");
   assert.match(sent[0], /алергично към ядки/u);
   assert.match(sent[0], /\| Алергия \|/u, "the memory line names the chef's kind");
-  // The draft is checked the same way.
+  // The draft is checked the same way: its check gets the allergy too,
+  // though the draft never says "ядки".
   sent.length = 0;
-  await service.draftChapter("maria", kitchen.id, { number: 1, plan: "Сладкиш за неделя." });
-  assert.ok(sent.some((content) => /алергично към ядки/u.test(content)), "the draft check saw the allergy");
+  checks.length = 0;
+  const draft = await service.draftChapter("maria", kitchen.id, { number: 1, plan: "Сладкиш за неделя." });
+  assert.equal(draft.text, "Баклава с орехи за неделя.");
+  assert.equal(checks.length, 1, "the draft was checked");
+  assert.match(checks[0], /алергично към ядки/u, "the draft check saw the allergy");
+  assert.match(checks[0], /\[ГЛАВА\]\nБаклава с орехи за неделя\.\n/u, "and it checked the draft");
   // The writer is as before: a hero the chapter does not name is not sent.
   sent.length = 0;
   const book = await service.createBook("maria", "Книга");
@@ -452,6 +459,80 @@ test("every other specialist's check sends all facts that hold, so an allergy is
   const result = await service.checkChapter("maria", book.id, { text: "Иван отиде до морето." });
   assert.equal(sent.length, 0);
   assert.equal(result.score, 100);
+});
+
+test("past 80 facts an allergy, a doctor's instruction and a medicine still reach the check and the draft", async () => {
+  const sent = [];
+  const service = createBookMemoryService({
+    store: memoryStore(),
+    createId: ids(),
+    askAi: async ({ input }) => {
+      sent.push(input.map((line) => line.content).join("\n"));
+      return /"issues"/u.test(input[0].content) ? '{"issues":[]}' : "Днес пих лекарството.";
+    },
+  });
+  // 85 test values first, then the allergy: saved last, it is still sent.
+  const diary = await service.createBook("maria", "Дневник", "doctor");
+  const values = Array.from({ length: 85 }, (_, index) => ({ kind: "event", name: `Изследване ${index + 1}`, text: `Хемоглобин ${120 + index} g/L.` }));
+  await service.addFacts("maria", diary.id, values);
+  await service.addFacts("maria", diary.id, [{ kind: "place", name: "Пеницилин", text: "Алергия към пеницилин: обрив и задух." }]);
+  await service.checkChapter("maria", diary.id, { text: "Днес лекарят ми предписа амоксицилин 500 мг три пъти дневно." });
+  assert.equal(sent.length, 1);
+  assert.match(sent[0], /Алергия към пеницилин/u);
+  sent.length = 0;
+  await service.draftChapter("maria", diary.id, { number: 1, plan: "Какво пих днес." });
+  assert.match(sent[0], /Алергия към пеницилин/u, "the draft's own facts hold the allergy");
+  assert.equal(sent.length, 2, "the draft was checked");
+  assert.match(sent[1], /"issues"/u);
+  assert.match(sent[1], /Алергия към пеницилин/u, "and so does the draft's check");
+  // The chef's nut allergy after 85 products, the same way.
+  sent.length = 0;
+  const kitchen = await service.createBook("maria", "Кухня", "chef");
+  await service.addFacts("maria", kitchen.id, Array.from({ length: 85 }, (_, index) => ({ kind: "character", name: `Продукт ${index + 1}`, text: `В хладилника има продукт ${index + 1}.` })));
+  await service.addFacts("maria", kitchen.id, [{ kind: "place", name: "Ядки", text: "Детето е алергично към ядки." }]);
+  await service.checkChapter("maria", kitchen.id, { text: "Добави 2 с.л. бадемово масло към соса." });
+  assert.match(sent[0], /алергично към ядки/u);
+  // Never more than 80 facts in one check.
+  const { holdingFacts } = await import("../src/services/bookMemoryService.js");
+  const facts = (await service.list("maria")).find((book) => book.id === diary.id).facts;
+  const picked = holdingFacts(facts, "текст", 1, ["place", "rule", "character"]);
+  assert.equal(picked.length, BOOK_LIMITS.factsPerCheck);
+  assert.equal(picked[0].name, "Пеницилин");
+  assert.equal(new Set(picked).size, picked.length, "no fact twice");
+});
+
+test("one record holds every project's facts, so it stops growing before Firestore's 1 MiB, and a delete still works", async () => {
+  const store = memoryStore();
+  const service = createBookMemoryService({ store, createId: ids() });
+  const { RECORD_BYTES } = await import("../src/services/bookMemoryService.js");
+  assert.ok(RECORD_BYTES < 1024 * 1024 - 64 * 1024);
+  // Full-length facts in Cyrillic, 50 at a time, until the memory says it is full.
+  const long = (length, seed) => `${seed} ${"дълъг текст ".repeat(length)}`.slice(0, length);
+  const fact = (index) => ({ kind: "event", name: long(80, `Име ${index}`), text: long(400, `Факт ${index}`), quote: long(300, `Цитат ${index}`) });
+  let full = null;
+  let made = 0;
+  for (let project = 0; project < 4 && !full; project += 1) {
+    const book = await service.createBook("maria", `Дело ${project + 1}`, "lawyer");
+    for (let batch = 0; batch < 8 && !full; batch += 1) {
+      try {
+        await service.addFacts("maria", book.id, Array.from({ length: 50 }, () => fact((made += 1))));
+      } catch (error) {
+        full = error;
+      }
+    }
+  }
+  assert.equal(full?.code, "BOOK_MEMORY_FULL");
+  assert.equal(full.status, 409);
+  assert.equal(full.message, "Паметта е пълна. Изтрий проект или факти, които вече не ти трябват.");
+  const record = [...store.rows.values()].find((data) => Array.isArray(data?.books));
+  const bytes = Buffer.byteLength(JSON.stringify(record));
+  assert.ok(bytes < 1024 * 1024, `${bytes} bytes`);
+  // A delete always goes through, and then there is room again.
+  const [first] = record.books;
+  await service.removeFact("maria", first.id, first.facts[0].id);
+  await service.removeBook("maria", first.id);
+  const room = await service.createBook("maria", "Ново дело", "lawyer");
+  await service.addFacts("maria", room.id, [{ kind: "event", text: "Нов кратък факт." }]);
 });
 
 test("each specialist keeps up to 20 projects of its own, 60 in all, with its own words", async () => {
@@ -515,6 +596,16 @@ test("downloads name an untitled part by its specialist, and the person's copy o
   await service.saveChapters("ana", book.id, [{ number: 1, title: "", text: "Мила влезе." }]);
   assert.match(String((await service.exportBook("ana", lawsuit.id, "html")).body), /<h2>Част 1<\/h2>/u);
   assert.match(String((await service.exportBook("ana", book.id, "html")).body), /<h2>Глава 1<\/h2>/u);
+  // Word and EPUB name it the same way.
+  const documentXml = async (id) => (await readZip((await service.exportBook("ana", id, "docx")).body)).find(({ name }) => name === "word/document.xml").text;
+  assert.match(await documentXml(lawsuit.id), /<w:t xml:space="preserve">Част 1<\/w:t>/u);
+  assert.match(await documentXml(book.id), /<w:t xml:space="preserve">Глава 1<\/w:t>/u);
+  const epubText = async (id) => (await readZip((await service.exportBook("ana", id, "epub")).body)).map(({ text }) => text).join("\n");
+  const lawEpub = await epubText(lawsuit.id);
+  assert.match(lawEpub, /<h1>Част 1<\/h1>/u);
+  assert.match(lawEpub, /<a href="chapter-1\.xhtml">Част 1<\/a>/u);
+  assert.doesNotMatch(lawEpub, /Глава 1/u);
+  assert.match(await epubText(book.id), /<h1>Глава 1<\/h1>/u);
   const projects = await service.exportAll("ana");
   assert.deepEqual(projects.map(({ specialist }) => specialist).sort(), ["lawyer", "writer"]);
   assert.equal(projects.find(({ specialist }) => specialist === "lawyer").parts[0].text, "Искова молба.");
@@ -546,8 +637,32 @@ test("the page and the server split a file with the same code, in every language
     assert.equal(examples.length, 3, words);
     for (const example of examples) assert.ok(readHeading(example, { writer: false }), example);
   }
-  // Sentences stay text.
+  // Documents, the Romanian chapter word, quoted and question titles, and a
+  // chapter word with a number written as a word are headings too.
+  for (const heading of ["Document 3", "Dokument 3", "Documento 3: Contrato", "Documentul 4", "Capitol 2", "Capitol 2: Chiria", "Part 2 “The Tower”", "Sección 3 ¿Qué es un contrato?", "Глава първа. Пристигането.", "ГЛАВА ВТОРА", "Урок първи: Дроби", "Part One"]) {
+    assert.ok(readHeading(heading, { writer: false }), `others: ${heading}`);
+  }
+  // Sentences stay text: „глава“ is also a head (of garlic, or the one that
+  // hurts), a chapter word needs a number for everyone but the writer, and
+  // a title of three words or more that ends like a sentence is a sentence.
   for (const line of [
+    "Глава – силна болка, 3 дни",
+    "Глава ме боли",
+    "Глава ме боли от сутринта",
+    "Глава кромид лук",
+    "Глава чесън",
+    "Глава: болка от сутринта",
+    "Глава надолу при лицевите опори",
+    "Kapitel 3 behandelt die Kosten.",
+    "Capítulo 3 explica los costes.",
+    "Chapitre 2 traite des coûts.",
+    "Capitolo 4 spiega i costi.",
+    "Capitolul 2 tratează costurile.",
+    "Abschnitt 3 Satz 1 ist hier nicht anwendbar.",
+    "Teil 2 Kapitel 4 fehlt noch.",
+    "Lektion 5 Vokabeln bitte bis Montag lernen.",
+    "Lezione 3 Marco non c'era.",
+    "Документ 3 Иван Петров подписа на 5 март.",
     "Част 2 от наема се плаща авансово.",
     "Урок 3 е за дробите.",
     "Lesson I learned: never sign blind.",
@@ -561,6 +676,17 @@ test("the page and the server split a file with the same code, in every language
   ]) {
     assert.equal(readHeading(line, { writer: false }), null, line);
   }
+  // A health diary, a recipe and a contract stay whole where their lines
+  // only look like headings.
+  assert.equal(split("Понеделник\nПих 1 таблетка аналгин.\nГлава – силна болка, 3 дни\nКръвно 140/90.\nВторник\nГлава ме боли\nПих ибупрофен 400 мг.", { writer: false }).length, 1);
+  assert.equal(split("Продукти:\nГлава кромид лук\n2 моркова\nГлава чесън\n500 г кайма", { writer: false }).length, 1);
+  assert.deepEqual(
+    split("Teil 1: Vertrag\nDer Mieter zahlt 900 Euro.\nAbschnitt 3 Satz 1 ist hier nicht anwendbar.\nDie Kaution beträgt 2700 Euro.", { writer: false }).map((part) => part.title),
+    ["Vertrag"],
+  );
+  // The writer still splits at every chapter line, as before.
+  assert.equal(split("Глава ме боли от сутринта.\nТекст.").length, 1);
+  assert.equal(readHeading("Глава ме боли от сутринта.").title, "Глава ме боли от сутринта.");
   // Three chapters of 30 000 characters: three parts for the editor too, so
   // nothing is cut at 50 000.
   const long = "дума ".repeat(6000);
@@ -608,6 +734,20 @@ test("every word of the panel has a translation, and no specialist word reuses a
   for (const match of book.matchAll(/\btext\(\s*"([^"]+)"\s*\)/gu)) words.add(match[1]);
   for (const match of book.matchAll(/pick\(\s*"([^"]+)",\s*"([^"]+)",?\s*\)/gu)) words.add(match[1]).add(match[2]);
   for (const match of book.match(/const PROJECT_ERRORS = \{([\s\S]*?)\n {2}\};/u)[1].matchAll(/"([^"]+)": "([^"]+)"/gu)) words.add(match[1]).add(match[2]);
+  // Every message the server sends to the panel too. A download opens on a
+  // page of its own, so its errors never reach the panel.
+  const download = ["Избери DOCX, EPUB или PDF.", "Книгата още няма глави.", "Проектът още няма части.", "Книгата не можа да се изтегли."];
+  const server = new Set();
+  const service = readFileSync("src/services/bookMemoryService.js", "utf8");
+  for (const match of service.matchAll(/BookMemoryError\(\s*(?:\w+\s*\?\s*)?"([^"]+)"(?:\s*:\s*"([^"]+)")?/gu)) server.add(match[1]).add(match[2] ?? match[1]);
+  for (const match of readFileSync("src/routes/bookMemoryRouter.js", "utf8").matchAll(/(?:handle\(|fail\(res, error, )"([^"]+)"/gu)) server.add(match[1]);
+  // The one message put together from two parts, as the person reads it.
+  assert.match(service, /const empty = isWriter\(specialistProfile\(book\.domain\)\) \? "Паметта на книгата е празна\." : "Паметта на проекта е празна\.";\n\s+throw new BookMemoryError\(`\$\{empty\} Първо добави факти\.`/u);
+  server.add("Паметта на книгата е празна. Първо добави факти.").add("Паметта на проекта е празна. Първо добави факти.");
+  assert.equal([...service.matchAll(/BookMemoryError\(/gu)].length - 1, [...service.matchAll(/BookMemoryError\(\s*(?:\w+\s*\?\s*)?"/gu)].length, "every other message of the service is read");
+  for (const line of download) assert.ok(server.delete(line), line);
+  assert.ok(server.size >= 30, `${server.size} messages`);
+  for (const line of server) words.add(line);
   const specialistWords = new Set();
   for (const profile of Object.values(SPECIALIST_PROFILES)) {
     for (const line of [profile.memory, ...Object.values(profile.kinds), profile.note].filter(Boolean)) {
@@ -619,7 +759,13 @@ test("every word of the panel has a translation, and no specialist word reuses a
     assert.ok(english.has(line), `English: ${line}`);
     for (const [code, catalog] of catalogs) assert.ok(catalog[english.get(line)], `${code}: ${line}`);
   }
-  // „Сметка“ is a ledger account, not the person's account („Профил“).
+  // „Сметка“ is a ledger account, not the person's account („Профил“), and
+  // both keep their own words.
+  assert.notEqual(english.get("Сметка"), english.get("Профил"));
+  for (const [code, catalog] of catalogs) {
+    assert.equal(typeof catalog[english.get("Профил")], "string", `${code}: Профил`);
+    assert.equal(typeof catalog[english.get("Сметка")], "string", `${code}: Сметка`);
+  }
   for (const line of specialistWords) {
     const others = rows.filter(([bg, en]) => en === english.get(line) && bg !== line).map(([bg]) => bg);
     assert.deepEqual(others, [], `${line} shares "${english.get(line)}"`);
@@ -660,4 +806,29 @@ test("the real router saves a new project under the specialist the page sends", 
   assert.deepEqual(calls, [["maria", "Иванов срещу Петров", "lawyer"]]);
   assert.equal(status, 201);
   assert.equal(body.book.domain, "lawyer");
+});
+
+test("the real router hands the page each specialist's note, and never its rules", async () => {
+  const { default: express } = await import("express");
+  const { default: request } = await import("supertest");
+  const { createBookMemoryRouter } = await import("../src/routes/bookMemoryRouter.js");
+  const service = createBookMemoryService({ store: memoryStore(), createId: ids() });
+  await service.createBook("maria", "Дневник", "doctor");
+  await service.createBook("maria", "Сивата роба");
+  const app = express();
+  app.use((req, _res, next) => {
+    req.owner = { memoryOwnerId: "maria" };
+    next();
+  });
+  app.use("/api/books", createBookMemoryRouter({ service }));
+  const doctor = (await request(app).get("/api/books?domain=doctor").expect(200)).body;
+  assert.deepEqual(doctor.books.map(({ title }) => title), ["Дневник"]);
+  assert.equal(doctor.profile.id, "doctor");
+  assert.match(doctor.profile.note, /112/u);
+  for (const key of ["safety", "urgent", "expert", "first"]) assert.ok(!(key in doctor.profile), key);
+  const listener = (await request(app).get("/api/books?domain=listener").expect(200)).body;
+  assert.match(listener.profile.note, /112/u);
+  const lawyer = (await request(app).get("/api/books?domain=lawyer").expect(200)).body;
+  assert.ok(!("note" in lawyer.profile));
+  assert.deepEqual(lawyer.books, []);
 });

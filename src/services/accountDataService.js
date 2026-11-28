@@ -83,8 +83,9 @@ export async function exportAccountData(
       optional(() => listGrants({ subject: identity.id }), []),
       optional(() => usage(identity), null),
       // The project memory of every specialist (books, cases, the health
-      // diary…), with the full text of each part.
-      optional(() => listProjects(ownerId), []),
+      // diary…), with the full text of each part. A failed read fails the
+      // copy, as for memories and messages, so it is never silently empty.
+      listProjects(ownerId),
     ]);
   const conversations = new Map();
   for (const message of messages) {

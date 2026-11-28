@@ -1304,5 +1304,6 @@ Claude, GPT, Gemini и други. Избираш сам или оставяш �
 Фактът не беше изтрит.|The fact was not deleted.
 Промяната не беше записана.|The change was not saved.
 Фактите не можаха да се извадят. Опитай пак.|The facts could not be extracted. Try again.
+Паметта е пълна. Изтрий проект или факти, които вече не ти трябват.|The memory is full. Delete a project or facts you no longer need.
 `.trim().split("\n").map((line) => line.split("|")),
 );

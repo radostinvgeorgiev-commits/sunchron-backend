@@ -34,6 +34,10 @@ export const BOOK_LIMITS = Object.freeze({
   draftContext: 4000,
 });
 export const BOOK_CHAPTER_COLLECTION = "synchron-book-chapters-v1";
+// The projects and their facts are one Firestore record (at most 1 MiB);
+// the JSON of the list is kept under this size, with room to spare.
+export const RECORD_BYTES = 900 * 1024;
+const recordBytes = (books) => Buffer.byteLength(JSON.stringify(books));
 export const EXPORT_FORMATS = Object.freeze(["docx", "epub", "html"]);
 export const FACT_KINDS = Object.freeze(["character", "place", "rule", "event"]);
 
@@ -106,11 +110,13 @@ export function relevantFacts(facts, part, chapter) {
 
 // Every other specialist's facts are constraints (an allergy, a deadline, a
 // term), and a breach rarely repeats the fact's name: all facts that hold
-// at that part are checked, the named ones and the rules first.
-export function holdingFacts(facts, part, chapter) {
-  const first = relevantFacts(facts, part, chapter);
-  const rest = facts.filter((fact) => factHoldsAt(fact, chapter) && !first.includes(fact));
-  return [...first, ...rest].slice(0, BOOK_LIMITS.factsPerCheck);
+// at that part are checked. Past 80 facts the profile's safety kinds go
+// first (an allergy, a doctor's instruction, a medicine, an injury), then
+// the named facts and the rules, then the rest.
+export function holdingFacts(facts, part, chapter, first = []) {
+  const holding = facts.filter((fact) => factHoldsAt(fact, chapter));
+  const safety = first.flatMap((kind) => holding.filter((fact) => fact.kind === kind));
+  return [...new Set([...safety, ...relevantFacts(holding, part, chapter), ...holding])].slice(0, BOOK_LIMITS.factsPerCheck);
 }
 
 // Parts end at a paragraph where possible, so a quote is not cut in two.
@@ -138,6 +144,10 @@ export const matchScore = (issues) => Math.max(0, 100 - 12 * issues);
 // The writer keeps the book's own words; every other specialist names its
 // project and its kinds of facts in its own field (specialistProfiles.js).
 const isWriter = (profile) => !profile || profile.id === DEFAULT_SPECIALIST;
+// The facts each part of a check needs: the writer's named ones, or every
+// fact that holds for the other specialists, their safety kinds first.
+const factPicker = (profile) =>
+  isWriter(profile) ? relevantFacts : (facts, part, chapter) => holdingFacts(facts, part, chapter, profile.first || []);
 const factLine = (fact, profile) =>
   isWriter(profile)
     ? `${fact.id} | ${fact.kind} | ${fact.name} | ${fact.text}${fact.fromChapter > 1 ? ` (от глава ${fact.fromChapter})` : ""}`
@@ -340,7 +350,14 @@ export function createBookMemoryService({
     const row = await db().get(BOOK_MEMORY_COLLECTION, documentId(ownerId));
     return Array.isArray(row?.data?.books) ? row.data.books : [];
   }
-  async function write(ownerId, books) {
+  // One record holds every project's facts, and Firestore keeps a record
+  // of at most 1 MiB: a write that would grow it past RECORD_BYTES is
+  // refused with a clear answer, while a delete always goes through.
+  async function write(ownerId, books, before) {
+    const size = recordBytes(books);
+    if (before && size > RECORD_BYTES && size > recordBytes(before)) {
+      throw new BookMemoryError("Паметта е пълна. Изтрий проект или факти, които вече не ти трябват.", 409, "BOOK_MEMORY_FULL");
+    }
     await db().commitOperations([
       { type: "set", collection: BOOK_MEMORY_COLLECTION, id: documentId(ownerId), data: { books, updatedAt: now() } },
     ]);
@@ -353,7 +370,7 @@ export function createBookMemoryService({
     const next = change(books[index]);
     if (next === undefined) return books[index];
     const updated = books.map((book, at) => (at === index ? { ...next, updatedAt: now() } : book));
-    await write(ownerId, updated);
+    await write(ownerId, updated, books);
     return updated[index];
   }
   async function getBook(ownerId, bookId) {
@@ -377,8 +394,8 @@ export function createBookMemoryService({
   }
 
   // Each specialist keeps up to 20 projects of its own, so the writer's
-  // books never take the lawyer's place; all of them together stay small
-  // enough for the one record that holds the list.
+  // books never take the lawyer's place; 60 in all, and the record that
+  // holds them and their facts stays under RECORD_BYTES (see write).
   async function createBook(ownerId, title, domain) {
     const profile = specialistProfile(domain);
     const writer = isWriter(profile);
@@ -396,7 +413,7 @@ export function createBookMemoryService({
       throw new BookMemoryError("Стигна общия брой проекти за всички специалисти. Изтрий някой, който вече не ти трябва.", 409, "BOOK_PROJECTS_FULL");
     }
     const book = { id: createId(), title: name, domain: profile.id, facts: [], createdAt: now(), updatedAt: now() };
-    await write(ownerId, [book, ...books]);
+    await write(ownerId, [book, ...books], books);
     return book;
   }
   async function removeBook(ownerId, bookId) {
@@ -483,7 +500,7 @@ export function createBookMemoryService({
       throw new BookMemoryError(`${empty} Първо добави факти.`, 409, "BOOK_MEMORY_EMPTY");
     }
     const profile = specialistProfile(book.domain);
-    return runChapterCheck({ facts: book.facts, source, number, askAi, env, profile, pickFacts: isWriter(profile) ? relevantFacts : holdingFacts });
+    return runChapterCheck({ facts: book.facts, source, number, askAi, env, profile, pickFacts: factPicker(profile) });
   }
 
   // Chapters: the text of each lives in its own record, the book keeps the
@@ -565,16 +582,19 @@ export function createBookMemoryService({
     if (!at) throw new BookMemoryError("Напиши номера на главата.");
     const brief = cleanChapter(plan).slice(0, BOOK_LIMITS.plan);
     if (!brief) throw new BookMemoryError("Напиши плана на главата.");
-    const facts = book.facts.filter((fact) => factHoldsAt(fact, at)).slice(0, BOOK_LIMITS.factsPerCheck);
+    const profile = specialistProfile(book.domain);
+    // The writer's draft gets the facts that hold in the order they were
+    // kept; every other specialist's gets its safety kinds first.
+    const facts = isWriter(profile)
+      ? book.facts.filter((fact) => factHoldsAt(fact, at)).slice(0, BOOK_LIMITS.factsPerCheck)
+      : holdingFacts(book.facts, brief, at, profile.first || []);
     const before = (book.chapters || []).filter((item) => item.number < at).at(-1);
     const previous = before
       ? ((await db().get(BOOK_CHAPTER_COLLECTION, chapterId(ownerId, bookId, before.number)))?.data?.text || "").slice(-BOOK_LIMITS.draftContext)
       : "";
-    const text = cleanChapter(await askAi({ input: buildDraftPrompt({ title: book.title, number: at, plan: brief, facts, previous, profile: specialistProfile(book.domain) }), reasoningEffort: "low" }));
+    const text = cleanChapter(await askAi({ input: buildDraftPrompt({ title: book.title, number: at, plan: brief, facts, previous, profile }), reasoningEffort: "low" }));
     if (!text) throw new BookMemoryError("Черновата не стана. Опитай пак.", 503, "BOOK_DRAFT_EMPTY");
-    const profile = specialistProfile(book.domain);
-    const pickFacts = isWriter(profile) ? relevantFacts : holdingFacts;
-    const check = facts.length ? await runChapterCheck({ facts: book.facts, source: text, number: at, askAi, env, profile, pickFacts }) : null;
+    const check = facts.length ? await runChapterCheck({ facts: book.facts, source: text, number: at, askAi, env, profile, pickFacts: factPicker(profile) }) : null;
     return { number: at, text, check };
   }
 

@@ -89,6 +89,8 @@ export const SPECIALIST_PROFILES = Object.freeze({
     urgent:
       "Ако планът описва болка в гърдите, затруднено дишане, силно кървене, загуба на съзнание или мисли за самонараняване, започни текста с „Обади се веднага на 112.“",
     note: "Това не е лекарски съвет: лечението решава твоят лекар. При болка в гърдите, задух, силно кървене, припадък или мисли за самонараняване се обади веднага на 112.",
+    // Checked first when more than 80 facts hold: allergies, the doctor's instructions, the medicines.
+    first: ["place", "rule", "character"],
   },
   accountant: {
     project: "Фирма",
@@ -108,6 +110,8 @@ export const SPECIALIST_PROFILES = Object.freeze({
     safety: "Не давай медицински съвети и не увеличавай натоварването при болка, травма, болест или бременност.",
     urgent: "Ако планът описва болка, травма, болест или бременност, започни текста с „Първо говори с лекар.“",
     note: "При болка, болест или бременност първо говори с лекар.",
+    // Checked first when more than 80 facts hold: injuries and limits, the rules.
+    first: ["place", "rule"],
   },
   chef: {
     project: "Кухня",
@@ -118,6 +122,8 @@ export const SPECIALIST_PROFILES = Object.freeze({
     look: "алергии и непоносимости, продукти, количества, порции и правила на дома",
     safety: "Никога не предлагай продукт, към който паметта казва, че има алергия или непоносимост, дори като заместител.",
     note: "Проверката помага, но при алергия винаги чети етикета на всеки продукт.",
+    // Checked first when more than 80 facts hold: allergies, the rules of the home.
+    first: ["place", "rule"],
   },
   listener: {
     project: "Моят свят",

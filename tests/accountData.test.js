@@ -57,6 +57,23 @@ test("export contains the member's own data and no system records", async () => 
   });
 });
 
+test("a copy whose projects could not be read fails, so it is never silently without them", async () => {
+  await assert.rejects(
+    exportAccountData(member, {
+      listMemories: async () => [],
+      listMessages: async () => [],
+      loadWorkspace: async () => null,
+      listSuggestions: async () => [],
+      listGrants: async () => [],
+      usage: async () => null,
+      listProjects: async () => {
+        throw new Error("Firestore timeout on chapter 137");
+      },
+    }),
+    /Firestore timeout/u,
+  );
+});
+
 function deletionDeps(calls, { signIn } = {}) {
   return {
     authClient: () => ({

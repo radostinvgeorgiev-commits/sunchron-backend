@@ -352,11 +352,23 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media,
     await panel.locator(".book-upload-file").setInputFiles({
       name: "delo.txt",
       mimeType: "text/plain",
-      buffer: Buffer.from("Част 1 Увод\nИщецът е Иванов.\nРаздел 2\nОтветникът е Петров.\nЧаст 2 от наема се плаща авансово.\n"),
+      buffer: Buffer.from("Част 1 Увод\nИщецът е Иванов.\nРаздел 2\nОтветникът е Петров.\nЧаст 2 от наема се плаща авансово.\nНаемът е 900 лв.\n"),
     });
     await panel.locator(".book-upload-preview").waitFor({ state: "visible", timeout: 5000 });
     const found = await panel.locator(".book-upload-count").innerText();
-    expect(found.startsWith("Намерих части: 2"), `файлът не се раздели на две части: ${found}`);
+    expect(found === "Намерих части: 2 · 1. Увод, 2. Част", `файлът не се раздели на две части: ${found}`);
+    // Saved, the sentence is in the second part, not a third one.
+    await panel.locator(".book-upload-save").click();
+    await panel.locator(".book-chapter").nth(1).waitFor({ timeout: 5000 });
+    const saved = await page.evaluate(async () => {
+      const [lawsuit] = (await (await fetch("/api/books?domain=lawyer")).json()).books;
+      const second = (await (await fetch(`/api/books/${lawsuit.id}/chapters/2`)).json()).chapter;
+      return { parts: lawsuit.chapters.length, second: second.text };
+    });
+    expect(
+      saved.parts === 2 && saved.second === "Ответникът е Петров.\nЧаст 2 от наема се плаща авансово.\nНаемът е 900 лв.",
+      `частите не са като във файла: ${JSON.stringify(saved)}`,
+    );
     // The writer does not see the case, and the case does not see the book.
     const lists = await page.evaluate(async () => ({
       writer: (await (await fetch("/api/books?domain=writer")).json()).books.length,

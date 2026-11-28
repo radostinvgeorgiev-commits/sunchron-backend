@@ -177,6 +177,12 @@
 
   let books = [];
   let currentId = "";
+  // The open project's fact suggestions and the parts of a read file, until
+  // the person saves them.
+  let suggestions = [];
+  let pending = [];
+  // A delete of a whole project is on its way to the server.
+  let deleting = false;
   // Goes up when another specialist opens the panel: an answer asked for
   // under the previous one is dropped.
   let generation = 0;
@@ -274,8 +280,22 @@
       $(".book-facts").appendChild(empty);
     }
   };
+  // Every change of the open project goes through here (a choice in the
+  // list, a new project, a delete, a reload): the suggestions, the file
+  // preview and the check of the previous one are not shown for the new
+  // one, and a press of "Изтрий" starts over.
+  const openProject = (id) => {
+    if (id === currentId) return;
+    currentId = id;
+    disarm();
+    suggestions = [];
+    pending = [];
+    for (const box of [".book-result", ".book-suggestions", ".book-upload-preview"]) $(box).hidden = true;
+    $(".book-draft-check").textContent = "";
+    $(".book-chapter-number").value = "";
+  };
   const renderBooks = () => {
-    if (!books.some((book) => book.id === currentId)) currentId = books[0]?.id || "";
+    if (!books.some((book) => book.id === currentId)) openProject(books[0]?.id || "");
     $(".book-select").replaceChildren(
       ...books.map((book) => {
         const option = document.createElement("option");
@@ -333,16 +353,8 @@
     renderChapters();
   };
 
-  // Another project: the suggestions, the file preview and the check of the
-  // previous one are not shown for it, and a delete starts over.
   $(".book-select").addEventListener("change", () => {
-    currentId = $(".book-select").value;
-    disarm();
-    suggestions = [];
-    pending = [];
-    for (const box of [".book-result", ".book-suggestions", ".book-upload-preview"]) $(box).hidden = true;
-    $(".book-draft-check").textContent = "";
-    $(".book-chapter-number").value = "";
+    openProject($(".book-select").value);
     renderFacts();
     renderChapters();
   });
@@ -354,7 +366,7 @@
       const { book } = await call("POST", "", { title, domain });
       if (!fresh()) return;
       books = [book, ...books];
-      currentId = book.id;
+      openProject(book.id);
       $(".book-new-title").value = "";
       renderBooks();
     }, text("Записване…"));
@@ -365,7 +377,7 @@
     $(".book-delete").textContent = pick("Изтрий книгата", "Изтрий проекта");
   }
   $(".book-delete").addEventListener("click", () => {
-    if (!currentId) return;
+    if (!currentId || deleting) return;
     if (!armed) {
       armed = true;
       $(".book-delete").textContent = text("Натисни пак, за да изтриеш");
@@ -373,13 +385,20 @@
       return;
     }
     disarm();
+    deleting = true;
+    $(".book-delete").disabled = true;
     void run(async (fresh) => {
-      const answer = await call("DELETE", bookPath());
-      if (!fresh()) return;
-      // The server answers with every project of the person; this panel
-      // shows only the open specialist's (an old book belongs to the writer).
-      books = (answer.books || []).filter((book) => (book.domain || "writer") === domain);
-      renderBooks();
+      try {
+        const answer = await call("DELETE", bookPath());
+        if (!fresh()) return;
+        // The server answers with every project of the person; this panel
+        // shows only the open specialist's (an old book belongs to the writer).
+        books = (answer.books || []).filter((book) => (book.domain || "writer") === domain);
+        renderBooks();
+      } finally {
+        deleting = false;
+        $(".book-delete").disabled = false;
+      }
     }, text("Изтриване…"));
   });
   dialog.querySelectorAll("[data-tab]").forEach((tab) =>
@@ -409,12 +428,13 @@
       const { book } = await call("POST", bookPath("/facts"), { facts: [fact] });
       if (!fresh()) return;
       replaceBook(book);
+      // Only the saved fact leaves the form: a new one typed meanwhile stays.
+      if ($(".book-add-text").value.trim() !== fact.text || $(".book-add-name").value.trim() !== fact.name) return;
       $(".book-add-name").value = "";
       $(".book-add-text").value = "";
     }, text("Записване…"));
   });
 
-  let suggestions = [];
   $(".book-extract-run").addEventListener("click", () => {
     const source = $(".book-extract-text").value.trim();
     if (!source) {
@@ -615,7 +635,7 @@
   // chapters, every other specialist also at parts, sections and lessons.
   let splitter = null;
   const splitManuscript = async (source) => {
-    splitter ||= import("/manuscript-split.mjs?v=20261128a").catch(() => {
+    splitter ||= import("/manuscript-split.mjs?v=20261128b").catch(() => {
       splitter = null;
       throw new Error(text("Файлът не можа да се прочете. Опитай пак."));
     });
@@ -645,7 +665,6 @@
         .replace(/<[^>]+>/gu, ""),
     );
   };
-  let pending = [];
   $(".book-upload-file").addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";

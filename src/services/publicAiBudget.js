@@ -27,6 +27,12 @@ export function markFreeChatTurn() {
 export function isFreeChatTurn() {
   return context.getStore()?.free === true;
 }
+// A call the site makes for itself inside a person's request (the memory
+// check before a write at once) costs the person nothing and is not one of
+// their attempts.
+export function outsidePublicAiBudget(run) {
+  return context.exit(run);
+}
 export function publicAiOutputLimit() {
   return context.getStore() ? 1024 : null;
 }

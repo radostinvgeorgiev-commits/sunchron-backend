@@ -48,6 +48,7 @@ import {
   listProfileMemories,
   saveConversationTurn,
 } from "../services/memoryService.js";
+import { confirmPlainMemoryFacts } from "../services/memoryFactCheck.js";
 import { extractMemoryCandidates } from "../services/memoryCandidateService.js";
 import { PUBLIC_FILE_CREDITS } from "../services/publicAiBudget.js";
 import {
@@ -2673,13 +2674,21 @@ router.post("/chat", async (req, res) => {
         // off. Deleting keeps its confirmation. A message that asks to wait,
         // a correction, forwarded text or a command that runs on gets the
         // one-time confirmation instead and nothing is written
-        // (isOwnMemoryCommand).
+        // (isOwnMemoryCommand). What the words pass is read once more by a
+        // small model, and only its clear „only facts“ writes at once
+        // (confirmPlainMemoryFacts); in doubt, the confirmation.
         const prepared = await prepareMemoryWrite({
           sessionId: cleanSessionId,
           ownerId,
           items: memoryCommands,
         });
-        if (!isOwnMemoryCommand(cleanMessage)) {
+        const writesAtOnce =
+          isOwnMemoryCommand(cleanMessage) &&
+          (await confirmPlainMemoryFacts({
+            message: cleanMessage,
+            facts: memoryCommands.map(({ fact }) => fact),
+          }));
+        if (!writesAtOnce) {
           memoryAction = { type: "write-confirmation-required", ...prepared };
         } else {
           const items = await confirmMemoryWrite({

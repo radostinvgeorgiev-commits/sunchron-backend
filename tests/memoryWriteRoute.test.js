@@ -28,6 +28,22 @@ function profileFor(ownerId) {
   return listProfileMemories({ scope: "personal", ownerId });
 }
 
+// A model answer in the OpenAI shape the chat reads.
+function modelAnswer(text) {
+  return new Response(
+    JSON.stringify({
+      output: [{ type: "message", content: [{ type: "output_text", text }] }],
+    }),
+    { status: 200, headers: { "content-type": "application/json" } },
+  );
+}
+
+// The small model call that reads a command before a write at once
+// (memoryFactCheck.js) is told apart by its answer format's name.
+function isFactCheck(init) {
+  return String(init?.body || "").includes("novarium_memory_fact_check");
+}
+
 // The person's own „Запомни: …“ is the confirmation (RADKO 28.11 04:30
 // „самата команда го казва“, 06:35 „бутон за паметта“): it is written at
 // once. An ordinary sentence is never written.
@@ -43,18 +59,8 @@ test("chat never persists an ordinary fact and writes the person's own „Зап
   );
   const ownerCookie = `synchron_github_session=${ownerSession.id}`;
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () =>
-    new Response(
-      JSON.stringify({
-        output: [
-          {
-            type: "message",
-            content: [{ type: "output_text", text: "Разбрах." }],
-          },
-        ],
-      }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    );
+  globalThis.fetch = async (_url, init) =>
+    modelAnswer(isFactCheck(init) ? JSON.stringify({ onlyFacts: true }) : "Разбрах.");
 
   try {
     const ordinaryResponse = await request(app)
@@ -129,19 +135,14 @@ test("chat writes nothing at once when the person asks to wait, forwards text or
   const ownerCookie = `synchron_github_session=${ownerSession.id}`;
   const originalFetch = globalThis.fetch;
   let modelCalls = 0;
-  globalThis.fetch = async () => {
+  let factChecks = 0;
+  globalThis.fetch = async (_url, init) => {
+    if (isFactCheck(init)) {
+      factChecks += 1;
+      return modelAnswer(JSON.stringify({ onlyFacts: true }));
+    }
     modelCalls += 1;
-    return new Response(
-      JSON.stringify({
-        output: [
-          {
-            type: "message",
-            content: [{ type: "output_text", text: "Разбрах." }],
-          },
-        ],
-      }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    );
+    return modelAnswer("Разбрах.");
   };
   const held = [
     "За изолиран приемателен тест предложи да запомниш точно този тестов факт, но не записвай нищо още: SYNCHRON_TEST_FACT = синя спирала. Покажи какво би записал и изчакай потвърждение.",
@@ -192,6 +193,8 @@ test("chat writes nothing at once when the person asks to wait, forwards text or
       assert.doesNotMatch(response.text, /Запомних:/u, message);
       assert.deepEqual(await profileFor("primary-user"), [], message);
     }
+    // The words hold every one of these before any model is asked.
+    assert.equal(factChecks, 0);
 
     const foreign = await request(app)
       .post("/chat/chat")
@@ -206,6 +209,8 @@ test("chat writes nothing at once when the person asks to wait, forwards text or
       (await profileFor("primary-user")).map(({ fact }) => fact),
       ["I drink tea without sugar"],
     );
+    // One small check before the write at once, and no chat answer.
+    assert.equal(factChecks, 1);
     assert.equal(modelCalls, 0);
   } finally {
     globalThis.fetch = originalFetch;
@@ -339,4 +344,46 @@ test("a fact over 500 characters is answered with what to do, and nothing is wri
   assert.match(response.body.error, /между 1 и 500 знака/u);
   assert.match(response.body.error, /Нищо не беше записано/u);
   assert.deepEqual(await profileFor("primary-user"), []);
+});
+
+// What the words pass is read once more by a small model. Its „no“, an
+// unclear answer or a failed call keep the one-time confirmation: in doubt
+// the chat asks, it never writes.
+test("a command the model does not call only facts keeps the one-time confirmation", async () => {
+  resetConfirmationsForTests();
+  resetLocalDocumentStoreForTests();
+  const ownerSession = await createGitHubSession(
+    { access_token: "test-owner-token-check" },
+    async () =>
+      new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
+        status: 200,
+      }),
+  );
+  const ownerCookie = `synchron_github_session=${ownerSession.id}`;
+  const originalFetch = globalThis.fetch;
+  const answers = [
+    () => modelAnswer(JSON.stringify({ onlyFacts: false })),
+    () => modelAnswer("Да, това са факти."),
+    () => new Response("upstream down", { status: 500 }),
+    () => {
+      throw new Error("network");
+    },
+  ];
+  let answer = answers[0];
+  globalThis.fetch = async (_url, init) => (isFactCheck(init) ? answer() : modelAnswer("Разбрах."));
+  try {
+    for (const [index, next] of answers.entries()) {
+      answer = next;
+      const response = await request(app)
+        .post("/chat/chat")
+        .set("Cookie", ownerCookie)
+        .send({ sessionId: `memory-check-${index}`, message: "Запомни: искам такси за летището" })
+        .expect(200);
+      assert.match(response.text, /Потвърждавам постоянен запис/u, String(index));
+      assert.doesNotMatch(response.text, /Запомних:/u, String(index));
+      assert.deepEqual(await profileFor("primary-user"), [], String(index));
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

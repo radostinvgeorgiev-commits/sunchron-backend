@@ -1385,6 +1385,10 @@ async function publicChecks(origin) {
     await page.waitForTimeout(400);
     await page.click('[data-demo="1"]');
     expect((await page.textContent("[data-demo-output]")).includes("без захар"), "демото не отговори");
+    // On a phone the open panel covers the dock and „Започни безплатно“, so
+    // close it with ✕ the way a person would before the next step.
+    await page.click("#how .landing-panel-close");
+    await page.waitForFunction(() => !document.querySelector("#how.is-open"), null, { timeout: 5000 });
   });
   await step("Жив сайт: безплатната проверка на глава е видима без вход", async () => {
     await page.click('.landing-dock a[href="#free-check"]');

@@ -786,6 +786,32 @@ test("the code agent analyses no code for a question about the tools", () => {
   }
 });
 
+// Item 3, fix 4 (Team 2's live probes 28.11): the name before „в
+// контактите“, without the article Google's name search would not find.
+test("a contact search in his own words finds the name before „в контактите“", () => {
+  for (const [message, query] of [
+    ["намери ми телефона на счетоводителя в контактите", "счетоводител"],
+    ["потърси иван в контактите ми", "иван"],
+    ["покажи ми номера на банката от контактите", "банка"],
+    ["имаш ли телефона на мама в контактите", "мама"],
+    ["намери ми мобилния на Петър Иванов в контактите", "Петър Иванов"],
+    ["потърси Мария Петрова в контактите ми", "Мария Петрова"],
+    ["find John in my contacts", "John"],
+    ["what is the phone number of Ana in my contacts", "Ana"],
+  ]) {
+    assert.equal(parseContactSearchQuery(message), query, message);
+    assert.deepEqual(
+      detectCapabilityRequests(message).map(({ capability, message: text }) => [capability, text]),
+      [["contacts.read", query]],
+      message,
+    );
+  }
+  // No name: nothing to search for.
+  for (const message of ["намери ми контакта", "Намери в контактите", "Покажи контактите ми", "колко контакта имам", "Свържи контактите"]) {
+    assert.equal(parseContactSearchQuery(message), "", message);
+  }
+});
+
 test("a contact search drops the quotes and the end punctuation of a quoted example", () => {
   // Review r6 (inventory-7): a yes to „пускам „Намери в контактите Иван““
   // sent „Иван“ with its closing quote, and Google found no one.

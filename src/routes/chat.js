@@ -1545,23 +1545,66 @@ export function parseContactCreateRequest(message) {
 
 // "Намери контакт Иван", "Намери в контактите ми Мария": the name after the
 // last word for contact is what gets searched.
+// Item 3, fix 4 (Team 2's live probes 28.11: „намери ми телефона на
+// счетоводителя в контактите“ and „потърси иван в контактите ми“ got „нямам
+// инструмент за контакти“): the name may come before „в контактите“ too.
+const CONTACT_ASK =
+  /(?:намери|намери|търси|потърси|покажи|дай|кажи|провери|имаш\s+ли|find|search|look\s+up|show|give|what(?:'s|\s+is))/iu;
+const CONTACT_WORD = /(?:контакт(?:а|ът|и|ите)?|contacts?)(?=[\s:,.!?-]|$)/iu;
+const CONTACT_QUOTES = /^[\s„“”«»"'‘’]+|[\s„“”«»"'‘’?.!,;:]+$/gu;
+
+// Google finds a contact by the start of a word, so the Bulgarian article
+// is dropped: „счетоводителя“ finds „Счетоводител“, „банката“ finds „Банка“.
+function contactNameStem(word) {
+  if (!/^\p{Script=Cyrillic}+$/u.test(word) || word.length <= 5) return word;
+  return word.replace(/(?:ът|ят|та|то|те|я)$/u, "");
+}
+
+function cleanContactQuery(value) {
+  const query = String(value || "")
+    .replace(CONTACT_QUOTES, "")
+    .replace(/\s+/gu, " ")
+    .trim();
+  if (query.length < 2 || query.length > 100) return "";
+  return query
+    .split(" ")
+    .map(contactNameStem)
+    .join(" ");
+}
+
 export function parseContactSearchQuery(message) {
   const text = String(message || "").trim();
-  if (!/(?:намери|търси|потърси|покажи|find|search|look\s+up)/iu.test(text)) {
-    return "";
-  }
-  const parts = text.split(/(?:контакт(?:а|ът|и|ите)?|contacts?)(?=[\s:,-]|$)/iu);
+  if (!CONTACT_ASK.test(text)) return "";
+  const parts = text.split(CONTACT_WORD);
   if (parts.length < 2) return "";
-  const query = parts[parts.length - 1]
+  // „Намери в контактите Иван“: the name after the word.
+  const after = parts[parts.length - 1]
     .replace(/^\s*(?:ми|my)(?=[\s:,.!?-]|$)/iu, "")
     .replace(/^[\s:,-]+/u, "")
     .replace(/^(?:на|за|named|for)\s+/iu, "")
     // The quotes of a step that gives the example („Намери в контактите
     // Иван“, review r6: Google got „Иван“ with its closing quote and found
     // no one) and the end punctuation, on both ends.
-    .replace(/^[\s„“”«»"'‘’]+|[\s„“”«»"'‘’?.!,;:]+$/gu, "")
+    .replace(CONTACT_QUOTES, "")
     .trim();
-  return query.length >= 2 && query.length <= 100 ? query : "";
+  if (after) return after.length >= 2 && after.length <= 100 ? after : "";
+  // „Намери ми телефона на счетоводителя в контактите“, „потърси иван в
+  // контактите ми“: the name before it.
+  const before = parts
+    .slice(0, -1)
+    .join(" ")
+    .replace(CONTACT_QUOTES, "")
+    .replace(/\s+(?:в|във|от|сред|между|in|from|among)(?:\s+(?:моите|мои|my))?$/iu, "")
+    .replace(
+      /^(?:моля[,\s]+)?(?:намери|търси|потърси|покажи|дай|кажи|провери|имаш\s+ли|find|search(?:\s+for)?|look\s+up|show(?:\s+me)?|give\s+me|what(?:'s|\s+is))(?:\s+(?:ми|ме|me))?(?:\s+|$)/iu,
+      "",
+    )
+    .replace(
+      /^(?:(?:мобилния|мобилният|телефона|телефонът|номера|номерът|имейла|имейлът|мейла|адреса|адресът|данните|контакта)\s+(?:на|за)|(?:the\s+)?(?:phone(?:\s+number)?|number|email|address|details)\s+(?:of|for))\s+/iu,
+      "",
+    )
+    .replace(/^(?:ми|my)(?:\s+|$)/iu, "");
+  return cleanContactQuery(before);
 }
 
 // "моят YouTube канал", "каналът ми в YouTube", "колко гледания имат видеата ми",

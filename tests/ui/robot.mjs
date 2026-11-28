@@ -1067,6 +1067,43 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media,
   await page.close();
 }
 
+// On narrow phones the buttons under an answer fit in their row and nothing
+// scrolls sideways (the „Запомни“ button had pushed the row out at 360px).
+async function narrowPhoneRow(origin) {
+  for (const width of [320, 360]) {
+    await step(`Телефон ${width}px: бутоните под отговора се събират`, async () => {
+      const { page, errors } = await openPage(origin, { width, height: 740 });
+      try {
+        await page.fill("#chatInput", "Здравей");
+        await page.click("#sendBtn");
+        const row = page.locator(".assistant-turn").last().locator(".message-actions");
+        await row.waitFor({ state: "visible", timeout: 10000 });
+        await page.waitForTimeout(400);
+        const layout = await row.evaluate((node) => {
+          const box = node.getBoundingClientRect();
+          const chat = document.getElementById("chatMessages");
+          const buttons = [...node.querySelectorAll("button")]
+            .filter((button) => button.offsetParent)
+            .map((button) => button.getBoundingClientRect());
+          return {
+            buttons: buttons.length,
+            rowScroll: node.scrollWidth - node.clientWidth,
+            outside: buttons.filter((rect) => rect.left < box.left - 0.5 || rect.right > box.right + 0.5 || rect.right > window.innerWidth).length,
+            chatScroll: chat.scrollWidth - chat.clientWidth,
+            pageScroll: document.documentElement.scrollWidth - window.innerWidth,
+          };
+        });
+        expect(layout.buttons > 3, `под отговора има ${layout.buttons} бутона`);
+        expect(layout.rowScroll <= 0 && layout.outside === 0, `бутоните излизат от реда: ${JSON.stringify(layout)}`);
+        expect(layout.chatScroll <= 0 && layout.pageScroll <= 0, `страницата се превърта настрани: ${JSON.stringify(layout)}`);
+        expect(!errors.length, errors.join("; "));
+      } finally {
+        await page.close();
+      }
+    });
+  }
+}
+
 async function sharedPage(origin) {
   const { page, errors } = await openPage(origin, { width: 390, height: 844 }, "/s/AbCdEfGhIjKlMnOpQrStUvWxYz012345");
   await step("Споделен разговор: страницата показва съобщенията", async () => {
@@ -1384,6 +1421,7 @@ if (publicOrigin) {
   const stub = await startStubServer();
   await signedInFlows(stub.origin, stub.requests, "Телефон", { width: 390, height: 844 }, stub.feedback, stub.media, stub.memoryWrites);
   await signedInFlows(stub.origin, stub.requests, "Компютър", { width: 1280, height: 800 }, stub.feedback, stub.media, stub.memoryWrites);
+  await narrowPhoneRow(stub.origin);
   await sharedPage(stub.origin);
   await talkFlow(stub.origin, stub.requests, stub.media);
   await statusPage(stub.origin, false);

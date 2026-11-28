@@ -116,7 +116,7 @@
       if (connected && error.code === "GOOGLE_SCOPE_REQUIRED") {
         body.innerHTML = `
           <section class="drawer-section">
-            <div class="permission-default">${text("Google е свързан. В разговора можеш да питаш за пощата, календара и контактите си, да добавяш събития и контакти и да пращаш имейли. Събитие, контакт и имейл до адрес, който сам напишеш, стават веднага с твоите думи; промяна и триене питат преди това.")}</div>
+            <div class="permission-default">${text("Google е свързан. В разговора можеш да питаш за пощата, календара и контактите си, да добавяш събития и контакти и да пращаш имейли. Събитие, контакт и имейл до адрес, който сам напишеш, стават веднага с твоите думи. Писмо местиш в кошчето от панела Gmail с второ натискане.")}</div>
             <div class="permission-default">${text("Файловете ти в Drive не се виждат. „Запази в Google“ под отговор прави документ, до който NovariumAI има достъп.")}</div>
             <div class="drawer-actions">
               <button type="button" id="openMyCalendar">${text("Календарът ми")}</button>

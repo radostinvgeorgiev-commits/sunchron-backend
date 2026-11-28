@@ -21,13 +21,15 @@ const MEMBER_OWN_GOOGLE_CAPABILITIES = new Set([
   "youtube.channel",
 ]);
 // Writing to the person's own Google: an event in their calendar, an email
-// from their Gmail, a draft, a new contact, a letter moved to the bin. Their
-// own command runs an event, a contact or an email to an address they typed
-// at once (chat.js, ownCommandWriteOf); a draft and a letter moved to the bin
-// run after the person presses its button in their own chat. The open tree (RADKO
-// 28.11 06:21, 06:36, 06:49): each person's own branch, down to the server,
-// with every tool reading and writing their own data and none on anyone
-// else's.
+// from their Gmail, a new contact, and a draft or a letter moved to the bin
+// once a step for them is prepared. Their own command runs an event, a
+// contact or an email to an address they typed at once (chat.js,
+// ownCommandWriteOf). Today the draft and the bin are pressed in the Gmail
+// panel („Чернова от мое име“, „В кошчето“ with a second press,
+// googleDriveRouter.js), with the person's own connection. The open tree
+// (RADKO 28.11 06:21, 06:36, 06:49): each person's own branch, down to the
+// server, with every tool reading and writing their own data and none on
+// anyone else's.
 const MEMBER_OWN_GOOGLE_WRITES = new Set([
   "calendar.write",
   "mail.send",

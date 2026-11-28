@@ -43,6 +43,7 @@ import {
   extractPersistentMemoryCommands,
   isConfirmedForgetAllCommand,
   isForgetAllCommand,
+  isOwnMemoryCommand,
   listConversationMessages,
   listProfileMemories,
   saveConversationTurn,
@@ -2669,27 +2670,34 @@ router.post("/chat", async (req, res) => {
         // The person's own „Запомни: …“ is the confirmation (RADKO 28.11
         // 04:30 „самата команда го казва“, 06:35 „бутон за паметта“): it is
         // written at once, in their own memory, unless they turned writing
-        // off. Deleting keeps its confirmation.
+        // off. Deleting keeps its confirmation. A message that asks to wait,
+        // a correction, forwarded text or a command that runs on gets the
+        // one-time confirmation instead and nothing is written
+        // (isOwnMemoryCommand).
         const prepared = await prepareMemoryWrite({
           sessionId: cleanSessionId,
           ownerId,
           items: memoryCommands,
         });
-        const items = await confirmMemoryWrite({
-          confirmationId: prepared.confirmationId,
-          sessionId: cleanSessionId,
-          ownerId,
-          source: "own-chat-command",
-        });
-        memoryAction =
-          items.length === 1
-            ? {
-                type: items[0].replaced ? "updated" : "saved",
-                fact: items[0].fact,
-                scope: items[0].scope,
-                items,
-              }
-            : { type: "batch", items };
+        if (!isOwnMemoryCommand(cleanMessage)) {
+          memoryAction = { type: "write-confirmation-required", ...prepared };
+        } else {
+          const items = await confirmMemoryWrite({
+            confirmationId: prepared.confirmationId,
+            sessionId: cleanSessionId,
+            ownerId,
+            source: "own-chat-command",
+          });
+          memoryAction =
+            items.length === 1
+              ? {
+                  type: items[0].replaced ? "updated" : "saved",
+                  fact: items[0].fact,
+                  scope: items[0].scope,
+                  items,
+                }
+              : { type: "batch", items };
+        }
       } else if (
         isConfirmedForgetAllCommand(cleanMessage) ||
         isForgetAllCommand(cleanMessage)

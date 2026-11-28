@@ -22,6 +22,37 @@ export function setFirestoreMemoryStoreForTests(store) {
   firestoreStoreConfiguration = null;
 }
 
+// A memory shared with „Питай моя аватар“ follows its memory (review of
+// #605): the avatar link listens here (server.js) and changes or drops its
+// line when the memory is corrected, replaced or deleted, by any path (the
+// panel, „Забрави“, the connector, a replace by „Запомни“).
+let memoryChangeListener = null;
+
+export function setMemoryChangeListener(listener) {
+  memoryChangeListener = typeof listener === "function" ? listener : null;
+}
+
+async function announceMemoryChange(ownerId, removed, added = "") {
+  const facts = [
+    ...new Set(
+      (removed || []).filter(
+        (fact) => typeof fact === "string" && fact.trim(),
+      ),
+    ),
+  ];
+  if (!memoryChangeListener || !facts.length) return;
+  try {
+    await memoryChangeListener(ownerId, { removed: facts, added });
+  } catch (error) {
+    // The memory change itself stands; the person can still clean the
+    // visitors' text by hand in „Питай моя аватар“.
+    console.error("[Memory] shared line not updated", {
+      name: error?.name,
+      code: error?.code,
+    });
+  }
+}
+
 export function profileMemoryDocumentId(ownerId, memoryKey) {
   const owner = String(ownerId || "").trim();
   const key = String(memoryKey || "").trim();
@@ -272,6 +303,70 @@ export function extractPersistentMemoryCommand(message) {
   return null;
 }
 
+const BULK_MEMORY_PATTERNS = Object.freeze([
+  {
+    scope: "project",
+    pattern: /^запомни\s+(?:следното\s+)?за\s+проекта\s*:\s*([\s\S]+)$/iu,
+  },
+  {
+    scope: "project",
+    pattern: /^запомни\s+за\s+проекта\s+следното\s*:\s*([\s\S]+)$/iu,
+  },
+  {
+    scope: "personal",
+    pattern: /^запомни\s+следното\s+за\s+мен\s*:\s*([\s\S]+)$/iu,
+  },
+  {
+    scope: "personal",
+    pattern: /^запомни\s+за\s+мен\s+следното\s*:\s*([\s\S]+)$/iu,
+  },
+  {
+    scope: "personal",
+    pattern: /^запомни\s+следното\s*:\s*([\s\S]+)$/iu,
+  },
+]);
+
+// The person asks to see the fact first or to be asked before it is written.
+const WAIT_FOR_MEMORY_CONFIRMATION =
+  /не\s+записвай|не\s+променяй|преди\s+(?:да\s+)?(?:запис|запиш|потвърд)|(?:поискай|изчакай|чакай)\s+(?:моето\s+|ми\s+)?потвърждение|предложи\s+да\s+запомниш|don[’']?t\s+(?:save|write|store)|ask\s+(?:me\s+)?first|wait\s+for\s+(?:my\s+)?confirmation/iu;
+// „Поправка: …“ is a correction in the talk unless it ends with „запомни това“.
+const BARE_MEMORY_CORRECTION =
+  /^поправка\s*(?:за\s+проекта\s*)?:(?![\s\S]*(?:запомни|запази)\s+това[.!?]*$)/iu;
+// A period after these words does not end the sentence („ул. Раковски 5“).
+const ABBREVIATION_END =
+  /(?:^|[^\p{L}])(?:ул|бул|гр|с|кв|бл|вх|ет|ап|г|д-р|проф|инж|доц|тел|напр|т\.е|пл|no|nr|mr|mrs|ms|dr|st|str|prof|tel|etc|vs)\.$/iu;
+
+function hasSecondSentence(fact) {
+  for (const match of fact.matchAll(/[.!?]\s+[\p{L}'’]+\s+\p{L}/gu)) {
+    const end = fact.slice(0, match.index + 1);
+    if (match[0][0] === "." && ABBREVIATION_END.test(end)) continue;
+    return true;
+  }
+  return false;
+}
+
+// The person's own command is their „да“ and is written at once (РАДКО
+// 28.11). Only a command that opens the message counts, and a single one only
+// when it holds one plain fact. Everything else keeps the one-time
+// confirmation and writes nothing: a message that asks to wait or to be asked
+// first, a bare „Поправка: …“, a „Запомни:“ inside forwarded or pasted text (a
+// Drive summary, a letter), and a command that runs on into another line or
+// sentence, so the rest of the message is never stored as the fact.
+export function isOwnMemoryCommand(message) {
+  const text = typeof message === "string" ? message.trim() : "";
+  if (!text) return false;
+  if (WAIT_FOR_MEMORY_CONFIRMATION.test(text)) return false;
+  if (BARE_MEMORY_CORRECTION.test(text)) return false;
+  // A list is split per line or „;“, one fact each.
+  if (BULK_MEMORY_PATTERNS.some(({ pattern }) => pattern.test(text))) {
+    return true;
+  }
+  const single = extractPersistentMemoryCommand(text);
+  if (!single) return false;
+  const body = text.replace(/^[^\n]*?(?::|,?\s+че\s)\s*/u, "");
+  return !body.includes("\n") && !hasSecondSentence(single.fact);
+}
+
 export function extractPersistentMemoryCommands(message) {
   const text = message.trim();
   // A proposal is still a memory intent, but it must never write anything by
@@ -294,30 +389,7 @@ export function extractPersistentMemoryCommands(message) {
     if (fact) return [{ fact, scope: "personal" }];
   }
 
-  const bulkPatterns = [
-    {
-      scope: "project",
-      pattern: /^запомни\s+(?:следното\s+)?за\s+проекта\s*:\s*([\s\S]+)$/iu,
-    },
-    {
-      scope: "project",
-      pattern: /^запомни\s+за\s+проекта\s+следното\s*:\s*([\s\S]+)$/iu,
-    },
-    {
-      scope: "personal",
-      pattern: /^запомни\s+следното\s+за\s+мен\s*:\s*([\s\S]+)$/iu,
-    },
-    {
-      scope: "personal",
-      pattern: /^запомни\s+за\s+мен\s+следното\s*:\s*([\s\S]+)$/iu,
-    },
-    {
-      scope: "personal",
-      pattern: /^запомни\s+следното\s*:\s*([\s\S]+)$/iu,
-    },
-  ];
-
-  for (const { scope, pattern } of bulkPatterns) {
+  for (const { scope, pattern } of BULK_MEMORY_PATTERNS) {
     const match = text.match(pattern);
     if (match?.[1]) {
       return splitMemoryFacts(match[1]).map((fact) => ({ fact, scope }));
@@ -581,6 +653,17 @@ export async function saveProfileMemory(
     data: document,
     deleteIds: duplicateIds,
   });
+  await announceMemoryChange(
+    ownerId,
+    sameTopic
+      .filter(
+        (memory) =>
+          (memory.normalizedFact || normalizeFact(memory.fact)) !==
+          normalizedFact,
+      )
+      .map((memory) => memory.fact),
+    cleanFact,
+  );
 
   return {
     id,
@@ -648,6 +731,9 @@ export async function updateProfileMemoryById(
     data: body,
     deleteIds: nextId === cleanId ? [] : [cleanId],
   });
+  if (normalizeFact(existing.fact || "") !== normalizedFact) {
+    await announceMemoryChange(ownerId, [existing.fact], cleanFact);
+  }
   return {
     id: nextId,
     fact: cleanFact,
@@ -670,36 +756,48 @@ export async function deleteProfileMemoryByFact(
   const metadata = deriveMemoryMetadata(cleanFact, requestedScope);
   const normalizedFact = normalizeFact(cleanFact);
   const hits = await fetchProfileHits(ownerId);
-  const matchingIds = hits
+  const matching = hits
     .map(hydrateMemory)
     .filter(
       (memory) =>
         memory?.memoryKey === metadata.memoryKey &&
         (memory.normalizedFact || normalizeFact(memory.fact)) ===
           normalizedFact,
-    )
-    .map((memory) => memory.id);
-  if (!matchingIds.length) return 0;
+    );
+  if (!matching.length) return 0;
 
-  await getFirestoreStoreOrThrow().deleteProfileDocuments(matchingIds);
-  return matchingIds.length;
+  await getFirestoreStoreOrThrow().deleteProfileDocuments(
+    matching.map((memory) => memory.id),
+  );
+  await announceMemoryChange(
+    ownerId,
+    matching.map((memory) => memory.fact),
+  );
+  return matching.length;
 }
 
 export async function deleteProfileMemory(id, ownerId = OWNER_ID) {
   const document = await getFirestoreStoreOrThrow().getProfileDocument(id);
   if (!document || document.data?.ownerId !== ownerId) return false;
   await getFirestoreStoreOrThrow().deleteProfileDocuments([id]);
+  await announceMemoryChange(ownerId, [document.data?.fact]);
   return true;
 }
 
 export async function clearProfileMemories(scope, ownerId = OWNER_ID) {
   const hits = await fetchProfileHits(ownerId);
-  const ids = hits
-    .filter((hit) => !VALID_SCOPES.has(scope) || hit._source?.scope === scope)
-    .map((hit) => hit._id);
-  if (!ids.length) return 0;
-  await getFirestoreStoreOrThrow().deleteProfileDocuments(ids);
-  return ids.length;
+  const cleared = hits.filter(
+    (hit) => !VALID_SCOPES.has(scope) || hit._source?.scope === scope,
+  );
+  if (!cleared.length) return 0;
+  await getFirestoreStoreOrThrow().deleteProfileDocuments(
+    cleared.map((hit) => hit._id),
+  );
+  await announceMemoryChange(
+    ownerId,
+    cleared.map((hit) => hit._source?.fact),
+  );
+  return cleared.length;
 }
 
 export async function listConversationMessages(

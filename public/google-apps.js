@@ -69,6 +69,7 @@
       body.innerHTML = `
         <section class="drawer-section">
           <div class="permission-default">${text("Последни имейли. „Чернова от мое име“ записва отговор в твоя стил като чернова в Gmail; нищо не се изпраща без теб.")}</div>
+          <div class="permission-default">${text("„В кошчето“ мести писмото в кошчето на Gmail след второ натискане. Там стои 30 дни.")}</div>
           ${
             messages.length
               ? messages
@@ -82,6 +83,7 @@
               </div>
               <a href="${escapeHtml(message.url)}" target="_blank" rel="noopener noreferrer">${text("Отвори")}</a>
               <button type="button" class="reply-draft" data-message-id="${escapeHtml(message.id)}">${text("Чернова от мое име")}</button>
+              <button type="button" class="gmail-trash" data-message-id="${escapeHtml(message.id)}">${text("В кошчето")}</button>
             </article>`,
                   )
                   .join("")
@@ -93,7 +95,57 @@
     }
   }
 
+  // „В кошчето“: the first press asks, the second moves this one letter to
+  // the person's own Gmail bin (deleting keeps a confirmation).
+  async function trashLetter(button) {
+    const card = button.closest("article");
+    if (button.dataset.armed !== "1") {
+      button.dataset.armed = "1";
+      button.classList.add("armed");
+      button.textContent = text("Да, в кошчето");
+      setTimeout(() => {
+        if (!button.isConnected || button.disabled) return;
+        delete button.dataset.armed;
+        button.classList.remove("armed");
+        button.textContent = text("В кошчето");
+      }, 6000);
+      return;
+    }
+    button.disabled = true;
+    button.textContent = text("Местя писмото…");
+    try {
+      const response = await fetch("/api/google/gmail/trash", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId: button.dataset.messageId }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.trashed) throw new Error(data.error || text("Писмото не беше преместено."));
+      const note = document.createElement("p");
+      note.className = "reply-draft-result";
+      note.setAttribute("role", "status");
+      note.textContent = text("Писмото е в кошчето на Gmail. Там стои 30 дни.");
+      card.querySelectorAll("button").forEach((item) => item.remove());
+      card.append(note);
+    } catch (error) {
+      button.disabled = false;
+      delete button.dataset.armed;
+      button.classList.remove("armed");
+      button.textContent = text("В кошчето");
+      const note = document.createElement("p");
+      note.className = "drawer-error";
+      note.textContent = error.message;
+      card.append(note);
+    }
+  }
+
   body.addEventListener("click", async (event) => {
+    const trash = event.target.closest(".gmail-trash");
+    if (trash) {
+      await trashLetter(trash);
+      return;
+    }
     const button = event.target.closest(".reply-draft");
     if (!button) return;
     const card = button.closest("article");

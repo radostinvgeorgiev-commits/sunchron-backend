@@ -2059,7 +2059,7 @@ function memoryProvenance(item) {
   const source = String(item?.source || "");
   const who = source === "system-canonical"
     ? chatText("основа на системата")
-    : /confirmed|confirmation|approved|import/u.test(source)
+    : /confirmed|confirmation|approved|import|own-chat-command/u.test(source)
       ? chatText("потвърдено от теб")
       : source
         ? chatText("източник: {source}", { source })
@@ -2094,13 +2094,18 @@ function renderMemoryItems() {
                           ${item.readOnly ? '<span class="memory-badge">Текуща основа</span>' : ""}
                           <p>${escapeHtml(item.fact)}</p>
                           ${memoryProvenance(item)}
+                          ${
+                            !item.readOnly && state.avatarLink && isSharedWithAvatar(item.fact)
+                              ? `<small class="memory-shared">${localizedMarkup("Споделено с „Питай моя аватар“")}</small>`
+                              : ""
+                          }
                         </div>
                         ${
                           item.readOnly
                             ? ""
                             : `<span class="memory-card-actions">
                                 ${
-                                  (item.scope || "personal") === "personal" && state.avatarLink
+                                  state.avatarLink
                                     ? `<button type="button" data-memory-share="${escapeHtml(item.id)}"
                                   aria-pressed="${isSharedWithAvatar(item.fact)}"
                                   aria-label="${escapeHtml(chatText(isSharedWithAvatar(item.fact) ? "Спри споделянето с аватара" : "Сподели с аватара"))}"
@@ -2128,11 +2133,11 @@ function renderMemoryItems() {
   elements.dataDrawerBody.innerHTML =
     `<p class="memory-intro">${escapeHtml(chatText("Това е всичко, което NovariumAI помни за теб. Нищо не се записва без твое „да“, а всеки запис можеш да поправиш, изтриеш или споделиш с „Питай моя аватар“."))}</p>
     <section class="memory-policy-card">
-      <strong>Правило за запомняне</strong>
-      <p>NovariumAI никога не запомня сам. Записва само когато кажеш „Запомни: …“ или натиснеш „Запомни“ под отговор. Можеш и напълно да забраниш записването.</p>
+      <strong>${localizedMarkup("Правило за запомняне")}</strong>
+      <p>${localizedMarkup("NovariumAI никога не запомня сам. Записва само когато кажеш „Запомни: …“ или натиснеш „Запомни“ под отговор. Можеш и напълно да забраниш записването.")}</p>
       <div class="memory-policy-actions">
-        <button type="button" data-memory-policy="confirm" aria-pressed="${memoryMode === "confirm"}">Само когато кажа</button>
-        <button type="button" data-memory-policy="disabled" aria-pressed="${memoryMode === "disabled"}">Не записвай</button>
+        <button type="button" data-memory-policy="confirm" aria-pressed="${memoryMode === "confirm"}">${localizedMarkup("Само когато кажа")}</button>
+        <button type="button" data-memory-policy="disabled" aria-pressed="${memoryMode === "disabled"}">${localizedMarkup("Не записвай")}</button>
       </div>
     </section>` +
     renderKnowledgeImportCard() +
@@ -2553,6 +2558,7 @@ async function handleDataDrawerAction(event) {
       state.memoryItems = state.memoryItems.map((candidate) =>
         candidate.id === item.id ? updated.items[0] : candidate,
       );
+      await refreshAvatarLink();
       renderMemoryItems();
       logAction("Редактиран е потвърден спомен");
     } catch (error) {
@@ -2613,6 +2619,7 @@ async function handleDataDrawerAction(event) {
     state.memoryItems = state.memoryItems.filter(
       (candidate) => candidate.id !== item.id,
     );
+    await refreshAvatarLink();
     renderMemoryItems();
     logAction("Изтрит е потвърден спомен");
   } catch (error) {
@@ -4194,6 +4201,20 @@ function avatarFactLine(fact) {
     .trim()
     .slice(0, 500);
   return text ? `• ${text}` : "";
+}
+
+// The server moves a shared line with its memory (corrected, replaced or
+// deleted); read the visitors' text again so the share buttons show what
+// visitors hear now.
+async function refreshAvatarLink() {
+  if (!state.avatarLink) return;
+  try {
+    const response = await fetch("/api/avatar-link", { cache: "no-store", credentials: "same-origin" });
+    const avatar = response.ok ? await response.json() : null;
+    if (avatar) state.avatarLink = { active: Boolean(avatar.active), knowledge: String(avatar.card?.knowledge || "") };
+  } catch {
+    // The drawer keeps the last known state; reopening reads it again.
+  }
 }
 
 function isSharedWithAvatar(fact) {

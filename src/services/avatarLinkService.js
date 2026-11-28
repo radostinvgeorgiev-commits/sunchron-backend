@@ -54,6 +54,20 @@ export function sharedFactLine(fact) {
   return text ? `• ${text}` : "";
 }
 
+// The same fact whatever its case, spacing or end mark, so the line follows
+// the memory that „Забрави: …“ or the panel names.
+function sharedFactKey(fact) {
+  return clean(fact, SHARED_FACT_LIMIT)
+    .replace(/^[„“"'’]+|[„“"'’.!?]+$/gu, "")
+    .trim()
+    .toLocaleLowerCase("bg-BG");
+}
+
+function sharedLineKey(line) {
+  const text = String(line || "").trim();
+  return text.startsWith("• ") ? sharedFactKey(text.slice(2)) : "";
+}
+
 export function normalizeAvatarCard(value = {}) {
   return {
     name: clean(value.name, AVATAR_LINK_LIMITS.name),
@@ -183,6 +197,39 @@ export function createAvatarLinkService({
     return status(ownerId);
   }
 
+  // A shared memory follows its memory (memoryService announces each change):
+  // when the person corrects or replaces it, its line takes the new words;
+  // when they delete it, the line goes. Only the shared „• “ lines are
+  // touched, never what the person wrote by hand. Returns whether it changed.
+  async function followMemory(ownerId, { removed = [], added = "" } = {}) {
+    const gone = new Set((Array.isArray(removed) ? removed : []).map(sharedFactKey).filter(Boolean));
+    if (!gone.size) return false;
+    const key = ownerKey(ownerId);
+    const previous = await db().get(AVATAR_LINK_COLLECTION, key);
+    const card = normalizeAvatarCard(previous?.data || {});
+    if (!card.knowledge) return false;
+    const lines = card.knowledge.split("\n");
+    const replacement = sharedFactLine(added);
+    let placed = !replacement || lines.some((entry) => entry.trim() === replacement);
+    const next = [];
+    for (const entry of lines) {
+      if (!gone.has(sharedLineKey(entry))) {
+        next.push(entry);
+      } else if (!placed) {
+        next.push(replacement);
+        placed = true;
+      }
+    }
+    let knowledge = next.join("\n").trim();
+    // A longer correction that no longer fits leaves the line out.
+    if (knowledge.length > AVATAR_LINK_LIMITS.knowledge) {
+      knowledge = next.filter((entry) => entry !== replacement || lines.includes(entry)).join("\n").trim();
+    }
+    if (knowledge === card.knowledge) return false;
+    await writeCard(key, previous, { ...card, knowledge });
+    return true;
+  }
+
   async function stop(ownerId) {
     const key = ownerKey(ownerId);
     const row = await db().get(AVATAR_LINK_COLLECTION, key);
@@ -244,7 +291,7 @@ export function createAvatarLinkService({
     await db().commitOperations(operations);
   }
 
-  return { status, save, share, stop, card, ask, forget };
+  return { status, save, share, followMemory, stop, card, ask, forget };
 }
 
 let defaultService;

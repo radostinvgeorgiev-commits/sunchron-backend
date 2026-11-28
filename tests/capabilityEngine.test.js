@@ -763,3 +763,46 @@ test("one day of the calendar and today's mail are read as that day's", async ()
     global.fetch = originalFetch;
   }
 });
+
+// A letter from an earlier year says its year, so it never reads as today's
+// (review of #605).
+test("an older letter shows its year, this year's letters do not", async () => {
+  const env = {
+    GOOGLE_CLIENT_ID: "client",
+    GOOGLE_CLIENT_SECRET: "secret",
+    GOOGLE_REDIRECT_URI: "https://example.test/api/google/callback",
+  };
+  const googleSessionId = await createSession({ access_token: "token", expires_in: 3600 });
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Sofia" });
+  const lastYear = `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`;
+  const sentAt = new Date(`${lastYear}T10:12:00Z`);
+  const clock = new Intl.DateTimeFormat("bg-BG", { timeZone: "Europe/Sofia", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(sentAt);
+  const originalFetch = global.fetch;
+  global.fetch = async (url) => {
+    const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+    if (String(url).startsWith("https://gmail.googleapis.com/gmail/v1/users/me/messages?")) return json({ messages: [{ id: "old1" }] });
+    if (String(url).startsWith("https://gmail.googleapis.com/gmail/v1/users/me/messages/old1?")) {
+      return json({
+        id: "old1",
+        labelIds: ["INBOX"],
+        payload: {
+          headers: [
+            { name: "Subject", value: "Фактура" },
+            { name: "From", value: "Банка <bank@example.com>" },
+            { name: "Date", value: sentAt.toUTCString() },
+          ],
+        },
+      });
+    }
+    return json({});
+  };
+  try {
+    const found = await executeCapability("mail.read", { ownerId: "owner", googleSessionId, query: "from:bank" }, { env });
+    assert.equal(
+      found.output,
+      `Последни съобщения в Gmail:\n• Фактура — Банка <bank@example.com> (${lastYear.slice(8, 10)}.${lastYear.slice(5, 7)}.${lastYear.slice(0, 4)} ${clock})`,
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

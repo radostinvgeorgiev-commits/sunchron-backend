@@ -153,6 +153,17 @@
 .remember-share input { width: 18px; height: 18px; accent-color: #5b3fe0; }
 .remember-note { min-height: 1.2em; font-size: 14px; color: #33413a; }
 
+/* A memory shared with „Питай моя аватар“ shows it, on a phone too. */
+.memory-card-actions button[data-memory-share][aria-pressed="true"] { color: #fff; background: #5b3fe0; }
+.memory-shared { display: block; margin-top: 2px; font-size: 12px; font-weight: 700; color: #5b3fe0; }
+
+/* Narrow phones: „Копирай“ shows only its icon, so the row of buttons under
+   an answer fits and nothing scrolls sideways. */
+@media (max-width: 389px) {
+  .message-actions button[data-action="copy"] { min-width: 0; }
+  .message-actions button[data-action="copy"] .action-label { display: none; }
+}
+
 /* Council answers side by side (desktop) and swipeable (phone). */
 .message.has-council-columns { max-width: 100%; }
 .council-columns {

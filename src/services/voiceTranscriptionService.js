@@ -103,10 +103,24 @@ async function transcribeWithGemini({ bytes, type, language, env, fetchImpl, sig
     data?.usageMetadata?.promptTokenCount || 0,
     data?.usageMetadata?.candidatesTokenCount || 0,
   );
-  const text = (data?.candidates?.[0]?.content?.parts || [])
+  const candidate = data?.candidates?.[0];
+  const text = (candidate?.content?.parts || [])
     .map((part) => part?.text || "")
     .join("")
     .trim();
+  // A refusal (blocked, recitation, safety) or a cut-off answer comes back as
+  // 200 with no text: the fallback hears it instead. An empty answer that
+  // simply stopped is silence.
+  const stopped =
+    data?.promptFeedback?.blockReason ||
+    (!candidate
+      ? "NO_CANDIDATE"
+      : !text && candidate.finishReason && candidate.finishReason !== "STOP"
+        ? candidate.finishReason
+        : "");
+  if (stopped) {
+    throw new VoiceError(`Gemini не върна текст (${stopped}).`, 502, "VOICE_UPSTREAM");
+  }
   return { text, provider: "gemini", model };
 }
 

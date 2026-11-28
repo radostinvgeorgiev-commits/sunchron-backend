@@ -583,7 +583,7 @@ Google временно не е достъпен.|Google is temporarily unavaila
 Календарът ми|My calendar
 Прекъсни връзката|Disconnect
 Връзката с Google не се прекъсна. Опитай отново.|Google was not disconnected. Try again.
-Google е свързан. В разговора можеш да питаш за пощата, календара и контактите си, да добавяш събития и контакти и да пращаш имейли. Събитие, контакт и имейл до адрес, който сам напишеш, стават веднага с твоите думи; промяна и триене питат преди това.|Google is connected. In the chat you can ask about your mail, calendar and contacts, add events and contacts, and send emails. An event, a contact and an email to an address you type yourself happen at once from your words; a change or a deletion asks first.
+Google е свързан. В разговора можеш да питаш за пощата, календара и контактите си, да добавяш събития и контакти и да пращаш имейли. Събитие, контакт и имейл до адрес, който сам напишеш, стават веднага с твоите думи. Писмо местиш в кошчето от панела Gmail с второ натискане.|Google is connected. In the chat you can ask about your mail, calendar and contacts, add events and contacts, and send emails. An event, a contact and an email to an address you type yourself happen at once from your words. You move a letter to the bin from the Gmail panel with a second press.
 Файловете ти в Drive не се виждат. „Запази в Google“ под отговор прави документ, до който NovariumAI има достъп.|NovariumAI cannot see your Drive files. “Save to Google” under an answer creates a document that NovariumAI can access.
 Свържи Google отново|Connect Google again
 Анализирам…|Analyzing…
@@ -993,5 +993,13 @@ NovariumAI — твоят личен AI аватар|NovariumAI — your persona
 NovariumAI никога не запомня сам. Записва само когато кажеш „Запомни: …“ или натиснеш „Запомни“ под отговор. Можеш и напълно да забраниш записването.|NovariumAI never remembers on its own. It saves only when you say “Remember: …” or press “Remember” under an answer. You can also turn saving off completely.
 Само когато кажа|Only when I say so
 Не записвай|Don't save
+Правило за запомняне|Memory rule
+Споделено с „Питай моя аватар“|Shared with “Ask my avatar”
+„В кошчето“ мести писмото в кошчето на Gmail след второ натискане. Там стои 30 дни.|“Move to bin” moves the letter to the Gmail bin after a second press. It stays there for 30 days.
+В кошчето|Move to bin
+Да, в кошчето|Yes, move to bin
+Местя писмото…|Moving the letter…
+Писмото е в кошчето на Gmail. Там стои 30 дни.|The letter is in the Gmail bin. It stays there for 30 days.
+Писмото не беше преместено.|The letter was not moved.
 `.trim().split("\n").map((line) => line.split("|")),
 );

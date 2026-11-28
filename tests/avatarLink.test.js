@@ -177,3 +177,75 @@ test("the share route passes only the signed-in person's own fact and choice", a
     ["ana", { fact: "x", shared: false }],
   ]);
 });
+
+// A shared memory follows its memory (review of #605): corrected or replaced,
+// the line takes the new words; deleted, the line goes. Hand-written lines
+// stay as the person wrote them.
+test("a shared line follows its memory through a correction, a replace and a delete", async () => {
+  process.env.NODE_ENV = "test";
+  const {
+    clearProfileMemories,
+    deleteProfileMemory,
+    deleteProfileMemoryByFact,
+    listProfileMemories,
+    saveProfileMemory,
+    setMemoryChangeListener,
+    updateProfileMemoryById,
+  } = await import("../src/services/memoryService.js");
+  const { resetLocalDocumentStoreForTests } = await import("../src/services/localDocumentStore.js");
+  resetLocalDocumentStoreForTests();
+  const store = memoryStore();
+  let asked = "";
+  const service = createAvatarLinkService({
+    store,
+    newToken: () => "M".repeat(32),
+    askAi: async ({ input }) => {
+      asked = input[0].content;
+      return "ok";
+    },
+  });
+  setMemoryChangeListener((ownerId, change) => service.followMemory(ownerId, change));
+  const knowledgeOf = async () => (await service.status("mila")).card.knowledge;
+  try {
+    const saved = await service.save("mila", { name: "Мила", knowledge: "Работя от 9 до 17 ч.\nОбичам чай." });
+    const name = await saveProfileMemory("Казвам се Мила", "test", "personal", "mila");
+    await service.share("mila", { fact: name.fact });
+    assert.equal(await knowledgeOf(), "Работя от 9 до 17 ч.\nОбичам чай.\n• Казвам се Мила");
+
+    // „Запомни: Казвам се Милена“ replaces the memory with the same topic.
+    const replaced = await saveProfileMemory("Казвам се Милена", "test", "personal", "mila");
+    assert.equal(replaced.replaced, true);
+    assert.equal(await knowledgeOf(), "Работя от 9 до 17 ч.\nОбичам чай.\n• Казвам се Милена");
+
+    // The panel's edit.
+    const phone = await saveProfileMemory("Телефонът ми е 0888 111 111", "test", "personal", "mila");
+    await service.share("mila", { fact: phone.fact });
+    await updateProfileMemoryById(phone.id, "Телефонът ми е 0888 222 222", "personal", "mila");
+    await service.ask(saved.token, { question: "Какъв е телефонът ти?" });
+    assert.match(asked, /• Телефонът ми е 0888 222 222/u);
+    assert.doesNotMatch(asked, /111 111/u);
+
+    // „Забрави: …“ names the fact in other case and end mark; the panel deletes by id.
+    await deleteProfileMemoryByFact("казвам се милена.", "personal", "mila");
+    const [current] = await listProfileMemories({ scope: "personal", ownerId: "mila" });
+    await deleteProfileMemory(current.id, "mila");
+    assert.equal(await knowledgeOf(), "Работя от 9 до 17 ч.\nОбичам чай.");
+    await service.ask(saved.token, { question: "Как се казваш?" });
+    assert.doesNotMatch(asked, /Милена|0888/u);
+
+    // „Забрави всичко“ takes every shared line; the person's own text stays.
+    const tea = await saveProfileMemory("Обичам чай", "test", "personal", "mila");
+    await service.share("mila", { fact: tea.fact });
+    assert.equal(await knowledgeOf(), "Работя от 9 до 17 ч.\nОбичам чай.\n• Обичам чай");
+    await clearProfileMemories(undefined, "mila");
+    assert.equal(await knowledgeOf(), "Работя от 9 до 17 ч.\nОбичам чай.");
+
+    // Another person's change never touches this text, and no text means no change.
+    await saveProfileMemory("Обичам чай", "test", "personal", "other");
+    await deleteProfileMemoryByFact("Обичам чай", "personal", "other");
+    assert.equal(await knowledgeOf(), "Работя от 9 до 17 ч.\nОбичам чай.");
+    assert.equal(await service.followMemory("nobody", { removed: ["Обичам чай"] }), false);
+  } finally {
+    setMemoryChangeListener(null);
+  }
+});

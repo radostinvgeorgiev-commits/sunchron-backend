@@ -71,3 +71,12 @@ test("every new start-page text has an English translation", () => {
 test("the writer specialist is shown as coming, not as ready", () => {
   assert.match(html, /<li class="landing-soon">[\s\S]{0,120}Писател<\/strong><em>Скоро<\/em>/u);
 });
+
+test("after sign-in the chat area uses the same neon night", async () => {
+  const neon = await read("app-neon.css");
+  assert.match(html, /href="\/app-neon\.css\?v=/u);
+  assert.match(neon, /#chat-container\.chatPanel[\s\S]{0,400}#05060f|var\(--nv-night\)/u);
+  // Open menus inside the top bar keep their light cards and dark text.
+  assert.match(neon, /\.chat-toolbar[\s\S]{0,200}:not\(\s*:is\([\s\S]{0,40}\.model-picker-menu/u);
+  assert.match(neon, /\.assistant-picker/u);
+});

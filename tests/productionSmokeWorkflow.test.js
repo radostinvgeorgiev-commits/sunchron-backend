@@ -15,6 +15,9 @@ test("production smoke targets the canonical Google Cloud production site", asyn
   assert.match(workflow, /Check the old name moves to novariumai\.com/u);
   assert.match(workflow, /test "\$\{moved\}" = "301 \$\{PRODUCTION_ORIGIN\}\/plans\?smoke=\$\{GITHUB_RUN_ID\}"/u);
   assert.match(workflow, /-H 'Accept: text\/html' "\$\{OLD_ORIGIN\}\/plans\?smoke=\$\{GITHUB_RUN_ID\}"/u);
+  // A page opened through the site's service worker moves as well.
+  assert.match(workflow, /-H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: empty' "\$\{OLD_ORIGIN\}\/plans\?worker=\$\{GITHUB_RUN_ID\}"/u);
+  assert.match(workflow, /test "\$\{worker\}" = "301 \$\{PRODUCTION_ORIGIN\}\/plans\?worker=\$\{GITHUB_RUN_ID\}"/u);
   // /health is asked for like a page, so the check fails if it ever moves.
   assert.match(workflow, /-H 'Accept: text\/html' "\$\{OLD_ORIGIN\}\/health"\)"\n\s+echo "old name health: \$\{kept\}"\n\s+test "\$\{kept\}" = "200"/u);
   assert.match(workflow, /"\$\{OLD_ORIGIN\}\/mcp\?catalog-check=\$\{attempt\}"/u);

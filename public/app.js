@@ -1380,14 +1380,12 @@ function toolStatusActions(tool, status, googleConnected, githubConnected, switc
   if (requiresGoogleOAuth(tool) && !googleConnected && tool.configured) {
     action = `<button type="button" class="tool-connect-btn" data-connect-service="google">${escapeHtml(chatText("Свържи Google"))}</button>`;
   } else if (GITHUB_TOOL_IDS.has(tool.id) && tool.configured && !githubConnected) {
-    action =
-      '<button type="button" class="tool-connect-btn" data-connect-service="github">Свържи GitHub</button>';
+    action = `<button type="button" class="tool-connect-btn" data-connect-service="github">${escapeHtml(chatText("Свържи GitHub"))}</button>`;
   } else if (
     ["github-write", "github-confirmed-write"].includes(tool.id) &&
     !tool.configured
   ) {
-    action =
-      '<button type="button" class="tool-connect-btn" data-github-setup>Настрой GitHub</button>';
+    action = `<button type="button" class="tool-connect-btn" data-github-setup>${escapeHtml(chatText("Настрой GitHub"))}</button>`;
   }
 
   const check = action ? "" : liveCheckOf(tool);
@@ -1415,7 +1413,7 @@ function permissionAction(item, toolMap, googleConnected, githubConnected) {
     "contacts.write",
   ]);
   if (googlePermissions.has(item.action) && !googleConnected) {
-    return '<button type="button" class="tool-connect-btn" data-connect-service="google">Свържи Google</button>';
+    return `<button type="button" class="tool-connect-btn" data-connect-service="google">${escapeHtml(chatText("Свържи Google"))}</button>`;
   }
 
   const githubWrite =
@@ -1426,30 +1424,30 @@ function permissionAction(item, toolMap, googleConnected, githubConnected) {
     githubWrite?.executable &&
     !githubConnected
   ) {
-    return '<button type="button" class="tool-connect-btn" data-connect-service="github">Свържи GitHub</button>';
+    return `<button type="button" class="tool-connect-btn" data-connect-service="github">${escapeHtml(chatText("Свържи GitHub"))}</button>`;
   }
   if (
     item.action === "github.write" &&
     (!githubWrite?.configured || !githubWrite?.executable)
   ) {
-    return '<button type="button" class="tool-connect-btn" data-github-setup>Настрой GitHub</button>';
+    return `<button type="button" class="tool-connect-btn" data-github-setup>${escapeHtml(chatText("Настрой GitHub"))}</button>`;
   }
 
   if (item.decision === "confirm") {
-    return `<button type="button" class="permission-info-btn" data-permission-info="${escapeHtml(item.action)}">Как работи</button>`;
+    return `<button type="button" class="permission-info-btn" data-permission-info="${escapeHtml(item.action)}">${escapeHtml(chatText("Как работи"))}</button>`;
   }
   return "";
 }
 
 // One top card: the service, whether it is connected, and „Разкачи“ or
 // „Свържи“ (RADKO 28.11 13:50).
-function connectionCard(name, description, connected, button, extra = "") {
+function connectionCard(name, description, connected, button, extra = "", values = {}) {
   return `
       <article class="connection-control-card">
         <div>
           <strong>${escapeHtml(name)}</strong>
           <span class="tool-link-state ${connected ? "on" : "off"}">${escapeHtml(chatText(connected ? "Свързан" : "Не е свързан"))}</span>
-          <p>${escapeHtml(chatText(description))}</p>
+          <p>${escapeHtml(chatText(description, values))}</p>
           ${extra}
         </div>
         ${button}
@@ -1474,7 +1472,7 @@ function connectionControls(
   const chatgptDescription = chatgptUnavailable
     ? "Състоянието временно не е достъпно"
     : chatgptConnected
-      ? `${chatgptGrants.length} активни MCP връзки · ${chatgptScopes.length} разрешения`
+      ? "Активни MCP връзки: {count} · разрешения: {scopes}"
       : chatgptConfigured
         ? "Няма активна MCP връзка"
         : "OAuth връзката не е конфигурирана";
@@ -1487,6 +1485,7 @@ function connectionControls(
     chatgptConnected,
     `<button type="button" class="tool-connect-btn${chatgptConnected ? " tool-unplug-btn" : ""}" data-${chatgptConnected ? "disconnect" : "connect"}-service="chatgpt" ${chatgptConfigured ? "" : "disabled"}>${escapeHtml(chatText(chatgptConnected ? "Разкачи" : "Отвори ChatGPT"))}</button>`,
     chatgptScopes.length ? `<small>${escapeHtml(chatgptScopes.join(" · "))}</small>` : "",
+    { count: chatgptGrants.length, scopes: chatgptScopes.length },
   );
   const google = connectionCard(
     "Google",
@@ -1601,14 +1600,14 @@ async function openToolsDrawer() {
       <section class="drawer-section permission-list">
         ${owner ? `<button type="button" class="permission-card tool-status-card system-control-link" data-system-configuration>
           <div>
-            <strong>Системен контрол</strong>
-            <p>Ядро, инструменти и всички променливи без показване на тайните им стойности.</p>
+            <strong>${escapeHtml(chatText("Системен контрол"))}</strong>
+            <p>${escapeHtml(chatText("Ядро, инструменти и всички променливи без показване на тайните им стойности."))}</p>
           </div>
-          <span class="permission-badge allow">Отвори</span>
+          <span class="permission-badge allow">${escapeHtml(chatText("Отвори"))}</span>
         </button>
         <article class="permission-card tool-status-card">
-          <div><strong>Снимки</strong><p>JPEG, PNG и WebP до 5 MB. Чете ги Claude.</p></div>
-          <span class="permission-badge confirm" data-live-check="core:images">Проверявам…</span>
+          <div><strong>${escapeHtml(chatText("Снимки"))}</strong><p>${escapeHtml(chatText("JPEG, PNG и WebP до 5 MB. Чете ги Claude."))}</p></div>
+          <span class="permission-badge confirm" data-live-check="core:images">${escapeHtml(chatText("Проверявам…"))}</span>
         </article>` : ""}
         ${tools
           .map((tool) => {
@@ -2572,10 +2571,15 @@ async function handleDataDrawerAction(event) {
       );
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(chatText(result.error || "Промяната не беше записана. Опитай пак."));
+        // Only the switch's own answers are written for the person (and have
+        // their other languages); any other answer gets the plain one.
+        const own = String(result.code || "").startsWith("TOOL_SWITCH_") ? result.error : "";
+        throw new Error(chatText(own || "Промяната не беше записана. Опитай пак."));
       }
       const name = toolSwitch.closest("[data-tool-card]")?.querySelector("strong")?.textContent || "";
-      await openToolsDrawer();
+      // The person may have closed „Инструменти“ meanwhile: it does not open
+      // again by itself (the next opening shows the new state).
+      if (toolsDrawerOpen) await openToolsDrawer();
       logAction(chatText(on ? "Свързан е {name}" : "Разкачен е {name}", { name }));
     } catch (error) {
       setBusy(false);
@@ -2600,7 +2604,7 @@ async function handleDataDrawerAction(event) {
     if (
       !window.confirm(
         service === "chatgpt"
-          ? "Да отнема ли всички активни права на ChatGPT до NovariumAI?"
+          ? chatText("Да отнема ли всички активни права на ChatGPT до NovariumAI?")
           : service === "google"
             ? // Google keeps one permission per account: it stops on every device.
               chatText("Да спра ли достъпа на NovariumAI до Google? Това спира Google на всички твои устройства. После пощата и Drive се разрешават отново.")

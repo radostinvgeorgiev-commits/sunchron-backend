@@ -40,7 +40,7 @@ test("application exposes working memory and permission controls", async () => {
   assert.match(script, /function openToolsDrawer\(\)/u);
   assert.match(
     script,
-    /<strong>Снимки<\/strong><p>JPEG, PNG и WebP до 5 MB\. Чете ги Claude\.<\/p>[\s\S]*data-live-check="core:images"/u,
+    /<strong>\$\{escapeHtml\(chatText\("Снимки"\)\)\}<\/strong><p>\$\{escapeHtml\(chatText\("JPEG, PNG и WebP до 5 MB\. Чете ги Claude\."\)\)\}<\/p>[\s\S]*data-live-check="core:images"/u,
   );
   assert.doesNotMatch(script, /Снимки и файлове/u);
   assert.match(script, /fetch\(["']\/health\/integrations["']/u);

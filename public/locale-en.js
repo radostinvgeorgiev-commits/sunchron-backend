@@ -1356,5 +1356,24 @@ Google Карти|Google Maps
 Модел|Model
 Claude чете и обяснява код в отделна среда, без запис.|Claude reads and explains code in a separate environment, without writing anything.
 Отвори ChatGPT|Open ChatGPT
+Настрой GitHub|Set up GitHub
+Свързано · пише само след потвърждение|Connected · writes only after confirmation
+Ядро, инструменти и всички променливи без показване на тайните им стойности.|Core, tools and all settings, without showing their secret values.
+JPEG, PNG и WebP до 5 MB. Чете ги Claude.|JPEG, PNG and WebP up to 5 MB. Claude reads them.
+Код, issues, Pull Request-и и Actions|Code, issues, pull requests and Actions
+Няма активна MCP връзка|No active MCP connection
+OAuth връзката не е конфигурирана|The OAuth connection is not set up
+Състоянието временно не е достъпно|The status is temporarily unavailable
+Активни MCP връзки: {count} · разрешения: {scopes}|Active MCP connections: {count} · permissions: {scopes}
+Да отнема ли всички активни права на ChatGPT до NovariumAI?|Remove all of ChatGPT's active permissions to NovariumAI?
+Claude код|Code with Claude
+Проверява commit-и и файлове. Само за четене.|Checks commits and files. Read only.
+NovariumAI генерира ограничена кодова промяна и след точно потвърждение създава отделен branch, атомарен commit и Pull Request.|NovariumAI writes a limited code change and, after an exact confirmation, creates a separate branch, one commit and a pull request.
+Създава отделен branch, файл, commit или Pull Request само след точно потвърждение. Merge, secrets и production deployment са забранени.|Creates a separate branch, file, commit or pull request only after an exact confirmation. Merging, secrets and production deployment are not allowed.
+Пази задачи, бележки, проектни връзки и потвърждавани статуси.|Keeps tasks, notes, project links and confirmed statuses.
+Разговаря с NovariumAI до 10 последователни въпроса в една MCP нишка.|Talks with NovariumAI for up to 10 questions in a row in one MCP thread.
+Проверява ядрото и Google Cloud runtime настройките без техните стойности.|Checks the core and the Google Cloud runtime settings without their values.
+Проверява текущия Cloud Run runtime, Firestore режима и активната revision без стойности на secrets.|Checks the current Cloud Run runtime, the Firestore mode and the active revision without secret values.
+Google Cloud Memory: постоянната памет на NovariumAI в Firestore.|Google Cloud Memory: NovariumAI's lasting memory in Firestore.
 `.trim().split("\n").map((line) => line.split("|")),
 );

@@ -92,6 +92,12 @@ jobs:
             -H 'Accept: text/html' "${OLD_ORIGIN}/plans?smoke=${GITHUB_RUN_ID}")"
           echo "old name page: ${moved}"
           test "${moved}" = "301 ${PRODUCTION_ORIGIN}/plans?smoke=${GITHUB_RUN_ID}"
+          # Asked for like the site's service worker opens a page in a browser
+          # that has been on the site before.
+          worker="$(curl --silent --show-error --max-time 30 -o /dev/null -w '%{http_code} %{redirect_url}' \
+            -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: empty' "${OLD_ORIGIN}/plans?worker=${GITHUB_RUN_ID}")"
+          echo "old name page through the service worker: ${worker}"
+          test "${worker}" = "301 ${PRODUCTION_ORIGIN}/plans?worker=${GITHUB_RUN_ID}"
           kept="$(curl --silent --show-error --max-time 30 -o /dev/null -w '%{http_code}' \
             -H 'Accept: text/html' "${OLD_ORIGIN}/health")"
           echo "old name health: ${kept}"

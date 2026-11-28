@@ -4,6 +4,7 @@ import {
   isMemoryBackendConfigured,
   isPersistenceBackendConfigured,
   resolveMemoryBackend,
+  resolvePersistenceBackend,
 } from "../config/memoryBackend.js";
 import { resolveRuntimeVersion } from "../config/runtimeVersion.js";
 import { getMemoryStartupVerificationStatus } from "../services/memoryStartupVerificationService.js";
@@ -448,6 +449,14 @@ export function getIntegrationStatus({ githubAuthenticated = false } = {}) {
     },
     "synchron-tasks": {
       configured: isPersistenceBackendConfigured(process.env),
+      authenticated: true,
+    },
+    // „Моите задачи“ of each person: the same store as the chat's own check
+    // (capabilityEngine), so the tools list does not call it not set up.
+    "personal-todos": {
+      configured:
+        resolvePersistenceBackend(process.env) === "local" ||
+        isPersistenceBackendConfigured(process.env),
       authenticated: true,
     },
     "openai-web-search": {

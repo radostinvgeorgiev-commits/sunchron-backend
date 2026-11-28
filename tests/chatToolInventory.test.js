@@ -808,7 +808,7 @@ test("the 22:21 question reaches the model with the tool list, for the owner and
           sessionId,
           message: QUESTION,
           mode,
-          ...(mode === "work" ? { workContext: { project: { name: "Реклама" }, agent: { name: "Novarium" } } } : {}),
+          ...(mode === "work" ? { workContext: { project: { name: "Реклама" }, agent: { name: "NovariumAI" } } } : {}),
         })
         .expect(200);
       assert.match(response.text, /event: done/u);

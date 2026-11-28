@@ -950,7 +950,13 @@ function googleConnectLink(label = "Свържи Google", extra = "") {
   return `[${label}](${url.replace(/\?.*$/u, "")}?add=${extra})`;
 }
 
-const SERVICE_EXTRA = { Gmail: "gmail", "Google Drive": "drive" };
+// Reading the mailbox needs its own Google approval (add=gmail); sending
+// does not. A refused read says exactly that, so the answer never turns it
+// into „I can't send“ (RADKO, 28.11 05:28: a read was refused and the answer
+// said the email could not be sent).
+const GMAIL_READ = "Gmail read";
+const SERVICE_EXTRA = { Gmail: "gmail", [GMAIL_READ]: "gmail", "Google Drive": "drive" };
+const shownService = (serviceName) => (serviceName === GMAIL_READ ? "Gmail" : serviceName);
 
 async function googleErrorDetails(response) {
   try {
@@ -1001,23 +1007,28 @@ async function googleFetch(
       );
     if (apiDisabled) {
       throw new GoogleDriveError(
-        `${serviceName} API не е включен в Google Cloud. Отвори настройката на Google проекта и включи услугата.`,
+        `${shownService(serviceName)} API не е включен в Google Cloud. Отвори настройката на Google проекта и включи услугата.`,
         503,
         "GOOGLE_API_DISABLED",
       );
     }
     throw new GoogleDriveError(
-      `${serviceName} няма дадено разрешение. ${googleConnectLink(
-        `Разреши ${serviceName}`,
-        SERVICE_EXTRA[serviceName],
-      )}.`,
+      serviceName === GMAIL_READ
+        ? `Четенето на пощата в Gmail още не е разрешено; изпращането на имейли работи. ${googleConnectLink(
+            "Разреши четене на Gmail",
+            SERVICE_EXTRA[serviceName],
+          )}.`
+        : `${serviceName} няма дадено разрешение. ${googleConnectLink(
+            `Разреши ${serviceName}`,
+            SERVICE_EXTRA[serviceName],
+          )}.`,
       403,
       "GOOGLE_SCOPE_REQUIRED",
     );
   }
 
   const failure = new GoogleDriveError(
-    `${serviceName} временно не е достъпен (Google грешка ${response.status}).`,
+    `${shownService(serviceName)} временно не е достъпен (Google грешка ${response.status}).`,
     502,
     "GOOGLE_REQUEST_FAILED",
   );
@@ -1627,7 +1638,7 @@ export async function searchGmailMessages(
     `${GMAIL_API_URL}/users/me/messages?${params}`,
     {},
     fetchImpl,
-    "Gmail",
+    GMAIL_READ,
   );
   const list = await listResponse.json();
   const messages = Array.isArray(list.messages) ? list.messages : [];
@@ -1644,7 +1655,7 @@ export async function searchGmailMessages(
         `${GMAIL_API_URL}/users/me/messages/${encodeURIComponent(messageId)}?${detailParams}`,
         {},
         fetchImpl,
-        "Gmail",
+        GMAIL_READ,
       );
       const message = await detailResponse.json();
       const headers = message.payload?.headers || [];
@@ -1679,7 +1690,7 @@ export async function getGmailMessage(id, messageId, fetchImpl = fetch) {
     `${GMAIL_API_URL}/users/me/messages/${encodeURIComponent(cleanMessageId)}?${params}`,
     {},
     fetchImpl,
-    "Gmail",
+    GMAIL_READ,
   );
   const message = await response.json();
   const headers = message.payload?.headers || [];

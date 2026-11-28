@@ -864,16 +864,24 @@ const executors = Object.freeze({
         },
       };
     }
-    const messages = input.query
-      ? await searchGmailMessages(
-          input.googleSessionId,
-          input.query,
-          input.limit || 10,
-        )
+    // The chat's own words come as the request's input („newer_than:1d“ for
+    // „днес“, item 3 fix 1); a tool call sets the query itself.
+    const toolQuery = typeof input.query === "string" ? input.query.trim() : "";
+    const wordsQuery = !toolQuery && typeof input.input?.query === "string" ? input.input.query.trim() : "";
+    const query = toolQuery || wordsQuery;
+    let messages = query
+      ? await searchGmailMessages(input.googleSessionId, query, input.limit || 10)
       : await listGmailMessages(input.googleSessionId, input.limit || 10);
+    // „каво имам в пошата днес покажи ми последните мейли“ with no mail today:
+    // the latest ones, said as such, instead of an empty answer.
+    let heading = "Последни съобщения в Gmail:";
+    if (!messages.length && wordsQuery) {
+      messages = await listGmailMessages(input.googleSessionId, input.limit || 10);
+      heading = "По това търсене няма писма. Последните писма в Gmail:";
+    }
     if (!messages.length) return "Няма намерени съобщения в Gmail.";
     return [
-      "Последни съобщения в Gmail:",
+      heading,
       ...messages.map(
         (message) =>
           `• ${message.unread ? "Непрочетено — " : ""}${message.subject} — ${message.from}`,

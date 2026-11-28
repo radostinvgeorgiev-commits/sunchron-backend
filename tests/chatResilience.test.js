@@ -489,6 +489,14 @@ test("explicit GitHub request still runs when the AI planner returns no tools", 
 
 test("explicit memory writes fail safely when memory is unavailable", async () => {
   setFirestoreMemoryStoreForTests(unavailableMemoryStore());
+  // The words are read once more by a small model before a write at once;
+  // no real model is reached from a test.
+  const originalFetch = globalThis.fetch;
+  const outside = [];
+  globalThis.fetch = async (url) => {
+    outside.push(new URL(String(url)).host);
+    throw new Error("No network in this test.");
+  };
   try {
     const response = await request(app)
       .post("/chat/chat")
@@ -500,7 +508,11 @@ test("explicit memory writes fail safely when memory is unavailable", async () =
       .expect(503);
 
     assert.match(response.body.error, /Нищо не беше записано или изтрито/u);
+    for (const host of outside) {
+      assert.match(host, /^(?:api\.openai\.com|generativelanguage\.googleapis\.com)$/u);
+    }
   } finally {
+    globalThis.fetch = originalFetch;
     setFirestoreMemoryStoreForTests(null);
   }
 });

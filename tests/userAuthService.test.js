@@ -10,6 +10,7 @@ import {
   isUserRegistrationEnabled,
   isUserAuthConfigured,
   registerUser,
+  renewalOutcome,
   resolveUserSession,
   signInUser,
   userSessionCookie,
@@ -511,4 +512,219 @@ test("two authenticated users receive different stable memory owners", async () 
     identities[1].user.memoryOwnerId,
   );
   assert.match(identities[0].user.memoryOwnerId, /^identity-platform:/u);
+});
+
+test("a renewal failure is ended, temporary or refused by Google's own names", () => {
+  assert.equal(renewalOutcome(null), "refused");
+  assert.equal(renewalOutcome({ status: 400, upstreamCode: "TOKEN_EXPIRED" }), "ended");
+  assert.equal(renewalOutcome({ status: 400, upstreamCode: "INVALID_REFRESH_TOKEN" }), "ended");
+  assert.equal(renewalOutcome({ status: 502, upstreamCode: "USER_NOT_FOUND" }), "ended");
+  assert.equal(renewalOutcome({ status: 503, code: "IDENTITY_PLATFORM_UNAVAILABLE" }), "temporary");
+  assert.equal(renewalOutcome({ status: 429 }), "temporary");
+  assert.equal(renewalOutcome({ status: 400, upstreamCode: "TOO_MANY_ATTEMPTS_TRY_LATER" }), "temporary");
+  assert.equal(renewalOutcome(new TypeError("fetch failed")), "temporary");
+  assert.equal(
+    renewalOutcome({
+      status: 403,
+      upstreamCode: "Requests to this API are blocked.",
+      upstreamErrorStatus: "PERMISSION_DENIED",
+      upstreamReason: "API_KEY_SERVICE_BLOCKED",
+    }),
+    "refused",
+  );
+  assert.equal(renewalOutcome({ status: 400, upstreamCode: "INVALID_ARGUMENT" }), "refused");
+});
+
+function expiredSession(suffix) {
+  return { ...session(suffix), expires_at: Math.floor(Date.now() / 1000) - 5 };
+}
+
+function renewalClient(error) {
+  return {
+    auth: {
+      async getUser() {
+        assert.fail("An expired session is renewed, not looked up");
+      },
+      async refreshSession({ refresh_token }) {
+        assert.equal(refresh_token, "refresh-r");
+        return { data: null, error };
+      },
+    },
+  };
+}
+
+async function renewWithLogs(error) {
+  const lines = [];
+  const original = { warn: console.warn, error: console.error };
+  console.warn = (...args) => lines.push({ level: "warn", args });
+  console.error = (...args) => lines.push({ level: "error", args });
+  try {
+    const cookie = userSessionCookie(expiredSession("r"), ENV);
+    const result = await resolveUserSession(cookie, {
+      env: ENV,
+      client: renewalClient(error),
+      requireTesterAccess: async () => true,
+    }).then(
+      (value) => ({ value }),
+      (thrown) => ({ thrown }),
+    );
+    return { ...result, lines };
+  } finally {
+    Object.assign(console, original);
+  }
+}
+
+test("a passing fault while renewing keeps the sign-in and answers 503", async () => {
+  const error = Object.assign(new Error("Identity Platform временно не отговаря."), {
+    status: 503,
+    code: "IDENTITY_PLATFORM_UNAVAILABLE",
+  });
+  const { thrown, value, lines } = await renewWithLogs(error);
+  assert.equal(value, undefined);
+  assert.ok(thrown instanceof UserAuthError);
+  assert.equal(thrown.status, 503);
+  assert.equal(thrown.code, "AUTH_UNAVAILABLE");
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].level, "warn");
+  assert.equal(lines[0].args[0], "[User session] Renewal failed");
+  assert.deepEqual(lines[0].args[1], {
+    outcome: "temporary",
+    name: "Error",
+    code: "IDENTITY_PLATFORM_UNAVAILABLE",
+    status: 503,
+  });
+});
+
+test("too many renewals at Google keep the sign-in too", async () => {
+  const error = Object.assign(new Error("Identity Platform request failed."), {
+    status: 400,
+    code: "IDENTITY_PLATFORM_REQUEST_FAILED",
+    upstreamCode: "TOO_MANY_ATTEMPTS_TRY_LATER",
+  });
+  const { thrown } = await renewWithLogs(error);
+  assert.equal(thrown?.code, "AUTH_UNAVAILABLE");
+});
+
+test("an ended session signs the person out and says why", async () => {
+  const error = Object.assign(new Error("Identity Platform request failed."), {
+    status: 400,
+    code: "IDENTITY_PLATFORM_REQUEST_FAILED",
+    upstreamCode: "TOKEN_EXPIRED",
+  });
+  const { thrown, value, lines } = await renewWithLogs(error);
+  assert.equal(thrown, undefined);
+  assert.equal(value, null);
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].level, "warn");
+  assert.equal(lines[0].args[1].outcome, "ended");
+  assert.equal(lines[0].args[1].upstreamCode, "TOKEN_EXPIRED");
+});
+
+test("a refused renewal is logged as an error with Google's names only", async () => {
+  const error = Object.assign(new Error("Identity Platform request failed."), {
+    status: 403,
+    code: "IDENTITY_PLATFORM_REQUEST_FAILED",
+    upstreamCode:
+      "Requests to this API securetoken.googleapis.com method google.identity.securetoken.v1.SecureToken.GrantToken are blocked.",
+    upstreamErrorStatus: "PERMISSION_DENIED",
+    upstreamReason: "API_KEY_SERVICE_BLOCKED",
+  });
+  const { value, lines } = await renewWithLogs(error);
+  assert.equal(value, null);
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].level, "error");
+  assert.deepEqual(lines[0].args[1], {
+    outcome: "refused",
+    name: "Error",
+    code: "IDENTITY_PLATFORM_REQUEST_FAILED",
+    upstreamErrorStatus: "PERMISSION_DENIED",
+    status: 403,
+    reason: "API_KEY_SERVICE_BLOCKED",
+  });
+  const logged = JSON.stringify(lines);
+  assert.doesNotMatch(logged, /refresh-r|access-r|securetoken|blocked\./u);
+});
+
+test("a renewal answer without a session signs the person out", async () => {
+  const client = {
+    auth: {
+      async getUser() {
+        assert.fail("An expired session is renewed, not looked up");
+      },
+      async refreshSession() {
+        return { data: { session: null, user: null }, error: null };
+      },
+    },
+  };
+  const original = console.error;
+  const lines = [];
+  console.error = (...args) => lines.push(args);
+  try {
+    const value = await resolveUserSession(userSessionCookie(expiredSession("r"), ENV), {
+      env: ENV,
+      client,
+      requireTesterAccess: async () => true,
+    });
+    assert.equal(value, null);
+  } finally {
+    console.error = original;
+  }
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0][1].outcome, "refused");
+});
+
+test("an account check that cannot reach its record keeps the sign-in and answers 503", async () => {
+  const { TesterAccessError } = await import("../src/services/testerAccessService.js");
+  const stored = session("c");
+  const client = {
+    auth: {
+      async getUser() {
+        return {
+          data: { user: { id: "00000000-0000-4000-8000-00000000000c", email: "c@example.com" } },
+          error: null,
+        };
+      },
+      async refreshSession() {
+        assert.fail("A non-expired session must not be refreshed");
+      },
+    },
+  };
+  const check = (code, status) => async () => {
+    throw new TesterAccessError("Проверката на достъпа временно не е достъпна.", status, code);
+  };
+  const lines = [];
+  const original = console.warn;
+  console.warn = (...args) => lines.push(args);
+  try {
+    // Firestore did not answer: the same passing fault as a renewal at Google.
+    await assert.rejects(
+      resolveUserSession(userSessionCookie(stored, ENV), {
+        env: ENV,
+        client,
+        requireTesterAccess: check("TESTER_ACCESS_UNAVAILABLE", 503),
+      }),
+      (error) => error instanceof UserAuthError && error.status === 503 && error.code === "AUTH_UNAVAILABLE",
+    );
+    assert.deepEqual(lines, [["[User session] Account check unavailable", { code: "TESTER_ACCESS_UNAVAILABLE" }]]);
+    // Any other account fault keeps its own answer, a lasting one too.
+    await assert.rejects(
+      resolveUserSession(userSessionCookie(stored, ENV), {
+        env: ENV,
+        client,
+        requireTesterAccess: check("TESTER_ACCESS_PERSISTENCE_FAILED", 503),
+      }),
+      (error) => error instanceof TesterAccessError && error.code === "TESTER_ACCESS_PERSISTENCE_FAILED",
+    );
+    // A withheld account is still signed out, never kept.
+    assert.equal(
+      await resolveUserSession(userSessionCookie(stored, ENV), {
+        env: ENV,
+        client,
+        requireTesterAccess: check("ACCOUNT_ACCESS_REVOKED", 403),
+      }),
+      null,
+    );
+  } finally {
+    console.warn = original;
+  }
 });

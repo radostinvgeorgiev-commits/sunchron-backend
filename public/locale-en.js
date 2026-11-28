@@ -584,6 +584,7 @@ Google временно не е достъпен.|Google is temporarily unavaila
 Календарът ми|My calendar
 Прекъсни връзката|Disconnect
 Връзката с Google не се прекъсна. Опитай отново.|Google was not disconnected. Try again.
+Да спра ли достъпа на NovariumAI до Google? Това спира Google на всички твои устройства. После пощата и Drive се разрешават отново.|Stop NovariumAI's access to Google? This stops Google on all your devices. Afterwards, mail and Drive have to be allowed again.
 Google е свързан. В разговора можеш да питаш за пощата, календара и контактите си, да добавяш събития и контакти и да пращаш имейли. Събитие, контакт и имейл до адрес, който сам напишеш, стават веднага с твоите думи. Писмо местиш в кошчето от панела Gmail с второ натискане.|Google is connected. In the chat you can ask about your mail, calendar and contacts, add events and contacts, and send emails. An event, a contact and an email to an address you type yourself happen at once from your words. You move a letter to the bin from the Gmail panel with a second press.
 Файловете ти в Drive не се виждат. „Запази в Google“ под отговор прави документ, до който NovariumAI има достъп.|NovariumAI cannot see your Drive files. “Save to Google” under an answer creates a document that NovariumAI can access.
 Свържи Google отново|Connect Google again

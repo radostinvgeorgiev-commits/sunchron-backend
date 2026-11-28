@@ -477,6 +477,20 @@ function hasSecondSentence(fact) {
 const NESTED_MEMORY_COMMAND =
   /(?:^|[^\p{L}])(?:запомни|запази|remember|merken|merk\s+dir|recordar|recuerda|retenir|retiens|ricorda|ricordare|[țţt]ine\s+minte)\s*(?::|,?\s+(?:че|that|dass|que|che|că|ca)\s)/iu;
 
+// How many memory commands a message holds, in any form the chat reads
+// („Запомни:“, „Запомни за проекта:“, „Запомни следното:“ …). Counted over
+// the whole message, not over the parsed facts: with two commands in one
+// message the parser can keep one long fact, or only the later command.
+const MEMORY_COMMAND_OPENING =
+  /(?:^|[^\p{L}])(?:запомни|запази|remember|merken|merk\s+dir|recordar|recuerda|retenir|retiens|ricorda|ricordare|[țţt]ine\s+minte)(?:\s+(?:следното|за\s+проекта|за\s+мен|за\s+бъдещи\s+разговори|в\s+постоянната(?:\s+ми)?\s+памет)){0,2}\s*(?::|,?\s+(?:че|that|dass|que|che|că|ca)\s)/giu;
+
+export function countMemoryCommands(message) {
+  return [...String(message || "").matchAll(MEMORY_COMMAND_OPENING)].length;
+}
+
+// The "do not write yet" form: it proposes and never writes by itself.
+export const PROPOSAL_MEMORY_FORM = /не\s+записвай\s+нищо\s+още\s*:/iu;
+
 // A request to the assistant or a question to it, at the start of a fact, a
 // list item or a clause (third, fourth and fifth review of #605). It fails
 // closed: a real fact that happens to look like one only gets the one-time

@@ -15,6 +15,9 @@ import { createClaudeWorkService } from "./claudeWorkService.js";
 import { getPersonalTodoService } from "./personalTodoService.js";
 import { latestMainSessionFor } from "./googleDriveService.js";
 import { filterCapabilityRequestsForIdentity } from "./memberCapabilityPolicy.js";
+import { isIdentityPlatformConfigured } from "../config/authBackend.js";
+import { createIdentityPlatformAuthClient } from "./identityPlatformAuthClient.js";
+import { renewalOutcome } from "./userAuthService.js";
 
 // A self-test the owner's connector can run instead of clicking through the
 // site by hand. Every check is a real call (a few cents of AI use in total),
@@ -112,6 +115,55 @@ export function answerExcerpt(text) {
   return chars.length > 60 ? `${chars.slice(0, 59).join("")}…` : line;
 }
 
+// What Google said to a renewal with a token that cannot exist. It judges
+// the token (INVALID_REFRESH_TOKEN) only when this key may renew sign-ins at
+// all; a key or API that may not is refused first (RADKO 28.11: Chrome was
+// signed out at 14:05 UTC, an hour after the Google sign-in). Only the key's
+// API list (API_KEY_SERVICE_BLOCKED) and a switched-off Token Service API
+// (SERVICE_DISABLED) shut the renewal alone: sign-in works and ends an hour
+// later. Any other refusal of the key or the project stops sign-in as well,
+// since sign-in uses the same key. Only Google's own names are shown.
+const SAFE_GOOGLE_NAME = /^[A-Z][A-Z0-9_]{1,63}$/u;
+const TOKEN_JUDGED = new Set([
+  "INVALID_REFRESH_TOKEN",
+  "TOKEN_EXPIRED",
+  "USER_NOT_FOUND",
+  "USER_DISABLED",
+]);
+
+export function renewalProbeVerdict(error) {
+  if (!error) return "Google подновява входа";
+  const name = (value) => (SAFE_GOOGLE_NAME.test(String(value || "")) ? String(value) : "");
+  const code = name(error.upstreamCode);
+  if (TOKEN_JUDGED.has(code)) return "Google подновява входа (пробният токен е отказан, както трябва)";
+  const reason = name(error.upstreamReason);
+  const why = [Number(error.status) || "", name(error.upstreamErrorStatus), reason, code]
+    .filter(Boolean)
+    .join(" ");
+  if (reason === "SERVICE_DISABLED") {
+    throw new Error(`Token Service API е изключен в Google Cloud: всеки вход изтича след час (${why})`);
+  }
+  if (reason === "API_KEY_SERVICE_BLOCKED") {
+    throw new Error(`ключът за вход не позволява подновяване: всеки вход изтича след час (${why})`);
+  }
+  if (reason.startsWith("API_KEY_") || reason.startsWith("CONSUMER_")) {
+    throw new Error(
+      `Google отказва самия ключ за вход, не само подновяването: входът с профил също няма да мине (${why})`,
+    );
+  }
+  // Read as a real renewal reads it (renewalOutcome): no answer, 408, 429,
+  // a fault at Google, too many attempts or the quota are passing. No answer
+  // at all is said as such, not as Google's 503.
+  if (renewalOutcome(error) === "temporary") {
+    const shown = error.code === "IDENTITY_PLATFORM_UNAVAILABLE" ? "без отговор" : why || "без отговор";
+    throw new Error(`Google временно не отговаря, пусни проверката пак (${shown})`);
+  }
+  throw new Error(`Google отказа подновяването (${why || "без причина"})`);
+}
+
+const probeRenewalWithKey = ({ env }) =>
+  createIdentityPlatformAuthClient({ env }).auth.probeSessionRenewal();
+
 export async function runSelfTest({
   env = process.env,
   askAi = requestAiText,
@@ -126,6 +178,7 @@ export async function runSelfTest({
   claudeWorkService,
   todoService,
   findOwnGoogle = latestMainSessionFor,
+  probeRenewal = probeRenewalWithKey,
 } = {}) {
   const marker = String(1000 + Math.floor(Math.random() * 9000));
   const chatChecks = CHAT_PROVIDERS.map((provider) =>
@@ -317,7 +370,14 @@ export async function runSelfTest({
     120_000,
   );
 
-  const checks = await Promise.all([...chatChecks, voice, meeting, pdf, share, knowledge, library, avatar, branches, lists, openModels, claudeWork]);
+  // One renewal with a made-up token: no person's sign-in is touched.
+  const signInRenewal = check("Вход · подновяване след час", async () => {
+    if (!isIdentityPlatformConfigured(env)) throw skip("Identity Platform не е настроен");
+    const { error } = await probeRenewal({ env });
+    return renewalProbeVerdict(error);
+  });
+
+  const checks = await Promise.all([...chatChecks, voice, meeting, pdf, share, knowledge, library, avatar, branches, lists, openModels, claudeWork, signInRenewal]);
   const failed = checks.filter(({ status }) => status === "fail").length;
   return {
     status: failed ? "fail" : "pass",

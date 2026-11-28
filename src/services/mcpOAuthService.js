@@ -939,6 +939,44 @@ export function resolveMcpConsentRequest(
   });
 }
 
+// Where a consent form goes after "Разреши" or "Откажи", read from the form's
+// own token before the person's sign-in is known. It serves only the page
+// that sends the same form once more after a passing sign-in fault: that
+// page's form-action must allow the redirect to this callback. A token that
+// is not ours or has run out gives null, and the retry then fails the full
+// check in resolveMcpConsentRequest.
+export function peekMcpConsentCallback(
+  token,
+  env = process.env,
+  now = Math.floor(Date.now() / 1_000),
+) {
+  let payload = null;
+  try {
+    payload = decryptPayloadWithFallback(
+      String(token || ""),
+      "sx-consent",
+      consentVerificationSecrets(env),
+    );
+  } catch {
+    return null;
+  }
+  if (
+    !payload ||
+    payload.typ !== "consent" ||
+    payload.iat > now + 60 ||
+    payload.exp <= now ||
+    payload.exp - payload.iat !== CONSENT_TOKEN_TTL_SECONDS ||
+    typeof payload.request?.clientId !== "string" ||
+    !URL.canParse(String(payload.request?.redirectUri || ""))
+  ) {
+    return null;
+  }
+  return {
+    clientId: payload.request.clientId,
+    redirectUri: payload.request.redirectUri,
+  };
+}
+
 export function validateMcpConsentToken(
   token,
   request,

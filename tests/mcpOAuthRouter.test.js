@@ -648,3 +648,137 @@ test("authorization consent names the NovariumAI conversation permission", async
   if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
   else process.env.MCP_ACCESS_TOKEN = previous;
 });
+
+const BROWSER_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+
+test("a sign-in that cannot be renewed just now shows a page to try again, not an OAuth error", async () => {
+  resetMcpOAuthStateForTests();
+  const previous = process.env.MCP_ACCESS_TOKEN;
+  process.env.MCP_ACCESS_TOKEN = SECRET;
+  try {
+    const oauthRequest = {
+      clientId: "novariumai-claude",
+      clientName: "Claude",
+      redirectUri: "https://claude.ai/api/mcp/auth_callback",
+      state: "state-busy",
+      codeChallenge: createHash("sha256").update("b".repeat(64)).digest("base64url"),
+      resource: "https://cloudaicore.com/mcp",
+      scopes: ["synchron:read"],
+    };
+    let busy = false;
+    const app = express();
+    app.use(
+      createMcpOAuthRouter({
+        resolveIdentity: async () => {
+          if (busy) {
+            throw Object.assign(new Error("Входът временно не е достъпен. Опитай отново след малко."), {
+              status: 503,
+              code: "AUTH_UNAVAILABLE",
+            });
+          }
+          return { id: "owner-id", displayName: "Радко", role: "owner", memoryOwnerId: "primary-user" };
+        },
+        validateRequest: async () => oauthRequest,
+      }),
+    );
+    const consent = await request(app).get("/oauth/authorize").expect(200);
+    const consentToken = consent.text.match(/name="consent_token" value="([^"]+)"/u)?.[1];
+    assert.ok(consentToken);
+
+    busy = true;
+    // The consent window has no Reload: the page links to the same request.
+    const shown = await request(app)
+      .get("/oauth/authorize?client_id=novariumai-claude&state=s1&scope=synchron%3Aread")
+      .set("Accept", BROWSER_ACCEPT)
+      .expect(503);
+    assert.match(shown.headers["content-type"], /^text\/html/u);
+    assert.match(String(shown.headers["cache-control"]), /no-store/u);
+    assert.equal(shown.headers["retry-after"], "5");
+    assert.equal(shown.headers["cross-origin-opener-policy"], "unsafe-none");
+    assert.match(shown.text, /Входът временно не е достъпен/u);
+    assert.match(
+      shown.text,
+      /<a href="\/oauth\/authorize\?client_id=novariumai-claude&amp;state=s1&amp;scope=synchron%3Aread">Опитай пак<\/a>/u,
+    );
+
+    // "Разреши" while the check is out of reach: a button sends the same
+    // choice once more, and its page may follow the redirect to Claude.
+    const pressed = await request(app)
+      .post("/oauth/authorize")
+      .set("Accept", BROWSER_ACCEPT)
+      .type("form")
+      .send({ consent_token: consentToken, decision: "allow" })
+      .expect(503);
+    assert.match(pressed.headers["content-type"], /^text\/html/u);
+    assert.equal(pressed.headers.location, undefined, "nothing goes back to the client");
+    assert.equal(pressed.headers["cross-origin-opener-policy"], "unsafe-none");
+    assert.match(
+      pressed.headers["content-security-policy"],
+      /form-action 'self' https:\/\/chatgpt\.com https:\/\/claude\.ai(?:;|$)/u,
+    );
+    assert.equal(getMcpOAuthRuntimeStatus().authorizationErrorCode, "temporarily_unavailable");
+    const form = pressed.text.match(/<form method="post" action="\/oauth\/authorize">(.*?)<\/form>/su)?.[1];
+    assert.ok(form, "a button that sends the choice again");
+    const fields = Object.fromEntries(
+      [...form.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)">/gu)].map(([, name, value]) => [name, value]),
+    );
+    assert.deepEqual(fields, { consent_token: consentToken, decision: "allow" });
+    assert.match(form, /<button type="submit">Опитай пак<\/button>/u);
+    assert.match(pressed.text, /затвори прозореца и започни свързването отново/u);
+
+    // "Откажи" keeps its choice in the button.
+    const denied = await request(app)
+      .post("/oauth/authorize")
+      .type("form")
+      .send({ consent_token: consentToken, decision: "deny" })
+      .expect(503);
+    assert.match(denied.text, /name="decision" value="deny"/u);
+
+    // A token that is not ours, or has run out, widens nothing and offers no
+    // button that could never go through.
+    const strange = await request(app)
+      .post("/oauth/authorize")
+      .type("form")
+      .send({ consent_token: "sx-consent.not-ours", decision: "allow" })
+      .expect(503);
+    assert.doesNotMatch(strange.headers["content-security-policy"], /claude\.ai/u);
+    assert.doesNotMatch(strange.text, /<form/u);
+    assert.match(strange.text, /Затвори прозореца и започни свързването отново/u);
+
+    // Once the check answers again, the same button finishes the connection.
+    busy = false;
+    const again = await request(app)
+      .post("/oauth/authorize")
+      .set("Accept", BROWSER_ACCEPT)
+      .type("form")
+      .send(fields)
+      .expect(302);
+    const callback = new URL(again.headers.location);
+    assert.equal(`${callback.origin}${callback.pathname}`, oauthRequest.redirectUri);
+    assert.equal(callback.searchParams.get("state"), oauthRequest.state);
+    assert.match(callback.searchParams.get("code"), /^sx-code\./u);
+
+    // A consent that cannot go on says so in the window; the JSON answer
+    // stays for anything that does not ask for a page.
+    const ended = await request(app)
+      .post("/oauth/authorize")
+      .set("Accept", BROWSER_ACCEPT)
+      .type("form")
+      .send({ consent_token: "sx-consent.not-ours", decision: "allow" })
+      .expect(403);
+    assert.match(ended.headers["content-type"], /^text\/html/u);
+    assert.match(String(ended.headers["cache-control"]), /no-store/u);
+    assert.match(ended.text, /Свързването не мина/u);
+    assert.match(ended.text, /Невалидно потвърждение/u);
+    assert.match(ended.text, /Затвори прозореца и започни свързването отново/u);
+    const asJson = await request(app)
+      .post("/oauth/authorize")
+      .type("form")
+      .send({ consent_token: "sx-consent.not-ours", decision: "allow" })
+      .expect(403);
+    assert.equal(asJson.body.error, "access_denied");
+  } finally {
+    if (previous === undefined) delete process.env.MCP_ACCESS_TOKEN;
+    else process.env.MCP_ACCESS_TOKEN = previous;
+  }
+});

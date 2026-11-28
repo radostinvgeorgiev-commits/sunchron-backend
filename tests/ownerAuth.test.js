@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import express from "express";
+import request from "supertest";
 
 import {
   createRequireOwnerSession,
@@ -216,4 +218,65 @@ test("different GitHub users receive different memory namespaces", () => {
     resolveMemoryOwnerId("owner", env),
     resolveMemoryOwnerId("another-user", env),
   );
+});
+
+test("a passing sign-in fault shows a page to a browser and JSON to the site's own requests", async () => {
+  const middleware = createRequireOwnerSession({
+    getSession: async () => null,
+    getUserSession: async () => {
+      throw Object.assign(new Error("Входът временно не е достъпен. Опитай отново след малко."), {
+        status: 503,
+        code: "AUTH_UNAVAILABLE",
+      });
+    },
+  });
+  const app = express();
+  app.get("/api/google/callback", middleware, (_req, res) => res.json({ ok: true }));
+  const page = await request(app)
+    .get("/api/google/callback?code=c&state=s")
+    .set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+    .expect(503);
+  assert.match(page.headers["content-type"], /^text\/html/u);
+  assert.match(page.text, /Входът временно не е достъпен/u);
+  assert.match(page.text, /Обнови тази страница след малко/u);
+  const site = await request(app).get("/api/google/callback").set("Accept", "*/*").expect(503);
+  assert.equal(site.body.code, "OWNER_AUTH_UNAVAILABLE");
+  // Only a GET is a page that a reload shows again; a form sent from the
+  // browser keeps the JSON answer.
+  app.post("/api/google/save", middleware, (_req, res) => res.json({ ok: true }));
+  const sent = await request(app)
+    .post("/api/google/save")
+    .set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+    .expect(503);
+  assert.equal(sent.body.code, "OWNER_AUTH_UNAVAILABLE");
+
+  // The same code with another status is not the passing fault.
+  const signedOut = express();
+  signedOut.get(
+    "/api/google/callback",
+    createRequireOwnerSession({
+      getSession: async () => null,
+      getUserSession: async () => {
+        throw Object.assign(new Error("x"), { status: 401, code: "AUTH_UNAVAILABLE" });
+      },
+    }),
+    (_req, res) => res.json({ ok: true }),
+  );
+  const other401 = await request(signedOut).get("/api/google/callback").set("Accept", "text/html").expect(503);
+  assert.equal(other401.body.code, "OWNER_AUTH_UNAVAILABLE");
+
+  // Any other fault keeps the JSON answer, in the browser too.
+  const other = express();
+  other.get(
+    "/api/google/callback",
+    createRequireOwnerSession({
+      getSession: async () => null,
+      getUserSession: async () => {
+        throw new Error("boom");
+      },
+    }),
+    (_req, res) => res.json({ ok: true }),
+  );
+  const broken = await request(other).get("/api/google/callback").set("Accept", "text/html").expect(503);
+  assert.equal(broken.body.code, "OWNER_AUTH_UNAVAILABLE");
 });

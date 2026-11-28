@@ -172,9 +172,16 @@ function setAuthBusy(isBusy) {
   elements.loginBtn.textContent = isBusy ? chatText("Влизане…") : chatText("Влез");
 }
 
-async function readAuthSession() {
-  const response = await fetch("/api/auth/session", { cache: "no-store" });
-  if (!response.ok) {
+// A passing fault while the server renews the sign-in answers 503 and keeps
+// the sign-in; one more read a moment later finds it renewed, so the person
+// is not shown the sign-in screen for a hiccup.
+async function readAuthSession({ retry = true } = {}) {
+  const response = await fetch("/api/auth/session", { cache: "no-store" }).catch(() => null);
+  if (retry && (!response || response.status === 503)) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    return readAuthSession({ retry: false });
+  }
+  if (!response?.ok) {
     throw new Error(chatText("Входът временно не е достъпен."));
   }
   return response.json();
@@ -2594,7 +2601,10 @@ async function handleDataDrawerAction(event) {
       !window.confirm(
         service === "chatgpt"
           ? "Да отнема ли всички активни права на ChatGPT до NovariumAI?"
-          : chatText("Да спра ли достъпа на NovariumAI до {name}?", { name: serviceName }),
+          : service === "google"
+            ? // Google keeps one permission per account: it stops on every device.
+              chatText("Да спра ли достъпа на NovariumAI до Google? Това спира Google на всички твои устройства. После пощата и Drive се разрешават отново.")
+            : chatText("Да спра ли достъпа на NovariumAI до {name}?", { name: serviceName }),
       )
     ) {
       return;

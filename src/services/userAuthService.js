@@ -19,6 +19,7 @@ import {
   TesterAccessError,
 } from "./testerAccessService.js";
 import { createIdentityPlatformAuthClient } from "./identityPlatformAuthClient.js";
+import { safeErrorMetadata } from "../utils/safeLogging.js";
 
 export const USER_SESSION_COOKIE = "synchron_user_session";
 const SESSION_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
@@ -501,6 +502,63 @@ function publicUser(user, env = process.env, { linkedOwner = false } = {}) {
   };
 }
 
+// The ID token lives an hour; then the session is renewed with the refresh
+// token. Identity Platform's own words for a session that is over: the person
+// signs in again. No answer, too many requests or a fault at Google is
+// temporary: the session stays (RADKO 28.11: Chrome was signed out at 14:05
+// UTC, exactly an hour after the Google sign-in, and nothing said why).
+const SESSION_ENDED_CODES = new Set([
+  "TOKEN_EXPIRED",
+  "USER_DISABLED",
+  "USER_NOT_FOUND",
+  "INVALID_REFRESH_TOKEN",
+  "INVALID_GRANT_TYPE",
+  "MISSING_REFRESH_TOKEN",
+  "INVALID_ID_TOKEN",
+  "CREDENTIAL_TOO_OLD_LOGIN_AGAIN",
+  "PROJECT_NUMBER_MISMATCH",
+]);
+const TEMPORARY_CODES = new Set(["TOO_MANY_ATTEMPTS_TRY_LATER", "QUOTA_EXCEEDED"]);
+const SAFE_UPSTREAM_NAME = /^[A-Z][A-Z0-9_]{1,63}$/u;
+
+function upstreamCodeOf(error) {
+  const code = String(error?.upstreamCode || "").trim();
+  return SAFE_UPSTREAM_NAME.test(code) ? code : "";
+}
+
+// "ended": the session is over. "temporary": try again later, the session
+// stays. "refused": anything else (a key or API that may not renew, an answer
+// without a session); the person signs in again, and the log says why.
+export function renewalOutcome(error) {
+  if (!error) return "refused";
+  const code = upstreamCodeOf(error);
+  if (SESSION_ENDED_CODES.has(code)) return "ended";
+  const status = Number(error.status);
+  if (
+    TEMPORARY_CODES.has(code) ||
+    !Number.isInteger(status) ||
+    status === 408 ||
+    status === 429 ||
+    status >= 500
+  ) {
+    return "temporary";
+  }
+  return "refused";
+}
+
+// Why a renewal did not happen, by Google's names only: never a token, an
+// address or Google's free text.
+function logRenewal(outcome, error) {
+  const details = { outcome, ...safeErrorMetadata(error) };
+  const code = upstreamCodeOf(error);
+  if (code) details.upstreamCode = code;
+  if (SAFE_UPSTREAM_NAME.test(String(error?.upstreamReason || ""))) {
+    details.reason = error.upstreamReason;
+  }
+  const log = outcome === "refused" ? console.error : console.warn;
+  log("[User session] Renewal failed", details);
+}
+
 export async function resolveUserSession(
   cookieHeader,
   {
@@ -531,8 +589,20 @@ export async function resolveUserSession(
     const result = await authClient.auth.refreshSession({
       refresh_token: storedSession.refresh_token,
     });
-    if (result.error || !result.data?.session || !result.data?.user)
+    if (result.error || !result.data?.session || !result.data?.user) {
+      const outcome = renewalOutcome(result.error);
+      logRenewal(outcome, result.error);
+      // A passing fault keeps the session: the request answers 503 and the
+      // next one renews it.
+      if (outcome === "temporary") {
+        throw new UserAuthError(
+          "Входът временно не е достъпен. Опитай отново след малко.",
+          503,
+          "AUTH_UNAVAILABLE",
+        );
+      }
       return null;
+    }
     currentSession = sessionPayload(result.data.session);
     user = result.data.user;
     refreshed = true;
@@ -547,6 +617,19 @@ export async function resolveUserSession(
       error?.code === "ACCOUNT_ACCESS_REVOKED"
     )
       return null;
+    // The account check could not read its record just now (Firestore
+    // answered 5xx or not at all). That is the same passing fault as a
+    // renewal without an answer: the sign-in is kept, a page opened in the
+    // browser says to try again, and the site's page reads the sign-in once
+    // more. Nothing is let in: the request still fails.
+    if (error?.code === "TESTER_ACCESS_UNAVAILABLE" && Number(error?.status) === 503) {
+      console.warn("[User session] Account check unavailable", { code: error.code });
+      throw new UserAuthError(
+        "Входът временно не е достъпен. Опитай отново след малко.",
+        503,
+        "AUTH_UNAVAILABLE",
+      );
+    }
     throw error;
   }
 

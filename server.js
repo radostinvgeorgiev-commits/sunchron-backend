@@ -11,6 +11,7 @@ import {
 import {
   createApiRateLimiter,
   createRateLimiters,
+  limitReadsApart,
 } from "./src/middleware/rateLimits.js";
 import { startMemoryStartupVerification } from "./src/services/memoryStartupVerificationService.js";
 import { executeCapability } from "./src/tools/capabilityEngine.js";
@@ -104,7 +105,7 @@ import mcpRouter, { mcpJsonParseErrorHandler } from "./src/routes/mcpRouter.js";
 import { createChatGptMcpRouter, getChatGptMcpResourceMetadata } from "./src/routes/chatGptMcpRouter.js";
 import { createMcpOAuthRouter } from "./src/routes/mcpOAuthRouter.js";
 
-const { oauthRateLimiter, paidAiRateLimiter, privateApiRateLimiter } =
+const { oauthRateLimiter, paidAiRateLimiter, privateApiRateLimiter, sessionReadRateLimiter } =
   createRateLimiters();
 const mcpOAuthRouter = createMcpOAuthRouter({ oauthRateLimiter });
 
@@ -215,7 +216,11 @@ app.use(
 
 app.use("/health", healthRouter);
 app.use("/api/public-config", publicConfigRouter);
-app.use("/api/auth", oauthRateLimiter, userAuthRouter);
+app.use(
+  "/api/auth",
+  limitReadsApart({ readPaths: ["/session"], readLimiter: sessionReadRateLimiter, otherLimiter: oauthRateLimiter }),
+  userAuthRouter,
+);
 app.use(
   "/api/early-access",
   createApiRateLimiter({ limit: 10 }),
@@ -317,7 +322,11 @@ app.use(
   privateApiRateLimiter,
   createToolSwitchRouter({ service: getToolSwitchService() }),
 );
-app.use("/api/github", oauthRateLimiter, githubOAuthRouter);
+app.use(
+  "/api/github",
+  limitReadsApart({ readPaths: ["/status"], readLimiter: sessionReadRateLimiter, otherLimiter: oauthRateLimiter }),
+  githubOAuthRouter,
+);
 const chatGptMcpRouter = createChatGptMcpRouter();
 app.use("/mcp/chatgpt", mcpJsonParseErrorHandler, privateApiRateLimiter, chatGptMcpRouter);
 app.get("/.well-known/oauth-protected-resource/mcp/chatgpt", (_req, res) => {

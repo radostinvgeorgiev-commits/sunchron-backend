@@ -1,6 +1,7 @@
 import { publicOrigin } from "../config/publicOrigin.js";
 import { resolveRequestIdentity } from "./ownerAuth.js";
 import { SITE_HOSTS } from "./startOnCallbackOrigin.js";
+import { isPassingSignInFault, sendSignInBusy } from "./signInBusy.js";
 
 // A connect link opened where nobody is signed in (RADKO 28.11: the link from
 // the chat on the phone showed bare JSON „AUTH_REQUIRED“ and Safari saved it
@@ -45,7 +46,11 @@ export function signInFirst({ env = process.env, identify = resolveRequestIdenti
     let identity = null;
     try {
       identity = await identify(req, res);
-    } catch {
+    } catch (error) {
+      // The sign-in is kept but could not be renewed just now: a page that
+      // says so, with the same link to try again (only these exact links
+      // reach here, see RETURN_PATH).
+      if (isPassingSignInFault(error)) return sendSignInBusy(res, path);
       return next();
     }
     if (identity) return next();

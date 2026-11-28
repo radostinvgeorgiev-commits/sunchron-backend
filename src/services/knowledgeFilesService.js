@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import { createFirestoreDocumentStore } from "./firestoreDocumentStore.js";
+import { cosineSimilarity, requestVertexEmbeddings } from "./vertexEmbeddingService.js";
 
 // A person's own files as a knowledge base (like Knowledge Base in TypingMind
 // and Open WebUI): the text of each file is stored per account and the most
@@ -90,6 +91,40 @@ export function findPassages(files, question, limit = KNOWLEDGE_LIMITS.passages)
     .map(({ file, text }) => ({ file, text }));
 }
 
+export async function findPassagesByEmbedding(files, question, {
+  env = process.env,
+  fetchImpl = globalThis.fetch,
+  authClient,
+  limit = KNOWLEDGE_LIMITS.passages,
+} = {}) {
+  const chunks = (Array.isArray(files) ? files : [])
+    .flatMap((file) =>
+      (Array.isArray(file?.chunks) ? file.chunks : []).map((text) => ({
+        file: file.name,
+        text,
+      })),
+    )
+    .filter((chunk) => typeof chunk.text === "string" && chunk.text.trim())
+    .slice(0, 100);
+  if (!chunks.length || typeof question !== "string" || !question.trim()) return [];
+  const vectors = await requestVertexEmbeddings({
+    env,
+    fetchImpl,
+    authClient,
+    texts: [question, ...chunks.map((chunk) => chunk.text)],
+  });
+  if (vectors.length !== chunks.length + 1) return [];
+  const queryVector = vectors[0];
+  return chunks
+    .map((chunk, index) => ({
+      ...chunk,
+      score: cosineSimilarity(queryVector, vectors[index + 1]),
+    }))
+    .filter((chunk) => chunk.score >= 0.55)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
 export function buildFileContext(passages) {
   if (!passages?.length) return "";
   return [
@@ -169,7 +204,14 @@ export function createKnowledgeFilesService({ store, env = process.env, now = ()
       const loaded = await Promise.all(
         files.map(async ({ id }) => (await db().get(KNOWLEDGE_FILES_COLLECTION, `file-${ownerKey(ownerId)}-${id}`))?.data),
       );
-      return findPassages(loaded.filter(Boolean), question);
+      const cleaned = loaded.filter(Boolean);
+      try {
+        const embedded = await findPassagesByEmbedding(cleaned, question);
+        if (embedded.length) return embedded;
+      } catch {
+        // Embeddings are optional: word-overlap search remains available.
+      }
+      return findPassages(cleaned, question);
     } catch {
       return [];
     }

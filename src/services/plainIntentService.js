@@ -1,5 +1,7 @@
 import {
+  DEFAULT_GEMINI_CHAT_MODEL,
   DEFAULT_OPENAI_PLANNER_MODEL,
+  requestGeminiResponse,
   requestOpenAIText,
 } from "./novariumService.js";
 
@@ -376,26 +378,57 @@ export async function readPlainIntent({
   turns = [],
   now = sofiaNow(),
   apiKey = process.env.OPENAI_API_KEY,
+  geminiApiKey = process.env.GEMINI_API_KEY,
+  geminiModel = process.env.GEMINI_PLANNER_MODEL ||
+    process.env.GEMINI_MODEL ||
+    DEFAULT_GEMINI_CHAT_MODEL,
   model = process.env.OPENAI_PLANNER_MODEL || DEFAULT_OPENAI_PLANNER_MODEL,
   fetchImpl = fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   request = requestOpenAIText,
+  geminiRequest = requestGeminiResponse,
 } = {}) {
-  if (!apiKey || typeof message !== "string" || !message.trim()) return null;
+  if ((!geminiApiKey && !apiKey) || typeof message !== "string" || !message.trim()) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const content = await request({
-      apiKey,
-      model,
-      input: [{ role: "user", content: buildPlainIntentInput({ message, turns, now }) }],
-      fetchImpl,
-      signal: controller.signal,
-      verbosity: "low",
-      outputSchema: PLAIN_INTENT_SCHEMA,
-      outputSchemaName: "novarium_plain_intent",
-    });
-    return parseIntent(content);
+    const input = [
+      { role: "user", content: buildPlainIntentInput({ message, turns, now }) },
+    ];
+    const providers = [
+      geminiApiKey && {
+        apiKey: geminiApiKey,
+        model: geminiModel,
+        request: geminiRequest,
+        jsonMode: true,
+        maxOutputTokens: 4096,
+      },
+      apiKey && {
+        apiKey,
+        model,
+        request,
+        outputSchema: PLAIN_INTENT_SCHEMA,
+        outputSchemaName: "novarium_plain_intent",
+        verbosity: "low",
+      },
+    ].filter(Boolean);
+    for (const provider of providers) {
+      try {
+        const response = await provider.request({
+          ...provider,
+          input,
+          fetchImpl,
+          signal: controller.signal,
+        });
+        const content =
+          typeof response === "string" ? response : response?.text || "";
+        const intent = parseIntent(content);
+        if (intent) return intent;
+      } catch {
+        if (controller.signal.aborted) break;
+      }
+    }
+    return null;
   } catch {
     return null;
   } finally {

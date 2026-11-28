@@ -949,6 +949,40 @@ function stubClaude(t, { answer } = {}) {
     if (String(url) !== "https://api.anthropic.com/v1/messages") {
       others.push(String(url));
       otherBodies.push(typeof options.body === "string" ? options.body : "");
+      if (String(url).includes("generativelanguage.googleapis.com")) {
+        const body = JSON.parse(options.body || "{}");
+        const prompt = body.contents?.[0]?.parts
+          ?.map((part) => part.text || "")
+          .join("\n");
+        const isPlainIntent = prompt.includes(
+          "You read one message a person wrote",
+        );
+        const answered =
+          isPlainIntent && answer
+            ? await answer(String(url), options)
+            : undefined;
+        if (answered) {
+          const data = await answered.json();
+          const text =
+            data.output_text ||
+            data.output?.flatMap((item) => item.content || [])
+              .find((item) => item.type === "output_text")?.text;
+          if (text) {
+            return Response.json({
+              candidates: [{ content: { parts: [{ text }] } }],
+            });
+          }
+          return Response.json(data);
+        }
+        if (!isPlainIntent) {
+          return Response.json({
+            candidates: [{ content: { parts: [{ text: '{"calls":[]}' }] } }],
+          });
+        }
+        return Response.json({
+          candidates: [{ content: { parts: [{ text: '{"action":"none"}' }] } }],
+        });
+      }
       const answered = answer ? await answer(String(url), options) : undefined;
       return answered || Response.json({ error: "not in this test" }, { status: 500 });
     }
@@ -1195,9 +1229,7 @@ test("a yes to a step with tool words that the detector cannot read goes to the 
   const claude = stubClaude(t);
   // The planner's calls; the plain-words reader's own call is not one.
   const planned = () =>
-    claude.others.filter(
-      (url, index) => url.startsWith("https://api.openai.com/") && !claude.otherBodies[index].includes("novarium_plain_intent"),
-    ).length;
+    claude.otherBodies.filter((body) => body.includes("[ЗАЯВКА]")).length;
   let before = 0;
   for (const [step, planner] of [
     ["кажи „да“ и проверявам пощата ти за писма от застрахователя.", true],
@@ -1272,10 +1304,10 @@ test("a yes to the agent's exact email „до мен“ sends it to the person'
 });
 
 // Item 3, fix 1 (RADKO 28.11 05:26–05:41): mail in his own words on the site
-// chat. The reader (OpenAI, stubbed here) returns the fields; an email to the
-// person goes at once, a missing detail is one question, and the mailbox is
-// read with the reader's search words.
-const READER_URL = "https://api.openai.com/v1/responses";
+// chat. The reader (Gemini first, OpenAI fallback) returns the fields; an
+// email to the person goes at once, a missing detail is one question, and the
+// mailbox is read with the reader's search words.
+const READER_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
 const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
 const plainIntent = (fields = {}) => ({
   action: "mail.send",
@@ -1304,12 +1336,14 @@ function mailServices(t, { intents = [], inbox = [], search = null, readStatus =
   const gmailReads = [];
   const claude = stubClaude(t, {
     answer: (url, options) => {
-      if (url === READER_URL) {
+      if (url.startsWith(READER_URL)) {
         const body = JSON.parse(options.body || "{}");
-        if (body.text?.format?.name !== "novarium_plain_intent") return undefined;
+        if (!body.generationConfig?.responseMimeType) return undefined;
         readerCalls.push(body);
         const intent = intents[readerCalls.length - 1] || plainIntent({ action: "none" });
-        return Response.json({ output_text: JSON.stringify(intent) });
+        return Response.json({
+          candidates: [{ content: { parts: [{ text: JSON.stringify(intent) }] } }],
+        });
       }
       if (url === `${GMAIL}/messages/send`) {
         sends.push(JSON.parse(options.body || "{}"));
@@ -1530,11 +1564,19 @@ function googleWriteServices(t, { intents = [] } = {}) {
   const contacts = [];
   const claude = stubClaude(t, {
     answer: (url, options) => {
-      if (url === READER_URL) {
+      if (url.startsWith(READER_URL)) {
         const body = JSON.parse(options.body || "{}");
-        if (body.text?.format?.name !== "novarium_plain_intent") return undefined;
+        if (!body.generationConfig?.responseMimeType) return undefined;
         readerCalls.push(body);
-        return Response.json({ output_text: JSON.stringify(intents[readerCalls.length - 1] || plainIntent({ action: "none" })) });
+        return Response.json({
+          candidates: [{
+            content: {
+              parts: [{
+                text: JSON.stringify(intents[readerCalls.length - 1] || plainIntent({ action: "none" })),
+              }],
+            },
+          }],
+        });
       }
       if (url.startsWith("https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=none") && options.method === "POST") {
         const event = JSON.parse(options.body || "{}");

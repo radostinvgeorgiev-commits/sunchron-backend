@@ -1496,13 +1496,14 @@ export async function readPlainWordsPlan({
   turns = [],
   english = false,
   apiKey,
+  geminiApiKey = process.env.GEMINI_API_KEY,
   // False for someone whose Google cannot be reached here (a member without
   // their own connection): a Google request goes on as before.
   allowGoogle = true,
   read = readPlainIntent,
 } = {}) {
   const text = typeof message === "string" ? message.trim() : "";
-  if (!text || !apiKey) return NO_PLAIN_WORDS;
+  if (!text || (!apiKey && !geminiApiKey)) return NO_PLAIN_WORDS;
   // An exact command keeps its own path: the tool detector reads it.
   if (parseEmailSendRequest(task) || parseContactCreateRequest(task)) return NO_PLAIN_WORDS;
   const conversation = Array.isArray(turns) ? turns : [];
@@ -1512,7 +1513,12 @@ export async function readPlainWordsPlan({
     ? hasActionWords(step)
     : hasActionWords(text) || isPlainIntentAsk(previousAnswer);
   if (!asked) return NO_PLAIN_WORDS;
-  const intent = await read({ message: text, turns: conversation, apiKey });
+  const intent = await read({
+    message: text,
+    turns: conversation,
+    apiKey,
+    geminiApiKey,
+  });
   if (!intent || !PLAIN_WORDS_ACTIONS.has(intent.action)) return NO_PLAIN_WORDS;
   if (!allowGoogle && isGooglePlainAction(intent.action)) return NO_PLAIN_WORDS;
   const plan = planPlainIntent(intent, {
@@ -2466,6 +2472,7 @@ router.post("/chat", async (req, res) => {
     recordActiveUser(req.owner?.id || req.owner?.memoryOwnerId);
   }
   const openAiApiKey = process.env.OPENAI_API_KEY;
+  const geminiApiKey = process.env.GEMINI_API_KEY;
   const {
     sessionId,
     message,
@@ -3529,6 +3536,7 @@ router.post("/chat", async (req, res) => {
         turns: yesTurns.length ? yesTurns : effectiveHistory,
         english: useEnglishReplyFallback(language),
         apiKey: openAiApiKey,
+        geminiApiKey,
         allowGoogle:
           filterCapabilityRequestsForIdentity([{ capability: "mail.read" }], req.owner, memberToolOptions).length > 0,
       })
@@ -3695,11 +3703,11 @@ router.post("/chat", async (req, res) => {
     planningAllowed:
       capabilityPlanningAllowed &&
       !memoryAction &&
-      Boolean(openAiApiKey) &&
+      Boolean(openAiApiKey || geminiApiKey) &&
       !hasExplicitNoAdditionalToolsBoundary(taskMessage) &&
       plainWordsPlan.type !== "requests" &&
       !ownCommandWrite,
-    plannerContext: { openAiApiKey },
+    plannerContext: { openAiApiKey, geminiApiKey },
     planFn: planCapabilities,
     // A short yes to a step with tool words is planned even when the
     // detector finds no request in it (stepNeedsPlanner).

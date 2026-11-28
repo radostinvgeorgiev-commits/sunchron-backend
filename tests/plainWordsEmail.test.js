@@ -12,7 +12,11 @@ import {
   withPlainWordsRequests,
 } from "../src/routes/chat.js";
 import { sendMcpAgentMessage } from "../src/services/mcpAgentConversationService.js";
-import { hasMailWords, sofiaNow } from "../src/services/plainIntentService.js";
+import {
+  hasMailWords,
+  readPlainIntent,
+  sofiaNow,
+} from "../src/services/plainIntentService.js";
 
 // Item 3, fix 1 (RADKO 28.11 05:26–05:41): an email and the mailbox in the
 // person's own words. These are his messages from the live site.
@@ -34,6 +38,54 @@ const mailIntent = (fields = {}) => ({
   picture: "",
   durationMinutes: 0,
   ...fields,
+});
+
+test("plain-language intent uses Gemini first and keeps OpenAI as fallback", async () => {
+  const intent = await readPlainIntent({
+    message: "покажи ми календара утре",
+    geminiApiKey: "gemini-key",
+    apiKey: "openai-key",
+    fetchImpl: async (url, options) => {
+      assert.match(String(url), /generativelanguage\.googleapis\.com/u);
+      assert.equal(options.headers["x-goog-api-key"], "gemini-key");
+      assert.equal(
+        JSON.parse(options.body).generationConfig.responseMimeType,
+        "application/json",
+      );
+      return Response.json({
+        candidates: [{
+          content: {
+            parts: [{
+              text: JSON.stringify({ action: "calendar.read", query: "утре" }),
+            }],
+          },
+        }],
+      });
+    },
+  });
+  assert.equal(intent.action, "calendar.read");
+  assert.equal(intent.query, "утре");
+});
+
+test("plain-language intent falls back to OpenAI if Gemini fails", async () => {
+  const calledUrls = [];
+  const intent = await readPlainIntent({
+    message: "покажи ми календара утре",
+    geminiApiKey: "gemini-key",
+    apiKey: "openai-key",
+    fetchImpl: async (url) => {
+      calledUrls.push(String(url));
+      if (String(url).includes("generativelanguage.googleapis.com")) {
+        return new Response("temporary failure", { status: 503 });
+      }
+      return Response.json({
+        output_text: JSON.stringify({ action: "calendar.read", query: "утре" }),
+      });
+    },
+  });
+  assert.equal(intent.action, "calendar.read");
+  assert.equal(calledUrls.length, 2);
+  assert.match(calledUrls[1], /api\.openai\.com\/v1\/responses/u);
 });
 
 function reader(answer) {

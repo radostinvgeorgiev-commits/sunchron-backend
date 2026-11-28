@@ -3175,6 +3175,26 @@ function nextStepFromReply(text) {
 }
 
 function resolveNextStep(replyText, result = {}) {
+  const next = structuredNextStep(replyText, result);
+  // The pictures and video on this answer's card (done.media) are made by a
+  // short yes to the answer's own last line, so that line is the step shown,
+  // also when a project run, a council or a missing Google permission has a
+  // step of its own: what a yes makes is always on screen (review r5). A
+  // project's or a council's step still goes to the journal; the permission
+  // link stays in the reply.
+  const own = nextStepFromReply(replyText).step;
+  if (own && next.step !== own && Array.isArray(result?.media?.items) && result.media.items.length) {
+    return {
+      step: own,
+      displayText: next.displayText,
+      mediaOffer: true,
+      journalStep: next.chatOnly ? "" : next.step,
+    };
+  }
+  return next;
+}
+
+function structuredNextStep(replyText, result = {}) {
   const parsedReply = nextStepFromReply(replyText);
   const projectStep = cleanNextStep(result?.projectRun?.nextStep);
   const councilStep = cleanNextStep(result?.council?.nextSteps?.[0]);
@@ -3246,13 +3266,22 @@ function showNextStep(message, replyText, result) {
   // Only steps that come from a real project run, council or task go to the
   // journal automatically. A step the model wrote in free text is shown but
   // saved only when Радко presses the button, so invented items never pile up.
-  const fromStructuredResult = Boolean(
-    result?.projectRun?.nextStep ||
-      result?.council?.nextSteps?.[0] ||
-      result?.task?.status,
-  );
+  // The answer's own offer to make its pictures and video is such a step,
+  // and the project's or council's step it stands in for is saved instead.
+  const fromStructuredResult =
+    !next.mediaOffer &&
+    Boolean(
+      result?.projectRun?.nextStep ||
+        result?.council?.nextSteps?.[0] ||
+        result?.task?.status,
+    );
   if (fromStructuredResult && !next.chatOnly) {
     globalThis.SynchronTaskJournal?.setNextStep(next.step, {
+      detail: "Записано автоматично от последния отговор на NovariumAI.",
+    });
+  }
+  if (next.journalStep) {
+    globalThis.SynchronTaskJournal?.setNextStep(next.journalStep, {
       detail: "Записано автоматично от последния отговор на NovariumAI.",
     });
   }
@@ -3476,9 +3505,10 @@ function showMediaProposals(message, media) {
     button.__mediaKeys = chosen.map(mediaKey);
     button.addEventListener("click", () => {
       void queueMedia(card, chosen);
-      // The pressed button is now disabled; focus stays in the card.
-      const next = [...buttons.querySelectorAll("button")].find((other) => !other.disabled);
-      (next || card).focus();
+      // The pressed button is now disabled; focus goes to the card itself,
+      // never to another button, so one more Enter or Space makes nothing
+      // the person did not choose (review r5).
+      card.focus();
     });
     buttons.append(button);
   };
@@ -3509,7 +3539,10 @@ function showMediaProposals(message, media) {
     const cost = item.units > 0 ? ` · ${item.units} ${chatText("единици")}` : "";
     addButton(`${name}${cost}`, [item], mediaDescriptionStart(item.prompt));
   }
-  if (items.length > 1) addButton(chatText("Направи всичко"), items, "", "media-proposals-all");
+  // A member sees what „Направи всичко“ costs together, like each item.
+  const total = items.reduce((sum, item) => sum + item.units, 0);
+  const totalCost = total > 0 ? ` · ${total} ${chatText("единици")}` : "";
+  if (items.length > 1) addButton(`${chatText("Направи всичко")}${totalCost}`, items, "", "media-proposals-all");
   card.append(label, buttons);
 
   // Above the Next card, whose step usually offers to make them.

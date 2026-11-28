@@ -84,11 +84,12 @@ test("the card has a button per item, named by the answer's own number, with the
   member.show({ start: false, items: items([2, 2, 100]) });
   assert.equal(member.card().getAttribute("aria-label"), "Картинки и видео");
   assert.equal(member.card().querySelector("strong").textContent, "Картинки и видео");
+  // „Направи всичко“ shows what all of them cost together (review r5).
   assert.deepEqual(member.labels(), [
     "🎨 Картинка 1 · 2 единици",
     "🎨 Картинка 2 · 2 единици",
     "🎬 Видео · 100 единици",
-    "Направи всичко",
+    "Направи всичко · 104 единици",
   ]);
   // L10 #6: each button names the start of its description.
   const [first, , video, all] = member.buttons();
@@ -135,7 +136,7 @@ test("the card has a button per item, named by the answer's own number, with the
   englishPage.show({ start: false, items: items([2, 2, 100]) });
   assert.equal(englishPage.card().getAttribute("aria-label"), "Pictures and video");
   assert.equal(englishPage.card().querySelector("strong").textContent, "Pictures and video");
-  assert.deepEqual(englishPage.labels(), ["🎨 Picture 1 · 2 units", "🎨 Picture 2 · 2 units", "🎬 Video · 100 units", "Make them all"]);
+  assert.deepEqual(englishPage.labels(), ["🎨 Picture 1 · 2 units", "🎨 Picture 2 · 2 units", "🎬 Video · 100 units", "Make them all · 104 units"]);
 });
 
 test("„Направи всичко“ comes only with two or more items, and there is no card without items", (t) => {
@@ -300,17 +301,30 @@ test("„Спри“ cancels the queued items that have not started; the one bei
   assert.match(slice("function stopGeneration(", "function setChatBusy("), /state\.chatAbort\?\.abort\(\);\n  cancelQueuedMedia\(\);/u);
 });
 
-test("focus stays in the card after a press", async (t) => {
+test("focus stays in the card after a press, on the card itself", async (t) => {
   // L10 #5: a pressed button is disabled, which used to drop focus to <body>.
-  const page = cardPage(t, { media: { drawImage: async () => true, makeVideo: async () => true } });
+  // Review r5: focus on the next button made one more Enter or Space start
+  // an item the person did not choose (a paid video), so it goes to the card.
+  const made = [];
+  const page = cardPage(t, {
+    media: {
+      drawImage: async (prompt) => (made.push(`image:${prompt}`), true),
+      makeVideo: async (prompt) => (made.push(`video:${prompt}`), true),
+    },
+  });
   const card = page.show({ start: false, items: items() });
   const [first, second, video, all] = page.buttons();
   first.focus();
   first.click();
-  assert.equal(page.window.document.activeElement, second);
-  all.click();
   assert.equal(page.window.document.activeElement, card);
   assert.equal(card.tabIndex, -1);
+  // One more Enter on the focused card presses nothing.
+  card.dispatchEvent(new page.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  await page.queueMedia(card, []);
+  assert.deepEqual(made, [`image:${PICTURE_1}`]);
+  assert.deepEqual(page.pressed(), [true, false, false, false]);
+  all.click();
+  assert.equal(page.window.document.activeElement, card);
   await page.queueMedia(card, []);
   assert.ok([first, second, video, all].every((button) => button.disabled));
 });

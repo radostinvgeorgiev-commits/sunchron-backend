@@ -116,6 +116,68 @@ test("a missing Google permission points at the allow link and stays out of the 
   assert.match(app, /if \(!next\.chatOnly\) card\.append\(openButton\);/u);
 });
 
+test("with a pictures and video card, the Next card shows the answer's own offer that a yes makes", async () => {
+  // Review r5: a project run's step, a council's step or the Google
+  // permission step took the Next card, the offer line left the bubble, and
+  // a yes to the step on screen made the hidden offer's video.
+  const { resolveNextStep } = nextStepFunctions();
+  const offer = "Видео: Пара над чаша кафе\n\nСледва: напиши „да“ и правя видеото.";
+  const media = { start: false, items: [{ kind: "video", prompt: "Пара над чаша кафе", units: 0 }] };
+  const project = { projectRun: { nextStep: "Прегледай промените в README и пусни тестовете." } };
+  const scope = { task: { status: "failed", steps: [{ status: "failed", error: "GOOGLE_SCOPE_REQUIRED" }] } };
+  const council = { council: { nextSteps: ["Сравни двата отговора."] } };
+  for (const [name, result, journalStep] of [
+    ["project", project, "Прегледай промените в README и пусни тестовете."],
+    ["council", council, "Сравни двата отговора."],
+    ["permission", scope, ""],
+  ]) {
+    const next = resolveNextStep(offer, { ...result, media });
+    assert.equal(next.step, "напиши „да“ и правя видеото.", name);
+    assert.equal(next.mediaOffer, true, name);
+    assert.equal(next.journalStep, journalStep, name);
+    assert.equal(next.displayText, "Видео: Пара над чаша кафе", name);
+    // Without a card the step is the one it was.
+    assert.notEqual(resolveNextStep(offer, result).step, "напиши „да“ и правя видеото.", name);
+  }
+  // An answer without a Next line of its own keeps the structured step.
+  assert.equal(resolveNextStep("Видео: Пара над чаша кафе", { ...project, media }).step, project.projectRun.nextStep);
+  // Its own step is shown anyway: nothing changes.
+  const plain = resolveNextStep(offer, { task: { status: "completed" }, media });
+  assert.equal(plain.step, "напиши „да“ и правя видеото.");
+  assert.equal(plain.mediaOffer, undefined);
+
+  // On the page: the offer is on the Next card; a project's step still goes
+  // to the journal by itself, and the shown offer only on a press.
+  const { JSDOM } = await import("jsdom");
+  const start = app.indexOf("function cleanNextStep(");
+  const end = app.indexOf("function memoryCandidateCategoryLabel(");
+  const { window } = new JSDOM("<div class='assistant-turn'><div class='message'></div><div class='message-actions'></div></div>");
+  const saved = [];
+  const journal = { setNextStep: (step) => saved.push(step), openCurrentNext() {} };
+  const run = (replyText, result) => {
+    const turn = window.document.querySelector(".assistant-turn");
+    turn.querySelector(".next-step-card")?.remove();
+    const showNextStep = new Function(
+      "document", "globalThis", "chatText", "renderAgentText", "state", "elements", "resizeChatInput", "sendMessage",
+      `${app.slice(start, end)}\nreturn showNextStep;`,
+    )(window.document, { SynchronTaskJournal: journal }, (value) => value, () => {}, { chatBusy: false }, {}, () => {}, () => {});
+    showNextStep(turn.querySelector(".message"), replyText, result);
+    return turn.querySelector(".next-step-card");
+  };
+  const projectCard = run(offer, { ...project, media });
+  assert.match(projectCard.querySelector("p").textContent, /правя видеото/u);
+  assert.deepEqual(saved, [project.projectRun.nextStep]);
+  assert.equal(projectCard.querySelector("button").textContent, "Добави в Дневника");
+  projectCard.querySelector("button").click();
+  assert.deepEqual(saved, [project.projectRun.nextStep, "напиши „да“ и правя видеото."]);
+  saved.length = 0;
+  const scopeCard = run(offer, { ...scope, media });
+  assert.match(scopeCard.querySelector("p").textContent, /правя видеото/u);
+  assert.deepEqual(saved, [], "nothing goes to the journal by itself");
+  assert.equal(scopeCard.querySelector("button").textContent, "Добави в Дневника");
+  window.close();
+});
+
 test("an English page reads an English Next line and never shows a Bulgarian one", () => {
   const english = nextStepFunctions(ENGLISH_PAGE);
   // The model's English last line becomes the Next card.

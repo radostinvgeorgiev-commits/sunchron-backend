@@ -124,6 +124,6 @@ test("sign-in reuses the registered Drive redirect address", () => {
 test("the shared callback is routed before the owner-only Drive router", () => {
   const server = readFileSync(new URL("../server.js", import.meta.url), "utf8");
   assert.ok(
-    server.indexOf('app.get("/api/google/callback"') < server.indexOf('"/api/google",\n  requireOwnerSession'),
+    server.indexOf('app.get("/api/google/callback"') < server.indexOf('"/api/google",\n  signInFirst(),\n  requireOwnerSession'),
   );
 });

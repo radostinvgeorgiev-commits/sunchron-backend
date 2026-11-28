@@ -145,7 +145,7 @@ test("after the return address moves, the old name sends the sign-in to novarium
   }
 });
 
-test("in the real app the move sits before the sign-in routes and connecting is left where it was pressed", async () => {
+test("in the real app the move sits before the sign-in routes and a connect without sign-in signs in first", async () => {
   const { default: app } = await import("../server.js");
   const pressed = await request(app).get("/api/auth/google/start").set("Host", "novariumai.com");
   assert.equal(pressed.status, 302);
@@ -159,8 +159,14 @@ test("in the real app the move sits before the sign-in routes and connecting is 
   assert.equal(google.searchParams.get("redirect_uri"), "https://cloudaicore.com/api/google/callback");
   assert.match(google.searchParams.get("state"), /^moved\./u);
   assert.ok([].concat(started.headers["set-cookie"]).some((cookie) => cookie.startsWith("synchron_google_signin_state=moved.")));
-  // Connecting Google is answered on the name where it was pressed, as before.
+  // Connecting Google with nobody signed in goes to the sign-in first, on the
+  // name the sign-in comes back to (src/middleware/signInFirst.js), never bare
+  // JSON. A signed-in connect is left where it was pressed (tests above).
   const connect = await request(app).get("/api/google/connect?add=gmail").set("Host", "novariumai.com");
-  assert.equal(connect.status, 401);
-  assert.equal(connect.headers.location, undefined);
+  assert.equal(connect.status, 302);
+  assert.equal(connect.headers.location, "https://cloudaicore.com/api/google/connect?add=gmail");
+  const there = await request(app).get("/api/google/connect?add=gmail").set("Host", "cloudaicore.com");
+  assert.equal(there.status, 302);
+  assert.equal(there.headers.location, "/api/auth/google/start");
+  assert.ok([].concat(there.headers["set-cookie"]).some((cookie) => cookie.startsWith("novarium_after_signin=")));
 });

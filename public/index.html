@@ -79,13 +79,13 @@
     <link rel="stylesheet" href="/locale.css" />
     <link rel="stylesheet" href="/readability.css?v=20261125" />
     <link rel="stylesheet" href="/addons.css?v=20261127d" />
-    <link rel="stylesheet" href="/landing.css?v=20261128b" />
+    <link rel="stylesheet" href="/landing.css?v=20261128c" />
     <link rel="stylesheet" href="/app-neon.css?v=20261128c" />
     <link rel="stylesheet" href="/book.css?v=20261128b" />
     <link rel="stylesheet" href="/ui-refresh.css?v=20261126l" />
     <script src="/locale-en.js?v=20261127-media-v2"></script>
     <script src="/locale.js"></script>
-    <script src="/landing.js?v=20261128a" defer></script>
+    <script src="/landing.js?v=20261128b" defer></script>
   </head>
   <body>
     <section class="auth-gate landing" id="authGate" aria-labelledby="publicTitle">
@@ -210,13 +210,39 @@
           <h2 id="specialistsTitle">Един аватар. Много умения.</h2>
           <p class="landing-section-lead">Избери специалист за разговора. Паметта остава една и е твоя.</p>
           <ul class="landing-specialists">
-            <li class="landing-new"><i class="fa-solid fa-feather-pointed" aria-hidden="true"></i><strong>Писател</strong><em>Ново</em><span>Пази героите, местата и правилата на книгата и показва противоречията в нова глава.</span></li>
+            <li class="landing-new"><i class="fa-solid fa-feather-pointed" aria-hidden="true"></i><strong>Писател</strong><em>Ново</em><span>Пази героите, местата и правилата на книгата и показва противоречията в нова глава. <a href="#free-check">Пробвай безплатно</a></span></li>
             <li><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i><strong>Юрист</strong><span>Обяснява закони и договори ясно.</span></li>
             <li><i class="fa-solid fa-calculator" aria-hidden="true"></i><strong>Счетоводител</strong><span>Сметки, данъци и бюджети стъпка по стъпка.</span></li>
             <li><i class="fa-solid fa-bullhorn" aria-hidden="true"></i><strong>Маркетинг</strong><span>Идеи, текстове и планове за реклама.</span></li>
             <li><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i><strong>Учител</strong><span>Обяснява всичко с прости думи.</span></li>
             <li><i class="fa-solid fa-code" aria-hidden="true"></i><strong>Програмист</strong><span>Пише и проверява код с теб.</span></li>
           </ul>
+        </section>
+
+        <section class="landing-section landing-free-check" id="free-check" aria-labelledby="freeCheckTitle">
+          <p class="landing-kicker">Писател · безплатно</p>
+          <h2 id="freeCheckTitle">Провери глава. Без вход.</h2>
+          <p class="landing-section-lead">Напиши какво е вярно в книгата ти и постави новата глава. Ще видиш всяко място, което му противоречи, ред до ред. Нищо не се пази.</p>
+          <form class="landing-free-form" data-free-check>
+            <label class="landing-free-field">
+              <span>Какво е вярно в книгата (по един факт на ред)</span>
+              <textarea name="facts" rows="6" maxlength="3000" required placeholder="Например: Мила има зелени очи. Кулата е на хълма над града."></textarea>
+            </label>
+            <label class="landing-free-field">
+              <span>Новата глава</span>
+              <textarea name="text" rows="6" maxlength="15000" required placeholder="Постави текста на главата."></textarea>
+            </label>
+            <div class="landing-free-actions">
+              <button class="landing-cta" type="submit">Провери главата <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
+              <small>До 3 проверки на ден. Без имейл, без регистрация.</small>
+            </div>
+            <p class="landing-free-status" role="status" aria-live="polite"></p>
+          </form>
+          <div class="landing-free-result" data-free-result hidden>
+            <p class="landing-free-score"></p>
+            <ul class="landing-free-issues"></ul>
+            <p class="landing-free-more">Искаш паметта на книгата да се пази и да проверяваш всяка глава? <button type="button" class="landing-link-button" data-open-auth="free-check">Започни безплатно</button></p>
+          </div>
         </section>
 
         <section class="landing-section landing-trust" aria-labelledby="trustTitle">

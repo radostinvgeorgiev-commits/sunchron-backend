@@ -189,6 +189,59 @@ export function secondProvider(env = process.env) {
   );
 }
 
+// The check itself, shared by a saved book and the free check on the start
+// page: every clash quotes the chapter word for word, and a second engine
+// confirms it when this server has one.
+export async function runChapterCheck({ facts, source, number = 0, askAi = requestAiText, env = process.env, pickFacts = relevantFacts }) {
+  const sourceFlat = flat(source);
+  const found = [];
+  for (const part of splitChapter(source)) {
+    const partFacts = pickFacts(facts, part, number);
+    if (!partFacts.length) continue;
+    const answer = parseJsonObject(await askAi({ input: buildCheckPrompt(part, partFacts, number), reasoningEffort: "low" }));
+    for (const issue of Array.isArray(answer?.issues) ? answer.issues : []) {
+      const fact = partFacts.find((item) => item.id === clean(issue?.fact, 80));
+      const quote = clean(issue?.quote, BOOK_LIMITS.quote).replace(/^[„"“]+|[“"”]+$/gu, "");
+      // A quote that is not in the chapter as written is an invented one.
+      if (!fact || !quote || !sourceFlat.includes(flat(quote))) continue;
+      if (found.some((item) => item.fact.id === fact.id && item.quote === quote)) continue;
+      found.push({ fact, quote, why: clean(issue?.why, 240) });
+    }
+    if (found.length >= BOOK_LIMITS.issues) break;
+  }
+  let issues = found.slice(0, BOOK_LIMITS.issues);
+  const provider = issues.length ? secondProvider(env) : null;
+  let models = 1;
+  if (provider) {
+    try {
+      const verdict = parseJsonObject(await askAi({ provider, input: buildVerifyPrompt(issues), reasoningEffort: "low" }));
+      if (Array.isArray(verdict?.real)) {
+        const real = new Set(verdict.real.map(Number));
+        issues = issues.filter((_, index) => real.has(index + 1));
+        models = 2;
+      }
+    } catch {
+      // The second look failed: the first model's findings stay, and the
+      // answer says only one model checked.
+    }
+  }
+  return {
+    chapter: number,
+    score: matchScore(issues.length),
+    models,
+    issues: issues.map(({ fact, quote, why }) => ({
+      factId: fact.id,
+      kind: fact.kind,
+      name: fact.name,
+      fact: fact.text,
+      factQuote: fact.quote || "",
+      fromChapter: fact.fromChapter || 1,
+      quote,
+      why,
+    })),
+  };
+}
+
 export function createBookMemoryService({
   store,
   env = process.env,
@@ -330,53 +383,7 @@ export function createBookMemoryService({
     if (!book.facts.some((fact) => factHoldsAt(fact, number))) {
       throw new BookMemoryError("Паметта на книгата е празна. Първо добави факти.", 409, "BOOK_MEMORY_EMPTY");
     }
-    const sourceFlat = flat(source);
-    const found = [];
-    for (const part of splitChapter(source)) {
-      const facts = relevantFacts(book.facts, part, number);
-      if (!facts.length) continue;
-      const answer = parseJsonObject(await askAi({ input: buildCheckPrompt(part, facts, number), reasoningEffort: "low" }));
-      for (const issue of Array.isArray(answer?.issues) ? answer.issues : []) {
-        const fact = facts.find((item) => item.id === clean(issue?.fact, 80));
-        const quote = clean(issue?.quote, BOOK_LIMITS.quote).replace(/^[„"“]+|[“"”]+$/gu, "");
-        // A quote that is not in the chapter as written is an invented one.
-        if (!fact || !quote || !sourceFlat.includes(flat(quote))) continue;
-        if (found.some((item) => item.fact.id === fact.id && item.quote === quote)) continue;
-        found.push({ fact, quote, why: clean(issue?.why, 240) });
-      }
-      if (found.length >= BOOK_LIMITS.issues) break;
-    }
-    let issues = found.slice(0, BOOK_LIMITS.issues);
-    const provider = issues.length ? secondProvider(env) : null;
-    let models = 1;
-    if (provider) {
-      try {
-        const verdict = parseJsonObject(await askAi({ provider, input: buildVerifyPrompt(issues), reasoningEffort: "low" }));
-        if (Array.isArray(verdict?.real)) {
-          const real = new Set(verdict.real.map(Number));
-          issues = issues.filter((_, index) => real.has(index + 1));
-          models = 2;
-        }
-      } catch {
-        // The second look failed: the first model's findings stay, and the
-        // answer says only one model checked.
-      }
-    }
-    return {
-      chapter: number,
-      score: matchScore(issues.length),
-      models,
-      issues: issues.map(({ fact, quote, why }) => ({
-        factId: fact.id,
-        kind: fact.kind,
-        name: fact.name,
-        fact: fact.text,
-        factQuote: fact.quote || "",
-        fromChapter: fact.fromChapter || 1,
-        quote,
-        why,
-      })),
-    };
+    return runChapterCheck({ facts: book.facts, source, number, askAi, env });
   }
 
   return {

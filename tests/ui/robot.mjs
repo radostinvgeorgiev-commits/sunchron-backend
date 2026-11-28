@@ -1276,6 +1276,12 @@ async function publicChecks(origin) {
     await page.click('[data-demo="1"]');
     expect((await page.textContent("[data-demo-output]")).includes("без захар"), "демото не отговори");
   });
+  await step("Жив сайт: безплатната проверка на глава е видима без вход", async () => {
+    await page.locator("#free-check").scrollIntoViewIfNeeded();
+    expect(await page.locator('[data-free-check] textarea[name="facts"]').isVisible(), "няма поле за фактите");
+    expect(await page.locator('[data-free-check] textarea[name="text"]').isVisible(), "няма поле за главата");
+    expect(await page.locator('[data-free-check] button[type="submit"]').isVisible(), "няма бутон за проверка");
+  });
   await step("Жив сайт: „Започни безплатно“ отваря входа в прозорче", async () => {
     await openSignIn(page);
     expect(await page.locator("#authCard").isVisible(), "няма прозорец за вход");

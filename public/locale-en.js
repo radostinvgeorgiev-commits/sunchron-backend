@@ -1091,5 +1091,15 @@ Claude, GPT, Gemini и други. Избираш сам или оставяш �
 Проверявам главата…|Checking the chapter…
 Ново|New
 Пази героите, местата и правилата на книгата и показва противоречията в нова глава.|Keeps your book’s characters, places and rules and shows contradictions in a new chapter.
+Писател · безплатно|Writer · free
+Провери глава. Без вход.|Check a chapter. No sign-in.
+Напиши какво е вярно в книгата ти и постави новата глава. Ще видиш всяко място, което му противоречи, ред до ред. Нищо не се пази.|Write what is true in your book and paste the new chapter. You will see every place that contradicts it, line by line. Nothing is saved.
+Какво е вярно в книгата (по един факт на ред)|What is true in the book (one fact per line)
+Например: Мила има зелени очи. Кулата е на хълма над града.|For example: Mila has green eyes. The tower is on the hill above the town.
+Новата глава|The new chapter
+До 3 проверки на ден. Без имейл, без регистрация.|Up to 3 checks a day. No e-mail, no sign-up.
+Искаш паметта на книгата да се пази и да проверяваш всяка глава?|Want the book’s memory kept and every chapter checked?
+Пробвай безплатно|Try it free
+В книгата|In the book
 `.trim().split("\n").map((line) => line.split("|")),
 );

@@ -697,6 +697,135 @@
   color: var(--nv-text) !important;
 }
 
+/* The free chapter check */
+.landing-free-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 32px;
+}
+
+.landing-free-field {
+  display: grid;
+  gap: 8px;
+  color: var(--nv-muted);
+  font-weight: 600;
+}
+
+.landing-free-field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 180px;
+  padding: 14px 16px;
+  border: 1px solid var(--nv-line);
+  border-radius: 16px;
+  color: var(--nv-text);
+  background: rgba(10, 11, 36, 0.85);
+  font: inherit;
+  font-weight: 400;
+  line-height: 1.5;
+  resize: vertical;
+  caret-color: var(--nv-cyan);
+}
+
+.landing-free-field textarea::placeholder {
+  color: rgba(169, 172, 214, 0.7);
+}
+
+.landing-free-field textarea:focus {
+  border-color: rgba(0, 240, 255, 0.65);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.12);
+}
+
+.landing-free-actions,
+.landing-free-status {
+  grid-column: 1 / -1;
+}
+
+.landing-free-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.landing-free-actions small {
+  color: var(--nv-muted);
+}
+
+.landing-free-actions button[disabled] {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.landing-free-status {
+  min-height: 1.4em;
+  margin: 0;
+  color: #ffd2fb;
+}
+
+.landing-free-result {
+  margin-top: 24px;
+  padding: 24px;
+  border: 1px solid var(--nv-line);
+  border-radius: 20px;
+  background: var(--nv-card);
+}
+
+.landing-free-score {
+  margin: 0;
+  font-family: var(--nv-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.landing-free-issues {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.landing-free-issues li {
+  padding: 14px 16px;
+  border-left: 3px solid var(--nv-pink);
+  border-radius: 12px;
+  background: rgba(255, 61, 242, 0.07);
+}
+
+.landing-free-issues p {
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+
+.landing-free-issues small {
+  color: var(--nv-muted);
+}
+
+.landing-free-more {
+  margin: 18px 0 0;
+  color: var(--nv-muted);
+}
+
+.landing-link-button {
+  padding: 0;
+  border: 0;
+  color: var(--nv-cyan);
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  .landing-free-form {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* The sign-in window */
 .landing-auth {
   width: min(440px, calc(100vw - 24px));

@@ -166,3 +166,32 @@ test("Писател is a specialist with the book memory tool, and the page ope
   assert.match(server, /\(\?:suggest\|check\)\$\/u, requireOwnerSession, paidAiRateLimiter/u);
   assert.match(readFileSync("src/services/accountDataService.js", "utf8"), /await clearBooks\(ownerId\)/u);
 });
+
+test("the free check needs no account, saves nothing but a daily count, and stops at the daily total", async () => {
+  const { createFreeChapterCheck, parseFreeFacts, FREE_CHECK_LIMITS } = await import("../src/services/freeChapterCheckService.js");
+  assert.deepEqual(
+    parseFreeFacts("- Мила има зелени очи.\n\n2) Кулата е на хълма.").map((fact) => fact.text),
+    ["Мила има зелени очи.", "Кулата е на хълма."],
+  );
+  const store = memoryStore();
+  let asked = null;
+  const free = createFreeChapterCheck({
+    store,
+    env: {},
+    today: () => "2026-11-28",
+    askAi: async ({ input }) => {
+      asked = input[1].content;
+      return '{"issues":[{"fact":"f1","quote":"кафявите си очи","why":"Зелени са."},{"fact":"f1","quote":"няма го","why":"x"}]}';
+    },
+  });
+  await assert.rejects(free.check({ facts: "  ", text: "Глава" }), /поне един факт/u);
+  const result = await free.check({ facts: "Мила има зелени очи.", text: "Мила погледна с кафявите си очи." });
+  assert.match(asked, /f1 \| rule \|  \| Мила има зелени очи\./u);
+  assert.deepEqual(result.issues, [{ fact: "Мила има зелени очи.", quote: "кафявите си очи", why: "Зелени са." }]);
+  assert.equal(result.score, 88);
+  assert.deepEqual([...store.rows.values()], [{ day: "2026-11-28", count: 1 }]);
+  store.rows.set([...store.rows.keys()][0], { day: "2026-11-28", count: FREE_CHECK_LIMITS.perDay });
+  await assert.rejects(free.check({ facts: "А", text: "Б" }), { code: "FREE_CHECK_DAILY_LIMIT" });
+  const server = readFileSync("server.js", "utf8");
+  assert.match(server, /"\/api\/free-check",\s*createApiRateLimiter\(\{\s*limit: 3,\s*windowMs: 24 \* 60 \* 60 \* 1000/u);
+});

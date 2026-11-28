@@ -972,12 +972,12 @@ test("chat prepares a new Google contact from one exact line, in Bulgarian or En
 
 test("in English, a Google service that is not allowed yet answers with its allow link", () => {
   const error = Object.assign(
-    new Error("YouTube още не е разрешен. [Свържи YouTube](https://cloudaicore.com/api/google/connect?add=youtube)."),
+    new Error("YouTube още не е разрешен. [Свържи YouTube](https://novariumai.com/api/google/connect?add=youtube)."),
     { code: "GOOGLE_SCOPE_REQUIRED" },
   );
   const results = [{ status: "rejected", request: { capability: "youtube.channel" }, error }];
   assert.deepEqual(buildCapabilityReplies(results, { language: "en" }), [
-    "YouTube is not allowed yet. [Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)",
+    "YouTube is not allowed yet. [Allow YouTube](https://novariumai.com/api/google/connect?add=youtube)",
   ]);
 });
 
@@ -986,7 +986,7 @@ test("a Google service that is not allowed yet: the model answers and the allow 
     status: "rejected",
     request: { capability: "youtube.channel" },
     error: Object.assign(
-      new Error("YouTube още не е разрешен. [Разреши YouTube](https://cloudaicore.com/api/google/connect?add=youtube)"),
+      new Error("YouTube още не е разрешен. [Разреши YouTube](https://novariumai.com/api/google/connect?add=youtube)"),
       { code: "GOOGLE_SCOPE_REQUIRED" },
     ),
   };
@@ -995,21 +995,21 @@ test("a Google service that is not allowed yet: the model answers and the allow 
   assert.equal(shouldReplyWithVerifiedToolOutput([notAllowed]), false);
   assert.equal(
     buildCapabilityReplies([notAllowed], { language: "en" })[0],
-    "YouTube is not allowed yet. [Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)",
+    "YouTube is not allowed yet. [Allow YouTube](https://novariumai.com/api/google/connect?add=youtube)",
   );
-  const allowLine = "YouTube is not allowed yet. [Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)";
+  const allowLine = "YouTube is not allowed yet. [Allow YouTube](https://novariumai.com/api/google/connect?add=youtube)";
   // The model left the link out: the exact allow line is added once.
   assert.equal(
     withGoogleAllowLinks("Here are five ideas for your channel.\n", [notAllowed, notAllowed], "en"),
     `Here are five ideas for your channel.\n\n${allowLine}`,
   );
   // The model kept the link: nothing is added.
-  const kept = "Allow YouTube first: [Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)";
+  const kept = "Allow YouTube first: [Allow YouTube](https://novariumai.com/api/google/connect?add=youtube)";
   assert.equal(withGoogleAllowLinks(kept, [notAllowed], "en"), kept);
   // In Bulgarian the service's own message is added.
   assert.equal(
     withGoogleAllowLinks("Ето пет идеи.", [notAllowed]),
-    "Ето пет идеи.\n\nYouTube още не е разрешен. [Разреши YouTube](https://cloudaicore.com/api/google/connect?add=youtube)",
+    "Ето пет идеи.\n\nYouTube още не е разрешен. [Разреши YouTube](https://novariumai.com/api/google/connect?add=youtube)",
   );
   // An empty answer becomes just the allow line.
   assert.equal(withGoogleAllowLinks("", [notAllowed], "en"), allowLine);
@@ -1025,21 +1025,21 @@ test("in English, every missing Google permission is answered in English with it
     buildCapabilityReplies([{ status: "rejected", request: { capability }, error: scope(message) }], { language: "en" });
   // Calendar and Contacts link to the main connect page, without "add=".
   assert.deepEqual(
-    reply("calendar.read", "Google Calendar няма дадено разрешение. [Разреши Google Calendar](https://cloudaicore.com/api/google/connect)."),
-    ["Google Calendar is not allowed yet. [Allow Google Calendar](https://cloudaicore.com/api/google/connect)"],
+    reply("calendar.read", "Google Calendar няма дадено разрешение. [Разреши Google Calendar](https://novariumai.com/api/google/connect)."),
+    ["Google Calendar is not allowed yet. [Allow Google Calendar](https://novariumai.com/api/google/connect)"],
   );
   assert.deepEqual(
-    reply("contacts.read", "Google Contacts няма дадено разрешение. [Разреши Google Contacts](https://cloudaicore.com/api/google/connect)."),
-    ["Google Contacts is not allowed yet. [Allow Google Contacts](https://cloudaicore.com/api/google/connect)"],
+    reply("contacts.read", "Google Contacts няма дадено разрешение. [Разреши Google Contacts](https://novariumai.com/api/google/connect)."),
+    ["Google Contacts is not allowed yet. [Allow Google Contacts](https://novariumai.com/api/google/connect)"],
   );
   // A plain link in the text works too.
   assert.deepEqual(
-    reply("youtube.publish", "YouTube качването още не е разрешено. Отвори https://cloudaicore.com/api/google/connect?add=publish и разреши."),
-    ["Uploading to YouTube is not allowed yet. [Allow uploading to YouTube](https://cloudaicore.com/api/google/connect?add=publish)"],
+    reply("youtube.publish", "YouTube качването още не е разрешено. Отвори https://novariumai.com/api/google/connect?add=publish и разреши."),
+    ["Uploading to YouTube is not allowed yet. [Allow uploading to YouTube](https://novariumai.com/api/google/connect?add=publish)"],
   );
   assert.deepEqual(
-    reply("drive.list", "Google няма дадено разрешение. [Разреши Google](https://cloudaicore.com/api/google/connect)."),
-    ["This Google service is not allowed yet. [Allow it](https://cloudaicore.com/api/google/connect)"],
+    reply("drive.list", "Google няма дадено разрешение. [Разреши Google](https://novariumai.com/api/google/connect)."),
+    ["This Google service is not allowed yet. [Allow it](https://novariumai.com/api/google/connect)"],
   );
   // Without a link there is nothing exact to send: the model writes the reply.
   // Without a link there is no allow line to build or to add.
@@ -1047,8 +1047,8 @@ test("in English, every missing Google permission is answered in English with it
   assert.equal(withGoogleAllowLinks("Answer.", [noLink], "en"), "Answer.");
   // A direct reply (a prepared write) whose Google permission is missing.
   assert.deepEqual(
-    reply("calendar.write", "Google Calendar няма дадено разрешение. [Разреши Google Calendar](https://cloudaicore.com/api/google/connect)."),
-    ["Google Calendar is not allowed yet. [Allow Google Calendar](https://cloudaicore.com/api/google/connect)"],
+    reply("calendar.write", "Google Calendar няма дадено разрешение. [Разреши Google Calendar](https://novariumai.com/api/google/connect)."),
+    ["Google Calendar is not allowed yet. [Allow Google Calendar](https://novariumai.com/api/google/connect)"],
   );
 });
 
@@ -1057,18 +1057,18 @@ test("the allow line goes before the answer's own Next line, which stays last", 
     status: "rejected",
     request: { capability: "youtube.channel" },
     error: Object.assign(
-      new Error("YouTube още не е разрешен. [Разреши YouTube](https://cloudaicore.com/api/google/connect?add=youtube)"),
+      new Error("YouTube още не е разрешен. [Разреши YouTube](https://novariumai.com/api/google/connect?add=youtube)"),
       { code: "GOOGLE_SCOPE_REQUIRED" },
     ),
   };
-  const allowLine = "YouTube is not allowed yet. [Allow YouTube](https://cloudaicore.com/api/google/connect?add=youtube)";
+  const allowLine = "YouTube is not allowed yet. [Allow YouTube](https://novariumai.com/api/google/connect?add=youtube)";
   assert.equal(
     withGoogleAllowLinks("I need YouTube access first.\n\nNext: Allow YouTube with the link above.", [notAllowed], "en"),
     `I need YouTube access first.\n\n${allowLine}\n\nNext: Allow YouTube with the link above.`,
   );
   assert.equal(
     withGoogleAllowLinks("Трябва достъп.\n**Следва:** Разреши YouTube.", [notAllowed]),
-    "Трябва достъп.\n\nYouTube още не е разрешен. [Разреши YouTube](https://cloudaicore.com/api/google/connect?add=youtube)\n\n**Следва:** Разреши YouTube.",
+    "Трябва достъп.\n\nYouTube още не е разрешен. [Разреши YouTube](https://novariumai.com/api/google/connect?add=youtube)\n\n**Следва:** Разреши YouTube.",
   );
   // A Next line that is the whole answer stays last too.
   assert.equal(
@@ -1077,7 +1077,7 @@ test("the allow line goes before the answer's own Next line, which stays last", 
   );
   assert.equal(
     withGoogleAllowLinks("Следва: Разреши YouTube.", [notAllowed]),
-    "YouTube още не е разрешен. [Разреши YouTube](https://cloudaicore.com/api/google/connect?add=youtube)\n\nСледва: Разреши YouTube.",
+    "YouTube още не е разрешен. [Разреши YouTube](https://novariumai.com/api/google/connect?add=youtube)\n\nСледва: Разреши YouTube.",
   );
   // A lowercase "next:" (code) and a line inside a code block are not Next
   // lines: they stay where they are and the allow line goes last.
@@ -1087,7 +1087,7 @@ test("the allow line goes before the answer's own Next line, which stays last", 
 });
 
 test("a link only in the answer's own Next line still gets the allow line above it", () => {
-  const url = "https://cloudaicore.com/api/google/connect?add=youtube";
+  const url = "https://novariumai.com/api/google/connect?add=youtube";
   const notAllowed = {
     status: "rejected",
     request: { capability: "youtube.channel" },
@@ -1124,12 +1124,12 @@ test("in English, a Google error is never left in Bulgarian", () => {
   const failed = (error) =>
     buildCapabilityReplies([{ status: "rejected", request: { capability: "calendar.read" }, error }], { language: "en" })[0];
   assert.equal(
-    failed(google("Google връзката е изтекла. [Свържи Google отново](https://cloudaicore.com/api/google/connect).", "GOOGLE_RECONNECT_REQUIRED", 401)),
-    "Request failed for calendar.read: The Google connection has expired. [Connect Google again](https://cloudaicore.com/api/google/connect)",
+    failed(google("Google връзката е изтекла. [Свържи Google отново](https://novariumai.com/api/google/connect).", "GOOGLE_RECONNECT_REQUIRED", 401)),
+    "Request failed for calendar.read: The Google connection has expired. [Connect Google again](https://novariumai.com/api/google/connect)",
   );
   assert.equal(
     englishGoogleFailure(google("Google връзката е изтекла. Свържи я отново.", "REFRESH_FAILED", 401)),
-    "The Google connection has expired. [Connect Google again](https://cloudaicore.com/api/google/connect)",
+    "The Google connection has expired. [Connect Google again](https://novariumai.com/api/google/connect)",
   );
   assert.equal(
     englishGoogleFailure(google("Google Calendar временно не е достъпен (Google грешка 503).", "GOOGLE_REQUEST_FAILED")),
@@ -1177,18 +1177,18 @@ test("in English, a Google account that was never connected is not called expire
     }),
     (error) =>
       error.code === "NOT_CONNECTED" &&
-      englishGoogleFailure(error) === "Google is not connected yet. [Connect Google](https://cloudaicore.com/api/google/connect)",
+      englishGoogleFailure(error) === "Google is not connected yet. [Connect Google](https://novariumai.com/api/google/connect)",
   );
   // Without a link in the message, the site's own connect link.
   assert.equal(
     englishGoogleFailure(google("Google Drive не е свързан.", "NOT_CONNECTED")),
-    "Google is not connected yet. [Connect Google](https://cloudaicore.com/api/google/connect)",
+    "Google is not connected yet. [Connect Google](https://novariumai.com/api/google/connect)",
   );
   // An expired connection still says so.
   for (const code of ["TOKEN_EXPIRED", "REFRESH_FAILED", "GOOGLE_RECONNECT_REQUIRED"]) {
     assert.equal(
       englishGoogleFailure(google("Google връзката е изтекла. Свържи я отново.", code)),
-      "The Google connection has expired. [Connect Google again](https://cloudaicore.com/api/google/connect)",
+      "The Google connection has expired. [Connect Google again](https://novariumai.com/api/google/connect)",
       code,
     );
   }

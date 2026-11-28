@@ -5,6 +5,7 @@ import {
   sessionPayload,
   UserAuthError,
 } from "./userAuthService.js";
+import { publicOrigin } from "../config/publicOrigin.js";
 
 // "Вход с Facebook" and "Вход с Microsoft" through Identity Platform's own
 // redirect flow: accounts:createAuthUri gives the provider address, the
@@ -58,7 +59,7 @@ export function providerSignInStatus(env = process.env) {
 
 export function providerCallbackUri(name, env = process.env) {
   provider(name);
-  const origin = String(env.PUBLIC_ORIGIN || "https://cloudaicore.com").replace(/\/+$/u, "");
+  const origin = publicOrigin(env);
   return `${origin}/api/auth/${name}/callback`;
 }
 

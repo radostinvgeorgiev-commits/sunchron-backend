@@ -104,12 +104,12 @@ test("a missing provider is created", async () => {
 });
 
 test("sign-in reuses the registered Drive redirect address", () => {
-  const shared = { GOOGLE_REDIRECT_URI: "https://cloudaicore.com/api/google/callback" };
-  assert.equal(googleSignInRedirectUri(shared), "https://cloudaicore.com/api/google/callback");
-  assert.equal(googleSignInRedirectUri({}), "https://cloudaicore.com/api/auth/google/callback");
+  const shared = { GOOGLE_REDIRECT_URI: "https://novariumai.com/api/google/callback" };
+  assert.equal(googleSignInRedirectUri(shared), "https://novariumai.com/api/google/callback");
+  assert.equal(googleSignInRedirectUri({}), "https://novariumai.com/api/auth/google/callback");
   assert.equal(
-    googleSignInRedirectUri({ GOOGLE_REDIRECT_URI: "https://cloudaicore.com/other" }),
-    "https://cloudaicore.com/api/auth/google/callback",
+    googleSignInRedirectUri({ GOOGLE_REDIRECT_URI: "https://novariumai.com/other" }),
+    "https://novariumai.com/api/auth/google/callback",
   );
   const { cookie } = startGoogleSignIn({
     env: { ...env, ...shared, GOOGLE_SIGN_IN: "on", USER_REGISTRATION_MODE: "public" },

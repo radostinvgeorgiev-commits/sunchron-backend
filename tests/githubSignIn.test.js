@@ -32,7 +32,7 @@ test("start goes to GitHub with the registered callback and a state cookie", () 
   const { url, cookie } = startGitHubSignIn({ env });
   const parsed = new URL(url);
   assert.equal(parsed.origin, "https://github.com");
-  assert.equal(parsed.searchParams.get("redirect_uri"), "https://cloudaicore.com/api/github/callback");
+  assert.equal(parsed.searchParams.get("redirect_uri"), "https://novariumai.com/api/github/callback");
   assert.equal(parsed.searchParams.get("scope"), "read:user user:email");
   const state = parsed.searchParams.get("state");
   assert.match(cookie, new RegExp(`synchron_github_signin_state=${state}; Path=/api;`));

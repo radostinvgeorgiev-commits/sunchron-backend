@@ -109,6 +109,7 @@ import {
   listTools,
   registerCoreTools,
 } from "./toolRegistry.js";
+import { googleConnectUrl as siteGoogleConnectUrl } from "../config/publicOrigin.js";
 
 export class CapabilityError extends Error {
   constructor(message, code, status = 400) {
@@ -715,7 +716,7 @@ const executors = Object.freeze({
   "google-calendar-read": async ({ input }) => {
     if (!(await hasSession(input.googleSessionId))) {
       throw new GoogleDriveError(
-        "Google Calendar не е свързан. [Свържи Google](https://cloudaicore.com/api/google/connect).",
+        `Google Calendar не е свързан. [Свържи Google](${siteGoogleConnectUrl()}).`,
         401,
         "NOT_CONNECTED",
       );

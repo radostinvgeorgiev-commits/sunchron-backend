@@ -225,6 +225,7 @@ import {
   routeSelectedWorkAgentCapabilities,
   sanitizeWorkContext,
 } from "../services/workModeService.js";
+import { googleConnectUrl as siteGoogleConnectUrl } from "../config/publicOrigin.js";
 
 const router = express.Router();
 const HEARTBEAT_INTERVAL_MS = 15000;
@@ -1593,8 +1594,7 @@ const CALENDAR_FORMAT_CODES = new Set([
 function googleConnectUrl(message) {
   return (
     message.match(/https?:\/\/[^)\s]+/u)?.[0]?.replace(/[.,;:]+$/u, "") ||
-    process.env.GOOGLE_CONNECT_URL ||
-    "https://cloudaicore.com/api/google/connect"
+    siteGoogleConnectUrl()
   );
 }
 

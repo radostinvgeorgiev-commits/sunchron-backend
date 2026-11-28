@@ -12,7 +12,7 @@ const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const GITHUB_USER_URL = "https://api.github.com/user";
 const GITHUB_OAUTH_SCOPE = "public_repo";
 export const DEFAULT_GITHUB_REDIRECT_URI =
-  "https://cloudaicore.com/api/github/callback";
+  "https://novariumai.com/api/github/callback";
 const DEFAULT_GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 const sessions = new Map();
 let firestoreSessionStore = null;

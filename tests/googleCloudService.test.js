@@ -24,7 +24,7 @@ test("Google Cloud runtime reports Cloud Run and Firestore without secrets", () 
 
   assert.equal(status.provider, "google-cloud");
   assert.equal(status.status, "running");
-  assert.equal(status.canonicalOrigin, "https://cloudaicore.com");
+  assert.equal(status.canonicalOrigin, "https://novariumai.com");
   const output = formatGoogleCloudRuntimeStatus(status);
   assert.match(output, /Cloud Run: потвърден/u);
   assert.doesNotMatch(output, /must-not-appear/u);

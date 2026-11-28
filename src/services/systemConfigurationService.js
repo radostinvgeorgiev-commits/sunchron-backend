@@ -7,7 +7,7 @@ import {
   isTesterRegistrationEnabled,
 } from "./userAuthService.js";
 
-const DEFAULT_PRODUCTION_URL = "https://cloudaicore.com/health/ready";
+const DEFAULT_PRODUCTION_URL = "https://novariumai.com/health/ready";
 
 function isConfigured(env, key) {
   return typeof env[key] === "string" && env[key].trim().length > 0;

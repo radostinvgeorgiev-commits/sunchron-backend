@@ -7,6 +7,7 @@ import {
 import { logSafeError } from "../utils/safeLogging.js";
 import { reservePublicAiFile } from "./publicAiBudget.js";
 import { createFirestoreOAuthSessionStore } from "./firestoreOAuthSessionStore.js";
+import { googleConnectUrl as siteGoogleConnectUrl } from "../config/publicOrigin.js";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -944,8 +945,7 @@ async function driveFetch(id, path, options = {}, fetchImpl = fetch) {
 
 function googleConnectLink(label = "Свържи Google", extra = "") {
   const url =
-    process.env.GOOGLE_CONNECT_URL ||
-    "https://cloudaicore.com/api/google/connect";
+    siteGoogleConnectUrl();
   if (!GOOGLE_EXTRA_SCOPES[extra]) return `[${label}](${url})`;
   return `[${label}](${url.replace(/\?.*$/u, "")}?add=${extra})`;
 }
@@ -1127,7 +1127,7 @@ export async function listDriveFiles(id, fetchImpl = fetch) {
 const YOUTUBE_API_URL = "https://www.googleapis.com/youtube/v3";
 
 function youtubeConnectError() {
-  const base = (process.env.GOOGLE_CONNECT_URL || "https://cloudaicore.com/api/google/connect").replace(/\?.*$/u, "");
+  const base = siteGoogleConnectUrl().replace(/\?.*$/u, "");
   return new GoogleDriveError(
     `YouTube още не е разрешен. [Свържи YouTube](${base}?add=youtube).`,
     403,

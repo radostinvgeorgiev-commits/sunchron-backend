@@ -13,6 +13,7 @@ import {
   executeAuditedWriteAction,
   isAuditSafetyError,
 } from "./permissionService.js";
+import { googleConnectUrl as siteGoogleConnectUrl } from "../config/publicOrigin.js";
 
 const CALENDAR_ACTION = "calendar.write:create_event";
 const CONFIRM_PREFIX = "Потвърждавам календарно събитие:";
@@ -249,7 +250,7 @@ export async function prepareCalendarEvent({
 }) {
   if (!(await checkSession(googleSessionId))) {
     throw new GoogleDriveError(
-      "Google Calendar не е свързан. [Свържи Google](https://cloudaicore.com/api/google/connect).",
+      `Google Calendar не е свързан. [Свържи Google](${siteGoogleConnectUrl()}).`,
       401,
       "NOT_CONNECTED",
     );

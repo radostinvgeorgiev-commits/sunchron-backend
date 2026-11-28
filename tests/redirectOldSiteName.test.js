@@ -24,6 +24,7 @@ const run = ({
   host,
   url,
   dest,
+  mode,
   accept = dest ? "*/*" : PAGE,
   cookie,
   path = url.replace(/\?.*$/u, ""),
@@ -32,7 +33,7 @@ const run = ({
   let redirect = null;
   let passed = false;
   const headers = {};
-  const requestHeaders = { host, "sec-fetch-dest": dest, accept, cookie };
+  const requestHeaders = { host, "sec-fetch-dest": dest, "sec-fetch-mode": mode, accept, cookie };
   redirectOldSiteName({ env: NEW_SIGN_IN, ...options })(
     { method, path, originalUrl: url, get: (name) => requestHeaders[name.toLowerCase()] },
     {
@@ -60,6 +61,42 @@ test("a page on the old name moves for good to novariumai.com, same path and que
   assert.deepEqual(run({ host: "cloudaicore.com", url: "/s/abc123" }), moved("https://novariumai.com/s/abc123"));
   assert.deepEqual(run({ host: "cloudaicore.com", url: "/index.html" }), moved("https://novariumai.com/index.html"));
   assert.deepEqual(run({ method: "HEAD", host: "cloudaicore.com", url: "/register" }), moved("https://novariumai.com/register"));
+});
+
+test("a page opened through the site's service worker moves too: a browser that has been on the site before", () => {
+  // public/sw.js opens a page with fetch(event.request): the browser then
+  // sends Sec-Fetch-Mode "navigate" and Sec-Fetch-Dest "empty" (Chrome, 28.11).
+  for (const host of ["cloudaicore.com", "www.cloudaicore.com"]) {
+    assert.deepEqual(
+      run({ host, url: "/plans?x=1", dest: "empty", mode: "navigate" }),
+      moved("https://novariumai.com/plans?x=1"),
+      host,
+    );
+    assert.deepEqual(run({ host, url: "/help", dest: "empty", mode: "Navigate" }), moved("https://novariumai.com/help"), host);
+    assert.deepEqual(run({ host, url: "/s/AbCd123", dest: "", mode: "navigate" }), moved("https://novariumai.com/s/AbCd123"), host);
+  }
+  // What stays, stays the same way through the service worker: the sign-in
+  // returns and starts, the connectors, the health check, the app's own lists
+  // and, until Google approves, the start page, „Поверителност“ and „Общи условия“.
+  for (const url of [
+    "/api/google/callback?code=x&state=y",
+    "/api/auth/google/start",
+    "/oauth/authorize?client_id=x",
+    "/.well-known/oauth-authorization-server",
+    "/mcp",
+    "/health",
+    "/admin/contact",
+    "/",
+    "/privacy",
+    "/terms",
+  ]) {
+    assert.equal(run({ host: "cloudaicore.com", url, dest: "empty", mode: "navigate" }), "next", url);
+  }
+  // A person signed in there stays while a sign-in still ends there.
+  assert.equal(
+    run({ host: "cloudaicore.com", url: "/plans", dest: "empty", mode: "navigate", cookie: "synchron_user_session=abc", options: { env: OLD_SIGN_IN } }),
+    "next",
+  );
 });
 
 test("until Google approves, the start page, „Поверителност“ and „Общи условия“ stay on the old name", () => {
@@ -180,6 +217,13 @@ test("only pages move: a page still open on the old name keeps loading its files
   for (const dest of ["script", "style", "image", "font", "empty", "serviceworker", "manifest"]) {
     assert.equal(run({ host: "cloudaicore.com", url: "/plans", dest }), "next", dest);
   }
+  // A call a page makes, whatever its mode, and a page inside a frame.
+  for (const mode of ["cors", "same-origin", "no-cors", "websocket"]) {
+    assert.equal(run({ host: "cloudaicore.com", url: "/plans", dest: "empty", mode }), "next", mode);
+  }
+  for (const dest of ["iframe", "frame", "embed", "object"]) {
+    assert.equal(run({ host: "cloudaicore.com", url: "/plans", dest, mode: "navigate" }), "next", dest);
+  }
   for (const url of ["/landing.js", "/app-neon.css", "/assets/20261127-media-v4/app.js", "/locales/de.json", "/sw.js", "/icon-192.png"]) {
     assert.equal(run({ host: "cloudaicore.com", url }), "next", url);
   }
@@ -216,6 +260,14 @@ test("the real site: the old name's pages move, its sign-in return, connectors a
     .set("Sec-Fetch-Dest", "document")
     .expect(301);
   assert.equal(page.headers.location, "https://novariumai.com/plans?lang=en");
+  // The same page opened through the site's service worker.
+  const throughWorker = await request(app)
+    .get("/plans?lang=en")
+    .set("Host", "cloudaicore.com")
+    .set("Sec-Fetch-Mode", "navigate")
+    .set("Sec-Fetch-Dest", "empty")
+    .expect(301);
+  assert.equal(throughWorker.headers.location, "https://novariumai.com/plans?lang=en");
   const head = await request(app).head("/register").set("Host", "cloudaicore.com").set("Accept", "text/html").expect(301);
   assert.equal(head.headers["cache-control"], "no-store");
   // A call of a page already open there, from a browser without

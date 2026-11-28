@@ -46,13 +46,22 @@ const KEPT_ON_OLD_NAME = [
 const SIGNED_IN = /(?:^|;)\s*(?:synchron_user_session|synchron_github_session)=[^;\s]/u;
 
 // A page, not a file a page loads or a call it makes. A browser says what it
-// loads. Without that (an older Safari, a search engine such as Bing, which
-// asks for anything (*/*), a link opened by another program) it is a page by
-// its path: no file ending, or an .html file. Every call a page makes is
-// kept above or is a file (the scripts, /locales/*.json, /sw.js).
+// loads: Sec-Fetch-Dest "document" when it opens a page itself. In a browser
+// that has opened the site before, the site's own service worker
+// (public/sw.js) opens the page with fetch(event.request), and then the
+// browser sends Sec-Fetch-Mode "navigate" with Sec-Fetch-Dest "empty" (seen
+// in Chrome on 28.11: such a page stayed on the old name). A call a page
+// makes is never "navigate". Without these headers (an older Safari, a search
+// engine such as Bing, which asks for anything (*/*), a link opened by
+// another program) it is a page by its path: no file ending, or an .html
+// file. Every call a page makes is kept above or is a file (the scripts,
+// /locales/*.json, /sw.js).
 function isPage(req) {
   const dest = String(req.get("sec-fetch-dest") || "").trim().toLowerCase();
-  if (dest) return dest === "document";
+  const mode = String(req.get("sec-fetch-mode") || "").trim().toLowerCase();
+  if (dest === "document") return true;
+  if (mode === "navigate" && (!dest || dest === "empty")) return true;
+  if (dest) return false;
   const path = String(req.path || "");
   const name = path.slice(path.lastIndexOf("/") + 1);
   return !name.includes(".") || /\.html?$/iu.test(name);

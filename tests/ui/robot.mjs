@@ -418,6 +418,12 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media,
     await send("Покажи команда за инсталиране");
     const pre = last().locator("pre");
     await pre.waitFor({ timeout: 5000 });
+    // The answer arrives word by word and the block is drawn again with each
+    // word, so it is read only once the answer is whole (28.11 in GitHub:
+    // read half-way it held only "npm", or it had just been replaced).
+    await page.waitForFunction(() => !document.querySelector("#sendBtn")?.classList.contains("is-stop"), null, {
+      timeout: 5000,
+    });
     const look = await pre.evaluate((element) => {
       const rgb = (value) => value.match(/\d+(\.\d+)?/gu).slice(0, 3).map(Number);
       const light = (value) => {

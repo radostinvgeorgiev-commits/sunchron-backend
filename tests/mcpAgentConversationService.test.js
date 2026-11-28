@@ -290,3 +290,46 @@ test("MCP agent conversation stops after ten user questions in one session", asy
   assert.equal(aiCalls, 0);
   assert.equal(saveCalls, 0);
 });
+
+// Item 3, fix 3: „какво ми е деня днес“ names no Google service, but it reads
+// the calendar, so the person's Google connection is opened for it.
+test("MCP agent conversation opens Google for the person's day in their own words", async () => {
+  let taskOptions;
+  const result = await sendMcpAgentMessage(
+    {
+      ownerId: "primary-user",
+      message: "какво ми е деня днес",
+      identity: { role: "owner", displayName: "Радко" },
+    },
+    {
+      loadWorkspace: async () => workspace(),
+      listMemories: async () => [],
+      listMessages: async () => [],
+      readWords: async () => ({ type: "none" }),
+      getGoogleSession: async () => "google-session",
+      runTask: async (options) => {
+        taskOptions = options;
+        const request = options.fallbackRequests[0];
+        return {
+          requests: options.fallbackRequests,
+          results: [
+            {
+              status: "fulfilled",
+              request,
+              result: { output: "Предстоящи събития:\n• Среща с Иван — 2026-11-28T10:00", requiresConfirmation: false },
+            },
+          ],
+          task: { id: "task-day", status: "completed", verified: true },
+          plannerUsed: false,
+        };
+      },
+      saveTurn: async () => {},
+    },
+  );
+  assert.deepEqual(
+    taskOptions.fallbackRequests.map(({ capability }) => capability),
+    ["calendar.read"],
+  );
+  assert.equal(taskOptions.executionContext.googleSessionId, "google-session");
+  assert.match(result.response, /Среща с Иван/u);
+});

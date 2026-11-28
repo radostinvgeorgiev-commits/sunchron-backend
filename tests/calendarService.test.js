@@ -17,6 +17,39 @@ test("recognizes calendar questions without owning a second OAuth flow", () => {
   assert.equal(isCalendarReadRequest("Как работи GitHub?"), false);
 });
 
+// Item 3, fix 3 (Team 2's live probe 28.11: „какво ми е деня днес“ got „нямам
+// актуална проверка на календара“): the person's day in their own words.
+test("the person's day in their own words reads the calendar; other things and greetings do not", () => {
+  for (const words of [
+    "какво ми е деня днес",
+    "КАКВО МИ Е ДЕНЯ ДНЕС",
+    "Какво ми е денят утре?",
+    "как ми е денят",
+    "моят ден",
+    "какво имам днес",
+    "каво имам утре",
+    "кво ми предстои тази седмица",
+    "какво имам в петък",
+    "what's my day",
+    "What do I have today?",
+  ]) {
+    assert.equal(isCalendarReadRequest(words), true, words);
+  }
+  for (const words of [
+    "каво имам в пошата днес покажи ми последните мейли",
+    "какво имам днес в пощата",
+    "какви задачи имам днес",
+    "какво ми е денят днес със задачите",
+    "добър ден",
+    "Добър ден ми е днес",
+    "денят беше дълъг",
+    "какво имам да кажа",
+    "запиши ми среща утре в 10 с иван в календара",
+  ]) {
+    assert.equal(isCalendarReadRequest(words), false, words);
+  }
+});
+
 test("recognizes a calendar write without also routing it as a read", () => {
   const message =
     "Създай събитие: Среща с Иван | 2026-08-05 14:30 | 60 минути | Варна";

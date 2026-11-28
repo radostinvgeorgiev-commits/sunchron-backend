@@ -62,6 +62,7 @@ import {
 } from "./taskConfirmationService.js";
 
 const MAX_MESSAGE_LENGTH = 6_000;
+const GOOGLE_CAPABILITY = /^(?:mail|calendar|files|contacts|youtube)\./u;
 const MAX_SESSION_QUESTIONS = 10;
 const SAFE_ID_PATTERN = /^[a-z0-9:_-]+$/iu;
 const BRIDGE_BOUNDARY = [
@@ -257,8 +258,10 @@ export async function sendMcpAgentMessage(
 
   let googleSessionId = null;
   let githubSession = null;
+  // The person's own Google is opened when a request needs it, also when the
+  // message does not name Google („какво ми е деня днес“ reads the calendar).
   if (
-    plainWordsPlan.type === "requests" ||
+    fallbackRequests.some((request) => GOOGLE_CAPABILITY.test(request?.capability || "")) ||
     /(?:google|drive|драйв|gmail|джимейл|календар|calendar|контакт)/iu.test(
       cleanMessage,
     )

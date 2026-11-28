@@ -3,7 +3,7 @@
   "mcpServers": {
     "novariumai": {
       "type": "streamable-http",
-      "url": "https://cloudaicore.com/mcp/chatgpt",
+      "url": "https://novariumai.com/mcp/chatgpt",
       "extensions": {
         "com.openai": {
           "auth": {

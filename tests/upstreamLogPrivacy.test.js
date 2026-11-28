@@ -44,7 +44,7 @@ test("OpenAI chat failure logs status without the upstream response body", async
 test("web search failure logs status without the upstream response body", async () => {
   await captureUpstreamFailure(() =>
     searchWeb("test", {
-      apiKey: "test-key",
+      geminiApiKey: "test-key",
       fetchImpl: async () => failedResponse(),
     }),
   );
@@ -55,6 +55,7 @@ test("vision failure logs status without the upstream response body", async () =
     analyzeImage({
       image: tinyPng,
       prompt: "test",
+      geminiAccessKey: "",
       modelAccessKey: "test-key",
       fetchImpl: async () => failedResponse(),
     }),

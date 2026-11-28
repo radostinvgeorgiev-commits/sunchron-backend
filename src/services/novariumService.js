@@ -33,7 +33,7 @@ export const DEFAULT_GROK_CHAT_MODEL = "grok-3-mini";
 export const DEFAULT_CLAUDE_CHAT_MODEL = "claude-haiku-5-5";
 // Used when AI_CORE_PROVIDER is not set in Cloud Run. Keep provider and model
 // choices here in code; only API keys belong in the runtime environment.
-export const DEFAULT_AI_PROVIDER = "claude";
+export const DEFAULT_AI_PROVIDER = "gemini";
 
 // Token usage of every successful AI call is handed to one recorder, set at
 // startup (aiSpendService). It must never break or slow down a reply.

@@ -15,6 +15,7 @@ test("a member's picture or PDF is charged once at the file price", async () => 
       analyzeImage({
         image: { dataUrl: "data:application/pdf;base64,JVBERi0xLjQK", mimeType: "application/pdf" },
         prompt: "Обобщи",
+        geminiAccessKey: "",
         claudeAccessKey: "k",
         claudeModel: "claude-haiku-5-5",
         fetchImpl: async (_url, init) => {

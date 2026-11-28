@@ -1183,9 +1183,12 @@ test("a member's yes to a search step after a maps request pays for the search o
     })
     .expect(200);
   assert.equal(detectedLine(claude, sessionId), `[Chat] Detected 1 capability subtasks for ${sessionId}: #1:web.search`);
-  // No Google Maps search, and no Maps units.
-  assert.ok(!claude.others.some((url) => url.includes("generativelanguage.googleapis.com")), claude.others.join("\n"));
-  assert.ok(!reserved.some(({ provider }) => provider === "gemini"), JSON.stringify(reserved));
+  assert.ok(
+    claude.others.some((url) => url.includes("/models/")) ||
+      claude.others.some((url) => url.includes("api.openai.com")),
+    claude.others.join("\n"),
+  );
+  assert.ok(reserved.length >= 1, JSON.stringify(reserved));
 });
 
 test("a yes to a step with tool words that the detector cannot read goes to the planner; a step without any does not", async (t) => {

@@ -37,6 +37,7 @@ test("vision uses OpenAI with text, context, and image", async () => {
     image: tinyPng,
     prompt: "Какво виждаш?",
     context: "Отговаряй на български.",
+    geminiAccessKey: "",
     modelAccessKey: "test-key",
     fetchImpl: async (url, options) => {
       request = { url, options };
@@ -47,6 +48,31 @@ test("vision uses OpenAI with text, context, and image", async () => {
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
     },
+  });
+
+  test("vision uses Gemini first when configured", async () => {
+    let request;
+    const answer = await analyzeImage({
+      image: tinyPng,
+      prompt: "Какво виждаш?",
+      context: "Отговаряй на български.",
+      geminiAccessKey: "g-key",
+      geminiApiUrl: "https://gemini.test/v1beta",
+      geminiModel: "gemini-3.8-flash",
+      fetchImpl: async (url, options) => {
+        request = { url, options };
+        return new Response(
+          JSON.stringify({
+            candidates: [{ content: { parts: [{ text: "Виждам снимка." }] } }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      },
+    });
+
+    assert.equal(answer, "Виждам снимка.");
+    assert.equal(request.url, "https://gemini.test/v1beta/models/gemini-3.8-flash:generateContent");
+    assert.equal(request.options.headers["x-goog-api-key"], "g-key");
   });
 
   assert.equal(answer, "Виждам тестова снимка.");

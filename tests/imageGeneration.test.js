@@ -8,24 +8,39 @@ test("a picture is drawn from the description, small and charged first", async (
   const order = [];
   let sent;
   const service = createImageGenerationService({
-    env: { OPENAI_API_KEY: "k" },
+    env: { GEMINI_API_KEY: "g", GEMINI_API_URL: "https://gemini.test/v1beta" },
     reserve: async (provider, model) => order.push(`reserve ${provider} ${model}`),
     fetchImpl: async (url, options) => {
       order.push("draw");
+      assert.match(url, /gemini\.test\/v1beta\/models\//u);
       sent = JSON.parse(options.body);
-      return { ok: true, json: async () => ({ data: [{ b64_json: "QUJD" }] }) };
+      return {
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ inlineData: { data: "QUJD" } }] } }],
+        }),
+      };
     },
   });
   const result = await service.generate("  котка\nна луната ");
-  assert.deepEqual(order, ["reserve openai gpt-image-1-mini", "draw"]);
-  assert.equal(sent.prompt, "котка на луната");
-  assert.equal(sent.quality, "medium");
-  assert.equal(sent.output_format, "webp");
-  assert.equal(result.image, "data:image/webp;base64,QUJD");
+  assert.deepEqual(order, ["reserve gemini gemini-2.5-flash-image-preview", "draw"]);
+  assert.match(sent.contents[0].parts[0].text, /котка на луната/u);
+  assert.equal(result.image, "data:image/png;base64,QUJD");
 });
 
-test("empty descriptions, refusals and missing keys get clear messages", async () => {
+test("empty descriptions, fallback and missing keys get clear messages", async () => {
   assert.throws(() => cleanImagePrompt(" "), { code: "IMAGE_PROMPT_EMPTY" });
+  const fallback = createImageGenerationService({
+    env: { GEMINI_API_KEY: "g", OPENAI_API_KEY: "k" },
+    reserve: async () => {},
+    fetchImpl: async (url) =>
+      url.includes("generativelanguage")
+        ? { ok: false, status: 500, json: async () => ({}) }
+        : { ok: true, status: 200, json: async () => ({ data: [{ b64_json: "QUJD" }] }) },
+  });
+  const fallbackResult = await fallback.generate("нещо");
+  assert.equal(fallbackResult.image, "data:image/webp;base64,QUJD");
+
   const refused = createImageGenerationService({
     env: { OPENAI_API_KEY: "k" },
     reserve: async () => {},

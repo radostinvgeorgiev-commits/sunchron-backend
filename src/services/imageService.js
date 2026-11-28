@@ -1,4 +1,9 @@
-import { DEFAULT_CLAUDE_CHAT_MODEL, reportAiUsage } from "./novariumService.js";
+import {
+  DEFAULT_CLAUDE_CHAT_MODEL,
+  DEFAULT_GEMINI_API_URL,
+  DEFAULT_GEMINI_CHAT_MODEL,
+  reportAiUsage,
+} from "./novariumService.js";
 import { publicAiOutputLimit, reservePublicAiFile } from "./publicAiBudget.js";
 
 const ALLOWED_IMAGE_TYPES = new Set([
@@ -76,13 +81,28 @@ export async function analyzeImage({
     "https://api.openai.com/v1/chat/completions",
   modelAccessKey = process.env.OPENAI_API_KEY,
   model = process.env.OPENAI_VISION_MODEL || "gpt-4o-mini",
+  geminiAccessKey = process.env.GEMINI_API_KEY,
+  geminiModel = process.env.GEMINI_VISION_MODEL || process.env.GEMINI_MODEL || DEFAULT_GEMINI_CHAT_MODEL,
+  geminiApiUrl = process.env.GEMINI_API_URL || DEFAULT_GEMINI_API_URL,
   claudeAccessKey = process.env.ANTHROPIC_API_KEY,
   claudeModel = process.env.ANTHROPIC_MODEL || DEFAULT_CLAUDE_CHAT_MODEL,
   signal,
 }) {
   const validated = validateImageInput(image);
-  // Claude reads both pictures and PDF documents; OpenAI vision stays as the
-  // fallback for pictures when no Claude key is configured.
+  // Gemini is first for both pictures and PDF, then Claude (if connected),
+  // then OpenAI for pictures.
+  if (geminiAccessKey) {
+    return analyzeWithGemini({
+      validated,
+      prompt,
+      context,
+      fetchImpl,
+      apiKey: geminiAccessKey,
+      model: geminiModel,
+      apiUrl: geminiApiUrl,
+      signal,
+    });
+  }
   if (claudeAccessKey) {
     return analyzeWithClaude({
       validated,
@@ -96,10 +116,89 @@ export async function analyzeImage({
   }
   if (validated.mimeType === "application/pdf") {
     throw new ImageServiceError(
-      "Четенето на PDF изисква Claude ключ.",
+      "Четенето на PDF не е конфигурирано.",
       503,
       "DOCUMENT_READER_NOT_CONFIGURED",
     );
+  }
+
+  async function analyzeWithGemini({
+    validated,
+    prompt,
+    context,
+    fetchImpl,
+    apiKey,
+    model,
+    apiUrl,
+    signal,
+  }) {
+    const base64 = validated.dataUrl.slice(`data:${validated.mimeType};base64,`.length);
+    await reservePublicAiFile("gemini", model);
+    const response = await fetchImpl(
+      `${String(apiUrl).replace(/\/+$/u, "")}/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  inline_data: {
+                    mime_type: validated.mimeType,
+                    data: base64,
+                  },
+                },
+                {
+                  text:
+                    [context, prompt]
+                      .filter(Boolean)
+                      .join("\n\n") ||
+                    (validated.mimeType === "application/pdf"
+                      ? "Обобщи този документ."
+                      : "Какво виждаш на тази снимка?"),
+                },
+              ],
+            },
+          ],
+        }),
+        signal,
+      },
+    );
+    if (!response.ok) {
+      console.error(`[Gemini vision] Upstream request failed: ${response.status}`);
+      throw new ImageServiceError(
+        `Разпознаването на ${validated.mimeType === "application/pdf" ? "документа" : "снимката"} върна грешка ${response.status}.`,
+        502,
+        "VISION_UPSTREAM_ERROR",
+      );
+    }
+    const data = await response.json();
+    const text = (data?.candidates?.[0]?.content?.parts || [])
+      .map((part) => (typeof part?.text === "string" ? part.text : ""))
+      .join("")
+      .trim();
+    if (!text) {
+      throw new ImageServiceError(
+        validated.mimeType === "application/pdf"
+          ? "Не получих отговор за документа."
+          : "Не получих описание на снимката.",
+        502,
+        "EMPTY_VISION_RESPONSE",
+      );
+    }
+    reportAiUsage(
+      "gemini",
+      model,
+      data?.usageMetadata?.promptTokenCount || 0,
+      (Number(data?.usageMetadata?.candidatesTokenCount) || 0) +
+        (Number(data?.usageMetadata?.thoughtsTokenCount) || 0),
+    );
+    return text;
   }
   if (!modelAccessKey) {
     throw new ImageServiceError(

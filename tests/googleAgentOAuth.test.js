@@ -32,7 +32,7 @@ const registered = {
 const env = {
   MCP_ACCESS_TOKEN:
     "isolated-google-oauth-test-secret-longer-than-32-characters",
-  MCP_RESOURCE_URL: "https://cloudaicore.com/mcp",
+  MCP_RESOURCE_URL: "https://novariumai.com/mcp",
   MCP_GOOGLE_OAUTH_CLIENTS: JSON.stringify([registered]),
 };
 function input(overrides = {}) {

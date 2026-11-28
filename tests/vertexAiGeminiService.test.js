@@ -381,8 +381,8 @@ test("Vertex timeout and external abort stay distinct", async () => {
   await assert.rejects(pending, { code: "VERTEX_GEMINI_CLIENT_ABORT" });
 });
 
-test("NovariumAI defaults to Claude and only explicitly selects configured Vertex", () => {
-  assert.equal(getConfiguredAiProvider({}), "claude");
+test("NovariumAI defaults to Gemini and only explicitly selects configured Vertex", () => {
+  assert.equal(getConfiguredAiProvider({}), "gemini");
   assert.equal(getConfiguredAiProvider({ AI_CORE_PROVIDER: "openai" }), "openai");
   assert.equal(
     getConfiguredAiProvider({

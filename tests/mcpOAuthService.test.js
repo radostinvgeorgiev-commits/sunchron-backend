@@ -43,7 +43,7 @@ import { createLocalDocumentStore } from "../src/services/localDocumentStore.js"
 
 const ENV = {
   MCP_ACCESS_TOKEN: "mcp-oauth-test-secret-with-more-than-32-characters",
-  MCP_RESOURCE_URL: "https://cloudaicore.com/mcp",
+  MCP_RESOURCE_URL: "https://novariumai.com/mcp",
 };
 const TUNNEL_RESOURCE =
   "https://tunnel-service.gateway.unified-0.internal.api.openai.org/v1/mcp/tunnel_test123";
@@ -133,7 +133,7 @@ function encryptLegacyToken(prefix, payload, key) {
 
 function legacyIdentityPayload(now = Math.floor(Date.now() / 1_000)) {
   return {
-    iss: "https://cloudaicore.com",
+    iss: "https://novariumai.com",
     aud: ENV.MCP_RESOURCE_URL,
     clientId: CLIENT_ID,
     scopes: [MCP_READ_SCOPE],
@@ -227,7 +227,7 @@ test.beforeEach(() => resetMcpOAuthStateForTests());
 test("publishes OAuth 2.1 protected-resource and authorization metadata", () => {
   assert.deepEqual(getMcpProtectedResourceMetadata(ENV), {
     resource: ENV.MCP_RESOURCE_URL,
-    authorization_servers: ["https://cloudaicore.com"],
+    authorization_servers: ["https://novariumai.com"],
     scopes_supported: [
       MCP_READ_SCOPE,
       MCP_AGENT_CHAT_SCOPE,
@@ -244,7 +244,7 @@ test("publishes OAuth 2.1 protected-resource and authorization metadata", () => 
   const authorization = getMcpAuthorizationServerMetadata(ENV);
   assert.equal(
     authorization.authorization_endpoint,
-    "https://cloudaicore.com/oauth/authorize",
+    "https://novariumai.com/oauth/authorize",
   );
   assert.equal(authorization.token_endpoint_auth_methods_supported[0], "none");
   assert.deepEqual(authorization.grant_types_supported, [
@@ -609,7 +609,7 @@ test("the connector also works at novariumai.com/mcp, signing in at the same pla
   const NEW = "https://novariumai.com/mcp";
   const meta = getMcpProtectedResourceMetadata(ENV, { host: "novariumai.com" });
   assert.equal(meta.resource, NEW);
-  assert.deepEqual(meta.authorization_servers, ["https://cloudaicore.com"]);
+  assert.deepEqual(meta.authorization_servers, ["https://novariumai.com"]);
   assert.equal(getMcpProtectedResourceMetadata(ENV, { host: "evil.example" }).resource, ENV.MCP_RESOURCE_URL);
   assert.match(
     buildMcpAuthenticateChallenge([MCP_READ_SCOPE], ENV, { host: "novariumai.com" }),
@@ -1253,7 +1253,7 @@ test("expired durable replay records are cleaned on a bounded schedule", async (
 });
 
 test("ChatGPT plugin grants are scoped to the public plugin resource", async () => {
-  const resource = "https://cloudaicore.com/mcp/chatgpt";
+  const resource = "https://novariumai.com/mcp/chatgpt";
   const input = { ...authorizationInput(), resource, scope: CHATGPT_MCP_SCOPE };
   const options = { env: ENV, fetchImpl: clientMetadataFetch };
   await assert.rejects(
@@ -1289,7 +1289,7 @@ test("ChatGPT plugin grants are scoped to the public plugin resource", async () 
 test("people are shown the novariumai.com connector address, never the old one", () => {
   // Today: the old address is still the canonical resource.
   assert.equal(
-    resolvePublicMcpUrl({ MCP_RESOURCE_URL: "https://cloudaicore.com/mcp" }),
+    resolvePublicMcpUrl({ MCP_RESOURCE_URL: "https://novariumai.com/mcp" }),
     "https://novariumai.com/mcp",
   );
   // After the resource moves, the same address.

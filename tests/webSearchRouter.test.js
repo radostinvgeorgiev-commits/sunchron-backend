@@ -85,6 +85,27 @@ test("extractSearchResult supports current nested url citations", () => {
   ]);
 });
 
+test("extractSearchResult supports Gemini grounding links", () => {
+  const result = extractSearchResult({
+    candidates: [
+      {
+        content: { parts: [{ text: "Проверен отговор от Gemini." }] },
+        groundingMetadata: {
+          groundingChunks: [
+            { web: { title: "Източник A", uri: "https://example.com/a" } },
+            { web: { title: "Източник B", uri: "https://example.com/b" } },
+          ],
+        },
+      },
+    ],
+  });
+  assert.equal(result.text, "Проверен отговор от Gemini.");
+  assert.deepEqual(result.sources, [
+    { title: "Източник A", url: "https://example.com/a" },
+    { title: "Източник B", url: "https://example.com/b" },
+  ]);
+});
+
 test("recognizes explicit and time-sensitive web searches", () => {
   assert.equal(isWebSearchRequest("Потърси това в интернет."), true);
   assert.equal(isWebSearchRequest("Провери актуалното време във Варна."), true);
@@ -92,12 +113,12 @@ test("recognizes explicit and time-sensitive web searches", () => {
   assert.equal(isWebSearchRequest("Провери файловете ми в Drive."), false);
 });
 
-test("web search fails clearly when the protected OpenAI key is missing", async () => {
+test("web search fails clearly when no provider key is configured", async () => {
   await assert.rejects(
-    () => searchWeb("актуално време", { apiKey: "" }),
+    () => searchWeb("актуално време", { geminiApiKey: "", openAiApiKey: "" }),
     (error) =>
       error instanceof WebSearchError &&
-      error.code === "OPENAI_NOT_CONFIGURED" &&
+      error.code === "WEB_SEARCH_NOT_CONFIGURED" &&
       error.status === 503,
   );
 });

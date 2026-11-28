@@ -189,11 +189,17 @@ function publicBackupStatus(report) {
       firestore: {
         status: report.checks?.firestore?.status || "unverified",
         errorCode:
-          report.checks?.firestore?.errorCode ||
-          "FIRESTORE_BACKUP_STATUS_NOT_VISIBLE_TO_RUNTIME",
+          report.checks?.firestore?.errorCode === null
+            ? null
+            : report.checks?.firestore?.errorCode ||
+              "FIRESTORE_BACKUP_STATUS_NOT_VISIBLE_TO_RUNTIME",
         readOnlyCheck: true,
         restoreTested: false,
         provesRestore: false,
+        scheduled: report.checks?.firestore?.scheduled === true,
+        day: report.checks?.firestore?.day || null,
+        backupCount: Number(report.checks?.firestore?.backupCount) || 0,
+        latestBackupAt: report.checks?.firestore?.latestBackupAt || null,
       },
     },
   };

@@ -87,21 +87,147 @@ export async function inspectStorageDependencies({
   };
 }
 
-export async function inspectStorageBackups({ now = () => new Date() } = {}) {
+const FIRESTORE_API = "https://firestore.googleapis.com/v1";
+const METADATA_TOKEN_URL =
+  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token";
+// A weekly copy counts as fresh for 8 days (one week plus one day of slack).
+const BACKUP_FRESH_MS = 8 * 24 * 60 * 60 * 1_000;
+
+function unverifiedBackupReport(checkedAt, errorCode, reason) {
   return {
     status: "unverified",
-    checkedAt: now().toISOString(),
+    checkedAt,
     checks: {
       firestore: {
         status: "unverified",
-        errorCode: "FIRESTORE_BACKUP_STATUS_NOT_VISIBLE_TO_RUNTIME",
+        errorCode,
         readOnlyCheck: true,
         restoreTested: false,
-        reason:
-          "Firestore backup schedules and restore points must be verified in Google Cloud Console.",
+        reason,
       },
     },
   };
+}
+
+async function readGoogleJson(url, token, fetchImpl) {
+  const response = await fetchImpl(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const error = new Error(`HTTP ${response.status}`);
+    error.code =
+      response.status === 403
+        ? "FIRESTORE_BACKUP_PERMISSION_DENIED"
+        : "FIRESTORE_BACKUP_STATUS_FAILED";
+    throw error;
+  }
+  return response.json();
+}
+
+// Reads, never writes, the weekly Firestore backup schedule and the copies
+// Google has made of the live database. Only dates and counts are returned.
+export async function inspectStorageBackups({
+  now = () => new Date(),
+  env = process.env,
+  fetchImpl = fetch,
+} = {}) {
+  const checkedAt = now().toISOString();
+  const projectId = String(
+    env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT || env.GCP_PROJECT_ID || "",
+  ).trim();
+  const databaseId = String(env.FIRESTORE_DATABASE_ID || "(default)").trim();
+  if (!env.K_SERVICE || !projectId) {
+    return unverifiedBackupReport(
+      checkedAt,
+      "FIRESTORE_BACKUP_STATUS_NOT_VISIBLE_TO_RUNTIME",
+      "Firestore backup schedules and restore points must be verified in Google Cloud Console.",
+    );
+  }
+  try {
+    const tokenResponse = await fetchImpl(METADATA_TOKEN_URL, {
+      headers: { "Metadata-Flavor": "Google" },
+    });
+    const token = tokenResponse.ok
+      ? (await tokenResponse.json())?.access_token
+      : null;
+    if (!token) {
+      return unverifiedBackupReport(
+        checkedAt,
+        "FIRESTORE_BACKUP_TOKEN_UNAVAILABLE",
+        "The runtime could not read the backup status.",
+      );
+    }
+    const project = encodeURIComponent(projectId);
+    const database = `projects/${projectId}/databases/${databaseId}`;
+    const [schedulesPayload, backupsPayload] = await Promise.all([
+      readGoogleJson(
+        `${FIRESTORE_API}/projects/${project}/databases/${encodeURIComponent(databaseId)}/backupSchedules`,
+        token,
+        fetchImpl,
+      ),
+      readGoogleJson(
+        `${FIRESTORE_API}/projects/${project}/locations/-/backups`,
+        token,
+        fetchImpl,
+      ),
+    ]);
+    const weekly = (schedulesPayload.backupSchedules || []).find(
+      (schedule) => schedule?.weeklyRecurrence,
+    );
+    const ready = (backupsPayload.backups || [])
+      .filter(
+        (backup) =>
+          backup?.state === "READY" &&
+          String(backup.database || "").endsWith(database),
+      )
+      .map((backup) => String(backup.snapshotTime || ""))
+      .filter(Boolean)
+      .sort();
+    const latestBackupAt = ready.at(-1) || null;
+    const fresh =
+      latestBackupAt !== null &&
+      now().getTime() - Date.parse(latestBackupAt) <= BACKUP_FRESH_MS;
+    if (!weekly) {
+      return {
+        status: "unverified",
+        checkedAt,
+        checks: {
+          firestore: {
+            status: "missing",
+            errorCode: "FIRESTORE_WEEKLY_BACKUP_NOT_SCHEDULED",
+            readOnlyCheck: true,
+            restoreTested: false,
+            scheduled: false,
+            backupCount: ready.length,
+            latestBackupAt,
+          },
+        },
+      };
+    }
+    return {
+      status: fresh ? "verified" : "scheduled",
+      checkedAt,
+      checks: {
+        firestore: {
+          status: fresh ? "verified" : "scheduled",
+          errorCode: fresh ? null : "FIRESTORE_BACKUP_NOT_YET_MADE",
+          readOnlyCheck: true,
+          restoreTested: false,
+          scheduled: true,
+          day: weekly.weeklyRecurrence.day || null,
+          retention: weekly.retention || null,
+          backupCount: ready.length,
+          latestBackupAt,
+        },
+      },
+    };
+  } catch (error) {
+    return unverifiedBackupReport(
+      checkedAt,
+      error?.code || "FIRESTORE_BACKUP_STATUS_FAILED",
+      "The runtime could not read the backup status.",
+    );
+  }
 }
 
 export function createSingleFlightCache(

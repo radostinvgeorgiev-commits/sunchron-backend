@@ -35,6 +35,7 @@ test("granular MCP capabilities have unique names, strict schemas and exact scop
       "enable_google_sign_in",
       "enable_github_sign_in",
       "enable_google_api",
+      "enable_firestore_weekly_backup",
     ],
   );
   assert.deepEqual(

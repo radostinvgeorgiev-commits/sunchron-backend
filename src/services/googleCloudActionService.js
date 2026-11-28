@@ -6,7 +6,10 @@ import {
   validateDurableConfirmation,
 } from "./confirmationService.js";
 import { executeAuditedWriteAction } from "./permissionService.js";
-import { resolveFirestoreProjectId } from "../config/memoryBackend.js";
+import {
+  resolveFirestoreDatabaseId,
+  resolveFirestoreProjectId,
+} from "../config/memoryBackend.js";
 
 const RESOURCE_MANAGER_API = "https://cloudresourcemanager.googleapis.com/v1";
 const CLOUD_BUILD_API = "https://cloudbuild.googleapis.com/v1";
@@ -35,6 +38,15 @@ const ACTIONS = Object.freeze({
   ENABLE_GOOGLE_SIGN_IN: "infrastructure.write:enable_google_sign_in",
   ENABLE_GITHUB_SIGN_IN: "infrastructure.write:enable_github_sign_in",
   ENABLE_GOOGLE_API: "infrastructure.write:enable_google_api",
+  ENABLE_FIRESTORE_WEEKLY_BACKUP:
+    "infrastructure.write:enable_firestore_weekly_backup",
+});
+const FIRESTORE_API = "https://firestore.googleapis.com/v1";
+// Weekly Firestore backup of the live NovariumAI database: every Sunday,
+// each copy kept 14 weeks (the longest Firestore allows for weekly copies).
+export const FIRESTORE_WEEKLY_BACKUP = Object.freeze({
+  day: "SUNDAY",
+  retention: "8467200s",
 });
 const SERVICE_USAGE_API = "https://serviceusage.googleapis.com/v1";
 // Only these Google APIs may be turned on, so every person can connect
@@ -69,6 +81,7 @@ const OPERATION_ACTIONS = Object.freeze({
   enable_google_sign_in: ACTIONS.ENABLE_GOOGLE_SIGN_IN,
   enable_github_sign_in: ACTIONS.ENABLE_GITHUB_SIGN_IN,
   enable_google_api: ACTIONS.ENABLE_GOOGLE_API,
+  enable_firestore_weekly_backup: ACTIONS.ENABLE_FIRESTORE_WEEKLY_BACKUP,
 });
 
 export class GoogleCloudActionError extends Error {
@@ -340,6 +353,23 @@ function normalizeOperation(operation, input = {}, env = process.env) {
     return { action, resource: { projectId, api }, params: {} };
   }
 
+  if (operation === "enable_firestore_weekly_backup") {
+    // Takes no input: always the database this service runs on.
+    const databaseId = resolveFirestoreDatabaseId(env);
+    if (!/^(?:\(default\)|[a-z][a-z0-9-]{2,62})$/u.test(databaseId)) {
+      throw new GoogleCloudActionError(
+        "Името на Firestore базата е невалидно.",
+        400,
+        "GOOGLE_CLOUD_FIRESTORE_DATABASE_INVALID",
+      );
+    }
+    return {
+      action,
+      resource: { projectId, databaseId },
+      params: { ...FIRESTORE_WEEKLY_BACKUP },
+    };
+  }
+
   if (operation === "use_latest_secret_version") {
     const envName = cleanText(input.envName, 40, "envName", { required: true });
     if (!LATEST_SECRET_ENV_NAMES.includes(envName)) {
@@ -567,6 +597,45 @@ export async function enableGoogleApi({ projectId, api, fetchImpl }) {
     api,
     enabled: true,
     operationName: typeof payload?.name === "string" ? payload.name : null,
+  };
+}
+
+// Turns on the weekly Firestore backup. If a weekly schedule already
+// exists it is kept as it is, so running this twice changes nothing.
+export async function enableFirestoreWeeklyBackup({
+  projectId,
+  databaseId,
+  day = FIRESTORE_WEEKLY_BACKUP.day,
+  retention = FIRESTORE_WEEKLY_BACKUP.retention,
+  fetchImpl,
+}) {
+  const base = `${FIRESTORE_API}/projects/${encodeURIComponent(projectId)}/databases/${encodeURIComponent(databaseId)}/backupSchedules`;
+  const existing = await googleJsonRequest(base, { fetchImpl });
+  const weekly = (existing.backupSchedules || []).find(
+    (schedule) => schedule?.weeklyRecurrence,
+  );
+  if (weekly) {
+    return {
+      projectId,
+      databaseId,
+      created: false,
+      schedule: weekly.name || null,
+      day: weekly.weeklyRecurrence.day || null,
+      retention: weekly.retention || null,
+    };
+  }
+  const created = await googleJsonRequest(base, {
+    method: "POST",
+    body: { retention, weeklyRecurrence: { day } },
+    fetchImpl,
+  });
+  return {
+    projectId,
+    databaseId,
+    created: true,
+    schedule: typeof created?.name === "string" ? created.name : null,
+    day,
+    retention,
   };
 }
 
@@ -830,6 +899,17 @@ export async function confirmGoogleCloudAction(
       return (adapters.enableGoogleApi || enableGoogleApi)({
         projectId: resource.projectId,
         api: resource.api,
+        fetchImpl,
+      });
+    }
+    if (confirmation.action === ACTIONS.ENABLE_FIRESTORE_WEEKLY_BACKUP) {
+      return (
+        adapters.enableFirestoreWeeklyBackup || enableFirestoreWeeklyBackup
+      )({
+        projectId: resource.projectId,
+        databaseId: resource.databaseId,
+        day: params.day,
+        retention: params.retention,
         fetchImpl,
       });
     }

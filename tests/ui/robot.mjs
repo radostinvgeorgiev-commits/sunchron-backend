@@ -1643,6 +1643,72 @@ async function liveSignedIn(origin) {
     expect((await dialog.locator(".avatar-form textarea").count()) === 5, "полетата не се заредиха");
     await dialog.locator(".share-close").click();
   });
+  // „Инструменти“ with the test account (РАДКО 28.11 14:11: checked with the
+  // robot's own account, not his profile). „Разкачи“ and „Свържи“ change only
+  // this account's own switch, and „Свържи“ puts it back.
+  await step("Жив сайт: „Инструменти“ са тъмни, казват „Свързан“, а „Разкачи“ и „Свържи“ работят", async () => {
+    const card = page.locator('[data-tool-card="openai-web-search"]');
+    const switchOn = () =>
+      page.evaluate(async () => {
+        const data = await (await fetch("/api/tools/switches", { cache: "no-store" })).json();
+        return data.tools?.find((item) => item.id === "openai-web-search")?.on;
+      });
+    try {
+      await page.evaluate(() => document.getElementById("toolsBtn").click());
+      await card.locator(".tool-link-state").waitFor({ timeout: 10000 });
+      const look = await page.evaluate(() => {
+        const light = (color) => {
+          const [r, g, b] = (color.match(/\d+(?:\.\d+)?/gu) || [0, 0, 0]).map(Number);
+          return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+        };
+        return [...document.querySelectorAll("#dataDrawerBody :is(.connection-control-card, .tool-status-card)")].map((node) => ({
+          name: node.querySelector("strong")?.textContent || "",
+          card: light(getComputedStyle(node).backgroundColor),
+          text: light(getComputedStyle(node.querySelector("strong") || node).color),
+        }));
+      });
+      const bad = look.filter((item) => item.card > 0.5 || item.text < 0.6);
+      expect(look.length > 3 && !bad.length, `светла карта или тъмен текст: ${JSON.stringify(bad.slice(0, 2))}`);
+      const google = page.locator(".connection-control-card", { hasText: "Google" });
+      expect((await google.locator("button", { hasText: /^(Разкачи|Свържи)$/u }).count()) === 1, "Google няма „Разкачи“ или „Свържи“");
+      expect((await card.locator(".tool-link-state.on").innerText()) === "Свързан", "търсенето не казва „Свързан“");
+      await card.locator('[data-tool-switch][data-tool-on="false"]').click();
+      await card.locator(".tool-link-state.off").waitFor({ timeout: 10000 });
+      expect((await switchOn()) === false, "сървърът не спря търсенето");
+      await card.locator('[data-tool-switch][data-tool-on="true"]').click();
+      await card.locator(".tool-link-state.on").waitFor({ timeout: 10000 });
+      expect((await switchOn()) === true, "сървърът не пусна търсенето пак");
+    } finally {
+      // Whatever happened above, the test account's search is on again.
+      await page
+        .evaluate(() =>
+          fetch("/api/tools/switches/openai-web-search", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ on: true }),
+          }),
+        )
+        .catch(() => {});
+      await page.click("#closeDataDrawerBtn").catch(() => {});
+      await page.waitForTimeout(200);
+    }
+  });
+  await step("Жив сайт: на телефона кръгчетата долу са еднакви, а лимитът е долу", async () => {
+    const look = await page.evaluate(() => {
+      const size = (node) => {
+        const box = node && node.offsetParent ? node.getBoundingClientRect() : null;
+        return box && box.width ? `${Math.round(box.width)}x${Math.round(box.height)}` : null;
+      };
+      const circles = ["#attachBtn", "#modelPickerBtn", "#assistantPickerBtn", "#voiceBtn", "#talkBtn", "#aiSpendRing > summary", "#sendBtn"]
+        .map((selector) => [selector, size(document.querySelector(selector))])
+        .filter(([, box]) => box);
+      const ring = document.getElementById("aiSpendRing");
+      return { circles, ringInRow: Boolean(ring?.closest(".chat-input-area")) };
+    });
+    const sizes = new Set(look.circles.map(([, box]) => box));
+    expect(look.circles.length >= 5 && sizes.size === 1, `кръгчетата не са еднакви: ${JSON.stringify(look.circles)}`);
+    expect(look.ringInRow, "лимитът не е долу в реда");
+  });
   await step("Жив сайт: без грешки в страницата след вход", async () => expect(!errors.length, errors[0]));
   await page.close();
 }

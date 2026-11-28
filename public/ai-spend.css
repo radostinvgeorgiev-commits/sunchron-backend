@@ -23,3 +23,7 @@
 .ai-spend-limit button { padding: 8px 14px; border-radius: 8px; border: 0; background: #5b3fe0; color: #fff; font-weight: 800; }
 .ai-ratings-title { display: block; margin-top: 10px; }
 .ai-ratings { margin: 4px 0 10px; padding-left: 18px; font-size: .9rem; }
+/* The members' units ring reuses the spend ring; only the panel extras differ. */
+.units-ring-renew { margin: 4px 0 0; font-size: .85rem; color: #1f1f1f; }
+.units-ring-more { display: inline-block; margin-top: 4px; font-weight: 800; color: #5b3fe0; }
+.ai-spend + .units-ring { margin-left: 0; }

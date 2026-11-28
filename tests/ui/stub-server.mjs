@@ -405,6 +405,8 @@ export function startStubServer(port = 0) {
       });
       return undefined;
     }
+    // A member's allowance, for the units ring (the owner gets owner: true live).
+    if (p === "/api/product/usage") return json(res, { plan: "free", remaining: 73, allowance: 100, expiresAt: Date.UTC(2026, 11, 28), owner: false });
     if (p === "/api/ai-spend") return json(res, { month: "2026-11", totalUsd: 1, limitUsd: 10, percent: 10, models: [] });
     // Work mode keeps its state on the server; echo it back like the real one.
     if (p === "/api/workspaces" && req.method === "PUT") {

@@ -58,6 +58,7 @@ test("concurrent usage cannot overspend or cross user boundaries", async () => {
   );
   assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
   assert.equal((await service.usage(member)).remaining, 1);
+  assert.equal((await service.usage(member)).allowance, 100);
   assert.equal((await service.usage(other)).remaining, 100);
   assert.ok(
     store.rows.has(ACCOUNT_COLLECTION + "/" + productAccountId(member)),
@@ -105,7 +106,9 @@ test("paid fulfillment is idempotent, validates amounts and never trusts a brows
   const session = paidSession();
   await Promise.all([service.fulfill(session), service.fulfill(session)]);
   assert.equal((await service.usage(member)).remaining, 400);
+  assert.equal((await service.usage(member)).allowance, 400);
   assert.equal((await service.usage(other)).remaining, 100);
+  assert.equal((await service.usage(other)).allowance, 100);
   await assert.rejects(
     () => service.fulfill({ ...session, amount_total: 1 }),
     (e) => e.code === "PAYMENT_INVALID",

@@ -113,13 +113,25 @@ export function createProductPlansService({
       ? Math.max(0, Number(data.remaining) || 0)
       : 0;
   }
+  // The size of the current allowance, for the ring that fills as units are
+  // spent. A paid pack is added on top of the free units, so both count.
+  function allowance(planId, remaining) {
+    const plan = PRODUCT_PLANS.find((item) => item.id === planId);
+    const size =
+      planId === "free" || !plan
+        ? FREE_PLAN.credits
+        : plan.credits + FREE_PLAN.credits;
+    return Math.max(size, remaining);
+  }
   async function usage(identity) {
     if (identity.role === "owner")
       return { plan: "owner", remaining: null, owner: true };
     const { data } = await account(productAccountId(identity));
+    const remaining = balance(data);
     return {
       plan: data.plan,
-      remaining: balance(data),
+      remaining,
+      allowance: allowance(data.plan, remaining),
       expiresAt: data.expiresAt,
       owner: false,
     };

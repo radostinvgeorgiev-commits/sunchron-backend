@@ -2765,6 +2765,15 @@ router.post("/chat", async (req, res) => {
         code: error.code,
       });
     }
+    // A fact over 500 characters (a pasted paragraph after „Запомни:“) is
+    // not an outage: say what to do instead of „памет не е достъпна“.
+    if (error?.code === "INVALID_MEMORY") {
+      return res.status(400).json({
+        error:
+          "Фактът за паметта трябва да бъде между 1 и 500 знака. Нищо не беше записано. Раздели дългия текст на по-кратки точки, например списък с тирета.",
+        code: "INVALID_MEMORY",
+      });
+    }
     if (explicitMemoryIntent) {
       return res.status(503).json({
         error:

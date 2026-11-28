@@ -21,6 +21,19 @@ test("parses a multiline personal profile into separate memories", () => {
   );
 });
 
+// A list sent with lone CR line ends (an old client, a script) is written the
+// way it is judged: one fact per line, never the lines merged into one.
+test("a list with lone CR line breaks is written as the facts that were judged", () => {
+  const message = "Запомни следното за мен:\r- Казвам се Радко.\r- Живея във Варна.";
+  const written = [
+    { fact: "Казвам се Радко", scope: "personal" },
+    { fact: "Живея във Варна", scope: "personal" },
+  ];
+  assert.deepEqual(extractPersistentMemoryCommands(message), written);
+  assert.deepEqual(extractPersistentMemoryCommands(message.replaceAll("\r", "\n\r")), written);
+  assert.equal(isOwnMemoryCommand(message), true);
+});
+
 test("parses numbered project context into separate project memories", () => {
   assert.deepEqual(
     extractPersistentMemoryCommands(`Запомни следното за проекта:

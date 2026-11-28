@@ -315,3 +315,28 @@ test("a person who turned memory writing off is told so, and nothing is written"
     setFirestoreWorkspaceStoreForTests(null);
   }
 });
+
+// A pasted paragraph over 500 characters after „Запомни:“ is not an outage:
+// the person is told how long a fact can be, and nothing is written.
+test("a fact over 500 characters is answered with what to do, and nothing is written", async () => {
+  resetConfirmationsForTests();
+  resetLocalDocumentStoreForTests();
+  const ownerSession = await createGitHubSession(
+    { access_token: "test-owner-token-long" },
+    async () =>
+      new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
+        status: 200,
+      }),
+  );
+  const fact = `Баща ми се казва Петър ${"и обича да ходи за риба на язовира ".repeat(15)}`.trim();
+  assert.ok(fact.length > 500);
+  const response = await request(app)
+    .post("/chat/chat")
+    .set("Cookie", `synchron_github_session=${ownerSession.id}`)
+    .send({ sessionId: "memory-write-long", message: `Запомни: ${fact}.` })
+    .expect(400);
+  assert.equal(response.body.code, "INVALID_MEMORY");
+  assert.match(response.body.error, /между 1 и 500 знака/u);
+  assert.match(response.body.error, /Нищо не беше записано/u);
+  assert.deepEqual(await profileFor("primary-user"), []);
+});

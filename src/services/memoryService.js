@@ -156,7 +156,7 @@ export function normalizeProfileMemoryDraft(fact, requestedScope = "personal") {
 const MAX_LIST_FACTS = 30;
 
 function splitMemoryFacts(value) {
-  const normalized = value.replace(/\r\n/g, "\n").trim();
+  const normalized = value.replace(/\r\n?/gu, "\n").trim();
   const lines = normalized
     .split(/\n+/u)
     .map((line) => line.replace(/^\s*(?:[-*•]|(?:\d+)[.)])\s*/u, "").trim())
@@ -760,7 +760,9 @@ export function isOwnMemoryCommand(message) {
 }
 
 export function extractPersistentMemoryCommands(message) {
-  const text = message.trim();
+  // A lone CR is a line break too, the same as in isOwnMemoryCommand, so a
+  // list sent with old-style line ends is written the way it was judged.
+  const text = message.replace(/\r\n?/gu, "\n").trim();
   // A proposal is still a memory intent, but it must never write anything by
   // itself. Recognize the explicit "do not write yet" wording so the route can
   // create the same one-time confirmation used by the canonical `Запомни:`

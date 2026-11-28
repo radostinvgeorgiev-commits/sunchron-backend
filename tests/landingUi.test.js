@@ -37,7 +37,8 @@ test("the sign-in card sits in a window that opens from the buttons", () => {
 });
 
 test("the demo answers from the page, without any request", () => {
-  assert.doesNotMatch(script, /fetch\(/u);
+  // The only request on the start page is the free chapter check.
+  assert.deepEqual(script.match(/fetch\("[^"]+"/gu), ['fetch("/api/free-check"']);
   const dom = new JSDOM(html, { runScripts: "outside-only", url: "https://novariumai.com/" });
   dom.window.HTMLDialogElement.prototype.showModal ??= function showModal() {
     this.setAttribute("open", "");
@@ -90,4 +91,55 @@ test("the sign-in window and every window after sign-in use the neon look", asyn
   assert.match(neon, /input:not\(\[type="checkbox"\]\)[\s\S]{0,200}background: var\(--nv-field\) !important/u);
   assert.match(landing, /\.landing-auth \.auth-card \{[\s\S]{0,400}#0d0e30 !important/u);
   assert.match(landing, /\.landing-auth \.auth-card \.auth-primary \{[\s\S]{0,200}linear-gradient/u);
+});
+
+test("the free chapter check works without sign-in and shows each clash side by side", async () => {
+  assert.match(html, /id="free-check"[\s\S]{0,400}Провери глава\. Без вход\./u);
+  assert.match(html, /href="#free-check">Пробвай безплатно/u);
+  const dom = new JSDOM(html, { runScripts: "outside-only", url: "https://novariumai.com/" });
+  dom.window.HTMLDialogElement.prototype.showModal ??= function showModal() {
+    this.setAttribute("open", "");
+  };
+  let sent = null;
+  dom.window.fetch = async (url, options) => {
+    sent = { url, body: JSON.parse(options.body) };
+    return {
+      ok: true,
+      json: async () => ({
+        result: { score: 88, models: 2, issues: [{ fact: "Мила има зелени очи.", quote: "кафявите си очи", why: "Очите са зелени." }] },
+      }),
+    };
+  };
+  dom.window.eval(script);
+  const doc = dom.window.document;
+  const form = doc.querySelector("[data-free-check]");
+  form.querySelector("[name=facts]").value = "Мила има зелени очи.";
+  form.querySelector("[name=text]").value = "Мила погледна с кафявите си очи.";
+  form.dispatchEvent(new dom.window.Event("submit", { cancelable: true }));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(sent.url, "/api/free-check");
+  assert.deepEqual(sent.body, { facts: "Мила има зелени очи.", text: "Мила погледна с кафявите си очи." });
+  const result = doc.querySelector("[data-free-result]");
+  assert.equal(result.hidden, false);
+  assert.match(result.textContent, /88\/100/u);
+  assert.match(result.textContent, /В книгата: Мила има зелени очи\./u);
+  assert.match(result.textContent, /Главата: „кафявите си очи“/u);
+  dom.window.close();
+});
+
+test("the start page fits one screen: the rest opens in side panels, and every page is dark", async () => {
+  for (const id of ["how", "features", "specialists", "free-check", "trust", "prices", "faq"]) {
+    assert.match(html, new RegExp(`class="landing-dock"[\\s\\S]*href="#${id}"`, "u"), id);
+  }
+  assert.match(css, /\.landing-panels \.landing-section\.is-open/u);
+  assert.match(css, /\.landing-world-planet/u);
+  assert.match(script, /classList\.toggle\("is-open"/u);
+  for (const page of ["help", "plans", "developers", "privacy", "terms", "cookies", "transparency", "status", "avatar", "shared"]) {
+    assert.match(await read(`${page}.html`), /href="\/neon-pages\.css\?v=/u, page);
+  }
+  // Inside: a button in each top corner, language and exit in the right rail.
+  assert.match(html, /id="sidebarRailBtn"/u);
+  assert.match(html, /id="rightRail"[\s\S]{0,600}data-language-switch/u);
+  assert.match(html, /data-rail-for="sidebarLogoutBtn"/u);
+  assert.match(await read("app-neon.css"), /@keyframes nv-pulse/u);
 });

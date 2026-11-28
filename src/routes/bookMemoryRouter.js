@@ -51,6 +51,46 @@ export function createBookMemoryRouter({ service }) {
       book: await service.changeFact(owner(req), req.params.bookId, req.params.factId, req.body || {}),
     })),
   );
+  // Chapters: save one or many (an imported manuscript), read, delete.
+  router.post(
+    "/:bookId/chapters",
+    handle("Главите не бяха записани.", async (req) => ({
+      book: await service.saveChapters(owner(req), req.params.bookId, req.body?.chapters ?? req.body),
+    })),
+  );
+  router.get(
+    "/:bookId/chapters/:number",
+    handle("Главата не може да се зареди.", async (req) => ({
+      chapter: await service.getChapter(owner(req), req.params.bookId, req.params.number),
+    })),
+  );
+  router.delete(
+    "/:bookId/chapters/:number",
+    handle("Главата не беше изтрита.", async (req) => ({
+      book: await service.removeChapter(owner(req), req.params.bookId, req.params.number),
+    })),
+  );
+  // The finished book as a file. "html" is the print page for PDF.
+  router.get("/:bookId/export", async (req, res) => {
+    try {
+      const file = await service.exportBook(owner(req), req.params.bookId, String(req.query.format || ""));
+      res.setHeader("Content-Type", file.type);
+      res.setHeader("Cache-Control", "no-store");
+      if (!file.type.startsWith("text/html")) {
+        res.setHeader("Content-Disposition", `attachment; filename="book.${file.name.split(".").pop()}"; filename*=UTF-8''${encodeURIComponent(file.name)}`);
+      }
+      res.send(file.body);
+    } catch (error) {
+      fail(res, error, "Книгата не можа да се изтегли.");
+    }
+  });
+  router.post(
+    "/:bookId/draft",
+    publicAiBudgetContext,
+    handle("Черновата не стана. Опитай пак.", async (req) => ({
+      draft: await service.draftChapter(owner(req), req.params.bookId, req.body || {}),
+    })),
+  );
   // The two AI requests: suggestions (nothing saved) and the chapter check.
   router.post(
     "/:bookId/suggest",

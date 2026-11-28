@@ -17,6 +17,7 @@ const router = express.Router();
 const handleMcpRequest = createMcpRequestHandler();
 const DEFAULT_ALLOWED_MCP_ORIGINS = Object.freeze([
   "https://cloudaicore.com",
+  "https://novariumai.com",
   "https://chatgpt.com",
 ]);
 const SUPPORTED_MCP_PROTOCOL_VERSIONS = new Set([
@@ -29,9 +30,10 @@ function allowedMcpOrigins(env = process.env) {
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
-  return new Set(
-    configured.length > 0 ? configured : DEFAULT_ALLOWED_MCP_ORIGINS,
-  );
+  return new Set([
+    ...(configured.length > 0 ? configured : DEFAULT_ALLOWED_MCP_ORIGINS),
+    "https://novariumai.com",
+  ]);
 }
 
 export function validateMcpTransport(
@@ -194,6 +196,7 @@ export async function requireMcpAuthorization(
   const challenge = buildMcpAuthenticateChallenge(requiredScopes, env, {
     error: challengeError,
     description: challengeDescription,
+    host: req.get("host"),
   });
   if (authorization) {
     return sendMcpAuthorizationError(req, res, {

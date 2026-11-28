@@ -6,6 +6,8 @@ const MEMBER_SAFE_CAPABILITIES = new Set([
   // „Моите задачи“: every person's own list, kept under their own account.
   "todos.read",
   "todos.add",
+  // The person's own memory, searched under their own account.
+  "memory.search",
 ]);
 // Reading the person's own Google, in their own chat, with their own
 // connection. MCP clients do not get these.
@@ -19,11 +21,18 @@ const MEMBER_OWN_GOOGLE_CAPABILITIES = new Set([
   "youtube.channel",
 ]);
 // Writing to the person's own Google: an event in their calendar, an email
-// from their Gmail, a new contact. Each one is only prepared; it runs after
-// the person sends the exact confirmation in their own chat.
+// from their Gmail, a draft, a new contact, a letter moved to the bin. Their
+// own command runs an event, a contact or an email to an address they typed
+// at once (chat.js, ownCommandWriteOf); a draft and a letter moved to the bin
+// run after the person presses its button in their own chat. The open tree (RADKO
+// 28.11 06:21, 06:36, 06:49): each person's own branch, down to the server,
+// with every tool reading and writing their own data and none on anyone
+// else's.
 const MEMBER_OWN_GOOGLE_WRITES = new Set([
   "calendar.write",
   "mail.send",
+  "mail.draft",
+  "mail.delete",
   "contacts.create",
 ]);
 

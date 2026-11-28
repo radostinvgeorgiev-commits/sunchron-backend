@@ -254,6 +254,9 @@ export function extractPersistentMemoryCommand(message) {
     /^запомни(?:\s+за\s+бъдещи\s+разговори)?\s*,?\s+че\s+([\s\S]+)$/iu,
     /^запази\s+в\s+постоянната\s+памет\s*:\s*([\s\S]+)$/iu,
     /^поправка\s*:\s*([\s\S]+?)(?:\s+(?:запомни|запази)\s+това[.!?]*)?$/iu,
+    // The same command in the site's other languages, as the memory panel
+    // names it there („Remember: …“, „Merken: …“ …).
+    /^(?:remember|merken|merk\s+dir|recordar|recuerda|retenir|retiens|ricorda|ricordare|[țţt]ine\s+minte)\s*:\s*([\s\S]+)$/iu,
   ];
 
   for (const pattern of projectPatterns) {

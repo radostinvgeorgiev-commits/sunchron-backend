@@ -14,6 +14,10 @@ const { createGitHubSession } =
   await import("../src/services/githubOAuthService.js");
 const { resetConfirmationsForTests } =
   await import("../src/services/confirmationService.js");
+const { prepareMemoryWrite } =
+  await import("../src/services/memoryWriteConfirmationService.js");
+const { setFirestoreWorkspaceStoreForTests } =
+  await import("../src/services/workspaceStateService.js");
 const { listProfileMemories, saveProfileMemory } =
   await import("../src/services/memoryService.js");
 const { resetLocalDocumentStoreForTests } =
@@ -24,7 +28,11 @@ function profileFor(ownerId) {
   return listProfileMemories({ scope: "personal", ownerId });
 }
 
-test("chat never persists an ordinary fact and writes an explicit fact only after one-time confirmation", async () => {
+// The person's own „Запомни: …“ is the confirmation (RADKO 28.11 04:30
+// „самата команда го казва“, 06:35 „бутон за паметта“): it is written at
+// once. An ordinary sentence is never written.
+test("chat never persists an ordinary fact and writes the person's own „Запомни: …“ at once", async () => {
+  resetConfirmationsForTests();
   resetLocalDocumentStoreForTests();
   const ownerSession = await createGitHubSession(
     { access_token: "test-owner-token" },
@@ -61,7 +69,7 @@ test("chat never persists an ordinary fact and writes an explicit fact only afte
     assert.doesNotMatch(ordinaryResponse.text, /CONVERSATION_NOT_SAVED/u);
     assert.deepEqual(await profileFor("primary-user"), []);
 
-    const prepared = await request(app)
+    const saved = await request(app)
       .post("/chat/chat")
       .set("Cookie", ownerCookie)
       .send({
@@ -69,27 +77,35 @@ test("chat never persists an ordinary fact and writes an explicit fact only afte
         message: "Запомни: Казвам се Иван.",
       })
       .expect(200);
-    assert.deepEqual(await profileFor("primary-user"), []);
-    const confirmationId = prepared.text.match(
-      /Потвърждавам постоянен запис:\s*([0-9a-f-]{36})/iu,
-    )?.[1];
-    assert.ok(confirmationId);
-
-    const confirmed = await request(app)
-      .post("/chat/chat")
-      .set("Cookie", ownerCookie)
-      .send({
-        sessionId: "memory-write-route",
-        message: `Потвърждавам постоянен запис: ${confirmationId}`,
-      })
-      .expect(200);
-    assert.match(confirmed.text, /Запомних: Казвам се Иван/u);
+    assert.match(saved.text, /Запомних: Казвам се Иван/u);
+    assert.doesNotMatch(saved.text, /Потвърждавам постоянен запис/u);
     assert.deepEqual(
       (await profileFor("primary-user")).map(({ fact, source }) => ({
         fact,
         source,
       })),
-      [{ fact: "Казвам се Иван", source: "confirmed-chat-command" }],
+      [{ fact: "Казвам се Иван", source: "own-chat-command" }],
+    );
+
+    // A record prepared earlier (the API, the connector) still saves with
+    // its exact confirmation line.
+    const prepared = await prepareMemoryWrite({
+      sessionId: "memory-write-route",
+      ownerId: "primary-user",
+      items: [{ fact: "Живея във Варна", scope: "personal" }],
+    });
+    const confirmed = await request(app)
+      .post("/chat/chat")
+      .set("Cookie", ownerCookie)
+      .send({
+        sessionId: "memory-write-route",
+        message: `Потвърждавам постоянен запис: ${prepared.confirmationId}`,
+      })
+      .expect(200);
+    assert.match(confirmed.text, /Запомних: Живея във Варна/u);
+    assert.deepEqual(
+      (await profileFor("primary-user")).map(({ fact }) => fact).sort(),
+      ["Живея във Варна", "Казвам се Иван"],
     );
   } finally {
     globalThis.fetch = originalFetch;
@@ -168,5 +184,34 @@ test("chat deletes only after a durable UUID confirmation and blocks replay", as
     assert.deepEqual(await profileFor("primary-user"), []);
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+// „Не записвай“ in the memory panel still wins over the command.
+test("a person who turned memory writing off is told so, and nothing is written", async () => {
+  resetConfirmationsForTests();
+  resetLocalDocumentStoreForTests();
+  setFirestoreWorkspaceStoreForTests({
+    get: async () => ({ data: { state: { preferences: { memoryMode: "disabled" } } } }),
+    set: async () => {},
+    delete: async () => {},
+  });
+  const ownerSession = await createGitHubSession(
+    { access_token: "test-owner-token-off" },
+    async () =>
+      new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
+        status: 200,
+      }),
+  );
+  try {
+    const response = await request(app)
+      .post("/chat/chat")
+      .set("Cookie", `synchron_github_session=${ownerSession.id}`)
+      .send({ sessionId: "memory-write-off", message: "Запомни: Обичам чай." })
+      .expect(403);
+    assert.equal(response.body.code, "MEMORY_WRITE_DISABLED");
+    assert.deepEqual(await profileFor("primary-user"), []);
+  } finally {
+    setFirestoreWorkspaceStoreForTests(null);
   }
 });

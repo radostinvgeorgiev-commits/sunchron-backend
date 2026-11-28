@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import express from "express";
+import request from "supertest";
 import { createAvatarLinkService, AVATAR_LINK_LIMITS } from "../src/services/avatarLinkService.js";
+import { createAvatarLinkRouter } from "../src/routes/avatarLinkRouter.js";
 
 function memoryStore() {
   const rows = new Map();
@@ -94,4 +97,83 @@ test("visitors reach the avatar without signing in, limited per address", () => 
   assert.match(server, /"\/api\/avatar-link",\s*requireOwnerSession,\s*privateApiRateLimiter,\s*createAvatarLinkRouter/u);
   assert.match(server, /"\/api\/avatar-visit",\s*createApiRateLimiter\(\{ limit: 30/u);
   assert.match(server, /app\.get\("\/a\/:token"/u);
+});
+
+// „Сподели с аватара“ (RADKO 28.11 06:35): a remembered fact becomes one line
+// of what visitors hear, and the person can take it back.
+test("a shared memory reaches the visitors, a taken-back one does not", async () => {
+  const store = memoryStore();
+  let asked = null;
+  const service = createAvatarLinkService({
+    store,
+    newToken: () => "S".repeat(32),
+    askAi: async ({ input }) => {
+      asked = input[0].content;
+      return "ok";
+    },
+  });
+  const saved = await service.save("maria", card);
+  const shared = await service.share("maria", { fact: "  Обичам   планините. " });
+  assert.equal(shared.active, true);
+  assert.equal(shared.card.knowledge, `${card.knowledge}\n• Обичам планините.`);
+  // Twice is still one line.
+  assert.equal((await service.share("maria", { fact: "Обичам планините." })).card.knowledge, shared.card.knowledge);
+  await service.ask(saved.token, { question: "Какво обичаш?" });
+  assert.match(asked, /• Обичам планините\./u);
+  // The link's count for the day stays.
+  assert.equal((await service.status("maria")).usedToday, 1);
+
+  const back = await service.share("maria", { fact: "Обичам планините.", shared: false });
+  assert.equal(back.card.knowledge, card.knowledge);
+  await service.ask(saved.token, { question: "Какво обичаш?" });
+  assert.doesNotMatch(asked, /планините/u);
+  assert.equal((await service.status("maria")).usedToday, 2);
+
+  await assert.rejects(service.share("maria", { fact: "  " }), /какво да споделя/u);
+});
+
+test("without a link a shared fact waits in the text; no link is made", async () => {
+  const store = memoryStore();
+  const service = createAvatarLinkService({ store, newToken: () => "W".repeat(32) });
+  const shared = await service.share("ivan", { fact: "Работя като готвач." });
+  assert.equal(shared.active, false);
+  assert.equal(shared.card.knowledge, "• Работя като готвач.");
+  assert.equal(await service.card("W".repeat(32)), null);
+  // Starting the link later keeps the line.
+  const saved = await service.save("ivan", { name: "Иван", knowledge: shared.card.knowledge });
+  assert.equal(saved.card.knowledge, "• Работя като готвач.");
+});
+
+test("a full visitors' text says so and changes nothing", async () => {
+  const store = memoryStore();
+  const service = createAvatarLinkService({ store, newToken: () => "F".repeat(32) });
+  const full = "а".repeat(AVATAR_LINK_LIMITS.knowledge - 5);
+  await service.save("ana", { name: "Ана", knowledge: full });
+  await assert.rejects(service.share("ana", { fact: "Още един факт за мен." }), /пълен/u);
+  assert.equal((await service.status("ana")).card.knowledge, full);
+});
+
+test("the share route passes only the signed-in person's own fact and choice", async () => {
+  const calls = [];
+  const app = express();
+  app.use(express.json());
+  app.use((req, _res, next) => {
+    req.owner = { memoryOwnerId: "ana" };
+    next();
+  });
+  const service = {
+    share: async (ownerId, input) => {
+      calls.push([ownerId, input]);
+      return { active: true, token: "S".repeat(32), card: { knowledge: "• x" } };
+    },
+  };
+  app.use("/api/avatar-link", createAvatarLinkRouter({ service }));
+  const shared = await request(app).post("/api/avatar-link/share").send({ fact: "x", ownerId: "someone-else" }).expect(200);
+  assert.match(shared.body.url, /\/a\/S{32}$/u);
+  assert.equal(shared.body.token, undefined);
+  await request(app).post("/api/avatar-link/share").send({ fact: "x", shared: false }).expect(200);
+  assert.deepEqual(calls, [
+    ["ana", { fact: "x", shared: true }],
+    ["ana", { fact: "x", shared: false }],
+  ]);
 });

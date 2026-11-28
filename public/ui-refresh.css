@@ -143,6 +143,16 @@
 }
 .message-edit-buttons button.primary { background: #000; border-color: #000; color: #fff; }
 
+/* „Запомни“ under an answer: what to remember and whether to share it. */
+.remember-form { display: flex; flex-direction: column; gap: 8px; width: min(100%, 680px); margin: 8px 0 12px; }
+.remember-form textarea {
+  width: 100%; padding: 10px 12px; border: 2px solid #5b3fe0; border-radius: 14px;
+  font: inherit; color: #000; resize: vertical; background: #fff;
+}
+.remember-share { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #33413a; }
+.remember-share input { width: 18px; height: 18px; accent-color: #5b3fe0; }
+.remember-note { min-height: 1.2em; font-size: 14px; color: #33413a; }
+
 /* Council answers side by side (desktop) and swipeable (phone). */
 .message.has-council-columns { max-width: 100%; }
 .council-columns {

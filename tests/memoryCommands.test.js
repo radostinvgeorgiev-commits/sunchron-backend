@@ -90,3 +90,20 @@ test("turns an explicit memory proposal into the canonical confirmation flow", (
     },
   ]);
 });
+
+test("the memory command works in the site's other languages", () => {
+  const cases = [
+    ["Remember: I drink tea without sugar", "I drink tea without sugar"],
+    ["Merken: Ich trinke Tee ohne Zucker", "Ich trinke Tee ohne Zucker"],
+    ["Recordar: Bebo té sin azúcar", "Bebo té sin azúcar"],
+    ["Retenir : je bois du thé sans sucre", "je bois du thé sans sucre"],
+    ["Ricorda: bevo il tè senza zucchero", "bevo il tè senza zucchero"],
+    ["Ține minte: beau ceai fără zahăr", "beau ceai fără zahăr"],
+  ];
+  for (const [message, fact] of cases) {
+    assert.deepEqual(extractPersistentMemoryCommands(message), [{ fact, scope: "personal" }], message);
+  }
+  // A question about memory is not a command.
+  assert.deepEqual(extractPersistentMemoryCommands("Do you remember: what did I say?"), []);
+  assert.deepEqual(extractPersistentMemoryCommands("What do you remember about me?"), []);
+});

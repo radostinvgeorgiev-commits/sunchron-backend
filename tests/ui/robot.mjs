@@ -48,7 +48,7 @@ async function openPage(origin, viewport, path = "/") {
   return { page, errors };
 }
 
-async function signedInFlows(origin, requests, label, viewport, feedback, media) {
+async function signedInFlows(origin, requests, label, viewport, feedback, media, memoryWrites = []) {
   const { page, errors } = await openPage(origin, viewport);
   const last = () => page.locator(".assistant-turn").last();
   // The person's own things are in the "Моят аватар" group of the side menu.
@@ -106,6 +106,23 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media)
     await note.locator("a").waitFor({ timeout: 5000 });
     expect((await note.innerText()).includes("Запазено като Google документ"), "няма потвърждение");
     expect((await note.locator("a").getAttribute("href")).startsWith("https://docs.google.com/document/"), "няма линк към документа");
+  });
+  await step(`${label}: „Запомни“ под отговора записва и споделя с „Питай моя аватар“`, async () => {
+    const before = memoryWrites.length;
+    await last().locator('[data-action="remember"]').click();
+    const form = last().locator(".remember-form");
+    await form.waitFor({ state: "visible", timeout: 5000 });
+    await form.locator("textarea").fill("Обичам чай без захар");
+    await form.locator(".remember-share input").check();
+    await form.locator(".message-edit-buttons .primary").click();
+    await page
+      .waitForFunction(() => /Запомних/u.test(document.querySelector(".remember-note")?.textContent || ""), null, { timeout: 5000 })
+      .catch(() => {});
+    const note = await last().locator(".remember-note").innerText();
+    expect(note.includes("Запомних: Обичам чай без захар"), `бележката е „${note}“`);
+    expect(/Споделих|Добавих/u.test(note), `няма ред за споделянето: „${note}“`);
+    const calls = memoryWrites.slice(before).map(({ kind }) => kind).join(",");
+    expect(calls === "prepare,confirm,share", `извиквания: ${calls}`);
   });
   await step(`${label}: редакция на изпратено съобщение`, async () => {
     await page.locator(".user-turn").first().locator('[data-action="edit"]').click();
@@ -1176,6 +1193,25 @@ async function statusPage(origin, live) {
   await page.close();
 }
 
+// „Планове“ on a phone: the example prices for the person's apps are shown,
+// and there is nothing to press that would charge for them.
+async function plansPage(origin) {
+  const { page, errors } = await openPage(origin, { width: 390, height: 844 }, "/plans");
+  await step("Страница: „Планове“ показва примерните цени +10% без плащане", async () => {
+    await page.waitForFunction(() => document.querySelectorAll(".app-subscription").length > 0, null, { timeout: 5000 }).catch(() => {});
+    const cards = page.locator("#app-subscriptions .app-subscription");
+    expect((await cards.count()) >= 4, `картите са ${await cards.count()}`);
+    const first = await cards.first().innerText();
+    expect(/Цена на приложението:/u.test(first) && /При нас:/u.test(first), `картата е „${first}“`);
+    expect(first.includes("Примерна цена · още не се продава"), "няма надпис за примерна цена");
+    expect((await page.locator("#app-subscriptions button, #app-subscriptions a").count()) === 0, "има бутон или линк за плащане");
+    const width = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(width <= 390, `страницата е по-широка от телефона (${width}px)`);
+    expect(!errors.length, errors[0]);
+  });
+  await page.close();
+}
+
 // The contact form on /help, the way a person uses it on a phone: write,
 // send, see the number. If sending fails, the text is still there.
 async function contactForm(origin, contactMessages) {
@@ -1342,14 +1378,16 @@ async function liveSignedIn(origin) {
 if (publicOrigin) {
   await publicChecks(publicOrigin);
   await statusPage(publicOrigin, true);
+  await plansPage(publicOrigin);
   await liveSignedIn(publicOrigin);
 } else {
   const stub = await startStubServer();
-  await signedInFlows(stub.origin, stub.requests, "Телефон", { width: 390, height: 844 }, stub.feedback, stub.media);
-  await signedInFlows(stub.origin, stub.requests, "Компютър", { width: 1280, height: 800 }, stub.feedback, stub.media);
+  await signedInFlows(stub.origin, stub.requests, "Телефон", { width: 390, height: 844 }, stub.feedback, stub.media, stub.memoryWrites);
+  await signedInFlows(stub.origin, stub.requests, "Компютър", { width: 1280, height: 800 }, stub.feedback, stub.media, stub.memoryWrites);
   await sharedPage(stub.origin);
   await talkFlow(stub.origin, stub.requests, stub.media);
   await statusPage(stub.origin, false);
+  await plansPage(stub.origin);
   await contactForm(stub.origin, stub.contactMessages);
   stub.server.close();
 }

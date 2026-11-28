@@ -45,6 +45,15 @@ function ownerKey(ownerId) {
   return `owner-${createHash("sha256").update(ownerId).digest("hex").slice(0, 40)}`;
 }
 
+// A remembered fact the person shares with their avatar: one line of the
+// visitors' text (RADKO 28.11 06:35 „бутон за паметта и за споделяне, ако
+// иска“). Memory facts are at most 500 characters.
+export const SHARED_FACT_LIMIT = 500;
+export function sharedFactLine(fact) {
+  const text = clean(fact, SHARED_FACT_LIMIT);
+  return text ? `• ${text}` : "";
+}
+
 export function normalizeAvatarCard(value = {}) {
   return {
     name: clean(value.name, AVATAR_LINK_LIMITS.name),
@@ -130,6 +139,50 @@ export function createAvatarLinkService({
     return status(ownerId);
   }
 
+  // Writes the card under the person and, while the link runs, under the link
+  // too, keeping the link's count for the day.
+  async function writeCard(key, previous, card) {
+    const createdAt = previous?.data?.createdAt || new Date(now()).toISOString();
+    const token = isAvatarLinkToken(previous?.data?.token) ? previous.data.token : "";
+    const operations = [
+      { type: "set", collection: AVATAR_LINK_COLLECTION, id: key, data: { ...(token ? { token } : {}), ...card, createdAt } },
+    ];
+    if (token) {
+      const existing = await db().get(AVATAR_LINK_COLLECTION, token);
+      operations.push({
+        type: "set",
+        collection: AVATAR_LINK_COLLECTION,
+        id: token,
+        data: { ...card, createdAt, day: existing?.data?.day || "", count: existing?.data?.count || 0 },
+      });
+    }
+    await db().commitOperations(operations);
+  }
+
+  // „Сподели с аватара“: the fact becomes one line of what visitors' answers
+  // come from; `shared: false` takes that line out again. Only the person's
+  // own text changes. A link is made only by the person (save): without one
+  // the line waits in the text for it.
+  async function share(ownerId, { fact, shared = true } = {}) {
+    const key = ownerKey(ownerId);
+    const line = sharedFactLine(fact);
+    if (!line) throw new AvatarLinkError("Напиши какво да споделя.", 400, "AVATAR_LINK_FACT_REQUIRED");
+    const previous = await db().get(AVATAR_LINK_COLLECTION, key);
+    const card = normalizeAvatarCard(previous?.data || {});
+    const lines = card.knowledge ? card.knowledge.split("\n") : [];
+    const kept = lines.filter((entry) => entry.trim() !== line);
+    const knowledge = (shared === false ? kept : [...kept, line]).join("\n").trim();
+    if (knowledge.length > AVATAR_LINK_LIMITS.knowledge) {
+      throw new AvatarLinkError(
+        "Текстът за посетителите е пълен. Махни нещо от него в „Питай моя аватар“.",
+        400,
+        "AVATAR_LINK_KNOWLEDGE_FULL",
+      );
+    }
+    if (knowledge !== card.knowledge) await writeCard(key, previous, { ...card, knowledge });
+    return status(ownerId);
+  }
+
   async function stop(ownerId) {
     const key = ownerKey(ownerId);
     const row = await db().get(AVATAR_LINK_COLLECTION, key);
@@ -191,7 +244,7 @@ export function createAvatarLinkService({
     await db().commitOperations(operations);
   }
 
-  return { status, save, stop, card, ask, forget };
+  return { status, save, share, stop, card, ask, forget };
 }
 
 let defaultService;

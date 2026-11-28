@@ -109,7 +109,11 @@ test("member capability filtering is deny-by-default", () => {
   );
 });
 
-test("a member with their own Google connection may read it and prepare an event, an email or a contact", () => {
+// The open tree (RADKO 28.11 06:21: „пълни права за всички инструменти в
+// техните клонове“, 06:49 „пълни права за писане“): every step on their own
+// Google, the bin with its button; nothing of the owner's (GitHub) and no
+// step the server cannot run (a changed contact).
+test("a member with their own Google connection may read it and prepare every step on it", () => {
   const requests = [
     { capability: "calendar.read" },
     { capability: "files.read" },
@@ -127,7 +131,17 @@ test("a member with their own Google connection may read it and prepare an event
     filterCapabilityRequestsForIdentity(requests, { role: "member" }, { ownGoogle: true }).map(
       ({ capability }) => capability,
     ),
-    ["calendar.read", "files.read", "mail.read", "calendar.write", "mail.send", "contacts.create", "web.search"],
+    [
+      "calendar.read",
+      "files.read",
+      "mail.read",
+      "mail.draft",
+      "calendar.write",
+      "mail.send",
+      "contacts.create",
+      "mail.delete",
+      "web.search",
+    ],
   );
   // Without their own connection nothing from Google passes.
   assert.deepEqual(

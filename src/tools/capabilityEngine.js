@@ -548,6 +548,26 @@ function confirmationOutput(prepared, label, exactCommand = null) {
   return lines.join("\n");
 }
 
+// When a letter came, in Sofia time, from its Date header: „ (28.11 08:12)“,
+// or „ (08:12)“ in today's list; nothing when the header cannot be read. Team
+// 2's probe 28.11: without it the agent could not say which letters are
+// today's.
+function mailWhen(date, { timeOnly = false } = {}) {
+  const time = Date.parse(String(date || ""));
+  if (!Number.isFinite(time)) return "";
+  const parts = new Intl.DateTimeFormat("bg-BG", {
+    timeZone: "Europe/Sofia",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(time));
+  const part = (type) => parts.find((item) => item.type === type)?.value || "";
+  const clock = `${part("hour")}:${part("minute")}`;
+  return ` (${timeOnly ? clock : `${part("day")}.${part("month")} ${clock}`})`;
+}
+
 const executors = Object.freeze({
   "synchron-agent-chat": async ({ capability, input }) => {
     if (capability === "chat.list_threads") {
@@ -926,7 +946,7 @@ const executors = Object.freeze({
         english ? "Email today:" : "Писма днес:",
         ...messages.map(
           (message) =>
-            `• ${message.unread ? (english ? "Unread — " : "Непрочетено — ") : ""}${message.subject} — ${message.from}`,
+            `• ${message.unread ? (english ? "Unread — " : "Непрочетено — ") : ""}${message.subject} — ${message.from}${mailWhen(message.date, { timeOnly: true })}`,
         ),
       ].join("\n");
     }
@@ -942,7 +962,7 @@ const executors = Object.freeze({
       heading,
       ...messages.map(
         (message) =>
-          `• ${message.unread ? "Непрочетено — " : ""}${message.subject} — ${message.from}`,
+          `• ${message.unread ? "Непрочетено — " : ""}${message.subject} — ${message.from}${mailWhen(message.date)}`,
       ),
     ].join("\n");
   },

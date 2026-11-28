@@ -46,6 +46,7 @@ const {
 const { extractPersistentMemoryCommands } = await import("../src/services/memoryService.js");
 const { createPublicAiBudgetContext } = await import("../src/services/publicAiBudget.js");
 const { getProductPlansService } = await import("../src/services/productPlansService.js");
+const { setFirestoreTaskRunStoreForTests } = await import("../src/services/taskRunService.js");
 
 const owner = { id: "owner", login: "owner", displayName: "Радко", role: "owner", memoryOwnerId: "inventory-owner" };
 const member = {
@@ -1357,6 +1358,14 @@ test("„ПРАТИ МЕЛ ДА МИЯ … ЗДРАВЕ“ in his own words send
   const services = mailServices(t, {
     intents: [plainIntent({ recipient: "me", subject: "Здраве", body: "Тук при пост, здраве." })],
   });
+  // The saved run of the task, as the „Задачи“ panel reads it.
+  const runs = new Map();
+  setFirestoreTaskRunStoreForTests({
+    get: async (id) => (runs.has(id) ? { id, data: structuredClone(runs.get(id)) } : null),
+    set: async (id, data) => void runs.set(id, structuredClone(data)),
+    listByOwner: async () => [...runs].map(([id, data]) => ({ id, data: structuredClone(data) })),
+  });
+  t.after(() => setFirestoreTaskRunStoreForTests(null));
   const cookie = await googleCookie(member, GOOGLE_MEMBER_SCOPES, "ana@example.com");
   const response = await request(chatApp(member))
     .post("/chat/chat")
@@ -1374,6 +1383,8 @@ test("„ПРАТИ МЕЛ ДА МИЯ … ЗДРАВЕ“ in his own words send
   assert.doesNotMatch(response.text, /Потвърждавам NovariumAI задача/u);
   // No planner and no model answer on top of it.
   assert.deepEqual(services.claude.calls, []);
+  // Done, not „чака потвърждение“ (Team 2's probe 28.11).
+  assert.deepEqual([...runs.values()].map(({ status }) => status), ["completed"]);
 });
 
 test("„ISKAM DA PATI MEIL DO MEN“ asks what to write; his answer sends it", async (t) => {

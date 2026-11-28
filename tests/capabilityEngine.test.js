@@ -713,6 +713,9 @@ test("one day of the calendar and today's mail are read as that day's", async ()
     { id: "e2", summary: "Рожден ден", start: { date: today }, end: { date: today } },
   ];
   let mail = [{ id: "m1" }];
+  // 06:12 UTC on the Sofia day: 08:12 in winter, 09:12 in summer.
+  const sentAt = new Date(`${today}T06:12:00Z`);
+  const clock = new Intl.DateTimeFormat("bg-BG", { timeZone: "Europe/Sofia", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(sentAt);
   const originalFetch = global.fetch;
   global.fetch = async (url) => {
     urls.push(String(url));
@@ -723,7 +726,13 @@ test("one day of the calendar and today's mail are read as that day's", async ()
       return json({
         id: "m1",
         labelIds: ["INBOX", "UNREAD"],
-        payload: { headers: [{ name: "Subject", value: "Фактура" }, { name: "From", value: "Банка <bank@example.com>" }] },
+        payload: {
+          headers: [
+            { name: "Subject", value: "Фактура" },
+            { name: "From", value: "Банка <bank@example.com>" },
+            { name: "Date", value: sentAt.toUTCString() },
+          ],
+        },
       });
     }
     return json({});
@@ -740,7 +749,14 @@ test("one day of the calendar and today's mail are read as that day's", async ()
 
     const todayMail = () =>
       executeCapability("mail.read", { ownerId: "owner", googleSessionId, input: { query: "newer_than:1d", day: true } }, { env });
-    assert.equal((await todayMail()).output, "Писма днес:\n• Непрочетено — Фактура — Банка <bank@example.com>");
+    assert.equal((await todayMail()).output, `Писма днес:\n• Непрочетено — Фактура — Банка <bank@example.com> (${clock})`);
+    // The latest letters say the day too (Team 2's probe 28.11: without dates
+    // the agent could not tell which letters are today's).
+    const latest = await executeCapability("mail.read", { ownerId: "owner", googleSessionId }, { env });
+    assert.equal(
+      latest.output,
+      `Последни съобщения в Gmail:\n• Непрочетено — Фактура — Банка <bank@example.com> (${today.slice(8, 10)}.${today.slice(5, 7)} ${clock})`,
+    );
     mail = [];
     assert.equal((await todayMail()).output, "Днес няма нови писма.");
   } finally {

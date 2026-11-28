@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   assertMcpGrantActive,
+  buildMcpAuthenticateChallenge,
   cleanupExpiredMcpReplayRecords,
   CHATGPT_MCP_SCOPE,
   consumeMcpGrantOnce,
@@ -601,6 +602,28 @@ test("does not apply the ChatGPT fallback outside pinned OAuth paths", async () 
       error.code === "invalid_client" &&
       error.description === "OAuth клиентът не може да бъде проверен.",
   );
+});
+
+test("the connector also works at novariumai.com/mcp, signing in at the same place", async () => {
+  const NEW = "https://novariumai.com/mcp";
+  const meta = getMcpProtectedResourceMetadata(ENV, { host: "novariumai.com" });
+  assert.equal(meta.resource, NEW);
+  assert.deepEqual(meta.authorization_servers, ["https://cloudaicore.com"]);
+  assert.equal(getMcpProtectedResourceMetadata(ENV, { host: "evil.example" }).resource, ENV.MCP_RESOURCE_URL);
+  assert.match(
+    buildMcpAuthenticateChallenge([MCP_READ_SCOPE], ENV, { host: "novariumai.com" }),
+    /resource_metadata="https:\/\/novariumai\.com\/\.well-known\/oauth-protected-resource"/u,
+  );
+  const request = await validateMcpAuthorizationRequest(
+    { ...authorizationInput([MCP_READ_SCOPE]), resource: NEW },
+    { env: ENV, fetchImpl: clientMetadataFetch },
+  );
+  const code = createMcpAuthorizationCode(request, { id: "o", memoryOwnerId: "u", role: "owner" }, ENV);
+  const token = await exchangeMcpAuthorizationCode(
+    { grant_type: "authorization_code", code, client_id: CLIENT_ID, redirect_uri: REDIRECT_URI, code_verifier: VERIFIER, resource: NEW },
+    ENV,
+  );
+  assert.equal(verifyMcpAccessToken(`Bearer ${token.access_token}`, [MCP_READ_SCOPE], ENV).memoryOwnerId, "u");
 });
 
 test("exchanges a one-time PKCE code for an opaque owner-scoped token", async () => {

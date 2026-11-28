@@ -25,7 +25,7 @@ test("start redirects to Google with a state that is also set as a cookie", () =
   const { url, cookie } = startGoogleSignIn({ env });
   const parsed = new URL(url);
   assert.equal(parsed.origin, "https://accounts.google.com");
-  assert.equal(parsed.searchParams.get("redirect_uri"), "https://cloudaicore.com/api/auth/google/callback");
+  assert.equal(parsed.searchParams.get("redirect_uri"), "https://novariumai.com/api/auth/google/callback");
   assert.equal(parsed.searchParams.get("scope"), "openid email profile");
   const state = parsed.searchParams.get("state");
   assert.match(cookie, new RegExp(`synchron_google_signin_state=${state};`));
@@ -116,7 +116,7 @@ test("Identity Platform needConfirmation becomes NEED_CONFIRMATION instead of a 
     fetchImpl: async () =>
       new Response(JSON.stringify({ needConfirmation: true, email: "a@b.c", providerId: "google.com" }), { status: 200 }),
   });
-  const { data, error } = await client.auth.signInWithGoogleIdToken({ idToken: "x", requestUri: "https://cloudaicore.com/api/google/callback" });
+  const { data, error } = await client.auth.signInWithGoogleIdToken({ idToken: "x", requestUri: "https://novariumai.com/api/google/callback" });
   assert.equal(data, null);
   assert.equal(error.upstreamCode, "NEED_CONFIRMATION");
 });

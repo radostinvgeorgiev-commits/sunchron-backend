@@ -7,6 +7,7 @@ import {
   sessionPayload,
   UserAuthError,
 } from "./userAuthService.js";
+import { publicOrigin } from "../config/publicOrigin.js";
 
 // "Вход с Google": the browser goes to Google, comes back with a one-time
 // code, the server swaps it for a Google ID token and hands that to Identity
@@ -49,7 +50,7 @@ export function googleSignInRedirectUri(env = process.env) {
   } catch {
     // not a URL; use the dedicated callback
   }
-  const origin = String(env.PUBLIC_ORIGIN || "https://cloudaicore.com").replace(/\/+$/u, "");
+  const origin = publicOrigin(env);
   return `${origin}${CALLBACK_PATH}`;
 }
 

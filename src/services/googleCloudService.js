@@ -6,7 +6,7 @@ import {
 } from "../config/memoryBackend.js";
 import { getUserAuthProvider } from "./userAuthService.js";
 
-export const NOVARIUM_PUBLIC_ORIGIN = "https://cloudaicore.com";
+export const NOVARIUM_PUBLIC_ORIGIN = "https://novariumai.com";
 export const GOOGLE_CLOUD_CONSOLE_ORIGIN = "https://console.cloud.google.com";
 
 function cleanRuntimeValue(value, maxLength = 180) {

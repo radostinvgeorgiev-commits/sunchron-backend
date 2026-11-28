@@ -16,7 +16,7 @@ test("Facebook and Microsoft stay off until switched on", () => {
   assert.deepEqual(providerSignInStatus(env), { facebook: true, microsoft: true });
   assert.equal(isProviderSignInEnabled("facebook", { ...env, USER_REGISTRATION_MODE: "invite" }), false);
   assert.throws(() => isProviderSignInEnabled("evil", env), { code: "AUTH_PROVIDER_UNKNOWN" });
-  assert.equal(providerCallbackUri("facebook", {}), "https://cloudaicore.com/api/auth/facebook/callback");
+  assert.equal(providerCallbackUri("facebook", {}), "https://novariumai.com/api/auth/facebook/callback");
 });
 
 function client(overrides = {}) {
@@ -48,7 +48,7 @@ test("start asks Identity Platform for the provider address and keeps its sessio
   const { url, cookie } = await startProviderSignIn("facebook", { env, client: c });
   assert.equal(url, "https://www.facebook.com/dialog/oauth?x=1");
   assert.equal(c.calls.create.providerId, "facebook.com");
-  assert.equal(c.calls.create.continueUri, "https://cloudaicore.com/api/auth/facebook/callback");
+  assert.equal(c.calls.create.continueUri, "https://novariumai.com/api/auth/facebook/callback");
   assert.match(cookie, /^synchron_facebook_signin_session=sess%2F1%2B2; Path=\/api\/auth\/facebook; HttpOnly; Secure; SameSite=Lax; Max-Age=600$/u);
 });
 
@@ -64,7 +64,7 @@ test("callback signs in with the full callback address and the session from the 
     },
     { env, client: c, approveAccess: async (_u, opts) => (approved = opts) },
   );
-  assert.equal(c.calls.signIn.requestUri, "https://cloudaicore.com/api/auth/microsoft/callback?code=abc&state=s");
+  assert.equal(c.calls.signIn.requestUri, "https://novariumai.com/api/auth/microsoft/callback?code=abc&state=s");
   assert.equal(c.calls.signIn.sessionId, "sess/1+2");
   assert.equal(approved.createOnly, true);
   assert.equal(result.created, true);

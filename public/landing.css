@@ -1048,3 +1048,390 @@
     animation: none !important;
   }
 }
+
+/* ── One screen: the hero in space, everything else in side panels ── */
+.auth-gate.landing {
+  height: 100dvh;
+  overflow: hidden auto;
+}
+
+.landing-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+}
+
+.landing-hero {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: clamp(8px, 3vh, 40px) 0;
+}
+
+.landing-hero h1 {
+  font-size: clamp(2.4rem, min(6.4vw, 9vh), 5.2rem);
+}
+
+.landing-lead {
+  margin: clamp(10px, 2.4vh, 24px) 0 clamp(14px, 3vh, 30px);
+}
+
+/* Planets in the sky */
+.landing-planet {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.landing-planet-far {
+  top: 9%;
+  left: 6%;
+  width: clamp(40px, 6vw, 86px);
+  aspect-ratio: 1;
+  background: radial-gradient(circle at 32% 30%, #ffd6fb, #ff3df2 45%, #3a0d52 100%);
+  box-shadow: 0 0 40px rgba(255, 61, 242, 0.35);
+  opacity: 0.75;
+  animation: landing-float 18s ease-in-out infinite;
+}
+
+.landing-planet-small {
+  right: 38%;
+  bottom: 12%;
+  width: clamp(18px, 2.4vw, 34px);
+  aspect-ratio: 1;
+  background: radial-gradient(circle at 30% 30%, #e6fdff, #00f0ff 50%, #04304a 100%);
+  box-shadow: 0 0 24px rgba(0, 240, 255, 0.4);
+  opacity: 0.8;
+  animation: landing-float 13s ease-in-out infinite reverse;
+}
+
+.landing-comet {
+  position: absolute;
+  top: 16%;
+  right: -10%;
+  width: 160px;
+  height: 2px;
+  background: linear-gradient(90deg, #fff, rgba(0, 240, 255, 0.6), transparent);
+  border-radius: 2px;
+  transform: rotate(-18deg);
+  opacity: 0;
+  animation: landing-comet 11s ease-in 3s infinite;
+}
+
+@keyframes landing-float {
+  50% {
+    transform: translateY(-14px);
+  }
+}
+
+@keyframes landing-comet {
+  0% {
+    opacity: 0;
+    translate: 0 0;
+  }
+  4% {
+    opacity: 1;
+  }
+  14% {
+    opacity: 0;
+    translate: -120vw 38vh;
+  }
+  100% {
+    opacity: 0;
+    translate: -120vw 38vh;
+  }
+}
+
+/* The big world: a planet with a ring and two moons */
+.landing-world {
+  position: relative;
+  width: min(100%, 440px, 52vh);
+  aspect-ratio: 1;
+}
+
+.landing-world-planet {
+  position: absolute;
+  inset: 22%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.85), transparent 18%),
+    radial-gradient(circle at 35% 35%, #7ff8ff, #7b5cff 48%, #2a0f6b 78%, #0b0628 100%);
+  box-shadow:
+    0 0 60px rgba(123, 92, 255, 0.55),
+    0 0 140px rgba(0, 240, 255, 0.25),
+    inset -18px -22px 40px rgba(5, 6, 15, 0.65);
+}
+
+.landing-world-planet::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-linear-gradient(
+    -18deg,
+    transparent 0 14px,
+    rgba(255, 61, 242, 0.12) 14px 20px
+  );
+  mix-blend-mode: screen;
+}
+
+.landing-world-ring {
+  position: absolute;
+  inset: 40% 2%;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  background: linear-gradient(90deg, #00f0ff, #7b5cff 50%, #ff3df2) border-box;
+  -webkit-mask:
+    linear-gradient(#000 0 0) padding-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  transform: rotate(-14deg);
+  filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.6));
+  clip-path: polygon(0 0, 100% 0, 100% 52%, 0 52%, 0 100%, 100% 100%, 100% 100%, 0 100%);
+}
+
+.landing-world-orbit {
+  position: absolute;
+  inset: 6%;
+  border: 1px dashed rgba(123, 92, 255, 0.35);
+  border-radius: 50%;
+  animation: landing-spin 26s linear infinite;
+}
+
+.landing-world-orbit-2 {
+  inset: 14%;
+  animation-duration: 17s;
+  animation-direction: reverse;
+  border-color: rgba(0, 240, 255, 0.22);
+}
+
+.landing-moon {
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff, #00f0ff 60%);
+  box-shadow: 0 0 16px #00f0ff;
+}
+
+.landing-moon-pink {
+  width: 10px;
+  height: 10px;
+  top: -5px;
+  background: radial-gradient(circle at 35% 35%, #fff, #ff3df2 60%);
+  box-shadow: 0 0 14px #ff3df2;
+}
+
+@keyframes landing-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The dock: small glowing buttons that open the side panels */
+.landing-dock {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: clamp(14px, 3vh, 28px);
+}
+
+.landing-shell .landing-dock a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--nv-line);
+  border-radius: 999px;
+  background: rgba(16, 17, 48, 0.6);
+  color: var(--nv-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  backdrop-filter: blur(8px);
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+.landing-shell .landing-dock a i {
+  color: var(--nv-cyan);
+}
+
+.landing-shell .landing-dock a:hover {
+  border-color: var(--nv-cyan);
+  box-shadow: 0 0 18px rgba(0, 240, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Side panels: every section slides in from the right when its link is
+   followed, over a dimmed page, and closes with ✕ or a click outside. */
+.landing-panels .landing-section {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  width: min(640px, 100vw);
+  margin: 0;
+  padding: clamp(56px, 8vh, 72px) clamp(20px, 4vw, 40px) 40px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 0;
+  border-left: 1px solid var(--nv-line);
+  background:
+    radial-gradient(ellipse 80% 40% at 100% 0%, rgba(123, 92, 255, 0.22), transparent 70%),
+    #0a0b24;
+  box-shadow: -30px 0 80px rgba(0, 0, 0, 0.55);
+  transform: translateX(105%);
+  visibility: hidden;
+  transition:
+    transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1),
+    visibility 0s linear 0.35s;
+}
+
+.landing-panels .landing-section.is-open {
+  transform: none;
+  visibility: visible;
+  transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.landing-panels .landing-section > h2,
+.landing-panels .landing-trust h2 {
+  font-size: clamp(1.7rem, 3.4vw, 2.4rem);
+}
+
+.landing-panels :is(.landing-demo-grid, .landing-features, .landing-specialists, .landing-prices) {
+  grid-template-columns: 1fr;
+}
+
+.landing-panels::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  background: rgba(3, 4, 12, 0.6);
+  backdrop-filter: blur(3px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.landing-panels:has(.landing-section.is-open)::before {
+  opacity: 1;
+}
+
+.landing-shell .landing-panel-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--nv-line);
+  border-radius: 50%;
+  color: var(--nv-text);
+  background: rgba(16, 17, 48, 0.8);
+  text-decoration: none;
+}
+
+.landing-shell .landing-panel-close:hover {
+  border-color: var(--nv-cyan);
+  color: var(--nv-cyan);
+}
+
+.landing-footer {
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding-top: 10px;
+  padding-bottom: 0;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 760px) {
+  .landing-hero {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4px 0;
+  }
+  .landing-hero h1 {
+    font-size: clamp(2.2rem, 11vw, 3rem);
+  }
+  .landing-world {
+    position: absolute;
+    top: 0;
+    right: -14px;
+    z-index: 0;
+    width: min(42vw, 22vh);
+    opacity: 0.85;
+  }
+  .landing-hero-copy {
+    position: relative;
+    z-index: 1;
+  }
+  .landing-lead {
+    font-size: 0.98rem;
+  }
+  .landing-cta-row .landing-ghost {
+    display: none;
+  }
+  .landing-dock {
+    gap: 6px;
+  }
+  .landing-shell .landing-dock a {
+    padding: 6px 11px;
+    font-size: 0.82rem;
+  }
+  .landing-footer {
+    gap: 4px 10px;
+    font-size: 0.72rem;
+  }
+  .landing-panels .landing-section {
+    width: 100vw;
+    border-left: 0;
+  }
+}
+
+@media (max-height: 700px) and (max-width: 760px) {
+  .landing-world {
+    display: none;
+  }
+  .landing-kicker {
+    margin-bottom: 6px;
+  }
+  .landing-hero h1 {
+    font-size: 2.1rem;
+  }
+  .landing-lead {
+    margin: 8px 0 12px;
+    font-size: 0.9rem;
+  }
+  .landing-note {
+    margin-top: 8px;
+    font-size: 0.8rem;
+  }
+  .landing-dock {
+    margin-top: 10px;
+  }
+  .landing-shell .landing-dock a {
+    padding: 5px 9px;
+    font-size: 0.76rem;
+  }
+  .landing-footer .landing-language-footer {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-planet,
+  .landing-comet,
+  .landing-world-orbit {
+    animation: none;
+  }
+  .landing-panels .landing-section {
+    transition: none;
+  }
+}

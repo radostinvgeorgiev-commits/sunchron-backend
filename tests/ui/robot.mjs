@@ -297,6 +297,24 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media)
     await panel.locator(".share-close").click();
     await pickNone();
   });
+  await step(`${label}: странични менюта в ъглите, език и „Изход“ вътре`, async () => {
+    const phoneView = await page.locator("#rightRailBtn").isVisible();
+    if (phoneView) await page.click("#rightRailBtn");
+    else await page.click("#rightRailToggle");
+    await page.waitForTimeout(400);
+    expect(await page.locator("#rightRail .nv-rail-logout").isVisible(), "няма „Изход“");
+    expect(await page.locator("#rightRail .language-select").isVisible(), "няма смяна на езика");
+    if (phoneView) await page.mouse.click(20, 400);
+    else {
+      await page.click("#rightRailToggle");
+      await page.click("#sidebarRailBtn");
+      await page.waitForTimeout(400);
+      const width = await page.locator("#sidebar").evaluate((element) => element.getBoundingClientRect().width);
+      expect(width < 90, `лявото меню не се сви (${width}px)`);
+      await page.click("#sidebarRailBtn");
+    }
+    await page.waitForTimeout(400);
+  });
   await step(`${label}: кодът в отговора се чете`, async () => {
     await send("Покажи команда за инсталиране");
     const pre = last().locator("pre");
@@ -1288,15 +1306,22 @@ async function publicChecks(origin) {
     expect((await page.textContent(".landing-kicker")).includes("Твоят AI. Твоят свят."), "няма слогана");
     expect(!errors.length, errors[0]);
   });
-  await step("Жив сайт: демото „Как помни“ отговаря без вход", async () => {
+  await step("Жив сайт: демото „Как помни“ се плъзга отстрани и отговаря без вход", async () => {
+    await page.click('.landing-dock a[href="#how"]');
+    await page.locator("#how.is-open").waitFor({ timeout: 5000 });
+    await page.waitForTimeout(400);
     await page.click('[data-demo="1"]');
     expect((await page.textContent("[data-demo-output]")).includes("без захар"), "демото не отговори");
   });
   await step("Жив сайт: безплатната проверка на глава е видима без вход", async () => {
-    await page.locator("#free-check").scrollIntoViewIfNeeded();
+    await page.click('.landing-dock a[href="#free-check"]');
+    await page.locator("#free-check.is-open").waitFor({ timeout: 5000 });
+    await page.waitForTimeout(400);
     expect(await page.locator('[data-free-check] textarea[name="facts"]').isVisible(), "няма поле за фактите");
     expect(await page.locator('[data-free-check] textarea[name="text"]').isVisible(), "няма поле за главата");
     expect(await page.locator('[data-free-check] button[type="submit"]').isVisible(), "няма бутон за проверка");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(400);
   });
   await step("Жив сайт: „Започни безплатно“ отваря входа в прозорче", async () => {
     await openSignIn(page);

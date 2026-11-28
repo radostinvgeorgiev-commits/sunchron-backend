@@ -63,6 +63,29 @@
     setTimeout(whenShown, 1500);
   }
 
+  // Side panels open from their links (#how, #prices…). A click outside the
+  // open panel or Escape closes it.
+  const closePanel = () => {
+    if (!document.querySelector(".landing-panels .landing-section.is-open")) return;
+    history.pushState("", document.title, window.location.pathname + window.location.search);
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    document.querySelectorAll(".landing-panels .landing-section").forEach((panel) => panel.classList.remove("is-open"));
+  };
+  const syncPanel = () => {
+    const id = decodeURIComponent(window.location.hash.slice(1));
+    document.querySelectorAll(".landing-panels .landing-section").forEach((panel) => panel.classList.toggle("is-open", Boolean(id) && panel.id === id));
+  };
+  window.addEventListener("hashchange", syncPanel);
+  syncPanel();
+  document.addEventListener("click", (event) => {
+    const open = document.querySelector(".landing-panels .landing-section.is-open");
+    if (!open || dialog.open || open.contains(event.target) || event.target.closest("a[href^='#'], [data-open-auth]")) return;
+    closePanel();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !dialog.open) closePanel();
+  });
+
   // The demo: three requests, three answers from the approved memory.
   const options = [...document.querySelectorAll("[data-demo]")];
   const answers = [...document.querySelectorAll("[data-demo-answer]")];

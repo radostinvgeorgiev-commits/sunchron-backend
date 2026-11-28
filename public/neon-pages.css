@@ -1,0 +1,148 @@
+/* The neon night on every page outside the app: help, plans, developers,
+   legal pages, status, a shared conversation and the avatar page.
+   Loaded last on each page, so it wins over the older light styles. */
+:root {
+  color-scheme: dark;
+  --nv-night: #05060f;
+  --nv-deep: #0a0b24;
+  --nv-card: rgba(17, 18, 58, 0.78);
+  --nv-field: #0d0e30;
+  --nv-cyan: #00f0ff;
+  --nv-violet: #7b5cff;
+  --nv-pink: #ff3df2;
+  --nv-text: #eef0ff;
+  --nv-muted: #b4b7e0;
+  --nv-line: rgba(123, 92, 255, 0.3);
+}
+
+html,
+body {
+  background:
+    radial-gradient(ellipse 60% 40% at 85% 0%, rgba(123, 92, 255, 0.22), transparent 70%),
+    radial-gradient(ellipse 45% 35% at 0% 100%, rgba(0, 240, 255, 0.1), transparent 70%),
+    var(--nv-night) !important;
+  background-attachment: fixed !important;
+  color: var(--nv-text) !important;
+}
+
+body :is(main, header, footer, nav, .shared-main, .plans-shell) {
+  background-color: transparent !important;
+  border-color: var(--nv-line) !important;
+}
+
+body :is(h1, h2, h3, h4, h5, p, li, td, th, dd, dt, label, small, summary, figcaption, blockquote, caption, legend) {
+  color: inherit !important;
+}
+
+body :is(p, li, td, dd, small, figcaption) {
+  color: var(--nv-muted) !important;
+}
+
+body :is(h1, h2, h3, h4, strong, b, dt, th) {
+  color: var(--nv-text) !important;
+}
+
+body
+  :is(
+    section,
+    article,
+    aside,
+    details,
+    table,
+    .plan,
+    .usage-panel,
+    .product-section,
+    .request-panel,
+    [class*="card"],
+    [class*="panel"],
+    .shared-header,
+    .shared-message,
+    ul.status-list > li,
+    li.ok,
+    li.bad
+  ) {
+  background-color: var(--nv-card) !important;
+  background-image: none !important;
+  border-color: var(--nv-line) !important;
+  color: var(--nv-text) !important;
+  box-shadow: none !important;
+}
+
+body section section,
+body article section,
+body section article {
+  background-color: rgba(123, 92, 255, 0.08) !important;
+}
+
+body :is(th, td, tr, hr) {
+  border-color: var(--nv-line) !important;
+}
+
+body thead,
+body th {
+  background: rgba(123, 92, 255, 0.14) !important;
+}
+
+body a {
+  color: var(--nv-cyan) !important;
+  text-decoration-color: rgba(0, 240, 255, 0.45) !important;
+}
+
+body a:hover {
+  color: #8ffbff !important;
+}
+
+body :is(input, select, textarea) {
+  background: var(--nv-field) !important;
+  color: var(--nv-text) !important;
+  border: 1px solid var(--nv-line) !important;
+}
+
+body :is(input, select, textarea):focus {
+  border-color: rgba(0, 240, 255, 0.65) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.14) !important;
+}
+
+body :is(button, .button, [role="button"]) {
+  background: rgba(17, 18, 58, 0.9) !important;
+  color: var(--nv-text) !important;
+  border: 1px solid var(--nv-line) !important;
+}
+
+body :is(button[type="submit"], .primary, .button-primary, button.primary) {
+  background: linear-gradient(95deg, var(--nv-cyan), var(--nv-violet) 55%, var(--nv-pink)) !important;
+  color: #05060f !important;
+  border: 0 !important;
+}
+
+body code,
+body pre {
+  background: #0d0e30 !important;
+  color: #c9f9ff !important;
+  border-color: var(--nv-line) !important;
+}
+
+body [class*="badge"],
+body .shared-badge {
+  background: rgba(0, 240, 255, 0.1) !important;
+  color: var(--nv-cyan) !important;
+  border: 1px solid rgba(0, 240, 255, 0.35) !important;
+}
+
+/* The status words keep their meaning: green works, red does not. */
+body li.ok :is(strong, span, b):last-child {
+  color: #4dffb5 !important;
+}
+
+body li.bad :is(strong, span, b):last-child {
+  color: #ff6b8b !important;
+}
+
+body ::selection {
+  background: rgba(123, 92, 255, 0.45);
+}
+
+body footer {
+  color: var(--nv-muted) !important;
+}

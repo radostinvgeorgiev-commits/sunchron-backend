@@ -126,3 +126,20 @@ test("the free chapter check works without sign-in and shows each clash side by 
   assert.match(result.textContent, /Главата: „кафявите си очи“/u);
   dom.window.close();
 });
+
+test("the start page fits one screen: the rest opens in side panels, and every page is dark", async () => {
+  for (const id of ["how", "features", "specialists", "free-check", "trust", "prices", "faq"]) {
+    assert.match(html, new RegExp(`class="landing-dock"[\\s\\S]*href="#${id}"`, "u"), id);
+  }
+  assert.match(css, /\.landing-panels \.landing-section\.is-open/u);
+  assert.match(css, /\.landing-world-planet/u);
+  assert.match(script, /classList\.toggle\("is-open"/u);
+  for (const page of ["help", "plans", "developers", "privacy", "terms", "cookies", "transparency", "status", "avatar", "shared"]) {
+    assert.match(await read(`${page}.html`), /href="\/neon-pages\.css\?v=/u, page);
+  }
+  // Inside: a button in each top corner, language and exit in the right rail.
+  assert.match(html, /id="sidebarRailBtn"/u);
+  assert.match(html, /id="rightRail"[\s\S]{0,600}data-language-switch/u);
+  assert.match(html, /data-rail-for="sidebarLogoutBtn"/u);
+  assert.match(await read("app-neon.css"), /@keyframes nv-pulse/u);
+});

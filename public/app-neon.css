@@ -641,3 +641,468 @@ body:has(#appShell:not([hidden])) .share-dialog .share-card .book-export a {
   border-color: rgba(0, 240, 255, 0.45) !important;
   color: var(--nv-cyan) !important;
 }
+
+/* Last light spots inside the app: the spend circle's panel, window
+   headers, memory cards, the profile menu, "Моят ден" buttons, Google
+   permissions and the model button on a phone. */
+body:has(#appShell:not([hidden])) .ai-spend-panel,
+body:has(#appShell:not([hidden])) .profile-actions,
+body:has(#appShell:not([hidden])) .data-drawer-header,
+body:has(#appShell:not([hidden])) .memory-policy-card,
+body:has(#appShell:not([hidden])) .permission-default {
+  background: var(--nv-card) !important;
+  color: var(--nv-text) !important;
+  border-color: var(--nv-line) !important;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45) !important;
+}
+
+body:has(#appShell:not([hidden])) :is(.ai-spend-panel, .memory-policy-card, .permission-default) :is(p, li, small, span) {
+  color: var(--nv-muted) !important;
+}
+
+body:has(#appShell:not([hidden])) :is(.ai-spend-panel, .memory-policy-card, .permission-default, .data-drawer-header) :is(strong, h2, h3, label) {
+  color: var(--nv-text) !important;
+}
+
+body:has(#appShell:not([hidden])) .ai-spend-track {
+  stroke: rgba(123, 92, 255, 0.3);
+}
+
+body:has(#appShell:not([hidden])) .ai-spend-fill {
+  stroke: var(--nv-cyan);
+}
+
+body:has(#appShell:not([hidden])) .ai-spend-percent {
+  color: var(--nv-text);
+}
+
+body:has(#appShell:not([hidden])) .profile-actions button {
+  color: var(--nv-text) !important;
+  background: transparent !important;
+}
+
+body:has(#appShell:not([hidden])) .profile-actions button:hover {
+  background: rgba(123, 92, 255, 0.18) !important;
+}
+
+body:has(#appShell:not([hidden])) .morning-toggle,
+body:has(#appShell:not([hidden])) .daily-plan button:not(.primary) {
+  background: rgba(17, 18, 58, 0.85) !important;
+  color: var(--nv-text) !important;
+  border: 1px solid var(--nv-line) !important;
+}
+
+body:has(#appShell:not([hidden])) .morning-toggle[aria-pressed="true"] {
+  background: linear-gradient(95deg, var(--nv-cyan), var(--nv-violet)) !important;
+  color: #05060f !important;
+}
+
+body:has(#appShell:not([hidden])) .model-picker-btn {
+  background: rgba(17, 18, 58, 0.85) !important;
+  color: var(--nv-text) !important;
+  border: 1px solid var(--nv-line) !important;
+}
+
+/* ── Side rails: a button in each top corner opens or folds a menu.
+      Folded, a menu is a slim row of icons. ── */
+body:has(#appShell:not([hidden])) .app-shell {
+  grid-template-columns: var(--nv-left, 260px) minmax(0, 1fr) var(--nv-right, 58px) !important;
+  transition: grid-template-columns 0.28s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.app-shell.nv-left-folded {
+  --nv-left: 68px;
+}
+
+.app-shell.nv-right-open {
+  --nv-right: 232px;
+}
+
+.nv-rail-toggle {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 34px !important;
+  height: 34px;
+  margin-left: auto;
+  padding: 0 !important;
+  border: 1px solid var(--nv-line, rgba(123, 92, 255, 0.32)) !important;
+  border-radius: 10px;
+  color: var(--nv-cyan, #00f0ff) !important;
+  background: rgba(17, 18, 58, 0.7) !important;
+  cursor: pointer;
+  transition: transform 0.25s, box-shadow 0.25s;
+}
+
+.nv-rail-toggle:hover {
+  box-shadow: 0 0 14px rgba(0, 240, 255, 0.35);
+}
+
+.nv-left-folded .sidebar-brand .nv-rail-toggle,
+.nv-right-open .nv-rail-right .nv-rail-toggle {
+  transform: rotate(180deg);
+}
+
+/* The left menu folded to icons */
+.app-shell.nv-left-folded .sidebar {
+  padding-inline: 8px;
+  overflow-x: hidden;
+}
+
+.app-shell.nv-left-folded .sidebar :is(button, a, summary) > span:not(.profile-avatar),
+.app-shell.nv-left-folded .sidebar :is(button, a, summary) > small,
+.app-shell.nv-left-folded .sidebar-brand > span:not(.brand-icon),
+.app-shell.nv-left-folded .sidebar .sidebar-section,
+.app-shell.nv-left-folded .sidebar .mine-title,
+.app-shell.nv-left-folded .sidebar .profile-button > span:not(.profile-avatar),
+.app-shell.nv-left-folded .sidebar .profile-button > i,
+.app-shell.nv-left-folded .sidebar .profile-actions {
+  display: none !important;
+}
+
+.app-shell.nv-left-folded .sidebar-brand {
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.app-shell.nv-left-folded .sidebar-brand .nv-rail-toggle {
+  margin: 0;
+}
+
+.app-shell.nv-left-folded .sidebar :is(button, a, summary) {
+  justify-content: center !important;
+  padding-inline: 0 !important;
+  font-size: 0 !important;
+  gap: 0 !important;
+}
+
+.app-shell.nv-left-folded .sidebar :is(button, a, summary) i {
+  font-size: 17px !important;
+  margin: 0 !important;
+}
+
+.app-shell.nv-left-folded .sidebar .profile-button {
+  display: flex;
+  justify-content: center;
+}
+
+/* The right rail: language, settings, data, memory, inbox, plans, help, exit */
+.nv-rail-right {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 10px;
+  overflow: hidden auto;
+  border-left: 1px solid var(--nv-line, rgba(123, 92, 255, 0.32));
+  background: linear-gradient(180deg, #0a0b24, #05060f);
+  color: var(--nv-text, #eef0ff);
+}
+
+.nv-rail-right .nv-rail-toggle {
+  margin: 0 0 6px;
+  align-self: flex-end;
+}
+
+.nv-rail-right > :is(button, a) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: var(--nv-text, #eef0ff) !important;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.nv-rail-right > :is(button, a) i,
+.nv-rail-language > i {
+  flex: 0 0 18px;
+  color: var(--nv-cyan, #00f0ff);
+  font-size: 17px;
+  text-align: center;
+}
+
+.nv-rail-right > :is(button, a):hover {
+  border-color: var(--nv-line, rgba(123, 92, 255, 0.32));
+  background: rgba(123, 92, 255, 0.16);
+}
+
+.nv-rail-right > .nv-rail-logout {
+  margin-top: auto;
+}
+
+.nv-rail-right > .nv-rail-logout i {
+  color: var(--nv-pink, #ff3df2);
+}
+
+.nv-rail-language {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 0 10px;
+}
+
+.nv-rail-language .language-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.app-shell:not(.nv-right-open) .nv-rail-right > :is(button, a):not(.nv-rail-toggle) {
+  justify-content: center;
+  padding: 0;
+}
+
+.app-shell:not(.nv-right-open) .nv-rail-right > :is(button, a) > span,
+.app-shell:not(.nv-right-open) .nv-rail-language > div {
+  display: none;
+}
+
+.app-shell:not(.nv-right-open) .nv-rail-language {
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.nv-rail-phone {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  body:has(#appShell:not([hidden])) .app-shell {
+    display: block !important;
+  }
+  .nv-rail-right {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 70;
+    width: min(78vw, 280px);
+    padding-top: max(12px, env(safe-area-inset-top));
+    box-shadow: -20px 0 60px rgba(0, 0, 0, 0.6);
+    transform: translateX(105%);
+    visibility: hidden;
+    transition:
+      transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1),
+      visibility 0s linear 0.3s;
+  }
+  .app-shell.nv-right-open .nv-rail-right {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .nv-rail-right > :is(button, a) > span,
+  .nv-rail-language > div {
+    display: initial !important;
+  }
+  .nv-rail-right > :is(button, a):not(.nv-rail-toggle),
+  .nv-rail-language {
+    justify-content: flex-start !important;
+    padding: 0 10px !important;
+  }
+  .nv-rail-right .nv-rail-toggle {
+    display: none;
+  }
+  .nv-rail-phone {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    margin-left: 4px;
+    border: 1px solid var(--nv-line, rgba(123, 92, 255, 0.32));
+    border-radius: 12px;
+    color: var(--nv-cyan, #00f0ff);
+    background: rgba(17, 18, 58, 0.7);
+  }
+  .sidebar-brand .nv-rail-toggle {
+    display: none;
+  }
+}
+
+/* Windows slide in from their side */
+@keyframes nv-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+}
+
+@keyframes nv-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+}
+
+body:has(#appShell:not([hidden])) :is(.data-drawer:not([hidden]), .statusPanel[aria-hidden="false"], .share-dialog:not([hidden]) .share-card) {
+  animation: nv-slide-right 0.32s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+body:has(#appShell:not([hidden])) .sidebar.mobile-visible {
+  animation: nv-slide-left 0.3s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* ── Neon pulse: the brand colors breathe on the main actions ── */
+@keyframes nv-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(0, 240, 255, 0.35),
+      0 0 14px rgba(0, 240, 255, 0.28);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(255, 61, 242, 0.5),
+      0 0 26px rgba(123, 92, 255, 0.55);
+  }
+}
+
+@keyframes nv-pulse-soft {
+  0%,
+  100% {
+    border-color: rgba(0, 240, 255, 0.35);
+  }
+  50% {
+    border-color: rgba(255, 61, 242, 0.55);
+  }
+}
+
+body:has(#appShell:not([hidden])) :is(#sendBtn, #newChatBtn, .chat-input-area, .brand-icon) {
+  animation: nv-pulse 3.2s ease-in-out infinite;
+}
+
+body:has(#appShell:not([hidden])) :is(.sidebar .conversation.active, .mine-group button:hover, .nv-rail-toggle) {
+  animation: nv-pulse-soft 2.6s ease-in-out infinite;
+}
+
+/* No green anywhere: picking an old chat, an option or a found word
+   lights it in our neon instead. */
+body:has(#appShell:not([hidden])) .sidebar .conversation:is(:hover, :focus-visible, .active) {
+  background: rgba(123, 92, 255, 0.2) !important;
+  color: var(--nv-text) !important;
+  border-color: rgba(0, 240, 255, 0.4) !important;
+}
+
+body:has(#appShell:not([hidden])) :is(button, a, summary, [role="menuitem"], [role="option"]):focus-visible {
+  outline: 2px solid var(--nv-cyan) !important;
+  outline-offset: 2px;
+}
+
+body:has(#appShell:not([hidden])) .conversation-match {
+  outline-color: var(--nv-pink) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:has(#appShell:not([hidden])) * {
+    animation: none !important;
+  }
+  body:has(#appShell:not([hidden])) .app-shell {
+    transition: none;
+  }
+}
+
+/* Old green accents → neon */
+body:has(#appShell:not([hidden])) {
+  --desk-accent: #7b5cff;
+  --code-accent: #7b5cff;
+  --success: #00f0ff;
+}
+
+body:has(#appShell:not([hidden]))
+  :is(
+    .next-step-confirm,
+    .memory-candidate-actions button[data-action="memory-candidate-save"],
+    .connection-revoke,
+    .inbox-approve,
+    .council-mode-button[aria-pressed="true"]
+  ) {
+  border-color: transparent !important;
+  color: #05060f !important;
+  background: linear-gradient(95deg, var(--nv-cyan), var(--nv-violet) 60%, var(--nv-pink)) !important;
+  box-shadow: 0 0 16px rgba(123, 92, 255, 0.35) !important;
+}
+
+body:has(#appShell:not([hidden]))
+  :is(
+    .next-step-confirm,
+    .memory-candidate-actions button,
+    .connection-revoke,
+    .inbox-approve,
+    .council-mode-button
+  ):hover {
+  filter: brightness(1.12);
+  background-color: rgba(123, 92, 255, 0.25) !important;
+}
+
+body:has(#appShell:not([hidden])) .work-choice-card.active {
+  border-color: var(--nv-cyan) !important;
+  box-shadow: 0 0 0 2px rgba(0, 240, 255, 0.25) !important;
+}
+
+body:has(#appShell:not([hidden])) :is(.connection-dot, #agentStatusDot.online, .status-dot.online) {
+  background: var(--nv-cyan) !important;
+  box-shadow: 0 0 10px var(--nv-cyan) !important;
+}
+
+body:has(#appShell:not([hidden])) [style*="137333"],
+body:has(#appShell:not([hidden])) :is(.success, .is-success, .saved, .ok) {
+  color: var(--nv-cyan) !important;
+}
+
+body:has(#appShell:not([hidden])) .permission-badge.allow {
+  color: var(--nv-cyan) !important;
+  background: rgba(0, 240, 255, 0.1) !important;
+}
+
+body:has(#appShell:not([hidden])) .work-center-status.internal,
+body:has(#appShell:not([hidden])) .work-center-capability-group.working .work-center-capability-heading {
+  color: var(--nv-cyan) !important;
+  background: rgba(0, 240, 255, 0.1) !important;
+}
+
+body:has(#appShell:not([hidden])) .work-center-status.external {
+  color: #ffc96b !important;
+  background: rgba(255, 201, 107, 0.1) !important;
+}
+
+body:has(#appShell:not([hidden])) .ai-spend-limit input {
+  background: var(--nv-field) !important;
+  color: var(--nv-text) !important;
+  border-color: var(--nv-line) !important;
+}
+
+.app-shell.nv-right-open {
+  --nv-right: 260px;
+}
+
+.nv-rail-right > :is(button, a) > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body:has(#appShell:not([hidden])) :is(.nv-rail-language, .profile-language) .language-select {
+  background: var(--nv-field) !important;
+  color: var(--nv-text) !important;
+  border: 1px solid var(--nv-line) !important;
+  border-radius: 10px;
+}
+
+.app-shell.nv-left-folded .sidebar .profile-avatar {
+  font-size: 13px !important;
+}
+
+body:has(#appShell:not([hidden])) .model-picker-btn * {
+  color: inherit !important;
+}

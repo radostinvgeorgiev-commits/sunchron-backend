@@ -79,17 +79,22 @@
     <link rel="stylesheet" href="/locale.css" />
     <link rel="stylesheet" href="/readability.css?v=20261125" />
     <link rel="stylesheet" href="/addons.css?v=20261127d" />
-    <link rel="stylesheet" href="/landing.css?v=20261128c" />
-    <link rel="stylesheet" href="/app-neon.css?v=20261128c" />
+    <link rel="stylesheet" href="/landing.css?v=20261128d" />
+    <link rel="stylesheet" href="/app-neon.css?v=20261128n" />
     <link rel="stylesheet" href="/book.css?v=20261128b" />
     <link rel="stylesheet" href="/ui-refresh.css?v=20261126l" />
     <script src="/locale-en.js?v=20261127-media-v2"></script>
     <script src="/locale.js"></script>
-    <script src="/landing.js?v=20261128b" defer></script>
+    <script src="/landing.js?v=20261128c" defer></script>
+    <script src="/nv-rails.js?v=20261128a" defer></script>
   </head>
   <body>
     <section class="auth-gate landing" id="authGate" aria-labelledby="publicTitle">
-      <div class="landing-sky" aria-hidden="true"></div>
+      <div class="landing-sky" aria-hidden="true">
+        <span class="landing-planet landing-planet-far"></span>
+        <span class="landing-planet landing-planet-small"></span>
+        <span class="landing-comet"></span>
+      </div>
       <div class="landing-shell">
         <header class="landing-header">
           <a class="auth-wordmark landing-wordmark" href="/" aria-label="NovariumAI — начало">
@@ -125,37 +130,27 @@
               <a class="landing-ghost" href="#how">Виж как помни</a>
             </div>
             <p class="landing-note">Безплатно за начало. Без банкова карта.</p>
+            <nav class="landing-dock" aria-label="Повече за NovariumAI">
+              <a href="#how"><i class="fa-solid fa-brain" aria-hidden="true"></i>Как помни</a>
+              <a href="#features"><i class="fa-solid fa-bolt" aria-hidden="true"></i>Какво може</a>
+              <a href="#specialists"><i class="fa-solid fa-user-astronaut" aria-hidden="true"></i>Специалисти</a>
+              <a href="#free-check"><i class="fa-solid fa-feather-pointed" aria-hidden="true"></i>Провери глава</a>
+              <a href="#trust"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i>Твоите данни</a>
+              <a href="#prices"><i class="fa-solid fa-tag" aria-hidden="true"></i>Цени</a>
+              <a href="#faq"><i class="fa-solid fa-circle-question" aria-hidden="true"></i>Въпроси</a>
+            </nav>
           </div>
-          <div class="landing-orb" aria-hidden="true">
-            <svg viewBox="0 0 400 400" focusable="false">
-              <defs>
-                <linearGradient id="landingNeon" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0" stop-color="#00F0FF" />
-                  <stop offset="0.5" stop-color="#7B5CFF" />
-                  <stop offset="1" stop-color="#FF3DF2" />
-                </linearGradient>
-                <radialGradient id="landingCore" cx="0.5" cy="0.5" r="0.5">
-                  <stop offset="0" stop-color="#FFFFFF" />
-                  <stop offset="0.4" stop-color="#BFF8FF" stop-opacity="0.85" />
-                  <stop offset="1" stop-color="#00F0FF" stop-opacity="0" />
-                </radialGradient>
-              </defs>
-              <circle class="orb-halo" cx="200" cy="185" r="150" fill="url(#landingCore)" opacity="0.18" />
-              <circle cx="200" cy="185" r="118" fill="none" stroke="url(#landingNeon)" stroke-width="5" />
-              <g class="orb-orbit">
-                <ellipse cx="200" cy="185" rx="170" ry="58" fill="none" stroke="#7B5CFF" stroke-opacity="0.55" stroke-width="2" stroke-dasharray="2 9" />
-                <circle cx="370" cy="185" r="7" fill="#00F0FF" />
-                <circle cx="30" cy="185" r="5" fill="#FF3DF2" />
-              </g>
-              <path class="orb-star" d="M200 95 L214 170 L290 185 L214 200 L200 275 L186 200 L110 185 L186 170 Z" fill="url(#landingNeon)" />
-              <circle cx="200" cy="185" r="16" fill="#FFFFFF" />
-              <path class="orb-wave" d="M60 330 Q110 305 160 330 T260 330 T360 330" fill="none" stroke="#00F0FF" stroke-width="4" stroke-linecap="round" />
-              <path class="orb-wave orb-wave-2" d="M80 356 Q130 334 180 356 T280 356 T340 356" fill="none" stroke="#7B5CFF" stroke-width="3" stroke-linecap="round" />
-            </svg>
+          <div class="landing-orb landing-world" aria-hidden="true">
+            <div class="landing-world-orbit landing-world-orbit-1"><span class="landing-moon"></span></div>
+            <div class="landing-world-orbit landing-world-orbit-2"><span class="landing-moon landing-moon-pink"></span></div>
+            <div class="landing-world-planet"></div>
+            <div class="landing-world-ring"></div>
           </div>
         </div>
 
+        <div class="landing-panels">
         <section class="landing-section landing-demo" id="how" aria-labelledby="demoTitle">
+          <a class="landing-panel-close" href="#" aria-label="Затвори"><i class="fa-solid fa-xmark" aria-hidden="true"></i></a>
           <p class="landing-kicker">Как помни</p>
           <h2 id="demoTitle">Ти казваш веднъж. Аватарът помни.</h2>
           <p class="landing-section-lead">Избери молба и виж какво прави аватарът с това, което вече знае за теб.</p>
@@ -184,7 +179,8 @@
           </div>
         </section>
 
-        <section class="landing-section" aria-labelledby="featuresTitle">
+        <section class="landing-section" id="features" aria-labelledby="featuresTitle">
+          <a class="landing-panel-close" href="#" aria-label="Затвори"><i class="fa-solid fa-xmark" aria-hidden="true"></i></a>
           <h2 id="featuresTitle" class="landing-visually-hidden">Какво предлага NovariumAI</h2>
           <div class="landing-features" aria-label="Какво предлага NovariumAI">
             <article>
@@ -206,6 +202,7 @@
         </section>
 
         <section class="landing-section" id="specialists" aria-labelledby="specialistsTitle">
+          <a class="landing-panel-close" href="#" aria-label="Затвори"><i class="fa-solid fa-xmark" aria-hidden="true"></i></a>
           <p class="landing-kicker">Специалисти</p>
           <h2 id="specialistsTitle">Един аватар. Много умения.</h2>
           <p class="landing-section-lead">Избери специалист за разговора. Паметта остава една и е твоя.</p>
@@ -220,6 +217,7 @@
         </section>
 
         <section class="landing-section landing-free-check" id="free-check" aria-labelledby="freeCheckTitle">
+          <a class="landing-panel-close" href="#" aria-label="Затвори"><i class="fa-solid fa-xmark" aria-hidden="true"></i></a>
           <p class="landing-kicker">Писател · безплатно</p>
           <h2 id="freeCheckTitle">Провери глава. Без вход.</h2>
           <p class="landing-section-lead">Напиши какво е вярно в книгата ти и постави новата глава. Ще видиш всяко място, което му противоречи, ред до ред. Нищо не се пази.</p>
@@ -245,7 +243,8 @@
           </div>
         </section>
 
-        <section class="landing-section landing-trust" aria-labelledby="trustTitle">
+        <section class="landing-section landing-trust" id="trust" aria-labelledby="trustTitle">
+          <a class="landing-panel-close" href="#" aria-label="Затвори"><i class="fa-solid fa-xmark" aria-hidden="true"></i></a>
           <div>
             <p class="landing-kicker">Твоите данни</p>
             <h2 id="trustTitle">Твоят свят остава твой.</h2>
@@ -259,6 +258,7 @@
         </section>
 
         <section class="landing-section" id="prices" aria-labelledby="pricesTitle">
+          <a class="landing-panel-close" href="#" aria-label="Затвори"><i class="fa-solid fa-xmark" aria-hidden="true"></i></a>
           <p class="landing-kicker">Цени</p>
           <h2 id="pricesTitle">Започваш безплатно. Плащаш само за повече.</h2>
           <div class="landing-prices">
@@ -281,7 +281,8 @@
           <p class="landing-note">Без абонамент и без автоматично доплащане. <a href="/plans">Всички планове</a></p>
         </section>
 
-        <section class="landing-section landing-faq" aria-labelledby="faqTitle">
+        <section class="landing-section landing-faq" id="faq" aria-labelledby="faqTitle">
+          <a class="landing-panel-close" href="#" aria-label="Затвори"><i class="fa-solid fa-xmark" aria-hidden="true"></i></a>
           <h2 id="faqTitle">Въпроси</h2>
           <details>
             <summary>Какво е NovariumAI?</summary>
@@ -304,12 +305,7 @@
             <p>След разходите и данъците 80% от печалбата отива за каузи, избрани с хората. Всичко се вижда публично.</p>
           </details>
         </section>
-
-        <section class="landing-section landing-final">
-          <h2>Твоят AI те чака.</h2>
-          <button class="landing-cta" type="button" data-open-auth="start">Започни безплатно</button>
-          <p class="landing-note">Безплатно за начало. Без банкова карта.</p>
-        </section>
+        </div>
 
         <footer class="landing-footer">
           <span>NovariumAI</span>
@@ -426,6 +422,9 @@
             <strong>NovariumAI</strong>
             <small>Личен AI аватар</small>
           </span>
+          <button id="sidebarRailBtn" class="nv-rail-toggle" type="button" aria-label="Свий менюто" title="Свий менюто" aria-expanded="true">
+            <i class="fa-solid fa-angles-left" aria-hidden="true"></i>
+          </button>
         </div>
         <button
           id="toggleStatusBtn"
@@ -641,6 +640,9 @@
               </button>
             </div>
           </details>
+          <button id="rightRailBtn" class="nv-rail-phone" type="button" aria-label="Бързи настройки" title="Бързи настройки" aria-controls="rightRail">
+            <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+          </button>
           <div class="status-indicator" aria-live="polite">
             <span id="agentStatusDot" class="offline"></span>
             <span id="agentStatusText">Свързване…</span>
@@ -807,6 +809,23 @@
           </div>
         </div>
       </section>
+
+      <aside class="nv-rail-right" id="rightRail" aria-label="Бързи настройки">
+        <button id="rightRailToggle" class="nv-rail-toggle" type="button" aria-label="Отвори бързите настройки" title="Бързи настройки" aria-expanded="false">
+          <i class="fa-solid fa-angles-left" aria-hidden="true"></i>
+        </button>
+        <div class="nv-rail-language" title="Език">
+          <i class="fa-solid fa-globe" aria-hidden="true"></i>
+          <div data-language-switch></div>
+        </div>
+        <button type="button" data-rail-for="profileStatusBtn" title="Състояние и настройки"><i class="fa-solid fa-sliders" aria-hidden="true"></i><span>Състояние и настройки</span></button>
+        <button type="button" data-rail-for="myDataBtn" title="Моите данни"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span>Моите данни</span></button>
+        <button type="button" data-rail-for="memoryBtn" title="Памет"><i class="fa-solid fa-brain" aria-hidden="true"></i><span>Памет</span></button>
+        <button type="button" data-rail-for="inboxBtn" title="Входящи"><i class="fa-solid fa-inbox" aria-hidden="true"></i><span>Входящи</span></button>
+        <a class="nv-rail-link" href="/plans" title="Планове и потребление"><i class="fa-solid fa-wallet" aria-hidden="true"></i><span>Планове</span></a>
+        <a class="nv-rail-link" href="/help" title="Помощ"><i class="fa-solid fa-circle-question" aria-hidden="true"></i><span>Помощ</span></a>
+        <button type="button" class="nv-rail-logout" data-rail-for="sidebarLogoutBtn" title="Изход"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>Изход</span></button>
+      </aside>
 
       <aside
         class="statusPanel"

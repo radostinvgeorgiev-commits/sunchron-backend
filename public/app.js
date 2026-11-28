@@ -4181,7 +4181,7 @@ function showSaveGoogleNote(turn, message, url = "", linkLabel = "") {
   }
   note.textContent = chatText(message);
   // An error may carry a "[Свържи Google](url)" link; only same-site links.
-  const linked = /\[([^\]]+)\]\((https:\/\/cloudaicore\.com\/[^)\s]*)\)/u.exec(message);
+  const linked = /\[([^\]]+)\]\((https:\/\/(?:cloudaicore|novariumai)\.com\/[^)\s]*)\)/u.exec(message);
   if (linked) {
     note.textContent = chatText(message.replace(linked[0], "").trim()) + " ";
     url = linked[2];

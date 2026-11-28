@@ -7,7 +7,7 @@ const read = (path) => readFile(new URL(`../public/${path}`, import.meta.url), "
 test("home page tells search engines and link previews it is NovariumAI", async () => {
   const html = await read("index.html");
   assert.match(html, /<title>NovariumAI[^<]*<\/title>/u);
-  assert.match(html, /property="og:image" content="https:\/\/cloudaicore\.com\/og-image\.png"/u);
+  assert.match(html, /property="og:image" content="https:\/\/novariumai\.com\/og-image\.png"/u);
   assert.match(html, /name="twitter:card" content="summary_large_image"/u);
   const ld = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/u);
   assert.ok(ld, "structured data present");
@@ -19,7 +19,7 @@ test("home page tells search engines and link previews it is NovariumAI", async 
 test("sitemap lists every public page and llms.txt describes the product", async () => {
   const sitemap = await read("sitemap.xml");
   for (const page of ["", "plans", "help", "developers", "status", "privacy", "terms"]) {
-    assert.match(sitemap, new RegExp(`<loc>https://cloudaicore\\.com/${page}</loc>`, "u"));
+    assert.match(sitemap, new RegExp(`<loc>https://novariumai\\.com/${page}</loc>`, "u"));
   }
   const llms = await read("llms.txt");
   assert.match(llms, /^# NovariumAI/u);

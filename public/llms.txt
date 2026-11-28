@@ -1,18 +1,18 @@
 # NovariumAI
 
-> NovariumAI (https://cloudaicore.com) is a personal AI avatar and workspace by SINHRON H EOOD (Bulgaria). Every person gets their own avatar with controlled memory, tasks and connections (Google, GitHub, video). The AI suggests, the person approves. Interface in Bulgarian and English. Free start without a credit card.
+> NovariumAI (https://novariumai.com) is a personal AI avatar and workspace by SINHRON H EOOD (Bulgaria). Every person gets their own avatar with controlled memory, tasks and connections (Google, GitHub, video). The AI suggests, the person approves. Interface in Bulgarian and English. Free start without a credit card.
 
 ## Main pages
 
-- [Home and sign-up](https://cloudaicore.com/): what NovariumAI does and how to start for free
-- [Plans](https://cloudaicore.com/plans): free daily chat, AI units for heavier work, no automatic extra charges
-- [Help](https://cloudaicore.com/help): how to use the avatar, memory, tasks and connections
-- [Developers](https://cloudaicore.com/developers): MCP server at https://cloudaicore.com/mcp with OAuth, for Claude and other AI clients
-- [Status](https://cloudaicore.com/status): live service status
+- [Home and sign-up](https://novariumai.com/): what NovariumAI does and how to start for free
+- [Plans](https://novariumai.com/plans): free daily chat, AI units for heavier work, no automatic extra charges
+- [Help](https://novariumai.com/help): how to use the avatar, memory, tasks and connections
+- [Developers](https://novariumai.com/developers): MCP server at https://cloudaicore.com/mcp with OAuth, for Claude and other AI clients
+- [Status](https://novariumai.com/status): live service status
 
 ## Key facts
 
 - Each user has their own avatar and data; nothing is shared between accounts.
 - Actions that change things (email, calendar, code) need the person's one-time approval.
 - Models: Claude by default, with OpenAI, Gemini and Grok as extra engines and a side-by-side comparison.
-- Privacy: https://cloudaicore.com/privacy · Terms: https://cloudaicore.com/terms
+- Privacy: https://novariumai.com/privacy · Terms: https://novariumai.com/terms

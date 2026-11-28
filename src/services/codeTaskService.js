@@ -389,7 +389,7 @@ export async function prepareCodeTask({
       workspace: isolated?.workspace,
       message: task,
       projectObjective:
-        "Реално изпълнение на безопасни задачи от cloudaicore.com",
+        "Реално изпълнение на безопасни задачи от novariumai.com",
       ...(source
         ? {
             sourceFiles: source.sourceFiles,

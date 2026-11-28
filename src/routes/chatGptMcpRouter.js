@@ -225,7 +225,7 @@ export function createChatGptMcpRouter({
               uri: params.uri,
               text: widgetHtml,
               _meta: {
-                ui: { csp: { resourceDomains: ["https://cloudaicore.com"] } },
+                ui: { csp: { resourceDomains: ["https://novariumai.com", "https://cloudaicore.com"] } },
               },
             },
           ],

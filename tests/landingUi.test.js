@@ -127,6 +127,16 @@ test("the free chapter check works without sign-in and shows each clash side by 
   dom.window.close();
 });
 
+test("the landing uses one restrained primary pulse and no pulsing dock", () => {
+  assert.match(html, /landing-cta-primary/u);
+  assert.match(css, /\.landing-cta-primary\s*\{/u);
+  assert.match(css, /@keyframes landing-primary-breathe/u);
+  assert.match(css, /\.landing-sky::before/u);
+  assert.match(css, /rgba\(0, 168, 255, 0\.26\)/u);
+  assert.doesNotMatch(css.slice(css.indexOf(".landing-shell .landing-dock a"), css.indexOf("/* Side panels")), /animation\s*:/u);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.landing-cta-primary/u);
+});
+
 test("the start page fits one screen: the rest opens in side panels, and every page is dark", async () => {
   for (const id of ["how", "features", "specialists", "free-check", "trust", "prices", "faq"]) {
     assert.match(html, new RegExp(`class="landing-dock"[\\s\\S]*href="#${id}"`, "u"), id);

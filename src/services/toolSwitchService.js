@@ -120,6 +120,13 @@ export function toolOfMcpName(name) {
   return Object.hasOwn(MCP_TOOL_IDS, name) ? MCP_TOOL_IDS[name] : null;
 }
 
+// confirm_google_action runs a step prepared by prepare_gmail_send,
+// prepare_gmail_delete or prepare_google_contact: its tool is the one of the
+// prepared action (mail.send:…, mail.delete:…, contacts.write:…).
+export function toolOfGoogleAction(action) {
+  return /^contacts\./u.test(String(action || "")) ? "google-contacts" : "gmail-read";
+}
+
 function cleanOff(value) {
   const known = new Set(registeredTools().map((tool) => tool.id));
   return [...new Set(Array.isArray(value) ? value : [])].filter(
@@ -127,44 +134,65 @@ function cleanOff(value) {
   );
 }
 
+// A write that lost a race with another press: read again and retry.
+function isWriteConflict(error) {
+  return (
+    [409, 412].includes(Number(error?.upstreamStatus)) ||
+    ["ABORTED", "ALREADY_EXISTS", "FAILED_PRECONDITION"].includes(String(error?.upstreamErrorStatus || ""))
+  );
+}
+
+const UNREADABLE = "Превключвателите на инструментите не можаха да се прочетат.";
+
 export function createToolSwitchService({ store, env = process.env, now = () => Date.now() } = {}) {
   let runtimeStore = store;
   const db = () => (runtimeStore ||= createFirestoreDocumentStore({ env }));
 
+  async function readRow(ownerId, options) {
+    const id = toolSwitchDocumentId(ownerId);
+    try {
+      return await db().get(TOOL_SWITCH_COLLECTION, id, options);
+    } catch (error) {
+      if ((error?.statusCode || error?.status) === 404) return null;
+      throw new ToolSwitchError(UNREADABLE);
+    }
+  }
+
   // The tool ids this person turned off. Read on every use, so a press on
   // one server is seen at once on every other.
   async function toolsOff(ownerId) {
-    const id = toolSwitchDocumentId(ownerId);
-    let row;
-    try {
-      row = await db().get(TOOL_SWITCH_COLLECTION, id);
-    } catch (error) {
-      if ((error?.statusCode || error?.status) === 404) return [];
-      throw new ToolSwitchError("Превключвателите на инструментите не можаха да се прочетат.");
-    }
-    return cleanOff(row?.data?.off);
+    return cleanOff((await readRow(ownerId))?.data?.off);
   }
 
   // The capabilities to leave out for this person. When the switches cannot
-  // be read, every tool that can be switched stays out for this request:
-  // a tool the person turned off is never used by mistake.
+  // be read, every tool that can be switched stays out for this request: a
+  // tool the person turned off is never used by mistake. That set is marked
+  // `unavailable`, so nobody is told that the person turned them all off.
   async function capabilitiesOff(ownerId) {
     try {
       return capabilitiesOfTools(await toolsOff(ownerId));
     } catch (error) {
       logSafeError("[Tools] switches unreadable; tools left out for this request", error);
-      return capabilitiesOfTools(registeredTools().map((tool) => tool.id).filter((id) => !ALWAYS_ON.has(id)));
+      const all = capabilitiesOfTools(registeredTools().map((tool) => tool.id).filter((id) => !ALWAYS_ON.has(id)));
+      all.unavailable = true;
+      return all;
+    }
+  }
+
+  // "on", "off", or "unavailable" when the switches cannot be read: such a
+  // tool is refused for this call, the same as one that is off.
+  async function stateOf(ownerId, toolId) {
+    if (!toolId || ALWAYS_ON.has(toolId)) return "on";
+    try {
+      return (await toolsOff(ownerId)).includes(toolId) ? "off" : "on";
+    } catch (error) {
+      logSafeError("[Tools] switches unreadable; tool refused for this call", error);
+      return "unavailable";
     }
   }
 
   async function isOff(ownerId, toolId) {
-    if (!toolId || ALWAYS_ON.has(toolId)) return false;
-    try {
-      return (await toolsOff(ownerId)).includes(toolId);
-    } catch (error) {
-      logSafeError("[Tools] switches unreadable; tool refused for this call", error);
-      return true;
-    }
+    return (await stateOf(ownerId, toolId)) !== "on";
   }
 
   // The switches this person sees in „Инструменти“.
@@ -182,21 +210,42 @@ export function createToolSwitchService({ store, env = process.env, now = () => 
     if (!switchableTools(identity).some((tool) => tool.id === toolId)) {
       throw new ToolSwitchError("Няма такъв инструмент.", 404, "TOOL_SWITCH_NOT_FOUND");
     }
-    const off = new Set(await toolsOff(ownerId));
-    if (on) off.delete(toolId);
-    else off.add(toolId);
-    try {
-      await db().set(TOOL_SWITCH_COLLECTION, toolSwitchDocumentId(ownerId), {
-        off: cleanOff([...off]),
-        updatedAt: now(),
-      });
-    } catch {
-      throw new ToolSwitchError("Промяната не беше записана. Опитай пак.");
+    const id = toolSwitchDocumentId(ownerId);
+    // Two quick presses on two cards can reach the server together. Each
+    // write names the version it read; the one that lost reads again, so no
+    // press is lost.
+    for (let attempt = 0; ; attempt += 1) {
+      const row = await readRow(ownerId, { includeMetadata: true });
+      const off = new Set(cleanOff(row?.data?.off));
+      if (on) off.delete(toolId);
+      else off.add(toolId);
+      try {
+        await db().set(
+          TOOL_SWITCH_COLLECTION,
+          id,
+          { off: cleanOff([...off]), updatedAt: now() },
+          row?.updateTime ? { updateTime: row.updateTime } : { createOnly: true },
+        );
+        break;
+      } catch (error) {
+        if (attempt < 4 && isWriteConflict(error)) continue;
+        throw new ToolSwitchError("Промяната не беше записана. Опитай пак.");
+      }
     }
     return list(ownerId, identity);
   }
 
-  return Object.freeze({ toolsOff, capabilitiesOff, isOff, list, set });
+  // The person's switches go with their account (accountDataService.js).
+  async function forget(ownerId) {
+    try {
+      await db().delete(TOOL_SWITCH_COLLECTION, toolSwitchDocumentId(ownerId));
+    } catch (error) {
+      if ((error?.statusCode || error?.status) === 404) return;
+      throw error;
+    }
+  }
+
+  return Object.freeze({ toolsOff, capabilitiesOff, stateOf, isOff, list, set, forget });
 }
 
 let defaultService = null;

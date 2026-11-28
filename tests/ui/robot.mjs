@@ -80,42 +80,47 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media,
   await step(`${label}: историята показва последните 5 разговора, другите са в „Още разговори“`, async () => {
     await page.evaluate(() => fetch("/__robot/many-chats?on=1"));
     await page.reload();
-    await page.locator("#conversationList .conversation-more").waitFor({ state: "attached", timeout: 10000 });
-    const shown = await page.locator("#conversationList > .conversation").allTextContents();
-    expect(shown.join("|") === "Разговор 1|Разговор 2|Разговор 3|Разговор 4|Разговор 5", `видими са други: ${shown}`);
-    const more = page.locator("#conversationList .conversation-more");
-    expect((await more.textContent()).includes("Още разговори (7)"), `бутонът е: ${await more.textContent()}`);
-    expect(await page.locator("#olderConversations").isHidden(), "старите разговори не са скрити");
-    const phone = await page.locator("#mobileMenuBtn").isVisible();
-    if (phone) {
-      await page.click("#mobileMenuBtn");
-      await page.waitForTimeout(300);
+    // The side menu is closed and the 12 chats are gone even when a check
+    // below fails, so the next steps can still click.
+    try {
+      await page.locator("#conversationList .conversation-more").waitFor({ state: "attached", timeout: 10000 });
+      const shown = await page.locator("#conversationList > .conversation").allTextContents();
+      expect(shown.join("|") === "Разговор 1|Разговор 2|Разговор 3|Разговор 4|Разговор 5", `видими са други: ${shown}`);
+      const more = page.locator("#conversationList .conversation-more");
+      expect((await more.textContent()).includes("Още разговори (7)"), `бутонът е: ${await more.textContent()}`);
+      expect(await page.locator("#olderConversations").isHidden(), "старите разговори не са скрити");
+      const phone = await page.locator("#mobileMenuBtn").isVisible();
+      if (phone) {
+        await page.click("#mobileMenuBtn");
+        await page.waitForTimeout(300);
+      }
+      // The latest five and the button are in sight, not in a small box of
+      // their own that scrolls.
+      const box = await page.locator("#conversationList").evaluate((list) => {
+        const section = list.closest(".sidebar-section");
+        return { inner: section.scrollHeight - section.clientHeight, bottom: list.getBoundingClientRect().bottom, height: innerHeight };
+      });
+      expect(box.inner <= 1, `историята е в кутия, която се превърта: ${box.inner}px скрити`);
+      expect(box.bottom <= box.height, `бутонът „Още разговори“ е под екрана: ${Math.round(box.bottom)} > ${box.height}`);
+      await more.click();
+      await page.locator("#olderConversations").waitFor({ state: "visible", timeout: 5000 });
+      expect((await page.locator("#olderConversations .conversation").count()) === 7, "падащото меню няма 7 разговора");
+      expect((await more.getAttribute("aria-expanded")) === "true", "бутонът не казва, че е отворен");
+      const height = await page.locator("#olderConversations").evaluate((menu) => menu.getBoundingClientRect().height);
+      expect(height <= (await page.evaluate(() => innerHeight)) * 0.41, `менюто е твърде високо: ${height}`);
+      await more.click();
+      expect(await page.locator("#olderConversations").isHidden(), "менюто не се затвори");
+      // A search finds an older chat too.
+      await page.click("#searchChatsBtn");
+      await page.fill("#conversationSearch", "Разговор 12");
+      expect((await page.locator("#conversationList .conversation").allTextContents()).join("|") === "Разговор 12", "търсенето не намира стар разговор");
+      await page.fill("#conversationSearch", "");
+    } finally {
+      await page.keyboard.press("Escape").catch(() => {});
+      await page.evaluate(() => fetch("/__robot/many-chats?on=0")).catch(() => {});
+      await page.reload().catch(() => {});
+      await page.waitForTimeout(1200);
     }
-    // The latest five and the button are in sight, not in a small box of
-    // their own that scrolls.
-    const box = await page.locator("#conversationList").evaluate((list) => {
-      const section = list.closest(".sidebar-section");
-      return { inner: section.scrollHeight - section.clientHeight, bottom: list.getBoundingClientRect().bottom, height: innerHeight };
-    });
-    expect(box.inner <= 1, `историята е в кутия, която се превърта: ${box.inner}px скрити`);
-    expect(box.bottom <= box.height, `бутонът „Още разговори“ е под екрана: ${Math.round(box.bottom)} > ${box.height}`);
-    await more.click();
-    await page.locator("#olderConversations").waitFor({ state: "visible", timeout: 5000 });
-    expect((await page.locator("#olderConversations .conversation").count()) === 7, "падащото меню няма 7 разговора");
-    expect((await more.getAttribute("aria-expanded")) === "true", "бутонът не казва, че е отворен");
-    const height = await page.locator("#olderConversations").evaluate((menu) => menu.getBoundingClientRect().height);
-    expect(height <= (await page.evaluate(() => innerHeight)) * 0.41, `менюто е твърде високо: ${height}`);
-    await more.click();
-    expect(await page.locator("#olderConversations").isHidden(), "менюто не се затвори");
-    // A search finds an older chat too.
-    await page.click("#searchChatsBtn");
-    await page.fill("#conversationSearch", "Разговор 12");
-    expect((await page.locator("#conversationList .conversation").allTextContents()).join("|") === "Разговор 12", "търсенето не намира стар разговор");
-    await page.fill("#conversationSearch", "");
-    if (phone) await page.keyboard.press("Escape");
-    await page.evaluate(() => fetch("/__robot/many-chats?on=0"));
-    await page.reload();
-    await page.waitForTimeout(1200);
   });
   await step(`${label}: избор на модел`, async () => {
     await page.click("#modelPickerBtn");
@@ -456,26 +461,37 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media,
   });
   await step(`${label}: кодът в отговора се чете`, async () => {
     await send("Покажи команда за инсталиране");
-    const pre = last().locator("pre");
-    await pre.waitFor({ timeout: 5000 });
-    const look = await pre.evaluate((element) => {
-      const rgb = (value) => value.match(/\d+(\.\d+)?/gu).slice(0, 3).map(Number);
-      const light = (value) => {
-        const [r, g, b] = rgb(value).map((part) => {
-          const x = part / 255;
-          return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
-        });
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      };
-      const code = element.querySelector("code") || element;
-      const [text, back] = [light(getComputedStyle(code).color), light(getComputedStyle(element).backgroundColor)];
-      return {
-        contrast: (Math.max(text, back) + 0.05) / (Math.min(text, back) + 0.05),
-        left: parseFloat(getComputedStyle(element).paddingLeft),
-        text: code.textContent,
-      };
-    });
-    expect(look.text.includes("npm install"), `няма кода: ${look.text}`);
+    // The answer comes in parts and the page draws it again with each part,
+    // so the code is read once the whole answer is in (the box is free
+    // again), from the page as it is at that moment.
+    const read = await page
+      .waitForFunction(
+        () => {
+          const element = [...document.querySelectorAll(".assistant-turn")].at(-1)?.querySelector("pre");
+          const code = element?.querySelector("code") || element;
+          if (!code?.isConnected || document.getElementById("chatInput").disabled) return null;
+          if (!code.textContent.includes("npm install")) return null;
+          const rgb = (value) => (value.match(/\d+(\.\d+)?/gu) || []).slice(0, 3).map(Number);
+          const light = (value) => {
+            const [r = 0, g = 0, b = 0] = rgb(value).map((part) => {
+              const x = part / 255;
+              return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+            });
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          };
+          const [text, back] = [light(getComputedStyle(code).color), light(getComputedStyle(element).backgroundColor)];
+          return {
+            contrast: (Math.max(text, back) + 0.05) / (Math.min(text, back) + 0.05),
+            left: parseFloat(getComputedStyle(element).paddingLeft),
+            text: code.textContent,
+          };
+        },
+        null,
+        { timeout: 8000 },
+      )
+      .catch(() => null);
+    const look = read ? await read.jsonValue() : null;
+    expect(look, `няма кода в целия отговор: ${(await last().innerText().catch(() => "")).slice(0, 160)}`);
     expect(look.contrast >= 4.5, `кодът не се чете, контраст ${look.contrast.toFixed(1)}`);
     expect(look.left >= 8, `няма отстъп отляво (${look.left}px), първата буква се реже`);
   });
@@ -1693,7 +1709,10 @@ async function liveSignedIn(origin) {
       await page.waitForTimeout(200);
     }
   });
-  await step("Жив сайт: на телефона кръгчетата долу са еднакви, а лимитът е долу", async () => {
+  // The test account is an ordinary person, not the owner: the spending
+  // ring is the owner's only, so here it must not be there at all (its place
+  // in the row is checked on the stub, as the owner, in composerRow).
+  await step("Жив сайт: на телефона кръгчетата долу са еднакви, без лимита на собственика", async () => {
     const look = await page.evaluate(() => {
       const size = (node) => {
         const box = node && node.offsetParent ? node.getBoundingClientRect() : null;
@@ -1703,11 +1722,17 @@ async function liveSignedIn(origin) {
         .map((selector) => [selector, size(document.querySelector(selector))])
         .filter(([, box]) => box);
       const ring = document.getElementById("aiSpendRing");
-      return { circles, ringInRow: Boolean(ring?.closest(".chat-input-area")) };
+      return {
+        circles,
+        owner: document.body.dataset.userRole === "owner",
+        ring: Boolean(ring),
+        ringInRow: Boolean(ring?.closest(".chat-input-area")),
+      };
     });
     const sizes = new Set(look.circles.map(([, box]) => box));
     expect(look.circles.length >= 5 && sizes.size === 1, `кръгчетата не са еднакви: ${JSON.stringify(look.circles)}`);
-    expect(look.ringInRow, "лимитът не е долу в реда");
+    if (look.owner) expect(look.ringInRow, "лимитът не е долу в реда");
+    else expect(!look.ring, "тестовият профил вижда лимита на собственика");
   });
   await step("Жив сайт: без грешки в страницата след вход", async () => expect(!errors.length, errors[0]));
   await page.close();
@@ -1751,8 +1776,10 @@ async function toolSwitches(origin) {
       const search = card("openai-web-search");
       expect((await search.locator(".tool-link-state.on").innerText()) === "Свързан", "търсенето не казва „Свързан“");
       expect((await search.locator(".tool-unplug-btn").innerText()) === "Разкачи", "търсенето няма „Разкачи“");
-      // YouTube that Google has not allowed yet is not „Свързан“ and has only „Разреши“.
-      await page.locator('[data-live-check="google:youtube"].confirm').waitFor({ timeout: 5000 });
+      // YouTube that Google has not allowed yet is not „Свързан“ and has only
+      // „Разреши“. The card first says „Свързан“ while its check runs; the
+      // „Разреши“ link comes only with the check's answer, so wait for it.
+      await card("youtube-channel").locator('a.tool-connect-btn[href="/api/google/connect?add=youtube"]').waitFor({ timeout: 5000 });
       expect((await card("youtube-channel").locator(".tool-link-state").innerText()) === "Не е свързан", "неразрешеният YouTube казва „Свързан“");
       expect((await card("youtube-channel").locator(".tool-unplug-btn").count()) === 0, "неразрешеният YouTube има „Разкачи“");
     });

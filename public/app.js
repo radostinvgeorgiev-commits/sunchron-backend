@@ -1478,7 +1478,7 @@ function connectionControls(
     "ChatGPT",
     chatgptDescription,
     chatgptConnected,
-    `<button type="button" class="tool-connect-btn${chatgptConnected ? " tool-unplug-btn" : ""}" data-${chatgptConnected ? "disconnect" : "connect"}-service="chatgpt" ${chatgptConfigured ? "" : "disabled"}>${chatgptConnected ? "Разкачи" : "Отвори ChatGPT"}</button>`,
+    `<button type="button" class="tool-connect-btn${chatgptConnected ? " tool-unplug-btn" : ""}" data-${chatgptConnected ? "disconnect" : "connect"}-service="chatgpt" ${chatgptConfigured ? "" : "disabled"}>${escapeHtml(chatText(chatgptConnected ? "Разкачи" : "Отвори ChatGPT"))}</button>`,
     chatgptScopes.length ? `<small>${escapeHtml(chatgptScopes.join(" · "))}</small>` : "",
   );
   const google = connectionCard(
@@ -2549,7 +2549,11 @@ async function handleDataDrawerAction(event) {
   const toolSwitch = event.target.closest("[data-tool-switch]");
   if (toolSwitch) {
     const on = toolSwitch.dataset.toolOn === "true";
-    toolSwitch.disabled = true;
+    // One press at a time: every switch waits until this one is saved and
+    // „Инструменти“ shows the new state.
+    const switches = [...document.querySelectorAll("[data-tool-switch]")];
+    const setBusy = (busy) => switches.forEach((button) => (button.disabled = busy));
+    setBusy(true);
     try {
       const response = await fetch(
         `/api/tools/switches/${encodeURIComponent(toolSwitch.dataset.toolSwitch)}`,
@@ -2567,7 +2571,7 @@ async function handleDataDrawerAction(event) {
       await openToolsDrawer();
       logAction(chatText(on ? "Свързан е {name}" : "Разкачен е {name}", { name }));
     } catch (error) {
-      toolSwitch.disabled = false;
+      setBusy(false);
       const note = document.createElement("small");
       note.className = "tool-live-reason";
       note.setAttribute("role", "alert");

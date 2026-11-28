@@ -86,11 +86,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Asked for like a browser opens a page. The health check is asked
+          # for the same way, so it shows that /health itself stays.
           moved="$(curl --silent --show-error --max-time 30 -o /dev/null -w '%{http_code} %{redirect_url}' \
-            "${OLD_ORIGIN}/plans?smoke=${GITHUB_RUN_ID}")"
+            -H 'Accept: text/html' "${OLD_ORIGIN}/plans?smoke=${GITHUB_RUN_ID}")"
           echo "old name page: ${moved}"
           test "${moved}" = "301 ${PRODUCTION_ORIGIN}/plans?smoke=${GITHUB_RUN_ID}"
-          kept="$(curl --silent --show-error --max-time 30 -o /dev/null -w '%{http_code}' "${OLD_ORIGIN}/health")"
+          kept="$(curl --silent --show-error --max-time 30 -o /dev/null -w '%{http_code}' \
+            -H 'Accept: text/html' "${OLD_ORIGIN}/health")"
           echo "old name health: ${kept}"
           test "${kept}" = "200"
 

@@ -1353,5 +1353,7 @@ Drive, Gmail, Calendar и Contacts|Drive, Gmail, Calendar and Contacts
 Моят YouTube канал|My YouTube channel
 Google Карти|Google Maps
 Модел|Model
+Claude чете и обяснява код в отделна среда, без запис.|Claude reads and explains code in a separate environment, without writing anything.
+Отвори ChatGPT|Open ChatGPT
 `.trim().split("\n").map((line) => line.split("|")),
 );

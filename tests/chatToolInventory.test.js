@@ -137,6 +137,34 @@ test("the owner on the live site, with Google and GitHub connected, has every to
   assert.equal(byId(entries, "todos").label, "Моите задачи");
 });
 
+test("a tool the person turned off is named as theirs; switches that could not be read are named as a pause", async () => {
+  const { capabilitiesOfTools } = await import("../src/services/toolSwitchService.js");
+  const off = capabilitiesOfTools(["gmail-read", "personal-todos"]);
+  const unplugged = buildToolInventory({ identity: owner, env: siteEnv, connections: ownerGoogle, capabilitiesOff: off });
+  assert.equal(byId(unplugged, "gmail").status, "unplugged");
+  assert.equal(byId(unplugged, "todos").status, "unplugged");
+  assert.equal(byId(unplugged, "calendar").status, "ready");
+  const section = toolInventorySection(unplugged);
+  assert.match(section, /Разкачени от човека \(пуска ги с „Свържи“ в „Инструменти“\): Gmail, Моите задачи/u);
+  assert.doesNotMatch(section, /Спрени само за този отговор/u);
+
+  const unreadable = new Set(off);
+  unreadable.unavailable = true;
+  const paused = buildToolInventory({ identity: owner, env: siteEnv, connections: ownerGoogle, capabilitiesOff: unreadable });
+  assert.equal(byId(paused, "gmail").status, "unavailable");
+  assert.equal(byId(paused, "todos").status, "unavailable");
+  const pausedSection = toolInventorySection(paused);
+  assert.match(pausedSection, /Спрени само за този отговор \(превключвателите в „Инструменти“ не се прочетоха; след малко пак работят\): Gmail, Моите задачи/u);
+  assert.doesNotMatch(pausedSection, /Разкачени от човека/u);
+  assert.match(
+    toolInventorySection(
+      buildToolInventory({ identity: member, env: siteEnv, connections: memberGoogle, capabilitiesOff: unreadable, language: "en" }),
+      { language: "en" },
+    ),
+    /Paused for this answer only/u,
+  );
+});
+
 test("a member after the first „Свържи Google“: calendar, contacts, sending and saving work; the rest name their own step", () => {
   const entries = buildToolInventory({ identity: member, env: siteEnv, connections: memberGoogle });
   assert.deepEqual(

@@ -402,3 +402,61 @@ test("the connector reads his mail words: the mailbox runs with Google, and a mi
     connectorDependencies({ readWords: async () => assert.fail("no tools were asked for") }),
   );
 });
+
+// „Разкачи“ in „Инструменти“ (review S6): no question about a tool the
+// person turned off; the message goes on to the model, which says so.
+test("the reader asks nothing and plans nothing for a tool the person turned off", async () => {
+  const apiKey = "stand-in";
+  const plan = (intent, message, capabilitiesOff) =>
+    readPlainWordsPlan({ message, apiKey, read: reader(intent).read, capabilitiesOff });
+  const gmailOff = new Set(["mail.read", "mail.search", "mail.draft", "mail.send", "mail.delete"]);
+
+  // With Gmail on, the address is asked; with Gmail off, nothing.
+  assert.equal((await plan(mailIntent({ recipientName: "Иван" }), "прати имейл на иван", new Set())).type, "ask");
+  assert.deepEqual(await plan(mailIntent({ recipientName: "Иван" }), "прати имейл на иван", gmailOff), { type: "none" });
+  assert.deepEqual(await plan(mailIntent({ action: "mail.read" }), "покажи ми пощата", gmailOff), { type: "none" });
+  // A reminder is a calendar write.
+  assert.deepEqual(
+    await plan(mailIntent({ action: "calendar.reminder", title: "банката" }), "напомни ми за банката", new Set(["calendar.write"])),
+    { type: "none" },
+  );
+  assert.deepEqual(await plan(mailIntent({ action: "todos.add" }), "добави задача", new Set(["todos.read", "todos.add"])), {
+    type: "none",
+  });
+  // Another tool still runs.
+  assert.equal((await plan(mailIntent({ action: "calendar.read" }), "какво имам в календара днес", gmailOff)).type, "requests");
+  // The switches could not be read: every tool is out, nothing is asked.
+  const unreadable = new Set([...gmailOff, "calendar.read", "calendar.write", "todos.read", "todos.add"]);
+  unreadable.unavailable = true;
+  assert.deepEqual(await plan(mailIntent({ action: "calendar.read" }), "какво имам в календара днес", unreadable), {
+    type: "none",
+  });
+});
+
+test("a calendar, code or GitHub step prepared before its tool was turned off is refused when confirmed", async () => {
+  const { switchedOffConfirmation } = await import("../src/routes/chat.js");
+  const { capabilitiesOfTools } = await import("../src/services/toolSwitchService.js");
+  assert.equal(switchedOffConfirmation({ calendar: true }, new Set()), null);
+  assert.equal(switchedOffConfirmation({}, capabilitiesOfTools(["google-calendar-write"])), null);
+  assert.equal(switchedOffConfirmation({ calendar: true }, capabilitiesOfTools(["gmail-read"])), null);
+
+  const calendar = switchedOffConfirmation({ calendar: true }, capabilitiesOfTools(["google-calendar-write"]));
+  assert.equal(calendar.code, "TOOL_SWITCHED_OFF");
+  assert.match(calendar.error, /разкачен в „Инструменти“.*„Свържи“/u);
+  assert.equal(switchedOffConfirmation({ codeTask: true }, capabilitiesOfTools(["github-write"])).code, "TOOL_SWITCHED_OFF");
+  assert.equal(switchedOffConfirmation({ codeTask: true }, capabilitiesOfTools(["github-confirmed-write"])), null);
+  assert.equal(
+    switchedOffConfirmation({ githubChange: true }, capabilitiesOfTools(["github-confirmed-write"])).code,
+    "TOOL_SWITCHED_OFF",
+  );
+  assert.match(
+    switchedOffConfirmation({ githubChange: true }, capabilitiesOfTools(["github-confirmed-write"]), true).error,
+    /turned off in “Tools”/u,
+  );
+
+  const unreadable = capabilitiesOfTools(["google-calendar-write"]);
+  unreadable.unavailable = true;
+  const paused = switchedOffConfirmation({ calendar: true }, unreadable);
+  assert.match(paused.error, /не се прочетоха/u);
+  assert.doesNotMatch(paused.error, /разкачен/u);
+});

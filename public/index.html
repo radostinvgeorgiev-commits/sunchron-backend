@@ -79,39 +79,228 @@
     <link rel="stylesheet" href="/locale.css" />
     <link rel="stylesheet" href="/readability.css?v=20261125" />
     <link rel="stylesheet" href="/addons.css?v=20261127d" />
+    <link rel="stylesheet" href="/landing.css?v=20261128b" />
+    <link rel="stylesheet" href="/app-neon.css?v=20261128c" />
+    <link rel="stylesheet" href="/book.css?v=20261128b" />
     <link rel="stylesheet" href="/ui-refresh.css?v=20261126l" />
     <script src="/locale-en.js?v=20261127-media-v2"></script>
     <script src="/locale.js"></script>
+    <script src="/landing.js?v=20261128a" defer></script>
   </head>
   <body>
-    <section class="auth-gate" id="authGate" aria-labelledby="publicTitle">
-      <div class="auth-shell">
-        <header class="public-header">
-          <a class="auth-wordmark" href="/" aria-label="NovariumAI — начало">
+    <section class="auth-gate landing" id="authGate" aria-labelledby="publicTitle">
+      <div class="landing-sky" aria-hidden="true"></div>
+      <div class="landing-shell">
+        <header class="landing-header">
+          <a class="auth-wordmark landing-wordmark" href="/" aria-label="NovariumAI — начало">
             <img src="/novariumai-mark.png" alt="" />
             <strong>NovariumAI</strong>
           </a>
-          <nav aria-label="Навигация на сайта">
-            <a href="/plans">Планове</a>
+          <nav class="landing-nav" aria-label="Навигация на сайта">
+            <a href="#how">Как работи</a>
+            <a href="#specialists">Специалисти</a>
+            <a href="#prices">Цени</a>
             <a href="/help">Помощ</a>
-            <a href="/developers">За разработчици</a>
           </nav>
-          <div data-language-switch></div>
+          <div class="landing-header-actions">
+            <div class="landing-language" data-language-switch></div>
+            <button class="landing-signin" type="button" data-open-auth="signin">Вход</button>
+            <button class="landing-cta landing-cta-small" type="button" data-open-auth="start">Започни безплатно</button>
+          </div>
         </header>
 
-        <div class="auth-story">
-          <p class="auth-kicker">Твоят AI. Твоят свят.</p>
-          <h1 id="publicTitle">
-            Твоето работно<br class="hero-break" /> пространство <em>с AI.</em>
-          </h1>
-          <p class="auth-lead">
-            NovariumAI ти помага да анализираш информация, да подготвяш текстове и
-            да планираш задачи. Сравнявай отговори от различни AI модели
-            и продължавай оттам, където си спрял, с паметта на проекта.
-          </p>
-          <p class="auth-stage">Безплатен чат всеки ден и 100 AI единици на месец за по-тежката работа. Без банкова карта.</p>
+        <div class="landing-hero">
+          <div class="landing-hero-copy">
+            <p class="landing-kicker">Твоят AI. Твоят свят.</p>
+            <h1 id="publicTitle">
+              <span class="landing-title-line">Много AI.</span>
+              <span class="landing-title-line">Една памет.</span>
+              <span class="landing-title-line landing-title-glow">Твоята.</span>
+            </h1>
+            <p class="landing-lead">
+              NovariumAI е твоят личен аватар. Помни хората, проектите и решенията ти, пита най-добрите AI модели вместо теб и не прави нищо без твоето „да“.
+            </p>
+            <div class="landing-cta-row">
+              <button class="landing-cta" type="button" data-open-auth="start">Започни безплатно</button>
+              <a class="landing-ghost" href="#how">Виж как помни</a>
+            </div>
+            <p class="landing-note">Безплатно за начало. Без банкова карта.</p>
+          </div>
+          <div class="landing-orb" aria-hidden="true">
+            <svg viewBox="0 0 400 400" focusable="false">
+              <defs>
+                <linearGradient id="landingNeon" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#00F0FF" />
+                  <stop offset="0.5" stop-color="#7B5CFF" />
+                  <stop offset="1" stop-color="#FF3DF2" />
+                </linearGradient>
+                <radialGradient id="landingCore" cx="0.5" cy="0.5" r="0.5">
+                  <stop offset="0" stop-color="#FFFFFF" />
+                  <stop offset="0.4" stop-color="#BFF8FF" stop-opacity="0.85" />
+                  <stop offset="1" stop-color="#00F0FF" stop-opacity="0" />
+                </radialGradient>
+              </defs>
+              <circle class="orb-halo" cx="200" cy="185" r="150" fill="url(#landingCore)" opacity="0.18" />
+              <circle cx="200" cy="185" r="118" fill="none" stroke="url(#landingNeon)" stroke-width="5" />
+              <g class="orb-orbit">
+                <ellipse cx="200" cy="185" rx="170" ry="58" fill="none" stroke="#7B5CFF" stroke-opacity="0.55" stroke-width="2" stroke-dasharray="2 9" />
+                <circle cx="370" cy="185" r="7" fill="#00F0FF" />
+                <circle cx="30" cy="185" r="5" fill="#FF3DF2" />
+              </g>
+              <path class="orb-star" d="M200 95 L214 170 L290 185 L214 200 L200 275 L186 200 L110 185 L186 170 Z" fill="url(#landingNeon)" />
+              <circle cx="200" cy="185" r="16" fill="#FFFFFF" />
+              <path class="orb-wave" d="M60 330 Q110 305 160 330 T260 330 T360 330" fill="none" stroke="#00F0FF" stroke-width="4" stroke-linecap="round" />
+              <path class="orb-wave orb-wave-2" d="M80 356 Q130 334 180 356 T280 356 T340 356" fill="none" stroke="#7B5CFF" stroke-width="3" stroke-linecap="round" />
+            </svg>
+          </div>
         </div>
 
+        <section class="landing-section landing-demo" id="how" aria-labelledby="demoTitle">
+          <p class="landing-kicker">Как помни</p>
+          <h2 id="demoTitle">Ти казваш веднъж. Аватарът помни.</h2>
+          <p class="landing-section-lead">Избери молба и виж какво прави аватарът с това, което вече знае за теб.</p>
+          <div class="landing-demo-grid">
+            <aside class="landing-memory" aria-label="Паметта на аватара">
+              <p class="landing-memory-title"><i class="fa-solid fa-brain" aria-hidden="true"></i> Паметта, одобрена от теб</p>
+              <ul>
+                <li><span>Срещи</span><strong>Не преди 10:00</strong></li>
+                <li><span>Кафе</span><strong>Без захар</strong></li>
+                <li><span>Проект „Ремонт“</span><strong>Таван 4 000 €</strong></li>
+              </ul>
+            </aside>
+            <div class="landing-demo-pick">
+              <div class="landing-demo-options" role="radiogroup" aria-label="Молба към аватара">
+                <button type="button" role="radio" aria-checked="true" data-demo="0">„Запиши ми среща с Иван утре в 8.“</button>
+                <button type="button" role="radio" aria-checked="false" data-demo="1">„Поръчай кафе за срещата.“</button>
+                <button type="button" role="radio" aria-checked="false" data-demo="2">„Колко можем да дадем за плочките?“</button>
+              </div>
+              <div class="landing-demo-answer" aria-live="polite" data-demo-output></div>
+            </div>
+          </div>
+          <div class="landing-demo-answers" hidden>
+            <div data-demo-answer><strong>Спрях.</strong><span>Помниш, че не искаш срещи преди 10:00. Да я сложа утре в 10:00? Нищо не записвам без твоето „да“.</span></div>
+            <div data-demo-answer><strong>Готово за одобрение.</strong><span>Кафе без захар за теб, както винаги. Изпращам поръчката чак след твоето „да“.</span></div>
+            <div data-demo-answer><strong>От паметта на проекта.</strong><span>Таванът за ремонта е 4 000 €. Ще ти покажа колко остава след плочките, преди да решиш.</span></div>
+          </div>
+        </section>
+
+        <section class="landing-section" aria-labelledby="featuresTitle">
+          <h2 id="featuresTitle" class="landing-visually-hidden">Какво предлага NovariumAI</h2>
+          <div class="landing-features" aria-label="Какво предлага NovariumAI">
+            <article>
+              <i class="fa-solid fa-brain" aria-hidden="true"></i>
+              <h3>Помни като човек</h3>
+              <p>Хора, проекти, решения и навици. Ти виждаш и поправяш всичко, което помни.</p>
+            </article>
+            <article>
+              <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+              <h3>Много модели, един отговор</h3>
+              <p>Пита няколко AI модела наведнъж и ти показва най-добрия отговор.</p>
+            </article>
+            <article>
+              <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+              <h3>Одобрение на действия</h3>
+              <p>AI предлага, ти одобряваш, системата изпълнява.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="landing-section" id="specialists" aria-labelledby="specialistsTitle">
+          <p class="landing-kicker">Специалисти</p>
+          <h2 id="specialistsTitle">Един аватар. Много умения.</h2>
+          <p class="landing-section-lead">Избери специалист за разговора. Паметта остава една и е твоя.</p>
+          <ul class="landing-specialists">
+            <li class="landing-new"><i class="fa-solid fa-feather-pointed" aria-hidden="true"></i><strong>Писател</strong><em>Ново</em><span>Пази героите, местата и правилата на книгата и показва противоречията в нова глава.</span></li>
+            <li><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i><strong>Юрист</strong><span>Обяснява закони и договори ясно.</span></li>
+            <li><i class="fa-solid fa-calculator" aria-hidden="true"></i><strong>Счетоводител</strong><span>Сметки, данъци и бюджети стъпка по стъпка.</span></li>
+            <li><i class="fa-solid fa-bullhorn" aria-hidden="true"></i><strong>Маркетинг</strong><span>Идеи, текстове и планове за реклама.</span></li>
+            <li><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i><strong>Учител</strong><span>Обяснява всичко с прости думи.</span></li>
+            <li><i class="fa-solid fa-code" aria-hidden="true"></i><strong>Програмист</strong><span>Пише и проверява код с теб.</span></li>
+          </ul>
+        </section>
+
+        <section class="landing-section landing-trust" aria-labelledby="trustTitle">
+          <div>
+            <p class="landing-kicker">Твоите данни</p>
+            <h2 id="trustTitle">Твоят свят остава твой.</h2>
+          </div>
+          <ul class="landing-checks">
+            <li>Паметта е само твоя. Нищо не се споделя без бутона „Сподели“.</li>
+            <li>Виждаш, поправяш и триеш всичко, което аватарът помни.</li>
+            <li>Изтегляш копие на данните си или изтриваш профила с всичко в него, когато поискаш.</li>
+            <li>80% от печалбата отива за каузи. Всяко евро се вижда в <a href="/transparency">Прозрачност</a>.</li>
+          </ul>
+        </section>
+
+        <section class="landing-section" id="prices" aria-labelledby="pricesTitle">
+          <p class="landing-kicker">Цени</p>
+          <h2 id="pricesTitle">Започваш безплатно. Плащаш само за повече.</h2>
+          <div class="landing-prices">
+            <article>
+              <h3>Старт</h3>
+              <p class="landing-price">0 €</p>
+              <p>Чат всеки ден и 100 AI единици на месец. Без карта.</p>
+            </article>
+            <article class="landing-price-featured">
+              <h3>Личен</h3>
+              <p class="landing-price">2,99 € / 30 дни</p>
+              <p>300 AI единици, проекти и памет.</p>
+            </article>
+            <article>
+              <h3>Професионален</h3>
+              <p class="landing-price">9,99 € / 30 дни</p>
+              <p>1100 AI единици за работа с няколко модела.</p>
+            </article>
+          </div>
+          <p class="landing-note">Без абонамент и без автоматично доплащане. <a href="/plans">Всички планове</a></p>
+        </section>
+
+        <section class="landing-section landing-faq" aria-labelledby="faqTitle">
+          <h2 id="faqTitle">Въпроси</h2>
+          <details>
+            <summary>Какво е NovariumAI?</summary>
+            <p>Личен AI аватар: разговаря, помни, планира и работи с твоите Google, GitHub и файлове, но само с твоето одобрение.</p>
+          </details>
+          <details>
+            <summary>Наистина ли е безплатно?</summary>
+            <p>Да. Обикновеният чат е безплатен всеки ден и получаваш 100 AI единици на месец. Не искаме банкова карта.</p>
+          </details>
+          <details>
+            <summary>Кой вижда моята памет?</summary>
+            <p>Само ти. Можеш да видиш, поправиш или изтриеш всичко, което аватарът помни.</p>
+          </details>
+          <details>
+            <summary>Кои AI модели ползва?</summary>
+            <p>Claude, GPT, Gemini и други. Избираш сам или оставяш аватара да сравни няколко.</p>
+          </details>
+          <details>
+            <summary>Къде отиват парите?</summary>
+            <p>След разходите и данъците 80% от печалбата отива за каузи, избрани с хората. Всичко се вижда публично.</p>
+          </details>
+        </section>
+
+        <section class="landing-section landing-final">
+          <h2>Твоят AI те чака.</h2>
+          <button class="landing-cta" type="button" data-open-auth="start">Започни безплатно</button>
+          <p class="landing-note">Безплатно за начало. Без банкова карта.</p>
+        </section>
+
+        <footer class="landing-footer">
+          <span>NovariumAI</span>
+          <div class="landing-language landing-language-footer" data-language-switch></div>
+          <nav aria-label="Правна информация">
+            <a href="/help#merchant">Фирмени данни и контакт</a>
+            <a href="/terms">Общи условия</a>
+            <a href="/privacy">Поверителност</a>
+            <a href="/developers">За разработчици</a>
+          </nav>
+        </footer>
+      </div>
+
+      <dialog class="landing-auth" id="authDialog" aria-labelledby="authTitle">
+        <button class="landing-auth-close" type="button" data-close-auth aria-label="Затвори">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
         <div class="auth-card" id="authCard">
           <h2 id="authTitle">Вход в NovariumAI</h2>
           <p class="auth-intro" id="authIntro">
@@ -200,35 +389,7 @@
             </p>
           </noscript>
         </div>
-
-        <div class="auth-features" aria-label="Какво предлага NovariumAI">
-          <article>
-            <i class="fa-regular fa-message"></i>
-            <div>
-              <h2>Разговори и анализ</h2>
-              <p>Пиши, анализирай и сравнявай отговори с AI Council.</p>
-            </div>
-          </article>
-          <article>
-            <i class="fa-solid fa-layer-group"></i>
-            <div>
-              <h2>Проекти с памет</h2>
-              <p>Цели, решения, файлове и следващи стъпки на едно място.</p>
-            </div>
-          </article>
-          <article>
-            <i class="fa-solid fa-wand-magic-sparkles"></i>
-            <div>
-              <h2>Одобрение на действия</h2>
-              <p>AI предлага, ти одобряваш, системата изпълнява.</p>
-            </div>
-          </article>
-        </div>
-        <footer class="public-footer">
-          <span>NovariumAI</span>
-          <a href="/help#merchant">Фирмени данни и контакт</a>
-        </footer>
-      </div>
+      </dialog>
     </section>
 
     <main class="app-shell" id="appShell" hidden>
@@ -791,6 +952,7 @@
     <script src="/causes.js?v=20261126"></script>
     <script src="/daily-plan.js?v=20261127-media-v3"></script>
     <script src="/todos.js?v=20261128"></script>
+    <script src="/book.js?v=20261128a" defer></script>
     <script src="/addons.js?v=20261127d"></script>
     <script src="/avatar-link.js?v=20261126b"></script>
     <script src="/doc-panel.js?v=20261126"></script>

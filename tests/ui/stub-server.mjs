@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { listAssistantPresets } from "../../src/services/assistantPresets.js";
 import { createAddonService } from "../../src/services/addonService.js";
+import { createBookMemoryService } from "../../src/services/bookMemoryService.js";
 // The server's own rules for pictures and video in the chat, so the robot can
 // only pass on what the server does.
 import {
@@ -117,6 +118,33 @@ export function startStubServer(port = 0) {
       },
     },
     fetchData: async () => ({ current_weather: { temperature: 7.5, windspeed: 3 } }),
+  });
+  // The real "Писател" service, with memory instead of Firestore and a fixed
+  // model: it suggests one fact, and finds brown eyes against green ones.
+  const bookRows = new Map();
+  const books = createBookMemoryService({
+    env: {},
+    store: {
+      async get(collection, id) {
+        const data = bookRows.get(`${collection}/${id}`);
+        return data ? { id, data: structuredClone(data) } : null;
+      },
+      async commitOperations(operations) {
+        for (const { type, collection, id, data } of operations) {
+          if (type === "delete") bookRows.delete(`${collection}/${id}`);
+          else bookRows.set(`${collection}/${id}`, structuredClone(data));
+        }
+      },
+    },
+    askAi: async ({ input }) => {
+      const asked = input[1].content;
+      if (!asked.includes("[ПАМЕТ]")) {
+        return '{"facts":[{"kind":"place","name":"Кулата","text":"Кулата е на хълма.","quote":"кулата на хълма"}]}';
+      }
+      const eyes = asked.match(/^(\S+) \| character \| Мила/mu);
+      const quote = asked.match(/Мила погледна с кафявите си очи/u);
+      return JSON.stringify({ issues: eyes && quote ? [{ fact: eyes[1], quote: quote[0], why: "Очите ѝ са зелени." }] : [] });
+    },
   });
   let avatarLink = { active: false, card: {} };
   const visitorQuestions = [];
@@ -269,6 +297,29 @@ export function startStubServer(port = 0) {
           if (area === "mine" && action === "submit") return json(res, { items: await addons.submit(me, id) });
           if (area === "mine" && action === "unpublish") return json(res, { items: await addons.unpublish(me, id) });
           if (area === "mine" && action === "run") return json(res, await addons.runMine(me, id, data.input));
+          return json(res, { error: "няма" }, 404);
+        } catch (error) {
+          return json(res, { error: error.message }, error.status || 500);
+        }
+      });
+      return undefined;
+    }
+    if (p.startsWith("/api/books")) {
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", async () => {
+        const data = JSON.parse(body || "{}");
+        const [, , , bookId, area, factId, action] = p.split("/").map((part) => decodeURIComponent(part));
+        const me = "robot";
+        try {
+          if (!bookId && req.method === "GET") return json(res, { books: await books.list(me) });
+          if (!bookId && req.method === "POST") return json(res, { book: await books.createBook(me, data.title) }, 201);
+          if (!area && req.method === "DELETE") return json(res, { books: await books.removeBook(me, bookId) });
+          if (area === "facts" && action === "change") return json(res, { book: await books.changeFact(me, bookId, factId, data) });
+          if (area === "facts" && req.method === "POST") return json(res, { book: await books.addFacts(me, bookId, data.facts) });
+          if (area === "facts" && req.method === "DELETE") return json(res, { book: await books.removeFact(me, bookId, factId) });
+          if (area === "suggest") return json(res, { suggestions: await books.suggestFacts(me, bookId, data) });
+          if (area === "check") return json(res, { result: await books.checkChapter(me, bookId, data) });
           return json(res, { error: "няма" }, 404);
         } catch (error) {
           return json(res, { error: error.message }, error.status || 500);

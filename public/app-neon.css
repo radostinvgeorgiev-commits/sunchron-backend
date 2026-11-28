@@ -1,0 +1,626 @@
+/* NovariumAI after sign-in: the same neon night as the start page.
+   Only the main chat area changes; dialogs and panels keep their own
+   light cards, so their text stays readable. */
+
+body:has(#appShell:not([hidden])) {
+  background: #05060f;
+}
+
+#appShell {
+  --nv-night: #05060f;
+  --nv-deep: #0a0b24;
+  --nv-card: #11123a;
+  --nv-card-hover: #191a4a;
+  --nv-cyan: #00f0ff;
+  --nv-violet: #7b5cff;
+  --nv-pink: #ff3df2;
+  --nv-text: #eef0ff;
+  --nv-muted: #a9acd6;
+  --nv-line: rgba(123, 92, 255, 0.32);
+}
+
+/* The chat area */
+#appShell #chat-container.chatPanel {
+  color: var(--nv-text);
+  background:
+    radial-gradient(
+      ellipse 55% 40% at 85% 0%,
+      rgba(123, 92, 255, 0.22),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 40% 35% at 0% 100%,
+      rgba(0, 240, 255, 0.1),
+      transparent 70%
+    ),
+    var(--nv-night) !important;
+}
+
+/* The top bar */
+#appShell #chat-container .chat-toolbar {
+  border-bottom: 1px solid var(--nv-line) !important;
+  color: var(--nv-text);
+  background: rgba(10, 11, 36, 0.86) !important;
+  backdrop-filter: blur(10px);
+}
+
+/* Light text only for the bar itself; its open menus keep their light cards. */
+#appShell
+  #chat-container
+  .chat-toolbar
+  :is(button, select, a, strong, span, small, i):not(
+    :is(
+        .model-picker-menu,
+        .chat-options-menu,
+        .council-provider-picker,
+        .assistant-picker,
+        .plus-menu,
+        .slash-menu,
+        [role="menu"],
+        [role="listbox"],
+        [role="dialog"],
+        dialog
+      )
+      *
+  ) {
+  color: var(--nv-text) !important;
+}
+
+#appShell
+  #chat-container
+  .interaction-mode-bar
+  :is(.active, [aria-pressed="true"])
+  :is(i, span) {
+  color: #05060f !important;
+}
+
+#appShell
+  #chat-container
+  .chat-toolbar
+  :is(button, select):not(.active):not([aria-pressed="true"]):not(
+    [aria-selected="true"]
+  ):not(
+    :is(
+        .model-picker-menu,
+        .chat-options-menu,
+        .council-provider-picker,
+        .assistant-picker,
+        .plus-menu,
+        .slash-menu,
+        [role="menu"],
+        [role="listbox"],
+        [role="dialog"],
+        dialog
+      )
+      *
+  ) {
+  border-color: var(--nv-line) !important;
+  background-color: transparent !important;
+}
+
+#appShell
+  #chat-container
+  .chat-toolbar
+  :is(button, select):hover:not(
+    :is(
+        .model-picker-menu,
+        .chat-options-menu,
+        .council-provider-picker,
+        .assistant-picker,
+        .plus-menu,
+        .slash-menu,
+        [role="menu"],
+        [role="listbox"],
+        [role="dialog"],
+        dialog
+      )
+      *
+  ) {
+  background-color: rgba(123, 92, 255, 0.16) !important;
+}
+
+#appShell #chat-container :is(.interaction-mode-bar, .interaction-mode-switch) {
+  border-color: var(--nv-line) !important;
+  background: rgba(17, 18, 58, 0.7) !important;
+}
+
+#appShell
+  #chat-container
+  .interaction-mode-bar
+  :is(.active, [aria-pressed="true"], [aria-selected="true"]) {
+  color: #05060f !important;
+  background: linear-gradient(
+    100deg,
+    var(--nv-cyan),
+    var(--nv-violet)
+  ) !important;
+}
+
+/* The start of an empty conversation */
+#appShell #chat-container .quick-start-greeting {
+  color: var(--nv-text) !important;
+}
+
+#appShell #chat-container .quick-start button {
+  border: 1px solid var(--nv-line) !important;
+  color: var(--nv-text) !important;
+  background: var(--nv-card) !important;
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.05) inset;
+  transition:
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+#appShell #chat-container .quick-start button:hover {
+  border-color: rgba(0, 240, 255, 0.6) !important;
+  transform: translateY(-2px);
+}
+
+#appShell #chat-container .quick-start button :is(span, small, p) {
+  color: var(--nv-muted) !important;
+}
+
+#appShell #chat-container .quick-start button :is(strong, b, h3) {
+  color: var(--nv-text) !important;
+}
+
+#appShell #chat-container .quick-start button i {
+  color: var(--nv-cyan) !important;
+}
+
+/* Messages */
+#appShell
+  #chat-container
+  :is(.assistant-turn, .user-turn, .message, .message-actions) {
+  color: var(--nv-text);
+}
+
+#appShell #chat-container .message.agent {
+  color: var(--nv-text) !important;
+}
+
+#appShell
+  #chat-container
+  .message.agent
+  :is(p, li, h1, h2, h3, h4, h5, blockquote, td, th, dt, dd):not(
+    :is(
+        [class*="card"],
+        [class*="confirm"],
+        [class*="proposal"],
+        [class*="panel"]
+      )
+      *
+  ) {
+  color: inherit !important;
+}
+
+/* Cards inside an answer (approvals, media) keep their light look. */
+#appShell
+  #chat-container
+  .message.agent
+  :is(
+    [class*="card"],
+    [class*="confirm"],
+    [class*="proposal"],
+    [class*="panel"]
+  ) {
+  color: #12132b;
+}
+
+#appShell #chat-container .message.agent a {
+  color: var(--nv-cyan);
+}
+
+#appShell #chat-container .message.agent :is(pre, code) {
+  border-color: var(--nv-line);
+  color: #dff9ff;
+  background: #0b0c2a;
+}
+
+#appShell #chat-container .message.agent :is(table, th, td) {
+  border-color: var(--nv-line) !important;
+}
+
+#appShell #chat-container .message.agent th {
+  background: var(--nv-card) !important;
+}
+
+#appShell #chat-container .message.agent blockquote {
+  border-left-color: var(--nv-violet);
+}
+
+#appShell #chat-container .user-turn .message {
+  color: #ffffff;
+  background: linear-gradient(100deg, #5b3fe0, var(--nv-violet)) !important;
+  box-shadow: 0 6px 26px rgba(123, 92, 255, 0.35);
+}
+
+#appShell
+  #chat-container
+  :is(
+    .message-actions,
+    .message-meta,
+    .answer-meta,
+    .answered-by,
+    .ai-response-source
+  ) {
+  color: var(--nv-muted) !important;
+}
+
+#appShell #chat-container .message-actions button {
+  color: var(--nv-muted) !important;
+}
+
+#appShell #chat-container .message-actions button:hover {
+  color: var(--nv-cyan) !important;
+  background: rgba(0, 240, 255, 0.08) !important;
+}
+
+/* The box where you type */
+#appShell #chat-container .composer-wrap {
+  background: transparent !important;
+}
+
+#appShell #chat-container .chat-input-area {
+  border: 1px solid var(--nv-line) !important;
+  background: rgba(17, 18, 58, 0.92) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 240, 255, 0.05),
+    0 12px 40px rgba(0, 0, 0, 0.45) !important;
+}
+
+#appShell #chat-container .chat-input-area:focus-within {
+  border-color: rgba(0, 240, 255, 0.65) !important;
+  box-shadow:
+    0 0 0 3px rgba(0, 240, 255, 0.12),
+    0 12px 40px rgba(0, 0, 0, 0.45) !important;
+}
+
+#appShell #chat-container #chatInput {
+  color: var(--nv-text) !important;
+  caret-color: var(--nv-cyan);
+}
+
+#appShell #chat-container #chatInput::placeholder {
+  color: var(--nv-muted) !important;
+}
+
+#appShell #chat-container .chat-input-area > button:not(#sendBtn),
+#appShell
+  #chat-container
+  .chat-input-area
+  :is(.composer-plus, .mic-button, #talkBtn, #voiceBtn) {
+  color: var(--nv-text) !important;
+  background: rgba(123, 92, 255, 0.16) !important;
+}
+
+#appShell #chat-container #sendBtn {
+  color: #05060f !important;
+  background: linear-gradient(
+    120deg,
+    var(--nv-cyan),
+    var(--nv-violet) 60%,
+    var(--nv-pink)
+  ) !important;
+  box-shadow: 0 6px 22px rgba(123, 92, 255, 0.45);
+}
+
+/* ---------------------------------------------------------------------
+   The same neon night everywhere after sign-in: the side bar, every
+   window (tasks, files, book, causes, avatar, add-ons, share), the menus
+   and the drawers. Text is light on a deep card; inputs are dark fields.
+   --------------------------------------------------------------------- */
+body:has(#appShell:not([hidden])) {
+  --nv-night: #05060f;
+  --nv-deep: #0a0b24;
+  --nv-card: #11123a;
+  --nv-card-hover: #191a4a;
+  --nv-field: #080922;
+  --nv-cyan: #00f0ff;
+  --nv-violet: #7b5cff;
+  --nv-pink: #ff3df2;
+  --nv-text: #eef0ff;
+  --nv-muted: #a9acd6;
+  --nv-line: rgba(123, 92, 255, 0.32);
+}
+
+/* The side bar and the phone menu */
+body:has(#appShell:not([hidden]))
+  :is(.sidebar, .mobile-menu, .statusPanel, .data-drawer, .doc-panel) {
+  border-color: var(--nv-line) !important;
+  color: var(--nv-text) !important;
+  background: linear-gradient(180deg, var(--nv-deep), var(--nv-night)) !important;
+}
+
+/* Windows and menus */
+body:has(#appShell:not([hidden]))
+  :is(
+    .share-dialog .share-card,
+    .model-picker-menu,
+    .chat-options-menu,
+    .council-provider-picker,
+    .assistant-picker,
+    .plus-menu,
+    .slash-menu,
+    .retry-model-menu,
+    .code-workspace,
+    .work-center-card,
+    .daily-plan-card,
+    .meeting-card
+  ) {
+  border: 1px solid var(--nv-line) !important;
+  color: var(--nv-text) !important;
+  background:
+    radial-gradient(
+      ellipse 70% 50% at 100% 0%,
+      rgba(123, 92, 255, 0.18),
+      transparent 70%
+    ),
+    var(--nv-card) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 240, 255, 0.06),
+    0 24px 60px rgba(0, 0, 0, 0.55) !important;
+}
+
+body:has(#appShell:not([hidden])) .share-dialog {
+  background: rgba(3, 4, 14, 0.72) !important;
+  backdrop-filter: blur(6px);
+}
+
+/* Every text inside them is light; the muted notes a little softer. */
+body:has(#appShell:not([hidden]))
+  :is(
+    .sidebar,
+    .mobile-menu,
+    .statusPanel,
+    .data-drawer,
+    .doc-panel,
+    .share-dialog .share-card,
+    .model-picker-menu,
+    .chat-options-menu,
+    .council-provider-picker,
+    .assistant-picker,
+    .plus-menu,
+    .slash-menu,
+    .retry-model-menu,
+    .code-workspace
+  )
+  :is(
+    h1,
+    h2,
+    h3,
+    h4,
+    p,
+    span,
+    strong,
+    b,
+    em,
+    label,
+    li,
+    dt,
+    dd,
+    td,
+    th,
+    summary,
+    legend,
+    small,
+    div,
+    i,
+    a,
+    button:not(.primary):not(#sendBtn)
+  ) {
+  color: var(--nv-text) !important;
+}
+
+body:has(#appShell:not([hidden]))
+  :is(
+    .sidebar,
+    .share-dialog .share-card,
+    .data-drawer,
+    .statusPanel,
+    .model-picker-menu,
+    .assistant-picker,
+    .plus-menu
+  )
+  :is(small, .share-note, .share-status, [class*="hint"], [class*="muted"], [class*="meta"], [class*="kicker"], [class*="label"]) {
+  color: var(--nv-muted) !important;
+}
+
+body:has(#appShell:not([hidden]))
+  :is(
+    .sidebar,
+    .mobile-menu,
+    .share-dialog .share-card,
+    .data-drawer,
+    .statusPanel,
+    .model-picker-menu,
+    .chat-options-menu,
+    .council-provider-picker,
+    .assistant-picker,
+    .plus-menu,
+    .slash-menu,
+    .retry-model-menu
+  )
+  a {
+  color: var(--nv-cyan) !important;
+}
+
+/* Rows and buttons inside: a clear edge, a soft glow on hover. */
+body:has(#appShell:not([hidden]))
+  :is(
+    .sidebar,
+    .mobile-menu,
+    .share-dialog .share-card,
+    .data-drawer,
+    .statusPanel,
+    .model-picker-menu,
+    .chat-options-menu,
+    .council-provider-picker,
+    .assistant-picker,
+    .plus-menu,
+    .slash-menu,
+    .retry-model-menu,
+    .code-workspace
+  )
+  button:not(.primary):not(#sendBtn) {
+  border-color: var(--nv-line) !important;
+  background-color: transparent !important;
+}
+
+body:has(#appShell:not([hidden]))
+  :is(
+    .sidebar,
+    .mobile-menu,
+    .share-dialog .share-card,
+    .data-drawer,
+    .statusPanel,
+    .model-picker-menu,
+    .chat-options-menu,
+    .council-provider-picker,
+    .assistant-picker,
+    .plus-menu,
+    .slash-menu,
+    .retry-model-menu,
+    .code-workspace
+  )
+  button:not(.primary):not(#sendBtn):hover {
+  background-color: rgba(123, 92, 255, 0.18) !important;
+}
+
+body:has(#appShell:not([hidden]))
+  :is(
+    .sidebar,
+    .share-dialog .share-card,
+    .data-drawer,
+    .model-picker-menu,
+    .assistant-picker,
+    .plus-menu
+  )
+  :is([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], .active, .chosen) {
+  border-color: rgba(0, 240, 255, 0.6) !important;
+  background-color: rgba(0, 240, 255, 0.1) !important;
+}
+
+/* The main button in a window has the neon gradient. */
+body:has(#appShell:not([hidden]))
+  :is(.share-dialog .share-card, .data-drawer, .code-workspace)
+  button.primary {
+  border: 0 !important;
+  color: #05060f !important;
+  background: linear-gradient(
+    120deg,
+    var(--nv-cyan),
+    var(--nv-violet) 60%,
+    var(--nv-pink)
+  ) !important;
+}
+
+/* Fields: dark with a violet edge, cyan when you type. */
+body:has(#appShell:not([hidden]))
+  :is(
+    .sidebar,
+    .share-dialog .share-card,
+    .data-drawer,
+    .statusPanel,
+    .doc-panel,
+    .code-workspace,
+    .model-picker-menu,
+    .assistant-picker
+  )
+  :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  border: 1px solid var(--nv-line) !important;
+  color: var(--nv-text) !important;
+  background: var(--nv-field) !important;
+  caret-color: var(--nv-cyan);
+}
+
+body:has(#appShell:not([hidden]))
+  :is(
+    .sidebar,
+    .share-dialog .share-card,
+    .data-drawer,
+    .statusPanel,
+    .doc-panel,
+    .code-workspace,
+    .model-picker-menu,
+    .assistant-picker
+  )
+  :is(input, select, textarea)::placeholder {
+  color: var(--nv-muted) !important;
+}
+
+body:has(#appShell:not([hidden]))
+  :is(
+    .sidebar,
+    .share-dialog .share-card,
+    .data-drawer,
+    .statusPanel,
+    .doc-panel,
+    .code-workspace
+  )
+  :is(input, select, textarea):focus {
+  border-color: rgba(0, 240, 255, 0.65) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.12) !important;
+}
+
+body:has(#appShell:not([hidden])) :is(input[type="checkbox"], input[type="radio"]) {
+  accent-color: var(--nv-cyan);
+}
+
+/* Cards inside windows (a fact, a task, an add-on) */
+body:has(#appShell:not([hidden]))
+  .share-dialog
+  .share-card
+  :is(li, [class*="-item"], [class*="-row"], .book-fact, .book-issue, details) {
+  border-color: var(--nv-line) !important;
+}
+
+body:has(#appShell:not([hidden])) .share-dialog .share-card .book-fact {
+  background: rgba(123, 92, 255, 0.12) !important;
+}
+
+body:has(#appShell:not([hidden])) .share-dialog .share-card .book-fact .book-kind {
+  color: var(--nv-cyan) !important;
+}
+
+body:has(#appShell:not([hidden])) .share-dialog .share-card .book-issue {
+  background: rgba(255, 61, 242, 0.08) !important;
+}
+
+body:has(#appShell:not([hidden])) .share-dialog .share-card .book-tabs {
+  border-bottom-color: var(--nv-line) !important;
+}
+
+body:has(#appShell:not([hidden]))
+  .share-dialog
+  .share-card
+  .book-tabs
+  button[aria-selected="true"] {
+  border-bottom-color: var(--nv-cyan) !important;
+  background: none !important;
+}
+
+/* The side bar's brand and the selected conversation */
+body:has(#appShell:not([hidden])) .sidebar :is(.active, [aria-current="page"], [aria-current="true"]) {
+  background: rgba(123, 92, 255, 0.2) !important;
+}
+
+body:has(#appShell:not([hidden])) .sidebar .conversation-state {
+  border-color: var(--nv-line) !important;
+  color: var(--nv-muted) !important;
+  background: rgba(17, 18, 58, 0.6) !important;
+}
+
+body:has(#appShell:not([hidden])) .share-dialog .share-card .book-tabs button {
+  border-width: 0 0 3px !important;
+  border-color: transparent !important;
+}
+
+body:has(#appShell:not([hidden]))
+  .share-dialog
+  .share-card
+  .book-tabs
+  button[aria-selected="true"] {
+  border-bottom-color: var(--nv-cyan) !important;
+}

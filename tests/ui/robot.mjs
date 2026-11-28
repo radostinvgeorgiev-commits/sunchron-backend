@@ -237,6 +237,50 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media)
     }, after.slice(0, 3).map((item) => item.id));
     await pickNone();
   });
+  await step(`${label}: „Писател“ пази книгата и проверява главата`, async () => {
+    await pickSpecialist("writer");
+    await page.locator('.assistant-tools [data-tool="book"]').waitFor({ timeout: 5000 });
+    await page.click('.assistant-tools [data-tool="book"]');
+    const panel = page.locator(".book-dialog");
+    await panel.waitFor({ state: "visible", timeout: 5000 });
+    await panel.locator(".book-new-title").fill("Робот книга");
+    await panel.locator(".book-new button").click();
+    await panel.locator(".book-body").waitFor({ state: "visible", timeout: 5000 });
+    await panel.locator(".book-add-kind").selectOption("character");
+    await panel.locator(".book-add-name").fill("Мила");
+    await panel.locator(".book-add-text").fill("Мила има зелени очи.");
+    await panel.locator(".book-add button").click();
+    await panel.locator(".book-fact").first().waitFor({ timeout: 5000 });
+    expect((await panel.locator(".book-facts").innerText()).includes("зелени очи"), "фактът не се запази");
+    // Suggested facts are not kept until the person saves them.
+    await panel.locator(".book-extract summary").click();
+    await panel.locator(".book-extract-text").fill("Видя кулата на хълма.");
+    await panel.locator(".book-extract-run").click();
+    await panel.locator(".book-suggestions").waitFor({ state: "visible", timeout: 5000 });
+    expect((await panel.locator(".book-fact").count()) === 1, "предложението се запази без „да“");
+    await panel.locator(".book-keep").click();
+    await page.waitForFunction(() => document.querySelectorAll(".book-dialog .book-fact").length === 2, null, { timeout: 5000 });
+    await panel.locator('[data-tab="check"]').click();
+    await panel.locator(".book-check-chapter").fill("4");
+    await panel.locator(".book-check-text").fill("Сутринта Мила погледна с кафявите си очи към морето.");
+    await panel.locator(".book-check-run").click();
+    await panel.locator(".book-issue").first().waitFor({ timeout: 5000 });
+    const score = await panel.locator(".book-score").innerText();
+    expect(score.includes("88/100"), `оценката не е 88: ${score}`);
+    const issue = await panel.locator(".book-issue").first().innerText();
+    expect(issue.includes("зелени очи") && issue.includes("кафявите си очи"), `няма двата реда: ${issue}`);
+    await panel.locator(".book-issue button.primary").click();
+    await panel.locator(".book-change input").fill("Мила има кафяви очи.");
+    await panel.locator(".book-change button").click();
+    await panel.locator(".book-issue-done").waitFor({ timeout: 5000 });
+    const facts = await page.evaluate(async () => (await (await fetch("/api/books")).json()).books[0].facts);
+    expect(facts.length === 3 && facts[0].untilChapter === 3 && facts[2].fromChapter === 4, "промяната не важи от глава 4");
+    await page.evaluate(async () => {
+      for (const book of (await (await fetch("/api/books")).json()).books) await fetch(`/api/books/${book.id}`, { method: "DELETE" });
+    });
+    await panel.locator(".share-close").click();
+    await pickNone();
+  });
   await step(`${label}: кодът в отговора се чете`, async () => {
     await send("Покажи команда за инсталиране");
     const pre = last().locator("pre");
@@ -1213,11 +1257,28 @@ async function contactForm(origin, contactMessages) {
   await page.close();
 }
 
+// The start page shows the sign-in card in a window after "Започни безплатно".
+async function openSignIn(page) {
+  if (await page.locator("#authCard").isVisible()) return;
+  await page.locator("[data-open-auth]").filter({ visible: true }).first().click();
+  await page.locator("#authCard").waitFor({ state: "visible", timeout: 5000 });
+}
+
 async function publicChecks(origin) {
   const { page, errors } = await openPage(origin, { width: 390, height: 844 });
-  await step("Жив сайт: екранът за вход зарежда без грешки", async () => {
+  await step("Жив сайт: началото е новото, с „Твоят AI. Твоят свят.“", async () => {
     await page.waitForTimeout(1500);
-    expect(await page.locator("#authCard, #authScreen, .auth-screen").first().isVisible(), "няма екран за вход");
+    expect(await page.locator("#publicTitle").isVisible(), "няма заглавие");
+    expect((await page.textContent(".landing-kicker")).includes("Твоят AI. Твоят свят."), "няма слогана");
+    expect(!errors.length, errors[0]);
+  });
+  await step("Жив сайт: демото „Как помни“ отговаря без вход", async () => {
+    await page.click('[data-demo="1"]');
+    expect((await page.textContent("[data-demo-output]")).includes("без захар"), "демото не отговори");
+  });
+  await step("Жив сайт: „Започни безплатно“ отваря входа в прозорче", async () => {
+    await openSignIn(page);
+    expect(await page.locator("#authCard").isVisible(), "няма прозорец за вход");
     expect(!errors.length, errors[0]);
   });
   await step("Жив сайт: има бутон „Вход с Google“", async () => {
@@ -1261,6 +1322,7 @@ async function liveSignedIn(origin) {
     await page.click(`.mine-group [data-plus="${key}"]`);
   };
   await step("Жив сайт: вход с тестовия профил", async () => {
+    await openSignIn(page);
     // New profiles use Google; the old email/password sign-in is folded away.
     expect(await page.locator("#googleSignInBtn").isVisible(), "няма бутон „Продължи с Google“");
     expect((await page.locator("#registerForm").count()) === 0, "още има регистрация с имейл и парола");

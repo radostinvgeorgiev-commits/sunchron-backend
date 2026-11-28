@@ -9,6 +9,7 @@ export const ASSISTANT_TOOLS = Object.freeze({
   gmail: { label: "Gmail", icon: "fa-envelope", needs: "google" },
   youtube: { label: "YouTube видео", icon: "fa-brands fa-youtube", needs: "" },
   maps: { label: "Карти и места", icon: "fa-map-location-dot", needs: "" },
+  book: { label: "Паметта на книгата", icon: "fa-book-open", needs: "" },
 });
 
 const TOOLS_BY_ASSISTANT = Object.freeze({
@@ -25,6 +26,7 @@ const TOOLS_BY_ASSISTANT = Object.freeze({
   coach: ["calendar", "todos", "youtube", "maps", "web"],
   chef: ["todos", "youtube", "maps", "web"],
   listener: ["files"],
+  writer: ["book", "files", "drive"],
 });
 
 // Ready-made roles a person can pick for a conversation, like GPTs in
@@ -126,6 +128,14 @@ export const ASSISTANT_PRESETS = Object.freeze([
     hint: "Рецепти от това, което имаш",
     instruction:
       "Роля: готвач. Предлагай рецепти от продуктите, които човекът има, с точни количества, време и стъпки. Предлагай заместители и пиши списък за пазар, когато е нужен.",
+  },
+  {
+    id: "writer",
+    label: "Писател",
+    icon: "fa-feather-pointed",
+    hint: "Пази героите и проверява главите",
+    instruction:
+      "Роля: помощник на писател. Помагай с план, герои, сцени и глави, като пазиш гласа и стила на автора. Паметта на книгата е на автора: предлагай нови факти (герой, място, правило, събитие) и казвай от коя глава важат, но те влизат в паметта само когато авторът ги запази. Когато нещо в нова глава противоречи на запазен факт, покажи двата реда един до друг и остави автора да реши дали е грешка или нарочна промяна. Не пиши вместо автора цяла книга, ако не те помоли.",
   },
   {
     id: "listener",

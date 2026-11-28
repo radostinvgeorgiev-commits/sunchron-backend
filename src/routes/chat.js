@@ -2634,6 +2634,9 @@ router.post("/chat", async (req, res) => {
   let memoryAction = null;
   const autoMemoryCount = 0;
   let memoryAvailable = true;
+  // Which memory command this message prepares, for the reply to a fact or
+  // text over 500 characters (INVALID_MEMORY below).
+  let memoryCommandKind = null;
   const memoryWriteConfirmationId =
     extractMemoryWriteConfirmationId(cleanMessage);
   const memoryDeleteConfirmationId =
@@ -2651,6 +2654,7 @@ router.post("/chat", async (req, res) => {
       // The exact one-time confirmation is executed after the SSE channel is
       // established. No content from the confirmation message is re-parsed.
     } else if (memoryDeleteConfirmationId) {
+      memoryCommandKind = "delete";
       const result = await confirmMemoryDelete({
         confirmationId: memoryDeleteConfirmationId,
         sessionId: cleanSessionId,
@@ -2676,18 +2680,46 @@ router.post("/chat", async (req, res) => {
         // one-time confirmation instead and nothing is written
         // (isOwnMemoryCommand). What the words pass is read once more by a
         // small model, and only its clear „only facts“ writes at once
-        // (confirmPlainMemoryFacts); in doubt, the confirmation.
+        // (confirmPlainMemoryFacts); in doubt, the confirmation. The check
+        // has a daily count of its own (useMemoryCheck). With a picture or
+        // the council the answer is about them, so the command keeps the
+        // confirmation, shown under that answer.
+        memoryCommandKind = "write";
         const prepared = await prepareMemoryWrite({
           sessionId: cleanSessionId,
           ownerId,
           items: memoryCommands,
         });
-        const writesAtOnce =
-          isOwnMemoryCommand(cleanMessage) &&
-          (await confirmPlainMemoryFacts({
-            message: cleanMessage,
-            facts: memoryCommands.map(({ fact }) => fact),
-          }));
+        // „Спри“ or a closed page while the model reads: its call stops and
+        // nothing is written at once.
+        const requestGone = new AbortController();
+        const onRequestGone = () => {
+          if (!res.writableEnded) requestGone.abort();
+        };
+        res.once("close", onRequestGone);
+        let writesAtOnce = false;
+        try {
+          writesAtOnce =
+            !image &&
+            !councilRequested &&
+            isOwnMemoryCommand(cleanMessage) &&
+            (await confirmPlainMemoryFacts({
+              message: cleanMessage,
+              facts: memoryCommands.map(({ fact }) => fact),
+              signal: requestGone.signal,
+              allowCheck: async () => {
+                try {
+                  return await getProductPlansService().useMemoryCheck(req.owner);
+                } catch (error) {
+                  logSafeError("[Memory] check count", error);
+                  return false;
+                }
+              },
+            })) &&
+            !requestGone.signal.aborted;
+        } finally {
+          res.off("close", onRequestGone);
+        }
         if (!writesAtOnce) {
           memoryAction = { type: "write-confirmation-required", ...prepared };
         } else {
@@ -2711,6 +2743,7 @@ router.post("/chat", async (req, res) => {
         isConfirmedForgetAllCommand(cleanMessage) ||
         isForgetAllCommand(cleanMessage)
       ) {
+        memoryCommandKind = "delete";
         const prepared = await prepareMemoryDelete({
           sessionId: cleanSessionId,
           ownerId,
@@ -2726,6 +2759,7 @@ router.post("/chat", async (req, res) => {
         const forgetCommand =
           confirmedDelete || extractForgetMemoryCommand(cleanMessage);
         if (forgetCommand) {
+          memoryCommandKind = "delete";
           const prepared = await prepareMemoryDelete({
             sessionId: cleanSessionId,
             ownerId,
@@ -2775,11 +2809,14 @@ router.post("/chat", async (req, res) => {
       });
     }
     // A fact over 500 characters (a pasted paragraph after „Запомни:“) is
-    // not an outage: say what to do instead of „памет не е достъпна“.
+    // not an outage: say what to do instead of „памет не е достъпна“. A
+    // forget command that long deletes nothing and says so.
     if (error?.code === "INVALID_MEMORY") {
       return res.status(400).json({
         error:
-          "Фактът за паметта трябва да бъде между 1 и 500 знака. Нищо не беше записано. Раздели дългия текст на по-кратки точки, например списък с тирета.",
+          memoryCommandKind === "delete"
+            ? "Текстът за забравяне трябва да бъде между 1 и 500 знака. Нищо не беше изтрито."
+            : "Фактът за паметта трябва да бъде между 1 и 500 знака. Нищо не беше записано. Раздели дългия текст на по-кратки точки, например списък с тирета.",
         code: "INVALID_MEMORY",
       });
     }
@@ -2952,6 +2989,9 @@ router.post("/chat", async (req, res) => {
   sendHeartbeat();
   res.on("close", clearHeartbeat);
   res.on("finish", clearHeartbeat);
+  // The page closed before the stream started (for example „Спри“ while the
+  // memory check ran): its close event is already past, so stop here.
+  if (res.destroyed) clearHeartbeat();
 
   if (
     !image &&
@@ -2977,13 +3017,43 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
+  const auditMemoryAction = async () => {
+    if (
+      !memoryAction ||
+      memoryAction.type === "cleared" ||
+      memoryAction.type === "forgot"
+    )
+      return;
+    const isDeleteAction =
+      memoryAction.type === "delete-confirmation-required";
+    const isConfirmationRequest =
+      isDeleteAction || memoryAction.type === "write-confirmation-required";
+    await auditAction({
+      action: isDeleteAction ? "memory.delete" : "memory.write",
+      decision: isConfirmationRequest ? "confirm" : "allow",
+      outcome: isConfirmationRequest ? "requested" : "succeeded",
+      resource: "profile-memory",
+      details: memoryAction.type,
+      sessionId: cleanSessionId,
+    });
+  };
+  // A memory command sent with a picture or to the council is answered under
+  // that answer: its one-time confirmation, or what was done, is never lost.
+  const withMemoryReply = (reply) => {
+    const note = buildMemoryReply(memoryAction, language);
+    return note ? `${reply}\n\n${note}` : reply;
+  };
+
   if (image) {
     try {
-      const fullReply = await analyzeImage({
-        image,
-        prompt: cleanMessage,
-        context: messages[0].content,
-      });
+      const fullReply = withMemoryReply(
+        await analyzeImage({
+          image,
+          prompt: cleanMessage,
+          context: messages[0].content,
+        }),
+      );
+      await auditMemoryAction();
       const conversationPersisted = await saveConversationTurnBestEffort(
         cleanSessionId,
         cleanMessage,
@@ -3298,37 +3368,7 @@ router.post("/chat", async (req, res) => {
   }
 
   const memoryReply = buildMemoryReply(memoryAction, language);
-  if (
-    memoryAction &&
-    memoryAction.type !== "cleared" &&
-    memoryAction.type !== "forgot"
-  ) {
-    const isDeleteAction =
-      memoryAction.type === "cleared" ||
-      memoryAction.type === "forgot" ||
-      memoryAction.type === "delete-confirmation-required";
-    const isWriteConfirmationRequest =
-      memoryAction.type === "write-confirmation-required";
-    const memoryAuditAction = isDeleteAction ? "memory.delete" : "memory.write";
-    await auditAction({
-      action: memoryAuditAction,
-      decision:
-        memoryAction.type === "delete-confirmation-required" ||
-        isWriteConfirmationRequest
-          ? "confirm"
-          : isDeleteAction
-            ? "confirmed"
-            : "allow",
-      outcome:
-        memoryAction.type === "delete-confirmation-required" ||
-        isWriteConfirmationRequest
-          ? "requested"
-          : "succeeded",
-      resource: "profile-memory",
-      details: memoryAction.type,
-      sessionId: cleanSessionId,
-    });
-  }
+  await auditMemoryAction();
 
   const isProfileOverviewQuestion = isOverviewQuestion(cleanMessage, "мен");
   const isProjectOverviewQuestion = isOverviewQuestion(
@@ -3441,7 +3481,9 @@ router.post("/chat", async (req, res) => {
       } catch (error) {
         logSafeError("[AI Council] Intent persistence failure", error);
       }
-      const fullReply = formatAiCouncilReply(councilResult, language);
+      const fullReply = withMemoryReply(
+        formatAiCouncilReply(councilResult, language),
+      );
       const conversationPersisted = await saveConversationTurnBestEffort(
         cleanSessionId,
         cleanMessage,

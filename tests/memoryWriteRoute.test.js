@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { once } from "node:events";
 import test from "node:test";
 import request from "supertest";
 
@@ -385,5 +386,143 @@ test("a command the model does not call only facts keeps the one-time confirmati
     }
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+// With a picture or the council the answer is about them, so a „Запомни: …“
+// sent with them is not checked or written at once: its one-time
+// confirmation is shown under that answer, and nothing is written.
+test("a „Запомни: …“ with a picture or the council keeps its confirmation, under that answer", async () => {
+  resetConfirmationsForTests();
+  resetLocalDocumentStoreForTests();
+  const ownerSession = await createGitHubSession(
+    { access_token: "test-owner-token-picture" },
+    async () =>
+      new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
+        status: 200,
+      }),
+  );
+  const ownerCookie = `synchron_github_session=${ownerSession.id}`;
+  const originalFetch = globalThis.fetch;
+  const originalClaudeKey = process.env.ANTHROPIC_API_KEY;
+  delete process.env.ANTHROPIC_API_KEY;
+  let factChecks = 0;
+  globalThis.fetch = async (url, init) => {
+    if (isFactCheck(init)) {
+      factChecks += 1;
+      return modelAnswer(JSON.stringify({ onlyFacts: true }));
+    }
+    if (String(url).includes("/chat/completions")) {
+      return Response.json({ choices: [{ message: { content: "На снимката има котка." } }] });
+    }
+    return modelAnswer("Съветът препоръчва чай.");
+  };
+  try {
+    const picture = await request(app)
+      .post("/chat/chat")
+      .set("Cookie", ownerCookie)
+      .send({
+        sessionId: "memory-picture",
+        message: "Запомни: котката ми се казва Мара",
+        image: { dataUrl: "data:image/png;base64,iVBORw0KGgo=", mimeType: "image/png" },
+      })
+      .expect(200);
+    assert.match(picture.text, /На снимката има котка\./u);
+    assert.match(picture.text, /Потвърждавам постоянен запис/u);
+    assert.match(picture.text, /котката ми се казва Мара/u);
+    assert.doesNotMatch(picture.text, /Запомних:/u);
+
+    const council = await request(app)
+      .post("/chat/chat")
+      .set("Cookie", ownerCookie)
+      .send({ sessionId: "memory-council", message: "Запомни: пия чай без захар", council: true })
+      .expect(200);
+    assert.match(council.text, /Съветът препоръчва чай\./u);
+    assert.match(council.text, /Потвърждавам постоянен запис/u);
+    assert.doesNotMatch(council.text, /Запомних:/u);
+
+    assert.equal(factChecks, 0, "no check is made for a picture or the council");
+    assert.deepEqual(await profileFor("primary-user"), []);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalClaudeKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = originalClaudeKey;
+  }
+});
+
+// A forget command over 500 characters deletes nothing and says so, in the
+// words of forgetting, not of writing.
+test("a forget text over 500 characters says nothing was deleted", async () => {
+  resetConfirmationsForTests();
+  resetLocalDocumentStoreForTests();
+  const ownerSession = await createGitHubSession(
+    { access_token: "test-owner-token-forget-long" },
+    async () =>
+      new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
+        status: 200,
+      }),
+  );
+  await saveProfileMemory("Обичам чай", "explicit-chat-command", "personal", "primary-user");
+  const text = `че ${"обичам да ходя за риба на язовира ".repeat(16)}`.trim();
+  assert.ok(text.length > 500);
+  const response = await request(app)
+    .post("/chat/chat")
+    .set("Cookie", `synchron_github_session=${ownerSession.id}`)
+    .send({ sessionId: "memory-forget-long", message: `Забрави ${text}` })
+    .expect(400);
+  assert.equal(response.body.code, "INVALID_MEMORY");
+  assert.match(response.body.error, /Нищо не беше изтрито/u);
+  assert.doesNotMatch(response.body.error, /записано|тирета/u);
+  assert.equal((await profileFor("primary-user")).length, 1);
+});
+
+// „Спри“ or a closed page while the small model reads: its call stops and
+// nothing is written at once.
+test("a person who presses „Спри“ while the model reads gets nothing written", async () => {
+  resetConfirmationsForTests();
+  resetLocalDocumentStoreForTests();
+  const ownerSession = await createGitHubSession(
+    { access_token: "test-owner-token-stop" },
+    async () =>
+      new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
+        status: 200,
+      }),
+  );
+  const originalFetch = globalThis.fetch;
+  let checkAborted = false;
+  globalThis.fetch = async (url, init) => {
+    if (!isFactCheck(init)) return originalFetch(url, init);
+    return new Promise((resolve, reject) => {
+      init.signal?.addEventListener("abort", () => {
+        checkAborted = true;
+        reject(new DOMException("aborted", "AbortError"));
+      });
+      setTimeout(() => resolve(modelAnswer(JSON.stringify({ onlyFacts: true }))), 400);
+    });
+  };
+  const server = app.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  try {
+    const stop = new AbortController();
+    setTimeout(() => stop.abort(), 80);
+    await assert.rejects(
+      originalFetch(`http://127.0.0.1:${server.address().port}/chat/chat`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: `synchron_github_session=${ownerSession.id}`,
+        },
+        body: JSON.stringify({ sessionId: "memory-stop", message: "Запомни: пия чай без захар" }),
+        signal: stop.signal,
+      }),
+      { name: "AbortError" },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    assert.equal(checkAborted, true, "the model call went on after „Спри“");
+    assert.deepEqual(await profileFor("primary-user"), []);
+  } finally {
+    globalThis.fetch = originalFetch;
+    server.closeAllConnections();
+    server.close();
   }
 });

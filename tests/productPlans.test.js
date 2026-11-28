@@ -312,6 +312,35 @@ test("public budgets cap provider output and charge each attempt before network 
   assert.equal(reserved, 6);
 });
 
+// A call can ask for its own output cap (the site's short checks run
+// outside a member's budget); inside a member's request the smaller cap wins.
+test("a call's own output cap is sent, and inside a member request the smaller cap wins", async () => {
+  const { createPublicAiBudgetContext } = await import("../src/services/publicAiBudget.js");
+  const { requestOpenAIResponse, requestGeminiResponse } = await import("../src/services/novariumService.js");
+  const sent = [];
+  const fetchImpl = async (url, opts) => {
+    const body = JSON.parse(opts.body);
+    sent.push(body.max_output_tokens ?? body.generationConfig?.maxOutputTokens ?? null);
+    return String(url).includes("models/")
+      ? { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: "ok" }] } }] }) }
+      : { ok: true, json: async () => ({ output_text: "ok" }) };
+  };
+  const input = [{ role: "user", content: "Hello" }];
+  const both = async (options) => {
+    await requestOpenAIResponse({ apiKey: "test", input, fetchImpl, ...options });
+    await requestGeminiResponse({ apiKey: "test", input, fetchImpl, ...options });
+  };
+  await both({});
+  await both({ maxOutputTokens: 512 });
+  await both({ maxOutputTokens: 0 });
+  const middleware = createPublicAiBudgetContext({ reserve: async () => {} });
+  await middleware({ owner: member }, {}, async () => {
+    await both({ maxOutputTokens: 512 });
+    await both({ maxOutputTokens: 4096 });
+  });
+  assert.deepEqual(sent, [null, null, 512, 512, null, null, 512, 512, 1024, 1024]);
+});
+
 // A member's long conversation keeps going: the oldest turns are left out
 // instead of the request stopping with "Контекстът е твърде дълъг".
 test("a long member conversation drops its oldest turns and still answers", async () => {

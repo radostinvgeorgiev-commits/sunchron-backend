@@ -5,6 +5,7 @@ import test from "node:test";
 // browser that keeps cookies per name (host-only, as on the live site). Only
 // the network parts (Google's token swap, Identity Platform, the owner link
 // store, the GitHub session lookup) are stubbed.
+process.env.NODE_ENV = "test";
 process.env.USER_REGISTRATION_MODE = "public";
 process.env.GOOGLE_CLIENT_ID = "test-client";
 process.env.GOOGLE_CLIENT_SECRET = "test-secret";
@@ -142,4 +143,24 @@ test("after the return address moves, the old name sends the sign-in to novarium
   } finally {
     process.env.GOOGLE_REDIRECT_URI = "https://cloudaicore.com/api/google/callback";
   }
+});
+
+test("in the real app the move sits before the sign-in routes and connecting is left where it was pressed", async () => {
+  const { default: app } = await import("../server.js");
+  const pressed = await request(app).get("/api/auth/google/start").set("Host", "novariumai.com");
+  assert.equal(pressed.status, 302);
+  assert.equal(pressed.headers.location, "https://cloudaicore.com/api/auth/google/start?moved=1");
+  assert.equal(pressed.headers["cache-control"], "no-store");
+  assert.equal(pressed.headers["set-cookie"], undefined);
+  const started = await request(app).get("/api/auth/google/start?moved=1").set("Host", "cloudaicore.com");
+  assert.equal(started.status, 302);
+  const google = new URL(started.headers.location);
+  assert.equal(google.host, "accounts.google.com");
+  assert.equal(google.searchParams.get("redirect_uri"), "https://cloudaicore.com/api/google/callback");
+  assert.match(google.searchParams.get("state"), /^moved\./u);
+  assert.ok([].concat(started.headers["set-cookie"]).some((cookie) => cookie.startsWith("synchron_google_signin_state=moved.")));
+  // Connecting Google is answered on the name where it was pressed, as before.
+  const connect = await request(app).get("/api/google/connect?add=gmail").set("Host", "novariumai.com");
+  assert.equal(connect.status, 401);
+  assert.equal(connect.headers.location, undefined);
 });

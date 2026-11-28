@@ -44,6 +44,8 @@ export function callbackForStart(path, env = process.env) {
 export function startOnCallbackOrigin(env = process.env) {
   return (req, res, next) => {
     if (req.method !== "GET") return next();
+    const callback = callbackForStart(req.path, env);
+    if (!callback) return next();
     const host = String(req.get("host") || "").trim().toLowerCase();
     if (!SITE_HOSTS.has(host)) return next();
     // Only a plain path ("/api/..."), never an absolute or "//" request target.
@@ -52,7 +54,7 @@ export function startOnCallbackOrigin(env = process.env) {
     let target;
     let location;
     try {
-      target = new URL(callbackForStart(req.path, env));
+      target = new URL(callback);
       location = new URL(original, target.origin);
     } catch {
       return next();

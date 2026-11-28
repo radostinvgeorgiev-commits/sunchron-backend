@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import {
   createSession,
   getLatestGoogleSessionId,
+  googleConnectionFor,
   resetGoogleSessionsForTests,
   sessionBelongsTo,
 } from "../src/services/googleDriveService.js";
@@ -52,5 +53,18 @@ test("every signed-in account can connect Google; restore stays owner-only", () 
   // The new connection belongs to the signed-in account.
   assert.match(router, /finishGoogleConnection\(tokens, req\.owner,/u);
   assert.match(router, /sessionBelongsTo\(id, req\.owner\)/u);
-  assert.match(read("../src/routes/chat.js"), /sessionBelongsTo\(cookieGoogleSession, req\.owner\)/u);
+  // The chat reads the same ownership check and the granted scopes in one
+  // session read (tests/chatToolInventory.test.js checks googleConnectionFor).
+  assert.match(read("../src/routes/chat.js"), /googleConnectionFor\(cookieGoogleSession, req\.owner\)/u);
+});
+
+test("the chat's view of a Google connection belongs only to the account that made it", async () => {
+  resetGoogleSessionsForTests();
+  const mine = await createSession({ access_token: "m", expires_in: 3600, scope: "openid email" }, maria);
+  assert.deepEqual(await googleConnectionFor(mine, maria), { scopes: ["openid", "email"] });
+  assert.equal(await googleConnectionFor(mine, ivan), null);
+  assert.equal(await googleConnectionFor(mine, owner), null);
+  const legacy = await createSession({ access_token: "o", expires_in: 3600, scope: "openid" });
+  assert.deepEqual(await googleConnectionFor(legacy, owner), { scopes: ["openid"] });
+  assert.equal(await googleConnectionFor(legacy, maria), null);
 });

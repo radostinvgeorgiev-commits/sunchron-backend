@@ -508,6 +508,9 @@ async function restoreConversation() {
 async function startNewChat({ withinProject = false } = {}) {
   stopTalkMode();
   if (state.chatBusy) return;
+  // Queued pictures and clips belong to the conversation on screen; they
+  // never start in the new one (review r2).
+  cancelQueuedMedia();
   closeSidebar();
   clearPendingImage();
   const sessionId = createSessionId();
@@ -591,6 +594,7 @@ async function handleConversationClick(event) {
 
 async function openConversation(sessionId, { withinProject = false } = {}) {
   if (state.chatBusy || !sessionId || sessionId === state.sessionId) return;
+  cancelQueuedMedia();
   state.sessionId = sessionId;
   if (!withinProject)
     globalThis.SynchronWorkMode?.selectConversation(sessionId);
@@ -662,13 +666,13 @@ function handleImageSelection(event) {
 
   const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
   if (!allowedTypes.includes(file.type)) {
-    appendMessage("agent", "❌ Поддържат се JPEG, PNG и WebP снимки и PDF документи.");
+    appendMessage("agent", chatText("❌ Поддържат се JPEG, PNG и WebP снимки и PDF документи."), null, { remember: false });
     clearPendingImage();
     return;
   }
 
   if (file.size > 5 * 1024 * 1024) {
-    appendMessage("agent", "❌ Файлът трябва да е до 5 MB.");
+    appendMessage("agent", chatText("❌ Файлът трябва да е до 5 MB."), null, { remember: false });
     clearPendingImage();
     return;
   }
@@ -693,7 +697,7 @@ function handleImageSelection(event) {
     elements.chatInput.focus();
   };
   reader.onerror = () => {
-    appendMessage("agent", "❌ Снимката не можа да бъде прочетена.");
+    appendMessage("agent", chatText("❌ Файлът не можа да бъде прочетен."), null, { remember: false });
     clearPendingImage();
   };
   reader.readAsDataURL(file);
@@ -1026,7 +1030,13 @@ function stopTalkMode() {
 }
 
 function talkListen() {
-  if (!state.talkMode || state.chatBusy || state.listening) return;
+  if (!state.talkMode || state.listening) return;
+  clearTimeout(state.talkTimer);
+  // While an answer, a picture or a clip is being made, listen once it is done.
+  if (state.chatBusy) {
+    state.talkTimer = setTimeout(talkListen, 500);
+    return;
+  }
   if (state.serverVoice) {
     void startServerRecording();
     return;
@@ -1054,6 +1064,12 @@ function talkAfterListening() {
   }
   if (said) {
     state.talkEmpty = 0;
+    // A picture or a clip is still being made: send once the chat is free.
+    if (state.chatBusy) {
+      clearTimeout(state.talkTimer);
+      state.talkTimer = setTimeout(talkAfterListening, 500);
+      return;
+    }
     void sendMessage();
     return;
   }
@@ -2620,13 +2636,19 @@ globalThis.SynchronChat = {
   sessionId: () => state.sessionId,
   busy: () => state.chatBusy,
   renderMarkdown: (element, text) => renderAgentText(element, text),
-  append: (role, text) => appendMessage(role, text),
+  append: (role, text, options) => appendMessage(role, text, null, options),
+  // The page's own picture and clip lines (daily-plan.js): marked, so the
+  // server and retry tell them apart from what the person and the model wrote.
+  remember: (role, text) => rememberConversationMessage(role, text, { page: true }),
   setBusy: (busy) => setChatBusy(busy),
   language: () => chatLocale?.language || "bg",
 };
 
+// „Спри“ stops the answer being written and the queued pictures and clips
+// that have not started.
 function stopGeneration() {
   state.chatAbort?.abort();
+  cancelQueuedMedia();
 }
 
 function setChatBusy(isBusy) {
@@ -3153,6 +3175,26 @@ function nextStepFromReply(text) {
 }
 
 function resolveNextStep(replyText, result = {}) {
+  const next = structuredNextStep(replyText, result);
+  // The pictures and video on this answer's card (done.media) are made by a
+  // short yes to the answer's own last line, so that line is the step shown,
+  // also when a project run, a council or a missing Google permission has a
+  // step of its own: what a yes makes is always on screen (review r5). A
+  // project's or a council's step still goes to the journal; the permission
+  // link stays in the reply.
+  const own = nextStepFromReply(replyText).step;
+  if (own && next.step !== own && Array.isArray(result?.media?.items) && result.media.items.length) {
+    return {
+      step: own,
+      displayText: next.displayText,
+      mediaOffer: true,
+      journalStep: next.chatOnly ? "" : next.step,
+    };
+  }
+  return next;
+}
+
+function structuredNextStep(replyText, result = {}) {
   const parsedReply = nextStepFromReply(replyText);
   const projectStep = cleanNextStep(result?.projectRun?.nextStep);
   const councilStep = cleanNextStep(result?.council?.nextSteps?.[0]);
@@ -3224,13 +3266,22 @@ function showNextStep(message, replyText, result) {
   // Only steps that come from a real project run, council or task go to the
   // journal automatically. A step the model wrote in free text is shown but
   // saved only when Радко presses the button, so invented items never pile up.
-  const fromStructuredResult = Boolean(
-    result?.projectRun?.nextStep ||
-      result?.council?.nextSteps?.[0] ||
-      result?.task?.status,
-  );
+  // The answer's own offer to make its pictures and video is such a step,
+  // and the project's or council's step it stands in for is saved instead.
+  const fromStructuredResult =
+    !next.mediaOffer &&
+    Boolean(
+      result?.projectRun?.nextStep ||
+        result?.council?.nextSteps?.[0] ||
+        result?.task?.status,
+    );
   if (fromStructuredResult && !next.chatOnly) {
     globalThis.SynchronTaskJournal?.setNextStep(next.step, {
+      detail: "Записано автоматично от последния отговор на NovariumAI.",
+    });
+  }
+  if (next.journalStep) {
+    globalThis.SynchronTaskJournal?.setNextStep(next.journalStep, {
       detail: "Записано автоматично от последния отговор на NovariumAI.",
     });
   }
@@ -3291,6 +3342,249 @@ function taskConfirmationCommand(replyText) {
     /(?:Потвърждавам NovariumAI задача|Confirm NovariumAI task):\s*[0-9a-f]{8}-[0-9a-f-]{27,}/iu,
   );
   return match ? match[0] : "";
+}
+
+// Pictures and video an answer described (done.media): a card under the
+// answer with a button for each and „Направи всичко“. The page makes them with
+// its own generators (daily-plan.js, the same as the "+" menu, with the same
+// routes and units) only after a press on the card, or a short yes the server
+// started (media.start). Each card keeps the state of its own items (idle,
+// queued, running, made, failed), so a new card always starts fresh, also
+// with a description an earlier card made. One queue for the whole page
+// makes them one after another; „Спри“ cancels what has not started.
+const MEDIA_BUSY_STATES = new Set(["queued", "running", "made"]);
+let mediaQueue = Promise.resolve();
+// The queued items that have not started yet: { card, key, cancelled }.
+const waitingMedia = new Set();
+
+// The items of done.media, once each: the card keeps one state per
+// description, so the same description twice is one button (review r2).
+function mediaItems(media) {
+  const seen = new Set();
+  return (Array.isArray(media?.items) ? media.items : [])
+    .filter(
+      (item) =>
+        (item?.kind === "image" || item?.kind === "video") &&
+        typeof item.prompt === "string" &&
+        item.prompt.trim(),
+    )
+    .map((item) => ({
+      kind: item.kind,
+      prompt: item.prompt.trim(),
+      units: Number.isFinite(item.units) && item.units > 0 ? Math.round(item.units) : 0,
+      number: Number.isInteger(item.number) && item.number > 0 ? item.number : 0,
+    }))
+    .filter((item) => {
+      const key = mediaKey(item);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function mediaKey(item) {
+  return `${item.kind}:${item.prompt}`;
+}
+
+// A button stays pressed while all its items are queued, being made or made;
+// an item that failed, or was cancelled, can be pressed again. A pressed
+// button says which: made when all its items are made, being made when one
+// of them is, waiting otherwise (review r5), so a queued picture does not
+// look made.
+const MEDIA_STATE_WORDS = { queued: "чака", running: "прави се", made: "готово" };
+
+function mediaButtonState(card, keys) {
+  const states = keys.map((key) => card.__mediaState.get(key));
+  if (!states.length || !states.every((value) => MEDIA_BUSY_STATES.has(value))) return "";
+  if (states.every((value) => value === "made")) return "made";
+  return states.includes("running") ? "running" : "queued";
+}
+
+function refreshMediaCard(card) {
+  for (const button of card.querySelectorAll("button")) {
+    const state = mediaButtonState(card, button.__mediaKeys || []);
+    button.disabled = Boolean(state);
+    if ((button.dataset.mediaState || "") === state) continue;
+    if (state) button.dataset.mediaState = state;
+    else delete button.dataset.mediaState;
+    const name = state
+      ? `${button.__mediaName} · ${chatText(MEDIA_STATE_WORDS[state])}`
+      : button.__mediaName;
+    button.textContent = name;
+    if (button.__mediaDescription) {
+      button.title = `${name} — ${button.__mediaDescription}`;
+      button.setAttribute("aria-label", button.title);
+    }
+  }
+}
+
+function setMediaState(card, key, value) {
+  card.__mediaState.set(key, value);
+  refreshMediaCard(card);
+}
+
+// The card's items that are queued, being made or made: sent with the next
+// message, so a short yes never makes them again.
+function busyMediaKeys(card) {
+  return [...card.__mediaState]
+    .filter(([, value]) => MEDIA_BUSY_STATES.has(value))
+    .map(([key]) => key);
+}
+
+// The card of the latest answer the chat gave on screen, past the page's own
+// picture and clip turns and its notes, and past the server's own replies to
+// a yes that have no card (their items went to the card above them), as the
+// server passes over them too; null when that answer has none.
+function latestMediaCard() {
+  const answers = elements.chatMessages.querySelectorAll(".assistant-turn.chat-answer");
+  for (let index = answers.length - 1; index >= 0; index -= 1) {
+    const card = answers[index].querySelector(":scope > .media-proposals");
+    if (card) return card;
+    if (!answers[index].classList.contains("media-yes-reply")) return null;
+  }
+  return null;
+}
+
+// Waits while an answer, or a picture from the "+" menu, is being made;
+// false when „Спри“ cancelled the item meanwhile.
+async function waitForFreeChat(entry) {
+  while (state.chatBusy && !entry.cancelled) {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+  return !entry.cancelled;
+}
+
+function queueMedia(card, items) {
+  for (const item of items) {
+    const key = mediaKey(item);
+    if (MEDIA_BUSY_STATES.has(card.__mediaState.get(key))) continue;
+    const entry = { card, key, cancelled: false };
+    waitingMedia.add(entry);
+    setMediaState(card, key, "queued");
+    mediaQueue = mediaQueue.then(() => makeMediaItem(entry, item));
+  }
+  return mediaQueue;
+}
+
+async function makeMediaItem(entry, item) {
+  const free = await waitForFreeChat(entry);
+  waitingMedia.delete(entry);
+  // A card no longer on screen (another conversation was opened) makes
+  // nothing.
+  if (!free || !entry.card.isConnected) return;
+  setMediaState(entry.card, entry.key, "running");
+  let made = false;
+  try {
+    const make = globalThis.SynchronMedia?.[item.kind === "video" ? "makeVideo" : "drawImage"];
+    made = typeof make === "function" && (await make(item.prompt, { fromChat: true })) === true;
+  } catch {
+    made = false;
+  }
+  setMediaState(entry.card, entry.key, made ? "made" : "failed");
+}
+
+// „Спри“: the queued items that have not started go back to idle and their
+// buttons can be pressed again; the one being made finishes (its units are
+// already reserved).
+function cancelQueuedMedia() {
+  for (const entry of waitingMedia) {
+    entry.cancelled = true;
+    setMediaState(entry.card, entry.key, "idle");
+  }
+  waitingMedia.clear();
+}
+
+// The first characters of a description, for a button's name.
+function mediaDescriptionStart(prompt) {
+  const characters = Array.from(prompt);
+  return characters.length > 60 ? `${characters.slice(0, 60).join("").trimEnd()}…` : prompt;
+}
+
+// Shows the card under an answer and returns it (null when there is none).
+// made: the items an edited or retried question's removed cards had made
+// (resendFrom); their pictures and clips stay on screen, so the card of the
+// answer that replaces them shows them made and „Направи всичко“ makes only
+// the rest (review r5). Any other card starts fresh.
+function showMediaProposals(message, media, made = []) {
+  const turn = message?.closest(".assistant-turn");
+  const items = mediaItems(media);
+  if (!turn || !items.length || turn.querySelector(":scope > .media-proposals")) return null;
+
+  const card = document.createElement("section");
+  card.className = "media-proposals";
+  card.tabIndex = -1;
+  const madeBefore = new Set(made);
+  card.__mediaState = new Map(
+    items.map((item) => [mediaKey(item), madeBefore.has(mediaKey(item)) ? "made" : "idle"]),
+  );
+  card.setAttribute("aria-label", chatText("Картинки и видео"));
+  const label = document.createElement("strong");
+  label.textContent = chatText("Картинки и видео");
+  const buttons = document.createElement("div");
+  buttons.className = "media-proposals-buttons";
+  const addButton = (text, chosen, description = "", className = "") => {
+    const button = document.createElement("button");
+    button.type = "button";
+    if (className) button.className = className;
+    button.textContent = text;
+    button.__mediaName = text;
+    button.__mediaDescription = description;
+    if (description) {
+      button.title = `${text} — ${description}`;
+      button.setAttribute("aria-label", button.title);
+    }
+    button.__mediaKeys = chosen.map(mediaKey);
+    button.addEventListener("click", () => {
+      void queueMedia(card, chosen);
+      // The pressed button is now disabled; focus goes to the card itself,
+      // never to another button, so one more Enter or Space makes nothing
+      // the person did not choose (review r5).
+      card.focus();
+    });
+    buttons.append(button);
+  };
+  // A picture keeps the answer's own number ("Картинка 2:") unless an earlier
+  // picture on the card has it; any other picture takes the lowest number no
+  // picture on the card has, so no two buttons have the same name.
+  const numbers = new Map();
+  const taken = new Set();
+  for (const item of items) {
+    if (item.kind === "image" && item.number && !taken.has(item.number)) {
+      numbers.set(item, item.number);
+      taken.add(item.number);
+    }
+  }
+  let free = 1;
+  for (const item of items) {
+    if (item.kind !== "image" || numbers.has(item)) continue;
+    while (taken.has(free)) free += 1;
+    numbers.set(item, free);
+    taken.add(free);
+  }
+  for (const item of items) {
+    const name =
+      item.kind === "video"
+        ? `🎬 ${chatText("Видео")}`
+        : `🎨 ${chatText("Картинка")} ${numbers.get(item)}`;
+    // Only a member pays; the owner's items come with 0 units.
+    const cost = item.units > 0 ? ` · ${item.units} ${chatText("единици")}` : "";
+    addButton(`${name}${cost}`, [item], mediaDescriptionStart(item.prompt));
+  }
+  // A member sees what „Направи всичко“ costs together, like each item.
+  const total = items.reduce((sum, item) => sum + item.units, 0);
+  const totalCost = total > 0 ? ` · ${total} ${chatText("единици")}` : "";
+  if (items.length > 1) addButton(`${chatText("Направи всичко")}${totalCost}`, items, "", "media-proposals-all");
+  card.append(label, buttons);
+
+  // Above the Next card, whose step usually offers to make them.
+  turn.insertBefore(
+    card,
+    turn.querySelector(":scope > .next-step-card") ||
+      turn.querySelector(":scope > .message-actions") ||
+      null,
+  );
+  refreshMediaCard(card);
+  return card;
 }
 
 function memoryCandidateCategoryLabel(category) {
@@ -3764,34 +4058,59 @@ async function handleMessageAction(event) {
   }
 }
 
+// The person's question before a turn, past the page's own picture and clip
+// lines.
 function previousUserTurn(turn) {
   let node = turn?.previousElementSibling;
-  while (node && !node.classList.contains("user-turn")) {
+  while (node && (!node.classList.contains("user-turn") || node.classList.contains("media-turn"))) {
     node = node.previousElementSibling;
   }
   return node;
 }
 
+// The page's own picture and clip lines in the history (daily-plan.js through
+// SynchronChat.remember), by the page's own mark: a typed message or an answer
+// that starts with "🎨 " or "🎬 " is never one (review r2).
+function isPageMediaLine(item) {
+  return item?.page === true;
+}
+
 // Retry and edit replace a question and everything after it, like the big
-// chat apps: the old turns leave the screen and the history sent to AI.
+// chat apps: the old turns leave the screen and the history sent to AI. The
+// page's own pictures and clips stay, on the screen and in the history: they
+// are made and paid for, and their card keeps them as made, so a yes sent
+// again never makes them again.
 function resendFrom(userTurn, request, modelOverride = "") {
   let removedUserTurns = 0;
+  // What the removed cards made: those pictures and clips stay on screen.
+  const madeBefore = new Set();
   let node = userTurn;
   while (node) {
     const next = node.nextElementSibling;
-    if (node.classList.contains("user-turn")) removedUserTurns += 1;
-    node.remove();
+    if (!node.classList.contains("media-turn")) {
+      // A question that got no answer left the history when it failed.
+      if (node.classList.contains("user-turn") && !node.classList.contains("unsent-turn")) {
+        removedUserTurns += 1;
+      }
+      for (const card of node.querySelectorAll(":scope > .media-proposals")) {
+        for (const [key, value] of card.__mediaState || []) if (value === "made") madeBefore.add(key);
+      }
+      node.remove();
+    }
     node = next;
   }
   const history = state.recentConversationMessages;
   let cut = history.length;
   for (let seen = 0; cut > 0 && seen < removedUserTurns; ) {
     cut -= 1;
-    if (history[cut].role === "user") seen += 1;
+    if (history[cut].role === "user" && !isPageMediaLine(history[cut])) seen += 1;
   }
-  state.recentConversationMessages = history.slice(0, cut);
+  state.recentConversationMessages = [
+    ...history.slice(0, cut),
+    ...history.slice(cut).filter(isPageMediaLine),
+  ];
   logAction(modelOverride ? "Нов опит с друг модел" : "Нов опит");
-  return sendMessage({ resend: request, modelOverride });
+  return sendMessage({ resend: request, modelOverride, madeBefore: [...madeBefore] });
 }
 
 function openRetryModelMenu(button, onPick) {
@@ -4041,6 +4360,7 @@ async function sendMessage({
   councilIntentId = "",
   resend = null,
   modelOverride = "",
+  madeBefore = [],
 } = {}) {
   const text = resend ? String(resend.text || "").trim() : elements.chatInput.value.trim();
   const image = resend ? resend.image || null : state.pendingImage;
@@ -4061,11 +4381,15 @@ async function sendMessage({
     return;
   }
   setCouncilMode(false);
-  const recentHistory = state.recentConversationMessages.slice(-12);
+  const recentHistory = conversationWindow(state.recentConversationMessages);
   const interaction = globalThis.SynchronWorkMode?.getRequestPayload();
   const sentSessionId = state.sessionId;
   let talkReply = "";
-  appendMessage("user", messageText, image);
+  // The card under the answer this message replies to: the server starts
+  // only the items it has not queued or made when the message is a short yes.
+  const answeredCard = latestMediaCard();
+  const sentTurn = appendMessage("user", messageText, image, { remember: false }).closest(".user-turn");
+  const sentEntry = rememberConversationMessage("user", messageText);
   if (!resend) {
     elements.chatInput.value = "";
     resizeChatInput();
@@ -4097,6 +4421,7 @@ async function sendMessage({
         ...(councilMode ? { councilProviders } : {}),
         ...(councilIntentId ? { councilIntentId } : {}),
         recentHistory,
+        ...(answeredCard ? { mediaCard: { made: busyMediaKeys(answeredCard) } } : {}),
         model: modelOverride || globalThis.SynchronUi?.chatModel?.() || "auto",
         ...(resend ? { rewrite: true } : {}),
         ...(globalThis.SynchronUi?.assistant?.()
@@ -4124,6 +4449,7 @@ async function sendMessage({
     }
 
     const assistantTurn = createAssistantTurn("", false);
+    assistantTurn.turn.classList.add("chat-answer");
     responseBubble = assistantTurn.message;
     responseActions = assistantTurn.actions;
 
@@ -4180,6 +4506,18 @@ async function sendMessage({
           if (interaction?.mode !== "work") offerTodos(responseBubble, fullText);
           showMemoryCandidates(responseBubble, parsed.data?.memoryCandidates);
           showNextStep(responseBubble, fullText, parsed.data);
+          // The server's own reply to a yes: the next yes looks past it to
+          // the card above when it has no card of its own.
+          if (parsed.data?.mode === "media-yes") assistantTurn.turn.classList.add("media-yes-reply");
+          // The answer's own pictures and video get a card. Those a short yes
+          // started are queued on the card they came from and made once the
+          // chat is free, after this turn.
+          if (parsed.data?.media?.start === true) {
+            const card = answeredCard || showMediaProposals(responseBubble, parsed.data.media, madeBefore);
+            if (card) void queueMedia(card, mediaItems(parsed.data.media));
+          } else {
+            showMediaProposals(responseBubble, parsed.data?.media, madeBefore);
+          }
           if (
             parsed.data?.conversationPersisted === false &&
             parsed.data?.warningCode === "CONVERSATION_NOT_SAVED"
@@ -4258,13 +4596,21 @@ async function sendMessage({
     console.error(error);
     globalThis.SynchronWorkMode?.onError();
     const message = `❌ ${error?.message || chatText("Сървърна грешка. Опитай отново.")}`;
+    // The question got no answer, and the error is no answer: neither goes to
+    // the AI with the next message, so a „да“ typed again answers the answer
+    // above them (review r2: the error line was read as that answer), and
+    // retry and edit do not count the question.
+    state.recentConversationMessages = state.recentConversationMessages.filter((item) => item !== sentEntry);
+    sentTurn?.classList.add("unsent-turn");
 
     if (responseBubble) {
       responseBubble.textContent = message;
       responseBubble.dataset.rawText = message;
       if (responseActions) responseActions.hidden = true;
+      // The next yes looks past this turn for the card above it.
+      responseBubble.closest(".assistant-turn")?.classList.remove("chat-answer");
     } else {
-      appendMessage("agent", message);
+      appendMessage("agent", message, null, { remember: false });
     }
     logAction("Грешка при AI отговор");
   } finally {
@@ -4277,24 +4623,62 @@ async function sendMessage({
   if (talkReply && state.talkMode) talkSpeak(talkReply);
 }
 
-function rememberConversationMessage(role, text) {
+// The history sent to the AI: the last 12 turns, and among them at most 24 of
+// the page's own picture and clip lines, which do not count as turns. A full
+// card adds ten of them; counted as turns they pushed the request and the
+// offer out, so a retry or an edit of the yes lost them (review r2). The
+// server keeps the same window (normalizeRecentConversationHistory).
+const RECENT_TURNS = 12;
+const RECENT_PAGE_LINES = 24;
+
+function conversationWindow(history) {
+  const kept = [];
+  let turns = 0;
+  let pageLines = 0;
+  for (let index = history.length - 1; index >= 0 && turns < RECENT_TURNS; index -= 1) {
+    const item = history[index];
+    if (isPageMediaLine(item)) {
+      if (pageLines >= RECENT_PAGE_LINES) continue;
+      pageLines += 1;
+    } else {
+      turns += 1;
+    }
+    kept.unshift(item);
+  }
+  return kept;
+}
+
+// Adds a turn to the history and returns its entry (null when there is
+// nothing to add). options.page marks the page's own picture and clip lines.
+function rememberConversationMessage(role, text, { page = false } = {}) {
   const normalizedRole = role === "agent" ? "assistant" : role;
   const content = typeof text === "string" ? text.trim() : "";
   if (
     (normalizedRole !== "user" && normalizedRole !== "assistant") ||
     !content
   ) {
-    return;
+    return null;
   }
-  state.recentConversationMessages.push({ role: normalizedRole, content });
-  state.recentConversationMessages =
-    state.recentConversationMessages.slice(-12);
+  const entry = page ? { role: normalizedRole, content, page: true } : { role: normalizedRole, content };
+  state.recentConversationMessages.push(entry);
+  state.recentConversationMessages = conversationWindow(state.recentConversationMessages);
+  return entry;
 }
 
+// options.remember: false keeps the text out of the history sent to the AI;
+// options.media marks the page's own picture and clip turns (daily-plan.js),
+// which get no retry or edit: those would remove a made clip and send its
+// description as a chat message.
 function appendMessage(role, text, image = null, options = {}) {
   if (options.remember !== false) rememberConversationMessage(role, text);
   if (role === "agent") {
     const assistantTurn = createAssistantTurn(text, true);
+    if (options.media) {
+      assistantTurn.turn.classList.add("media-turn");
+      assistantTurn.actions
+        .querySelectorAll('[data-action="retry"], [data-action="retry-model"]')
+        .forEach((button) => button.remove());
+    }
     scrollChatToBottom();
     return assistantTurn.message;
   }
@@ -4329,12 +4713,13 @@ function appendMessage(role, text, image = null, options = {}) {
             <i class="fa-regular fa-copy"></i>
             <span class="action-label">${localizedMarkup("Копирай")}</span>
         </button>
-        <button type="button" data-action="edit" title="${localizedMarkup("Редактирай")}" aria-label="${localizedMarkup("Редактирай")}">
+        ${options.media ? "" : `<button type="button" data-action="edit" title="${localizedMarkup("Редактирай")}" aria-label="${localizedMarkup("Редактирай")}">
             <i class="fa-solid fa-pen"></i>
-        </button>
+        </button>`}
     `;
 
-  turn.__request = { text, image };
+  if (options.media) turn.classList.add("media-turn");
+  else turn.__request = { text, image };
   turn.append(div, actions);
   elements.chatMessages.appendChild(turn);
   scrollChatToBottom();

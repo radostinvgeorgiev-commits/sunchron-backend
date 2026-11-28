@@ -60,5 +60,5 @@ test("application exposes working memory and permission controls", async () => {
   assert.match(script, /NovariumAI Code Write подготвя отделен branch/u);
   assert.match(script, /Писането е защитено/u);
   assert.doesNotMatch(script, /fetch\(["']\/opensearch-status["']/u);
-  assert.match(html, /\/assets\/20260806-green-chat-v1\/app\.js/u);
+  assert.match(html, /\/assets\/20261127-media-v4\/app\.js/u);
 });

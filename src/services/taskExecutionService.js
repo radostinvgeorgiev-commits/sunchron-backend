@@ -85,12 +85,14 @@ export async function executeTaskPlan({
   } = executionContext;
   const results = [];
 
+  // With no tool planned the answer is simply being written; the old "the
+  // task needs no tool" read as the agent refusing tools (27.11.2026).
   safeNotify(notify, {
     taskId,
     status: "executing",
     message:
       plannedRequests.length === 0
-        ? "Задачата не изисква външен инструмент."
+        ? "Пиша отговора…"
         : plannedRequests.length === 1
           ? "Изпълнявам задачата с избрания инструмент…"
           : `Изпълнявам ${plannedRequests.length} проверени стъпки…`,

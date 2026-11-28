@@ -10,7 +10,9 @@ if ("serviceWorker" in navigator) {
 // days without loading it again, so a person kept seeing an old version after
 // an update. When the page comes back to the screen, or every 30 minutes, it
 // asks which version is live and reloads itself if it is newer, but never
-// while the person is typing or an answer is coming.
+// while the person is typing or an answer is coming, and never while the chat
+// shows a picture or clip made on this page or has some waiting: those live
+// only on this page, and a reload would lose them (review r5).
 (() => {
   let loadedCommit = "";
   let lastCheck = 0;
@@ -24,6 +26,13 @@ if ("serviceWorker" in navigator) {
     const send = document.getElementById("sendBtn");
     if (input && input.value.trim()) return false;
     if (send && send.classList.contains("is-stop")) return false;
+    if (
+      document.querySelector(
+        '#chatMessages .generated-image, #chatMessages .generated-video, #chatMessages .media-proposals button[data-media-state="queued"], #chatMessages .media-proposals button[data-media-state="running"]',
+      )
+    ) {
+      return false;
+    }
     if (document.activeElement?.matches?.("input, textarea, [contenteditable]")) {
       const value = document.activeElement.value ?? document.activeElement.textContent;
       if (String(value || "").trim()) return false;

@@ -324,8 +324,10 @@ test("a short yes continues the immediately preceding proposal without bypassing
     },
   ]);
 
-  assert.match(message, /Провери проекта/u);
-  assert.match(message, /Мога да проверя GitHub/u);
+  // The offer the answer closes with is the step; the request before it ran
+  // its own tools already and is not read again (review r5).
+  assert.doesNotMatch(message, /Провери проекта/u);
+  assert.match(message, /Предложена следваща стъпка: Мога да проверя GitHub и да подготвя промяна\. Да продължа ли\?/u);
   assert.match(message, /Текущ отговор на потребителя: Да\./u);
   assert.match(message, /confirmation процес остава задължителен/u);
   assert.deepEqual(
@@ -384,7 +386,9 @@ test("recognizes an exact Cloud Build deploy request as confirmed infrastructure
   );
 });
 
-test("selecting a council recommendation restores its bounded context", () => {
+test("a typed „Изпълни препоръката.“ without the Council's button runs nothing by itself", () => {
+  // The button sends the Council's own intent, which the route turns into its
+  // bounded context; typed without it, there is no step to run (review r5).
   const message = buildContextualTaskMessage("Изпълни препоръката.", [
     { role: "user", content: "Питай трите AI модела за следващия ход." },
     {
@@ -393,8 +397,8 @@ test("selecting a council recommendation restores its bounded context", () => {
     },
   ]);
 
-  assert.match(message, /Обща препоръка/u);
-  assert.match(message, /Текущ отговор на потребителя: Изпълни препоръката/u);
+  assert.equal(message, "Изпълни препоръката.");
+  assert.deepEqual(detectCapabilityRequests(message), []);
 });
 
 test("NovariumAI code task failures keep a safe actionable reason in chat", () => {

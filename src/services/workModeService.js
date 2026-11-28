@@ -290,7 +290,11 @@ export function hasExplicitNoAdditionalToolsBoundary(message) {
   );
 }
 
-export function routeSelectedWorkAgentCapabilities(requests, value, message) {
+// `toolQuestion`: the message only asks which tools the chat has (the route's
+// isToolInventoryMessage); the tool list answers it, so the code agent
+// analyses no code for it (review r6: „С кои инструменти можеш да работиш?“
+// cost a code analysis of about 467,000 characters).
+export function routeSelectedWorkAgentCapabilities(requests, value, message, { toolQuestion = false } = {}) {
   const context = sanitizeWorkContext(value);
   const safeRequests = Array.isArray(requests) ? requests : [];
   if (context?.agent?.engine !== "codex") return safeRequests;
@@ -299,6 +303,7 @@ export function routeSelectedWorkAgentCapabilities(requests, value, message) {
     ({ capability }) => !String(capability || "").startsWith("code."),
   );
   if (hasExplicitNoToolBoundary(message)) return [];
+  if (toolQuestion) return nonCodeRequests;
   if (isRuntimeAiIdentityRequest(message)) return nonCodeRequests;
   if (
     /^(?:добър ден|добро утро|добър вечер|здравей(?:те)?|здрасти|hi|hello)[.!?\s]*$/iu.test(

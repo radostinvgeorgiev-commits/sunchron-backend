@@ -4,7 +4,9 @@
   const input = document.getElementById("chatInput");
   const list = document.getElementById("chatMessages");
   if (!input || !list) return;
-  const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
+  const fill = (value, values = {}) =>
+    value.replace(/\{(\w+)\}/gu, (match, name) => (Object.hasOwn(values, name) ? String(values[name]) : match));
+  const text = (value, values) => globalThis.NovariumLocale?.text?.(value, values) ?? fill(value, values);
   const render = (element, value) => {
     if (globalThis.SynchronChat?.renderMarkdown) globalThis.SynchronChat.renderMarkdown(element, value);
     else element.textContent = value;
@@ -74,48 +76,106 @@
     return button;
   };
 
-  // "Нарисувай картинка": the description in the box becomes a picture.
-  document.addEventListener("novarium:draw-image", async () => {
-    const chat = globalThis.SynchronChat;
-    const prompt = input.value.trim();
-    if (!prompt) {
-      input.placeholder = text("Първо опиши картинката, после избери „Нарисувай картинка“");
-      input.focus();
-      return;
+  // Pictures and video come from the "+" menu (the description typed in the
+  // box) or from the chat: a description an answer wrote, made only after the
+  // person pressed its button or said a short yes to it (app.js). Both resolve
+  // true when the picture or clip is shown, false otherwise.
+
+  // The description in the history: one line, at most 200 characters. The
+  // chat marks these lines as the page's own (SynchronChat.remember), and the
+  // server knows them by that mark and their shape ("🎨 …", one line of at
+  // most 400 characters): it leaves them out when it matches the page's turns
+  // with the saved ones, and they do not count as turns.
+  const brief = (value) => {
+    const characters = Array.from(value.replace(/\s+/gu, " ").trim());
+    return characters.length > 200 ? `${characters.slice(0, 199).join("").trimEnd()}…` : characters.join("");
+  };
+  // The person's line for a picture or a clip: shown whole, remembered brief.
+  // Like the progress line and the result, it is the page's own turn, with
+  // no retry or edit.
+  const askedFor = (chat, sign, description) => {
+    chat.append("user", `${sign} ${description}`, { media: true, remember: false });
+    chat.remember?.("user", `${sign} ${brief(description)}`);
+  };
+  // From the chat a description waits while an answer or another picture is
+  // still being made (up to five minutes), instead of being dropped.
+  const chatFree = async (chat) => {
+    const until = Date.now() + 5 * 60 * 1000;
+    while (chat.busy?.()) {
+      if (Date.now() >= until) return false;
+      await new Promise((resolve) => setTimeout(resolve, 400));
     }
-    if (!chat || chat.busy?.()) return;
+    return true;
+  };
+  // The description to make now, or "" when there is none. Only the "+" menu,
+  // which gives no description, reads and clears the box.
+  const takeDescription = async (prompt, { fromChat = false } = {}, hint) => {
+    const chat = globalThis.SynchronChat;
+    if (typeof prompt === "string") {
+      const given = prompt.trim();
+      if (!given || !chat) return "";
+      if (fromChat && !(await chatFree(chat))) return "";
+      return chat.busy?.() ? "" : given;
+    }
+    const typed = input.value.trim();
+    if (!typed) {
+      input.placeholder = text(hint);
+      input.focus();
+      return "";
+    }
+    if (!chat || chat.busy?.()) return "";
     input.value = "";
     input.dispatchEvent(new Event("input", { bubbles: true }));
-    chat.append("user", `🎨 ${prompt}`);
+    return typed;
+  };
+
+  // "Нарисувай картинка": the description becomes a picture.
+  async function drawImage(prompt, options = {}) {
+    const description = await takeDescription(prompt, options, "Първо опиши картинката, после избери „Нарисувай картинка“");
+    if (!description) return false;
+    const chat = globalThis.SynchronChat;
+    askedFor(chat, "🎨", description);
     chat.setBusy(true);
-    const bubble = chat.append("agent", text("🎨 Рисувам… това отнема до половин минута."));
+    // The progress line is only shown; the history gets the result.
+    const bubble = chat.append("agent", text("🎨 Рисувам… това отнема до половин минута."), {
+      remember: false,
+      media: true,
+    });
     try {
       const response = await fetch("/api/images", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt: description }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || text("Картинката не стана. Опитай пак."));
+      if (!response.ok || typeof data.image !== "string") {
+        throw new Error(data.error || text("Картинката не стана. Опитай пак."));
+      }
       const figure = document.createElement("figure");
       figure.className = "generated-image";
       const image = document.createElement("img");
       image.src = data.image;
-      image.alt = prompt;
+      image.alt = description;
       const save = document.createElement("a");
       save.href = data.image;
       save.download = "novarium-kartinka.webp";
       save.textContent = text("Изтегли картинката");
       figure.append(image, save);
       bubble.replaceChildren(figure);
+      // Copy, Read aloud, search and export read this line, not the progress one.
+      const made = text("🎨 Нарисувах картинка: {prompt}", { prompt: brief(description) });
+      bubble.dataset.rawText = made;
+      chat.remember?.("assistant", made);
+      return true;
     } catch (error) {
       render(bubble, `❌ ${error.message}`);
+      return false;
     } finally {
       chat.setBusy(false);
       list.scrollTop = list.scrollHeight;
     }
-  });
+  }
 
   // "Качи в YouTube": sends the finished clip to the person's own channel.
   // The first time Google asks for a small permission (a link is shown).
@@ -173,28 +233,29 @@
     return wrap;
   };
 
-  // "Направи видео": the description in the box becomes a short clip with
-  // sound (an ad or anything else). The server sends the MP4 file itself.
-  document.addEventListener("novarium:make-video", async () => {
+  // "Направи видео": the description becomes a short clip with sound (an ad
+  // or anything else). The server sends the MP4 file itself.
+  async function makeVideo(prompt, options = {}) {
+    const description = await takeDescription(
+      prompt,
+      options,
+      "Първо опиши видеото (напр. реклама за кафене, за телефон), после избери „Направи видео“",
+    );
+    if (!description) return false;
     const chat = globalThis.SynchronChat;
-    const prompt = input.value.trim();
-    if (!prompt) {
-      input.placeholder = text("Първо опиши видеото (напр. реклама за кафене, за телефон), после избери „Направи видео“");
-      input.focus();
-      return;
-    }
-    if (!chat || chat.busy?.()) return;
-    input.value = "";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    chat.append("user", `🎬 ${prompt}`);
+    askedFor(chat, "🎬", description);
     chat.setBusy(true);
-    const bubble = chat.append("agent", text("🎬 Правя видеото… това отнема от една до четири минути. Не затваряй страницата."));
+    const bubble = chat.append(
+      "agent",
+      text("🎬 Правя видеото… това отнема от една до четири минути. Не затваряй страницата."),
+      { remember: false, media: true },
+    );
     try {
       const response = await fetch("/api/videos", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt: description }),
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -208,23 +269,56 @@
       video.src = url;
       video.controls = true;
       video.playsInline = true;
-      video.setAttribute("aria-label", prompt);
+      video.setAttribute("aria-label", description);
       const save = document.createElement("a");
       save.href = url;
       save.download = "novarium-video.mp4";
       save.textContent = text("Изтегли видеото");
       const actions = document.createElement("div");
       actions.className = "video-actions";
-      actions.append(save, youtubeButton(blob, prompt));
+      actions.append(save, youtubeButton(blob, description));
       figure.append(video, actions);
       bubble.replaceChildren(figure);
+      const made = text("🎬 Направих видео: {prompt}", { prompt: brief(description) });
+      bubble.dataset.rawText = made;
+      chat.remember?.("assistant", made);
+      return true;
     } catch (error) {
       render(bubble, `❌ ${error.message}`);
+      return false;
     } finally {
       chat.setBusy(false);
       list.scrollTop = list.scrollHeight;
     }
+  }
+
+  // The "+" menu sends no description, so the one in the box is used; a
+  // description in event.detail.prompt is made as one from the chat.
+  const eventPrompt = (event) => {
+    const prompt = event.detail?.prompt;
+    return typeof prompt === "string" && prompt.trim() ? prompt : undefined;
+  };
+  document.addEventListener("novarium:draw-image", (event) => {
+    const prompt = eventPrompt(event);
+    void drawImage(prompt, { fromChat: prompt !== undefined });
   });
+  document.addEventListener("novarium:make-video", (event) => {
+    const prompt = eventPrompt(event);
+    void makeVideo(prompt, { fromChat: prompt !== undefined });
+  });
+  globalThis.SynchronMedia = { drawImage, makeVideo };
+
+  // A made clip's file is freed when its turn leaves the chat (a new chat,
+  // another conversation, a retry of an earlier answer).
+  new MutationObserver((changes) => {
+    for (const change of changes) {
+      for (const node of change.removedNodes) {
+        for (const video of node.querySelectorAll?.('video[src^="blob:"]') || []) {
+          URL.revokeObjectURL(video.src);
+        }
+      }
+    }
+  }).observe(list, { childList: true });
 
   const preparePlan = async (period) => {
     const plan = PLANS[period];

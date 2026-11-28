@@ -19,6 +19,7 @@ import {
 } from "../services/aiProviderProbeService.js";
 import {
   createGmailDraft,
+  googleAccountAddress,
   GoogleDriveError,
   hasSession,
   listDriveFiles,
@@ -802,12 +803,23 @@ const executors = Object.freeze({
           : `Gmail съобщението е преместено в кошчето: ${changed.id}.`;
       }
       const mail = input.input || input;
-      if (capability === "mail.send" && !input.draftId && mail.to) {
+      if (capability === "mail.send" && !input.draftId && (mail.to || mail.toSelf)) {
+        // „до мен“: the address of the person's own connected Google account.
+        const to = mail.to || (await googleAccountAddress(input.googleSessionId));
+        if (!to) {
+          throw new GoogleDriveError(
+            useEnglishReplyFallback(input.language)
+              ? "I can't see the address of your connected Google account. Write the address instead of “me”."
+              : "Не виждам адреса на свързания ти Google профил. Напиши адреса вместо „мен“.",
+            400,
+            "GMAIL_OWN_ADDRESS_UNKNOWN",
+          );
+        }
         const prepared = await prepareGmailMessageSend({
           ownerId: input.ownerId,
           googleSessionId: input.googleSessionId,
           sessionId: input.sessionId,
-          to: mail.to,
+          to,
           subject: mail.subject,
           body: mail.body,
         });

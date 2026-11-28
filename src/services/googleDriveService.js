@@ -405,6 +405,22 @@ export async function googleLoginHint(id) {
   return googleSubject(await loadSession(id));
 }
 
+// The address of the Google account behind a connection: the "email" of its
+// sign-in id_token, which Google sends with the "email" scope every
+// „Свържи Google“ asks for. „Изпрати имейл до мен“ goes there (RADKO 28.11:
+// „искам да пратя мейл до мен“). "" when the token has none or it is not
+// verified.
+export async function googleAccountAddress(id) {
+  try {
+    const payload = String((await loadSession(id))?.id_token || "").split(".")[1];
+    if (!payload) return "";
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return claims.email && claims.email_verified !== false ? String(claims.email) : "";
+  } catch {
+    return "";
+  }
+}
+
 // The links to step tokens can be made or changed on another server
 // instance, so the stored copy decides. The cached session is updated in
 // place, so a token refresh that persists it never drops a link made elsewhere.
@@ -682,6 +698,19 @@ function sessionOwnedBy(session, owner) {
 export async function sessionBelongsTo(id, owner) {
   if (!id || !owner?.memoryOwnerId) return false;
   return sessionOwnedBy(await loadSession(id), owner);
+}
+
+// This account's own Google connection as the chat sees it, from the same one
+// stored session `sessionBelongsTo` reads (no call to Google): the scopes
+// Google granted, or, for a token stored without them, the ones the first
+// "Свържи Google" asks for. null when the connection is not this account's.
+export async function googleConnectionFor(id, owner) {
+  if (!id || !owner?.memoryOwnerId) return null;
+  const session = await loadSession(id);
+  if (!sessionOwnedBy(session, owner)) return null;
+  return Object.freeze({
+    scopes: Object.freeze([...grantedScopes(session.scope || GOOGLE_MEMBER_SCOPES.join(" "))]),
+  });
 }
 
 export async function createSession(

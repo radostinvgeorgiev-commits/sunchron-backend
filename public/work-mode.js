@@ -1299,7 +1299,11 @@
     selectConversation,
     setBusy: (busy) => {
       conversationBusy = busy;
-      if (busy && workState?.mode === "work") setWorkStatus("running");
+      if (workState?.mode !== "work") return;
+      if (busy) setWorkStatus("running");
+      // A picture or a clip has no answer to end its run: when nothing else
+      // set the status, the project is ready again, as after an answer.
+      else if (workState.workStatus === "running") setWorkStatus("ready");
     },
   });
 })();

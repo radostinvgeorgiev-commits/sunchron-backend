@@ -655,14 +655,18 @@ test("Work uses stored project conversations and ignores client-provided links",
   assert.match(result.text, /event: done/u);
   assert.deepEqual(reads, ["current-chat", "linked-chat"]);
   assert.match(result.text, /"linkedProjectContext":true/u);
-  assert.equal(input[1].content, "По-стара заявка от текущия чат.");
+  // The linked-chats reference comes before the conversation, so the
+  // person's message directly follows the conversation (27.11.2026).
+  assert.match(input[1].content, /^\[СПРАВКА ОТ СВЪРЗАНИ РАЗГОВОРИ/u);
+  assert.match(input[1].content, /Синият файл е одобрен\./u);
+  assert.match(input[1].content, /Срокът е петък\./u);
+  assert.equal(input[2].content, "По-стара заявка от текущия чат.");
   assert.equal(
     input.filter(({ content }) => content === "Последен запазен отговор.")
       .length,
     1,
   );
-  assert.match(input.at(-2).content, /Синият файл е одобрен\./u);
-  assert.match(input.at(-2).content, /Срокът е петък\./u);
+  assert.equal(input.at(-2).content, "По-нова незаписана бележка.");
   assert.equal(input.at(-1).content, "Обобщи контекста.");
 });
 

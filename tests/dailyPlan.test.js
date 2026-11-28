@@ -57,6 +57,67 @@ test("a Google error does not stop the plan", async () => {
   assert.deepEqual((await service.plan(maria, { googleSessionId: "g" })).sources, { profile: false, calendar: null, mail: 0 });
 });
 
+test("a calendar or mail turned off with „Разкачи“ is not read, and the plan says so", async () => {
+  let read = [];
+  let asked;
+  const base = {
+    askAi: async ({ input }) => {
+      asked = input;
+      return "План";
+    },
+    profileContext: async () => "",
+    belongs: async () => true,
+    calendar: async () => {
+      read.push("calendar");
+      return [{ title: "Среща с банката", start: "2026-11-26T09:00:00+02:00" }];
+    },
+    mail: async () => {
+      read.push("mail");
+      return [{ from: "Иван", subject: "Офертата" }];
+    },
+  };
+  const mailOff = createDailyPlanService({
+    ...base,
+    capabilitiesOff: async (ownerId) => {
+      assert.equal(ownerId, "user:maria");
+      return new Set(["mail.read", "mail.search", "mail.send"]);
+    },
+  });
+  const result = await mailOff.plan(maria, { googleSessionId: "g1" });
+  assert.deepEqual(read, ["calendar"]);
+  assert.deepEqual(result.sources, { profile: false, calendar: 1, mail: "off" });
+  assert.match(asked[1].content, /Среща с банката/u);
+  assert.match(asked[1].content, /Пощата е разкачена от човека в „Инструменти“/u);
+  assert.doesNotMatch(asked[1].content, /Офертата|Пощата не е свързана/u);
+  // When the switches cannot be read, neither is read (as if both were off).
+  read = [];
+  const unreadable = createDailyPlanService({
+    ...base,
+    capabilitiesOff: async () => Object.assign(new Set(["calendar.read", "mail.read"]), { unavailable: true }),
+  });
+  const closed = await unreadable.plan(maria, { googleSessionId: "g1" });
+  assert.deepEqual(read, []);
+  // Not the person's choice: the plan says only that they were not read.
+  assert.deepEqual(closed.sources, { profile: false, calendar: "unavailable", mail: "unavailable" });
+  assert.match(asked[1].content, /Календарът не се прочете за този план/u);
+  assert.match(asked[1].content, /Пощата не се прочете за този план/u);
+  assert.doesNotMatch(asked[1].content, /Календарът е разкачен|Пощата е разкачена|Календарът не е свързан\.|Пощата не е свързана\./u);
+  // Google not connected and the switches unreadable: still „not connected“,
+  // so the page keeps offering „свържи „Моят Google““.
+  const unconnected = createDailyPlanService({
+    ...base,
+    belongs: async () => false,
+    capabilitiesOff: async () => Object.assign(new Set(["calendar.read", "mail.read"]), { unavailable: true }),
+  });
+  const bare = await unconnected.plan(maria, { googleSessionId: "" });
+  assert.deepEqual(read, []);
+  assert.deepEqual(bare.sources, { profile: false, calendar: null, mail: null });
+  assert.match(asked[1].content, /Календарът не е свързан/u);
+  // The page asks to connect Google only when it is not connected.
+  const page = readFileSync(new URL("../public/daily-plan.js", import.meta.url), "utf8");
+  assert.match(page, /data\.sources\?\.calendar === null \? text\("свържи „Моят Google“/u);
+});
+
 test("the prompt says plainly what is missing", () => {
   const [, user] = buildDailyPlanPrompt({ today: "четвъртък", profile: "", events: null, mail: null });
   assert.match(user.content, /Календарът не е свързан/u);

@@ -1,3 +1,4 @@
+import { useEnglishReplyFallback } from "../config/replyLanguage.js";
 import {
   markDurableConfirmationUsed,
   validateTaskConfirmation,
@@ -27,6 +28,11 @@ export async function confirmTaskWrite({
   // A member may confirm only steps on their own Google; the whole task is
   // refused, before anything runs, when one step is not allowed.
   allowItem,
+  // What the person turned off with „Разкачи“ in „Инструменти“
+  // (toolSwitchService.js capabilitiesOff): a step on such a tool refuses
+  // the whole task before anything runs, and the confirmation stays, so it
+  // can be confirmed again once the tool is on.
+  capabilitiesOff = null,
   // The connector prepares each step under the owner while the task belongs
   // to the conversation, so a step is checked with the session it was
   // prepared in. The site uses one session for both.
@@ -55,6 +61,21 @@ export async function confirmTaskWrite({
     throw confirmationError(
       "В потвърждението няма подготвени операции.",
       "TASK_CONFIRMATION_ITEMS_MISSING",
+    );
+  }
+
+  if (items.some((item) => capabilitiesOff?.has?.(item.capability))) {
+    const english = useEnglishReplyFallback(language);
+    throw confirmationError(
+      capabilitiesOff.unavailable
+        ? english
+          ? "The switches in “Tools” could not be read, so nothing was done. Confirm again in a moment."
+          : "Превключвателите в „Инструменти“ не се прочетоха, затова нищо не е изпълнено. Потвърди пак след малко."
+        : english
+          ? "This task uses a tool turned off in “Tools”, so nothing was done. Turn it on with “Connect” there and confirm again."
+          : "Тази задача ползва инструмент, разкачен в „Инструменти“, затова нищо не е изпълнено. Пусни го със „Свържи“ там и потвърди пак.",
+      "TOOL_SWITCHED_OFF",
+      409,
     );
   }
 

@@ -52,6 +52,12 @@ const TEXT = {
     ready: "Работят:",
     none: "Работят: нито един сега.",
     connect: "Искат свързване:",
+    // „Разкачи“ in „Инструменти“ (toolSwitchService.js): the person's own
+    // choice, turned back on with „Свържи“ there.
+    unplugged: "Разкачени от човека (пуска ги с „Свържи“ в „Инструменти“):",
+    // The switches could not be read: the tools are left out for this
+    // answer, and that is not the person's choice.
+    unavailable: "Спрени само за този отговор (превключвателите в „Инструменти“ не се прочетоха; след малко пак работят):",
     rules: [
       "Питат ли какво можеш, изброй работещите с пример, после чакащите свързване.",
       // Only while some tool works: with none ready it would push against
@@ -126,6 +132,8 @@ const TEXT = {
     ready: "Working:",
     none: "Working: none right now.",
     connect: "Need connecting:",
+    unplugged: "Turned off by the person (“Connect” in “Tools” turns them on):",
+    unavailable: "Paused for this answer only (the switches in “Tools” could not be read; they work again shortly):",
     rules: [
       "Asked what you can do: the working tools with an example, then those to connect.",
       "The system runs tools before your answer; results come in [TOOL RESULTS]. Without one, name the fitting tool and its exact words, or put them in “Next:” (“yes” runs a read, and prepares an email, contact or event with all its fields for the “Confirm” button). Never say you have no tools.",
@@ -200,10 +208,15 @@ const textFor = (language) => TEXT[useEnglishReplyFallback(language) ? "en" : "b
 // account's role and the member policy (a member's own Google counts once it
 // is connected), the registry and the permission policy, then the site's
 // settings and this account's sessions.
-function capabilityStatus(capability, { identity, env, input }) {
+// A tool left out by the switches: turned off by the person, or (when the
+// switches could not be read) only paused for this answer.
+const offStatus = (capabilitiesOff) => (capabilitiesOff?.unavailable ? "unavailable" : "unplugged");
+
+function capabilityStatus(capability, { identity, env, input, capabilitiesOff }) {
   if (!filterCapabilityRequestsForIdentity([{ capability }], identity, { ownGoogle: true }).length) {
     return "off";
   }
+  if (capabilitiesOff?.has?.(capability)) return offStatus(capabilitiesOff);
   let tool;
   try {
     ({ tool } = resolveCapability(capability));
@@ -231,8 +244,11 @@ function entry(id, status, [label, example = ""], { confirm = "", press = "" } =
 }
 
 // The tools this account can use now, as entries { id, status: "ready" |
-// "connect" | "off", label, example, confirm, press }, grouped as a person
-// thinks of them. `connections.google` is the route's read of this account's
+// "connect" | "unplugged" | "unavailable" | "off", label, example, confirm,
+// press }, grouped as a person thinks of them; "unplugged" is a tool the
+// person turned off with „Разкачи“ (`capabilitiesOff`, from
+// toolSwitchService.js), "unavailable" one left out because the switches
+// could not be read. `connections.google` is the route's read of this account's
 // own Google connection ({ scopes } from googleConnectionFor, or null) and
 // `connections.githubSessionId` its GitHub session; `memory` says whether this
 // request's memory read worked; `media` is what this account can make
@@ -246,6 +262,7 @@ export function buildToolInventory({
   mode = "chat",
   memory = defaultMemory(env),
   media = mediaAvailability(env, { member: identity?.role !== "owner" }),
+  capabilitiesOff = null,
 } = {}) {
   const { tools, press, asks, inAnswer, afterGoogle } = textFor(language);
   const owner = identity?.role === "owner";
@@ -258,7 +275,7 @@ export function buildToolInventory({
     googleSessionId: google ? "this-account" : "",
     githubSessionId: typeof connections?.githubSessionId === "string" ? connections.githubSessionId : "",
   });
-  const status = (capability) => capabilityStatus(capability, { identity, env, input });
+  const status = (capability) => capabilityStatus(capability, { identity, env, input, capabilitiesOff });
   // A Google service is "scope" when it is connected but Google did not grant
   // what it needs.
   const googleStatus = (capability, need) => {
@@ -274,13 +291,15 @@ export function buildToolInventory({
   // what the service needs, `ask` the words whose answer shows `step`'s
   // button ("" when the step is a button of the page).
   const notReady = (id, value, words, step, need, ask = "") =>
-    value === "connect"
-      ? entry(id, "connect", words, {
-          press: !need || firstGrants(need) ? press.google : afterGoogle(press.google, ask, step),
-        })
-      : value === "scope"
-        ? entry(id, "connect", words, { press: ask ? inAnswer(ask, step) : step })
-        : entry(id, "off", words);
+    value === "unplugged" || value === "unavailable"
+      ? entry(id, value, words)
+      : value === "connect"
+        ? entry(id, "connect", words, {
+            press: !need || firstGrants(need) ? press.google : afterGoogle(press.google, ask, step),
+          })
+        : value === "scope"
+          ? entry(id, "connect", words, { press: ask ? inAnswer(ask, step) : step })
+          : entry(id, "off", words);
   const entries = [];
 
   const calendar = googleStatus("calendar.read", "calendar");
@@ -344,7 +363,7 @@ export function buildToolInventory({
   // задачи" is the list every account keeps, read and added to in the chat
   // too (item 3, fix 4), so both are named for what they are (review r6).
   if (owner) entries.push(entry("tasks", status("tasks.read"), tools.tasks));
-  entries.push(entry("todos", store ? "ready" : "off", tools.todos));
+  entries.push(entry("todos", store ? (capabilitiesOff?.has?.("todos.read") ? offStatus(capabilitiesOff) : "ready") : "off", tools.todos));
   // "Запомни: …" is written when the person sends it themselves (or presses
   // „Запомни“): their exact words are the confirmation, as for an event, a
   // contact or an email (RADKO 28.11 04:30, 06:35).
@@ -371,6 +390,9 @@ export function buildToolInventory({
 function render(entries, text, { examples = true } = {}) {
   const ready = entries.filter(({ status }) => status === "ready");
   const confirms = [...new Set(ready.map(({ confirm }) => confirm).filter(Boolean))];
+  const labelsOf = (wanted) => [...new Set(entries.filter(({ status }) => status === wanted).map(({ label }) => label))];
+  const unplugged = labelsOf("unplugged");
+  const unavailable = labelsOf("unavailable");
   // One line per button or path: „Свържи Google“ turns on the services its
   // first press grants; the others name that press and their own step.
   const connect = new Map();
@@ -383,6 +405,8 @@ function render(entries, text, { examples = true } = {}) {
       ? [text.ready, ...ready.map(({ label, example }) => (examples && example ? `${label} — ${example}` : label))]
       : [text.none]),
     ...(connect.size ? [text.connect, ...[...connect].map(([press, labels]) => `${labels.join(", ")} — ${press}`)] : []),
+    ...(unplugged.length ? [`${text.unplugged} ${unplugged.join(", ")}`] : []),
+    ...(unavailable.length ? [`${text.unavailable} ${unavailable.join(", ")}`] : []),
     // With no tool ready, only the first rule: the second would push against
     // the true answer (review r6).
     ...(ready.length ? text.rules : text.rules.slice(0, 1)),

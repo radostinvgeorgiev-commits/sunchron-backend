@@ -524,6 +524,10 @@ body.talk-mode .voice-btn.listening {
 .activity-table td:nth-child(2) { position: relative; min-width: 70px; }
 .activity-bar { display: inline-block; height: 8px; margin-right: 6px; border-radius: 4px; background: #5b3fe0; vertical-align: middle; max-width: 50px; }
 
+/* The model's icon shows only where the model is a circle (the phone's
+   composer row). */
+.model-picker-icon { display: none; }
+
 /* One header row: the Чат/Работа switch sits in the header next to the
    pickers. „Код“ and „Проекти и режими“ open from the menu, so the header
    has no extra buttons (the coding models are in the model picker). */
@@ -590,25 +594,50 @@ body.talk-mode .voice-btn.listening {
   .chat-toolbar > .interaction-mode-bar .interaction-mode-switch button span { display: none !important; }
   .chat-toolbar .ai-spend > summary { transform: scale(.8); margin: 0 -3px; }
 
-  /* Composer: the text gets the whole width; the buttons sit under it. */
+  /* Composer: the text gets the whole width; the buttons sit under it as
+     circles of one size (RADKO 28.11 13:48): „+“, the model, the
+     specialist, the voice, the talk, the limit ring and send. */
   .app-shell .chat-input-area {
+    --composer-circle: 38px;
     display: grid !important;
-    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
-    grid-template-areas: "text text text text text" "attach pick voice talk send";
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto auto auto;
+    grid-template-areas: "text text text text text text text" "attach pick . voice talk ring send";
     align-items: center; gap: 4px 4px; padding: 8px 6px 6px !important;
   }
   .app-shell .chat-input-area #chatInput { grid-area: text; width: 100%; min-height: 40px; padding: 6px 6px 2px; font-size: 1rem; }
   .app-shell .chat-input-area #attachBtn { grid-area: attach; }
   .app-shell .chat-input-area #voiceBtn { grid-area: voice; }
   .app-shell .chat-input-area #talkBtn { grid-area: talk; }
+  .app-shell .chat-input-area #aiSpendRing { grid-area: ring; }
   .app-shell .chat-input-area #sendBtn { grid-area: send; }
-  .app-shell .chat-input-area :is(#attachBtn, #voiceBtn, #talkBtn, #sendBtn) {
-    width: 36px; height: 36px; min-width: 36px; min-height: 36px;
+  .app-shell .chat-input-area :is(#attachBtn, #voiceBtn, #talkBtn, #sendBtn, #modelPickerBtn, #assistantPickerBtn),
+  .app-shell .chat-input-area #aiSpendRing > summary {
+    width: var(--composer-circle) !important; height: var(--composer-circle) !important;
+    min-width: var(--composer-circle) !important; min-height: var(--composer-circle) !important;
+    max-width: none !important; padding: 0 !important; border-radius: 50% !important;
+    justify-content: center; flex: 0 0 auto;
   }
+  /* The model and the specialist are circles with an icon (the chosen
+     specialist's own); their names stay for screen readers, on hover and in
+     the lists that open. */
+  .app-shell .chat-input-area #modelPickerBtn .model-picker-icon { display: inline-block; }
+  .app-shell .chat-input-area :is(#modelPickerBtn, #assistantPickerBtn) :is(i:not(.fa-chevron-down)) { font-size: .95rem; }
+  .app-shell .chat-input-area :is(#modelPickerBtn, #assistantPickerBtn) .fa-chevron-down { display: none !important; }
+  .app-shell .chat-input-area :is(#modelPickerBtn, #assistantPickerBtn) strong {
+    display: block !important; position: absolute !important; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  }
+  .app-shell .chat-input-area #assistantPickerBtn.chosen { box-shadow: inset 0 0 0 2px var(--nv-cyan, #00f0ff); }
+  .app-shell .composer-pickers .assistant-title { max-width: none; }
+  .app-shell .chat-input-area #aiSpendRing > summary svg { width: 34px; height: 34px; }
+}
+
+@media (max-width: 360px) {
+  .app-shell .chat-input-area { --composer-circle: 34px; }
+  .app-shell .chat-input-area #aiSpendRing > summary svg { width: 30px; height: 30px; }
 }
 
 @media (max-width: 600px) {
-  .app-shell .chat-input-area :is(#voiceBtn, #talkBtn) { width: 32px; min-width: 32px; }
   /* The header has room again, so Чат/Работа keep their names. */
   .chat-toolbar > .interaction-mode-bar .interaction-mode-switch button { width: auto !important; padding: 0 10px !important; gap: 6px; }
   .chat-toolbar > .interaction-mode-bar .interaction-mode-switch button span { display: inline !important; }

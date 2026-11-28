@@ -11,7 +11,9 @@
     `$${(Number(value) || 0).toFixed(Number(value) >= 1 ? 2 : 3)}`;
 
   function build() {
-    const anchor = document.querySelector(".chat-toolbar .status-indicator");
+    // At the bottom, next to send (RADKO 28.11 13:48: „Кръгчето с лимита да
+    // е долу“); its panel opens upwards over the box where you type.
+    const anchor = document.querySelector(".chat-input-area #sendBtn");
     if (!anchor || document.getElementById("aiSpendRing")) return null;
     const details = document.createElement("details");
     details.id = "aiSpendRing";

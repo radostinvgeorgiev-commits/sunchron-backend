@@ -1,7 +1,7 @@
 // Browser robot: opens the real page in Chromium and presses the buttons a
 // person would, on a phone-sized and a desktop-sized screen.
 //   node tests/ui/robot.mjs            → against the local stub server
-//   node tests/ui/robot.mjs --public https://cloudaicore.com
+//   node tests/ui/robot.mjs --public https://novariumai.com
 //                                      → signed-out checks on the live site
 import { makeZip } from "./make-zip.mjs";
 import { FULL_DESCRIPTIONS, MEDIA_DESCRIPTIONS, startStubServer } from "./stub-server.mjs";
@@ -76,6 +76,51 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media,
     expect(await page.locator("#chatInput").isVisible(), "няма поле за писане");
     expect(await page.locator("#sendBtn").isVisible(), "бутонът за изпращане е извън екрана");
     expect(!errors.length, errors[0]);
+  });
+  await step(`${label}: историята показва последните 5 разговора, другите са в „Още разговори“`, async () => {
+    await page.evaluate(() => fetch("/__robot/many-chats?on=1"));
+    await page.reload();
+    // The side menu is closed and the 12 chats are gone even when a check
+    // below fails, so the next steps can still click.
+    try {
+      await page.locator("#conversationList .conversation-more").waitFor({ state: "attached", timeout: 10000 });
+      const shown = await page.locator("#conversationList > .conversation").allTextContents();
+      expect(shown.join("|") === "Разговор 1|Разговор 2|Разговор 3|Разговор 4|Разговор 5", `видими са други: ${shown}`);
+      const more = page.locator("#conversationList .conversation-more");
+      expect((await more.textContent()).includes("Още разговори (7)"), `бутонът е: ${await more.textContent()}`);
+      expect(await page.locator("#olderConversations").isHidden(), "старите разговори не са скрити");
+      const phone = await page.locator("#mobileMenuBtn").isVisible();
+      if (phone) {
+        await page.click("#mobileMenuBtn");
+        await page.waitForTimeout(300);
+      }
+      // The latest five and the button are in sight, not in a small box of
+      // their own that scrolls.
+      const box = await page.locator("#conversationList").evaluate((list) => {
+        const section = list.closest(".sidebar-section");
+        return { inner: section.scrollHeight - section.clientHeight, bottom: list.getBoundingClientRect().bottom, height: innerHeight };
+      });
+      expect(box.inner <= 1, `историята е в кутия, която се превърта: ${box.inner}px скрити`);
+      expect(box.bottom <= box.height, `бутонът „Още разговори“ е под екрана: ${Math.round(box.bottom)} > ${box.height}`);
+      await more.click();
+      await page.locator("#olderConversations").waitFor({ state: "visible", timeout: 5000 });
+      expect((await page.locator("#olderConversations .conversation").count()) === 7, "падащото меню няма 7 разговора");
+      expect((await more.getAttribute("aria-expanded")) === "true", "бутонът не казва, че е отворен");
+      const height = await page.locator("#olderConversations").evaluate((menu) => menu.getBoundingClientRect().height);
+      expect(height <= (await page.evaluate(() => innerHeight)) * 0.41, `менюто е твърде високо: ${height}`);
+      await more.click();
+      expect(await page.locator("#olderConversations").isHidden(), "менюто не се затвори");
+      // A search finds an older chat too.
+      await page.click("#searchChatsBtn");
+      await page.fill("#conversationSearch", "Разговор 12");
+      expect((await page.locator("#conversationList .conversation").allTextContents()).join("|") === "Разговор 12", "търсенето не намира стар разговор");
+      await page.fill("#conversationSearch", "");
+    } finally {
+      await page.keyboard.press("Escape").catch(() => {});
+      await page.evaluate(() => fetch("/__robot/many-chats?on=0")).catch(() => {});
+      await page.reload().catch(() => {});
+      await page.waitForTimeout(1200);
+    }
   });
   await step(`${label}: избор на модел`, async () => {
     await page.click("#modelPickerBtn");
@@ -416,26 +461,37 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media,
   });
   await step(`${label}: кодът в отговора се чете`, async () => {
     await send("Покажи команда за инсталиране");
-    const pre = last().locator("pre");
-    await pre.waitFor({ timeout: 5000 });
-    const look = await pre.evaluate((element) => {
-      const rgb = (value) => value.match(/\d+(\.\d+)?/gu).slice(0, 3).map(Number);
-      const light = (value) => {
-        const [r, g, b] = rgb(value).map((part) => {
-          const x = part / 255;
-          return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
-        });
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      };
-      const code = element.querySelector("code") || element;
-      const [text, back] = [light(getComputedStyle(code).color), light(getComputedStyle(element).backgroundColor)];
-      return {
-        contrast: (Math.max(text, back) + 0.05) / (Math.min(text, back) + 0.05),
-        left: parseFloat(getComputedStyle(element).paddingLeft),
-        text: code.textContent,
-      };
-    });
-    expect(look.text.includes("npm install"), `няма кода: ${look.text}`);
+    // The answer comes in parts and the page draws it again with each part,
+    // so the code is read once the whole answer is in (the box is free
+    // again), from the page as it is at that moment.
+    const read = await page
+      .waitForFunction(
+        () => {
+          const element = [...document.querySelectorAll(".assistant-turn")].at(-1)?.querySelector("pre");
+          const code = element?.querySelector("code") || element;
+          if (!code?.isConnected || document.getElementById("chatInput").disabled) return null;
+          if (!code.textContent.includes("npm install")) return null;
+          const rgb = (value) => (value.match(/\d+(\.\d+)?/gu) || []).slice(0, 3).map(Number);
+          const light = (value) => {
+            const [r = 0, g = 0, b = 0] = rgb(value).map((part) => {
+              const x = part / 255;
+              return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+            });
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          };
+          const [text, back] = [light(getComputedStyle(code).color), light(getComputedStyle(element).backgroundColor)];
+          return {
+            contrast: (Math.max(text, back) + 0.05) / (Math.min(text, back) + 0.05),
+            left: parseFloat(getComputedStyle(element).paddingLeft),
+            text: code.textContent,
+          };
+        },
+        null,
+        { timeout: 8000 },
+      )
+      .catch(() => null);
+    const look = read ? await read.jsonValue() : null;
+    expect(look, `няма кода в целия отговор: ${(await last().innerText().catch(() => "")).slice(0, 160)}`);
     expect(look.contrast >= 4.5, `кодът не се чете, контраст ${look.contrast.toFixed(1)}`);
     expect(look.left >= 8, `няма отстъп отляво (${look.left}px), първата буква се реже`);
   });
@@ -1603,8 +1659,217 @@ async function liveSignedIn(origin) {
     expect((await dialog.locator(".avatar-form textarea").count()) === 5, "полетата не се заредиха");
     await dialog.locator(".share-close").click();
   });
+  // „Инструменти“ with the test account (РАДКО 28.11 14:11: checked with the
+  // robot's own account, not his profile). „Разкачи“ and „Свържи“ change only
+  // this account's own switch, and „Свържи“ puts it back.
+  await step("Жив сайт: „Инструменти“ са тъмни, казват „Свързан“, а „Разкачи“ и „Свържи“ работят", async () => {
+    const card = page.locator('[data-tool-card="openai-web-search"]');
+    const switchOn = () =>
+      page.evaluate(async () => {
+        const data = await (await fetch("/api/tools/switches", { cache: "no-store" })).json();
+        return data.tools?.find((item) => item.id === "openai-web-search")?.on;
+      });
+    try {
+      await page.evaluate(() => document.getElementById("toolsBtn").click());
+      await card.locator(".tool-link-state").waitFor({ timeout: 10000 });
+      const look = await page.evaluate(() => {
+        const light = (color) => {
+          const [r, g, b] = (color.match(/\d+(?:\.\d+)?/gu) || [0, 0, 0]).map(Number);
+          return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+        };
+        return [...document.querySelectorAll("#dataDrawerBody :is(.connection-control-card, .tool-status-card)")].map((node) => ({
+          name: node.querySelector("strong")?.textContent || "",
+          card: light(getComputedStyle(node).backgroundColor),
+          text: light(getComputedStyle(node.querySelector("strong") || node).color),
+        }));
+      });
+      const bad = look.filter((item) => item.card > 0.5 || item.text < 0.6);
+      expect(look.length > 3 && !bad.length, `светла карта или тъмен текст: ${JSON.stringify(bad.slice(0, 2))}`);
+      const google = page.locator(".connection-control-card", { hasText: "Google" });
+      expect((await google.locator("button", { hasText: /^(Разкачи|Свържи)$/u }).count()) === 1, "Google няма „Разкачи“ или „Свържи“");
+      expect((await card.locator(".tool-link-state.on").innerText()) === "Свързан", "търсенето не казва „Свързан“");
+      await card.locator('[data-tool-switch][data-tool-on="false"]').click();
+      await card.locator(".tool-link-state.off").waitFor({ timeout: 10000 });
+      expect((await switchOn()) === false, "сървърът не спря търсенето");
+      await card.locator('[data-tool-switch][data-tool-on="true"]').click();
+      await card.locator(".tool-link-state.on").waitFor({ timeout: 10000 });
+      expect((await switchOn()) === true, "сървърът не пусна търсенето пак");
+    } finally {
+      // Whatever happened above, the test account's search is on again.
+      await page
+        .evaluate(() =>
+          fetch("/api/tools/switches/openai-web-search", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ on: true }),
+          }),
+        )
+        .catch(() => {});
+      await page.click("#closeDataDrawerBtn").catch(() => {});
+      await page.waitForTimeout(200);
+    }
+  });
+  // The test account is an ordinary person, not the owner: the spending
+  // ring is the owner's only, so here it must not be there at all (its place
+  // in the row is checked on the stub, as the owner, in composerRow).
+  await step("Жив сайт: на телефона кръгчетата долу са еднакви, без лимита на собственика", async () => {
+    const look = await page.evaluate(() => {
+      const size = (node) => {
+        const box = node && node.offsetParent ? node.getBoundingClientRect() : null;
+        return box && box.width ? `${Math.round(box.width)}x${Math.round(box.height)}` : null;
+      };
+      const circles = ["#attachBtn", "#modelPickerBtn", "#assistantPickerBtn", "#voiceBtn", "#talkBtn", "#aiSpendRing > summary", "#sendBtn"]
+        .map((selector) => [selector, size(document.querySelector(selector))])
+        .filter(([, box]) => box);
+      const ring = document.getElementById("aiSpendRing");
+      return {
+        circles,
+        owner: document.body.dataset.userRole === "owner",
+        ring: Boolean(ring),
+        ringInRow: Boolean(ring?.closest(".chat-input-area")),
+      };
+    });
+    const sizes = new Set(look.circles.map(([, box]) => box));
+    expect(look.circles.length >= 5 && sizes.size === 1, `кръгчетата не са еднакви: ${JSON.stringify(look.circles)}`);
+    if (look.owner) expect(look.ringInRow, "лимитът не е долу в реда");
+    else expect(!look.ring, "тестовият профил вижда лимита на собственика");
+  });
   await step("Жив сайт: без грешки в страницата след вход", async () => expect(!errors.length, errors[0]));
   await page.close();
+}
+
+// „Инструменти“ (РАДКО 28.11 13:41–14:11): dark cards that say whether each
+// tool is connected, with „Разкачи“ and „Свържи“ on every one; a member sees
+// only their own tools and their own Google.
+async function toolSwitches(origin) {
+  const { page, errors } = await openPage(origin, { width: 390, height: 844 });
+  const card = (id) => page.locator(`[data-tool-card="${id}"]`);
+  const open = async () => {
+    await page.evaluate(() => document.getElementById("toolsBtn").click());
+    await card("openai-web-search").locator(".tool-link-state").waitFor({ timeout: 5000 });
+  };
+  const switchOf = (id) =>
+    page.evaluate(async (tool) => {
+      const data = await (await fetch("/api/tools/switches", { cache: "no-store" })).json();
+      return data.tools.find((item) => item.id === tool)?.on;
+    }, id);
+  try {
+    await step("Телефон: „Инструменти“ са тъмни карти, които казват „Свързан“", async () => {
+      await page.evaluate(() => fetch("/__robot/google-connected"));
+      await open();
+      const look = await page.evaluate(() => {
+        const light = (color) => {
+          const [r, g, b] = (color.match(/\d+(?:\.\d+)?/gu) || [0, 0, 0]).map(Number);
+          return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+        };
+        return [...document.querySelectorAll("#dataDrawerBody :is(.connection-control-card, .tool-status-card)")].map((node) => ({
+          name: node.querySelector("strong")?.textContent || "",
+          card: light(getComputedStyle(node).backgroundColor),
+          text: light(getComputedStyle(node.querySelector("strong") || node).color),
+        }));
+      });
+      const bad = look.filter((item) => item.card > 0.5 || item.text < 0.6);
+      expect(look.length > 5 && !bad.length, `светла карта или тъмен текст: ${JSON.stringify(bad.slice(0, 2))}`);
+      const google = page.locator(".connection-control-card", { hasText: "Google" });
+      expect((await google.locator(".tool-link-state.on").innerText()) === "Свързан", "Google не казва „Свързан“");
+      expect((await google.locator("button", { hasText: "Разкачи" }).count()) === 1, "Google няма „Разкачи“");
+      const search = card("openai-web-search");
+      expect((await search.locator(".tool-link-state.on").innerText()) === "Свързан", "търсенето не казва „Свързан“");
+      expect((await search.locator(".tool-unplug-btn").innerText()) === "Разкачи", "търсенето няма „Разкачи“");
+      // YouTube that Google has not allowed yet is not „Свързан“ and has only
+      // „Разреши“. The card first says „Свързан“ while its check runs; the
+      // „Разреши“ link comes only with the check's answer, so wait for it.
+      await card("youtube-channel").locator('a.tool-connect-btn[href="/api/google/connect?add=youtube"]').waitFor({ timeout: 5000 });
+      expect((await card("youtube-channel").locator(".tool-link-state").innerText()) === "Не е свързан", "неразрешеният YouTube казва „Свързан“");
+      expect((await card("youtube-channel").locator(".tool-unplug-btn").count()) === 0, "неразрешеният YouTube има „Разкачи“");
+    });
+    await step("Телефон: „Разкачи“ спира инструмента само за човека, „Свържи“ го пуска пак", async () => {
+      await card("openai-web-search").locator('[data-tool-switch][data-tool-on="false"]').click();
+      await card("openai-web-search").locator(".tool-link-state.off").waitFor({ timeout: 5000 });
+      expect((await card("openai-web-search").locator(".tool-link-state").innerText()) === "Разкачен", "не казва „Разкачен“");
+      expect((await switchOf("openai-web-search")) === false, "сървърът не го спря");
+      await card("openai-web-search").locator('[data-tool-switch][data-tool-on="true"]').click();
+      await card("openai-web-search").locator(".tool-link-state.on").waitFor({ timeout: 5000 });
+      expect((await switchOf("openai-web-search")) === true, "сървърът не го пусна пак");
+      expect(!errors.length, errors.join("; "));
+      await page.click("#closeDataDrawerBtn");
+    });
+    await step("Телефон: човек със свой аватар вижда само своите инструменти и своя Google", async () => {
+      await page.evaluate(() => fetch("/__robot/member-session?on=1"));
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(1200);
+      await open();
+      const names = await page.locator("#dataDrawerBody .tool-status-card strong").allInnerTexts();
+      expect(!names.includes("Claude код"), "вижда „Claude код“ на собственика");
+      expect(!names.includes("Системен контрол") && !names.includes("Снимки"), "вижда проверките на собственика");
+      const services = await page.locator(".connection-control-card strong").allInnerTexts();
+      expect(services.join(", ") === "Google", `картите горе: ${services.join(", ")}`);
+      expect((await card("openai-web-search").locator(".tool-unplug-btn").count()) === 1, "няма „Разкачи“ за своето търсене");
+      await page.click("#closeDataDrawerBtn");
+    });
+  } finally {
+    await page.evaluate(() => Promise.all([fetch("/__robot/member-session?on=0"), fetch("/__robot/google-disconnected")])).catch(() => {});
+    await page.close();
+  }
+}
+
+// The row under the chat (РАДКО 28.11 13:48): on a phone every circle is the
+// same size, the limit ring is down in that row with its panel above it, and
+// „Копирай“ under an answer looks like the other icons.
+async function composerRow(origin) {
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
+    const phone = viewport.width < 600;
+    await step(`${phone ? "Телефон" : "Компютър"}: кръгчетата долу, лимитът долу и „Копирай“ като другите икони`, async () => {
+      const { page, errors } = await openPage(origin, viewport);
+      try {
+        await page.fill("#chatInput", "Здравей");
+        await page.click("#sendBtn");
+        await page.locator(".assistant-turn .message-actions").last().waitFor({ state: "visible", timeout: 10000 });
+        await page.waitForTimeout(400);
+        const look = await page.evaluate(() => {
+          const size = (node) => {
+            const box = node && node.offsetParent ? node.getBoundingClientRect() : null;
+            return box && box.width ? [Math.round(box.width), Math.round(box.height)] : null;
+          };
+          const circles = ["#attachBtn", "#modelPickerBtn", "#assistantPickerBtn", "#voiceBtn", "#talkBtn", "#aiSpendRing > summary", "#sendBtn"]
+            .map((selector) => [selector, size(document.querySelector(selector))])
+            .filter(([, box]) => box);
+          const ring = document.getElementById("aiSpendRing");
+          const turns = document.querySelectorAll(".assistant-turn");
+          const row = turns[turns.length - 1].querySelector(".message-actions");
+          const copy = row.querySelector('button[data-action="copy"]');
+          const retry = row.querySelector('button[data-action="retry"]');
+          return {
+            circles,
+            ringInRow: Boolean(ring?.closest(".chat-input-area")),
+            ringLow: ring ? ring.getBoundingClientRect().top > window.innerHeight / 2 : false,
+            copy: size(copy),
+            retry: size(retry),
+            copyLabel: copy ? size(copy.querySelector(".action-label")) : null,
+          };
+        });
+        expect(look.ringInRow && look.ringLow, `лимитът не е долу: ${JSON.stringify(look)}`);
+        expect(look.copy && look.retry && look.copy.join() === look.retry.join() && !look.copyLabel, `„Копирай“ не е като другите: ${JSON.stringify(look)}`);
+        if (phone) {
+          const sizes = look.circles.map(([, box]) => box.join("x"));
+          expect(look.circles.length === 7 && new Set(sizes).size === 1, `кръгчетата не са еднакви: ${JSON.stringify(look.circles)}`);
+          // The ring's panel opens above the row, inside the screen.
+          await page.click("#aiSpendRing > summary");
+          const panel = await page.evaluate(() => {
+            const node = document.querySelector("#aiSpendRing .ai-spend-panel");
+            const box = node?.getBoundingClientRect();
+            const row = document.querySelector(".chat-input-area").getBoundingClientRect();
+            return box ? { top: box.top, bottom: box.bottom, rowTop: row.top, left: box.left, right: box.right, width: window.innerWidth } : null;
+          });
+          expect(panel && panel.top >= 0 && panel.bottom <= panel.rowTop + 1 && panel.left >= 0 && panel.right <= panel.width, `панелът на лимита не е над реда: ${JSON.stringify(panel)}`);
+          await page.click("#aiSpendRing > summary");
+        }
+        expect(!errors.length, errors.join("; "));
+      } finally {
+        await page.close();
+      }
+    });
+  }
 }
 
 if (publicOrigin) {
@@ -1617,6 +1882,8 @@ if (publicOrigin) {
   await signedInFlows(stub.origin, stub.requests, "Телефон", { width: 390, height: 844 }, stub.feedback, stub.media, stub.memoryWrites);
   await signedInFlows(stub.origin, stub.requests, "Компютър", { width: 1280, height: 800 }, stub.feedback, stub.media, stub.memoryWrites);
   await narrowPhoneRow(stub.origin);
+  await toolSwitches(stub.origin);
+  await composerRow(stub.origin);
   await sharedPage(stub.origin);
   await talkFlow(stub.origin, stub.requests, stub.media);
   await statusPage(stub.origin, false);

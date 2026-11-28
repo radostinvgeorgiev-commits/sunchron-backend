@@ -31,6 +31,7 @@ import {
   createMcpCapabilityHandler,
   MCP_CAPABILITY_TOOLS,
 } from "./mcpCapabilityService.js";
+import { getToolSwitchService, toolOfGoogleAction, toolOfMcpName } from "./toolSwitchService.js";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 
@@ -69,6 +70,9 @@ const SAFE_CONFIRMATION_ERROR_CODES = new Set([
   "CONFIRMATION_EXPIRED",
   "SESSION_MISMATCH",
   "CONFIRMATION_PERSISTENCE_FAILED",
+  // A confirmed task with a step on a tool turned off in „Инструменти“
+  // (taskConfirmationService.js): its fixed message says so.
+  "TOOL_SWITCHED_OFF",
 ]);
 // A confirmed task whose steps did not all run says so, with each step's
 // own reason when that reason is one of the safe ones above.
@@ -304,10 +308,42 @@ export function createMcpRequestHandler({
   getSystemConfiguration = getSystemConfigurationReport,
   runAgentConversation = sendMcpAgentMessage,
   executeWrite = executeAuditedWriteAction,
+  // A tool's switch in „Инструменти“ for this person: "on", "off" (turned
+  // off with „Разкачи“) or "unavailable" (the switches cannot be read now).
+  toolState = (ownerId, toolId) => getToolSwitchService().stateOf(ownerId, toolId),
 } = {}) {
   const callCapabilityTool = createMcpCapabilityHandler({ audit });
 
+  // The tools a call needs: the one behind its name, and for
+  // confirm_google_action the one of the step it confirms (a Gmail send or
+  // trash, or a contact). A step that cannot be read (expired, unknown, or
+  // the store is down) runs nothing, and the answer gives that reason, not a
+  // switch the step may not even use.
+  async function switchedToolsOf(name, args, ownerId) {
+    if (name === "confirm_google_action") {
+      const confirmation = await validateConfirmation(String(args?.confirmationId || ""), ownerId);
+      return [toolOfGoogleAction(String(confirmation?.action || ""))];
+    }
+    const tool = toolOfMcpName(name);
+    return tool ? [tool] : [];
+  }
+
   async function callTool(name, args, ownerId, identity) {
+    if (typeof ownerId === "string" && ownerId.trim()) {
+      for (const tool of await switchedToolsOf(name, args, ownerId)) {
+        const state = await toolState(ownerId, tool);
+        if (state === "on") continue;
+        return {
+          ...textResult(
+            { tool, connected: false, ...(state === "unavailable" ? { unavailable: true } : {}) },
+            state === "unavailable"
+              ? "Превключвателите в „Инструменти“ на NovariumAI не могат да се прочетат сега, затова този инструмент не е пуснат. Опитай пак след малко."
+              : "Този инструмент е разкачен в „Инструменти“ на NovariumAI. Човекът го пуска пак с „Свържи“ там.",
+          ),
+          isError: true,
+        };
+      }
+    }
     const capabilityCall = await callCapabilityTool(name, args, {
       ownerId,
       identity,

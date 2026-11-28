@@ -204,6 +204,7 @@ import {
   isMemberIdentity,
   isMemberOwnGoogleWrite,
 } from "../services/memberCapabilityPolicy.js";
+import { getToolSwitchService } from "../services/toolSwitchService.js";
 import {
   AiCouncilError,
   formatAiCouncilReply,
@@ -1450,6 +1451,22 @@ const TAKEN_FOR_SEARCH = Object.freeze(
   new Set(["contacts.read", "contacts.create", "calendar.read", "todos.read", "todos.add"]),
 );
 const NO_PLAIN_WORDS = Object.freeze({ type: "none" });
+// The capability behind each of the reader's actions, for the switches in
+// „Инструменти“: an action on a tool the person turned off is not read or
+// asked about here (no „На кой адрес?“ for a Gmail that is off); the message
+// goes on to the model, which says the tool is off.
+const PLAIN_ACTION_CAPABILITY = Object.freeze({
+  "mail.send": "mail.send",
+  "mail.read": "mail.read",
+  "calendar.write": "calendar.write",
+  "calendar.reminder": "calendar.write",
+  "calendar.read": "calendar.read",
+  "files.read": "files.read",
+  "contacts.read": "contacts.read",
+  "contacts.create": "contacts.create",
+  "todos.read": "todos.read",
+  "todos.add": "todos.add",
+});
 
 // „Какво ми е деня днес“, „моят ден“: the day's events, the open tasks and,
 // for today, the day's mail, all at once (the coordinator's check 28.11
@@ -1499,6 +1516,9 @@ export async function readPlainWordsPlan({
   // False for someone whose Google cannot be reached here (a member without
   // their own connection): a Google request goes on as before.
   allowGoogle = true,
+  // What the person turned off with „Разкачи“ (toolSwitchService.js
+  // capabilitiesOff); see PLAIN_ACTION_CAPABILITY.
+  capabilitiesOff = null,
   read = readPlainIntent,
 } = {}) {
   const text = typeof message === "string" ? message.trim() : "";
@@ -1515,6 +1535,7 @@ export async function readPlainWordsPlan({
   const intent = await read({ message: text, turns: conversation, apiKey });
   if (!intent || !PLAIN_WORDS_ACTIONS.has(intent.action)) return NO_PLAIN_WORDS;
   if (!allowGoogle && isGooglePlainAction(intent.action)) return NO_PLAIN_WORDS;
+  if (capabilitiesOff?.has?.(PLAIN_ACTION_CAPABILITY[intent.action])) return NO_PLAIN_WORDS;
   const plan = planPlainIntent(intent, {
     personTexts: personTextsOf(conversation),
     english,
@@ -1601,6 +1622,46 @@ export function ownCommandWriteOf(requests = [], personTexts = []) {
       (request) => OWN_COMMAND_WRITES.has(request?.capability) || isOwnCommandEmail(request, personTexts),
     ) || null
   );
+}
+
+// A calendar event, a code task or a GitHub change prepared before the
+// person turned its tool off with „Разкачи“ in „Инструменти“ does not run
+// when „Потвърди“ is pressed later, as over MCP (confirm_calendar_event and
+// the other confirm_* tools). Its confirmation stays, for when the tool is
+// on again. When the switches cannot be read, nothing runs either, and the
+// answer says so instead of calling it the person's choice. Null when the
+// step may run.
+const GITHUB_CHANGE_CAPABILITIES = Object.freeze([
+  "github.branch.create",
+  "github.file.create",
+  "github.file.update",
+  "github.pull-request.create",
+  "github.pull-request.merge",
+  "github.issue.close",
+]);
+
+export function switchedOffConfirmation(
+  { calendar = false, codeTask = false, githubChange = false } = {},
+  capabilitiesOff = null,
+  english = false,
+) {
+  const off = (capabilities) => capabilities.some((capability) => capabilitiesOff?.has?.(capability));
+  const blocked =
+    (calendar && off(["calendar.write"])) ||
+    (codeTask && off(["code.write"])) ||
+    (githubChange && off(GITHUB_CHANGE_CAPABILITIES));
+  if (!blocked) return null;
+  const unavailable = Boolean(capabilitiesOff?.unavailable);
+  return Object.freeze({
+    code: "TOOL_SWITCHED_OFF",
+    error: english
+      ? unavailable
+        ? "The switches in “Tools” could not be read, so nothing was done. Confirm again in a moment."
+        : "This step uses a tool turned off in “Tools”, so nothing was done. Turn it on with “Connect” there and confirm again."
+      : unavailable
+        ? "Превключвателите в „Инструменти“ не се прочетоха, затова нищо не е изпълнено. Потвърди пак след малко."
+        : "Тази стъпка ползва инструмент, разкачен в „Инструменти“, затова нищо не е изпълнено. Пусни го със „Свържи“ там и потвърди пак.",
+  });
 }
 
 // „29.11.2026 в 10:00, 60 мин.“: when the event is, from its exact record.
@@ -2892,6 +2953,9 @@ router.post("/chat", async (req, res) => {
   // The tools this account can use now, by the checks above: its role, the
   // site's settings, its own Google and GitHub connections and this request's
   // memory read. The model is told them, so it names them truthfully.
+  // The tools this person turned off with „Разкачи“ in „Инструменти“: left
+  // out of every step below and named as theirs to turn on again.
+  const capabilitiesOff = await getToolSwitchService().capabilitiesOff(ownerId);
   const toolInventory = buildToolInventory({
     identity: req.owner,
     connections: { google: googleConnection, githubSessionId },
@@ -2899,6 +2963,7 @@ router.post("/chat", async (req, res) => {
     mode: interactionMode,
     memory: memoryAvailable,
     media: chatMedia || { images: false, video: false },
+    capabilitiesOff,
   });
   let messages = buildAvatarMessages(
     memories,
@@ -2960,6 +3025,18 @@ router.post("/chat", async (req, res) => {
       code: "OWNER_ONLY",
     });
   }
+  // A step on a tool the person turned off (a task's steps are checked in
+  // confirmTaskWrite, with the same switches).
+  const switchedOff = switchedOffConfirmation(
+    {
+      calendar: Boolean(calendarConfirmationId),
+      codeTask: Boolean(codeTaskConfirmationId),
+      githubChange: Boolean(githubChangeConfirmationId),
+    },
+    capabilitiesOff,
+    useEnglishReplyFallback(language),
+  );
+  if (switchedOff) return res.status(409).json(switchedOff);
 
   startEventStream(res);
   const sendEvent = (event, data) => writeEvent(res, event, data);
@@ -3316,6 +3393,7 @@ router.post("/chat", async (req, res) => {
         githubSessionId,
         googleSessionId,
         language,
+        capabilitiesOff,
         ...(ownerToolsAllowed
           ? {}
           : { allowItem: (item) => Boolean(googleSessionId) && isMemberOwnGoogleWrite(item.capability) }),
@@ -3355,7 +3433,7 @@ router.post("/chat", async (req, res) => {
       sendEvent("error", {
         status: error?.status || 500,
         message:
-          error?.status === 207 || error?.code === "OWNER_ONLY"
+          error?.status === 207 || error?.code === "OWNER_ONLY" || error?.code === "TOOL_SWITCHED_OFF"
             ? error.message
             : useEnglishReplyFallback(language)
               ? "The confirmed NovariumAI task could not be completed."
@@ -3515,8 +3593,9 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
-  // A member reads their own Google here only with their own connection.
-  const memberToolOptions = { ownGoogle: Boolean(googleSessionId) };
+  // A member reads their own Google here only with their own connection; the
+  // tools the person turned off are left out for everyone.
+  const memberToolOptions = { ownGoogle: Boolean(googleSessionId), capabilitiesOff };
   // Every tool in the person's own words (item 3). A short yes reads the
   // whole turns, with the step it answers. Google is read only for someone
   // whose Google can be reached here: the owner, or a member with their own
@@ -3530,7 +3609,10 @@ router.post("/chat", async (req, res) => {
         english: useEnglishReplyFallback(language),
         apiKey: openAiApiKey,
         allowGoogle:
-          filterCapabilityRequestsForIdentity([{ capability: "mail.read" }], req.owner, memberToolOptions).length > 0,
+          filterCapabilityRequestsForIdentity([{ capability: "mail.read" }], req.owner, {
+            ownGoogle: memberToolOptions.ownGoogle,
+          }).length > 0,
+        capabilitiesOff,
       })
     : NO_PLAIN_WORDS;
   // One detail is missing (the text, or whom to send it to): one short
@@ -3789,6 +3871,7 @@ router.post("/chat", async (req, res) => {
         githubSessionId,
         googleSessionId,
         language,
+        capabilitiesOff,
         allowItem: (item) => item.capability === ownCapability,
       });
       sent = true;

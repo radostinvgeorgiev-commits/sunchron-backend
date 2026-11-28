@@ -296,6 +296,8 @@
         ? text("Автоматичен")
         : chosen.label
       : "NovariumAI";
+    // On a phone the button is a circle: its name shows on hover.
+    button.title = `${text("Модел")}: ${label.textContent}`;
     menu.replaceChildren(
       ...choices.map((choice) => {
         const item = document.createElement("button");
@@ -326,6 +328,7 @@
     const currentWork = work().agentModel();
     const chosen = workChoices.find((choice) => choice.id === currentWork) || workChoices[0];
     label.textContent = chosen ? (chosen.id === "auto" ? text("Автоматичен") : chosen.label) : "NovariumAI";
+    button.title = `${text("Модел")}: ${label.textContent}`;
     const title = document.createElement("p");
     title.className = "model-picker-group";
     title.textContent = `${text("Модели за работа")}${work().agentName() ? ` · ${work().agentName()}` : ""}`;

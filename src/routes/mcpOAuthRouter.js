@@ -1,6 +1,11 @@
 import express from "express";
 import { resolveRequestIdentity } from "../middleware/ownerAuth.js";
-import { isPassingSignInFault, sendSignInBusy } from "../middleware/signInBusy.js";
+import {
+  consentEndedPage,
+  isPassingSignInFault,
+  sendSignInBusy,
+  wantsPage,
+} from "../middleware/signInBusy.js";
 import {
   createMcpAuthorizationCode,
   createMcpConsentToken,
@@ -10,6 +15,7 @@ import {
   GOOGLE_AGENT_CLIENT_IDS,
   isClaudeClientId,
   McpOAuthError,
+  peekMcpConsentCallback,
   recordMcpAuthorizationRuntimeStatus,
   resolveMcpConsentRequest,
   validateMcpAuthorizationRequest,
@@ -87,6 +93,22 @@ function oauthError(res, error) {
   });
 }
 
+// The consent window, when "Разреши" or "Откажи" cannot go on: a page with
+// what happened and how to start over. The window has no Back, and a bare
+// JSON error there leaves the person with nothing to press.
+function consentEnded(res, error) {
+  noStore(res);
+  const known = error instanceof McpOAuthError;
+  return res
+    .status(known ? error.status : 500)
+    .type("html")
+    .send(
+      consentEndedPage(
+        known ? error.description : "Свързването временно не е достъпно.",
+      ),
+    );
+}
+
 function consentPage(request, identity, consentToken) {
   const fields = {
     consent_token: consentToken,
@@ -152,7 +174,12 @@ export function createMcpOAuthRouter({
         .type("html")
         .send(consentPage(request, identity, consentToken));
     } catch (error) {
-      if (isPassingSignInFault(error)) return sendSignInBusy(res);
+      // The connector opens this page in a window with no Reload, so the
+      // busy page links to the same request.
+      if (isPassingSignInFault(error)) {
+        const at = req.originalUrl.indexOf("?");
+        return sendSignInBusy(res, `/oauth/authorize${at >= 0 ? req.originalUrl.slice(at) : ""}`);
+      }
       return oauthError(res, error);
     }
   });
@@ -209,7 +236,28 @@ export function createMcpOAuthRouter({
                 ? "temporarily_unavailable"
                 : "server_error",
         });
-        if (passing) return sendSignInBusy(res, "", { formSent: true });
+        if (passing) {
+          // A button that sends the same choice once more: nothing was done
+          // before the sign-in check failed, and the consent token stays
+          // good for its 10 minutes. The form's page must allow the redirect
+          // to the client's callback, which only the token names here. A
+          // token that is not ours or has run out could never go through,
+          // so that page says to start over instead.
+          const consentToken = String(req.body?.consent_token || "");
+          const callback = peekMcpConsentCallback(consentToken);
+          if (!callback) return sendSignInBusy(res, "", { startOver: true });
+          preserveOAuthPopupHandoff(res, callback);
+          return sendSignInBusy(res, "", {
+            resend: {
+              action: "/oauth/authorize",
+              fields: {
+                consent_token: consentToken,
+                decision: req.body?.decision === "allow" ? "allow" : "deny",
+              },
+            },
+          });
+        }
+        if (wantsPage(req)) return consentEnded(res, error);
         return oauthError(res, error);
       }
     },

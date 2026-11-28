@@ -354,19 +354,56 @@ test("a good answer that is not an object is a passing fault too", async () => {
   assert.equal(error.code, "IDENTITY_PLATFORM_UNAVAILABLE");
 });
 
-test("the time limit also covers reading the answer", { timeout: 5000 }, async () => {
-  const client = createIdentityPlatformAuthClient({
-    env: { ...ENV, IDENTITY_PLATFORM_TIMEOUT_MS: "30" },
-    fetchImpl: async (_url, { signal }) => ({
-      ok: true,
-      status: 200,
+// A body that only ends when the request's own signal is aborted, as fetch
+// reads it.
+function bodyUntilAbort(status, seen) {
+  return async (_url, { signal }) => {
+    assert.ok(signal instanceof AbortSignal, "the request passes its time limit to fetch");
+    return {
+      ok: status >= 200 && status < 300,
+      status,
       json: () =>
         new Promise((_resolve, reject) => {
-          signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+          signal.addEventListener("abort", () => {
+            seen.aborted = true;
+            reject(new DOMException("aborted", "AbortError"));
+          });
         }),
+    };
+  };
+}
+
+test("the time limit also covers reading the answer", { timeout: 5000 }, async () => {
+  for (const status of [200, 400]) {
+    const seen = { aborted: false };
+    const client = createIdentityPlatformAuthClient({
+      env: { ...ENV, IDENTITY_PLATFORM_TIMEOUT_MS: "30" },
+      fetchImpl: bodyUntilAbort(status, seen),
+    });
+    const { error } = await client.auth.refreshSession({ refresh_token: "old-refresh" });
+    assert.equal(seen.aborted, true, String(status));
+    assert.equal(error.status, 503, String(status));
+    assert.equal(error.code, "IDENTITY_PLATFORM_UNAVAILABLE", String(status));
+  }
+});
+
+test("an error answer whose body breaks off is a passing fault; a whole one that is not JSON keeps its status", async () => {
+  const cut = createIdentityPlatformAuthClient({
+    env: ENV,
+    fetchImpl: async () => ({
+      ok: false,
+      status: 400,
+      async json() {
+        throw new TypeError("terminated");
+      },
     }),
   });
-  const { error } = await client.auth.refreshSession({ refresh_token: "old-refresh" });
-  assert.equal(error.status, 503);
-  assert.equal(error.code, "IDENTITY_PLATFORM_UNAVAILABLE");
+  const cutError = (await cut.auth.refreshSession({ refresh_token: "old-refresh" })).error;
+  assert.equal(cutError.status, 503);
+  assert.equal(cutError.code, "IDENTITY_PLATFORM_UNAVAILABLE");
+
+  const page = createIdentityPlatformAuthClient({ env: ENV, fetchImpl: async () => brokenBody(400) });
+  const pageError = (await page.auth.refreshSession({ refresh_token: "old-refresh" })).error;
+  assert.equal(pageError.status, 400);
+  assert.equal(pageError.code, "IDENTITY_PLATFORM_REQUEST_FAILED");
 });

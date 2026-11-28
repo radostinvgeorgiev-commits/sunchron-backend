@@ -672,3 +672,59 @@ test("a renewal answer without a session signs the person out", async () => {
   assert.equal(lines.length, 1);
   assert.equal(lines[0][1].outcome, "refused");
 });
+
+test("an account check that cannot reach its record keeps the sign-in and answers 503", async () => {
+  const { TesterAccessError } = await import("../src/services/testerAccessService.js");
+  const stored = session("c");
+  const client = {
+    auth: {
+      async getUser() {
+        return {
+          data: { user: { id: "00000000-0000-4000-8000-00000000000c", email: "c@example.com" } },
+          error: null,
+        };
+      },
+      async refreshSession() {
+        assert.fail("A non-expired session must not be refreshed");
+      },
+    },
+  };
+  const check = (code, status) => async () => {
+    throw new TesterAccessError("Проверката на достъпа временно не е достъпна.", status, code);
+  };
+  const lines = [];
+  const original = console.warn;
+  console.warn = (...args) => lines.push(args);
+  try {
+    // Firestore did not answer: the same passing fault as a renewal at Google.
+    await assert.rejects(
+      resolveUserSession(userSessionCookie(stored, ENV), {
+        env: ENV,
+        client,
+        requireTesterAccess: check("TESTER_ACCESS_UNAVAILABLE", 503),
+      }),
+      (error) => error instanceof UserAuthError && error.status === 503 && error.code === "AUTH_UNAVAILABLE",
+    );
+    assert.deepEqual(lines, [["[User session] Account check unavailable", { code: "TESTER_ACCESS_UNAVAILABLE" }]]);
+    // Any other account fault keeps its own answer, a lasting one too.
+    await assert.rejects(
+      resolveUserSession(userSessionCookie(stored, ENV), {
+        env: ENV,
+        client,
+        requireTesterAccess: check("TESTER_ACCESS_PERSISTENCE_FAILED", 503),
+      }),
+      (error) => error instanceof TesterAccessError && error.code === "TESTER_ACCESS_PERSISTENCE_FAILED",
+    );
+    // A withheld account is still signed out, never kept.
+    assert.equal(
+      await resolveUserSession(userSessionCookie(stored, ENV), {
+        env: ENV,
+        client,
+        requireTesterAccess: check("ACCOUNT_ACCESS_REVOKED", 403),
+      }),
+      null,
+    );
+  } finally {
+    console.warn = original;
+  }
+});

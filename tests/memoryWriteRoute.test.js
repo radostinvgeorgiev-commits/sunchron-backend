@@ -349,7 +349,7 @@ test("a fact over 500 characters is answered with what to do, and nothing is wri
   assert.match(response.body.error, /Нищо не беше записано/u);
   assert.match(
     response.body.error,
-    /Напиши „Запомни следното:“ и по-кратки точки, всяка на нов ред с тире или на един ред с „;“ между тях/u,
+    /Напиши „Запомни следното:“ и след него по-кратки точки: всяка на нов ред с тире или всички на един ред, разделени с „;“\./u,
   );
   assert.deepEqual(await profileFor("primary-user"), []);
 });
@@ -385,7 +385,7 @@ test("the long-fact advice keeps the memory: project facts stay in the project",
       .send({ sessionId: "memory-write-long-project", message: `Запомни за проекта: ${long}.` })
       .expect(400);
     assert.equal(refused.body.code, "INVALID_MEMORY");
-    assert.match(refused.body.error, /Напиши „Запомни за проекта:“ и по-кратки точки/u);
+    assert.match(refused.body.error, /Напиши „Запомни за проекта:“ и след него по-кратки точки/u);
     assert.doesNotMatch(refused.body.error, /Запомни следното/u);
     assert.deepEqual(await projectFacts(), []);
     assert.deepEqual(await profileFor("primary-user"), []);
@@ -426,6 +426,63 @@ test("the long-fact advice keeps the memory: project facts stay in the project",
       "обичам джаз",
       "пия чай без захар",
     ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+// Two commands sent together run into one fact, and „Не записвай нищо още:“
+// only proposes (second review of the sign-in fixes): the advice must not
+// send a project paragraph to personal memory, or a proposal to a form that
+// writes at once.
+test("the long-fact advice keeps two commands apart and a proposal a proposal", async () => {
+  resetConfirmationsForTests();
+  resetLocalDocumentStoreForTests();
+  const ownerSession = await createGitHubSession(
+    { access_token: "test-owner-token-long-mixed" },
+    async () =>
+      new Response(JSON.stringify({ login: "radostinvgeorgiev-commits" }), {
+        status: 200,
+      }),
+  );
+  const ownerCookie = `synchron_github_session=${ownerSession.id}`;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_url, init) =>
+    modelAnswer(isFactCheck(init) ? JSON.stringify({ onlyFacts: true }) : "Разбрах.");
+  const long = `Магазинът продава стари книги ${"и доставя всяка сряда до Варна и Бургас ".repeat(14)}`.trim();
+  assert.ok(long.length > 500);
+  const advise = async (message) => {
+    const refused = await request(app)
+      .post("/chat/chat")
+      .set("Cookie", ownerCookie)
+      .send({ sessionId: "memory-write-long-mixed", message })
+      .expect(400);
+    assert.equal(refused.body.code, "INVALID_MEMORY");
+    assert.match(refused.body.error, /Нищо не беше записано/u);
+    return refused.body.error;
+  };
+  try {
+    for (const message of [
+      `Запомни: пия чай\nЗапомни за проекта: ${long}`,
+      `Запомни за проекта: ${long}\nЗапомни: пия чай`,
+      // The parser keeps only the later command here; the message still
+      // holds two.
+      `Запомни за проекта: срокът е 1 март.\nЗапомни: ${long}`,
+    ]) {
+      const advice = await advise(message);
+      assert.match(advice, /Изпрати всяка команда в отделно съобщение, с по-кратки точки\./u);
+      assert.doesNotMatch(advice, /Запомни следното|Запомни за проекта/u);
+    }
+    const proposal = await advise(`Не записвай нищо още: ${long}`);
+    assert.match(proposal, /Изпрати по-кратки части, всяка с „Не записвай нищо още:“\./u);
+    assert.doesNotMatch(proposal, /Запомни следното|Запомни за проекта/u);
+    assert.deepEqual(await profileFor("primary-user"), []);
+    assert.deepEqual(
+      (await listProfileMemories({ scope: "project", ownerId: "primary-user" })).filter(
+        ({ source }) => source !== "system-canonical",
+      ),
+      [],
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }

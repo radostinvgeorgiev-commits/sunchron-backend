@@ -1,4 +1,5 @@
 import { rateLimit } from "express-rate-limit";
+import { tooManyRequestsPage, wantsPage } from "./signInBusy.js";
 
 // A limit counts only as a whole number above zero. Anything else ("abc",
 // "0", "10abc", "1e3", empty) keeps the limit the code names for that group.
@@ -9,8 +10,21 @@ export function positiveInteger(value, fallback) {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+// The limit from the environment key `name`. A value that is set but is not
+// a whole number above zero keeps the group's own limit, and the log says so
+// once, by the key's name and the limit in force (never the value itself).
+function limitFromEnvironment(name, value, fallback) {
+  const limit = positiveInteger(value, null);
+  if (limit !== null) return limit;
+  if (name && String(value ?? "").trim()) {
+    console.warn("[Rate limit] Setting ignored", { name, limit: fallback });
+  }
+  return fallback;
+}
+
 export function createApiRateLimiter({
   limit,
+  name = "",
   fallback = 60,
   windowMs = 15 * 60 * 1000,
   code = "RATE_LIMIT_EXCEEDED",
@@ -18,21 +32,29 @@ export function createApiRateLimiter({
 } = {}) {
   return rateLimit({
     windowMs,
-    limit: positiveInteger(limit, fallback),
+    limit: limitFromEnvironment(name, limit, fallback),
     standardHeaders: "draft-8",
     legacyHeaders: false,
-    handler(_req, res) {
-      res.status(429).json({ error: message, code });
+    handler(req, res) {
+      // A page the browser opened itself (the "Продължи с Google" link, the
+      // return from Google, the connector's consent) gets a page, not bare
+      // JSON; the site's own requests keep the JSON answer.
+      if (wantsPage(req)) {
+        res.set("Cache-Control", "no-store");
+        return res.status(429).type("html").send(tooManyRequestsPage(message));
+      }
+      return res.status(429).json({ error: message, code });
     },
   });
 }
 
-// Reading whether one is signed in (every page load, every open tab) is not
-// an attempt to sign in. It gets its own, wider limit, so the page loads of a
-// home or a mobile network behind one address do not lock its people out of
-// the site (28.11: 429 on /api/auth/session at 14:11 and 14:12 UTC). Only
-// the named GET paths count as reads, matched as Express routes them (any
-// case, one trailing slash); everything else keeps the strict limit.
+// Reading whether one is signed in, and the GitHub connection's status, on
+// every page load, every open tab and while the Work Center is open, is not
+// an attempt to sign in. These reads get their own, wider limit, so the page
+// loads of a home or a mobile network behind one address do not lock its
+// people out of the site (28.11: 429 on /api/auth/session at 14:11 and 14:12
+// UTC). Only the named GET paths count as reads, matched as Express routes
+// them (any case, one trailing slash); everything else keeps the strict limit.
 export function limitReadsApart({ readPaths = [], readLimiter, otherLimiter }) {
   const reads = new Set(readPaths.map((path) => path.toLowerCase()));
   return (req, res, next) => {
@@ -46,22 +68,26 @@ export function createRateLimiters(env = process.env) {
   return {
     oauthRateLimiter: createApiRateLimiter({
       limit: env.OAUTH_RATE_LIMIT,
+      name: "OAUTH_RATE_LIMIT",
       fallback: 60,
       code: "OAUTH_RATE_LIMIT_EXCEEDED",
       message: "Има твърде много опити за свързване. Опитай отново след малко.",
     }),
     sessionReadRateLimiter: createApiRateLimiter({
       limit: env.SESSION_READ_RATE_LIMIT,
+      name: "SESSION_READ_RATE_LIMIT",
       fallback: 600,
       code: "SESSION_READ_RATE_LIMIT_EXCEEDED",
     }),
     privateApiRateLimiter: createApiRateLimiter({
       limit: env.PRIVATE_API_RATE_LIMIT,
+      name: "PRIVATE_API_RATE_LIMIT",
       fallback: 300,
       code: "PRIVATE_API_RATE_LIMIT_EXCEEDED",
     }),
     paidAiRateLimiter: createApiRateLimiter({
       limit: env.PAID_AI_RATE_LIMIT,
+      name: "PAID_AI_RATE_LIMIT",
       fallback: 60,
       code: "PAID_AI_RATE_LIMIT_EXCEEDED",
       message:

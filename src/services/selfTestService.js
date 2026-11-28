@@ -17,6 +17,7 @@ import { latestMainSessionFor } from "./googleDriveService.js";
 import { filterCapabilityRequestsForIdentity } from "./memberCapabilityPolicy.js";
 import { isIdentityPlatformConfigured } from "../config/authBackend.js";
 import { createIdentityPlatformAuthClient } from "./identityPlatformAuthClient.js";
+import { renewalOutcome } from "./userAuthService.js";
 
 // A self-test the owner's connector can run instead of clicking through the
 // site by hand. Every check is a real call (a few cents of AI use in total),
@@ -150,9 +151,12 @@ export function renewalProbeVerdict(error) {
       `Google отказва самия ключ за вход, не само подновяването: входът с профил също няма да мине (${why})`,
     );
   }
-  const status = Number(error.status);
-  if (!Number.isInteger(status) || status === 429 || status >= 500) {
-    throw new Error(`Google временно не отговаря, пусни проверката пак (${why || "без отговор"})`);
+  // Read as a real renewal reads it (renewalOutcome): no answer, 408, 429,
+  // a fault at Google, too many attempts or the quota are passing. No answer
+  // at all is said as such, not as Google's 503.
+  if (renewalOutcome(error) === "temporary") {
+    const shown = error.code === "IDENTITY_PLATFORM_UNAVAILABLE" ? "без отговор" : why || "без отговор";
+    throw new Error(`Google временно не отговаря, пусни проверката пак (${shown})`);
   }
   throw new Error(`Google отказа подновяването (${why || "без причина"})`);
 }
@@ -368,7 +372,7 @@ export async function runSelfTest({
 
   // One renewal with a made-up token: no person's sign-in is touched.
   const signInRenewal = check("Вход · подновяване след час", async () => {
-    if (!isIdentityPlatformConfigured(env)) throw skip("входът не е през Identity Platform");
+    if (!isIdentityPlatformConfigured(env)) throw skip("Identity Platform не е настроен");
     const { error } = await probeRenewal({ env });
     return renewalProbeVerdict(error);
   });

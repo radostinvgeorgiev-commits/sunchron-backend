@@ -39,6 +39,7 @@ import {
 } from "../config/replyLanguage.js";
 import {
   buildMemoryContext,
+  countMemoryCommands,
   extractForgetMemoryCommand,
   extractPersistentMemoryCommands,
   isConfirmedForgetAllCommand,
@@ -46,6 +47,7 @@ import {
   isOwnMemoryCommand,
   listConversationMessages,
   listProfileMemories,
+  PROPOSAL_MEMORY_FORM,
   saveConversationTurn,
 } from "../services/memoryService.js";
 import { confirmPlainMemoryFacts } from "../services/memoryFactCheck.js";
@@ -2638,6 +2640,7 @@ router.post("/chat", async (req, res) => {
   // the reply to a fact or text over 500 characters (INVALID_MEMORY below).
   let memoryCommandKind = null;
   let memoryCommandScope = null;
+  let memoryCommandForm = "list";
   const memoryWriteConfirmationId =
     extractMemoryWriteConfirmationId(cleanMessage);
   const memoryDeleteConfirmationId =
@@ -2687,6 +2690,15 @@ router.post("/chat", async (req, res) => {
         // confirmation, shown under that answer.
         memoryCommandKind = "write";
         memoryCommandScope = memoryCommands[0]?.scope || null;
+        // Two commands in one message can run into one fact, or the parser
+        // keeps only one of them, and „Не записвай нищо още:“ only proposes:
+        // the advice for a fact over 500 characters keeps each in its own
+        // form (INVALID_MEMORY below).
+        memoryCommandForm = PROPOSAL_MEMORY_FORM.test(cleanMessage)
+          ? "proposal"
+          : countMemoryCommands(cleanMessage) > 1
+            ? "mixed"
+            : "list";
         const prepared = await prepareMemoryWrite({
           sessionId: cleanSessionId,
           ownerId,
@@ -2814,16 +2826,26 @@ router.post("/chat", async (req, res) => {
     // not an outage: say what to do instead of „памет не е достъпна“, in the
     // words the chat reads as a list for the same memory („Запомни за
     // проекта:“ for the project, „Запомни следното:“ for the person), a dash
-    // per line or „;“ on one line, which a phone can type. A forget command
-    // that long deletes nothing and says so.
+    // per line or „;“ on one line, which a phone can type. Two commands sent
+    // together go one per message, so neither lands in the other's memory;
+    // „Не записвай нищо още:“ keeps its own form, so nothing is written
+    // before the person says so. A forget command that long deletes nothing
+    // and says so.
     if (error?.code === "INVALID_MEMORY") {
       const listCommand =
         memoryCommandScope === "project" ? "„Запомни за проекта:“" : "„Запомни следното:“";
+      const tooLong = "Фактът за паметта трябва да бъде между 1 и 500 знака. Нищо не беше записано.";
+      const advice =
+        memoryCommandForm === "proposal"
+          ? "Изпрати по-кратки части, всяка с „Не записвай нищо още:“."
+          : memoryCommandForm === "mixed"
+            ? "Изпрати всяка команда в отделно съобщение, с по-кратки точки."
+            : `Напиши ${listCommand} и след него по-кратки точки: всяка на нов ред с тире или всички на един ред, разделени с „;“.`;
       return res.status(400).json({
         error:
           memoryCommandKind === "delete"
             ? "Текстът за забравяне трябва да бъде между 1 и 500 знака. Нищо не беше изтрито."
-            : `Фактът за паметта трябва да бъде между 1 и 500 знака. Нищо не беше записано. Напиши ${listCommand} и по-кратки точки, всяка на нов ред с тире или на един ред с „;“ между тях.`,
+            : `${tooLong} ${advice}`,
         code: "INVALID_MEMORY",
       });
     }

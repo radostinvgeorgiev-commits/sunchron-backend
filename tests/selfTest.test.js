@@ -345,10 +345,27 @@ test("sign-in renewal names the other ways Google can answer", () => {
     () => renewalProbeVerdict({ status: 403, upstreamErrorStatus: "PERMISSION_DENIED", upstreamReason: "SERVICE_DISABLED" }),
     /Token Service API е изключен/u,
   );
+  // No answer at all (a network fault, the time limit, a broken body) is
+  // said as such, not as if Google had answered 503.
   assert.throws(
     () => renewalProbeVerdict({ status: 503, code: "IDENTITY_PLATFORM_UNAVAILABLE" }),
-    /временно не отговаря, пусни проверката пак \(503\)/u,
+    /временно не отговаря, пусни проверката пак \(без отговор\)/u,
   );
+  // The same passing answers as a real renewal (renewalOutcome): Google's own
+  // 503, 408, 429, too many attempts and the quota.
+  for (const [error, why] of [
+    [{ status: 503, code: "IDENTITY_PLATFORM_REQUEST_FAILED", upstreamErrorStatus: "UNAVAILABLE" }, "503 UNAVAILABLE"],
+    [{ status: 408, code: "IDENTITY_PLATFORM_REQUEST_FAILED" }, "408"],
+    [{ status: 429, code: "IDENTITY_PLATFORM_REQUEST_FAILED" }, "429"],
+    [{ status: 400, upstreamCode: "TOO_MANY_ATTEMPTS_TRY_LATER" }, "400 TOO_MANY_ATTEMPTS_TRY_LATER"],
+    [{ status: 400, upstreamCode: "QUOTA_EXCEEDED" }, "400 QUOTA_EXCEEDED"],
+  ]) {
+    assert.throws(
+      () => renewalProbeVerdict(error),
+      (thrown) => thrown.message === `Google временно не отговаря, пусни проверката пак (${why})`,
+      why,
+    );
+  }
   assert.throws(
     () => renewalProbeVerdict({ status: 403, upstreamErrorStatus: "PERMISSION_DENIED", upstreamReason: "API_KEY_SERVICE_BLOCKED" }),
     /ключът за вход не позволява подновяване: всеки вход изтича след час/u,
@@ -379,5 +396,34 @@ test("sign-in renewal names the other ways Google can answer", () => {
   assert.throws(
     () => renewalProbeVerdict({ status: 400, upstreamCode: "INVALID_GRANT_TYPE" }),
     /Google отказа подновяването \(400 INVALID_GRANT_TYPE\)/u,
+  );
+});
+
+test("a refusal that quotes the key never shows the key or Google's own words", async () => {
+  const { createIdentityPlatformAuthClient } = await import("../src/services/identityPlatformAuthClient.js");
+  const key = identityEnv.IDENTITY_PLATFORM_API_KEY;
+  const client = createIdentityPlatformAuthClient({
+    env: identityEnv,
+    fetchImpl: async () =>
+      new Response(
+        JSON.stringify({
+          error: {
+            code: 403,
+            message: `Permission denied: Consumer 'api_key:${key}' has been suspended.`,
+            status: "PERMISSION_DENIED",
+            details: [{ reason: "CONSUMER_SUSPENDED", metadata: { consumer: `projects/1/apiKeys/${key}` } }],
+          },
+        }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      ),
+  });
+  const { error } = await client.auth.probeSessionRenewal();
+  assert.throws(
+    () => renewalProbeVerdict(error),
+    (thrown) =>
+      thrown.message ===
+        "Google отказва самия ключ за вход, не само подновяването: входът с профил също няма да мине (403 PERMISSION_DENIED CONSUMER_SUSPENDED)" &&
+      !thrown.message.includes(key) &&
+      !/api_key|Permission denied|suspended\./u.test(thrown.message),
   );
 });

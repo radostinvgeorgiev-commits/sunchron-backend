@@ -105,3 +105,36 @@ test("a limit from the environment counts only as a whole number above zero", as
   assert.match(String((await request(app).get("/read")).headers["ratelimit-policy"]), /q=600\b/u);
   assert.match(String((await request(app).get("/private")).headers["ratelimit-policy"]), /q=300\b/u);
 });
+
+test("a limit setting that cannot be used is named in the log, without its value", async () => {
+  const { createRateLimiters } = await import("../src/middleware/rateLimits.js");
+  const original = console.warn;
+  const warned = [];
+  console.warn = (...args) => warned.push(args);
+  try {
+    createRateLimiters({ SESSION_READ_RATE_LIMIT: "1000.0", OAUTH_RATE_LIMIT: "0120", PAID_AI_RATE_LIMIT: "" });
+  } finally {
+    console.warn = original;
+  }
+  assert.deepEqual(warned, [["[Rate limit] Setting ignored", { name: "SESSION_READ_RATE_LIMIT", limit: 600 }]]);
+  assert.doesNotMatch(JSON.stringify(warned), /1000/u);
+});
+
+test("after the attempt limit a page the browser opened gets a page, the site's own requests JSON", async () => {
+  const app = express();
+  app.set("trust proxy", 1);
+  app.use(createApiRateLimiter({ limit: 1, windowMs: 60_000, code: "TEST_ATTEMPT_LIMIT", message: "Има твърде много опити за свързване. Опитай отново след малко." }));
+  app.get("/api/auth/google/start", (_req, res) => res.redirect("/"));
+  await request(app).get("/api/auth/google/start").expect(302);
+  const page = await request(app)
+    .get("/api/auth/google/start")
+    .set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+    .expect(429);
+  assert.match(page.headers["content-type"], /^text\/html/u);
+  assert.match(String(page.headers["cache-control"]), /no-store/u);
+  assert.ok(page.headers["retry-after"], "the browser is told when to try again");
+  assert.match(page.text, /<h1>Твърде много опити<\/h1>/u);
+  assert.match(page.text, /Има твърде много опити за свързване/u);
+  const fetched = await request(app).get("/api/auth/google/start").set("Accept", "*/*").expect(429);
+  assert.equal(fetched.body.code, "TEST_ATTEMPT_LIMIT");
+});

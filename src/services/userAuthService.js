@@ -617,6 +617,19 @@ export async function resolveUserSession(
       error?.code === "ACCOUNT_ACCESS_REVOKED"
     )
       return null;
+    // The account check could not read its record just now (Firestore
+    // answered 5xx or not at all). That is the same passing fault as a
+    // renewal without an answer: the sign-in is kept, a page opened in the
+    // browser says to try again, and the site's page reads the sign-in once
+    // more. Nothing is let in: the request still fails.
+    if (error?.code === "TESTER_ACCESS_UNAVAILABLE" && Number(error?.status) === 503) {
+      console.warn("[User session] Account check unavailable", { code: error.code });
+      throw new UserAuthError(
+        "Входът временно не е достъпен. Опитай отново след малко.",
+        503,
+        "AUTH_UNAVAILABLE",
+      );
+    }
     throw error;
   }
 

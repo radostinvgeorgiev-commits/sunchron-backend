@@ -441,7 +441,7 @@ export const ENVIRONMENT_CATALOG = Object.freeze(
     general(
       "SESSION_READ_RATE_LIMIT",
       "Сигурност",
-      "Проверки дали човек е влязъл (при всяко отваряне на страницата) за 15 минути.",
+      "Проверки дали човек е влязъл и на връзката с GitHub (отваряне на страницата, Работният център), от един адрес за 15 минути.",
       { hasDefault: true },
     ),
     general(

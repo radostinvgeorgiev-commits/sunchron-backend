@@ -117,13 +117,16 @@ export function createIdentityPlatformAuthClient({
         throw unavailable(cause);
       }
       // The answer is read within the same time limit. A good answer whose
-      // body breaks off is a passing fault: read as an empty answer it would
-      // look like a missing account and end the person's sign-in.
+      // body cannot be read, or any answer whose body breaks off or comes
+      // too late, is a passing fault: read as an empty answer it would look
+      // like a missing account or a refusal and end the person's sign-in.
+      // Only an error answer that came whole but is not JSON (a proxy's own
+      // page) is judged by its status alone.
       let payload;
       try {
         payload = await response.json();
       } catch (cause) {
-        if (response.ok) throw unavailable(cause);
+        if (response.ok || !(cause instanceof SyntaxError)) throw unavailable(cause);
         payload = {};
       }
       if (!response.ok) throw upstreamError(response.status, payload);

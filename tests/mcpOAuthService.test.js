@@ -1299,3 +1299,29 @@ test("people are shown the novariumai.com connector address, never the old one",
   );
   assert.equal(resolvePublicMcpUrl({}), "https://novariumai.com/mcp");
 });
+
+test("the consent token names its callback for the retry page only while it is good", async () => {
+  const { createMcpConsentToken, peekMcpConsentCallback } = await import("../src/services/mcpOAuthService.js");
+  const request = {
+    clientId: "novariumai-claude",
+    clientName: "Claude",
+    redirectUri: "https://claude.ai/api/mcp/auth_callback",
+    state: "state-peek",
+    codeChallenge: "c".repeat(43),
+    resource: "https://cloudaicore.com/mcp",
+    scopes: [MCP_READ_SCOPE],
+  };
+  const identity = { id: "owner-id", role: "owner", memoryOwnerId: "primary-user" };
+  const now = 1_800_000_000;
+  const token = createMcpConsentToken(request, identity, ENV, now);
+  assert.deepEqual(peekMcpConsentCallback(token, ENV, now + 60), {
+    clientId: "novariumai-claude",
+    redirectUri: "https://claude.ai/api/mcp/auth_callback",
+  });
+  // Run out after its 10 minutes, made with another key, not one of ours,
+  // or no key set at all: nothing.
+  assert.equal(peekMcpConsentCallback(token, ENV, now + 600), null);
+  assert.equal(peekMcpConsentCallback(token, { ...ENV, MCP_ACCESS_TOKEN: "another-secret-with-more-than-thirty-two-chars" }, now), null);
+  assert.equal(peekMcpConsentCallback("sx-consent.not-ours", ENV, now), null);
+  assert.equal(peekMcpConsentCallback(token, {}, now), null);
+});

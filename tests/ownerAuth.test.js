@@ -241,6 +241,29 @@ test("a passing sign-in fault shows a page to a browser and JSON to the site's o
   assert.match(page.text, /Обнови тази страница след малко/u);
   const site = await request(app).get("/api/google/callback").set("Accept", "*/*").expect(503);
   assert.equal(site.body.code, "OWNER_AUTH_UNAVAILABLE");
+  // Only a GET is a page that a reload shows again; a form sent from the
+  // browser keeps the JSON answer.
+  app.post("/api/google/save", middleware, (_req, res) => res.json({ ok: true }));
+  const sent = await request(app)
+    .post("/api/google/save")
+    .set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+    .expect(503);
+  assert.equal(sent.body.code, "OWNER_AUTH_UNAVAILABLE");
+
+  // The same code with another status is not the passing fault.
+  const signedOut = express();
+  signedOut.get(
+    "/api/google/callback",
+    createRequireOwnerSession({
+      getSession: async () => null,
+      getUserSession: async () => {
+        throw Object.assign(new Error("x"), { status: 401, code: "AUTH_UNAVAILABLE" });
+      },
+    }),
+    (_req, res) => res.json({ ok: true }),
+  );
+  const other401 = await request(signedOut).get("/api/google/callback").set("Accept", "text/html").expect(503);
+  assert.equal(other401.body.code, "OWNER_AUTH_UNAVAILABLE");
 
   // Any other fault keeps the JSON answer, in the browser too.
   const other = express();

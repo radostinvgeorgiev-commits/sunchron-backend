@@ -401,6 +401,31 @@ export function replyLanguageRule(language) {
   return `[REPLY LANGUAGE] ${replyLanguageInstruction(language)} The Bulgarian rules, notes and memory above do not by themselves set the reply language.`;
 }
 
+// Today's date and time in Sofia. Without it the model guessed the day: Team
+// 2's probe 28.11 asked „какво ми е деня днес“ and the answer named 12 June
+// 2025 (item 3, fix 3).
+export function todayContext(language, now = new Date()) {
+  const english = useEnglishReplyFallback(language);
+  const locale = english ? "en-GB" : "bg-BG";
+  const when = now instanceof Date ? now : new Date(now);
+  const day = when.toLocaleDateString(locale, {
+    timeZone: "Europe/Sofia",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const time = when.toLocaleTimeString(locale, {
+    timeZone: "Europe/Sofia",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  return english
+    ? `[TODAY] Today is ${day}, ${time} in Sofia. Use this date whenever the person asks about a day or a date, and count "tomorrow" and the weekdays from it.`
+    : `[ДНЕС] Днес е ${day}, ${time} ч. (София). Ползвай тази дата винаги, когато човекът пита за ден или дата, и смятай „утре“ и дните от седмицата от нея.`;
+}
+
 export function buildAvatarMessages(
   memories,
   history,
@@ -443,6 +468,7 @@ export function buildAvatarMessages(
       member: identity?.role !== "owner",
       english: useEnglishReplyFallback(interaction.language),
     }),
+    todayContext(interaction.language, interaction.now ?? new Date()),
     replyLanguageRule(interaction.language),
   ]
     .filter(Boolean)

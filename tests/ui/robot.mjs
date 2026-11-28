@@ -626,7 +626,7 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media)
       const card = await askForOffer();
       const buttons = await card.locator("button").allInnerTexts();
       expect(
-        buttons.join("|") === "🎨 Картинка 1 · 2 единици|🎨 Картинка 2 · 2 единици|🎬 Видео · 100 единици|Направи всичко",
+        buttons.join("|") === "🎨 Картинка 1 · 2 единици|🎨 Картинка 2 · 2 единици|🎬 Видео · 100 единици|Направи всичко · 104 единици",
         `бутоните са ${buttons.join("|")}`,
       );
       // A screen reader also hears the start of the description.
@@ -666,9 +666,12 @@ async function signedInFlows(origin, requests, label, viewport, feedback, media)
     await page.waitForTimeout(400);
     expect(media.length === before, "нещо се прави преди натискане");
     await card.locator("button", { hasText: "Картинка 1" }).click();
-    // The pressed button locks and the focus moves to the next one in the card.
-    const focused = await page.evaluate(() => document.activeElement?.textContent || "");
-    expect(focused === "🎨 Картинка 2", `фокусът е на „${focused}“`);
+    // The pressed button locks and the focus goes to the card itself, never
+    // to another button that one more Enter would press.
+    const focused = await page.evaluate(() =>
+      document.activeElement?.classList.contains("media-proposals") ? "card" : document.activeElement?.textContent || "",
+    );
+    expect(focused === "card", `фокусът е на „${focused}“`);
     await waitForMedia(before + 1, "картинката не беше поискана");
     await last().locator(".generated-image img").waitFor({ timeout: 5000 });
     await chatFree();

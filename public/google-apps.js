@@ -69,6 +69,7 @@
       body.innerHTML = `
         <section class="drawer-section">
           <div class="permission-default">${text("Последни имейли. „Чернова от мое име“ записва отговор в твоя стил като чернова в Gmail; нищо не се изпраща без теб.")}</div>
+          <div class="permission-default">${text("„В кошчето“ мести писмото в кошчето на Gmail след второ натискане. Там стои 30 дни.")}</div>
           ${
             messages.length
               ? messages
@@ -82,6 +83,7 @@
               </div>
               <a href="${escapeHtml(message.url)}" target="_blank" rel="noopener noreferrer">${text("Отвори")}</a>
               <button type="button" class="reply-draft" data-message-id="${escapeHtml(message.id)}">${text("Чернова от мое име")}</button>
+              <button type="button" class="gmail-trash" data-message-id="${escapeHtml(message.id)}">${text("В кошчето")}</button>
             </article>`,
                   )
                   .join("")
@@ -93,7 +95,84 @@
     }
   }
 
+  // „В кошчето“: the first press asks, the second moves this one letter to
+  // the person's own Gmail bin (deleting keeps a confirmation). A double click
+  // or a held key is one press: the second press counts only after the
+  // question has been on screen for a moment.
+  const trashResets = new WeakMap();
+  function disarm(button) {
+    clearTimeout(trashResets.get(button));
+    trashResets.delete(button);
+    delete button.dataset.armed;
+    delete button.dataset.armedAt;
+    button.classList.remove("armed");
+    button.textContent = text("В кошчето");
+  }
+
+  async function trashLetter(button, event) {
+    const card = button.closest("article");
+    if (button.dataset.armed !== "1") {
+      button.dataset.armed = "1";
+      button.dataset.armedAt = String(Date.now());
+      button.classList.add("armed");
+      button.textContent = text("Да, в кошчето");
+      clearTimeout(trashResets.get(button));
+      trashResets.set(
+        button,
+        setTimeout(() => {
+          if (!button.isConnected || button.disabled) return;
+          disarm(button);
+        }, 6000),
+      );
+      return;
+    }
+    if (event?.detail > 1 || Date.now() - Number(button.dataset.armedAt || 0) < 700) return;
+    clearTimeout(trashResets.get(button));
+    button.disabled = true;
+    button.textContent = text("Местя писмото…");
+    card.querySelector(".gmail-trash-error")?.remove();
+    try {
+      const response = await fetch("/api/google/gmail/trash", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId: button.dataset.messageId }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.trashed) {
+        const failure = new Error(data.error || text("Писмото не беше преместено."));
+        failure.connect = typeof data.connect === "string" ? data.connect : "";
+        throw failure;
+      }
+      const note = document.createElement("p");
+      note.className = "reply-draft-result";
+      note.setAttribute("role", "status");
+      note.textContent = text("Писмото е в кошчето на Gmail. Там стои 30 дни.");
+      card.querySelectorAll("button").forEach((item) => item.remove());
+      card.append(note);
+    } catch (error) {
+      button.disabled = false;
+      disarm(button);
+      const note = document.createElement("p");
+      note.className = "drawer-error gmail-trash-error";
+      // A link in the message („[Разреши Gmail](…)“) shows as its words.
+      note.textContent = text(String(error.message || "")).replace(/\[([^\]]+)\]\([^)]*\)/gu, "$1");
+      if (error.connect?.startsWith("/api/google/connect")) {
+        const allow = document.createElement("a");
+        allow.href = error.connect;
+        allow.textContent = text("Разреши Gmail");
+        note.append(" ", allow);
+      }
+      card.append(note);
+    }
+  }
+
   body.addEventListener("click", async (event) => {
+    const trash = event.target.closest(".gmail-trash");
+    if (trash) {
+      await trashLetter(trash, event);
+      return;
+    }
     const button = event.target.closest(".reply-draft");
     if (!button) return;
     const card = button.closest("article");

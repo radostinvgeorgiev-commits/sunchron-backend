@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { listAssistantPresets } from "../../src/services/assistantPresets.js";
 import { createAddonService } from "../../src/services/addonService.js";
+import { APP_SUBSCRIPTIONS } from "../../src/services/appSubscriptionCatalog.js";
 import { createBookMemoryService } from "../../src/services/bookMemoryService.js";
 // The server's own rules for pictures and video in the chat, so the robot can
 // only pass on what the server does.
@@ -101,6 +102,9 @@ export function startStubServer(port = 0) {
     conversations.set(sent.sessionId, turns);
   };
   const todos = [];
+  // „Запомни“ under an answer: { kind: "prepare" | "confirm" | "share", fact }.
+  const memoryWrites = [];
+  let pendingFact = "";
   // The real add-on service and sandbox, with memory instead of Firestore and
   // fixed weather instead of the internet.
   const addonRows = new Map();
@@ -228,6 +232,39 @@ export function startStubServer(port = 0) {
           res.writeHead(200, { "Content-Type": "video/mp4" });
           return res.end(Buffer.from("MP4 clip"));
         }, mediaDelay);
+      });
+      return undefined;
+    }
+    // „Планове“: the real catalog of example prices; payments stay off.
+    if (p === "/api/product/plans") {
+      return json(res, { plans: [], paymentsEnabled: false, currency: "EUR", appSubscriptions: APP_SUBSCRIPTIONS });
+    }
+    if (p === "/api/product/usage") return json(res, { error: "Влез в профила си." }, 401);
+    // The real route answers 409 with a one-time id first; the page confirms it.
+    if (p === "/memory/profile" && req.method === "POST") {
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        const data = JSON.parse(body || "{}");
+        if (data.confirmationId) {
+          memoryWrites.push({ kind: "confirm", fact: pendingFact });
+          return json(res, { status: "ok", items: [{ fact: pendingFact, scope: "personal" }] }, 201);
+        }
+        pendingFact = String(data.fact || "");
+        memoryWrites.push({ kind: "prepare", fact: pendingFact });
+        return json(res, { code: "MEMORY_WRITE_CONFIRMATION_REQUIRED", confirmationId: "robot-memory-1" }, 409);
+      });
+      return undefined;
+    }
+    if (p === "/api/avatar-link/share" && req.method === "POST") {
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        const { fact, shared } = JSON.parse(body || "{}");
+        memoryWrites.push({ kind: "share", fact, shared });
+        const knowledge = String(avatarLink.card?.knowledge || "");
+        avatarLink = { ...avatarLink, card: { ...(avatarLink.card || {}), knowledge: `${knowledge}\n• ${fact}`.trim() } };
+        return json(res, avatarLink);
       });
       return undefined;
     }
@@ -657,6 +694,7 @@ export function startStubServer(port = 0) {
     if (p.startsWith("/s/")) p = "/shared.html";
     if (p.startsWith("/a/")) p = "/avatar.html";
     if (p === "/status") p = "/status.html";
+    if (p === "/plans") p = "/plans.html";
     if (p === "/help") p = "/help.html";
     if (p === "/") p = "/index.html";
     const file = path.join(root, path.normalize(p));
@@ -669,7 +707,7 @@ export function startStubServer(port = 0) {
   });
   return new Promise((resolve) => {
     server.listen(port, "127.0.0.1", () =>
-      resolve({ server, requests, media, feedback, contactMessages, origin: `http://127.0.0.1:${server.address().port}` }),
+      resolve({ server, requests, media, feedback, contactMessages, memoryWrites, origin: `http://127.0.0.1:${server.address().port}` }),
     );
   });
 }

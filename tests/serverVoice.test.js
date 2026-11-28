@@ -37,19 +37,72 @@ test("OpenAI transcribes in the chosen language", async () => {
   assert.equal(seen.form.get("model"), "gpt-4o-mini-transcribe");
 });
 
-test("Gemini answers when OpenAI fails", async () => {
-  const fetchImpl = async (url) =>
-    url.includes("openai")
-      ? new Response("{}", { status: 429 })
-      : new Response(
-          JSON.stringify({ candidates: [{ content: { parts: [{ text: "Добро утро" }] } }] }),
-          { status: 200 },
-        );
+test("Gemini goes first when both keys are set", async () => {
+  const urls = [];
+  const fetchImpl = async (url) => {
+    urls.push(url);
+    return new Response(
+      JSON.stringify({ candidates: [{ content: { parts: [{ text: "Добро утро" }] } }] }),
+      { status: 200 },
+    );
+  };
   const result = await transcribeVoice(
     { audio, mimeType: "audio/webm" },
     { env: { OPENAI_API_KEY: "k", GEMINI_API_KEY: "g" }, fetchImpl },
   );
   assert.deepEqual([result.provider, result.text], ["gemini", "Добро утро"]);
+  assert.equal(urls.length, 1);
+  assert.match(urls[0], /generativelanguage\.googleapis\.com/u);
+});
+
+test("OpenAI answers when Gemini fails", async () => {
+  const urls = [];
+  const fetchImpl = async (url) => {
+    urls.push(url);
+    return url.includes("generativelanguage")
+      ? new Response("{}", { status: 429 })
+      : new Response(JSON.stringify({ text: "Добро утро" }), { status: 200 });
+  };
+  const result = await transcribeVoice(
+    { audio, mimeType: "audio/webm" },
+    { env: { OPENAI_API_KEY: "k", GEMINI_API_KEY: "g" }, fetchImpl },
+  );
+  assert.deepEqual([result.provider, result.text], ["openai", "Добро утро"]);
+  assert.equal(urls.length, 2);
+  assert.match(urls[1], /api\.openai\.com/u);
+});
+
+// A refusal or a cut-off answer comes back from Gemini as 200 with no text;
+// the fallback must still hear the recording (review of #605). Silence that
+// simply stopped stays an empty answer from Gemini.
+test("OpenAI answers when Gemini returns no text", async () => {
+  for (const body of [
+    { candidates: [{ finishReason: "RECITATION" }] },
+    { candidates: [{ finishReason: "MAX_TOKENS", content: { parts: [] } }] },
+    { promptFeedback: { blockReason: "OTHER" } },
+  ]) {
+    const urls = [];
+    const fetchImpl = async (url) => {
+      urls.push(url);
+      return url.includes("generativelanguage")
+        ? new Response(JSON.stringify(body), { status: 200 })
+        : new Response(JSON.stringify({ text: "Добро утро" }), { status: 200 });
+    };
+    const result = await transcribeVoice(
+      { audio, mimeType: "audio/webm" },
+      { env: { OPENAI_API_KEY: "k", GEMINI_API_KEY: "g" }, fetchImpl },
+    );
+    assert.deepEqual([result.provider, result.text, urls.length], ["openai", "Добро утро", 2], JSON.stringify(body));
+  }
+  const silence = await transcribeVoice(
+    { audio, mimeType: "audio/webm" },
+    {
+      env: { OPENAI_API_KEY: "k", GEMINI_API_KEY: "g" },
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ candidates: [{ finishReason: "STOP", content: { parts: [] } }] }), { status: 200 }),
+    },
+  );
+  assert.deepEqual([silence.provider, silence.text], ["gemini", ""]);
 });
 
 test("no provider means a clear 503", async () => {

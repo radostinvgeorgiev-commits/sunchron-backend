@@ -84,7 +84,10 @@ import { createKnowledgeFilesRouter } from "./src/routes/knowledgeFilesRouter.js
 import { getKnowledgeFilesService } from "./src/services/knowledgeFilesService.js";
 import { getUserLibraryService } from "./src/services/userLibraryService.js";
 import { createFeedbackService } from "./src/services/feedbackService.js";
-import { listConversationMessages } from "./src/services/memoryService.js";
+import {
+  listConversationMessages,
+  setMemoryChangeListener,
+} from "./src/services/memoryService.js";
 import {
   createEarlyAccessAdminRouter,
   createEarlyAccessRouter,
@@ -463,6 +466,11 @@ app.use(
   "/api/avatar-visit",
   createApiRateLimiter({ limit: 30, code: "AVATAR_VISIT_RATE_LIMIT" }),
   createAvatarVisitorRouter({ service: getAvatarLinkService() }),
+);
+// A memory shared with „Питай моя аватар“ follows its memory: corrected,
+// replaced or deleted, its line in the visitors' text changes or goes too.
+setMemoryChangeListener((ownerId, change) =>
+  getAvatarLinkService().followMemory(ownerId, change),
 );
 app.get("/a/:token", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");

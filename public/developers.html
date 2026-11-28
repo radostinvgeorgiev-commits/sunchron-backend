@@ -76,12 +76,11 @@ curl --fail https://novariumai.com/health/ready</code></pre>
       <section class="product-section" id="mcp">
         <h2>MCP</h2>
         <p>
-          Крайна точка: <code>https://cloudaicore.com/mcp</code>. Поддържа
-          JSON-RPC през HTTP и OAuth за защитените инструменти. Публичното
-          откриване на каталога не дава право за изпълнение на частните
-          инструменти.
+          Крайна точка: <code>https://novariumai.com/mcp</code>. Поддържа
+          JSON-RPC през HTTP и OAuth. Адресът иска вход още от първата заявка,
+          така че и списъкът с инструменти е само след вход.
         </p>
-        <pre><code>curl --fail https://cloudaicore.com/mcp \
+        <pre><code>curl -i https://novariumai.com/mcp \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
   --data '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'</code></pre>

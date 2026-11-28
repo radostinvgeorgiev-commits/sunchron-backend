@@ -83,14 +83,16 @@ test("the probe tries each region in turn and says which models answer", async (
     env: ENV,
     marker: "42",
     ask: async ({ model, location }) => {
-      if (model.startsWith("meta/llama-4") && location === "us-east5") throw Object.assign(new Error(), { code: "VERTEX_OPEN_MODEL_NOT_FOUND" });
+      if (model.startsWith("openai/gpt-oss") && location === "global") throw Object.assign(new Error(), { code: "VERTEX_OPEN_MODEL_NOT_FOUND" });
       if (model.startsWith("zai-org/")) throw Object.assign(new Error(), { code: "VERTEX_OPEN_MODEL_FORBIDDEN" });
       return { text: "42" };
     },
   });
-  const maverick = results.find(({ model }) => model.startsWith("meta/llama-4"));
-  assert.equal(maverick.ok, true);
-  assert.equal(maverick.location, "global");
+  const gptOss = results.find(({ model }) => model.startsWith("openai/gpt-oss"));
+  assert.equal(gptOss.ok, true);
+  assert.equal(gptOss.location, "us-central1");
+  // Llama 4 answers NOT_FOUND everywhere in this project (self-test 28.11).
+  assert.equal(results.some(({ model }) => model.startsWith("meta/llama-4")), false);
   const glm = results.find(({ model }) => model.startsWith("zai-org/"));
   assert.equal(glm.ok, false);
   assert.equal(glm.errors.length, 1);

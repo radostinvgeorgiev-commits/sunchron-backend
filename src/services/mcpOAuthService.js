@@ -166,6 +166,14 @@ export function resolveMcpAlternateResourceUrls(env = process.env) {
   ].filter((value) => value && value !== canonical);
 }
 
+// The address people are shown for a new connector: novariumai.com, which
+// asks for sign-in from the first request. The old address still answers for
+// connectors added with it, but no page shows it (РАДКО 28.11.2026).
+export const PUBLIC_MCP_HOST = "novariumai.com";
+export function resolvePublicMcpUrl(env = process.env) {
+  return resolveMcpResourceForHost(PUBLIC_MCP_HOST, env);
+}
+
 // The MCP address a request reached, if it is one of ours; else the canonical one.
 export function resolveMcpResourceForHost(host, env = process.env) {
   const wanted = String(host || "").trim().toLowerCase();

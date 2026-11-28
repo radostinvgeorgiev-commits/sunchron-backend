@@ -34,6 +34,14 @@ export function createAvatarLinkRouter({ service }) {
       fail(res, error, "Линкът не беше записан.");
     }
   });
+  // A remembered fact shared with the avatar, or taken back ({ fact, shared }).
+  router.post("/share", async (req, res) => {
+    try {
+      res.json(view(req, await service.share(owner(req), { fact: req.body?.fact, shared: req.body?.shared !== false })));
+    } catch (error) {
+      fail(res, error, "Споделянето не беше записано.");
+    }
+  });
   router.delete("/", async (req, res) => {
     try {
       res.json(await service.stop(owner(req)));

@@ -1896,7 +1896,7 @@ const CONNECTION_GUIDES = Object.freeze([
       "Отвори Claude → Настройки → Connectors.",
       "Натисни „Add custom connector“, име: NovariumAI.",
       "Постави адреса отгоре.",
-      "В „Advanced settings“ въведи Client ID: synchron-claude. Client secret остава празно.",
+      "В „Advanced settings“ въведи Client ID: novariumai-claude. Client secret остава празно.",
       "Натисни „Connect“, влез с този профил и натисни „Разреши“.",
     ],
   },
@@ -1935,7 +1935,7 @@ async function openConnectionsDrawer() {
 }
 
 function renderConnections(data) {
-  const mcpUrl = String(data.mcpUrl || "https://cloudaicore.com/mcp");
+  const mcpUrl = String(data.mcpUrl || "https://novariumai.com/mcp");
   const connections = Array.isArray(data.connections) ? data.connections : [];
   const connected = connections.length
     ? connections
@@ -2022,10 +2022,11 @@ async function openMemoryDrawer() {
   openDataDrawer("Памет");
   renderDrawerLoading();
   try {
-    const [response, workspaceResponse, knowledgeResponse] = await Promise.all([
+    const [response, workspaceResponse, knowledgeResponse, avatarResponse] = await Promise.all([
       fetch("/memory/profile", { cache: "no-store" }),
       fetch("/api/workspaces", { cache: "no-store" }),
       fetch("/memory/knowledge", { cache: "no-store" }).catch(() => null),
+      fetch("/api/avatar-link", { cache: "no-store", credentials: "same-origin" }).catch(() => null),
     ]);
     if (!response.ok || !workspaceResponse.ok) {
       throw new Error("Паметта временно не е достъпна.");
@@ -2042,6 +2043,10 @@ async function openMemoryDrawer() {
       ? knowledge.items
       : [];
     state.memoryWorkspace = workspace;
+    const avatar = avatarResponse?.ok ? await avatarResponse.json().catch(() => null) : null;
+    state.avatarLink = avatar
+      ? { active: Boolean(avatar.active), knowledge: String(avatar.card?.knowledge || "") }
+      : null;
     renderMemoryItems();
   } catch (error) {
     renderDrawerError(error.message);
@@ -2054,7 +2059,7 @@ function memoryProvenance(item) {
   const source = String(item?.source || "");
   const who = source === "system-canonical"
     ? chatText("основа на системата")
-    : /confirmed|confirmation|approved|import/u.test(source)
+    : /confirmed|confirmation|approved|import|own-chat-command/u.test(source)
       ? chatText("потвърдено от теб")
       : source
         ? chatText("източник: {source}", { source })
@@ -2089,11 +2094,26 @@ function renderMemoryItems() {
                           ${item.readOnly ? '<span class="memory-badge">Текуща основа</span>' : ""}
                           <p>${escapeHtml(item.fact)}</p>
                           ${memoryProvenance(item)}
+                          ${
+                            !item.readOnly && state.avatarLink && isSharedWithAvatar(item.fact)
+                              ? `<small class="memory-shared">${localizedMarkup("Споделено с „Питай моя аватар“")}</small>`
+                              : ""
+                          }
                         </div>
                         ${
                           item.readOnly
                             ? ""
                             : `<span class="memory-card-actions">
+                                ${
+                                  state.avatarLink
+                                    ? `<button type="button" data-memory-share="${state.memoryItems.indexOf(item)}"
+                                  aria-pressed="${isSharedWithAvatar(item.fact)}"
+                                  aria-label="${escapeHtml(chatText(isSharedWithAvatar(item.fact) ? "Спри споделянето с аватара" : "Сподели с аватара"))}"
+                                  title="${escapeHtml(chatText(isSharedWithAvatar(item.fact) ? "Споделено с „Питай моя аватар“. Натисни, за да го махнеш." : "Сподели с „Питай моя аватар“"))}">
+                                  <i class="fa-solid fa-share-nodes"></i>
+                                </button>`
+                                    : ""
+                                }
                                 <button type="button" data-memory-edit="${escapeHtml(item.id)}"
                                   aria-label="Редактирай този спомен" title="Редактирай">
                                   <i class="fa-regular fa-pen-to-square"></i>
@@ -2111,13 +2131,13 @@ function renderMemoryItems() {
             }
         </section>`;
   elements.dataDrawerBody.innerHTML =
-    `<p class="memory-intro">${escapeHtml(chatText("Това е всичко, което NovariumAI помни за теб. Нищо не се записва без твое „да“, а всеки запис можеш да поправиш или изтриеш."))}</p>
+    `<p class="memory-intro">${escapeHtml(chatText("Това е всичко, което NovariumAI помни за теб. Нищо не се записва без твое „да“, а всеки запис можеш да поправиш, изтриеш или споделиш с „Питай моя аватар“."))}</p>
     <section class="memory-policy-card">
-      <strong>Правило за запомняне</strong>
-      <p>NovariumAI никога не запомня автоматично. Избери дали да пита преди всеки запис или напълно да забрани записването.</p>
+      <strong>${localizedMarkup("Правило за запомняне")}</strong>
+      <p>${localizedMarkup("NovariumAI никога не запомня сам. Записва само когато кажеш „Запомни: …“ или натиснеш „Запомни“ под отговор. Можеш и напълно да забраниш записването.")}</p>
       <div class="memory-policy-actions">
-        <button type="button" data-memory-policy="confirm" aria-pressed="${memoryMode === "confirm"}">Винаги питай</button>
-        <button type="button" data-memory-policy="disabled" aria-pressed="${memoryMode === "disabled"}">Не записвай</button>
+        <button type="button" data-memory-policy="confirm" aria-pressed="${memoryMode === "confirm"}">${localizedMarkup("Само когато кажа")}</button>
+        <button type="button" data-memory-policy="disabled" aria-pressed="${memoryMode === "disabled"}">${localizedMarkup("Не записвай")}</button>
       </div>
     </section>` +
     renderKnowledgeImportCard() +
@@ -2466,6 +2486,24 @@ async function handleDataDrawerAction(event) {
     return;
   }
 
+  const shareButton = event.target.closest("button[data-memory-share]");
+  if (shareButton) {
+    // By its place in the list: two cards can come from one stored memory
+    // („Казвам се Радко и живея …“), and each shares only its own words.
+    const item = state.memoryItems[Number(shareButton.dataset.memoryShare)];
+    if (!item || item.readOnly) return;
+    const shared = isSharedWithAvatar(item.fact);
+    shareButton.disabled = true;
+    try {
+      await shareWithAvatar(item.fact, !shared);
+      renderMemoryItems();
+      logAction(shared ? "Спомен е махнат от „Питай моя аватар“" : "Спомен е споделен с „Питай моя аватар“");
+    } catch (error) {
+      renderDrawerError(error.message);
+    }
+    return;
+  }
+
   const editButton = event.target.closest("button[data-memory-edit]");
   if (editButton) {
     const item = state.memoryItems.find(
@@ -2520,6 +2558,10 @@ async function handleDataDrawerAction(event) {
       state.memoryItems = state.memoryItems.map((candidate) =>
         candidate.id === item.id ? updated.items[0] : candidate,
       );
+      // Drawn again before the avatar refresh: „Сподели“ finds its card by
+      // place in the list, so the buttons must match the list right away.
+      renderMemoryItems();
+      await refreshAvatarLink();
       renderMemoryItems();
       logAction("Редактиран е потвърден спомен");
     } catch (error) {
@@ -2580,6 +2622,11 @@ async function handleDataDrawerAction(event) {
     state.memoryItems = state.memoryItems.filter(
       (candidate) => candidate.id !== item.id,
     );
+    // Drawn again before the avatar refresh: „Сподели“ finds its card by
+    // place in the list, so a press on a card below the deleted one never
+    // shares the next card.
+    renderMemoryItems();
+    await refreshAvatarLink();
     renderMemoryItems();
     logAction("Изтрит е потвърден спомен");
   } catch (error) {
@@ -2707,6 +2754,9 @@ function createAssistantTurn(text = "", showActions = true) {
         </button>
         <button type="button" data-action="save-google" title="${localizedMarkup("Запази в Google")}" aria-label="${localizedMarkup("Запази в Google")}">
             <i class="fa-brands fa-google-drive"></i>
+        </button>
+        <button type="button" data-action="remember" title="${localizedMarkup("Запомни")}" aria-label="${localizedMarkup("Запомни")}">
+            <i class="fa-regular fa-bookmark"></i>
         </button>
         <button type="button" data-action="open-panel" title="${localizedMarkup("Отвори отстрани")}" aria-label="${localizedMarkup("Отвори отстрани")}">
             <i class="fa-solid fa-up-right-from-square"></i>
@@ -4018,6 +4068,11 @@ async function handleMessageAction(event) {
     return;
   }
 
+  if (action === "remember") {
+    openRememberForm(turn, text);
+    return;
+  }
+
   if (action === "copy") {
     await copyText(text);
     const icon = button.querySelector("i");
@@ -4144,6 +4199,155 @@ function openRetryModelMenu(button, onPick) {
 // the person's own Drive. Each account uses its own Google connection.
 const ANSWER_TABLE_PATTERN = /^\s*\|.*\|\s*\n\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/mu;
 
+// The same line the server keeps for a shared fact (avatarLinkService,
+// sharedFactLine): one line, at most 500 characters, after „• “.
+function avatarFactLine(fact) {
+  const text = String(fact || "")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, "")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .slice(0, 500);
+  return text ? `• ${text}` : "";
+}
+
+// The server moves a shared line with its memory (corrected, replaced or
+// deleted); read the visitors' text again so the share buttons show what
+// visitors hear now.
+async function refreshAvatarLink() {
+  if (!state.avatarLink) return;
+  try {
+    const response = await fetch("/api/avatar-link", { cache: "no-store", credentials: "same-origin" });
+    const avatar = response.ok ? await response.json() : null;
+    if (avatar) state.avatarLink = { active: Boolean(avatar.active), knowledge: String(avatar.card?.knowledge || "") };
+  } catch {
+    // The drawer keeps the last known state; reopening reads it again.
+  }
+}
+
+function isSharedWithAvatar(fact) {
+  const line = avatarFactLine(fact);
+  const knowledge = String(state.avatarLink?.knowledge || "");
+  return Boolean(line) && knowledge.split("\n").some((entry) => entry.trim() === line);
+}
+
+// Writes one fact in the person's own memory. Pressing „Запомни“ is their
+// „да“ (RADKO 28.11 04:30, 06:35), so the two steps run one after the other.
+async function rememberFact(fact) {
+  const preparedResponse = await fetch("/memory/profile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId: state.sessionId, fact, scope: "personal" }),
+  });
+  const prepared = await preparedResponse.json().catch(() => null);
+  if (
+    preparedResponse.status !== 409 ||
+    prepared?.code !== "MEMORY_WRITE_CONFIRMATION_REQUIRED" ||
+    !prepared?.confirmationId
+  ) {
+    throw new Error(prepared?.error || chatText("Не можах да го запомня. Опитай пак."));
+  }
+  const response = await fetch("/memory/profile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId: state.sessionId, confirmationId: prepared.confirmationId }),
+  });
+  const saved = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(saved?.error || chatText("Не можах да го запомня. Опитай пак."));
+  return saved?.items?.[0]?.fact || fact;
+}
+
+// „Сподели с аватара“: the fact becomes one line of what visitors of the
+// person's „Питай моя аватар“ link hear; shared=false takes it back.
+async function shareWithAvatar(fact, shared = true) {
+  const response = await fetch("/api/avatar-link/share", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fact, shared }),
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.error || chatText("Споделянето не стана. Опитай пак."));
+  state.avatarLink = { active: Boolean(data?.active), knowledge: String(data?.card?.knowledge || "") };
+  return data;
+}
+
+// The answer as one fact to start from: plain words, no marks, at most 500
+// characters. The person changes it before pressing „Запомни“.
+function rememberSuggestion(text) {
+  return String(text || "")
+    .replace(/```[\s\S]*?```/gu, " ")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/gu, "$1")
+    .replace(/[*_`#>|]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .slice(0, 500);
+}
+
+// „Запомни“ under an answer (RADKO 28.11 06:35 „бутон за паметта и за
+// споделяне, ако иска“): the person decides what goes in and who hears it.
+function openRememberForm(turn, text) {
+  turn.querySelector(".remember-form")?.remove();
+  const form = document.createElement("form");
+  form.className = "remember-form";
+  const field = document.createElement("textarea");
+  field.maxLength = 500;
+  field.rows = 3;
+  field.required = true;
+  field.value = rememberSuggestion(text);
+  field.setAttribute("aria-label", chatText("Какво да запомня"));
+  const shareLabel = document.createElement("label");
+  shareLabel.className = "remember-share";
+  const shareBox = document.createElement("input");
+  shareBox.type = "checkbox";
+  shareLabel.append(shareBox, " ", chatText("Сподели и с „Питай моя аватар“"));
+  const buttons = document.createElement("div");
+  buttons.className = "message-edit-buttons";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.textContent = chatText("Отказ");
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.className = "primary";
+  save.textContent = chatText("Запомни");
+  buttons.append(cancel, save);
+  const note = document.createElement("small");
+  note.className = "remember-note";
+  note.setAttribute("role", "status");
+  form.append(field, shareLabel, buttons, note);
+  cancel.addEventListener("click", () => form.remove());
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const fact = field.value.replace(/\s+/gu, " ").trim();
+    if (!fact) return;
+    save.disabled = true;
+    cancel.disabled = true;
+    note.textContent = chatText("Запомням…");
+    try {
+      const saved = await rememberFact(fact);
+      let message = chatText("Запомних: {fact}", { fact: saved });
+      if (shareBox.checked) {
+        try {
+          const link = await shareWithAvatar(saved, true);
+          message += " " + (link?.active
+            ? chatText("Споделих го с „Питай моя аватар“.")
+            : chatText("Добавих го в текста за „Питай моя аватар“; линкът ти още не е пуснат."));
+        } catch (error) {
+          message += " " + error.message;
+        }
+      }
+      logAction(chatText("Запомнен е факт от отговор"));
+      form.replaceChildren(note);
+      note.textContent = message;
+    } catch (error) {
+      note.textContent = error.message;
+      save.disabled = false;
+      cancel.disabled = false;
+    }
+  });
+  turn.querySelector(".message-actions")?.after(form);
+  field.focus();
+}
+
 function openSaveGoogleMenu(button, turn, text) {
   document.querySelector(".retry-model-menu")?.remove();
   const menu = document.createElement("div");
@@ -4254,7 +4458,7 @@ function startEditingMessage(userTurn) {
   buttons.className = "message-edit-buttons";
   const cancel = document.createElement("button");
   cancel.type = "button";
-  cancel.textContent = chatText("Откажи");
+  cancel.textContent = chatText("Отказ");
   const save = document.createElement("button");
   save.type = "button";
   save.className = "primary";

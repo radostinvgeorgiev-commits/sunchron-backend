@@ -3,7 +3,7 @@ import {
   isMcpOAuthConfigured,
   listActiveMcpGrants,
   revokeMcpGrants,
-  resolveMcpResourceUrl,
+  resolvePublicMcpUrl,
 } from "../services/mcpOAuthService.js";
 import { recordAuditEvent } from "../services/permissionService.js";
 import { logSafeError } from "../utils/safeLogging.js";
@@ -56,7 +56,7 @@ export function createConnectionsRouter({
   isConfigured = isMcpOAuthConfigured,
   listGrants = listActiveMcpGrants,
   revokeGrants = revokeMcpGrants,
-  resourceUrl = resolveMcpResourceUrl,
+  resourceUrl = resolvePublicMcpUrl,
   audit = recordAuditEvent,
 } = {}) {
   const router = express.Router();

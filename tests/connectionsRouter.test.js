@@ -21,7 +21,7 @@ function appFor(owner, overrides = {}) {
     "/api/connections",
     createConnectionsRouter({
       isConfigured: async () => true,
-      resourceUrl: () => "https://cloudaicore.com/mcp",
+      resourceUrl: () => "https://novariumai.com/mcp",
       listGrants: async (input) => {
         calls.push(["list", input]);
         return [
@@ -50,7 +50,7 @@ test("a member lists only their own connections without secrets", async () => {
   const { app, calls } = appFor({ id: "member-1", role: "member" });
   const response = await request(app).get("/api/connections").expect(200);
   assert.equal(response.headers["cache-control"], "no-store");
-  assert.equal(response.body.mcpUrl, "https://cloudaicore.com/mcp");
+  assert.equal(response.body.mcpUrl, "https://novariumai.com/mcp");
   assert.deepEqual(response.body.connections, [
     {
       grantId: "g1",

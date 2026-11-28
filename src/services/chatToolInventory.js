@@ -345,7 +345,9 @@ export function buildToolInventory({
   // too (item 3, fix 4), so both are named for what they are (review r6).
   if (owner) entries.push(entry("tasks", status("tasks.read"), tools.tasks));
   entries.push(entry("todos", store ? "ready" : "off", tools.todos));
-  // "Запомни: …" prepares the record; it is written after the confirmation.
+  // "Запомни: …" is written when the person sends it themselves (or presses
+  // „Запомни“): their exact words are the confirmation, as for an event, a
+  // contact or an email (RADKO 28.11 04:30, 06:35).
   entries.push(entry("memory", memory ? "ready" : "off", tools.memory, { confirm: tools.memoryWrite }));
   entries.push(entry("files", store && mode !== "work" ? "ready" : "off", tools.files));
   entries.push(entry("claude", store && Boolean(env?.ANTHROPIC_API_KEY) ? "ready" : "off", tools.claude));

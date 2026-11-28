@@ -31,6 +31,7 @@ import {
   MCP_READ_SCOPE,
   MCP_TASKS_WRITE_SCOPE,
   requiresPersistentMcpReplayGuard,
+  resolvePublicMcpUrl,
   requiresPersistentMcpGrantStore,
   resetMcpOAuthStateForTests,
   revokeMcpGrants,
@@ -1283,4 +1284,18 @@ test("ChatGPT plugin grants are scoped to the public plugin resource", async () 
   assert.equal(verifyMcpAccessToken(header, [CHATGPT_MCP_SCOPE], ENV, { expectedResource: resource }).role, "member");
   assert.throws(() => verifyMcpAccessToken(header, [CHATGPT_MCP_SCOPE], ENV), { code: "invalid_token" });
   assert.throws(() => verifyMcpAccessToken(header, [CHATGPT_MCP_SCOPE], ENV, { expectedResource: ENV.MCP_RESOURCE_URL }), { code: "invalid_token" });
+});
+
+test("people are shown the novariumai.com connector address, never the old one", () => {
+  // Today: the old address is still the canonical resource.
+  assert.equal(
+    resolvePublicMcpUrl({ MCP_RESOURCE_URL: "https://cloudaicore.com/mcp" }),
+    "https://novariumai.com/mcp",
+  );
+  // After the resource moves, the same address.
+  assert.equal(
+    resolvePublicMcpUrl({ MCP_RESOURCE_URL: "https://novariumai.com/mcp" }),
+    "https://novariumai.com/mcp",
+  );
+  assert.equal(resolvePublicMcpUrl({}), "https://novariumai.com/mcp");
 });

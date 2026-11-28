@@ -23,7 +23,8 @@ test("sitemap lists every public page and llms.txt describes the product", async
   }
   const llms = await read("llms.txt");
   assert.match(llms, /^# NovariumAI/u);
-  assert.match(llms, /https:\/\/cloudaicore\.com\/mcp/u);
+  assert.match(llms, /https:\/\/novariumai\.com\/mcp/u);
+  assert.doesNotMatch(llms, /cloudaicore/u);
 });
 
 test("IndexNow key file is served so Bing and Yandex accept update pings", async () => {

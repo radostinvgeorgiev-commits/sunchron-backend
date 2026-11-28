@@ -1001,5 +1001,7 @@ NovariumAI никога не запомня сам. Записва само ко
 Местя писмото…|Moving the letter…
 Писмото е в кошчето на Gmail. Там стои 30 дни.|The letter is in the Gmail bin. It stays there for 30 days.
 Писмото не беше преместено.|The letter was not moved.
+Разреши Gmail|Allow Gmail
+Преместването в кошчето иска още едно разрешение за Gmail.|Moving a letter to the bin needs one more Gmail permission.
 `.trim().split("\n").map((line) => line.split("|")),
 );

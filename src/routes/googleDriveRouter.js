@@ -41,6 +41,7 @@ import {
   confirmGoogleAction,
   prepareGmailMessageTrash,
 } from "../services/googleActionService.js";
+import { isAuditSafetyError } from "../services/permissionService.js";
 
 const router = express.Router();
 const COOKIE_OPTIONS =
@@ -370,8 +371,22 @@ router.post("/gmail/trash", async (req, res) => {
       },
     });
   } catch (error) {
+    // Moving needs Gmail's modify permission: one press on „Разреши Gmail“
+    // adds it to the person's own connection.
+    if (isGoogleScopeMissing(error) || error?.code === "GOOGLE_SCOPE_REQUIRED") {
+      return res.status(403).json({
+        error: "Преместването в кошчето иска още едно разрешение за Gmail.",
+        code: "GOOGLE_SCOPE_REQUIRED",
+        connect: googleConnectPath("gmail"),
+      });
+    }
     if (error instanceof GoogleActionError) {
       return res.status(error.status).json({ error: error.message, code: error.code });
+    }
+    // The letter may already be in the bin while its record failed: say so
+    // instead of „not moved“ (executeAuditedWriteAction).
+    if (isAuditSafetyError(error)) {
+      return res.status(error.status || 502).json({ error: error.message, code: error.code });
     }
     if (!(error instanceof GoogleDriveError)) logSafeError("[Gmail trash]", error);
     sendError(res, error);

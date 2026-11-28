@@ -23,26 +23,52 @@ export function setFirestoreMemoryStoreForTests(store) {
 }
 
 // A memory shared with „Питай моя аватар“ follows its memory (review of
-// #605): the avatar link listens here (server.js) and changes or drops its
-// line when the memory is corrected, replaced or deleted, by any path (the
-// panel, „Забрави“, the connector, a replace by „Запомни“).
+// #605): the avatar link listens here (server.js). Every change to the
+// person's memories is announced, by any path (the panel, „Запомни“,
+// „Забрави“, „Забрави всичко“, the connector), with the texts the memories
+// have now, so a shared line whose memory is gone leaves the visitors' text.
+// `renamed` names the words that moved: the panel's own correction, or the
+// same words in other capitals.
 let memoryChangeListener = null;
 
 export function setMemoryChangeListener(listener) {
   memoryChangeListener = typeof listener === "function" ? listener : null;
 }
 
-async function announceMemoryChange(ownerId, removed, added = "") {
-  const facts = [
-    ...new Set(
-      (removed || []).filter(
-        (fact) => typeof fact === "string" && fact.trim(),
-      ),
-    ),
+function renamedPairs(from, to) {
+  if (typeof from !== "string" || typeof to !== "string" || from === to) return [];
+  return [
+    { from, to },
+    { from: cleanMemoryFact(from), to: cleanMemoryFact(to) },
   ];
-  if (!memoryChangeListener || !facts.length) return;
+}
+
+// Every text a memory of this person has now: as stored, and as the memory
+// panel shows and shares it (a split or a joined card).
+async function currentMemoryTexts(ownerId) {
+  const hits = await fetchProfileHits(ownerId);
+  const texts = new Set();
+  const seenKeys = new Set();
+  const memories = [];
+  for (const hit of hits) {
+    const memory = hydrateMemory(hit);
+    if (!memory) continue;
+    texts.add(memory.fact);
+    if (seenKeys.has(memory.memoryKey)) continue;
+    seenKeys.add(memory.memoryKey);
+    memories.push(memory);
+  }
+  for (const memory of consolidateMemoryView(memories)) texts.add(memory.fact);
+  return [...texts];
+}
+
+async function announceMemoryChange(ownerId, renamed = []) {
+  if (!memoryChangeListener) return;
   try {
-    await memoryChangeListener(ownerId, { removed: facts, added });
+    await memoryChangeListener(ownerId, {
+      renamed,
+      currentTexts: () => currentMemoryTexts(ownerId),
+    });
   } catch (error) {
     // The memory change itself stands; the person can still clean the
     // visitors' text by hand in „Питай моя аватар“.
@@ -284,6 +310,7 @@ export function extractPersistentMemoryCommand(message) {
     /^запомни(?:\s+за\s+бъдещи\s+разговори)?\s*:\s*([\s\S]+)$/iu,
     /^запомни(?:\s+за\s+бъдещи\s+разговори)?\s*,?\s+че\s+([\s\S]+)$/iu,
     /^запази\s+в\s+постоянната\s+памет\s*:\s*([\s\S]+)$/iu,
+    /^запомни\s+в\s+постоянната\s+ми\s+памет\s*:\s*([\s\S]+)$/iu,
     /^поправка\s*:\s*([\s\S]+?)(?:\s+(?:запомни|запази)\s+това[.!?]*)?$/iu,
     // The same command in the site's other languages, as the memory panel
     // names it there („Remember: …“, „Merken: …“ …).
@@ -326,45 +353,150 @@ const BULK_MEMORY_PATTERNS = Object.freeze([
   },
 ]);
 
-// The person asks to see the fact first or to be asked before it is written.
-const WAIT_FOR_MEMORY_CONFIRMATION =
-  /не\s+записвай|не\s+променяй|преди\s+(?:да\s+)?(?:запис|запиш|потвърд)|(?:поискай|изчакай|чакай)\s+(?:моето\s+|ми\s+)?потвърждение|предложи\s+да\s+запомниш|don[’']?t\s+(?:save|write|store)|ask\s+(?:me\s+)?first|wait\s+for\s+(?:my\s+)?confirmation/iu;
+// The person asks to see the fact first or to be asked before it is written,
+// in any of the site's languages („не го записвай още“, „do not save it yet“,
+// „speichere es noch nicht“, „no lo guardes“, „ne l'enregistre pas“, „non
+// salvarlo“, „nu o salva“). Only words about saving count, so a preference
+// such as „недей да ми звъниш след 22 ч.“ is still a plain fact.
+const WAIT_FOR_MEMORY_CONFIRMATION = new RegExp(
+  [
+    String.raw`не\s+(?:го\s+|я\s+|ги\s+)?(?:записвай|запазвай|запомняй|променяй)`,
+    String.raw`(?:недей|без)\s+да\s+(?:го\s+|я\s+|ги\s+)?(?:записваш|запазваш|запишеш|запазиш|запомняш|запомниш)`,
+    String.raw`преди\s+(?:да\s+)?(?:запис|запиш|запаз|потвърд)`,
+    String.raw`(?:поискай|изчакай|чакай)\s+(?:моето\s+|ми\s+)?(?:потвърждение|одобрение|съгласие)`,
+    String.raw`предложи\s+да\s+запомниш`,
+    String.raw`(?:първо|преди\s+това)\s+(?:ми\s+)?покажи|покажи\s+ми\s+(?:първо|какво\s+(?:ще|би))`,
+    String.raw`чакай\s+да\s+(?:ти\s+)?кажа`,
+    String.raw`(?:don[’']?t|do\s+not|never)\s+(?:save|write|store)`,
+    String.raw`ask\s+(?:me\s+)?first|check\s+with\s+me\s+first|(?:show|tell)\s+me\s+first`,
+    String.raw`wait\s+for\s+(?:my\s+)?(?:confirmation|approval|ok\b|okay)`,
+    String.raw`before\s+(?:you\s+)?(?:save|saving|write|writing|store|storing)`,
+    String.raw`nicht\s+speicher|speicher\p{L}*\s+(?:es\s+|das\s+)?(?:noch\s+)?nicht`,
+    String.raw`frag\p{L}*\s+mich\s+(?:zuerst|erst|vorher)|warte\p{L}*\s+auf\s+meine`,
+    String.raw`no\s+(?:lo\s+|la\s+|los\s+|las\s+)?(?:guardes|grabes|almacenes)`,
+    String.raw`preg[uú]ntame\s+(?:primero|antes)|espera\s+(?:a\s+)?mi\s+(?:confirmaci[oó]n|aprobaci[oó]n|ok\b)`,
+    String.raw`(?:ne\s+(?:l['’]\s*|le\s+|la\s+|les\s+)?|n['’])(?:enregistre|sauvegarde|m[ée]morise|retiens)\s+(?:pas|rien)`,
+    String.raw`demande[\s-]moi\s+(?:d['’]abord|avant)|attends\s+(?:ma\s+)?confirmation`,
+    String.raw`non\s+(?:lo\s+|la\s+|li\s+|le\s+)?(?:salvar|memorizzar|registrar)`,
+    String.raw`chiedimi\s+prima|aspetta\s+(?:la\s+)?(?:mia\s+)?conferma`,
+    String.raw`nu\s+(?:o\s+|îl\s+|il\s+|le\s+|i\s+)?(?:salva|memora|[îi]nregistra)`,
+    String.raw`[îi]ntreab[ăa]-?m[ăa]\s+(?:mai\s+)?[îi]nt[âa]i|a[șşs]teapt[ăa]\s+confirmarea`,
+  ].join("|"),
+  "iu",
+);
 // „Поправка: …“ is a correction in the talk unless it ends with „запомни това“.
 const BARE_MEMORY_CORRECTION =
   /^поправка\s*(?:за\s+проекта\s*)?:(?![\s\S]*(?:запомни|запази)\s+това[.!?]*$)/iu;
-// A period after these words does not end the sentence („ул. Раковски 5“).
+// After these a period does not end the sentence when a name or a place
+// follows with a capital letter („ул. Раковски 5“, „гр. Варна“, „проф.
+// Петров“). „г.“, „St.“ and „etc.“ are not here: before a capital letter they
+// usually end the sentence („… 2015 г. Какво да му подаря?“).
+const NAME_PREFIX_END =
+  /(?:^|[^\p{L}])(?:ул|бул|гр|с|кв|ж\.к|бл|вх|ет|ап|обл|общ|пл|д-р|проф|инж|доц|акад|арх|г-н|г-жа|г-ца|св|mr|mrs|ms|dr|prof|sr|sra|mme|herr|fr|hr|sig|dott)\.$/iu;
+// One capital letter and a period is an initial („Иван П. Петров“).
+const INITIAL_END = /(?:^|[^\p{L}])\p{Lu}\.$/u;
+// After these a period does not end the sentence when a small letter or a
+// number follows („800 лв. на месец“, „2015 г. в Пловдив“, „бл. 5“, „3 p.m.
+// on Friday“).
 const ABBREVIATION_END =
-  /(?:^|[^\p{L}])(?:ул|бул|гр|с|кв|бл|вх|ет|ап|г|д-р|проф|инж|доц|тел|напр|т\.е|пл|no|nr|mr|mrs|ms|dr|st|str|prof|tel|etc|vs)\.$/iu;
+  /(?:^|[^\p{L}])(?:ул|бул|гр|с|кв|ж\.к|бл|вх|ет|ап|обл|общ|пл|д-р|проф|инж|доц|акад|арх|г-н|г-жа|г-ца|св|г|гг|в|лв|ч|мин|сек|кг|км|м|см|мм|л|мл|бр|стр|т\.е|т\.нар|напр|вкл|прибл|др|тел|моб|mr|mrs|ms|dr|prof|no|nr|st|str|tel|etc|vs|approx|incl|min|hrs|km|kg|[ap]\.m|e\.g|i\.e|z\.b|bzw|usw|ca|ggf|evtl|sr|sra|p[áa]g|ecc|sig|dott|mme|mlle|env)\.$/iu;
 
+// Whether a fact runs on into another sentence. A doubtful case counts as
+// another sentence: the person then gets the one-time confirmation, and the
+// rest of the message is never stored as part of the fact.
 function hasSecondSentence(fact) {
-  for (const match of fact.matchAll(/[.!?]\s+[\p{L}'’]+\s+\p{L}/gu)) {
-    const end = fact.slice(0, match.index + 1);
-    if (match[0][0] === "." && ABBREVIATION_END.test(end)) continue;
+  const text = String(fact || "");
+  for (const match of text.matchAll(/[.!?…]+/gu)) {
+    const end = match.index + match[0].length;
+    const after = text.slice(end);
+    const gap = after.match(/^\s*/u)[0];
+    const next = after.slice(gap.length).replace(/^[„“"'’«»(\[]+/u, "")[0];
+    // The end of the fact, or only closing marks or a smiley after it.
+    if (!next || !/[\p{L}\p{N}]/u.test(next)) continue;
+    if (match[0] !== ".") return true;
+    const before = text.slice(0, end);
+    if (!gap) {
+      // „1.5“, „28.11.2026“, „novariumai.com“, „p.m.“ go on; „чай.Провери“ does not.
+      if (/\p{Lu}/u.test(next)) return true;
+      continue;
+    }
+    if (/\p{Lu}/u.test(next)) {
+      if (NAME_PREFIX_END.test(before) || INITIAL_END.test(before)) continue;
+      return true;
+    }
+    if (ABBREVIATION_END.test(before) || INITIAL_END.test(before)) continue;
     return true;
   }
   return false;
 }
 
+// A second command inside the fact („… „Сменихме сметката. Запомни: …““).
+const NESTED_MEMORY_COMMAND =
+  /(?:^|[^\p{L}])(?:запомни|запази|remember|merken|merk\s+dir|recordar|recuerda|retenir|retiens|ricorda|ricordare|[țţt]ine\s+minte)\s*(?::|,?\s+(?:че|that|dass|que|che|că|ca)\s)/iu;
+// A request joined to the fact („…, и ми кажи какво е времето утре“).
+const REQUEST_IN_FACT = new RegExp(
+  String.raw`(?:[,;]\s*|\s+(?:и|а|но|после|след\s+това|and|then|but)\s+)(?:(?:и|а|но|после|and|then|but)\s+)?(?:(?:ми|ни|me|us)\s+)?(?:кажи|провери|покажи|изпрати|прати|прочети|направи|напиши|намери|потърси|търси|пусни|отвори|създай|добави|изтрий|tell|show|check|send|read|make|write|find|search|open|create|add|delete)(?=[\s,.!?]|$)`,
+  "iu",
+);
+// A list line: a dash, a bullet or a number („- …“, „• …“, „2. …“).
+const LIST_ITEM = /^(?:[-*•]|\d+[.)])\s+\S/u;
+
+function isPlainMemoryFact(fact) {
+  return (
+    !hasSecondSentence(fact) &&
+    !NESTED_MEMORY_COMMAND.test(fact) &&
+    !REQUEST_IN_FACT.test(fact)
+  );
+}
+
 // The person's own command is their „да“ and is written at once (РАДКО
-// 28.11). Only a command that opens the message counts, and a single one only
-// when it holds one plain fact. Everything else keeps the one-time
-// confirmation and writes nothing: a message that asks to wait or to be asked
-// first, a bare „Поправка: …“, a „Запомни:“ inside forwarded or pasted text (a
-// Drive summary, a letter), and a command that runs on into another line or
-// sentence, so the rest of the message is never stored as the fact.
+// 28.11). Only a command that opens the message counts, and only when it
+// holds one plain fact, or a list of plain facts. Everything else keeps the
+// one-time confirmation and writes nothing: a message that asks to wait or to
+// be asked first, a bare „Поправка: …“, a „Запомни:“ inside forwarded or
+// pasted text (a Drive summary, a letter), a second command, and a command
+// that runs on into another line, sentence or request, so the rest of the
+// message is never stored as the fact. What is judged here is exactly what
+// the chat writes (extractPersistentMemoryCommands).
 export function isOwnMemoryCommand(message) {
-  const text = typeof message === "string" ? message.trim() : "";
+  const text =
+    typeof message === "string" ? message.replace(/\r\n?/gu, "\n").trim() : "";
   if (!text) return false;
   if (WAIT_FOR_MEMORY_CONFIRMATION.test(text)) return false;
   if (BARE_MEMORY_CORRECTION.test(text)) return false;
-  // A list is split per line or „;“, one fact each.
-  if (BULK_MEMORY_PATTERNS.some(({ pattern }) => pattern.test(text))) {
-    return true;
+  const written = extractPersistentMemoryCommands(text);
+  if (!written.length) return false;
+  let judged;
+  const bulk = BULK_MEMORY_PATTERNS.find(({ pattern }) => pattern.test(text));
+  if (bulk) {
+    // A list is one fact per line (each line a dash, a bullet or a number) or
+    // one line split by „;“.
+    const body = text.match(bulk.pattern)[1].trim();
+    const lines = body
+      .split(/\n+/u)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (lines.length > 1 && !lines.every((line) => LIST_ITEM.test(line))) {
+      return false;
+    }
+    judged = splitMemoryFacts(body).map((fact) => ({ fact, scope: bulk.scope }));
+  } else {
+    const single = extractPersistentMemoryCommand(text);
+    if (!single) return false;
+    const body = text.replace(/^[^\n]*?(?::|,?\s+че\s)\s*/u, "");
+    if (body.includes("\n")) return false;
+    judged = [single];
   }
-  const single = extractPersistentMemoryCommand(text);
-  if (!single) return false;
-  const body = text.replace(/^[^\n]*?(?::|,?\s+че\s)\s*/u, "");
-  return !body.includes("\n") && !hasSecondSentence(single.fact);
+  if (
+    judged.length !== written.length ||
+    judged.some(
+      (item, index) =>
+        item.fact !== written[index].fact || item.scope !== written[index].scope,
+    )
+  ) {
+    return false;
+  }
+  return judged.every(({ fact }) => isPlainMemoryFact(fact));
 }
 
 export function extractPersistentMemoryCommands(message) {
@@ -653,16 +785,13 @@ export async function saveProfileMemory(
     data: document,
     deleteIds: duplicateIds,
   });
+  // A replace takes the old shared line out; only the same words in other
+  // capitals keep it (the person shares a new fact themselves).
   await announceMemoryChange(
     ownerId,
     sameTopic
-      .filter(
-        (memory) =>
-          (memory.normalizedFact || normalizeFact(memory.fact)) !==
-          normalizedFact,
-      )
-      .map((memory) => memory.fact),
-    cleanFact,
+      .filter((memory) => normalizeFact(memory.fact || "") === normalizedFact)
+      .flatMap((memory) => renamedPairs(memory.fact, cleanFact)),
   );
 
   return {
@@ -731,9 +860,10 @@ export async function updateProfileMemoryById(
     data: body,
     deleteIds: nextId === cleanId ? [] : [cleanId],
   });
-  if (normalizeFact(existing.fact || "") !== normalizedFact) {
-    await announceMemoryChange(ownerId, [existing.fact], cleanFact);
-  }
+  // The panel's own correction moves a shared line to the new words. A memory
+  // the edit overwrote (another one with the new words' topic) is gone, so its
+  // line leaves the visitors' text.
+  await announceMemoryChange(ownerId, renamedPairs(existing.fact, cleanFact));
   return {
     id: nextId,
     fact: cleanFact,
@@ -769,10 +899,7 @@ export async function deleteProfileMemoryByFact(
   await getFirestoreStoreOrThrow().deleteProfileDocuments(
     matching.map((memory) => memory.id),
   );
-  await announceMemoryChange(
-    ownerId,
-    matching.map((memory) => memory.fact),
-  );
+  await announceMemoryChange(ownerId);
   return matching.length;
 }
 
@@ -780,7 +907,7 @@ export async function deleteProfileMemory(id, ownerId = OWNER_ID) {
   const document = await getFirestoreStoreOrThrow().getProfileDocument(id);
   if (!document || document.data?.ownerId !== ownerId) return false;
   await getFirestoreStoreOrThrow().deleteProfileDocuments([id]);
-  await announceMemoryChange(ownerId, [document.data?.fact]);
+  await announceMemoryChange(ownerId);
   return true;
 }
 
@@ -793,10 +920,7 @@ export async function clearProfileMemories(scope, ownerId = OWNER_ID) {
   await getFirestoreStoreOrThrow().deleteProfileDocuments(
     cleared.map((hit) => hit._id),
   );
-  await announceMemoryChange(
-    ownerId,
-    cleared.map((hit) => hit._source?.fact),
-  );
+  await announceMemoryChange(ownerId);
   return cleared.length;
 }
 

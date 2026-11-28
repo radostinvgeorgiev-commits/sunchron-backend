@@ -774,7 +774,8 @@ test("an older letter shows its year, this year's letters do not", async () => {
   };
   const googleSessionId = await createSession({ access_token: "token", expires_in: 3600 });
   const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Sofia" });
-  const lastYear = `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`;
+  // A year back on the same day and month; 29 February has no such day.
+  const lastYear = `${Number(today.slice(0, 4)) - 1}${today.slice(4) === "-02-29" ? "-02-28" : today.slice(4)}`;
   const sentAt = new Date(`${lastYear}T10:12:00Z`);
   const clock = new Intl.DateTimeFormat("bg-BG", { timeZone: "Europe/Sofia", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(sentAt);
   const originalFetch = global.fetch;

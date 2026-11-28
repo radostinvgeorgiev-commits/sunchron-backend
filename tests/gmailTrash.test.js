@@ -85,3 +85,40 @@ test("another person's Google connection never moves a letter", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+// Second review of #605: without Gmail's modify permission the panel gets a
+// plain sentence and the link that adds it, never raw link text.
+test("a missing Gmail permission answers with its own sentence and the link that adds it", async () => {
+  resetGoogleSessionsForTests();
+  const mine = await createSession({ access_token: "maria-token", expires_in: 3600 }, maria);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).endsWith("/trash")) {
+      return new Response(
+        JSON.stringify({ error: { code: 403, status: "PERMISSION_DENIED", errors: [{ reason: "insufficientPermissions" }], message: "Request had insufficient authentication scopes." } }),
+        { status: 403 },
+      );
+    }
+    return new Response(
+      JSON.stringify({
+        id: "msg-1",
+        payload: { headers: [{ name: "From", value: "Банка <bank@example.com>" }, { name: "Subject", value: "Извлечение" }] },
+      }),
+      { status: 200 },
+    );
+  };
+  try {
+    const response = await request(appFor(maria))
+      .post("/api/google/gmail/trash")
+      .set("Cookie", `synchron_google_session=${mine}`)
+      .send({ messageId: "msg-1" })
+      .expect(403);
+    assert.deepEqual(response.body, {
+      error: "Преместването в кошчето иска още едно разрешение за Gmail.",
+      code: "GOOGLE_SCOPE_REQUIRED",
+      connect: "/api/google/connect?add=gmail",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

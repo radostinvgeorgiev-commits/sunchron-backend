@@ -2106,7 +2106,7 @@ function renderMemoryItems() {
                             : `<span class="memory-card-actions">
                                 ${
                                   state.avatarLink
-                                    ? `<button type="button" data-memory-share="${escapeHtml(item.id)}"
+                                    ? `<button type="button" data-memory-share="${state.memoryItems.indexOf(item)}"
                                   aria-pressed="${isSharedWithAvatar(item.fact)}"
                                   aria-label="${escapeHtml(chatText(isSharedWithAvatar(item.fact) ? "Спри споделянето с аватара" : "Сподели с аватара"))}"
                                   title="${escapeHtml(chatText(isSharedWithAvatar(item.fact) ? "Споделено с „Питай моя аватар“. Натисни, за да го махнеш." : "Сподели с „Питай моя аватар“"))}">
@@ -2488,10 +2488,10 @@ async function handleDataDrawerAction(event) {
 
   const shareButton = event.target.closest("button[data-memory-share]");
   if (shareButton) {
-    const item = state.memoryItems.find(
-      (candidate) => candidate.id === shareButton.dataset.memoryShare,
-    );
-    if (!item) return;
+    // By its place in the list: two cards can come from one stored memory
+    // („Казвам се Радко и живея …“), and each shares only its own words.
+    const item = state.memoryItems[Number(shareButton.dataset.memoryShare)];
+    if (!item || item.readOnly) return;
     const shared = isSharedWithAvatar(item.fact);
     shareButton.disabled = true;
     try {

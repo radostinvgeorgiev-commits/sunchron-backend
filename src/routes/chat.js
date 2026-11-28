@@ -175,6 +175,13 @@ import {
 import { createTaskConfirmation } from "../services/confirmationService.js";
 import { orchestrateTask } from "../services/taskOrchestratorService.js";
 import {
+  hasMailWords,
+  isPlainIntentAsk,
+  personTextsOf,
+  planPlainIntent,
+  readPlainIntent,
+} from "../services/plainIntentService.js";
+import {
   createTaskRun,
   recordTaskRunCheckpoint,
 } from "../services/taskRunService.js";
@@ -1361,6 +1368,110 @@ export function parseEmailSendRequest(message) {
   if (!body) return null;
   if (OWN_ADDRESS.test(match[1])) return { to: "", toSelf: true, subject: match[2], body };
   return { to: match[1], subject: match[2], body };
+}
+
+// Item 3, fix 1 (RADKO, 28.11: „И ОТ ДВЕТЕ МЕСТА НЕ РАБОТИ“): an email in the
+// person's own words („прати мейл до мен с текст …“, „ISKAM DA PATI MEIL DO
+// MEN“, „ПРАТИ МЕЛ ДА МИЯ“). Before, only the exact form above ran; any other
+// wording got „нямам инструмент“, or was taken for reading the mail, which
+// Google refused, and the answer said the email could not be sent. The
+// reader (plainIntentService) returns the request as fields. This fix takes
+// its mail actions only; the calendar, contacts, tasks and pictures follow,
+// one fix at a time.
+export const PLAIN_WORDS_ACTIONS = Object.freeze(new Set(["mail.send", "mail.read"]));
+const PLAIN_WORDS_CAPABILITIES = Object.freeze(new Set(["mail.send", "mail.read"]));
+const NO_PLAIN_WORDS = Object.freeze({ type: "none" });
+
+// `message` is what the person wrote, `task` what the tools read and `step`
+// the step a short yes answers (shortContinuation); `turns` the conversation
+// before it. The reader is asked only when the message speaks of mail, or
+// answers the reader's own question, or is a short yes to a step that speaks
+// of mail: a yes to an answer with no step of its own still runs nothing.
+export async function readPlainWordsPlan({
+  message,
+  task = message,
+  step = "",
+  turns = [],
+  english = false,
+  apiKey,
+  read = readPlainIntent,
+} = {}) {
+  const text = typeof message === "string" ? message.trim() : "";
+  if (!text || !apiKey) return NO_PLAIN_WORDS;
+  // An exact command keeps its own path: the tool detector reads it.
+  if (parseEmailSendRequest(task) || parseContactCreateRequest(task)) return NO_PLAIN_WORDS;
+  const conversation = Array.isArray(turns) ? turns : [];
+  const previousAnswer =
+    [...conversation].reverse().find((turn) => turn?.role === "assistant")?.content || "";
+  const asked = isShortYes(text)
+    ? hasMailWords(step)
+    : hasMailWords(text) || isPlainIntentAsk(previousAnswer);
+  if (!asked) return NO_PLAIN_WORDS;
+  const intent = await read({ message: text, turns: conversation, apiKey });
+  if (!intent || !PLAIN_WORDS_ACTIONS.has(intent.action)) return NO_PLAIN_WORDS;
+  return planPlainIntent(intent, {
+    personTexts: personTextsOf(conversation),
+    english,
+    message: text,
+  });
+}
+
+// The tool detector's requests, with the reader's in place of its mail ones.
+export function withPlainWordsRequests(plan, detected = []) {
+  const list = Array.isArray(detected) ? detected : [];
+  if (plan?.type !== "requests") return list;
+  return [
+    ...plan.requests,
+    ...list.filter((request) => !PLAIN_WORDS_CAPABILITIES.has(request?.capability)),
+  ];
+}
+
+// RADKO, 28.11: „командата е потвърждението“. An email the person asked for
+// is sent at once when it goes to themselves („до мен“) or to an address they
+// typed themselves in this conversation. Any other address (from the
+// assistant's words or a tool's output) keeps its „Потвърди“.
+export function isOwnCommandEmail(request, personTexts = []) {
+  if (request?.capability !== "mail.send") return false;
+  const mail = request.input && typeof request.input === "object" ? request.input : {};
+  const to = typeof mail.to === "string" ? mail.to.trim().toLowerCase() : "";
+  if (mail.toSelf === true && !to) return true;
+  if (!/^[^\s@|]+@[^\s@|]+\.[^\s@|]+$/u.test(to)) return false;
+  return (Array.isArray(personTexts) ? personTexts : []).some(
+    (text) => typeof text === "string" && text.toLowerCase().includes(to),
+  );
+}
+
+const clipReplyText = (value, max) => {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+};
+
+// The answer after such an email: the tool's own line („Имейлът е изпратен
+// до …“), then the subject and the text that went.
+export function formatSentEmailReply(output, mail = {}, english = false) {
+  const subject = clipReplyText(mail?.subject, 200);
+  const body = clipReplyText(mail?.body, 600);
+  return [
+    clipReplyText(output, 400) || (english ? "The email was sent." : "Имейлът е изпратен."),
+    ...(subject ? [english ? `Subject: ${subject}` : `Тема: ${subject}`] : []),
+    ...(body ? [english ? `Text: ${body}` : `Текст: ${body}`] : []),
+  ].join("\n");
+}
+
+// Why it did not go, in the words of the Google step when it has them
+// („Gmail няма дадено разрешение …“), never a made-up reason.
+export function sentEmailFailureReply(error, english = false) {
+  const step = Array.isArray(error?.results)
+    ? error.results.find((item) => item?.error)?.error
+    : error;
+  const reason =
+    step && /^(?:GOOGLE_|GMAIL_|CAPABILITY_AUTH)/u.test(String(step.code || "")) && typeof step.message === "string"
+      ? step.message.trim()
+      : "";
+  if (reason) return english ? `The email was not sent: ${reason}` : `Имейлът не тръгна: ${reason}`;
+  return english
+    ? "The email was not sent. Nothing went out; try again in a minute."
+    : "Имейлът не тръгна. Нищо не е изпратено; опитай пак след минута.";
 }
 
 // The agent's own step when it is an exact record with all its fields, as its
@@ -3095,13 +3206,58 @@ router.post("/chat", async (req, res) => {
 
   // A member reads their own Google here only with their own connection.
   const memberToolOptions = { ownGoogle: Boolean(googleSessionId) };
+  // An email in the person's own words (item 3, fix 1). A short yes reads the
+  // whole turns, with the step it answers. Only for someone whose mail can be
+  // reached here: the owner, or a member with their own Google connection.
+  const plainWordsAllowed =
+    capabilityPlanningAllowed &&
+    filterCapabilityRequestsForIdentity([{ capability: "mail.read" }], req.owner, memberToolOptions).length > 0;
+  const plainWordsPlan = !memoryAction && plainWordsAllowed
+    ? await readPlainWordsPlan({
+        message: cleanMessage,
+        task: taskMessage,
+        step: continuation.step,
+        turns: yesTurns.length ? yesTurns : effectiveHistory,
+        english: useEnglishReplyFallback(language),
+        apiKey: openAiApiKey,
+      })
+    : NO_PLAIN_WORDS;
+  // One detail is missing (the text, or whom to send it to): one short
+  // question, and the next message answers it. Nothing runs.
+  if (plainWordsPlan.type === "ask") {
+    const fullReply = plainWordsPlan.text;
+    const conversationPersisted = await saveConversationTurnBestEffort(
+      cleanSessionId,
+      cleanMessage,
+      fullReply,
+      ownerId,
+    );
+    sendEvent("token", { token: fullReply });
+    sendDone({
+      ok: true,
+      mode: "plain-words-ask",
+      memoryAvailable,
+      ...getConversationPersistenceMetadata(conversationPersisted),
+    });
+    res.end();
+    return;
+  }
   const fallbackCapabilityRequests = !memoryAction
     ? filterCapabilityRequestsForIdentity(
-        detectCapabilityRequests(taskMessage, { toolInventory: true }),
+        withPlainWordsRequests(
+          plainWordsPlan,
+          detectCapabilityRequests(taskMessage, { toolInventory: true }),
+        ),
         req.owner,
         memberToolOptions,
       )
     : [];
+  // The email this message commands, sent without „Потвърди“ (see
+  // isOwnCommandEmail); the planner adds nothing to it.
+  const ownCommandEmail =
+    fallbackCapabilityRequests.find((request) =>
+      isOwnCommandEmail(request, [cleanMessage, ...personTextsOf(effectiveHistory)]),
+    ) || null;
   const normalizeCapabilityRequests = (requests) =>
     filterCapabilityRequestsForIdentity(requests, req.owner, memberToolOptions);
   let durableTaskRunId = null;
@@ -3192,7 +3348,9 @@ router.post("/chat", async (req, res) => {
       capabilityPlanningAllowed &&
       !memoryAction &&
       Boolean(openAiApiKey) &&
-      !hasExplicitNoAdditionalToolsBoundary(taskMessage),
+      !hasExplicitNoAdditionalToolsBoundary(taskMessage) &&
+      plainWordsPlan.type !== "requests" &&
+      !ownCommandEmail,
     plannerContext: { openAiApiKey },
     planFn: planCapabilities,
     // A short yes to a step with tool words is planned even when the
@@ -3261,6 +3419,77 @@ router.post("/chat", async (req, res) => {
       verified: false,
     });
   }
+  // The person's own email command runs now: its one prepared step is sent
+  // with the same one-time check the „Потвърди“ button uses, and the answer
+  // says what went. Anything else prepared keeps its button.
+  const preparedWrites = taskExecution.taskConfirmation?.items || [];
+  if (
+    ownCommandEmail &&
+    googleSessionId &&
+    preparedWrites.length === 1 &&
+    preparedWrites[0].capability === "mail.send"
+  ) {
+    const english = useEnglishReplyFallback(language);
+    let sent = false;
+    let fullReply;
+    try {
+      const confirmed = await confirmTaskWrite({
+        ownerId,
+        sessionId: cleanSessionId,
+        taskConfirmationId: taskExecution.taskConfirmation.confirmationId,
+        githubSessionId,
+        googleSessionId,
+        language,
+        allowItem: (item) => item.capability === "mail.send",
+      });
+      sent = true;
+      fullReply = formatSentEmailReply(
+        confirmed.results[0]?.result?.output,
+        ownCommandEmail.input,
+        english,
+      );
+      await auditAction({
+        action: "task.write",
+        decision: "confirmed",
+        outcome: "succeeded",
+        resource: confirmed.taskId || "task",
+        details: "own-command:mail.send",
+        sessionId: cleanSessionId,
+      });
+    } catch (error) {
+      logSafeError("[Chat] Own email command failure", error);
+      await auditAction({
+        action: "task.write",
+        decision: "confirmed",
+        outcome: "failed",
+        resource: "task",
+        details: safeErrorCode(error, "TASK_WRITE_FAILED"),
+        sessionId: cleanSessionId,
+      });
+      fullReply = sentEmailFailureReply(error, english);
+    }
+    const conversationPersisted = await saveConversationTurnBestEffort(
+      cleanSessionId,
+      cleanMessage,
+      fullReply,
+      ownerId,
+    );
+    const { confirmationId: _prepared, confirmationExpiresAt: _expires, ...sentTask } = taskResult;
+    sendEvent("token", { token: fullReply });
+    sendDone({
+      ok: sent,
+      capabilities: ["mail.send"],
+      task: { ...sentTask, status: sent ? "completed" : "failed", verified: sent },
+      ...(taskRunId ? { taskRunId } : {}),
+      mode: "own-command-write",
+      memoryAvailable,
+      ...getConversationPersistenceMetadata(conversationPersisted),
+    });
+    console.info(`[Chat] Own email command ${sent ? "sent" : "failed"} for ${cleanSessionId}`);
+    res.end();
+    return;
+  }
+
   const capabilityReplies = buildCapabilityReplies(
     capabilityResults,
     { taskConfirmation: taskExecution.taskConfirmation, language },

@@ -4,6 +4,8 @@ import {
   buildAvatarMessages,
   buildCapabilityReplies,
   detectCapabilityRequests,
+  readPlainWordsPlan,
+  withPlainWordsRequests,
 } from "../routes/chat.js";
 import {
   listConversationMessages,
@@ -156,6 +158,7 @@ export async function sendMcpAgentMessage(
     shouldPlan = shouldUseAgentPlanner,
     getGoogleSession = getLatestGoogleSessionId,
     getGitHubSession = getLatestAuthorizedGitHubSession,
+    readWords = readPlainWordsPlan,
     auditTask = (event) =>
       recordAuditEvent({ actor: "novarium-avatar", ...event }),
   } = {},
@@ -202,21 +205,60 @@ export async function sendMcpAgentMessage(
   const noToolBoundary =
     hasExplicitNoToolBoundary(cleanMessage) ||
     hasExplicitNoAdditionalToolsBoundary(cleanMessage);
+  const taskConfirmationId = extractTaskConfirmationId(cleanMessage);
+  // Mail in the person's own words („каво имам в пошата“, „прати мейл до мен
+  // …“), read the same way as in the site chat (item 3). Here a write is
+  // still only prepared: it runs after the owner's exact confirmation.
+  const plainWordsPlan =
+    noToolBoundary || taskConfirmationId || !canPlanCapabilities(safeIdentity)
+      ? Object.freeze({ type: "none" })
+      : await readWords({
+          message: cleanMessage,
+          turns: history,
+          apiKey: process.env.OPENAI_API_KEY,
+        });
+  if (plainWordsPlan.type === "ask") {
+    const response = plainWordsPlan.text;
+    await saveTurn(cleanSessionId, cleanMessage, response, cleanOwnerId);
+    return Object.freeze({
+      sessionId: cleanSessionId,
+      response,
+      project: Object.freeze({ id: project.id, name: project.name }),
+      agent: Object.freeze({
+        id: agent.id,
+        name: agent.name,
+        role: agent.role,
+      }),
+      conversationPersisted: true,
+      capabilities: Object.freeze([]),
+      task: null,
+      plannerUsed: false,
+      plannerErrorCode: null,
+      externalActionsExecuted: false,
+      codeChanged: false,
+      turnNumber: previousQuestions + 1,
+      turnsRemaining: MAX_SESSION_QUESTIONS - previousQuestions - 1,
+    });
+  }
   const fallbackRequests = noToolBoundary
     ? []
     : filterCapabilityRequestsForIdentity(
-        detectCapabilityRequests(cleanMessage),
+        withPlainWordsRequests(
+          plainWordsPlan,
+          detectCapabilityRequests(cleanMessage),
+        ),
         safeIdentity,
       );
   const planningAllowed =
     !noToolBoundary &&
+    plainWordsPlan.type !== "requests" &&
     canPlanCapabilities(safeIdentity) &&
     Boolean(process.env.OPENAI_API_KEY);
 
   let googleSessionId = null;
   let githubSession = null;
-  const taskConfirmationId = extractTaskConfirmationId(cleanMessage);
   if (
+    plainWordsPlan.type === "requests" ||
     /(?:google|drive|драйв|gmail|джимейл|календар|calendar|контакт)/iu.test(
       cleanMessage,
     )

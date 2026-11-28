@@ -908,13 +908,17 @@ function chatApp(identity) {
 
 // Claude answers; any other outgoing call (a planner, a tool) is kept apart
 // and answered with an error. The plans service and the log are watched.
-function stubClaude(t) {
+// `answer(url, options)` may stand in for one other service (a Gmail send,
+// the plain-words reader); every call to another service is still recorded in
+// `others`.
+function stubClaude(t, { answer } = {}) {
   const calls = [];
   const others = [];
   t.mock.method(globalThis, "fetch", async (url, options = {}) => {
     if (String(url) !== "https://api.anthropic.com/v1/messages") {
       others.push(String(url));
-      return Response.json({ error: "not in this test" }, { status: 500 });
+      const answered = answer ? await answer(String(url), options) : undefined;
+      return answered || Response.json({ error: "not in this test" }, { status: 500 });
     }
     const body = JSON.parse(options.body || "{}");
     calls.push(body);
@@ -1181,11 +1185,18 @@ test("a yes to a step with tool words that the detector cannot read goes to the 
 
 // RADKO 28.11 on the live site: „искам да пратя мейл до мен“ got „нямам
 // проверен инструмент за изпращане на поща“, with Gmail connected. Now the
-// agent writes the exact email as its step, „да“ prepares it for the
-// person's own address, and the reply carries the command that „Потвърди“
-// sends; nothing is sent before that press.
-test("a yes to the agent's exact email „до мен“ prepares it for the person's own Gmail and waits for „Потвърди“", async (t) => {
-  const claude = stubClaude(t);
+// agent writes the exact email as its step, and „да“ sends it to the
+// person's own address at once: the command is the confirmation (RADKO
+// 28.11 04:29, „без излишни бутони и потвърждения“). One send, no button.
+test("a yes to the agent's exact email „до мен“ sends it to the person's own Gmail at once, with no button", async (t) => {
+  const sends = [];
+  const claude = stubClaude(t, {
+    answer: (url, options) => {
+      if (url !== "https://gmail.googleapis.com/gmail/v1/users/me/messages/send") return undefined;
+      sends.push(JSON.parse(options.body || "{}"));
+      return Response.json({ id: "sent-1", threadId: "thread-1" });
+    },
+  });
   const claims = Buffer.from(JSON.stringify({ sub: "m-1", email: "ana@example.com", email_verified: true })).toString("base64url");
   const cookie = await createSession(
     { access_token: "stand-in", expires_in: 3600, scope: GOOGLE_MEMBER_SCOPES.join(" "), id_token: `e30.${claims}.signature` },
@@ -1205,8 +1216,246 @@ test("a yes to the agent's exact email „до мен“ prepares it for the per
     })
     .expect(200);
   assert.equal(detectedLine(claude, sessionId), `[Chat] Detected 1 capability subtasks for ${sessionId}: #1:mail.send`);
-  assert.match(response.text, /ana@example\.com/u);
-  assert.match(response.text, /Потвърждавам NovariumAI задача: [0-9a-f-]{36}/u);
-  // Google was not called: nothing is sent before the press.
-  assert.deepEqual(claude.others.filter((url) => url.includes("googleapis")), []);
+  assert.match(response.text, /Имейлът е изпратен до ana@example\.com\./u);
+  assert.match(response.text, /Проба от NovariumAI/u);
+  assert.doesNotMatch(response.text, /Потвърждавам NovariumAI задача/u);
+  // Exactly one email, to the person's own address, with the agent's words.
+  assert.equal(sends.length, 1);
+  const mime = Buffer.from(sends[0].raw, "base64url").toString("utf8");
+  assert.match(mime, /^To: ana@example\.com\r\n/u);
+  assert.match(mime, /Здравей! Това е проба\./u);
+});
+
+// Item 3, fix 1 (RADKO 28.11 05:26–05:41): mail in his own words on the site
+// chat. The reader (OpenAI, stubbed here) returns the fields; an email to the
+// person goes at once, a missing detail is one question, and the mailbox is
+// read with the reader's search words.
+const READER_URL = "https://api.openai.com/v1/responses";
+const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
+const plainIntent = (fields = {}) => ({
+  action: "mail.send",
+  recipient: "",
+  recipientName: "",
+  subject: "",
+  body: "",
+  title: "",
+  date: "",
+  time: "",
+  query: "",
+  contactName: "",
+  contactEmail: "",
+  contactPhone: "",
+  taskText: "",
+  taskDate: "",
+  picture: "",
+  durationMinutes: 0,
+  ...fields,
+});
+
+// The reader answers `intents` in turn; Gmail answers sends and reads.
+function mailServices(t, { intents = [], inbox = [], search = null, readStatus = 200 } = {}) {
+  const sends = [];
+  const readerCalls = [];
+  const gmailReads = [];
+  const claude = stubClaude(t, {
+    answer: (url, options) => {
+      if (url === READER_URL) {
+        const body = JSON.parse(options.body || "{}");
+        if (body.text?.format?.name !== "novarium_plain_intent") return undefined;
+        readerCalls.push(body);
+        const intent = intents[readerCalls.length - 1] || plainIntent({ action: "none" });
+        return Response.json({ output_text: JSON.stringify(intent) });
+      }
+      if (url === `${GMAIL}/messages/send`) {
+        sends.push(JSON.parse(options.body || "{}"));
+        return Response.json({ id: `sent-${sends.length}`, threadId: "thread-1" });
+      }
+      if (url.startsWith(`${GMAIL}/messages?`)) {
+        gmailReads.push(new URL(url).searchParams.get("q"));
+        if (readStatus !== 200) {
+          return Response.json(
+            { error: { status: "PERMISSION_DENIED", message: "Request had insufficient authentication scopes." } },
+            { status: readStatus },
+          );
+        }
+        const q = new URL(url).searchParams.get("q");
+        const found = q === "in:anywhere" || search === null ? inbox : search;
+        return Response.json({ messages: found.map(({ id }) => ({ id })) });
+      }
+      const detail = url.match(/\/messages\/([^/?]+)\?/u);
+      if (url.startsWith(`${GMAIL}/messages/`) && detail) {
+        const message = inbox.find(({ id }) => id === decodeURIComponent(detail[1]));
+        if (!message) return undefined;
+        return Response.json({
+          id: message.id,
+          labelIds: ["INBOX"],
+          payload: {
+            headers: [
+              { name: "Subject", value: message.subject },
+              { name: "From", value: message.from },
+            ],
+          },
+        });
+      }
+      return undefined;
+    },
+  });
+  const sentMime = () => sends.map(({ raw }) => Buffer.from(raw, "base64url").toString("utf8"));
+  return { claude, sends, sentMime, readerCalls, gmailReads };
+}
+
+async function googleCookie(identity, scopes, email) {
+  const claims = Buffer.from(JSON.stringify({ sub: `${identity.id}-sub`, email, email_verified: true })).toString("base64url");
+  return createSession(
+    { access_token: "stand-in", expires_in: 3600, scope: scopes.join(" "), id_token: `e30.${claims}.signature` },
+    identity,
+  );
+}
+
+test("„ПРАТИ МЕЛ ДА МИЯ … ЗДРАВЕ“ in his own words sends one email to his own address at once", async (t) => {
+  const services = mailServices(t, {
+    intents: [plainIntent({ recipient: "me", subject: "Здраве", body: "Тук при пост, здраве." })],
+  });
+  const cookie = await googleCookie(member, GOOGLE_MEMBER_SCOPES, "ana@example.com");
+  const response = await request(chatApp(member))
+    .post("/chat/chat")
+    .set("Cookie", `synchron_google_session=${cookie}`)
+    .send({ sessionId: "plain-mail-self", message: "ПРАТИ МЕЛ ДА МИЯ ТУК ПРИ ПОСТ ЗДРАВЕ" })
+    .expect(200);
+  assert.equal(services.readerCalls.length, 1);
+  assert.equal(services.sends.length, 1);
+  const [mime] = services.sentMime();
+  assert.match(mime, /^To: ana@example\.com\r\n/u);
+  assert.match(mime, /Тук при пост, здраве\./u);
+  assert.match(response.text, /Имейлът е изпратен до ana@example\.com\./u);
+  assert.match(response.text, /Тема: Здраве/u);
+  assert.match(response.text, /"mode":"own-command-write"/u);
+  assert.doesNotMatch(response.text, /Потвърждавам NovariumAI задача/u);
+  // No planner and no model answer on top of it.
+  assert.deepEqual(services.claude.calls, []);
+});
+
+test("„ISKAM DA PATI MEIL DO MEN“ asks what to write; his answer sends it", async (t) => {
+  const services = mailServices(t, {
+    intents: [
+      plainIntent({ recipient: "me" }),
+      plainIntent({ recipient: "me", subject: "Здраве", body: "Тук при пост, здраве." }),
+    ],
+  });
+  const cookie = await googleCookie(member, GOOGLE_MEMBER_SCOPES, "ana@example.com");
+  const asked = await request(chatApp(member))
+    .post("/chat/chat")
+    .set("Cookie", `synchron_google_session=${cookie}`)
+    .send({ sessionId: "plain-mail-ask", message: "ISKAM DA PATI MEIL DO MEN" })
+    .expect(200);
+  const question = "Какво да пише в имейла? Напиши текста (и темата, ако искаш) и го пращам веднага.";
+  assert.match(asked.text, new RegExp(question.replace(/[()?]/gu, "\\$&"), "u"));
+  assert.match(asked.text, /"mode":"plain-words-ask"/u);
+  assert.equal(services.sends.length, 0);
+
+  const sent = await request(chatApp(member))
+    .post("/chat/chat")
+    .set("Cookie", `synchron_google_session=${cookie}`)
+    .send({
+      sessionId: "plain-mail-ask",
+      message: "ТУК ПРИ ПОСТ ЗДРАВЕ",
+      recentHistory: [
+        { role: "user", content: "ISKAM DA PATI MEIL DO MEN" },
+        { role: "assistant", content: question },
+      ],
+    })
+    .expect(200);
+  assert.equal(services.readerCalls.length, 2);
+  assert.equal(services.sends.length, 1);
+  assert.match(sent.text, /Имейлът е изпратен до ana@example\.com\./u);
+});
+
+test("an email to an address he did not type is never sent: the reader's address is asked for, the agent's keeps „Потвърди“", async (t) => {
+  const services = mailServices(t, {
+    intents: [plainIntent({ recipient: "ivan@example.com", recipientName: "Иван", body: "Здравей" })],
+  });
+  const cookie = await googleCookie(owner, GOOGLE_BASE_SCOPES, "radko@example.com");
+  const asked = await request(chatApp(owner))
+    .post("/chat/chat")
+    .set("Cookie", `synchron_google_session=${cookie}`)
+    .send({ sessionId: "plain-mail-untyped", message: "прати мейл на иван здравей" })
+    .expect(200);
+  assert.match(asked.text, /Напиши имейл адреса на Иван/u);
+
+  // The agent's own step with an address the person never typed: „да“
+  // prepares it and waits for „Потвърди“.
+  const prepared = await request(chatApp(owner))
+    .post("/chat/chat")
+    .set("Cookie", `synchron_google_session=${cookie}`)
+    .send({
+      sessionId: "plain-mail-agent-address",
+      message: "да",
+      recentHistory: [
+        { role: "user", content: "прати на иван че закъснявам" },
+        { role: "assistant", content: "Намерих го.\n\nСледва: Изпрати имейл до ivan@example.com | Закъснявам | Ще закъснея 10 минути." },
+      ],
+    })
+    .expect(200);
+  assert.match(prepared.text, /Потвърждавам NovariumAI задача: [0-9a-f-]{36}/u);
+  assert.equal(services.sends.length, 0);
+
+  // The exact command with an address he typed himself goes at once.
+  const typed = await request(chatApp(owner))
+    .post("/chat/chat")
+    .set("Cookie", `synchron_google_session=${cookie}`)
+    .send({ sessionId: "plain-mail-typed", message: "Изпрати имейл до ivan@example.com | Закъснявам | Ще закъснея 10 минути." })
+    .expect(200);
+  assert.equal(services.sends.length, 1);
+  assert.match(services.sentMime()[0], /^To: ivan@example\.com\r\n/u);
+  assert.match(typed.text, /Имейлът е изпратен до ivan@example\.com\./u);
+});
+
+test("„каво имам в пошата днес покажи ми последните мейли“ reads the mailbox; with nothing today it shows the latest", async (t) => {
+  const inbox = [{ id: "m1", subject: "Проба", from: "Ана <ana@example.com>" }];
+  const services = mailServices(t, {
+    intents: [plainIntent({ action: "mail.read", query: "newer_than:1d" })],
+    inbox,
+    search: [],
+  });
+  const cookie = await googleCookie(owner, GOOGLE_BASE_SCOPES, "radko@example.com");
+  const response = await request(chatApp(owner))
+    .post("/chat/chat")
+    .set("Cookie", `synchron_google_session=${cookie}`)
+    .send({ sessionId: "plain-mail-read", message: "каво имам в пошата днес покажи ми последните мейли" })
+    .expect(200);
+  assert.deepEqual(services.gmailReads, ["newer_than:1d", "in:anywhere"]);
+  assert.match(response.text, /"capabilities":\["mail\.read"\]/u);
+  // The answer is written from the letters the tool read.
+  const answered = JSON.stringify(services.claude.calls.at(-1));
+  assert.match(answered, /По това търсене няма писма\. Последните писма в Gmail:/u);
+  assert.match(answered, /Проба — Ана <ana@example\.com>/u);
+});
+
+test("a refused mailbox read says reading is not allowed yet and sending works, never „can't send“", async (t) => {
+  const services = mailServices(t, {
+    intents: [plainIntent({ action: "mail.read" })],
+    readStatus: 403,
+  });
+  const cookie = await googleCookie(owner, GOOGLE_BASE_SCOPES, "radko@example.com");
+  const response = await request(chatApp(owner))
+    .post("/chat/chat")
+    .set("Cookie", `synchron_google_session=${cookie}`)
+    .send({ sessionId: "plain-mail-refused", message: "покажи ми последните имейли в gmail" })
+    .expect(200);
+  assert.equal(services.gmailReads.length, 1);
+  assert.match(response.text, /Четенето на пощата в Gmail още не е разрешено; изпращането на имейли работи\./u);
+  assert.match(response.text, /Разреши четене на Gmail/u);
+});
+
+test("the reader is not asked for a guest, or for a member without their own Google", async (t) => {
+  const services = mailServices(t, { intents: [plainIntent({ recipient: "me", body: "Здраве" })] });
+  const guest = { id: "guest", displayName: "Гост", role: "guest" };
+  for (const [identity, sessionId] of [[guest, "plain-mail-guest"], [member, "plain-mail-no-google"]]) {
+    await request(chatApp(identity))
+      .post("/chat/chat")
+      .send({ sessionId, message: "ПРАТИ МЕЛ ДА МИЯ ТУК ПРИ ПОСТ ЗДРАВЕ" })
+      .expect(200);
+  }
+  assert.equal(services.readerCalls.length, 0);
+  assert.equal(services.sends.length, 0);
 });

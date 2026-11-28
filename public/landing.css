@@ -7,6 +7,8 @@
   --nv-cyan: #00f0ff;
   --nv-violet: #7b5cff;
   --nv-pink: #ff3df2;
+  --nv-gold: #e8c47a;
+  --nv-gold-bright: #ffe6a6;
   --nv-text: #eef0ff;
   --nv-muted: #a9acd6;
   --nv-line: rgba(123, 92, 255, 0.28);
@@ -22,21 +24,21 @@
   color: var(--nv-text);
   background:
     radial-gradient(
-      ellipse 60% 45% at 78% 18%,
-      rgba(123, 92, 255, 0.28),
-      transparent 70%
+      ellipse 52% 38% at 78% 18%,
+      rgba(123, 92, 255, 0.22),
+      transparent 72%
     ),
     radial-gradient(
-      ellipse 45% 35% at 8% 70%,
-      rgba(0, 240, 255, 0.12),
-      transparent 70%
+      ellipse 42% 32% at 8% 70%,
+      rgba(0, 240, 255, 0.09),
+      transparent 72%
     ),
     radial-gradient(
-      ellipse 40% 30% at 92% 92%,
-      rgba(255, 61, 242, 0.12),
-      transparent 70%
+      ellipse 38% 28% at 92% 92%,
+      rgba(232, 196, 122, 0.07),
+      transparent 72%
     ),
-    var(--nv-night);
+    linear-gradient(145deg, #05060f 0%, #090b20 55%, #050712 100%);
 }
 
 .auth-gate.landing[hidden] {
@@ -59,8 +61,34 @@
     radial-gradient(1px 1px at 52% 90%, #ffd6fb 50%, transparent 51%),
     radial-gradient(1px 1px at 93% 78%, #fff 50%, transparent 51%);
   background-size: 640px 640px;
-  opacity: 0.55;
-  animation: landing-drift 120s linear infinite;
+  opacity: 0.42;
+  animation: landing-drift 240s linear infinite;
+}
+
+.landing-sky::before,
+.landing-sky::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  filter: blur(18px);
+}
+
+.landing-sky::before {
+  left: 18%;
+  width: 58%;
+  background:
+    radial-gradient(ellipse 42% 32% at 42% 24%, rgba(0, 168, 255, 0.26), transparent 68%),
+    radial-gradient(ellipse 34% 48% at 67% 38%, rgba(67, 99, 255, 0.18), transparent 72%);
+  opacity: 0.72;
+  transform: rotate(-8deg);
+}
+
+.landing-sky::after {
+  background:
+    radial-gradient(ellipse 24% 42% at 92% 74%, rgba(232, 84, 105, 0.12), transparent 72%),
+    linear-gradient(90deg, transparent 0 76%, rgba(15, 40, 102, 0.28) 100%);
+  opacity: 0.9;
 }
 
 @keyframes landing-drift {
@@ -174,6 +202,8 @@
 
 /* The main button: a neon gradient with a soft glow. */
 .landing-cta {
+  position: relative;
+  isolation: isolate;
   min-height: 52px;
   padding: 0 28px;
   border: 0;
@@ -195,6 +225,70 @@
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease;
+}
+
+.landing-cta-primary {
+  background: linear-gradient(
+    100deg,
+    var(--nv-gold-bright),
+    var(--nv-cyan) 42%,
+    var(--nv-violet) 72%,
+    var(--nv-gold)
+  );
+  box-shadow:
+    0 0 0 1px rgba(255, 230, 166, 0.45) inset,
+    0 0 0 5px rgba(232, 196, 122, 0.08),
+    0 14px 38px rgba(0, 240, 255, 0.22),
+    0 8px 28px rgba(232, 196, 122, 0.12);
+  overflow: hidden;
+  animation: landing-primary-breathe 6.5s ease-in-out infinite;
+}
+
+.landing-cta-primary::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 1px;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.38) 48%,
+    transparent 72%
+  );
+  transform: translateX(-125%);
+  animation: landing-gold-sweep 8s ease-in-out 1.2s infinite;
+}
+
+@keyframes landing-primary-breathe {
+  0%,
+  72%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(255, 230, 166, 0.45) inset,
+      0 0 0 5px rgba(232, 196, 122, 0.08),
+      0 14px 38px rgba(0, 240, 255, 0.22),
+      0 8px 28px rgba(232, 196, 122, 0.12);
+  }
+  82% {
+    box-shadow:
+      0 0 0 1px rgba(255, 230, 166, 0.65) inset,
+      0 0 0 7px rgba(232, 196, 122, 0.12),
+      0 16px 44px rgba(0, 240, 255, 0.28),
+      0 10px 34px rgba(232, 196, 122, 0.18);
+  }
+}
+
+@keyframes landing-gold-sweep {
+  0%,
+  64%,
+  100% {
+    transform: translateX(-125%);
+  }
+  82% {
+    transform: translateX(125%);
+  }
 }
 
 .landing-cta:hover {
@@ -1154,10 +1248,10 @@
   border-radius: 50%;
   background:
     radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.85), transparent 18%),
-    radial-gradient(circle at 35% 35%, #7ff8ff, #7b5cff 48%, #2a0f6b 78%, #0b0628 100%);
+    radial-gradient(circle at 35% 35%, #ffe6a6, #8fcdd4 24%, #5d55b4 52%, #24105e 78%, #090621 100%);
   box-shadow:
-    0 0 60px rgba(123, 92, 255, 0.55),
-    0 0 140px rgba(0, 240, 255, 0.25),
+    0 0 60px rgba(123, 92, 255, 0.48),
+    0 0 140px rgba(232, 196, 122, 0.16),
     inset -18px -22px 40px rgba(5, 6, 15, 0.65);
 }
 
@@ -1179,7 +1273,7 @@
   inset: 40% 2%;
   border-radius: 50%;
   border: 3px solid transparent;
-  background: linear-gradient(90deg, #00f0ff, #7b5cff 50%, #ff3df2) border-box;
+  background: linear-gradient(90deg, #ffe6a6, #00f0ff 35%, #7b5cff 68%, #e8c47a) border-box;
   -webkit-mask:
     linear-gradient(#000 0 0) padding-box,
     linear-gradient(#000 0 0);
@@ -1193,7 +1287,7 @@
 .landing-world-orbit {
   position: absolute;
   inset: 6%;
-  border: 1px dashed rgba(123, 92, 255, 0.35);
+  border: 1px dashed rgba(232, 196, 122, 0.28);
   border-radius: 50%;
   animation: landing-spin 26s linear infinite;
 }
@@ -1428,7 +1522,9 @@
 @media (prefers-reduced-motion: reduce) {
   .landing-planet,
   .landing-comet,
-  .landing-world-orbit {
+  .landing-world-orbit,
+  .landing-cta-primary,
+  .landing-cta-primary::before {
     animation: none;
   }
   .landing-panels .landing-section {

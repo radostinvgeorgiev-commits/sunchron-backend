@@ -6,6 +6,9 @@ import request from "supertest";
 process.env.NODE_ENV = "test";
 process.env.OPENAI_API_KEY = "test-openai-key";
 process.env.AI_CORE_PROVIDER = "openai";
+// The stubs below answer in the OpenAI shape only, so the check before a
+// write at once must not try Gemini first, even on a machine that has a key.
+delete process.env.GEMINI_API_KEY;
 process.env.GITHUB_REPOSITORY = "radostinvgeorgiev-commits/sunchron-backend";
 process.env.GITHUB_SESSION_ENCRYPTION_KEY =
   "memory-write-route-test-encryption-key";

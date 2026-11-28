@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import {
   buildFileContext,
   createKnowledgeFilesService,
+  findPassagesByEmbedding,
   findPassages,
   splitIntoChunks,
 } from "../src/services/knowledgeFilesService.js";
@@ -66,6 +67,38 @@ test("files are per account, limited, listed without text and removable", async 
   assert.deepEqual(await service.remove("alice", file.id), { removed: true });
   assert.deepEqual(await service.search("alice", "Колко струва монтажът на климатик?"), []);
   assert.deepEqual(await service.remove("bob", file.id), { removed: false });
+});
+
+test("Vertex embeddings rank passages by cosine and fail closed without configuration", async () => {
+  const files = [{ name: "ceni.txt", chunks: ["Абонаментът е 120 лева.", "Монтaжът е безплатен."] }];
+  await assert.rejects(
+    findPassagesByEmbedding(files, "Каква е цената?", {
+      env: {},
+    }),
+    { code: "VERTEX_EMBEDDING_NOT_CONFIGURED", status: 503 },
+  );
+
+  const authClient = { getRequestHeaders: async () => ({ Authorization: "Bearer test" }) };
+  const passages = await findPassagesByEmbedding(files, "Каква е цената?", {
+    env: {
+      VERTEX_AI_ENABLED: "true",
+      VERTEX_AI_PROJECT_ID: "project-123",
+      VERTEX_AI_LOCATION: "global",
+    },
+    authClient,
+    fetchImpl: async () => ({
+      ok: true,
+      json: async () => ({
+        predictions: [
+          { embeddings: { values: [1, 0] } },
+          { embeddings: { values: [0.9, 0.1] } },
+          { embeddings: { values: [0, 1] } },
+        ],
+      }),
+    }),
+  });
+  assert.equal(passages[0].file, "ceni.txt");
+  assert.match(passages[0].text, /120 лева/u);
 });
 
 test("chat adds matching passages and the server mounts the routes", () => {

@@ -90,6 +90,7 @@ import {
   isToolExecutable,
 } from "../tools/capabilityEngine.js";
 import { listTools, registerCoreTools } from "../tools/toolRegistry.js";
+import { googleConnectUrl as siteGoogleConnectUrl } from "../config/publicOrigin.js";
 
 const READ_ONLY = Object.freeze({
   readOnlyHint: true,
@@ -843,11 +844,18 @@ function cleanAuditEvent(event) {
   };
 }
 
+// The Google connect address without its query, for the "?add=…" links.
+// It follows the Google return address (src/config/publicOrigin.js), so the
+// links move to novariumai.com together with the sign-in.
+function connectBase() {
+  return siteGoogleConnectUrl().replace(/\?.*$/u, "");
+}
+
 async function requireGoogleSession(resolveLatestGoogleSession) {
   const id = await resolveLatestGoogleSession();
   if (!id) {
     throw new GoogleDriveError(
-      "Google не е свързан. Отвори https://cloudaicore.com/api/google/connect.",
+      `Google не е свързан. Отвори ${siteGoogleConnectUrl()}.`,
       401,
       "NOT_CONNECTED",
     );
@@ -1348,7 +1356,7 @@ export function createMcpCapabilityHandler({
         const saveId = await (dependencies.fileSaveSessionFor || fileSaveSessionFor)(googleSessionId);
         if (!saveId) {
           throw new GoogleDriveError(
-            "Записът в Google Drive още не е разрешен. Отвори https://cloudaicore.com/api/google/connect?add=save и разреши. Видео не е правено.",
+            `Записът в Google Drive още не е разрешен. Отвори ${connectBase()}?add=save и разреши. Видео не е правено.`,
             403,
             "GOOGLE_SCOPE_REQUIRED",
           );
@@ -1369,7 +1377,7 @@ export function createMcpCapabilityHandler({
         const publishId = await (dependencies.publishSessionFor || publishSessionFor)(googleSessionId);
         if (!publishId) {
           throw new GoogleDriveError(
-            "YouTube качването още не е разрешено. Отвори https://cloudaicore.com/api/google/connect?add=publish и разреши.",
+            `YouTube качването още не е разрешено. Отвори ${connectBase()}?add=publish и разреши.`,
             403,
             "GOOGLE_SCOPE_REQUIRED",
           );

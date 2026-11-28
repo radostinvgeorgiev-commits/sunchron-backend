@@ -165,3 +165,75 @@ test("a member confirms only steps on their own Google; anything else stops the 
   assert.equal(own.error, undefined);
   assert.deepEqual(own.calls, ["calendar.write", "contacts.create"]);
 });
+
+test("each step runs under the session it was prepared in, the task under its own", async () => {
+  // The connector (item 3, fix 1b): the steps under the owner, the task
+  // under the conversation.
+  const group = await createTaskConfirmation({
+    ownerId: "owner-1",
+    sessionId: "mcp-conversation",
+    taskId: "task-1",
+    items: [
+      { confirmationId: "mail-1", capability: "mail.send", toolId: "gmail-read" },
+      { confirmationId: "code-1", capability: "code.write", toolId: "github-write", confirmationType: "code-task" },
+    ],
+    createConfirmation,
+  });
+  const steps = [];
+  const codeTasks = [];
+  await confirmTaskWrite({
+    ownerId: "owner-1",
+    sessionId: "mcp-conversation",
+    itemSessionId: "owner-1",
+    taskConfirmationId: group.confirmationId,
+    executeCapability: async (capability, input) => {
+      steps.push(input.sessionId);
+      return { output: "ok" };
+    },
+    confirmCodeTask: async (input) => {
+      codeTasks.push(input.sessionId);
+      return { ok: true };
+    },
+  });
+  assert.deepEqual(steps, ["owner-1"]);
+  assert.deepEqual(codeTasks, ["owner-1"]);
+
+  // The site keeps one session for both.
+  const site = await createTaskConfirmation({
+    ownerId: "owner-1",
+    sessionId: "chat-session",
+    taskId: "task-2",
+    items: [{ confirmationId: "mail-2", capability: "mail.send", toolId: "gmail-read" }],
+    createConfirmation,
+  });
+  const siteSteps = [];
+  await confirmTaskWrite({
+    ownerId: "owner-1",
+    sessionId: "chat-session",
+    taskConfirmationId: site.confirmationId,
+    executeCapability: async (capability, input) => {
+      siteSteps.push(input.sessionId);
+      return { output: "ok" };
+    },
+  });
+  assert.deepEqual(siteSteps, ["chat-session"]);
+
+  // The task itself is still checked against its conversation.
+  const other = await createTaskConfirmation({
+    ownerId: "owner-1",
+    sessionId: "mcp-conversation",
+    taskId: "task-3",
+    items: [{ confirmationId: "mail-3", capability: "mail.send", toolId: "gmail-read" }],
+    createConfirmation,
+  });
+  await assert.rejects(
+    confirmTaskWrite({
+      ownerId: "owner-1",
+      sessionId: "mcp-other-conversation",
+      itemSessionId: "owner-1",
+      taskConfirmationId: other.confirmationId,
+      executeCapability: async () => assert.fail("nothing runs"),
+    }),
+    (error) => error.code === "SESSION_MISMATCH",
+  );
+});

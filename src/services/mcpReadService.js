@@ -70,6 +70,9 @@ const SAFE_CONFIRMATION_ERROR_CODES = new Set([
   "SESSION_MISMATCH",
   "CONFIRMATION_PERSISTENCE_FAILED",
 ]);
+// A confirmed task whose steps did not all run says so, with each step's
+// own reason when that reason is one of the safe ones above.
+const TASK_WRITE_ERROR_CODES = new Set(["TASK_WRITE_FAILED", "TASK_WRITE_PARTIAL"]);
 
 export const MCP_TOOLS = Object.freeze([
   {
@@ -237,14 +240,33 @@ function safeLimit(value, fallback = 20) {
     : fallback;
 }
 
-function safeMcpError(error) {
+function isSafeError(error) {
+  return (
+    SAFE_MCP_ERROR_NAMES.has(error?.name) ||
+    SAFE_CONFIRMATION_ERROR_CODES.has(error?.code)
+  );
+}
+
+export function safeMcpError(error) {
   if (error?.code === -32601 || error?.code === -32602) {
     return { code: error.code, message: error.message };
   }
-  if (
-    SAFE_MCP_ERROR_NAMES.has(error?.name) ||
-    SAFE_CONFIRMATION_ERROR_CODES.has(error?.code)
-  ) {
+  if (TASK_WRITE_ERROR_CODES.has(error?.code)) {
+    const reasons = [
+      ...new Set(
+        (Array.isArray(error.results) ? error.results : [])
+          .filter((item) => item?.error && isSafeError(item.error))
+          .map((item) => String(item.error.message || "").trim())
+          .filter(Boolean),
+      ),
+    ];
+    return {
+      code: -32000,
+      message: [error.message, ...reasons].join(" "),
+      data: { code: error.code },
+    };
+  }
+  if (isSafeError(error)) {
     return {
       code: -32000,
       message: error.message,

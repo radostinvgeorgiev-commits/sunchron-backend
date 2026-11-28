@@ -27,6 +27,10 @@ export async function confirmTaskWrite({
   // A member may confirm only steps on their own Google; the whole task is
   // refused, before anything runs, when one step is not allowed.
   allowItem,
+  // The connector prepares each step under the owner while the task belongs
+  // to the conversation, so a step is checked with the session it was
+  // prepared in. The site uses one session for both.
+  itemSessionId,
   env = process.env,
   executeCapability,
   confirmCodeTask,
@@ -65,6 +69,7 @@ export async function confirmTaskWrite({
   // Consume the group before executing to make the approval one-time.
   await markDurableConfirmationUsed(taskConfirmationId);
 
+  const stepSessionId = itemSessionId || sessionId;
   const results = [];
   for (const item of items) {
     try {
@@ -74,7 +79,7 @@ export async function confirmTaskWrite({
       ) {
         const result = await confirmCodeTask({
           ownerId,
-          sessionId,
+          sessionId: stepSessionId,
           githubSessionId,
           confirmationId: item.confirmationId,
           ...(resolveGitHubSession ? { resolveGitHubSession } : {}),
@@ -87,7 +92,7 @@ export async function confirmTaskWrite({
         item.capability,
         {
           ownerId,
-          sessionId,
+          sessionId: stepSessionId,
           githubSessionId,
           googleSessionId,
           confirmationId: item.confirmationId,

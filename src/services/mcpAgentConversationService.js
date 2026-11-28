@@ -306,6 +306,8 @@ export async function sendMcpAgentMessage(
     const confirmed = await confirmTaskWrite({
       ownerId: cleanOwnerId,
       sessionId: cleanSessionId,
+      // Its steps were prepared under the owner (executionContext below).
+      itemSessionId: cleanOwnerId,
       taskConfirmationId,
       githubSessionId: githubSession?.id || null,
       googleSessionId,

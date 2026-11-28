@@ -207,7 +207,7 @@ test("a short yes still prepares, never performs, a write", () => {
   );
 });
 
-test("the planner and the tool detector read the step, or the answer without its descriptions", () => {
+test("the planner and the tool detector read the step, and a yes with no step runs nothing", () => {
   // With its own Next step that needs no tool: the step and the yes, without
   // the previous request (review r2: it read the mail or the calendar again).
   assert.equal(
@@ -226,8 +226,9 @@ test("the planner and the tool detector read the step, or the answer without its
   // A message that is not a yes is passed as it is.
   assert.equal(buildContextualTaskMessage("Покажи задачите ми", recent), "Покажи задачите ми");
   assert.equal(buildContextualTaskMessage("да", []), "да");
-  // Without a step, the whole answer, but never its picture and video
-  // descriptions: a "GitHub" or "Gmail" in a picture started tools (L12 #1).
+  // Without a step, the yes alone: nothing the answer names runs again, not
+  // its picture and video descriptions either (a "GitHub" or "Gmail" in a
+  // picture started tools, L12 #1), and not the tools it mentions (review r5).
   const answer = [
     "Ето рекламата за NovariumAI.",
     "",
@@ -241,10 +242,7 @@ test("the planner and the tool detector read the step, or the answer without its
     "Кажи, ако искаш промени.",
   ].join("\n");
   const turns = [{ role: "user", content: "Реклама за NovariumAI" }, { role: "assistant", content: answer }];
-  const message = buildContextualTaskMessage("да", turns);
-  assert.match(message, /Последен отговор на NovariumAI: Ето рекламата за NovariumAI\.\n\nКажи, ако искаш промени\.\n/u);
-  assert.doesNotMatch(message, /GitHub|Gmail|Drive|Календар|Cloud Run/u);
-  assert.deepEqual(detectCapabilityRequests(message), []);
+  assert.equal(buildContextualTaskMessage("да", turns), "да");
   // The same answer with a step that is not an offer: only the step.
   const asked = [turns[0], { role: "assistant", content: `${answer}\n\nСледва: кажи дали видеото да е вертикално за телефон.` }];
   const withStep = buildContextualTaskMessage("ок", asked);
@@ -313,7 +311,7 @@ test("a yes with something added, or one that declines, never re-runs the previo
   );
 });
 
-test("a bare yes reads the previous request only when its step needs a tool", () => {
+test("a bare yes never reads the previous request again", () => {
   // Review r2 (S3, E1): „ДА ДАВАЙ“ after a look at the mail or the calendar
   // read them again through „Предишна заявка“, though the step needs no tool.
   const exchange = (request, answer) => [{ role: "user", content: request }, { role: "assistant", content: answer }];
@@ -344,11 +342,77 @@ test("a bare yes reads the previous request only when its step needs a tool", ()
       assert.equal(buildContextualTaskMessage(message, turns), message, message);
     }
   }
-  // A step that needs a tool still gets the request it continues.
+  // A step that needs a tool runs that tool, and only it: the request it
+  // continues ran its own tool already (review r5: a yes to the calendar step
+  // after a look at the mail read the mail again, and a member paid for it).
   const search = exchange("Има ли нещо ново от Иван?", "Не виждам това още.\n\nСледва: търся в Gmail писмата от Иван от тази седмица.");
   const task = buildContextualTaskMessage("да", search);
-  assert.match(task, /\nПредишна заявка: Има ли нещо ново от Иван\?\nПредложена следваща стъпка: търся в Gmail/u);
+  assert.match(task, /^\[КОНТЕКСТ ЗА КРАТКО ПРОДЪЛЖЕНИЕ\]\nПредложена следваща стъпка: търся в Gmail/u);
+  assert.doesNotMatch(task, /Предишна заявка|Иван\?/u);
   assert.deepEqual(detectCapabilityRequests(task).map(({ capability }) => capability), ["mail.read"]);
+  for (const [request, step, expected] of [
+    ["Покажи писмата в Gmail", "напиши „да“ и пускам „Програмата ми за утре“.", ["calendar.read"]],
+    ["Провери пощата ми в Gmail за писма от банката.", "кажи „да“ и ще проверя календара ти за петък.", ["calendar.read"]],
+    ["Намери кафене наблизо", "напиши „да“ и пускам „Потърси в интернет новини за Пловдив“.", ["web.search"]],
+    ["Потърси в интернет новини за Пловдив", "напиши „да“ и пускам „Намери кафене наблизо“.", ["places.search"]],
+  ]) {
+    for (const yes of ["да", "ДА ДАВАЙ", "yes", "ok"]) {
+      const turns = exchange(request, `Готово.\n\nСледва: ${step}`);
+      const message = buildContextualTaskMessage(yes, turns);
+      assert.doesNotMatch(message, /Предишна заявка/u, `${request} / ${yes}`);
+      assert.deepEqual(
+        detectCapabilityRequests(message, { toolInventory: true }).map(({ capability }) => capability),
+        expected,
+        `${request} / ${yes}`,
+      );
+    }
+  }
+});
+
+test("an answer with no Next line: a yes runs only the one offer it closes with", () => {
+  const exchange = (request, answer) => [{ role: "user", content: request }, { role: "assistant", content: answer }];
+  // Review r5: after the tool list, a readout or a look at the mail, „ok“,
+  // „Добре“ or „ДА“ ran every tool the answer named (nine after the list).
+  const list = [
+    "Работят:",
+    "Календар — „Програмата ми за утре“",
+    "Gmail — „Покажи писмата в Gmail“",
+    "Карти — „Намери кафене наблизо“",
+    "Интернет — „Потърси в интернет …“",
+    "GitHub — „Последният commit в GitHub“",
+    "Google Cloud — „Провери Google Cloud“",
+  ].join("\n");
+  for (const answer of [
+    list,
+    `${list}\n\nКое да пробваме?`,
+    "Проверих инструментите реално сега. Работят: GitHub Read, Gmail, Google Drive, Календар, OpenAI Web Search.",
+    "Имаш 3 нови писма в Gmail: от банката, от застрахователя и от Иван.",
+    "Утре в календара имаш среща в 10:00.",
+  ]) {
+    for (const yes of ["ok", "okay", "yes", "Добре", "ДА", "супер, давай", "ДА ДАВАЙ"]) {
+      assert.equal(buildContextualTaskMessage(yes, exchange("С кои инструменти можеш да работиш?", answer)), yes, `${answer} / ${yes}`);
+    }
+  }
+  // An offer it closes with, of one thing, is the step a yes runs.
+  for (const [answer, expected] of [
+    ["Мога да проверя GitHub и да подготвя промяна. Да продължа ли?", ["code.read"]],
+    ["Утре в календара имаш среща в 10:00.\n\nДа проверя ли календара ти и за петък?", ["calendar.read"]],
+    ["Няма такива писма.\n\nДа намеря ли кафене наблизо?", ["places.search"]],
+  ]) {
+    const message = buildContextualTaskMessage("да", exchange("Какво следва?", answer));
+    assert.match(message, /^\[КОНТЕКСТ ЗА КРАТКО ПРОДЪЛЖЕНИЕ\]\nПредложена следваща стъпка: /u, answer);
+    assert.doesNotMatch(message, /Предишна заявка|Какво следва/u, answer);
+    assert.deepEqual(detectCapabilityRequests(message).map(({ capability }) => capability), expected, answer);
+  }
+  // A question with alternatives, or one that names several tools, is none.
+  for (const answer of [
+    "Мога да погледна навсякъде. Искаш ли календара, пощата или Drive?",
+    "Да проверя ли календара ти за утре или пощата?",
+    "Да проверя ли календара ми и пощата ми в Gmail?",
+    `${"Много дълъг въпрос за календара ти ".repeat(10)}?`,
+  ]) {
+    assert.equal(buildContextualTaskMessage("да", exchange("Какво следва?", answer)), "да", answer);
+  }
 });
 
 test("a plain request to make a picture after an unrelated step is a request of its own", () => {

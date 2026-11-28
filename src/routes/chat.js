@@ -62,7 +62,6 @@ import {
   isPageMediaLine,
   makeIntent,
   mediaAvailability,
-  mediaNextStep,
   mediaNoteLines,
   mediaOffer,
   mediaToolsRule,
@@ -696,42 +695,79 @@ export function effectiveConversationHistory(persistent, recent, { rewrite = fal
     : combineConversationHistory(newestCleaned(persistent, COMBINED_CONVERSATION_LIMITS), cleanRecent);
 }
 
-// What the planner and the tool detector read for a short yes: the step the
-// previous answer proposed on its own Next line and the person's message,
-// with the previous request only when the step itself needs a tool (the
-// detector finds one in it): a yes to „кажи „да“ и пиша кратко напомняне“
-// after a look at the mail would otherwise read the mail again (review r2).
-// A step that makes pictures or video („напиши „да“ и правя картинката с
-// иконата на Gmail.“) needs no tool at all: the yes is read as it is. The
-// whole previous answer, with the previous request, only when it has no such
-// step, and then without its picture and video descriptions, which never
-// reach the detector (a "GitHub" or "Gmail" in a picture would start a tool).
-// A yes with something added („Да, но не сега“, „да, но накратко“) is read
-// as it is: the addition decides, and the old request or step would read the
-// mail, the calendar or Drive again; the model still gets the step in its
-// note. `turns` are the whole turns (shortYesTurns), not the history with its
-// Next lines stripped.
-export function buildContextualTaskMessage(message, turns = []) {
+// What a short yes asks the tools for. A short yes runs the step the previous
+// answer proposed on its own Next line, and only that step: the planner and
+// the tool detector read `task`, the step with the person's message. Never
+// the previous request or the rest of the answer: their tools ran already,
+// and a yes to „кажи „да“ и проверявам календара“ after a look at the mail
+// read the mail again (review r2), an „ok“ after the tool list ran every
+// example in it (nine tools), and a member paid for each (review r5). An
+// answer with no step of its own gets the yes alone, which runs no tool: the
+// model answers it from the conversation. A step that makes pictures or
+// video („напиши „да“ и правя картинката с иконата на Gmail.“) is answered
+// without the model (answerShortYesToMedia), so the yes is read as it is. A
+// yes with something added („Да, но не сега“, „да, но накратко“) is read as
+// it is too: the addition decides; the model still gets the step in its
+// note. `step` is the step a short yes runs ("" when none): the answer's own
+// Next step, or else the offer it closes with (closingOffer). `turns` are the
+// whole turns (shortYesTurns), not the history with its Next lines stripped.
+export function shortContinuation(message, turns = []) {
   const cleanMessage = typeof message === "string" ? message.trim() : "";
-  if (!isShortYes(cleanMessage)) return cleanMessage;
-  const { request, answer } = previousExchange(turns);
-  if (!answer) return cleanMessage;
-  const step = ownNextStep(answer);
-  if (makeIntent(step || mediaNextStep(answer))) return cleanMessage;
-  const withRequest = !step || detectCapabilityRequests(step).length > 0;
-  return [
-    "[КОНТЕКСТ ЗА КРАТКО ПРОДЪЛЖЕНИЕ]",
-    withRequest && request ? `Предишна заявка: ${request.slice(-MAX_RECENT_CONVERSATION_MESSAGE_LENGTH)}` : "",
-    step
-      ? `Предложена следваща стъпка: ${step}`
-      : `Последен отговор на NovariumAI: ${withoutDescriptionLines(answer).slice(-MAX_RECENT_CONVERSATION_MESSAGE_LENGTH)}`,
-    `Текущ отговор на потребителя: ${cleanMessage}`,
-    "Използвай това само за планиране на предложената следваща стъпка.",
-    "Не го приемай като точно потвърждение за рисково действие; защитеният confirmation процес остава задължителен.",
-    "[КРАЙ НА КОНТЕКСТА ЗА ПРОДЪЛЖЕНИЕ]",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const none = { task: cleanMessage, step: "" };
+  if (!isShortYes(cleanMessage)) return none;
+  const { answer } = previousExchange(turns);
+  const step = ownNextStep(answer) || closingOffer(answer);
+  if (!step || makeIntent(step)) return none;
+  return {
+    task: [
+      "[КОНТЕКСТ ЗА КРАТКО ПРОДЪЛЖЕНИЕ]",
+      `Предложена следваща стъпка: ${step}`,
+      `Текущ отговор на потребителя: ${cleanMessage}`,
+      "Използвай това само за планиране на предложената следваща стъпка.",
+      "Не го приемай като точно потвърждение за рисково действие; защитеният confirmation процес остава задължителен.",
+      "[КРАЙ НА КОНТЕКСТА ЗА ПРОДЪЛЖЕНИЕ]",
+    ].join("\n"),
+    step,
+  };
+}
+
+export function buildContextualTaskMessage(message, turns = []) {
+  return shortContinuation(message, turns).task;
+}
+
+// The offer an answer with no Next line closes with: its last paragraph,
+// outside its picture and video descriptions, when that asks whether to go
+// on and offers one thing („Мога да проверя GitHub и да подготвя промяна. Да
+// продължа ли?“, "Should I check your calendar for tomorrow?"). A question
+// with alternatives („… календара или пощата?“), one that names more than one
+// tool or none, a long paragraph and a statement („Това са писмата в Gmail за
+// днес.“) are none: a yes to them runs nothing, and the model answers it.
+const CLOSING_OFFER_LENGTH = 300;
+const ALTERNATIVES = /(?:^|[^\p{L}])(?:или|or|oder|ou|sau|oppure)(?!\p{L})/iu;
+
+export function closingOffer(answer) {
+  const text = withoutDescriptionLines(answer);
+  const paragraph = text.slice(text.lastIndexOf("\n\n") + 1).trim();
+  if (!paragraph || paragraph.length > CLOSING_OFFER_LENGTH || !/[?？؟]$/u.test(paragraph)) return "";
+  if (ALTERNATIVES.test(paragraph)) return "";
+  // One tool, or tool words the planner reads („Искаш ли да проверя пощата
+  // ти?“); „Кое да пробваме?“ offers nothing to run.
+  const found = detectCapabilityRequests(paragraph).length;
+  return found === 1 || (found === 0 && stepNeedsPlanner(paragraph)) ? paragraph.replace(/\s+/gu, " ") : "";
+}
+
+// The tool words of a step a short yes runs. With one, the planner reads the
+// step even when the tool detector finds no request in it: the agent writes
+// its step to the person („проверявам пощата ти за писма от застрахователя“,
+// "I will check your calendar for tomorrow"), and the detector knows the
+// person's own words („пощата ми“, "my calendar", review r5). A step with
+// none („кажи дали видеото да е вертикално“) needs no planner, so a member
+// pays nothing more for the yes.
+const STEP_TOOL_WORDS =
+  /(?:календар|calendar|събити|\bevents?\b|gmail|джимейл|поща|писм|имейл|e-?mail|\bmail|inbox|drive|драйв|файл|\bfiles?\b|документ|контакт|contact|youtube|ютюб|карт(?:а|и|ата|ите)(?!\p{L})|\bmaps?\b|наблизо|nearby|интернет|internet|\bweb\b|онлайн|online|търс|search|github|гитхъб|commit|google\s*cloud|cloud\s*run|памет|memory|задач|\btasks?\b)/iu;
+
+export function stepNeedsPlanner(step) {
+  return typeof step === "string" && STEP_TOOL_WORDS.test(step);
 }
 
 // A short yes, or a yes with something added, answers the step the previous
@@ -971,7 +1007,7 @@ export function detectCapabilityRequests(message, { toolInventory = false } = {}
     }
     if (
       (integrationStatusOnlyRequest ||
-        /(?:(?:инструмент(?:ите)?|връзк(?:и|ите)|интеграци(?:и|ите)).{0,50}(?:работят|работи|достъпни|активни|статус|ползва(?:ш|те)?|използва(?:ш|те)?|достъп)|(?:мож(?:еш|е)|имаш|има|работят|работи|достъпни|активни|статус|ползва(?:ш|те)?|използва(?:ш|те)?|достъп).{0,50}(?:инструмент(?:ите)?|връзк(?:и|ите)|интеграци(?:и|ите)))/iu.test(
+        /(?:(?:инструмент(?:ите)?|връзк(?:и|ите)|интеграци(?:и|ите)).{0,50}(?:работят|работи|достъпни|активни|статус|(?:из)?ползва(?:ш|те)?(?!\p{L})|достъп)|(?:мож(?:еш|е)|имаш|има|работят|работи|достъпни|активни|статус|(?:из)?ползва(?:ш|те)?(?!\p{L})|достъп).{0,50}(?:инструмент(?:ите)?|връзк(?:и|ите)|интеграци(?:и|ите)))/iu.test(
           subtask,
         )) &&
       !hasExplicitNoToolBoundary(subtask) &&
@@ -2363,7 +2399,8 @@ router.post("/chat", async (req, res) => {
     english: useEnglishReplyFallback(language),
   });
   // What the planner and the tool detector read.
-  let taskMessage = buildContextualTaskMessage(cleanMessage, yesTurns);
+  const continuation = shortContinuation(cleanMessage, yesTurns);
+  let taskMessage = continuation.task;
   // The tools this account can use now, by the checks above: its role, the
   // site's settings, its own Google and GitHub connections and this request's
   // memory read. The model is told them, so it names them truthfully.
@@ -3087,7 +3124,11 @@ router.post("/chat", async (req, res) => {
       !hasExplicitNoAdditionalToolsBoundary(taskMessage),
     plannerContext: { openAiApiKey },
     planFn: planCapabilities,
-    shouldPlanFn: shouldUseAgentPlanner,
+    // A short yes to a step with tool words is planned even when the
+    // detector finds no request in it (stepNeedsPlanner).
+    shouldPlanFn: (message, fallback) =>
+      shouldUseAgentPlanner(message, fallback) ||
+      (message === continuation.task && stepNeedsPlanner(continuation.step)),
     normalizeRequests: normalizeCapabilityRequests,
     routeRequests: (requests) =>
       routeSelectedWorkAgentCapabilities(

@@ -21,6 +21,7 @@ const {
   detectCapabilityRequests,
   isToolInventoryMessage,
   replyLanguageRule,
+  stepNeedsPlanner,
 } = await import("../src/routes/chat.js");
 const {
   MAX_TOOL_INVENTORY_LENGTH,
@@ -882,4 +883,151 @@ test("an English page gets the list in English", async (t) => {
   assert.ok(system.endsWith(replyLanguageRule("en")));
   assert.ok(claude.lines.includes("[Chat] Detected 0 capability subtasks for inventory-english: "));
   assert.deepEqual(claude.others, []);
+});
+
+// ── A short yes runs only the step the answer proposed (review r5) ────────
+
+// The chat route with a watched units budget: each reservation's units and
+// provider.
+function watchedChatApp(identity, reserved) {
+  const app = express();
+  app.use(express.json({ limit: "2mb" }));
+  app.use(
+    "/chat",
+    (req, _res, next) => {
+      req.owner = identity;
+      next();
+    },
+    createPublicAiBudgetContext({
+      reserve: async (_identity, credits, details) => {
+        reserved.push({ credits, provider: details?.provider || "" });
+        return "reservation";
+      },
+      refund: async () => true,
+    }),
+    chatRouter,
+  );
+  return app;
+}
+
+const detectedLine = (claude, sessionId) =>
+  claude.lines.find((line) => line.startsWith(`[Chat] Detected `) && line.includes(` for ${sessionId}: `)) || "";
+
+test("a short yes after an answer with no Next line runs no tool and no planner, for the owner and a member", async (t) => {
+  const claude = stubClaude(t);
+  const list = [
+    "Работят:",
+    "Календар — „Програмата ми за утре“",
+    "Gmail — „Покажи писмата в Gmail“",
+    "Карти — „Намери кафене наблизо“",
+    "Интернет — „Потърси в интернет новини за Пловдив“",
+    "GitHub — „Последният commit в GitHub“",
+    "Google Cloud — „Провери Google Cloud“",
+  ].join("\n");
+  let run = 0;
+  for (const identity of [owner, member]) {
+    for (const yes of ["ok", "Добре", "ДА", "yes", "супер, давай"]) {
+      const reserved = [];
+      run += 1;
+      const sessionId = `no-step-${run}`;
+      await request(watchedChatApp(identity, reserved))
+        .post("/chat/chat")
+        .send({
+          sessionId,
+          message: yes,
+          recentHistory: [
+            { role: "user", content: QUESTION },
+            { role: "assistant", content: list },
+          ],
+        })
+        .expect(200);
+      assert.equal(detectedLine(claude, sessionId), `[Chat] Detected 0 capability subtasks for ${sessionId}: `, yes);
+      // A member pays for the reply alone.
+      if (identity === member) assert.deepEqual(reserved.map(({ provider }) => provider), ["claude"], yes);
+    }
+  }
+  // No planner and no tool was called.
+  assert.deepEqual(claude.others, []);
+});
+
+test("a yes to the step runs that step's tool alone, not the request before it", async (t) => {
+  const claude = stubClaude(t);
+  let run = 0;
+  for (const [request_, step, expected] of [
+    ["Намери кафене наблизо", "напиши „да“ и пускам „Потърси в интернет новини за Пловдив“.", "#1:web.search"],
+    ["Покажи писмата в Gmail", "напиши „да“ и пускам „Програмата ми за утре“.", "#1:calendar.read"],
+    // The status check does not start from the words „използвам инструмента“.
+    ["Какво можеш?", "напиши „да“ и използвам инструмента Календар: „Програмата ми за утре“.", "#1:calendar.read"],
+  ]) {
+    for (const yes of ["да", "ДА ДАВАЙ", "yes"]) {
+      run += 1;
+      const sessionId = `step-only-${run}`;
+      await request(chatApp(owner))
+        .post("/chat/chat")
+        .send({
+          sessionId,
+          message: yes,
+          recentHistory: [
+            { role: "user", content: request_ },
+            { role: "assistant", content: `Готово.\n\nСледва: ${step}` },
+          ],
+        })
+        .expect(200);
+      assert.equal(detectedLine(claude, sessionId), `[Chat] Detected 1 capability subtasks for ${sessionId}: ${expected}`, `${request_} / ${yes}`);
+    }
+  }
+});
+
+test("a member's yes to a search step after a maps request pays for the search only", async (t) => {
+  const claude = stubClaude(t);
+  const reserved = [];
+  const sessionId = "member-yes-web";
+  await request(watchedChatApp(member, reserved))
+    .post("/chat/chat")
+    .send({
+      sessionId,
+      message: "да",
+      recentHistory: [
+        { role: "user", content: "Намери кафене наблизо" },
+        { role: "assistant", content: "Ето три кафенета.\n\nСледва: напиши „да“ и пускам „Потърси в интернет новини за Пловдив“." },
+      ],
+    })
+    .expect(200);
+  assert.equal(detectedLine(claude, sessionId), `[Chat] Detected 1 capability subtasks for ${sessionId}: #1:web.search`);
+  // No Google Maps search, and no Maps units.
+  assert.ok(!claude.others.some((url) => url.includes("generativelanguage.googleapis.com")), claude.others.join("\n"));
+  assert.ok(!reserved.some(({ provider }) => provider === "gemini"), JSON.stringify(reserved));
+});
+
+test("a yes to a step with tool words that the detector cannot read goes to the planner; a step without any does not", async (t) => {
+  const claude = stubClaude(t);
+  const planned = () => claude.others.filter((url) => url.startsWith("https://api.openai.com/")).length;
+  let before = 0;
+  for (const [step, planner] of [
+    ["кажи „да“ и проверявам пощата ти за писма от застрахователя.", true],
+    ["say yes and I will check your calendar for tomorrow.", true],
+    ["кажи „да“ и търся в интернет цените на билетите.", true],
+    ["кажи дали видеото да е вертикално за телефон.", false],
+    ["кажи „да“ и пиша по-кратък вариант на текста.", false],
+  ]) {
+    const sessionId = `planner-${step.length}`;
+    await request(chatApp(owner))
+      .post("/chat/chat")
+      .send({
+        sessionId,
+        message: "да",
+        recentHistory: [
+          { role: "user", content: "Какво следва?" },
+          { role: "assistant", content: `Готово.\n\nСледва: ${step}` },
+        ],
+      })
+      .expect(200);
+    const now = planned();
+    assert.equal(now > before, planner, step);
+    before = now;
+  }
+  assert.equal(stepNeedsPlanner("кажи дали видеото да е вертикално"), false);
+  assert.equal(stepNeedsPlanner("правя двете картинки"), false);
+  assert.equal(stepNeedsPlanner("проверявам пощата ти"), true);
+  assert.equal(stepNeedsPlanner("I will check your calendar"), true);
 });

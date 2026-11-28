@@ -6,7 +6,15 @@
 
 const SHORT_YES_LENGTH = 80;
 const YES_WITH_ADDITION_LENGTH = 200;
-const MAX_YES_WORDS = 5;
+// Six, as the owner writes a yes in capitals („ДА ДАВАЙ НАПРАВИ ГИ ВСИЧКИТЕ
+// СЕГА“, review r5); every word must still be a yes word.
+const MAX_YES_WORDS = 6;
+
+// The marks that ask back („Да?“, „نعم؟“, „Да❓“, „ДА⁉️“): a yes with one of
+// them never starts paid pictures or video (review r5: the Arabic and Urdu
+// mark and the emoji ones a phone keyboard offers). readWords drops the
+// emoji's variation selector first.
+export const ASKS_BACK = /[?？¿؟❓❔⁇⁈⁉‽﹖]/u;
 
 // Words that alone agree or say "go on", in the site's page languages (bg,
 // en, de, es, fr, it, ro) and in the content languages that have a common
@@ -20,18 +28,18 @@ const CORE_WORDS = new Set([
   "изпълни", "избери", "пускай", "става", "може", "разбирасе",
   "даваи", "океи", "хаиде", "действаи", "пускаи",
   "davai", "davay", "davaj", "dawai", "dawaj", "haide", "hajde", "deistvai", "deystvai", "dobre",
-  "okei", "okej", "napravi", "naprawi",
+  "okei", "okej", "okey", "napravi", "naprawi", "pravi", "prawi", "hayde", "stava", "moje",
   // English
-  "yes", "yeah", "yep", "yup", "sure", "ok", "okay", "go", "proceed", "continue", "do", "make",
-  "absolutely", "ofcourse", "goforit", "soundsgood", "letsdoit", "letsgo",
+  "yes", "yeah", "yep", "yup", "sure", "ok", "okay", "alright", "go", "proceed", "continue", "do", "make",
+  "create", "absolutely", "ofcourse", "goforit", "soundsgood", "letsdoit", "letsgo",
   // German
-  "ja", "jawohl", "klar", "gerne", "los", "mach", "weiter", "losgehts",
+  "ja", "jawohl", "klar", "gerne", "los", "mach", "erstelle", "weiter", "losgehts",
   // Spanish
-  "sí", "si", "vale", "claro", "dale", "adelante", "hazlo", "hazlas", "hazlos",
+  "sí", "si", "vale", "claro", "dale", "adelante", "haz", "hazlo", "hazlas", "hazlos",
   // French
   "oui", "ouais", "daccord", "vasy", "allez", "allezy", "fais",
   // Italian
-  "sì", "certo", "vai", "procedi", "fallo",
+  "sì", "certo", "vai", "procedi", "fai", "fallo", "falle",
   // Romanian
   "da", "sigur", "bine", "hai", "fă", "fa",
   // Ukrainian, Turkish, Chinese, Hindi, Urdu, Arabic
@@ -43,9 +51,13 @@ const CORE_WORDS = new Set([
 // plaît“, „Sì, grazie“, „te rog“…
 const FILLER_WORDS = new Set([
   "моля", "ги", "го", "я", "тях", "сега", "веднага", "всичко", "всички", "всичките", "двете", "и",
-  "препоръката", "варианта", "супер", "чудесно", "благодаря", "мерси",
+  "препоръката", "варианта", "супер", "чудесно", "благодаря", "мерси", "точно", "така",
+  // „Да, искам“; never right before „да“ („Искам да…“ is a request, see
+  // agreement).
+  "искам",
   "gi", "sega", "vsichko", "vsichki", "molya", "molia",
   "it", "them", "ahead", "on", "please", "now", "all", "of", "both", "then", "thanks", "perfect", "great",
+  "definitely",
   "bitte", "es", "sie", "alles", "danke",
   "por", "favor", "lo", "todo", "que", "gracias",
   "le", "la", "les", "sil", "te", "vous", "plait", "plaît", "merci",
@@ -65,6 +77,8 @@ const PHRASES = [
   [["lets", "go"], "letsgo"],
   [["los", "gehts"], "losgehts"],
   [["thank", "you"], "thanks"],
+  [["sure", "thing"], "sure"],
+  [["all", "right"], "alright"],
 ];
 
 // „ok, thanks“ or „добре, благодаря“ closes a topic as often as it agrees, so
@@ -72,8 +86,8 @@ const PHRASES = [
 // starts paid pictures or video.
 const THANKS_WORDS = new Set(["благодаря", "мерси", "thanks", "danke", "gracias", "merci", "grazie", "mulțumesc", "multumesc"]);
 const ACKNOWLEDGE_WORDS = new Set([
-  "ок", "окей", "океи", "добре", "dobre", "okei", "okej", "ok", "okay", "vale", "daccord", "bine", "klar", "tamam", "好",
-  "行", "става",
+  "ок", "окей", "океи", "добре", "dobre", "okei", "okej", "okey", "ok", "okay", "alright", "vale", "daccord", "bine",
+  "klar", "tamam", "好", "行", "става", "stava",
 ]);
 
 // The core words that only agree: a yes with something added may start with
@@ -84,21 +98,21 @@ const AGREEMENT_WORDS = new Set([
   "absolutely", "ofcourse", "goforit", "soundsgood", "letsdoit", "letsgo", "ja", "jawohl", "klar", "gerne",
   "losgehts", "sí", "vale", "claro", "oui", "ouais", "daccord", "vasy", "allezy", "sì", "certo",
   "sigur", "bine", "так", "evet", "tamam", "好", "好的", "是", "是的", "行", "可以", "हाँ", "हां", "ہاں",
-  "جی", "نعم",
+  "جی", "نعم", "okey", "alright",
 ]);
 // The Bulgarian "go ahead" words: whatever follows one of them is the
 // addition („ДАВАЙ НА АНГЛИЙСКИ“, „ДАВАЙ ПО-КРАТКО“, „ХАЙДЕ С ВИДЕО“), but
 // „да“, the particle of another proposal („Давай да видим пощата“).
 const BULGARIAN_GO_AHEAD_WORDS = new Set([
   "давай", "даваи", "хайде", "хаиде", "действай", "действаи", "пускай", "пускаи",
-  "davai", "davay", "davaj", "dawai", "dawaj", "haide", "hajde", "deistvai", "deystvai",
+  "davai", "davay", "davaj", "dawai", "dawaj", "haide", "hajde", "hayde", "deistvai", "deystvai",
 ]);
 // Words that agree or say "go ahead" but also start other sentences: „Go to
 // the settings“, „Hai visto…“, „Vai alla pagina“, „Si quieres…“, „Става дума
 // за…“, „Може ли…“. They start a yes with something added only when a comma
 // or a dash follows them, or a conjunction or another agreeing word („Go
 // ahead but shorter“, „Los, aber kürzer“).
-const GO_AHEAD_WORDS = new Set(["става", "може", "go", "los", "dale", "si", "allez", "vai", "da", "hai"]);
+const GO_AHEAD_WORDS = new Set(["става", "може", "stava", "moje", "go", "los", "dale", "si", "allez", "vai", "da", "hai"]);
 const CONJUNCTIONS = new Set([
   "но", "ама", "ала", "обаче", "а", "и", "само", "but", "and", "though", "aber", "und", "doch",
   "pero", "y", "mais", "et", "ma", "e", "però", "dar", "și", "însă",
@@ -128,7 +142,8 @@ const isParticleVerb = (word) => PARTICLE_NEXT_WORDS.has(word) || (word.length >
 // dropped („d'accord“ is „daccord“), every other punctuation mark, quote,
 // dash or emoji a break („ДА!!!“ is „да“, „Да,но“ is „да“, „но“). Each word
 // says whether such a mark came right after it; the list says whether a
-// question mark came after its last word (`asks`: „Да?“, „ок?“, „Yes?“).
+// mark that asks back came after its last word (`asks`: „Да?“, „ок?“,
+// „Yes?“, „نعم؟“, „Да❓“).
 function readWords(text) {
   const tokens =
     text
@@ -138,13 +153,16 @@ function readWords(text) {
       .match(/[\p{L}\p{M}\p{N}]+|[^\s\p{L}\p{M}\p{N}]+/gu) || [];
   const read = [];
   let asks = false;
+  // A Spanish „¿“ opens a question wherever it stands („¿Sí“).
+  let opened = false;
   for (const token of tokens) {
     if (/^[\p{L}\p{M}\p{N}]/u.test(token)) {
       read.push({ word: token, mark: false });
       asks = false;
     } else {
       if (read.length) read.at(-1).mark = true;
-      asks ||= /[?？]/u.test(token);
+      asks ||= ASKS_BACK.test(token);
+      opened ||= token.includes("¿");
     }
   }
   const words = [];
@@ -158,16 +176,17 @@ function readWords(text) {
       words.push(read[index]);
     }
   }
-  words.asks = asks;
+  words.asks = asks || opened;
   return words;
 }
 
-// Whether these words are one to five yes words, at least one of them a core
+// Whether these words are one to six yes words, at least one of them a core
 // word: "yes" when they agree, "thanks" when they are a thanks that only
 // acknowledges („ok thanks“, „мерси, ок“), "" otherwise.
 function agreement(words) {
   if (!words.length || words.length > MAX_YES_WORDS) return "";
   if (!words.every((word) => CORE_WORDS.has(word) || FILLER_WORDS.has(word))) return "";
+  if (words.some((word, at) => word === "искам" && words[at + 1] === "да")) return "";
   const core = words.filter((word) => CORE_WORDS.has(word));
   if (!core.length) return "";
   return words.some((word) => THANKS_WORDS.has(word)) && core.every((word) => ACKNOWLEDGE_WORDS.has(word))

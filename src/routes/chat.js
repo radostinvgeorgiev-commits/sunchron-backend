@@ -108,6 +108,7 @@ import {
   formatCalendarEventResult,
   isCalendarReadRequest,
   isCalendarWriteRequest,
+  parseCalendarEventDraft,
 } from "../services/calendarService.js";
 import {
   GoogleDriveError,
@@ -718,6 +719,12 @@ export function shortContinuation(message, turns = []) {
   const { answer } = previousExchange(turns);
   const step = ownNextStep(answer) || closingOffer(answer);
   if (!step || makeIntent(step)) return none;
+  // An exact record the agent wrote as its step (an email, a contact, an
+  // event with all its fields) is read as if the person typed it: the yes
+  // only prepares it, and it is done when they press „Потвърди“ (RADKO
+  // 28.11: „искам да пратя мейл до мен“ got „нямам проверен инструмент“).
+  const record = exactRecordStep(step);
+  if (record) return { task: record, step };
   return {
     task: [
       "[КОНТЕКСТ ЗА КРАТКО ПРОДЪЛЖЕНИЕ]",
@@ -844,14 +851,48 @@ function normalizeSubtaskText(text) {
     .trim();
 }
 
+// A greeting or a thanks around a question („Здравей! С кои инструменти…?“,
+// „…? Благодаря.“, „Интересно ми е.“): it asks for nothing itself.
+const COURTESY_PART =
+  /^(?:здравей(?:те)?|здрасти|здрасете|добър\s+(?:ден|вечер)|добро\s+утро|привет|хей|ей|hi|hello|hey|good\s+(?:morning|evening)|благодаря(?:\s+ти)?|мерси|thanks|thank\s+you|добре|ок|окей|ok|okay|интересно\s+ми\s+е|просто\s+питам|i'?m\s+curious)[\s!.,?…]*$/iu;
+
 // Every part of the message (its subtasks, or the message itself) asks which
-// tools the chat has or what it can do: the tool list in the system context
-// answers it, so the site chat's detector prepares no GitHub change for it. A
+// tools the chat has or what it can do, past a greeting or a thanks: the tool
+// list in the system context answers it, so the site chat's detector prepares
+// no GitHub change for it and the code agent analyses no code (review r6). A
 // request to use the tools is not such a question („Използвай инструментите и
 // слей PR #12 в GitHub“ asks for the merge).
 export function isToolInventoryMessage(message) {
   const subtasks = Array.isArray(message) ? message : splitCapabilitySubtasks(message);
-  return subtasks.length > 0 && subtasks.every(isToolListQuestion);
+  const asking = subtasks.filter((subtask) => !COURTESY_PART.test(String(subtask).trim()));
+  return asking.length > 0 && asking.every(isToolListQuestion);
+}
+
+// Whether the message asks for a GitHub change outside its questions about
+// the tools: the change word from those parts, the code target from the whole
+// message (review r6). „Здравей! С кои инструменти можеш да промениш кода в
+// GitHub?“ asks for none; „Кои инструменти ползваш за GitHub? Промени
+// README.“ asks for one.
+function gitHubWriteIntent(message, subtasks, toolInventory) {
+  if (!isGitHubWriteRequest(message)) return false;
+  if (!toolInventory || !subtasks.some(isToolListQuestion)) return true;
+  const outside = subtasks.filter((subtask) => !isToolListQuestion(subtask)).join("\n");
+  return Boolean(outside) && isGitHubWriteRequest(`${outside}\ngithub`);
+}
+
+// The GitHub changes the site chat runs only when the message asks for one.
+const GITHUB_WRITES = new Set(["code.write", "github.pull-request.merge"]);
+
+// The planner's calls without a GitHub change the message does not ask for:
+// its change words are only inside a question about the tools (review r6:
+// the route merged a planned code.write unchecked, and „С кои инструменти
+// можеш да промениш кода в GitHub?“ prepared a change).
+export function withoutUnaskedGitHubWrites(requests, message) {
+  const list = Array.isArray(requests) ? requests : [];
+  const subtasks = splitCapabilitySubtasks(message);
+  const unasked =
+    isToolInventoryMessage(subtasks) || (isGitHubWriteRequest(message) && !gitHubWriteIntent(message, subtasks, true));
+  return unasked ? list.filter(({ capability } = {}) => !GITHUB_WRITES.has(capability)) : list;
 }
 
 export function splitCapabilitySubtasks(message) {
@@ -944,11 +985,12 @@ export function detectCapabilityRequests(message, { toolInventory = false } = {}
   const noPaidTools = hasExplicitNoToolBoundary(message);
   const subtasks = splitCapabilitySubtasks(message);
   // A message that only asks about the tools is not a GitHub change either
-  // („С кои инструменти можеш да промениш кода в GitHub?“).
+  // („С кои инструменти можеш да промениш кода в GitHub?“), also with a
+  // greeting or a thanks; a change asked for next to such a question is one.
   const onlyToolQuestions = toolInventory && isToolInventoryMessage(subtasks);
   const hasGitHubContext =
     isGitHubReadRequest(message) || isMergedBranchCleanupPlanRequest(message);
-  const hasGitHubWriteIntent = isGitHubWriteRequest(message);
+  const hasGitHubWriteIntent = gitHubWriteIntent(message, subtasks, toolInventory);
   let writeTaskReadAdded = false;
   let integrationStatusAdded = false;
   const hasExplicitNumberedChecks =
@@ -1304,16 +1346,42 @@ export async function executeDetectedCapabilities(
 
 // "Изпрати имейл до ana@example.com | Тема | Текст": an exact email the person
 // wrote. It is only prepared here; sending waits for their confirmation.
+// "до мен" / "to me" is the person's own connected Google address, filled in
+// when it is prepared (toSelf).
+const OWN_ADDRESS = /^(?:мен|мене|себе\s+си|me|myself)$/iu;
+
 export function parseEmailSendRequest(message) {
   const match = String(message || "")
     .trim()
     .match(
-      /^(?:моля[,\s]+)?(?:изпрати|прати|send)\s+(?:(?:(?:нов\s+)?(?:имейл|писмо|e-?mail)|an?\s+email)\s+)?(?:до|to)\s+([^\s|@]+@[^\s|@]+\.[^\s|]+)\s*\|\s*([^|]*?)\s*\|\s*([\s\S]+)$/iu,
+      /^(?:моля[,\s]+)?(?:изпрати|прати|send)\s+(?:(?:(?:нов\s+)?(?:имейл|писмо|e-?mail)|an?\s+email)\s+)?(?:до|to)\s+([^\s|@]+@[^\s|@]+\.[^\s|]+|мен|мене|себе\s+си|me|myself)\s*\|\s*([^|]*?)\s*\|\s*([\s\S]+)$/iu,
     );
   if (!match) return null;
   const body = match[3].trim();
   if (!body) return null;
+  if (OWN_ADDRESS.test(match[1])) return { to: "", toSelf: true, subject: match[2], body };
   return { to: match[1], subject: match[2], body };
+}
+
+// The agent's own step when it is an exact record with all its fields, as its
+// tool list writes them: an email („Изпрати имейл до мен | Тема | Текст“), a
+// contact or a calendar event. Its quotes are left out. "" for anything else.
+export function exactRecordStep(step) {
+  const text = String(step || "")
+    .trim()
+    .replace(/^[„“”"«]+([\s\S]*?)[“”"»]+[.!]?$/u, "$1")
+    .trim();
+  if (!text) return "";
+  if (parseEmailSendRequest(text) || parseContactCreateRequest(text)) return text;
+  if (isCalendarWriteRequest(text)) {
+    try {
+      parseCalendarEventDraft(text);
+      return text;
+    } catch {
+      return "";
+    }
+  }
+  return "";
 }
 
 // "Добави контакт: Иван Петров | ivan@example.com | +359 88 123 4567",
@@ -1350,7 +1418,10 @@ export function parseContactSearchQuery(message) {
     .replace(/^\s*(?:ми|my)(?=[\s:,.!?-]|$)/iu, "")
     .replace(/^[\s:,-]+/u, "")
     .replace(/^(?:на|за|named|for)\s+/iu, "")
-    .replace(/[?.!]+$/u, "")
+    // The quotes of a step that gives the example („Намери в контактите
+    // Иван“, review r6: Google got „Иван“ with its closing quote and found
+    // no one) and the end punctuation, on both ends.
+    .replace(/^[\s„“”«»"'‘’]+|[\s„“”«»"'‘’?.!,;:]+$/gu, "")
     .trim();
   return query.length >= 2 && query.length <= 100 ? query : "";
 }
@@ -3130,11 +3201,15 @@ router.post("/chat", async (req, res) => {
       shouldUseAgentPlanner(message, fallback) ||
       (message === continuation.task && stepNeedsPlanner(continuation.step)),
     normalizeRequests: normalizeCapabilityRequests,
+    // A question about the tools is answered from the tool list: no GitHub
+    // change the planner adds for it, and no code analysis by the code agent
+    // (review r6).
     routeRequests: (requests) =>
       routeSelectedWorkAgentCapabilities(
-        requests,
+        withoutUnaskedGitHubWrites(requests, taskMessage),
         cleanWorkContext,
         taskMessage,
+        { toolQuestion: isToolInventoryMessage(taskMessage) },
       ),
     executeFn: executeCapability,
     executionContext: {

@@ -20,9 +20,13 @@ const {
   buildContextualTaskMessage,
   detectCapabilityRequests,
   isToolInventoryMessage,
+  parseContactSearchQuery,
   replyLanguageRule,
   stepNeedsPlanner,
+  withoutUnaskedGitHubWrites,
 } = await import("../src/routes/chat.js");
+const { isReadOnlyIntegrationStatusRequest } = await import("../src/services/agentPlannerService.js");
+const { routeSelectedWorkAgentCapabilities } = await import("../src/services/workModeService.js");
 const {
   MAX_TOOL_INVENTORY_LENGTH,
   TOOL_INVENTORY_HEADING,
@@ -99,6 +103,7 @@ test("the owner on the live site, with Google and GitHub connected, has every to
       ["web", "ready"],
       ["media", "ready"],
       ["tasks", "ready"],
+      ["todos", "ready"],
       ["memory", "ready"],
       ["files", "ready"],
       ["claude", "ready"],
@@ -124,8 +129,10 @@ test("the owner on the live site, with Google and GitHub connected, has every to
     assert.equal(item.press, "");
   }
   assert.equal(byId(entries, "media").label, "Картинки и видео");
-  // The chat reads the owner's tasks itself, so the page list is not named too.
-  assert.equal(byId(entries, "todos"), undefined);
+  // Review r6: the owner's chat reads the work drafts, and „Моите задачи“ is
+  // another list, so both are named for what they are.
+  assert.equal(byId(entries, "tasks").label, "Работни задачи");
+  assert.equal(byId(entries, "todos").label, "Моите задачи");
 });
 
 test("a member after the first „Свържи Google“: calendar, contacts, sending and saving work; the rest name their own step", () => {
@@ -136,10 +143,10 @@ test("a member after the first „Свържи Google“: calendar, contacts, se
       ["calendar", "ready", ""],
       ["contacts", "ready", ""],
       ["gmail", "ready", ""],
-      ["gmail-read", "connect", "„Разреши Gmail“"],
+      ["gmail-read", "connect", "„Покажи писмата в Gmail“, после „Разреши Gmail“ в отговора"],
       ["drive", "ready", ""],
-      ["drive-read", "connect", "„Разреши Google Drive“"],
-      ["youtube", "connect", "„Свържи YouTube“"],
+      ["drive-read", "connect", "„Покажи Google Drive“, после „Разреши Google Drive“ в отговора"],
+      ["youtube", "connect", "„Покажи моя YouTube канал“, после „Свържи YouTube“ в отговора"],
       ["youtube-video", "ready", ""],
       ["places", "ready", ""],
       ["web", "ready", ""],
@@ -156,7 +163,7 @@ test("a member after the first „Свържи Google“: calendar, contacts, se
     id: "gmail",
     status: "ready",
     label: "Gmail",
-    example: "„Изпрати имейл до адрес | тема | текст“",
+    example: "„Изпрати имейл до адрес | тема | текст“ (до мен — до теб)",
     confirm: "имейли",
     press: "",
   });
@@ -165,21 +172,26 @@ test("a member after the first „Свържи Google“: calendar, contacts, se
   assert.equal(byId(entries, "contacts").confirm, "контакти");
 });
 
-test("without a Google connection every Google tool waits for „Свържи Google“, in one line", () => {
+test("without a Google connection „Свържи Google“ names what its first press turns on; YouTube names its second step", () => {
+  // Review r6: the first press grants calendar, contacts, sending and saving
+  // (GOOGLE_MEMBER_SCOPES, the owner too); YouTube is turned on from an
+  // answer after it.
   for (const identity of [owner, member]) {
     const entries = buildToolInventory({ identity, env: siteEnv, connections: {} });
     for (const id of ["calendar", "contacts", "gmail", "drive", "youtube"]) {
       assert.equal(byId(entries, id).status, "connect", `${identity.role} ${id}`);
-      assert.equal(byId(entries, id).press, "„Свържи Google“");
+      assert.equal(byId(entries, id).press, id === "youtube" ? "„Свържи Google“, после „Покажи моя YouTube канал“ и „Свържи YouTube“ в отговора" : "„Свържи Google“");
       assert.equal(byId(entries, id).confirm, "");
     }
+    assert.equal(byId(entries, "gmail").label, "Gmail (изпращане)");
+    assert.equal(byId(entries, "drive").label, "Google Drive (запазване)");
     // The tools that need no Google still work.
     for (const id of ["youtube-video", "places", "web", "media", "memory", "files", "claude"]) {
       assert.equal(byId(entries, id).status, "ready", `${identity.role} ${id}`);
     }
     const section = toolInventorySection(entries);
     assert.ok(
-      section.includes("\nИскат свързване:\nКалендар, Контакти, Gmail, Google Drive, YouTube канал — „Свържи Google“\n"),
+      section.includes("\nИскат свързване:\nКалендар, Контакти, Gmail (изпращане), Google Drive (запазване) — „Свържи Google“\nYouTube канал — „Свържи Google“, после „Покажи моя YouTube канал“ и „Свържи YouTube“ в отговора\n"),
       section,
     );
     assert.ok(!section.includes("Календар — "), "a tool that is not connected has no example");
@@ -199,9 +211,9 @@ test("a connection Google gave less to names the step that adds it", () => {
     partial.filter(({ status }) => status === "connect").map(({ id, press }) => [id, press]),
     [
       ["contacts", "„Свържи Google отново“"],
-      ["gmail", "„Разреши Gmail“"],
-      ["drive-read", "„Разреши Google Drive“"],
-      ["youtube", "„Свържи YouTube“"],
+      ["gmail", "„Покажи писмата в Gmail“, после „Разреши Gmail“ в отговора"],
+      ["drive-read", "„Покажи Google Drive“, после „Разреши Google Drive“ в отговора"],
+      ["youtube", "„Покажи моя YouTube канал“, после „Свържи YouTube“ в отговора"],
     ],
   );
   // Reading the calendar works; a new event needs calendar.events.
@@ -213,7 +225,7 @@ test("a connection Google gave less to names the step that adds it", () => {
     env: siteEnv,
     connections: googleWith([...GOOGLE_MEMBER_SCOPES, ...GOOGLE_EXTRA_SCOPES.gmail.split(" "), GOOGLE_EXTRA_SCOPES.drive]),
   });
-  assert.equal(byId(extended, "gmail").example, "„Покажи писмата в Gmail“");
+  assert.equal(byId(extended, "gmail").example, "„Покажи писмата в Gmail“; „Изпрати имейл до адрес | тема | текст“ (до мен — до теб)");
   assert.equal(byId(extended, "drive").example, "„Покажи Google Drive“; бутон „Запази в Google“");
   assert.equal(byId(extended, "gmail-read"), undefined);
   assert.equal(byId(extended, "drive-read"), undefined);
@@ -262,6 +274,13 @@ test("a site key that is missing turns its tools off; it never asks the person t
   const bare = toolInventorySection(buildToolInventory({ identity: member, env: { NODE_ENV: "production" } }));
   assert.match(bare, /\nРаботят: нито един сега\.\n/u);
   assert.doesNotMatch(bare, /Искат свързване/u);
+  // Review r6: with nothing working, the list never says it has tools.
+  assert.doesNotMatch(bare, /Не казвай, че нямаш инструменти|Системата пуска/u);
+  const bareEnglish = toolInventorySection(buildToolInventory({ identity: member, env: { NODE_ENV: "production" }, language: "en" }), {
+    language: "en",
+  });
+  assert.doesNotMatch(bareEnglish, /Never say you have no tools|The system runs tools/u);
+  assert.match(bareEnglish, /\nWorking: none right now\.\n/u);
 });
 
 test("pictures and video come from mediaAvailability; a member whose video is closed sees only pictures", () => {
@@ -379,7 +398,7 @@ test("a member never sees GitHub, Google Cloud or the owner's task reading", () 
   }
 });
 
-test("the section stays within 1,200 characters with every example, for every account and page", () => {
+test("the section stays within 1,800 characters with every example, for every account and page", () => {
   let longest = 0;
   for (const { options, entries } of everyList()) {
     const section = toolInventorySection(entries, { language: options.language });
@@ -392,7 +411,7 @@ test("the section stays within 1,200 characters with every example, for every ac
       if (status === "ready" && example) assert.ok(section.includes(`\n${label} — ${example}\n`), `${label} — ${example}`);
     }
   }
-  assert.ok(longest > 1100, `the longest list was measured: ${longest}`);
+  assert.ok(longest > 1500, `the longest list was measured: ${longest}`);
   // Should a list ever be longer, the working tools are named without their
   // examples rather than left out.
   const long = Array.from({ length: 30 }, (_, index) =>
@@ -415,23 +434,24 @@ test("the section stays within 1,200 characters with every example, for every ac
 const OWNER_SECTION = [
   "[ТВОИТЕ ИНСТРУМЕНТИ СЕГА] Проверени при тази заявка: настройки на сайта и връзките на този акаунт.",
   "Работят:",
-  "Календар — „Програмата ми за утре“",
-  "Контакти — „Намери в контактите Иван“",
-  "Gmail — „Покажи писмата в Gmail“",
+  "Календар — „Програмата ми за утре“; „Създай събитие: заглавие | ГГГГ-ММ-ДД ЧЧ:ММ | минути“",
+  "Контакти — „Намери в контактите Иван“; „Добави контакт: име | имейл | телефон“",
+  "Gmail — „Покажи писмата в Gmail“; „Изпрати имейл до адрес | тема | текст“ (до мен — до теб)",
   "Google Drive — „Покажи Google Drive“; бутон „Запази в Google“",
   "YouTube канал — „Покажи моя YouTube канал“",
   "YouTube видео — резюме по линк",
   "Карти — „Намери кафене наблизо“",
   "Интернет — „Потърси в интернет …“",
   "Картинки и видео — опиши ги; „да“ ги прави",
-  "Задачи — „Покажи задачите ми“",
+  "Работни задачи — „Покажи задачите ми“",
+  "Моите задачи — в менюто",
   "Памет — „Запомни: …“",
   "Моите файлове — питай за качен файл",
   "Работа с Claude — в „Добавки“",
   "GitHub — „Последният commit в GitHub“",
   "Google Cloud — „Провери Google Cloud“",
   "Питат ли какво можеш, изброй работещите с пример, после чакащите свързване.",
-  "Системата пуска инструмента преди отговора ти; резултатът идва в [РЕЗУЛТАТИ ОТ ИНСТРУМЕНТИ]. Без него кажи кой става и точните думи или ги дай в „Следва:“ („да“ го пуска). Не казвай, че нямаш инструменти.",
+  "Системата пуска инструмента преди отговора ти; резултатът идва в [РЕЗУЛТАТИ ОТ ИНСТРУМЕНТИ]. Без него кажи кой става и точните думи или ги дай в „Следва:“ („да“ пуска четене, а имейл, контакт или събитие с всички данни подготвя за бутона „Потвърди“). Не казвай, че нямаш инструменти.",
   "Резултати — само от тази заявка; записи (събития, контакти, имейли, памет, GitHub, Google Cloud), изпращане и публикуване — само с точното потвърждение.",
 ].join("\n");
 const MEMBER_SECTION = [
@@ -446,17 +466,18 @@ const MEMBER_SECTION = [
   "Моите файлове — питай за качен файл",
   "Работа с Claude — в „Добавки“",
   "Искат свързване:",
-  "Календар, Контакти, Gmail, Google Drive, YouTube канал — „Свържи Google“",
+  "Календар, Контакти, Gmail (изпращане), Google Drive (запазване) — „Свържи Google“",
+  "YouTube канал — „Свържи Google“, после „Покажи моя YouTube канал“ и „Свържи YouTube“ в отговора",
   "Питат ли какво можеш, изброй работещите с пример, после чакащите свързване.",
-  "Системата пуска инструмента преди отговора ти; резултатът идва в [РЕЗУЛТАТИ ОТ ИНСТРУМЕНТИ]. Без него кажи кой става и точните думи или ги дай в „Следва:“ („да“ го пуска). Не казвай, че нямаш инструменти.",
+  "Системата пуска инструмента преди отговора ти; резултатът идва в [РЕЗУЛТАТИ ОТ ИНСТРУМЕНТИ]. Без него кажи кой става и точните думи или ги дай в „Следва:“ („да“ пуска четене, а имейл, контакт или събитие с всички данни подготвя за бутона „Потвърди“). Не казвай, че нямаш инструменти.",
   "Резултати — само от тази заявка; записи (памет), изпращане и публикуване — само с точното потвърждение.",
 ].join("\n");
 const ENGLISH_MEMBER_SECTION = [
   "[ТВОИТЕ ИНСТРУМЕНТИ СЕГА] Checked at this request: site settings and this account's connections.",
   "Working:",
-  "Calendar — “My calendar tomorrow”",
-  "Contacts — “Search contacts for Ivan”",
-  "Gmail — “Send an email to address | subject | text”",
+  "Calendar — “My calendar tomorrow”; “Create a calendar event: title | YYYY-MM-DD HH:MM | minutes”",
+  "Contacts — “Search contacts for Ivan”; “Add a contact: name | email | phone”",
+  "Gmail — “Send an email to address | subject | text” (to me — to you)",
   "Google Drive — “Save to Google” button",
   "YouTube videos — summary by link",
   "Maps — “Find a cafe near me”",
@@ -467,11 +488,11 @@ const ENGLISH_MEMBER_SECTION = [
   "My files — ask about an added file",
   "Work with Claude — in “Add-ons”",
   "Need connecting:",
-  "Reading Gmail — “Allow Gmail”",
-  "Reading Drive — “Allow Google Drive”",
-  "YouTube channel — “Allow YouTube”",
+  "Reading Gmail — “Show my Gmail”, then “Allow Gmail” in the answer",
+  "Reading Drive — “Show my Google Drive files”, then “Allow Google Drive” in the answer",
+  "YouTube channel — “Show my YouTube channel”, then “Allow YouTube” in the answer",
   "Asked what you can do: the working tools with an example, then those to connect.",
-  "The system runs tools before your answer; results come in [TOOL RESULTS]. Without one, name the fitting tool and its exact words, or put them in “Next:” (“yes” runs it). Never say you have no tools.",
+  "The system runs tools before your answer; results come in [TOOL RESULTS]. Without one, name the fitting tool and its exact words, or put them in “Next:” (“yes” runs a read, and prepares an email, contact or event with all its fields for the “Confirm” button). Never say you have no tools.",
   "Results only from this request; writes (events, contacts, emails, memory), sending and publishing only with the exact confirmation.",
 ].join("\n");
 
@@ -492,13 +513,13 @@ test("Bulgarian on a Bulgarian page, English labels on every other page language
   const bulgarian = labels("bg");
   for (const language of [undefined, "", "xx", "bg-BG"]) assert.equal(labels(language), bulgarian, String(language));
   assert.match(bulgarian, /\nРаботят:\n/u);
-  assert.match(bulgarian, /\nИскат свързване:\nКалендар, Контакти, Gmail, Google Drive, YouTube канал — „Свържи Google“\n/u);
+  assert.ok(bulgarian.includes("\nИскат свързване:\nКалендар, Контакти, Gmail (изпращане), Google Drive (запазване) — „Свържи Google“\nYouTube канал — „Свържи Google“, после „Покажи моя YouTube канал“ и „Свържи YouTube“ в отговора\n"), bulgarian);
   for (const language of ["en", "de", "fr", "es"]) {
     const page = labels(language);
     assert.equal(page, labels("en"), language);
     assert.ok(page.startsWith(`${TOOL_INVENTORY_HEADING} Checked at this request: site settings and this account's connections.\n`));
     assert.match(page, /\nWorking:\n/u);
-    assert.match(page, /\nNeed connecting:\nCalendar, Contacts, Gmail, Google Drive, YouTube channel — “Connect Google”\n/u);
+    assert.ok(page.includes("\nNeed connecting:\nCalendar, Contacts, Gmail (sending), Google Drive (saving) — “Connect Google”\nYouTube channel — “Connect Google”, then “Show my YouTube channel” and “Allow YouTube” in the answer\n"), page);
     assert.match(page, /\nGitHub — “Latest commit on GitHub”\n/u);
     // Only the task and memory commands are Bulgarian words: the chat runs
     // them only so.
@@ -615,6 +636,15 @@ test("a question about the tools starts no status check in the site chat", () =>
     "What can you do?",
     "What else can you do for me?",
     "What are your capabilities?",
+    // Review r6: more ways to ask the same, also in capitals.
+    "Имаш ли инструменти?",
+    "А имаш ли някакви инструменти?",
+    "ИМАШ ЛИ ИНСТРУМЕНТИ",
+    "Кои инструменти са ти достъпни сега?",
+    "Какви инструменти са ти достъпни?",
+    "КОИ ИНСТРУМЕНТИ СА ТИ ДОСТЪПНИ",
+    "Изброй инструментите, които можеш да ползваш",
+    "Изброй инструментите си",
   ];
   for (const question of questions) {
     assert.equal(isToolInventoryQuestion(question), true, question);
@@ -683,6 +713,11 @@ test("a tool the same message asks for still runs, and a check of the tools stay
     "Какви инструменти работят сега?",
     "Провери с кои инструменти можеш да работиш",
     "Which tools are working?",
+    // Review r6: a check asked after a list question in one sentence.
+    "Кои инструменти можеш да ползваш и провери дали работят",
+    "КОИ ИНСТРУМЕНТИ МОЖЕШ ДА ПОЛЗВАШ И ПРОВЕРИ ДАЛИ РАБОТЯТ",
+    "Кои инструменти можеш да ползваш, провери ги",
+    "Достъпни ли са инструментите?",
   ]) {
     assert.equal(isToolInventoryQuestion(check), false, check);
     assert.deepEqual(site(check), detectCapabilityRequests(check).map(({ capability }) => capability), check);
@@ -693,6 +728,118 @@ test("a tool the same message asks for still runs, and a check of the tools stay
     assert.equal(isToolInventoryQuestion(other), false, other);
   }
   assert.equal(isToolInventoryQuestion(`Кои инструменти можеш да ползваш? ${"а".repeat(300)}`), false);
+});
+
+test("a greeting or a thanks around a question about the tools prepares no GitHub change", () => {
+  // Review r6 (inventory-1): these prepared a change, with four advisor calls
+  // of about 494,000 characters each.
+  const site = (message) => detectCapabilityRequests(message, { toolInventory: true }).map(({ capability }) => capability);
+  for (const question of [
+    "Здравей! С кои инструменти можеш да промениш кода в GitHub?",
+    "С кои инструменти можеш да промениш кода в GitHub? Благодаря.",
+    "Добре. А с кои инструменти можеш да промениш кода в GitHub?",
+    "Какви инструменти имаш за промени в GitHub? Интересно ми е.",
+    "ЗДРАВЕЙ! С КОИ ИНСТРУМЕНТИ МОЖЕШ ДА ПРОМЕНИШ КОДА В GITHUB",
+  ]) {
+    assert.equal(site(question).includes("code.write"), false, question);
+    assert.equal(isToolInventoryMessage(question), true, question);
+    // The planner's change is dropped too.
+    assert.deepEqual(
+      withoutUnaskedGitHubWrites([{ capability: "code.read" }, { capability: "code.write" }], question),
+      [{ capability: "code.read" }],
+      question,
+    );
+  }
+  // A change asked for next to the question is prepared, also when only the
+  // question names GitHub.
+  for (const change of [
+    "Кои инструменти можеш да ползваш? Промени README в GitHub",
+    "Кои инструменти ползваш за GitHub? Промени README.",
+    "С кои инструменти можеш да работиш в GitHub? Обнови README.",
+  ]) {
+    assert.equal(site(change).includes("code.write"), true, change);
+    assert.deepEqual(withoutUnaskedGitHubWrites([{ capability: "code.write" }], change), [{ capability: "code.write" }], change);
+  }
+  // Any other message keeps what the planner planned.
+  assert.deepEqual(withoutUnaskedGitHubWrites([{ capability: "code.write" }], "Поправи бъга в чата"), [{ capability: "code.write" }]);
+  assert.deepEqual(
+    withoutUnaskedGitHubWrites([{ capability: "github.pull-request.merge" }], "Какво можеш?"),
+    [],
+  );
+});
+
+test("the code agent analyses no code for a question about the tools", () => {
+  // Review r6 (inventory-8): „С кои инструменти можеш да работиш?“ ran a code
+  // analysis of about 467,000 characters for the „Код“ agent.
+  const code = { agent: { name: "Код", engine: "codex", model: "auto" }, project: { name: "NovariumAI" } };
+  const analysis = [{ capability: "code.analyze", message: "x" }];
+  for (const question of ["С кои инструменти можеш да работиш?", "Здравей! С кои инструменти можеш да работиш?", "what tools can you use"]) {
+    assert.deepEqual(
+      routeSelectedWorkAgentCapabilities(analysis, code, question, { toolQuestion: isToolInventoryMessage(question) }),
+      [],
+      question,
+    );
+  }
+  // A real task keeps its analysis.
+  for (const task of ["Използвай инструментите и анализирай кода", "ИЗПОЛЗВАИ ИНСТРУМЕНТИТЕ И ОПРАВИ ГРЕШКАТА В CHAT.JS"]) {
+    assert.equal(isToolInventoryMessage(task), false, task);
+  }
+});
+
+test("a contact search drops the quotes and the end punctuation of a quoted example", () => {
+  // Review r6 (inventory-7): a yes to „пускам „Намери в контактите Иван““
+  // sent „Иван“ with its closing quote, and Google found no one.
+  for (const [message, query] of [
+    ["Намери в контактите Иван“.", "Иван"],
+    ["Намери в контактите „Иван“", "Иван"],
+    ["Намери в контактите Иван.“", "Иван"],
+    ["Search contacts for Ivan”", "Ivan"],
+    ["Намери в контактите Иван", "Иван"],
+    ["Намери в контактите Мария Петрова?", "Мария Петрова"],
+  ]) {
+    assert.equal(parseContactSearchQuery(message), query, message);
+  }
+  const taskMessage = buildContextualTaskMessage("да", [
+    { role: "user", content: "Какво можеш?" },
+    { role: "assistant", content: "Мога да търся в контактите.\n\nСледва: напиши „да“ и пускам „Намери в контактите Иван“." },
+  ]);
+  const contacts = detectCapabilityRequests(taskMessage, { toolInventory: true }).filter(
+    ({ capability }) => capability === "contacts.read",
+  );
+  assert.deepEqual(contacts.map(({ message }) => message), ["Иван"]);
+});
+
+test("a request to show the calendar runs it, also with „ако работи“; a status question stays a check", () => {
+  // Review r6 (inventory-10).
+  for (const message of [
+    "Използвай инструментите, с които работиш, и покажи календара ми",
+    "Покажи календара ми, ако работи",
+    "Покажи календара ми, ако е свързан",
+  ]) {
+    assert.equal(isReadOnlyIntegrationStatusRequest(message), false, message);
+  }
+  for (const message of ["Покажи статуса на календара", "Покажи дали календарът работи", "Работи ли календарът?"]) {
+    assert.equal(isReadOnlyIntegrationStatusRequest(message), true, message);
+  }
+  assert.deepEqual(
+    detectCapabilityRequests("Използвай инструментите, с които работиш, и покажи календара ми", { toolInventory: true }).map(
+      ({ capability }) => capability,
+    ),
+    ["calendar.read"],
+  );
+});
+
+test("a step that names a tool by its name starts no status check", () => {
+  // Review r6 (inventory-4): „…използвам инструмента Календар…“ added the
+  // technical status check to the calendar.
+  const taskMessage = buildContextualTaskMessage("да", [
+    { role: "user", content: "Какво можеш?" },
+    { role: "assistant", content: "Календарът работи.\n\nСледва: напиши „да“ и използвам инструмента Календар за утре." },
+  ]);
+  assert.deepEqual(
+    detectCapabilityRequests(taskMessage, { toolInventory: true }).map(({ capability }) => capability),
+    ["calendar.read"],
+  );
 });
 
 test("a tool the answer proposed as its Next step runs on a short yes", () => {
@@ -825,7 +972,7 @@ test("the 22:21 question reaches the model with the tool list, for the owner and
       );
       assert.equal(sectionOf(body.system), expected, `${identity.role} ${mode}`);
       assert.ok(expected.includes("\nКарти — „Намери кафене наблизо“\n"));
-      assert.ok(expected.includes("\nКалендар, Контакти, Gmail, Google Drive, YouTube канал — „Свържи Google“\n"));
+      assert.ok(expected.includes("\nКалендар, Контакти, Gmail (изпращане), Google Drive (запазване) — „Свържи Google“\nYouTube канал — „Свържи Google“, после „Покажи моя YouTube канал“ и „Свържи YouTube“ в отговора\n"));
       assert.equal(expected.includes("GitHub"), identity.role === "owner");
       // No tool ran: the question itself reached the model.
       assert.equal(lastUserText(body), QUESTION);
@@ -855,12 +1002,12 @@ test("a member's own Google connection shows in the list; another account's does
       .expect(200);
     const section = sectionOf(claude.calls.at(-1).system);
     if (connected) {
-      assert.ok(section.includes("\nКалендар — „Програмата ми за утре“\n"), section);
-      assert.ok(section.includes("\nGmail — „Изпрати имейл до адрес | тема | текст“\n"), section);
-      assert.ok(section.includes("\nGmail писма — „Разреши Gmail“\n"), section);
+      assert.ok(section.includes("\nКалендар — „Програмата ми за утре“; „Създай събитие: заглавие | ГГГГ-ММ-ДД ЧЧ:ММ | минути“\n"), section);
+      assert.ok(section.includes("\nGmail — „Изпрати имейл до адрес | тема | текст“ (до мен — до теб)\n"), section);
+      assert.ok(section.includes("\nGmail писма — „Покажи писмата в Gmail“, после „Разреши Gmail“ в отговора\n"), section);
       assert.doesNotMatch(section, /„Свържи Google“/u);
     } else {
-      assert.ok(section.includes("\nКалендар, Контакти, Gmail, Google Drive, YouTube канал — „Свържи Google“\n"), section);
+      assert.ok(section.includes("\nКалендар, Контакти, Gmail (изпращане), Google Drive (запазване) — „Свържи Google“\nYouTube канал — „Свържи Google“, после „Покажи моя YouTube канал“ и „Свържи YouTube“ в отговора\n"), section);
       assert.doesNotMatch(section, /Календар — /u);
     }
     assert.doesNotMatch(section, /GitHub|Google Cloud/u);
@@ -878,7 +1025,7 @@ test("an English page gets the list in English", async (t) => {
   const section = sectionOf(system);
   assert.ok(section.startsWith(`${TOOL_INVENTORY_HEADING} Checked at this request: site settings and this account's connections.\nWorking:\n`));
   assert.ok(section.includes("\nMaps — “Find a cafe near me”\n"), section);
-  assert.ok(section.includes("\nNeed connecting:\nCalendar, Contacts, Gmail, Google Drive, YouTube channel — “Connect Google”\n"));
+  assert.ok(section.includes("\nNeed connecting:\nCalendar, Contacts, Gmail (sending), Google Drive (saving) — “Connect Google”\nYouTube channel — “Connect Google”, then “Show my YouTube channel” and “Allow YouTube” in the answer\n"), section);
   assert.ok(section.endsWith("Results only from this request; writes (memory), sending and publishing only with the exact confirmation."));
   assert.ok(system.endsWith(replyLanguageRule("en")));
   assert.ok(claude.lines.includes("[Chat] Detected 0 capability subtasks for inventory-english: "));
@@ -1030,4 +1177,36 @@ test("a yes to a step with tool words that the detector cannot read goes to the 
   assert.equal(stepNeedsPlanner("правя двете картинки"), false);
   assert.equal(stepNeedsPlanner("проверявам пощата ти"), true);
   assert.equal(stepNeedsPlanner("I will check your calendar"), true);
+});
+
+// RADKO 28.11 on the live site: „искам да пратя мейл до мен“ got „нямам
+// проверен инструмент за изпращане на поща“, with Gmail connected. Now the
+// agent writes the exact email as its step, „да“ prepares it for the
+// person's own address, and the reply carries the command that „Потвърди“
+// sends; nothing is sent before that press.
+test("a yes to the agent's exact email „до мен“ prepares it for the person's own Gmail and waits for „Потвърди“", async (t) => {
+  const claude = stubClaude(t);
+  const claims = Buffer.from(JSON.stringify({ sub: "m-1", email: "ana@example.com", email_verified: true })).toString("base64url");
+  const cookie = await createSession(
+    { access_token: "stand-in", expires_in: 3600, scope: GOOGLE_MEMBER_SCOPES.join(" "), id_token: `e30.${claims}.signature` },
+    member,
+  );
+  const sessionId = "yes-email-to-me";
+  const response = await request(chatApp(member))
+    .post("/chat/chat")
+    .set("Cookie", `synchron_google_session=${cookie}`)
+    .send({
+      sessionId,
+      message: "да",
+      recentHistory: [
+        { role: "user", content: "ISKAM DA PATI MEIL DO MEN" },
+        { role: "assistant", content: "Мога да го пратя от твоя Gmail.\n\nСледва: Изпрати имейл до мен | Проба от NovariumAI | Здравей! Това е проба." },
+      ],
+    })
+    .expect(200);
+  assert.equal(detectedLine(claude, sessionId), `[Chat] Detected 1 capability subtasks for ${sessionId}: #1:mail.send`);
+  assert.match(response.text, /ana@example\.com/u);
+  assert.match(response.text, /Потвърждавам NovariumAI задача: [0-9a-f-]{36}/u);
+  // Google was not called: nothing is sent before the press.
+  assert.deepEqual(claude.others.filter((url) => url.includes("googleapis")), []);
 });

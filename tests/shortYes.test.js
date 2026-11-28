@@ -41,6 +41,11 @@ test("a bare agreement is a short yes, in every page language", () => {
     "好", "好的", "是", "行", "हाँ", "हां", "ہاں", "جی", "نعم",
     // Quotes, emoji and dashes are not words.
     "„да“", "\"yes\"", "да 👍", "ДА — давай", "yes!!! 🙂",
+    // Review r5: the owner's six capital words, and agreements the lists
+    // missed.
+    "ДА ДАВАЙ НАПРАВИ ГИ ВСИЧКИТЕ СЕГА", "okey", "OKEY DAVAI", "Alright", "All right", "Sure thing",
+    "Да, искам", "Да, точно така", "Точно така, давай", "hayde", "stava", "moje", "pravi gi", "create them",
+    "Ja, erstelle sie", "Sí, haz", "Sì, fai", "falle", "Yes, definitely",
   ]) {
     assert.equal(isShortYes(yes), true, yes);
     assert.equal(yesWithAddition(yes), false, yes);
@@ -66,11 +71,20 @@ test("anything else is not a short yes", () => {
     "...",
     "",
     "   ",
-    // Six words are a sentence, even of yes words.
-    "да да да да да да",
+    // Seven words are a sentence, even of yes words (six are the owner's
+    // „ДА ДАВАЙ НАПРАВИ ГИ ВСИЧКИТЕ СЕГА“, review r5).
+    "да да да да да да да",
+    // Review r5: a yes that asks back, in every script a phone types it.
+    "Да?", "نعم؟", "ہاں؟", "جی؟", "Да❓", "ДА⁉️", "¿Sí", "Yes‽",
+    // „Искам да…“ is a request, not „Да, искам“.
+    "Искам да",
+    "Точно",
     // Review r1: a thanks that only acknowledges closes a topic as often as it
     // agrees, so it never starts paid pictures or video.
     "ok thanks",
+    "okey thanks",
+    "Alright, thanks",
+    "Alright, thank you",
     "добре, благодаря",
     "мерси, ок",
     "Okay, thank you",
@@ -106,6 +120,8 @@ test("an agreement with something added starts by agreeing", () => {
     "мерси, ок",
     "добре, благодаря",
     "Okay, thank you",
+    "okey thanks",
+    "Alright, thank you",
     // Review r1: a go-ahead word with a comma, a dash, a conjunction or
     // another agreeing word after it.
     "ДАВАЙ НО НА АНГЛИЙСКИ",
@@ -186,6 +202,15 @@ test("a go-ahead word or „да“ followed by more is a yes with an addition, 
     "Yes?",
     "Давай?",
     "ДА ДАВАЙ？",
+    // Review r5: the Arabic and Urdu mark, the Spanish opening one and the
+    // emoji a phone keyboard offers.
+    "نعم؟",
+    "ہاں؟",
+    "جی؟",
+    "Да❓",
+    "ДА⁉️",
+    "¿Sí",
+    "¿Sí?",
   ]) {
     assert.equal(yesWithAddition(addition), true, addition);
     assert.equal(isShortYes(addition), false, addition);
@@ -202,6 +227,10 @@ test("a go-ahead word or „да“ followed by more is a yes with an addition, 
     "Да проверя ли пощата?",
     "Да пробваме утре",
     "Go to the settings",
+    // Review r5: „Искам да…“ is a request, and so is a verb of drawing.
+    "Искам да видя пощата",
+    "Нарисувай ги",
+    "Генерирай картинка на котка",
   ]) {
     assert.equal(yesWithAddition(other), false, other);
     assert.equal(isShortYes(other), false, other);

@@ -666,13 +666,13 @@ function handleImageSelection(event) {
 
   const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
   if (!allowedTypes.includes(file.type)) {
-    appendMessage("agent", "❌ Поддържат се JPEG, PNG и WebP снимки и PDF документи.");
+    appendMessage("agent", chatText("❌ Поддържат се JPEG, PNG и WebP снимки и PDF документи."), null, { remember: false });
     clearPendingImage();
     return;
   }
 
   if (file.size > 5 * 1024 * 1024) {
-    appendMessage("agent", "❌ Файлът трябва да е до 5 MB.");
+    appendMessage("agent", chatText("❌ Файлът трябва да е до 5 MB."), null, { remember: false });
     clearPendingImage();
     return;
   }
@@ -697,7 +697,7 @@ function handleImageSelection(event) {
     elements.chatInput.focus();
   };
   reader.onerror = () => {
-    appendMessage("agent", "❌ Снимката не можа да бъде прочетена.");
+    appendMessage("agent", chatText("❌ Файлът не можа да бъде прочетен."), null, { remember: false });
     clearPendingImage();
   };
   reader.readAsDataURL(file);
@@ -3387,12 +3387,34 @@ function mediaKey(item) {
 }
 
 // A button stays pressed while all its items are queued, being made or made;
-// an item that failed, or was cancelled, can be pressed again.
+// an item that failed, or was cancelled, can be pressed again. A pressed
+// button says which: made when all its items are made, being made when one
+// of them is, waiting otherwise (review r5), so a queued picture does not
+// look made.
+const MEDIA_STATE_WORDS = { queued: "чака", running: "прави се", made: "готово" };
+
+function mediaButtonState(card, keys) {
+  const states = keys.map((key) => card.__mediaState.get(key));
+  if (!states.length || !states.every((value) => MEDIA_BUSY_STATES.has(value))) return "";
+  if (states.every((value) => value === "made")) return "made";
+  return states.includes("running") ? "running" : "queued";
+}
+
 function refreshMediaCard(card) {
   for (const button of card.querySelectorAll("button")) {
-    const keys = button.__mediaKeys || [];
-    button.disabled =
-      keys.length > 0 && keys.every((key) => MEDIA_BUSY_STATES.has(card.__mediaState.get(key)));
+    const state = mediaButtonState(card, button.__mediaKeys || []);
+    button.disabled = Boolean(state);
+    if ((button.dataset.mediaState || "") === state) continue;
+    if (state) button.dataset.mediaState = state;
+    else delete button.dataset.mediaState;
+    const name = state
+      ? `${button.__mediaName} · ${chatText(MEDIA_STATE_WORDS[state])}`
+      : button.__mediaName;
+    button.textContent = name;
+    if (button.__mediaDescription) {
+      button.title = `${name} — ${button.__mediaDescription}`;
+      button.setAttribute("aria-label", button.title);
+    }
   }
 }
 
@@ -3479,7 +3501,11 @@ function mediaDescriptionStart(prompt) {
 }
 
 // Shows the card under an answer and returns it (null when there is none).
-function showMediaProposals(message, media) {
+// made: the items an edited or retried question's removed cards had made
+// (resendFrom); their pictures and clips stay on screen, so the card of the
+// answer that replaces them shows them made and „Направи всичко“ makes only
+// the rest (review r5). Any other card starts fresh.
+function showMediaProposals(message, media, made = []) {
   const turn = message?.closest(".assistant-turn");
   const items = mediaItems(media);
   if (!turn || !items.length || turn.querySelector(":scope > .media-proposals")) return null;
@@ -3487,7 +3513,10 @@ function showMediaProposals(message, media) {
   const card = document.createElement("section");
   card.className = "media-proposals";
   card.tabIndex = -1;
-  card.__mediaState = new Map(items.map((item) => [mediaKey(item), "idle"]));
+  const madeBefore = new Set(made);
+  card.__mediaState = new Map(
+    items.map((item) => [mediaKey(item), madeBefore.has(mediaKey(item)) ? "made" : "idle"]),
+  );
   card.setAttribute("aria-label", chatText("Картинки и видео"));
   const label = document.createElement("strong");
   label.textContent = chatText("Картинки и видео");
@@ -3498,6 +3527,8 @@ function showMediaProposals(message, media) {
     button.type = "button";
     if (className) button.className = className;
     button.textContent = text;
+    button.__mediaName = text;
+    button.__mediaDescription = description;
     if (description) {
       button.title = `${text} — ${description}`;
       button.setAttribute("aria-label", button.title);
@@ -4051,6 +4082,8 @@ function isPageMediaLine(item) {
 // again never makes them again.
 function resendFrom(userTurn, request, modelOverride = "") {
   let removedUserTurns = 0;
+  // What the removed cards made: those pictures and clips stay on screen.
+  const madeBefore = new Set();
   let node = userTurn;
   while (node) {
     const next = node.nextElementSibling;
@@ -4058,6 +4091,9 @@ function resendFrom(userTurn, request, modelOverride = "") {
       // A question that got no answer left the history when it failed.
       if (node.classList.contains("user-turn") && !node.classList.contains("unsent-turn")) {
         removedUserTurns += 1;
+      }
+      for (const card of node.querySelectorAll(":scope > .media-proposals")) {
+        for (const [key, value] of card.__mediaState || []) if (value === "made") madeBefore.add(key);
       }
       node.remove();
     }
@@ -4074,7 +4110,7 @@ function resendFrom(userTurn, request, modelOverride = "") {
     ...history.slice(cut).filter(isPageMediaLine),
   ];
   logAction(modelOverride ? "Нов опит с друг модел" : "Нов опит");
-  return sendMessage({ resend: request, modelOverride });
+  return sendMessage({ resend: request, modelOverride, madeBefore: [...madeBefore] });
 }
 
 function openRetryModelMenu(button, onPick) {
@@ -4324,6 +4360,7 @@ async function sendMessage({
   councilIntentId = "",
   resend = null,
   modelOverride = "",
+  madeBefore = [],
 } = {}) {
   const text = resend ? String(resend.text || "").trim() : elements.chatInput.value.trim();
   const image = resend ? resend.image || null : state.pendingImage;
@@ -4476,10 +4513,10 @@ async function sendMessage({
           // started are queued on the card they came from and made once the
           // chat is free, after this turn.
           if (parsed.data?.media?.start === true) {
-            const card = answeredCard || showMediaProposals(responseBubble, parsed.data.media);
+            const card = answeredCard || showMediaProposals(responseBubble, parsed.data.media, madeBefore);
             if (card) void queueMedia(card, mediaItems(parsed.data.media));
           } else {
-            showMediaProposals(responseBubble, parsed.data?.media);
+            showMediaProposals(responseBubble, parsed.data?.media, madeBefore);
           }
           if (
             parsed.data?.conversationPersisted === false &&

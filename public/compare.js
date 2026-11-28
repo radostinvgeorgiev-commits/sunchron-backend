@@ -6,6 +6,8 @@
   const list = document.getElementById("chatMessages");
   if (!input || !list) return;
   const text = (value) => globalThis.NovariumLocale?.text?.(value) ?? value;
+  // Whole titles, so each page language can name the letters its own way.
+  const MODEL_TITLES = ["Модел А", "Модел Б"];
   const render = (element, value) => {
     if (globalThis.SynchronChat?.renderMarkdown) globalThis.SynchronChat.renderMarkdown(element, value);
     else element.textContent = value;
@@ -89,7 +91,7 @@
       const card = document.createElement("section");
       card.className = "council-card";
       const title = document.createElement("h3");
-      title.textContent = `${text("Модел")} ${"АБ"[index]}`;
+      title.textContent = text(MODEL_TITLES[index]);
       const body = document.createElement("div");
       render(body, answer.text);
       card.append(title, body);
@@ -109,7 +111,7 @@
       button.addEventListener("click", () => {
         votes.remove();
         columns.querySelectorAll("h3").forEach((title, index) => {
-          title.textContent = `${text("Модел")} ${"АБ"[index]} · ${answers[index].label}`;
+          title.textContent = `${text(MODEL_TITLES[index])} · ${answers[index].label}`;
         });
         const winner = choice === "a" ? 0 : choice === "b" ? 1 : -1;
         box.querySelector(".compare-status").textContent =

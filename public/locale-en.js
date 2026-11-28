@@ -841,5 +841,129 @@ Claude работи по задачата. Може да отнеме до 3–4
 Ползвай в Claude|Use with Claude
 умение|skill
 конектор|connector
+❌ Поддържат се JPEG, PNG и WebP снимки и PDF документи.|❌ Only JPEG, PNG and WebP pictures and PDF documents are supported.
+❌ Файлът трябва да е до 5 MB.|❌ The file must be 5 MB or smaller.
+❌ Файлът не можа да бъде прочетен.|❌ The file could not be read.
+чака|waiting
+прави се|in progress
+готово|done
+Напиши функция run(input, data). Тя работи в затворена среда без достъп до интернет и до данните ти. Ако посочиш адрес за данни, сайтът го чете и подава резултата като data; {input} в адреса се заменя с това, което напишеш. Добавката е само твоя, докато не я изпратиш за преглед.|Write a function run(input, data). It runs in a closed sandbox with no access to the internet or to your data. If you give a data address, the site reads it and passes the result as data; {input} in the address is replaced with what you type. The add-on is yours alone until you send it for review.
+Прочети кода, пробвай и реши. Одобрената добавка се вижда от всички.|Read the code, try it and decide. An approved add-on is visible to everyone.
+Нова|New
+Нещо се обърка. Опитай отново.|Something went wrong. Please try again.
+Записване…|Saving…
+Изпращане…|Sending…
+Сигурен ли си? Натисни пак|Are you sure? Press again
+Ако има профил с този имейл, изпратихме писмо с линк за нова парола (от noreply, провери и „Спам“/„Промоции“). Ако писмо не дойде до 5 минути, най-вероятно още нямаш профил — натисни „Продължи с Google“.|If there is an account with this email, we sent a message with a link to set a new password (from noreply; check “Spam” and “Promotions” too). If no message arrives within 5 minutes, you most likely don't have an account yet: press “Continue with Google”.
+Гласът на браузъра не работи тук. Натисни микрофона пак — ще записвам и ще разпознавам на сървъра.|Your browser's voice input doesn't work here. Press the microphone again and I'll record you and recognize the speech on the server.
+Разпознаване…|Recognizing…
+Записът не можа да се разпознае.|The recording could not be recognized.
+AI агентът върна грешка.|The AI agent returned an error.
+основа на системата|system foundation
+потвърдено от теб|confirmed by you
+източник: {source}|source: {source}
+записано {date}|saved {date}
+Това е всичко, което NovariumAI помни за теб. Нищо не се записва без твое „да“, а всеки запис можеш да поправиш или изтриеш.|This is everything NovariumAI remembers about you. Nothing is saved without your “yes”, and you can correct or delete any entry.
+Отговорите на моделите|The models' answers
+⏹ Спряно.|⏹ Stopped.
+Разкажи на аватара си за себе си. Той ползва това във всеки отговор, за да говори и мисли по твоя начин. Виждаш го само ти и можеш да го промениш или изтриеш по всяко време. Аватарът предлага и подготвя, решаваш ти.|Tell your avatar about yourself. It uses this in every answer to speak and think your way. Only you can see it, and you can change or delete it at any time. The avatar suggests and prepares; you decide.
+Изтрий всичко|Delete everything
+Записано. Аватарът вече те познава по-добре.|Saved. Your avatar now knows you better.
+Ползването е безплатно. Идеята е всичко над реалните разходи да отива за каузи, които хората сами избират. Тук всеки може да предложи кауза и да покаже с харесване къде иска да отидат парите. Засега това е само списък и гласове; пари още не се събират и не се движат.|Using NovariumAI is free. The idea is that everything above the real costs goes to causes that people choose themselves. Here anyone can propose a cause and show with a like where they want the money to go. For now this is only a list and votes; no money is collected or moved yet.
+Име на каузата|Name of the cause
+Какво ще се направи, за кого и защо|What will be done, for whom and why
+Предложи кауза|Propose a cause
+Още няма каузи. Предложи първата.|No causes yet. Propose the first one.
+Предложена от|Proposed by
+скрита|hidden
+Проект, подготвен от агента|Project prepared by the agent
+Подготви проект|Prepare a project
+Агентът подготвя проекта… това отнема до минута.|The agent is preparing the project… this takes up to a minute.
+Проектът е готов. Отвори „Проект, подготвен от агента“.|The project is ready. Open “Project prepared by the agent”.
+Харесай|Like
+Изтрий|Delete
+Каузата е изтрита.|The cause was deleted.
+Покажи|Show
+Скрий|Hide
+Каузата е предложена.|The cause was proposed.
+Първо напиши какво да потърся, после избери „Търси в интернет“|First type what to search for, then choose “Search the web”
+🔎 Търся в интернет…|🔎 Searching the web…
+Търсенето не успя. Опитай пак.|The search failed. Please try again.
+Източници|Sources
+Първо напиши въпроса, после избери „Сляпо сравнение“|First type the question, then choose “Blind comparison”
+Два модела отговарят…|Two models are answering…
+Сравнението не успя. Опитай пак.|The comparison failed. Please try again.
+Кой отговор е по-добър?|Which answer is better?
+Модел А|Model A
+Модел Б|Model B
+А е по-добър|A is better
+Равни|Tie
+Б е по-добър|B is better
+Отбелязано: равни.|Noted: a tie.
+Избра|You chose
+Планът не можа да се подготви. Опитай пак.|The plan could not be prepared. Please try again.
+попълни „Моят аватар“|fill in “My avatar”
+свържи „Моят Google“ за календар и поща|connect “My Google” for calendar and mail
+За по-точен план|For a more accurate plan
+Документ|Document
+PDF / печат|PDF / print
+Графика|Chart
+Стойност|Value
+Покажи като графика|Show as a chart
+Копирано.|Copied.
+Копирането не е позволено в този браузър.|Copying is not allowed in this browser.
+Моите файлове|My files
+Добави текстови файлове или PDF. При всеки въпрос NovariumAI търси в тях и ползва намереното. Виждаш ги само ти и можеш да ги изтриеш по всяко време.|Add text files or PDFs. For every question, NovariumAI searches them and uses what it finds. Only you can see them, and you can delete them at any time.
+Внеси архив (Facebook, Instagram, LinkedIn, X, Google, ChatGPT, Claude)|Import an archive (Facebook, Instagram, LinkedIn, X, Google, ChatGPT, Claude)
+Архивът се отваря в браузъра ти. Пазят се само твоите публикации, коментари, написаното от теб в чатове, работата и уменията ти от LinkedIn, бележки от Keep, събития от Календара и твоите въпроси към ChatGPT и Claude (без отговорите им); чуждите съобщения не излизат от устройството.|The archive is opened in your browser. Only your own posts, comments, what you wrote in chats, your work and skills from LinkedIn, notes from Keep, events from Calendar and your questions to ChatGPT and Claude (without their answers) are kept; other people's messages never leave your device.
+Още няма файлове.|No files yet.
+Файлът е изтрит.|The file was deleted.
+Поддържат се текстови файлове и PDF.|Text files and PDFs are supported.
+PDF файлът е твърде голям (до 4 MB).|The PDF file is too large (up to 4 MB).
+Чета PDF файла… това отнема до минута.|Reading the PDF file… this takes up to a minute.
+Добавяне…|Adding…
+Файлът е добавен. NovariumAI вече ще търси в него.|The file was added. NovariumAI will now search it.
+Този браузър не може да отвори архива. Опитай с по-нов Chrome, Edge или Safari.|This browser can't open the archive. Try a newer Chrome, Edge or Safari.
+Отварям архива…|Opening the archive…
+Чета архива|Reading the archive
+Добавям|Adding
+Готово. Добавени са|Done. Added
+файла от архива ти. Аватарът вече ги ползва.|files from your archive. Your avatar now uses them.
+Махни асистента|Remove the assistant
+Асистент|Assistant
+Нов мой асистент|Create my own assistant
+Име и указания как да отговаря|A name and instructions for how it answers
+Нов асистент|New assistant
+Име, например „Моят счетоводител“|Name, for example “My accountant”
+Как да отговаря: роля, стил, какво да внимава|How it should answer: role, style, what to watch out for
+Нова подсказка|New prompt
+Кратко име, например „оферта“|Short name, for example “quote”
+Текстът, който да се попълва в полето|The text to fill into the message box
+Запази нова моя подсказка|Save a new prompt of my own
+Линк|Link
+Който има линка, вижда копие на съобщенията дотук, само за четене. Паметта, проектите и файловете не се показват. Новите съобщения след това не влизат в линка.|Anyone with the link sees a read-only copy of the messages so far. Memory, projects and files are not shown. Messages added later do not appear in the link.
+Разговорът е споделен.|The conversation is shared.
+Линкът е готов. Старият линк, ако е имало, вече не работи.|The link is ready. The old link, if there was one, no longer works.
+Линкът е спрян. Който го отвори, няма да види разговора.|The link is turned off. Anyone who opens it will not see the conversation.
+Микрофонът е забранен за сайта. Разреши го от настройките на браузъра.|The microphone is blocked for this site. Allow it in your browser settings.
+Снимка или PDF|Picture or PDF
+NovariumAI ще го прочете|NovariumAI will read it
+Търси в интернет|Search the web
+Актуален отговор с източници|An up-to-date answer with sources
+AI търси в тях при всеки въпрос|AI searches them for every question
+Сравни модели|Compare models
+Няколко AI на един въпрос|Several AIs on one question
+Съвет от модели|AI Council
+Питай няколко AI и сравни|Ask several AIs and compare
+Сляпо сравнение|Blind comparison
+Два модела, ти избираш по-добрия|Two models; you pick the better one
+Изключи Съвета|Turn off AI Council
+Съвет|AI Council
+NovariumAI е твоят личен AI аватар: разговори, контролирана памет, задачи, Google, GitHub и видео под твой контрол. Безплатен старт без банкова карта. Продукт на NovariumAI.|NovariumAI is your personal AI avatar: conversations, memory you control, tasks, Google, GitHub and video, all under your control. Start free with no bank card. A NovariumAI product.
+NovariumAI · Твоят личен AI аватар|NovariumAI · Your personal AI avatar
+NovariumAI — твоят личен AI аватар|NovariumAI — your personal AI avatar
+Личен AI аватар|Personal AI avatar
+Профил|Account
+Език|Language
 `.trim().split("\n").map((line) => line.split("|")),
 );

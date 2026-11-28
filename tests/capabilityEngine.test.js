@@ -659,3 +659,40 @@ test("a contact change without a name, or with only a name, gets a clean summary
   assert.equal((await prepare({ name: "Нов" }, "en")).metadata.summary, 'Update the Google contact "Нов".');
   assert.equal((await prepare({ name: "Нов" })).metadata.summary, "Промяна на Google контакт „Нов“.");
 });
+
+// RADKO 28.11: „искам да пратя мейл до мен“. „до мен“ is the address of the
+// person's own connected Google account (its sign-in id_token); without one
+// the person is asked for an address and nothing is prepared.
+test("an email „до мен“ is prepared for the address of the person's own Google account", async () => {
+  const env = {
+    GOOGLE_CLIENT_ID: "client",
+    GOOGLE_CLIENT_SECRET: "secret",
+    GOOGLE_REDIRECT_URI: "https://example.test/api/google/callback",
+  };
+  const token = (claims) => `e30.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.signature`;
+  const prepare = (googleSessionId, language) =>
+    executeCapability(
+      "mail.send",
+      {
+        ownerId: "member-1",
+        googleSessionId,
+        sessionId: "chat-1",
+        ...(language ? { language } : {}),
+        input: { to: "", toSelf: true, subject: "Проба", body: "Здравей!" },
+      },
+      { env, prepareConfirmation: true },
+    );
+  const own = await createSession({
+    access_token: "token",
+    expires_in: 3600,
+    id_token: token({ sub: "1", email: "ana@example.com", email_verified: true }),
+  });
+  const result = await prepare(own);
+  assert.equal(result.metadata.summary, "Изпращане на имейл до ana@example.com (тема: Проба).");
+  assert.equal((await prepare(own, "en")).metadata.summary, "Send an email to ana@example.com (subject: Проба).");
+  for (const tokens of [{}, { id_token: token({ sub: "2", email: "ana@example.com", email_verified: false }) }]) {
+    const bare = await createSession({ access_token: "token", expires_in: 3600, ...tokens });
+    await assert.rejects(prepare(bare), /Напиши адреса вместо „мен“/u);
+    await assert.rejects(prepare(bare, "en"), /Write the address instead of “me”/u);
+  }
+});

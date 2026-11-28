@@ -10,6 +10,7 @@ import {
   resolveCapability,
 } from "../tools/capabilityEngine.js";
 import { mediaAvailability } from "./chatMediaProposals.js";
+import { GOOGLE_MEMBER_SCOPES } from "./googleDriveService.js";
 import { filterCapabilityRequestsForIdentity } from "./memberCapabilityPolicy.js";
 
 // "[ТВОИТЕ ИНСТРУМЕНТИ СЕГА]": the tools this account can use right now, in
@@ -23,7 +24,10 @@ import { filterCapabilityRequestsForIdentity } from "./memberCapabilityPolicy.js
 // or a model.
 
 export const TOOL_INVENTORY_HEADING = "[ТВОИТЕ ИНСТРУМЕНТИ СЕГА]";
-export const MAX_TOOL_INVENTORY_LENGTH = 1200;
+// Room for every example of the longest list (the owner's, review r6: the
+// second Google steps and „Моите задачи“ made it longer than 1,200; the exact
+// words for an email, a contact and an event made it longer than 1,500).
+export const MAX_TOOL_INVENTORY_LENGTH = 1800;
 
 const scope = (name) => `https://www.googleapis.com/auth/${name}`;
 const FULL_MAIL = "https://mail.google.com/";
@@ -50,22 +54,31 @@ const TEXT = {
     connect: "Искат свързване:",
     rules: [
       "Питат ли какво можеш, изброй работещите с пример, после чакащите свързване.",
-      "Системата пуска инструмента преди отговора ти; резултатът идва в [РЕЗУЛТАТИ ОТ ИНСТРУМЕНТИ]. Без него кажи кой става и точните думи или ги дай в „Следва:“ („да“ го пуска). Не казвай, че нямаш инструменти.",
+      // Only while some tool works: with none ready it would push against
+      // the true answer (review r6). A yes runs a read; a record or a send
+      // runs only from the person's own exact words (review r6: „да“ to
+      // „Запомни: …“ did nothing).
+      "Системата пуска инструмента преди отговора ти; резултатът идва в [РЕЗУЛТАТИ ОТ ИНСТРУМЕНТИ]. Без него кажи кой става и точните думи или ги дай в „Следва:“ („да“ пуска четене, а имейл, контакт или събитие с всички данни подготвя за бутона „Потвърди“). Не казвай, че нямаш инструменти.",
     ],
     // The last rule, with what this account can write.
     confirm: (writes) =>
       `Резултати — само от тази заявка; ${writes ? `записи (${writes}), ` : ""}изпращане и публикуване — само с точното потвърждение.`,
     tools: {
       calendar: ["Календар", "„Програмата ми за утре“"],
+      calendarBoth: ["Календар", "„Програмата ми за утре“; „Създай събитие: заглавие | ГГГГ-ММ-ДД ЧЧ:ММ | минути“"],
       calendarWrite: "събития",
       contacts: ["Контакти", "„Намери в контактите Иван“"],
+      contactsBoth: ["Контакти", "„Намери в контактите Иван“; „Добави контакт: име | имейл | телефон“"],
       contactsWrite: "контакти",
       gmail: ["Gmail", "„Покажи писмата в Gmail“"],
-      gmailSend: ["Gmail", "„Изпрати имейл до адрес | тема | текст“"],
+      gmailBoth: ["Gmail", "„Покажи писмата в Gmail“; „Изпрати имейл до адрес | тема | текст“ (до мен — до теб)"],
+      gmailSend: ["Gmail", "„Изпрати имейл до адрес | тема | текст“ (до мен — до теб)"],
+      gmailSendOnly: ["Gmail (изпращане)"],
       gmailRead: ["Gmail писма"],
       mailSend: "имейли",
       drive: ["Google Drive", "„Покажи Google Drive“; бутон „Запази в Google“"],
       driveSave: ["Google Drive", "бутон „Запази в Google“"],
+      driveSaveOnly: ["Google Drive (запазване)"],
       driveRead: ["Drive файлове"],
       youtube: ["YouTube канал", "„Покажи моя YouTube канал“"],
       youtubeVideo: ["YouTube видео", "резюме по линк"],
@@ -76,7 +89,9 @@ const TEXT = {
         images: ["Картинки", "опиши ги; „да“ ги прави"],
         video: ["Видео", "опиши го; „да“ го прави"],
       },
-      tasks: ["Задачи", "„Покажи задачите ми“"],
+      // What the owner's chat reads: the work drafts, not „Моите задачи“
+      // (review r6).
+      tasks: ["Работни задачи", "„Покажи задачите ми“"],
       todos: ["Моите задачи", "в менюто"],
       memory: ["Памет", "„Запомни: …“"],
       memoryWrite: "памет",
@@ -96,6 +111,15 @@ const TEXT = {
       youtube: "„Свържи YouTube“",
       github: "„Свържи GitHub“",
     },
+    // The words whose answer shows a second Google step's button, and where
+    // that button is (review r6: the list named buttons nobody could find).
+    asks: {
+      gmail: "„Покажи писмата в Gmail“",
+      drive: "„Покажи Google Drive“",
+      youtube: "„Покажи моя YouTube канал“",
+    },
+    inAnswer: (ask, button) => `${ask}, после ${button} в отговора`,
+    afterGoogle: (google, ask, button) => `${google}, после ${ask} и ${button} в отговора`,
   },
   en: {
     checked: "Checked at this request: site settings and this account's connections.",
@@ -104,21 +128,26 @@ const TEXT = {
     connect: "Need connecting:",
     rules: [
       "Asked what you can do: the working tools with an example, then those to connect.",
-      "The system runs tools before your answer; results come in [TOOL RESULTS]. Without one, name the fitting tool and its exact words, or put them in “Next:” (“yes” runs it). Never say you have no tools.",
+      "The system runs tools before your answer; results come in [TOOL RESULTS]. Without one, name the fitting tool and its exact words, or put them in “Next:” (“yes” runs a read, and prepares an email, contact or event with all its fields for the “Confirm” button). Never say you have no tools.",
     ],
     confirm: (writes) =>
       `Results only from this request; ${writes ? `writes (${writes}), ` : ""}sending and publishing only with the exact confirmation.`,
     tools: {
       calendar: ["Calendar", "“My calendar tomorrow”"],
+      calendarBoth: ["Calendar", "“My calendar tomorrow”; “Create a calendar event: title | YYYY-MM-DD HH:MM | minutes”"],
       calendarWrite: "events",
       contacts: ["Contacts", "“Search contacts for Ivan”"],
+      contactsBoth: ["Contacts", "“Search contacts for Ivan”; “Add a contact: name | email | phone”"],
       contactsWrite: "contacts",
       gmail: ["Gmail", "“Show my Gmail”"],
-      gmailSend: ["Gmail", "“Send an email to address | subject | text”"],
+      gmailBoth: ["Gmail", "“Show my Gmail”; “Send an email to address | subject | text” (to me — to you)"],
+      gmailSend: ["Gmail", "“Send an email to address | subject | text” (to me — to you)"],
+      gmailSendOnly: ["Gmail (sending)"],
       gmailRead: ["Reading Gmail"],
       mailSend: "emails",
       drive: ["Google Drive", "“Show my Google Drive files”; “Save to Google” button"],
       driveSave: ["Google Drive", "“Save to Google” button"],
+      driveSaveOnly: ["Google Drive (saving)"],
       driveRead: ["Reading Drive"],
       youtube: ["YouTube channel", "“Show my YouTube channel”"],
       youtubeVideo: ["YouTube videos", "summary by link"],
@@ -130,7 +159,7 @@ const TEXT = {
         video: ["Video", "describe; “yes” makes it"],
       },
       // The task and memory commands are Bulgarian words only.
-      tasks: ["Tasks", "“Покажи задачите ми”"],
+      tasks: ["Work tasks", "“Покажи задачите ми”"],
       todos: ["My tasks", "in the menu"],
       memory: ["Memory", "“Запомни: …”"],
       memoryWrite: "memory",
@@ -150,8 +179,20 @@ const TEXT = {
       youtube: "“Allow YouTube”",
       github: "“Connect GitHub”",
     },
+    asks: {
+      gmail: "“Show my Gmail”",
+      drive: "“Show my Google Drive files”",
+      youtube: "“Show my YouTube channel”",
+    },
+    inAnswer: (ask, button) => `${ask}, then ${button} in the answer`,
+    afterGoogle: (google, ask, button) => `${google}, then ${ask} and ${button} in the answer`,
   },
 };
+
+// What the first „Свържи Google“ grants (the same for everyone, the owner
+// too: googleDriveRouter.js): the services whose need it covers are turned on
+// by that press; the others are a second step from an answer.
+const FIRST_GOOGLE_SCOPES = new Set(GOOGLE_MEMBER_SCOPES);
 
 const textFor = (language) => TEXT[useEnglishReplyFallback(language) ? "en" : "bg"];
 
@@ -206,7 +247,7 @@ export function buildToolInventory({
   memory = defaultMemory(env),
   media = mediaAvailability(env, { member: identity?.role !== "owner" }),
 } = {}) {
-  const { tools, press } = textFor(language);
+  const { tools, press, asks, inAnswer, afterGoogle } = textFor(language);
   const owner = identity?.role === "owner";
   const google = Array.isArray(connections?.google?.scopes) ? connections.google : null;
   const granted = new Set(google?.scopes);
@@ -225,54 +266,71 @@ export function buildToolInventory({
     return value === "ready" && !has(need) ? "scope" : value;
   };
   const ready = (capability, need) => status(capability) === "ready" && has(need);
+  const firstGrants = (need) => GOOGLE_NEEDS[need].some((item) => FIRST_GOOGLE_SCOPES.has(item));
   // A Google service that is not ready: „Свържи Google“ until there is a
-  // connection, then the service's own step.
-  const notReady = (id, value, words, step) =>
+  // connection when that press turns it on, or that press and then its own
+  // step from an answer (review r6: YouTube, reading Gmail and reading Drive
+  // are second steps); with a connection, the service's own step. `need` is
+  // what the service needs, `ask` the words whose answer shows `step`'s
+  // button ("" when the step is a button of the page).
+  const notReady = (id, value, words, step, need, ask = "") =>
     value === "connect"
-      ? entry(id, "connect", words, { press: press.google })
+      ? entry(id, "connect", words, {
+          press: !need || firstGrants(need) ? press.google : afterGoogle(press.google, ask, step),
+        })
       : value === "scope"
-        ? entry(id, "connect", words, { press: step })
+        ? entry(id, "connect", words, { press: ask ? inAnswer(ask, step) : step })
         : entry(id, "off", words);
   const entries = [];
 
   const calendar = googleStatus("calendar.read", "calendar");
   entries.push(
     calendar === "ready"
-      ? entry("calendar", "ready", tools.calendar, {
+      ? entry("calendar", "ready", ready("calendar.write", "calendarWrite") ? tools.calendarBoth : tools.calendar, {
           confirm: ready("calendar.write", "calendarWrite") ? tools.calendarWrite : "",
         })
-      : notReady("calendar", calendar, tools.calendar, press.googleAgain),
+      : notReady("calendar", calendar, tools.calendar, press.googleAgain, "calendar"),
   );
   const contacts = googleStatus("contacts.read", "contacts");
   entries.push(
     contacts === "ready"
-      ? entry("contacts", "ready", tools.contacts, {
+      ? entry("contacts", "ready", ready("contacts.create", "contactsWrite") ? tools.contactsBoth : tools.contacts, {
           confirm: ready("contacts.create", "contactsWrite") ? tools.contactsWrite : "",
         })
-      : notReady("contacts", contacts, tools.contacts, press.googleAgain),
+      : notReady("contacts", contacts, tools.contacts, press.googleAgain, "contacts"),
   );
   const mailRead = googleStatus("mail.read", "mailRead");
   const send = ready("mail.send", "mailSend") ? tools.mailSend : "";
   if (mailRead === "ready") {
-    entries.push(entry("gmail", "ready", tools.gmail, { confirm: send }));
+    entries.push(entry("gmail", "ready", send ? tools.gmailBoth : tools.gmail, { confirm: send }));
   } else if (send) {
     // Sending works; reading the mailbox is Google's separate step.
     entries.push(entry("gmail", "ready", tools.gmailSend, { confirm: send }));
-    if (mailRead === "scope") entries.push(entry("gmail-read", "connect", tools.gmailRead, { press: press.gmail }));
+    if (mailRead === "scope") {
+      entries.push(entry("gmail-read", "connect", tools.gmailRead, { press: inAnswer(asks.gmail, press.gmail) }));
+    }
+  } else if (mailRead === "connect" && !firstGrants("mailRead") && firstGrants("mailSend")) {
+    // The first press turns on sending only.
+    entries.push(entry("gmail", "connect", tools.gmailSendOnly, { press: press.google }));
   } else {
-    entries.push(notReady("gmail", mailRead, tools.gmail, press.gmail));
+    entries.push(notReady("gmail", mailRead, tools.gmail, press.gmail, "mailRead", asks.gmail));
   }
   const drive = googleStatus("files.read", "drive");
   if (drive === "scope") {
     // "Запази в Google" works with any connection: its own step asks Google.
     entries.push(entry("drive", "ready", tools.driveSave));
-    entries.push(entry("drive-read", "connect", tools.driveRead, { press: press.drive }));
+    entries.push(entry("drive-read", "connect", tools.driveRead, { press: inAnswer(asks.drive, press.drive) }));
+  } else if (drive === "connect" && !firstGrants("drive")) {
+    // The first press turns on saving („Запази в Google“ asks its own step).
+    entries.push(entry("drive", "connect", tools.driveSaveOnly, { press: press.google }));
   } else {
     entries.push(drive === "ready" ? entry("drive", "ready", tools.drive) : notReady("drive", drive, tools.drive));
   }
   const youtube = googleStatus("youtube.channel", "youtube");
   entries.push(
-    youtube === "ready" ? entry("youtube", "ready", tools.youtube) : notReady("youtube", youtube, tools.youtube, press.youtube),
+    youtube === "ready"
+      ? entry("youtube", "ready", tools.youtube)
+      : notReady("youtube", youtube, tools.youtube, press.youtube, "youtube", asks.youtube),
   );
   entries.push(entry("youtube-video", status("video.read"), tools.youtubeVideo));
   entries.push(entry("places", status("places.search"), tools.places));
@@ -282,11 +340,11 @@ export function buildToolInventory({
   entries.push(entry("media", kinds ? "ready" : "off", tools.media[kinds || "both"]));
 
   const store = documentStoreReady(env);
-  // The owner's chat reads their tasks itself; "Моите задачи" is the list
-  // every account keeps on the page.
-  const tasks = owner ? status("tasks.read") : "off";
-  if (owner) entries.push(entry("tasks", tasks, tools.tasks));
-  if (tasks !== "ready") entries.push(entry("todos", store ? "ready" : "off", tools.todos));
+  // The owner's chat reads the work drafts („Работни задачи“); "Моите
+  // задачи" is the list every account keeps on the page, another store, so it
+  // is always named (review r6).
+  if (owner) entries.push(entry("tasks", status("tasks.read"), tools.tasks));
+  entries.push(entry("todos", store ? "ready" : "off", tools.todos));
   // "Запомни: …" prepares the record; it is written after the confirmation.
   entries.push(entry("memory", memory ? "ready" : "off", tools.memory, { confirm: tools.memoryWrite }));
   entries.push(entry("files", store && mode !== "work" ? "ready" : "off", tools.files));
@@ -311,7 +369,8 @@ export function buildToolInventory({
 function render(entries, text, { examples = true } = {}) {
   const ready = entries.filter(({ status }) => status === "ready");
   const confirms = [...new Set(ready.map(({ confirm }) => confirm).filter(Boolean))];
-  // One line per button: „Свържи Google“ turns on every Google service.
+  // One line per button or path: „Свържи Google“ turns on the services its
+  // first press grants; the others name that press and their own step.
   const connect = new Map();
   for (const { status, label, press } of entries) {
     if (status === "connect" && press) connect.set(press, [...(connect.get(press) || []), label]);
@@ -322,7 +381,9 @@ function render(entries, text, { examples = true } = {}) {
       ? [text.ready, ...ready.map(({ label, example }) => (examples && example ? `${label} — ${example}` : label))]
       : [text.none]),
     ...(connect.size ? [text.connect, ...[...connect].map(([press, labels]) => `${labels.join(", ")} — ${press}`)] : []),
-    ...text.rules,
+    // With no tool ready, only the first rule: the second would push against
+    // the true answer (review r6).
+    ...(ready.length ? text.rules : text.rules.slice(0, 1)),
     text.confirm(confirms.join(", ")),
   ].join("\n");
 }
@@ -339,23 +400,34 @@ export function toolInventorySection(entries, { language } = {}) {
 }
 
 // A question about which tools the chat has or what it can do: „С кои
-// инструменти можеш да работиш?“, „Какво можеш?“, "What tools can you use?",
-// or a request to use "the tools" without naming one („Ползвай инструментите
-// за писане“, also as the owner types it, „ПОЛЗВАИ“). The chat answers it from
-// its tool list, so it starts no status check; a tool the same words ask for
-// still runs. A check of the tools („Работят ли инструментите?“, „Провери кои
-// инструменти работят“) stays a real check.
+// инструменти можеш да работиш?“, „Какво можеш?“, „Имаш ли инструменти?“,
+// „Кои инструменти са ти достъпни?“, „Изброй инструментите си“, "What tools
+// can you use?", or a request to use "the tools" without naming one
+// („Ползвай инструментите за писане“, also as the owner types it, „ПОЛЗВАИ“,
+// and as the agent writes its step, „използвам инструмента Календар“). The
+// chat answers it from its tool list, so it starts no status check; a tool
+// the same words ask for still runs. A check of the tools („Работят ли
+// инструментите?“, „Провери кои инструменти работят“, „Кои инструменти
+// можеш да ползваш и провери дали работят“) stays a real check: the check
+// verbs as whole words, except when they check data („провери пощата“), and
+// the status words (review r6: the bare stems „достъпн“ and „провер“ made
+// „Кои инструменти са ти достъпни?“ a status check).
 const TOOL_STATUS_CHECK =
-  /(?:провер|тест|статус|работ(?:ят|и)\s+ли|активн|достъпн|\bcheck|\btest|\bstatus\b|\bworking\b)/iu;
+  /(?:(?:^|[^\p{L}])(?:провери|проверете|тествай|тествайте)(?!\p{L})(?!\s+(?:ми\s+)?(?:пощата|писмата|имейлите|календара|програмата|контактите|файловете|gmail|drive))|статус|състояни|работ(?:ят|и)\s+ли|(?:достъпни|активни|свързани)\s+ли|ли\s+(?:са|е)\s+(?:достъпни|активни|свързани)|\bcheck\b|\btest\b|\bstatus\b|\bworking\b)/iu;
 const TOOL_INVENTORY_QUESTIONS = [
   /(?:^|[^\p{L}])(?:кои|какви)\s+(?:(?:са|точно)\s+)?(?:(?:твоите|ти)\s+)?(?:инструмент(?:и|ите)|възможност(?:и|ите))(?:\s+(?:ти|си|сега|тук|още))*\s+(?:можеш|имаш|ползваш|използваш|работиш|разполагаш)(?!\p{L})/iu,
   /(?:^|[^\p{L}])какво\s+(?:(?:още|точно|друго)\s+)?(?:можеш|умееш)(?:\s+да\s+(?:правиш|направиш|вършиш))?(?:\s+(?:сега|тук|за\s+мен|в\s+момента|(?:с|със|в)\s+[^?.!\n]{1,40}))?[\s?.!]*$/iu,
   /\b(?:what|which)\s+(?:tools|integrations|capabilities)\s+(?:can|could|do)\s+you\b/iu,
   /\bwhat\s+(?:else\s+)?can\s+you\s+do(?:\s+(?:for\s+me|here|now|(?:with|in)\s+[^?.!\n]{1,40}))?[\s?.!]*$/iu,
   /\bwhat\s+are\s+your\s+(?:tools|capabilities)\b/iu,
+  // „Изброй инструментите си“, anchored at the sentence's end: „Покажи
+  // инструментите за GitHub и промени README“ asks for a change.
+  /(?:^|[^\p{L}])(?:изброй|кажи|покажи|опиши)\s+(?:ми\s+)?(?:си\s+)?(?:всички\s+)?(?:(?:твоите|своите|наличните)\s+)?инструмент(?:и|ите)(?:\s+си)?(?:\s*,?\s*(?:които|с\s+които)\s+[^?.!\n]{0,60})?[\s?.!]*$/iu,
+  /(?:^|[^\p{L}])имаш\s+ли\s+(?:някакви\s+|други\s+|още\s+)?инструмент(?:и|ите)?(?!\p{L})/iu,
+  /(?:^|[^\p{L}])(?:кои|какви)\s+(?:(?:твоите|ти)\s+)?инструмент(?:и|ите)(?:\s+(?:ти|си|сега|тук|още))*\s+(?:са\s+)?(?:ти\s+)?(?:достъпни|на\s+разположение)(?!\p{L})/iu,
 ];
 const USE_THE_TOOLS =
-  /(?:^|[^\p{L}])(?:ползва[йи]|използва[йи])\s+(?:(?:твоите|своите|наличните|всички(?:те)?)\s+)?(?:си\s+)?инструмент(?:а|ите|и)?(?!\p{L})/iu;
+  /(?:^|[^\p{L}])(?:ползва[йим]|използва[йим]|пускам)\s+(?:(?:твоите|своите|наличните|всички(?:те)?)\s+)?(?:си\s+)?инструмент(?:а|ите|и)?(?!\p{L})/iu;
 
 function inventoryText(message) {
   const text = typeof message === "string" ? message.trim() : "";

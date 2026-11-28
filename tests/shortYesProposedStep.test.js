@@ -7,6 +7,8 @@ import {
   buildProposedStepNote,
   effectiveConversationHistory,
   detectCapabilityRequests,
+  exactRecordStep,
+  parseEmailSendRequest,
 } from "../src/routes/chat.js";
 import { buildProjectConversationReference, ownNextStep } from "../src/services/projectConversationContextService.js";
 import { toClaudeMessages } from "../src/services/novariumService.js";
@@ -113,6 +115,19 @@ test("an English yes gets the English Next step", () => {
     assert.match(note, new RegExp(`Отговорът „${yes}“ е съгласие за тази стъпка\\.`, "u"));
     // The note is Bulgarian; the yes and the conversation set the language.
     assert.match(note, new RegExp(`Отговори на езика на „${yes}“ и на разговора, не на езика на тази бележка\\.\\n\\[КРАЙ`, "u"));
+  }
+});
+
+test("a verb of drawing or generating agrees only to pictures and video, never to another step", () => {
+  // Review r5: a media verb read as a yes word made „Нарисувай ги“ agree to a
+  // mail step.
+  const mail = [
+    { role: "user", content: "Какво ново има в пощата?" },
+    { role: "assistant", content: "Имаш две нови писма.\n\nСледва: кажи „да“ и търся в Gmail писма от банката." },
+  ];
+  for (const message of ["Нарисувай ги", "Генерирай ги", "нарисувай картинките", "Създай ги"]) {
+    assert.equal(buildProposedStepNote(message, mail, { media: both }), "", message);
+    assert.equal(buildContextualTaskMessage(message, mail), message, message);
   }
 });
 
@@ -538,4 +553,62 @@ test("the note says nothing is made when the yes does not start the previous ans
   // No pictures or video for this account, or none in the answer: no line.
   assert.doesNotMatch(buildProposedStepNote("да", withStep("Следва: кажи дали видеото да е вертикално."), { media: null }), /Нищо не се прави|не прави картинки/u);
   assert.doesNotMatch(buildProposedStepNote("да", recent, { media: both }), /Нищо не се прави|не прави картинки/u);
+});
+
+// RADKO 28.11: „искам да пратя мейл до мен“ got „нямам проверен инструмент за
+// изпращане на поща“. The tool list gives the exact words, „до мен“ is the
+// person's own Google address, and a yes to the agent's own exact email (a
+// contact, an event) prepares it as if typed: it is sent only after the
+// press on „Потвърди“.
+test("„до мен“ is the person's own address, and a yes to the agent's exact email, contact or event prepares it", () => {
+  assert.deepEqual(parseEmailSendRequest("Изпрати имейл до мен | Проба | Здравей!"), {
+    to: "",
+    toSelf: true,
+    subject: "Проба",
+    body: "Здравей!",
+  });
+  assert.deepEqual(parseEmailSendRequest("Send an email to me | Test | Hi"), { to: "", toSelf: true, subject: "Test", body: "Hi" });
+  assert.equal(parseEmailSendRequest("Изпрати имейл до менте | Проба | Здравей!"), null);
+  assert.equal(parseEmailSendRequest("Изпрати имейл до мен"), null);
+
+  const email = "Изпрати имейл до мен | Проба от NovariumAI | Здравей! Това е проба.";
+  assert.equal(exactRecordStep(email), email);
+  assert.equal(exactRecordStep(`„${email}“`), email);
+  assert.equal(exactRecordStep("Добави контакт: Иван Петров | ivan@example.com"), "Добави контакт: Иван Петров | ivan@example.com");
+  assert.equal(exactRecordStep("Създай събитие: Среща | 2026-11-29 10:00 | 30 мин"), "Създай събитие: Среща | 2026-11-29 10:00 | 30 мин");
+  // Anything short of all the fields is not a record: the yes stays a yes.
+  for (const step of [
+    "Изпрати имейл до мен",
+    "напиши адреса и подготвям имейла",
+    "Създай събитие: Среща | утре | 30 мин",
+    "Покажи писмата в Gmail",
+    "",
+  ]) {
+    assert.equal(exactRecordStep(step), "", step);
+  }
+
+  const turns = [
+    { role: "user", content: "ISKAM DA PATI MEIL DO MEN" },
+    { role: "assistant", content: `Мога да го пратя от твоя Gmail.\n\nСледва: ${email}` },
+  ];
+  for (const yes of ["да", "Да.", "ок", "давай"]) {
+    const task = buildContextualTaskMessage(yes, turns);
+    assert.equal(task, email, yes);
+    const [send] = detectCapabilityRequests(task, { toolInventory: true });
+    assert.equal(send.capability, "mail.send");
+    assert.deepEqual(send.input, { to: "", toSelf: true, subject: "Проба от NovariumAI", body: "Здравей! Това е проба." });
+  }
+  // A yes with something added is read as it is: the addition decides.
+  assert.notEqual(buildContextualTaskMessage("да, но с друга тема", turns), email);
+  // A step that only asks for the address prepares nothing.
+  const ask = [
+    { role: "user", content: "прати имейл до Иван" },
+    { role: "assistant", content: "Кой е адресът на Иван?\n\nСледва: напиши адреса и подготвям имейла" },
+  ];
+  assert.deepEqual(
+    detectCapabilityRequests(buildContextualTaskMessage("да", ask), { toolInventory: true }).filter(
+      ({ capability }) => capability === "mail.send",
+    ),
+    [],
+  );
 });

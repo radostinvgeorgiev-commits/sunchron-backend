@@ -262,6 +262,88 @@ test("an item that failed can be pressed again, and the made ones stay pressed",
   assert.equal(missing.buttons()[0].disabled, false);
 });
 
+test("a pressed button says whether its items wait, are being made or are made", async (t) => {
+  // Review r5 (page-4): queued, running and made buttons looked the same.
+  const finish = [];
+  const generator = () => new Promise((resolve) => finish.push(resolve));
+  const page = cardPage(t, { media: { drawImage: generator, makeVideo: generator } });
+  const card = page.show({ start: false, items: items() });
+  page.buttons().at(-1).click();
+  assert.deepEqual(page.labels(), ["🎨 Картинка 1 · чака", "🎨 Картинка 2 · чака", "🎬 Видео · чака", "Направи всичко · чака"]);
+  await until(() => finish.length === 1, "the first picture did not start");
+  assert.deepEqual(page.labels(), ["🎨 Картинка 1 · прави се", "🎨 Картинка 2 · чака", "🎬 Видео · чака", "Направи всичко · прави се"]);
+  assert.deepEqual(
+    page.buttons().map((button) => button.dataset.mediaState),
+    ["running", "queued", "queued", "running"],
+  );
+  // The name a screen reader reads says it too, before the description.
+  assert.equal(page.buttons()[0].getAttribute("aria-label"), `🎨 Картинка 1 · прави се — ${PICTURE_1.slice(0, 60).trimEnd()}`);
+  finish[0](true);
+  await until(() => finish.length === 2, "the second picture did not start");
+  finish[1](false);
+  await until(() => finish.length === 3, "the clip did not start");
+  finish[2](true);
+  await page.queueMedia(card, []);
+  // A failed item is plain again and can be pressed; „Направи всичко“ too.
+  assert.deepEqual(page.labels(), ["🎨 Картинка 1 · готово", "🎨 Картинка 2", "🎬 Видео · готово", "Направи всичко"]);
+  assert.deepEqual(page.pressed(), [true, false, true, false]);
+  assert.equal(page.buttons()[1].getAttribute("aria-label"), `🎨 Картинка 2 — ${PICTURE_2}`);
+  assert.equal(page.buttons()[1].dataset.mediaState, undefined);
+  // The English page says it in English.
+  const english = cardPage(t, { catalog: ENGLISH, media: { drawImage: async () => true, makeVideo: async () => true } });
+  const englishCard = english.show({ start: false, items: items([2, 2, 100]) });
+  english.buttons()[0].click();
+  await english.queueMedia(englishCard, []);
+  assert.deepEqual(english.labels(), ["🎨 Picture 1 · 2 units · done", "🎨 Picture 2 · 2 units", "🎬 Video · 100 units", "Make them all · 104 units"]);
+});
+
+test("an edited or retried question keeps what its removed cards made: the card that replaces them shows it made", async (t) => {
+  // Review r5 (page-1): after a reload „да“ brought a card, one picture was
+  // made from it, and the „да“ was edited. That removed the card, and
+  // „Направи всичко“ on the new one made the same picture again.
+  const page = resendPage(t);
+  page.add("assistant-turn chat-answer", "Ето рекламата.");
+  const yes = page.add("user-turn", "да", true);
+  const reply = page.add("assistant-turn chat-answer", "Натисни бутоните отдолу.");
+  const card = reply.ownerDocument.createElement("section");
+  card.className = "media-proposals";
+  card.__mediaState = new Map([
+    [`image:${PICTURE_1}`, "made"],
+    [`image:${PICTURE_2}`, "failed"],
+    [`video:${VIDEO}`, "idle"],
+  ]);
+  reply.append(card);
+  page.add("user-turn media-turn", `🎨 ${PICTURE_1}`);
+  page.add("assistant-turn media-turn", "картинката");
+  page.resendFrom(yes, yes.__request);
+  assert.deepEqual(page.sent.at(-1), {
+    resend: { text: "да", image: null },
+    modelOverride: "",
+    madeBefore: [`image:${PICTURE_1}`],
+  });
+  // The answer that replaces it shows that item made; the rest are made once.
+  const made = [];
+  const next = cardPage(t, {
+    media: {
+      drawImage: async (prompt) => (made.push(prompt), true),
+      makeVideo: async (prompt) => (made.push(prompt), true),
+    },
+  });
+  const nextCard = next.showMediaProposals(next.turn.querySelector(".message"), { start: false, items: items() }, page.sent.at(-1).madeBefore);
+  assert.deepEqual(next.pressed(), [true, false, false, false]);
+  assert.equal(next.labels()[0], "🎨 Картинка 1 · готово");
+  next.buttons().at(-1).click();
+  await next.queueMedia(nextCard, []);
+  assert.deepEqual(made, [PICTURE_2, VIDEO]);
+  // Any other card starts fresh, and the reply's card gets the made items.
+  const other = cardPage(t);
+  other.show({ start: false, items: items() });
+  assert.deepEqual(other.pressed(), [false, false, false, false]);
+  assert.match(app, /function showMediaProposals\(message, media, made = \[\]\)/u);
+  assert.match(app, /answeredCard \|\| showMediaProposals\(responseBubble, parsed\.data\.media, madeBefore\)/u);
+  assert.match(app, /\} else \{\n\s*showMediaProposals\(responseBubble, parsed\.data\?\.media, madeBefore\);/u);
+});
+
 test("„Спри“ cancels the queued items that have not started; the one being made finishes", async (t) => {
   // L10 #3: a member pressed „Направи всичко“, then „Спри“ during picture 1.
   const made = [];
@@ -370,7 +452,7 @@ test("the next message carries the latest answer's card: what it has queued, is 
   assert.match(send, /\.\.\.\(answeredCard \? \{ mediaCard: \{ made: busyMediaKeys\(answeredCard\) \} \} : \{\}\),/u);
   assert.match(
     send,
-    /if \(parsed\.data\?\.media\?\.start === true\) \{\n\s*const card = answeredCard \|\| showMediaProposals\(responseBubble, parsed\.data\.media\);\n\s*if \(card\) void queueMedia\(card, mediaItems\(parsed\.data\.media\)\);\n\s*\} else \{\n\s*showMediaProposals\(responseBubble, parsed\.data\?\.media\);\n\s*\}/u,
+    /if \(parsed\.data\?\.media\?\.start === true\) \{\n\s*const card = answeredCard \|\| showMediaProposals\(responseBubble, parsed\.data\.media, madeBefore\);\n\s*if \(card\) void queueMedia\(card, mediaItems\(parsed\.data\.media\)\);\n\s*\} else \{\n\s*showMediaProposals\(responseBubble, parsed\.data\?\.media, madeBefore\);\n\s*\}/u,
   );
   assert.match(send, /const assistantTurn = createAssistantTurn\("", false\);\n\s*assistantTurn\.turn\.classList\.add\("chat-answer"\);/u);
   // The server's own reply to a yes is marked, so the next yes looks past it.
@@ -646,6 +728,58 @@ test("a question that got no answer leaves the history, so the next „да“ a
   assert.equal(page.chat.querySelectorAll(".chat-answer").length, 1);
 });
 
+test("a note about a file that cannot be sent is translated and kept out of the history, so the next „да“ still answers the offer", async (t) => {
+  // Review r5 (page-2): the three notes were remembered as the answer, and a
+  // short yes after one of them no longer reached the picture offer.
+  const { window } = new JSDOM('<img id="attachment"><span id="name"></span><div id="preview" hidden></div><textarea id="input"></textarea>');
+  t.after(() => window.close());
+  const notes = [];
+  let readerFails = false;
+  class Reader {
+    readAsDataURL() {
+      setTimeout(() => (readerFails ? this.onerror() : ((this.result = "data:image/png;base64,AA"), this.onload())));
+    }
+  }
+  const pick = new Function(
+    "appendMessage",
+    "chatText",
+    "clearPendingImage",
+    "state",
+    "elements",
+    "FileReader",
+    `${slice("function handleImageSelection(", "function clearPendingImage(")}
+    return handleImageSelection;`,
+  )(
+    (role, text, image, options) => notes.push({ role, text, image, options }),
+    (value) => ENGLISH[value] ?? `?${value}`,
+    () => {},
+    {},
+    {
+      attachmentImage: window.document.getElementById("attachment"),
+      attachmentName: window.document.getElementById("name"),
+      attachmentPreview: window.document.getElementById("preview"),
+      chatInput: window.document.getElementById("input"),
+    },
+    Reader,
+  );
+  const choose = (file) => pick({ target: { files: [file] } });
+  choose({ type: "text/plain", size: 10, name: "бележка.txt" });
+  choose({ type: "image/png", size: 6 * 1024 * 1024, name: "голяма.png" });
+  readerFails = true;
+  choose({ type: "application/pdf", size: 10, name: "документ.pdf" });
+  await until(() => notes.length === 3, "the failed read gave no note");
+  assert.deepEqual(notes, [
+    { role: "agent", text: "❌ Only JPEG, PNG and WebP pictures and PDF documents are supported.", image: null, options: { remember: false } },
+    { role: "agent", text: "❌ The file must be 5 MB or smaller.", image: null, options: { remember: false } },
+    { role: "agent", text: "❌ The file could not be read.", image: null, options: { remember: false } },
+  ]);
+  // A file that can be sent gives no note.
+  readerFails = false;
+  choose({ type: "image/png", size: 10, name: "снимка.png" });
+  await until(() => !window.document.getElementById("preview").hidden, "the picture was not shown");
+  assert.equal(notes.length, 3);
+});
+
 // app.js's retry and edit on a chat of plain nodes: each a turn with its
 // class, and a question with its __request.
 function resendPage(t) {
@@ -709,7 +843,7 @@ test("retry and edit keep the page's own pictures and clips, on the screen and i
   page.resendFrom(yes, yes.__request);
   assert.deepEqual([...page.chat.children], [ad, offer, ...made]);
   assert.deepEqual(page.state.recentConversationMessages, [...asked, ...lines]);
-  assert.deepEqual(page.sent, [{ resend: { text: "ДА ДАВАЙ", image: null }, modelOverride: "" }]);
+  assert.deepEqual(page.sent, [{ resend: { text: "ДА ДАВАЙ", image: null }, modelOverride: "", madeBefore: [] }]);
   // The question before an answer is found past the page's own lines, and a
   // question further up keeps them too.
   const question = page.add("user-turn", "Напиши текст", true);
@@ -724,7 +858,7 @@ test("retry and edit keep the page's own pictures and clips, on the screen and i
   page.resendFrom(ad, ad.__request, "gemini");
   assert.deepEqual([...page.chat.children], [...made, own]);
   assert.deepEqual(page.state.recentConversationMessages, [...lines, { role: "user", content: `🎨 ${PICTURE_1}`, page: true }]);
-  assert.deepEqual(page.sent.at(-1), { resend: { text: "Реклама за кафене", image: null }, modelOverride: "gemini" });
+  assert.deepEqual(page.sent.at(-1), { resend: { text: "Реклама за кафене", image: null }, modelOverride: "gemini", madeBefore: [] });
 });
 
 test("retry and edit tell the page's own lines by its mark: a typed „🎬 …“ message or answer is cut like any other", (t) => {
@@ -962,6 +1096,9 @@ test("from the chat a description is made without touching the box, after the ch
     { role: "user", content: `🎨 ${PICTURE_1}` },
     { role: "assistant", content: `🎨 Нарисувах картинка: ${PICTURE_1}` },
   ]);
+  // Copy, Read aloud, search and export read the made line, not „Рисувам…“
+  // (review r5, page-6).
+  assert.equal(figure.closest(".message").dataset.rawText, `🎨 Нарисувах картинка: ${PICTURE_1}`);
 });
 
 test("a clip from the chat keeps Download and Upload to YouTube, and its file is freed when its turn leaves", async (t) => {
@@ -976,6 +1113,7 @@ test("a clip from the chat keeps Download and Upload to YouTube, and its file is
     { role: "user", content: `🎬 ${VIDEO}` },
     { role: "assistant", content: `🎬 Направих видео: ${VIDEO}` },
   ]);
+  assert.equal(figure.closest(".message").dataset.rawText, `🎬 Направих видео: ${VIDEO}`);
   assert.deepEqual(page.appended.map(({ remember, media }) => [remember, media]), [[false, true], [false, true]]);
   // L10 #8: „Нов разговор“ empties the chat; the clip's blob URL is revoked.
   assert.deepEqual(page.revoked, []);
@@ -1066,7 +1204,7 @@ test("the „+“ menu still uses the box: reads and clears it, hints when it is
   assert.deepEqual(page.posts[2], { url: "/api/videos", body: { prompt: "реклама за кафене" } });
 });
 
-test("the chat API, the English lines, the card's look and the new asset versions", () => {
+test("the chat API, the English lines, the card's look and the new asset versions", async () => {
   assert.match(app, /append: \(role, text, options\) => appendMessage\(role, text, null, options\),/u);
   // Its remembered lines are marked as the page's own (review r2).
   assert.match(app, /remember: \(role, text\) => rememberConversationMessage\(role, text, \{ page: true \}\),/u);
@@ -1082,6 +1220,37 @@ test("the chat API, the English lines, the card's look and the new asset version
     "Пиша отговора…|Writing the answer…",
   ]) {
     assert.ok(english.split("\n").includes(line), line);
+  }
+  // Review r5 (page-5): the card, progress, download and file lines are in
+  // the five other catalogs too, not English on their pages.
+  const catalogs = await Promise.all(
+    ["de", "es", "fr", "it", "ro"].map(async (code) => [code, JSON.parse(await read(`../public/locales/${code}.json`))]),
+  );
+  for (const line of [
+    "Картинки и видео",
+    "Картинка",
+    "Видео",
+    "Направи всичко",
+    "единици",
+    "чака",
+    "прави се",
+    "готово",
+    "🎨 Рисувам… това отнема до половин минута.",
+    "🎬 Правя видеото… това отнема от една до четири минути. Не затваряй страницата.",
+    "Изтегли картинката",
+    "Изтегли видеото",
+    "🎨 Нарисувах картинка: {prompt}",
+    "🎬 Направих видео: {prompt}",
+    "Пиша отговора…",
+    "❌ Поддържат се JPEG, PNG и WebP снимки и PDF документи.",
+    "❌ Файлът трябва да е до 5 MB.",
+    "❌ Файлът не можа да бъде прочетен.",
+  ]) {
+    assert.ok(ENGLISH[line], line);
+    for (const [code, catalog] of catalogs) {
+      assert.ok(catalog[ENGLISH[line]] && catalog[ENGLISH[line]] !== line, `${code}: ${line}`);
+      assert.equal(catalog[ENGLISH[line]].includes("{prompt}"), line.includes("{prompt}"), `${code}: ${line}`);
+    }
   }
   assert.doesNotMatch(english, /^Направи видеото\|/mu);
   assert.doesNotMatch(english, /Задачата не изисква външен инструмент/u);

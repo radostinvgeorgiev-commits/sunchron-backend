@@ -163,7 +163,10 @@
       save.textContent = text("Изтегли картинката");
       figure.append(image, save);
       bubble.replaceChildren(figure);
-      chat.remember?.("assistant", text("🎨 Нарисувах картинка: {prompt}", { prompt: brief(description) }));
+      // Copy, Read aloud, search and export read this line, not the progress one.
+      const made = text("🎨 Нарисувах картинка: {prompt}", { prompt: brief(description) });
+      bubble.dataset.rawText = made;
+      chat.remember?.("assistant", made);
       return true;
     } catch (error) {
       render(bubble, `❌ ${error.message}`);
@@ -276,7 +279,9 @@
       actions.append(save, youtubeButton(blob, description));
       figure.append(video, actions);
       bubble.replaceChildren(figure);
-      chat.remember?.("assistant", text("🎬 Направих видео: {prompt}", { prompt: brief(description) }));
+      const made = text("🎬 Направих видео: {prompt}", { prompt: brief(description) });
+      bubble.dataset.rawText = made;
+      chat.remember?.("assistant", made);
       return true;
     } catch (error) {
       render(bubble, `❌ ${error.message}`);

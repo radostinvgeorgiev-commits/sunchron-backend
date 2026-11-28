@@ -7,7 +7,7 @@ import {
   ownNextStep,
 } from "./projectConversationContextService.js";
 import { PUBLIC_IMAGE_CREDITS, PUBLIC_VIDEO_CREDITS } from "./publicAiBudget.js";
-import { isBareAgreement, isYesWord, shortMessageWords } from "./shortYes.js";
+import { ASKS_BACK, isBareAgreement, isYesWord, shortMessageWords } from "./shortYes.js";
 import { resolveVertexAiProjectId } from "./vertexAiGeminiService.js";
 
 // Pictures and video from the chat. The answering model cannot draw in its
@@ -265,7 +265,17 @@ const MAKE_FORMS = new Set([
   "fais", "crée", "génère", "dessine",
   "faccio", "disegno",
   "fac", "creez", "generez", "desenez",
+  // The future the model may translate the line into („Di «sí» y haré las
+  // imágenes“, „Dis « oui » et je ferai l'image“, review r5).
+  "haré", "crearé", "generaré", "dibujaré", "ferai", "créerai", "générerai", "dessinerai",
+  "farò", "creerò", "genererò", "disegnerò",
 ]);
+// The Romanian infinitives, verbs of making only right after the future's
+// „voi“ („voi face imaginile“): alone, "face" and "crea" are other words.
+const AFTER_VOI = new Set(["face", "crea", "genera", "desena"]);
+// Whether the word at `index` is a verb of making.
+const isMakeVerb = (words, index) =>
+  MAKE_FORMS.has(words[index]) || (AFTER_VOI.has(words[index]) && words[index - 1] === "voi");
 // Pictures and video as whole words, with the kind each names: Bulgarian and
 // Romanian forms with their endings ("картинките", "видеото", "imaginile"),
 // so "видеоконференцията" and "imaginative" are none. Bulgarian typed in
@@ -341,26 +351,48 @@ const UNCLEAR_WORDS = new Set([
 ]);
 // The words that join two media ("картинките и видеото").
 const AND_WORDS = new Set(["и", "and", "und", "y", "et", "e", "și", "si"]);
+// "only" before the media („правя само картинките“, "make only the video").
+const ONLY_WORDS = new Set(["само", "only", "just", "nur", "solo", "seulement", "doar"]);
 const MAX_NOUN_PHRASES = 8;
 
 const isNumber = (word) => /^\p{N}+$/u.test(word || "") && Number.isSafeInteger(Number(word));
 
+// The index of the next ordinal of the same noun after an ordinal ("първата
+// и втората картинка", "the first, second and third pictures", "the first
+// and the second picture"; the comma is no word), or 0.
+function nextOrdinal(words, at, and) {
+  if (ORDINAL_WORDS.has(words[at])) return at;
+  if (!and.has(words[at])) return 0;
+  if (ORDINAL_WORDS.has(words[at + 1])) return at + 1;
+  return PLAIN_DETERMINERS.has(words[at + 1]) && ORDINAL_WORDS.has(words[at + 2]) ? at + 2 : 0;
+}
+
 // One media noun with at most two words before it (articles, "all", counts
 // and ordinals: "картинките", "двете картинки", "първата картинка", "the two
-// pictures") and the numbers after it ("картинка 1", "картинки 1 и 2",
-// "picture 1"). Returns its kind, the index after it, the count before it
-// (0 when none), the numbers it names, and whether it is unclear which items
-// it means; null when there is no media noun there.
+// pictures"), or ordinals joined by "and" right before it ("първата и
+// втората картинка"), and the numbers after it ("картинка 1", "картинки 1 и
+// 2", "picture 1"). An "and" may open it, as in a pair („и картинките, и
+// видеото“, „et l'image et la vidéo“). Returns its kind, the index after it,
+// the count before it (0 when none), the numbers it names, and whether it is
+// unclear which items it means; null when there is no media noun there.
 function nounAt(words, start, and = AND_WORDS) {
   const phrase = { kind: "", end: start, count: 0, numbers: [], unclear: false };
-  let at = start;
-  for (; at < start + 2 && !MEDIA_FORMS.has(words[at]); at += 1) {
+  let at = and.has(words[start]) ? start + 1 : start;
+  let limit = at + 2;
+  for (; at < limit && !MEDIA_FORMS.has(words[at]); at += 1) {
     const word = words[at];
     if (isNumber(word)) phrase.count = Number(word);
     else if (COUNT_WORDS.has(word)) phrase.count = COUNT_WORDS.get(word);
-    else if (ORDINAL_WORDS.has(word)) phrase.numbers.push(ORDINAL_WORDS.get(word));
-    else if (UNCLEAR_WORDS.has(word)) phrase.unclear = true;
-    else if (!PLAIN_DETERMINERS.has(word)) return null;
+    else if (ORDINAL_WORDS.has(word)) {
+      phrase.numbers.push(ORDINAL_WORDS.get(word));
+      // The noun then comes right after the last ordinal.
+      const next = nextOrdinal(words, at + 1, and);
+      if (next) {
+        at = next - 1;
+        limit = next + 1;
+      }
+    } else if (UNCLEAR_WORDS.has(word)) phrase.unclear = true;
+    else if (!PLAIN_DETERMINERS.has(word) && !ONLY_WORDS.has(word)) return null;
   }
   const kind = MEDIA_FORMS.get(words[at]);
   if (!kind) return null;
@@ -376,8 +408,19 @@ function nounAt(words, start, and = AND_WORDS) {
 // Media noun phrases one after another, joined by "and" or a comma
 // ("картинката и видеото", "картинка 1 и видеото", "картинка 1, картинка 2 и
 // видеото"): the phrases, the kinds they name and the index after them; null
-// when there is none at `start`.
+// when there is none at `start`. "both" pairs two or more phrases ("both the
+// picture and the video"); before a single one it is a count ("both
+// pictures", review r5: under three pictures that names two, so it is no
+// offer).
 function nounPhrases(words, start, and = AND_WORDS) {
+  if (words[start] === "both") {
+    const paired = readPhrases(words, start + 1, and);
+    if (paired?.phrases.length > 1) return paired;
+  }
+  return readPhrases(words, start, and);
+}
+
+function readPhrases(words, start, and) {
   const phrases = [];
   let at = start;
   while (phrases.length < MAX_NOUN_PHRASES) {
@@ -393,13 +436,49 @@ function nounPhrases(words, start, and = AND_WORDS) {
 // Every item of every kind: what a pronoun ("ще ги направя") names.
 const EVERY_ITEM = KINDS.map((kind) => ({ kind, count: 0, numbers: [], unclear: false }));
 
+// The words that may count a pronoun's items ("ще ги направя всичките",
+// "правя ги и двете", "make them both", "make all of them"), with how many
+// items they count (0: every item, whatever their number).
+const PRONOUN_COUNTS = new Map([
+  ...["всички", "всичките", "all", "alle", "todas", "todos", "toutes", "tous", "tutte", "tutti", "toate"].map((word) => [word, 0]),
+  ...["двете", "двата", "both", "beide", "ambas", "ambos", "entrambe", "entrambi", "amândouă"].map((word) => [word, 2]),
+  ...[["трите", 3], ["четирите", 4]],
+]);
+
+// A pronoun object at `at`: "them", "all of them", "both of them". Returns
+// the index after it and how many items it counts (PRONOUN_COUNTS), or null.
+function pronounAt(words, at) {
+  if (OBJECT_PRONOUNS.has(words[at])) return { end: at + 1, total: 0 };
+  if (PRONOUN_COUNTS.has(words[at]) && words[at + 1] === "of" && OBJECT_PRONOUNS.has(words[at + 2])) {
+    return { end: at + 3, total: PRONOUN_COUNTS.get(words[at]) };
+  }
+  return null;
+}
+
+// The count word that may follow a pronoun („всичките“, „и двете“, "all",
+// "both"): the index after it and its count, or the same index and 0.
+function pronounCountAt(words, at, and) {
+  const skip = and.has(words[at]) && PRONOUN_COUNTS.get(words[at + 1]) ? 1 : 0;
+  const word = words[at + skip];
+  return PRONOUN_COUNTS.has(word) ? { end: at + skip + 1, total: PRONOUN_COUNTS.get(word) } : { end: at, total: 0 };
+}
+
+// Every item, or every item when the pronoun's count says how many there are
+// (`total`, checked by offeredItems: "make them both" under three is
+// unclear).
+const everyItem = (total) => (total ? Object.assign([...EVERY_ITEM], { total }) : EVERY_ITEM);
+
 // Words that say a verb is not done ("няма да правя видеото", "I won't make
 // the video"), and those that may stand between them and the verb.
 const NEGATIONS = new Set([
   "не", "няма", "никога", "not", "never", "won", "don", "didn", "nicht", "nie", "kein", "keine", "no",
   "nunca", "ne", "pas", "jamais", "non", "mai", "nu",
 ]);
-const BEFORE_VERB = new Set(["ще", "да", "ги", "го", "я", "ли", "will", "ll", "t", "to"]);
+const BEFORE_VERB = new Set([
+  "ще", "да", "ги", "го", "я", "ли", "will", "ll", "t", "to", "voi",
+  // The clitics of „no las hago“, „je ne les fais pas“, „non le faccio“, „nu le voi face“.
+  "le", "les", "la", "lo", "las", "los", "li", "l", "o", "îl",
+]);
 
 // Whether the make verb at `verb` is said not to be done.
 function negated(words, verb) {
@@ -410,16 +489,17 @@ function negated(words, verb) {
 
 // The kinds a make verb's object names: the media nouns after it ("правя
 // картинките", "Да направя ли картинките?"), or every kind for a pronoun
-// after it or a clitic right before it ("ще ги направя"); null when its
-// object is not the media, or the verb is not done ("няма да правя
-// видеото").
+// after it ("make all of them") or a clitic right before it ("ще ги
+// направя", "le voi face"); null when its object is not the media, or the
+// verb is not done ("няма да правя видеото").
 function objectKinds(words, verb) {
   if (negated(words, verb)) return null;
-  if (OBJECT_PRONOUNS.has(words[verb - 1])) return KINDS;
+  const before = words[verb - 1] === "voi" ? verb - 2 : verb - 1;
+  if (OBJECT_PRONOUNS.has(words[before])) return KINDS;
   const start = words[verb + 1] === "ли" ? verb + 2 : verb + 1;
   const noun = nounPhrases(words, start);
   if (noun) return noun.kinds;
-  return OBJECT_PRONOUNS.has(words[start]) ? KINDS : null;
+  return pronounAt(words, start) ? KINDS : null;
 }
 
 // The kinds of media the step offers to make (the card's condition): a make
@@ -433,7 +513,7 @@ export function makeKinds(step) {
   const kinds = new Set();
   let found = false;
   words.forEach((word, index) => {
-    if (!MAKE_FORMS.has(word)) return;
+    if (!isMakeVerb(words, index)) return;
     const named = objectKinds(words, index);
     if (!named) return;
     found = true;
@@ -448,21 +528,29 @@ export function makeIntent(step) {
 }
 
 // The rule's own Next line and its close variants in each page language:
-// "<say> yes and [I] [will] [them] <make> [<object>] [now]".
+// "[lead words] <say> [with] yes and [I] [will] [them] <make> [<object>]
+// [now]", or "<say> yes to <make> …" ("type yes to make the picture",
+// „напиши „да“, за да ги направя“). `with` is the word of „отговори с „да““
+// and "reply with yes"; `infinitive` the verbs read only after `will`
+// (Romanian „voi face“).
 const OFFER_LANGUAGES = [
   {
     ask: ["напиши", "кажи", "отговори"],
+    with: ["с", "със"],
     yes: ["да"],
     and: ["и"],
+    to: [["за", "да"]],
     subject: [],
     will: ["ще"],
-    make: ["правя", "направя", "нарисувам", "рисувам", "създам"],
+    make: ["правя", "направя", "нарисувам", "рисувам", "създам", "създавам", "генерирам"],
     now: ["сега", "веднага"],
   },
   {
     ask: ["say", "type", "write", "reply"],
+    with: ["with"],
     yes: ["yes"],
     and: ["and"],
+    to: [["to"]],
     subject: ["i"],
     will: ["ll", "will"],
     make: ["make", "create", "draw", "generate"],
@@ -470,6 +558,7 @@ const OFFER_LANGUAGES = [
   },
   {
     ask: ["sag", "sage", "schreib", "schreibe", "antworte"],
+    with: ["mit"],
     yes: ["ja"],
     and: ["und"],
     subject: ["ich"],
@@ -479,70 +568,97 @@ const OFFER_LANGUAGES = [
   },
   {
     ask: ["di", "dime", "escribe", "responde"],
+    with: ["con"],
     yes: ["sí", "si"],
     and: ["y"],
     subject: ["yo"],
     will: [],
-    make: ["hago", "creo", "genero", "dibujo"],
+    make: ["hago", "creo", "genero", "dibujo", "haré", "crearé", "generaré", "dibujaré"],
     now: ["ahora"],
   },
   {
     ask: ["dis", "écris", "réponds", "tape"],
+    with: ["par", "avec"],
     yes: ["oui"],
     and: ["et"],
     subject: ["je", "j"],
     will: [],
-    make: ["fais", "crée", "génère", "dessine"],
+    make: ["fais", "crée", "génère", "dessine", "ferai", "créerai", "générerai", "dessinerai"],
     now: ["maintenant"],
   },
   {
     ask: ["di", "dì", "scrivi", "rispondi"],
+    with: ["con"],
     yes: ["sì", "si"],
     and: ["e"],
     subject: ["io"],
     will: [],
-    make: ["faccio", "creo", "genero", "disegno"],
+    make: ["faccio", "creo", "genero", "disegno", "farò", "creerò", "genererò", "disegnerò"],
     now: ["ora", "adesso"],
   },
   {
     ask: ["spune", "scrie", "răspunde"],
+    with: ["cu"],
     yes: ["da"],
     and: ["și", "si"],
     subject: ["eu"],
-    will: [],
+    will: ["voi"],
     make: ["fac", "creez", "generez", "desenez"],
+    infinitive: [...AFTER_VOI],
     now: ["acum"],
   },
-].map((language) => ({ ...language, andSet: new Set(language.and) }));
+].map((language) => ({ to: [], infinitive: [], ...language, andSet: new Set(language.and) }));
 
-// Reads the step as one language's offer, word by word, and returns the noun
-// phrases its object names (nounAt), or null. The object is a pronoun (every
-// item of every kind), or media nouns with their determiners, counts,
+// How far into the step its ask word may stand: the words before it lead in
+// („Ако искаш, напиши „да“ и…“, "Just say yes and…", review r5). Only the
+// strict tail after the ask word makes the step an offer.
+const MAX_LEAD_WORDS = 8;
+
+// Reads the step from `from` (its ask word) as one language's offer, word by
+// word, and returns the noun phrases its object names (nounAt), or null. The
+// object is a pronoun (every item of every kind, or as many as its count
+// says: „ги правя и двете“), or media nouns with their determiners, counts,
 // ordinals and numbers, joined by "and" or a comma; after it only "now" may
 // follow.
-function readsAsOffer(words, language) {
-  let at = 0;
+function readsAsOffer(words, language, from) {
+  let at = from;
   const take = (list) => {
     if (!list.includes(words[at])) return false;
     at += 1;
     return true;
   };
-  if (!take(language.ask) || !take(language.yes) || !take(language.and)) return null;
-  take(language.subject);
-  take(language.will);
+  if (!take(language.ask)) return null;
+  take(language.with);
+  if (!take(language.yes)) return null;
+  const link = language.to.find((sequence) => sequence.every((word, offset) => words[at + offset] === word));
+  let will = false;
+  if (link) {
+    at += link.length;
+  } else {
+    if (!take(language.and)) return null;
+    take(language.subject);
+    will = take(language.will);
+  }
   const clitic = OBJECT_PRONOUNS.has(words[at]);
   if (clitic) at += 1;
-  if (!take(language.make)) return null;
+  // „и le voi face“: the clitic comes before the future's „voi“.
+  if (clitic && !will && !link) will = take(language.will);
+  if (!take(language.make) && !(will && take(language.infinitive))) return null;
   let phrases;
   const noun = nounPhrases(words, at, language.andSet);
+  const pronoun = noun ? null : pronounAt(words, at);
   if (noun) {
     phrases = noun.phrases;
     at = noun.end;
-  } else if (OBJECT_PRONOUNS.has(words[at])) {
-    phrases = EVERY_ITEM;
-    at += 1;
-  } else if (clitic) {
-    phrases = EVERY_ITEM;
+  } else if (pronoun || clitic) {
+    let total = pronoun?.total || 0;
+    if (pronoun) at = pronoun.end;
+    if (!total) {
+      const counted = pronounCountAt(words, at, language.andSet);
+      at = counted.end;
+      total = counted.total;
+    }
+    phrases = everyItem(total);
   } else {
     return null;
   }
@@ -554,11 +670,14 @@ function readsAsOffer(words, language) {
 // offer: a question, or any other word after the object ("по-ярки",
 // "vertical", "за рекламата"), makes it none.
 function offerPhrases(step) {
-  if (typeof step !== "string" || /[?？¿]/u.test(step)) return null;
+  if (typeof step !== "string" || ASKS_BACK.test(step)) return null;
   const words = stepWords(step);
-  for (const language of OFFER_LANGUAGES) {
-    const phrases = readsAsOffer(words, language);
-    if (phrases) return phrases;
+  for (let from = 0; from <= MAX_LEAD_WORDS && from < words.length; from += 1) {
+    for (const language of OFFER_LANGUAGES) {
+      if (!language.ask.includes(words[from])) continue;
+      const phrases = readsAsOffer(words, language, from);
+      if (phrases) return phrases;
+    }
   }
   return null;
 }
@@ -594,7 +713,7 @@ export function mediaNextStep(text) {
   if (
     !rest ||
     rest.length > TRAILING_TEXT_LIMIT ||
-    /[?？¿]/u.test(rest) ||
+    ASKS_BACK.test(rest) ||
     paragraph.some(
       (line, at) =>
         !line.trim() ||
@@ -630,9 +749,13 @@ function numberedItem(ofKind, number) {
 // „a picture“ under one picture). Returns { items, missing } (what it names
 // that will not be made), or null when it is unclear which items are meant:
 // an unclear word („последната“), a number that names no described item, or
-// a count that is not how many were described („една картинка“ under four).
+// a count that is not how many were described („една картинка“ under four,
+// „ги правя и двете“ under three).
 function offeredItems(phrases, named, kept) {
   if (!phrases) return null;
+  // A pronoun's count („ги правя и двете“) is how many were described, or it
+  // is unclear which it means.
+  if (phrases.total && phrases.total !== named.length) return null;
   const chosen = new Set();
   const missing = noneMissing();
   const add = (item) => {
@@ -745,8 +868,18 @@ export function parseMediaCard(value) {
 
 // Words a yes may name the media with besides its agreeing words and plain
 // determiners: "and", "only" ("направи само картинките").
-const YES_MEDIA_WORDS = new Set([...AND_WORDS, "само", "only", "just", "nur", "solo", "seulement", "doar"]);
+const YES_MEDIA_WORDS = new Set([...AND_WORDS, ...ONLY_WORDS]);
 const MAX_MEDIA_YES_WORDS = 8;
+// The verbs of making that agree only in a yes to pictures or video, never to
+// another step („Нарисувай ги“ after a mail step is no yes, review r5), with
+// the kind each names when no media noun does: drawing is pictures,
+// generating or creating is every kind.
+const MEDIA_YES_VERBS = new Map([
+  ...["нарисувай", "нарисувайте", "narisuvai", "narisuvay", "draw", "zeichne"].map((word) => [word, "image"]),
+  ...["генерирай", "генерирайте", "създай", "създайте", "generirai", "generiray", "generate", "generiere"].map(
+    (word) => [word, ""],
+  ),
+]);
 // How many items a word in a yes counts („двете“, „both“, „една картинка“).
 // The Romanian "o" is left out: in „fă-o“ it is "it".
 const YES_COUNT_WORDS = new Map([...COUNT_WORDS].filter(([word]) => word !== "o"));
@@ -767,13 +900,16 @@ const NEW_WORDS = new Set([
 
 // A short yes, also one that names what to make: „да“, „ДА ДАВАЙ“, „Давай,
 // направи ги всичките“, „НАПРАВИ КАРТИНКИТЕ“, „направи картинката и
-// видеото“, „направи двете картинки“, „make them“. Returns the kinds it names
-// (empty when it names none) and how many items it counts per kind ("" for a
-// count with no media noun after it, „направи двете“; one picture or video
-// named in the singular counts one), or null when the message is not such a
-// yes: „направи картинките по-ярки“, „ok thanks“, and one that picks items
-// by number or place or asks for new ones („Да, само първата“, „Направи 1“,
-// „Направи нова картинка“, review r2), which the model answers.
+// видеото“, „направи двете картинки“, „направи 2-те“, „Нарисувай ги“, „make
+// them“. Returns the kinds it names (empty when it names none) and how many
+// items it counts per kind ("" for a count with no media noun after it,
+// „направи двете“; one picture or video named in the singular counts one),
+// and `too` for a yes that adds one kind with "and" („Да, и видеото“, "Yes,
+// and the video": everything offered, see mediaYesAnswer); or null when the
+// message is not such a yes: „направи картинките по-ярки“, „ok thanks“, and
+// one that picks items by number or place or asks for new ones („Да, само
+// първата“, „Направи 1“, „Направи 2-та“, „Направи нова картинка“, review
+// r2), which the model answers.
 function readMediaYes(message) {
   const words = shortMessageWords(message);
   if (!words?.length || words.length > MAX_MEDIA_YES_WORDS) return null;
@@ -781,11 +917,30 @@ function readMediaYes(message) {
   const counts = new Map();
   const addCount = (kind, number) => counts.set(kind, (counts.get(kind) || 0) + number);
   const agreeing = [];
+  // Where the first word that agrees stands, and the kind a verb names.
+  let firstYes = -1;
+  let drawn = null;
   let pending = 0;
-  for (const word of words) {
+  let nouns = 0;
+  let too = "";
+  for (let index = 0; index < words.length; index += 1) {
+    const word = words[index];
+    // „2-те“ counts; „2-та“ and „2-ра“ pick by place.
+    if (isNumber(word) && words[index + 1] === "те" && Number(word) >= 2 && Number(word) <= MAX_CHAT_IMAGES) {
+      if (pending) addCount("", pending);
+      pending = Number(word);
+      index += 1;
+      continue;
+    }
     if (isNumber(word) || ORDINAL_WORDS.has(word) || UNCLEAR_WORDS.has(word) || NEW_WORDS.has(word)) return null;
     const kind = MEDIA_FORMS.get(word);
     if (kind) {
+      nouns += 1;
+      // „Да, и видеото“: "and" before the noun (past its determiners), after a
+      // word that agrees, never the agreeing word itself („Si, imágenes“).
+      let back = index - 1;
+      while (back > firstYes && PLAIN_DETERMINERS.has(words[back])) back -= 1;
+      if (firstYes >= 0 && back > firstYes && AND_WORDS.has(words[back])) too = kind;
       kinds.add(kind);
       const number = pending || (SINGLE_MEDIA.has(word) ? 1 : 0);
       if (number) addCount(kind, number);
@@ -793,14 +948,24 @@ function readMediaYes(message) {
     } else if (YES_COUNT_WORDS.has(word)) {
       if (pending) addCount("", pending);
       pending = YES_COUNT_WORDS.get(word);
+    } else if (MEDIA_YES_VERBS.has(word)) {
+      if (firstYes < 0) firstYes = index;
+      if (drawn === null || MEDIA_YES_VERBS.get(word) === "") drawn = MEDIA_YES_VERBS.get(word);
+      agreeing.push("направи");
     } else if (isYesWord(word)) {
+      if (firstYes < 0 && word !== "и") firstYes = index;
       agreeing.push(word);
     } else if (!PLAIN_DETERMINERS.has(word) && !YES_MEDIA_WORDS.has(word)) {
       return null;
     }
   }
   if (pending) addCount("", pending);
-  return isBareAgreement(agreeing) ? { kinds, counts } : null;
+  if (!isBareAgreement(agreeing)) return null;
+  // A verb of making names its kinds when no noun names one: „Нарисувай ги“
+  // the pictures, „Генерирай ги“ every kind. Never no kind, which would agree
+  // to any step (buildProposedStepNote).
+  if (!kinds.size && drawn !== null) (drawn ? [drawn] : KINDS).forEach((kind) => kinds.add(kind));
+  return nouns === 1 && too ? { kinds, counts, too } : { kinds, counts };
 }
 
 // The kinds a short yes names (see readMediaYes), or null when the message
@@ -1081,7 +1246,13 @@ export function mediaYesAnswer(message, turns, { mediaCard, available, member = 
   if (!yes) return null;
   const offer = mediaOffer(previousExchange(turns).answer, available);
   if (!offer.offer || !countsMatch(yes, offer)) return null;
-  return mediaYesReply(offer, { made: parseMediaCard(mediaCard), member, english, kinds: yes.kinds });
+  const made = parseMediaCard(mediaCard);
+  // „Да, и видеото“: every offered item not made yet, but only while the kind
+  // it adds still has one to make (review r5: after both pictures were
+  // pressed, „Давай, и картинките“ must not start the video); otherwise, and
+  // when that kind is not offered, the yes names that kind alone.
+  const tooLeft = Boolean(yes.too) && offer.offered.some((item) => item.kind === yes.too && !made?.has(mediaKey(item)));
+  return mediaYesReply(offer, { made, member, english, kinds: tooLeft ? null : yes.kinds });
 }
 
 // Whether a text speaks of pictures or video at all.

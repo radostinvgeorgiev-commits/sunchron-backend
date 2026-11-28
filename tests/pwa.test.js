@@ -25,9 +25,9 @@ test("the service worker never caches the app or API, only the offline page", ()
 // the page reloads itself when a newer version is live, but not mid-typing.
 test("an open page reloads itself when a newer version is live, unless the person is typing", async () => {
   const { JSDOM } = await import("jsdom");
-  const run = async ({ typed = "" } = {}) => {
+  const run = async ({ typed = "", chat = "" } = {}) => {
     const dom = new JSDOM(
-      `<textarea id="chatInput">${typed}</textarea><button id="sendBtn"></button>`,
+      `<textarea id="chatInput">${typed}</textarea><button id="sendBtn"></button><div id="chatMessages">${chat}</div>`,
       { runScripts: "outside-only", pretendToBeVisual: true, url: "https://cloudaicore.com/" },
     );
     const { window } = dom;
@@ -48,4 +48,14 @@ test("an open page reloads itself when a newer version is live, unless the perso
   };
   assert.equal(await run(), 1);
   assert.equal(await run({ typed: "половин изречение" }), 0);
+  // Review r5 (page-3): a picture or clip made on this page lives only here,
+  // and so do the items still waiting on a card; a reload lost them.
+  const card = (state) =>
+    `<div class="assistant-turn"><section class="media-proposals"><button${state ? ` data-media-state="${state}"` : ""}>🎬 Видео</button></section></div>`;
+  assert.equal(await run({ chat: '<div class="message agent"><figure class="generated-video"><video></video></figure></div>' }), 0);
+  assert.equal(await run({ chat: '<div class="message agent"><figure class="generated-image"><img></figure></div>' }), 0);
+  assert.equal(await run({ chat: card("queued") }), 0);
+  assert.equal(await run({ chat: card("running") }), 0);
+  // A card with nothing pressed, or a failed item, does not hold it back.
+  assert.equal(await run({ chat: card("") }), 1);
 });

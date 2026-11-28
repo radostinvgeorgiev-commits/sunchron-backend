@@ -405,6 +405,22 @@ export async function googleLoginHint(id) {
   return googleSubject(await loadSession(id));
 }
 
+// The address of the Google account behind a connection: the "email" of its
+// sign-in id_token, which Google sends with the "email" scope every
+// „Свържи Google“ asks for. „Изпрати имейл до мен“ goes there (RADKO 28.11:
+// „искам да пратя мейл до мен“). "" when the token has none or it is not
+// verified.
+export async function googleAccountAddress(id) {
+  try {
+    const payload = String((await loadSession(id))?.id_token || "").split(".")[1];
+    if (!payload) return "";
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return claims.email && claims.email_verified !== false ? String(claims.email) : "";
+  } catch {
+    return "";
+  }
+}
+
 // The links to step tokens can be made or changed on another server
 // instance, so the stored copy decides. The cached session is updated in
 // place, so a token refresh that persists it never drops a link made elsewhere.

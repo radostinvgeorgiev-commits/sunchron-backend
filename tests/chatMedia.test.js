@@ -378,6 +378,15 @@ test("a step has make intent when it offers to make the pictures or video", () =
     "Dis oui et je fais les images.",
     "Di' sì e faccio le immagini.",
     "Spune da și fac imaginile.",
+    // Review r5: the future the model translates the line into, a pair, and
+    // a pronoun with its count.
+    "Di «sí» y haré las imágenes.",
+    "Dis « oui » et je ferai l'image.",
+    "Farò le immagini.",
+    "Spune „da” și voi face imaginile.",
+    "Spune „da” și le voi face.",
+    "напиши „да“ и правя и картинките, и видеото.",
+    "say yes and I'll make all of them.",
   ]) {
     assert.equal(makeIntent(step), true, step);
   }
@@ -397,6 +406,14 @@ test("a step has make intent when it offers to make the pictures or video", () =
     "провери текста и кажи какво да променя",
     "правилно ли е видеото?",
     "Правилото за картинките е друго.",
+    // Review r5: Romanian infinitives only after „voi“, and a clitic before a
+    // negated verb.
+    "Voi face analiza videoclipului.",
+    "Spune „da” și nu voi face imaginile.",
+    "make the face brighter in the picture",
+    "No las hago.",
+    "Je ne les fais pas.",
+    "Non le faccio.",
     "",
     undefined,
     3,
@@ -422,6 +439,33 @@ test("an offer is the rule's own line or a close variant, in every page language
     "Dis oui et je fais les images.",
     "Di' sì e faccio le immagini.",
     "Spune da și fac imaginile.",
+    // Review r5: the variants a model writes: other verbs, "with", words
+    // that lead in, "to", the future in other page languages, and a pronoun
+    // with its count.
+    "напиши „да“ и генерирам картинките.",
+    "напиши „да“ и създавам картинките и видеото.",
+    "отговори с „да“ и правя картинките.",
+    "ако искаш, напиши „да“ и правя картинките.",
+    "Ако не искаш видеото, напиши „да“ и правя само картинките.",
+    "напиши „да“, за да ги направя.",
+    "Just say yes and I'll make them.",
+    "reply with yes and I'll make the pictures.",
+    "type yes to make the picture.",
+    "Antworte mit „ja“ und ich erstelle das Bild.",
+    "Di «sí» y haré las imágenes.",
+    "Responde con «sí» y crearé el vídeo.",
+    "Dis « oui » et je ferai l'image.",
+    "Réponds par « oui » et je créerai les images.",
+    "Di' «sì» e farò le immagini.",
+    "Rispondi con «sì» e creerò il video.",
+    "Spune „da” și voi face imaginile.",
+    "Spune „da” și le voi face.",
+    "Răspunde cu „da” și creez imaginile.",
+    "напиши „да“ и ще ги направя всичките.",
+    "напиши „да“ и правя ги и двете.",
+    "say yes and I'll make them both.",
+    "say yes and I'll make all of them.",
+    "say yes and I'll make both the picture and the video.",
   ]) {
     assert.equal(isMediaOffer(step), true, step);
   }
@@ -436,6 +480,13 @@ test("an offer is the rule's own line or a close variant, in every page language
     "ако искаш, правя картинката и видеото вертикални.",
     "правя картинките",
     "кажи дали видеото да е вертикално за телефон.",
+    // Review r5: every mark that asks back, and a lead too long to be one.
+    "напиши „да“ и правя картинките❓",
+    "напиши „да“ и правя картинките؟",
+    "¿Di «sí» y haré las imágenes",
+    "Тук има много думи преди това, които не са част от предложението, а после напиши „да“ и правя картинките.",
+    "Spune „da” și nu voi face imaginile.",
+    "напиши „да“ и правя анализа на видеото.",
     "",
     undefined,
   ]) {
@@ -646,10 +697,31 @@ test("a yes may name what to make; anything more is no such yes", () => {
     ["направи само видеото", ["video"]],
     ["make them", []],
     ["yes, make the two pictures", ["image"]],
+    // Review r5: a verb of drawing names the pictures, of generating every
+    // kind; „2-те“ counts; "and" adds a kind.
+    ["Нарисувай ги", ["image"]],
+    ["нарисувай видеото", ["video"]],
+    ["Генерирай ги", ["image", "video"]],
+    ["направи 2-те", []],
+    ["Да, и видеото", ["video"]],
+    ["Si, imágenes", ["image"]],
   ]) {
     assert.deepEqual([...mediaYesKinds(message)].sort(), kinds, message);
   }
-  for (const message of ["направи картинките по-ярки", "ok thanks", "да, но по-кратко", "картинките", "Покажи видеото", "", undefined, "да ".repeat(30)]) {
+  for (const message of [
+    "направи картинките по-ярки",
+    "ok thanks",
+    "да, но по-кратко",
+    "картинките",
+    "Покажи видеото",
+    // Review r5: picks by place, and "and" with no word that agrees.
+    "направи 2-та",
+    "направи 2-ра",
+    "И видеото",
+    "",
+    undefined,
+    "да ".repeat(30),
+  ]) {
     assert.equal(mediaYesKinds(message), null, String(message));
   }
   // Only the named kinds start; a kind the offer does not have starts nothing.
@@ -658,6 +730,25 @@ test("a yes may name what to make; anything more is no such yes", () => {
   assert.deepEqual(pictures.media, { start: true, items: free(mediaItems.slice(0, 2)) });
   assert.equal(mediaYesAnswer("направи видеото", turnsWith(forLaterAnswer), { mediaCard: { made: [] }, available: both }), null);
   assert.equal(mediaYesAnswer("Покажи видеото", turnsWith(mediaAnswer), { mediaCard: { made: [] }, available: both }), null);
+  // Review r5: „Нарисувай ги“ starts the pictures; „2-те“ counts the items.
+  const start = (message, card = [], answer = mediaAnswer) =>
+    mediaYesAnswer(message, turnsWith(answer), { mediaCard: { made: card }, available: both });
+  assert.deepEqual(start("Нарисувай ги").media, { start: true, items: free(mediaItems.slice(0, 2)) });
+  assert.equal(start("направи 2-те"), null);
+  const twoPictures = [`Картинка 1: ${mediaItems[0].prompt}`, "", `Картинка 2: ${mediaItems[1].prompt}`, "", "Следва: напиши „да“ и правя картинките."].join("\n");
+  assert.deepEqual(start("направи 2-те", [], twoPictures).media, { start: true, items: free(mediaItems.slice(0, 2)) });
+  // "and" adds a kind: everything offered that is not made, while that kind
+  // still has something to make; never the video after both pictures were
+  // pressed, and nothing when the kind is not offered.
+  assert.deepEqual(start("Да, и видеото").media, { start: true, items: free(mediaItems) });
+  assert.deepEqual(start("Sí, y el vídeo").media, { start: true, items: free(mediaItems) });
+  assert.deepEqual(start("Да, и видеото", keys(mediaItems.slice(0, 2))).media, { start: true, items: free(mediaItems.slice(2)) });
+  assert.equal(start("Да, и видеото", keys(mediaItems)).text, "Видеото вече се прави или е готово.");
+  assert.equal(start("Давай, и картинките", keys(mediaItems.slice(0, 2))).text, "Те вече се правят или са готови.");
+  assert.equal(start("Давай, и картинките", keys(mediaItems.slice(0, 2))).media, null);
+  assert.equal(start("Да, и видеото", [], twoPictures), null);
+  // „Si“ that agrees is no "and": only the pictures start.
+  assert.deepEqual(start("Si, imágenes").media, { start: true, items: free(mediaItems.slice(0, 2)) });
 });
 
 // Four pictures and a video, with the given offer line (review r2).
@@ -754,6 +845,16 @@ test("an offer that names some of the described items starts only those", () => 
     ["напиши „да“ и правя картинки 1 и 2 и видеото.", ["image1", "image2", "video"]],
     ["напиши „да“ и правя четирите картинки и видеото.", ["image1", "image2", "image3", "image4", "video"]],
     ["напиши „да“ и ще ги направя.", ["image1", "image2", "image3", "image4", "video"]],
+    // Review r5: ordinals joined by "and", a pair, and a pronoun with
+    // „всичките“.
+    ["напиши „да“ и правя първата и втората картинка.", ["image1", "image2"]],
+    ["напиши „да“ и правя първата, втората и третата картинка.", ["image1", "image2", "image3"]],
+    ["say yes and I'll make the first and second pictures.", ["image1", "image2"]],
+    ["say yes and I'll make the first and the third picture.", ["image1", "image3"]],
+    ["напиши „да“ и правя и картинките, и видеото.", ["image1", "image2", "image3", "image4", "video"]],
+    ["напиши „да“ и правя първата картинка и видеото.", ["image1", "video"]],
+    ["напиши „да“ и ще ги направя всичките.", ["image1", "image2", "image3", "image4", "video"]],
+    ["say yes and I'll make all of them.", ["image1", "image2", "image3", "image4", "video"]],
   ]) {
     const answer = fullAnswer(step);
     const offer = mediaOffer(answer, both);
@@ -799,12 +900,29 @@ test("an offer that names some of the described items starts only those", () => 
     "напиши „да“ и правя последната картинка.",
     "напиши „да“ и правя картинка 7.",
     "напиши „да“ и правя картинка 1 и картинка 7.",
+    // Review r5: a pronoun's count, or "both" before one noun, that is not
+    // how many were described.
+    "напиши „да“ и правя ги и двете.",
+    "say yes and I'll make them both.",
+    "say yes and I'll make both pictures.",
+    "напиши „да“ и правя и двете картинки.",
   ]) {
     const offer = mediaOffer(fullAnswer(step), both);
     assert.equal(offer.card, true, step);
     assert.equal(offer.offer, false, step);
     assert.deepEqual(offer.offered, [], step);
     assert.equal(mediaYesAnswer("да", turnsWith(fullAnswer(step)), options), null, step);
+  }
+  // Two described pictures: a pronoun's count and "both" name them.
+  const twoPictures = [`Картинка 1: ${mediaItems[0].prompt}`, "", `Картинка 2: ${mediaItems[1].prompt}`, ""].join("\n");
+  for (const step of [
+    "напиши „да“ и правя ги и двете.",
+    "say yes and I'll make them both.",
+    "say yes and I'll make both of them.",
+    "say yes and I'll make both pictures.",
+    "напиши „да“ и правя и двете картинки.",
+  ]) {
+    assert.deepEqual(mediaOffer(`${twoPictures}\nСледва: ${step}`, both).offered.length, 2, step);
   }
   // One described picture: „една картинка“ and "a picture" name it.
   const single = `Картинка: ${mediaItems[0].prompt}\n\nСледва: напиши „да“ и правя една картинка.`;
@@ -1368,6 +1486,17 @@ test("the owner's own spellings of a yes start the offer too", () => {
     "Da, napravi gi vsichki",
     "ДЕЙСТВАИ",
     "DA DAVAI MOLYA",
+    // Review r5: six capital words, and the yeses the lists missed.
+    "ДА ДАВАЙ НАПРАВИ ГИ ВСИЧКИТЕ СЕГА",
+    "okey",
+    "OKEY DAVAI",
+    "Alright",
+    "Sure thing",
+    "Да, искам",
+    "Да, точно така",
+    "hayde",
+    "pravi gi",
+    "Генерирай ги",
   ]) {
     assert.deepEqual(
       mediaYesAnswer(message, turnsWith(mediaAnswer), { mediaCard: { made: [] }, available: both })?.media,
@@ -1375,8 +1504,9 @@ test("the owner's own spellings of a yes start the offer too", () => {
       message,
     );
   }
-  // A question is no yes: the model answers it.
-  for (const message of ["Да?", "ДА ДАВАИ?", "napravi gi?"]) {
+  // A question is no yes: the model answers it; so is a thanks, and „Искам
+  // да…“ (review r5).
+  for (const message of ["Да?", "ДА ДАВАИ?", "napravi gi?", "نعم؟", "ہاں؟", "جی؟", "Да❓", "ДА⁉️", "¿Sí", "okey thanks", "Искам да", "да да да да да да да"]) {
     assert.equal(mediaYesAnswer(message, turnsWith(mediaAnswer), { mediaCard: { made: [] }, available: both }), null, message);
   }
 });
